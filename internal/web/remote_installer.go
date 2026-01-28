@@ -18,15 +18,28 @@ type RemoteInstaller struct {
 	cfg        *config.WebSSHConfig
 	server     *config.SSHServerConfig
 	gatewayURL string
+	progressCh chan<- string
 }
 
 // NewRemoteInstaller creates a new remote installer
-func NewRemoteInstaller(client *SSHClient, cfg *config.WebSSHConfig, server *config.SSHServerConfig, gatewayURL string) *RemoteInstaller {
+func NewRemoteInstaller(client *SSHClient, cfg *config.WebSSHConfig, server *config.SSHServerConfig, gatewayURL string, progressCh chan<- string) *RemoteInstaller {
 	return &RemoteInstaller{
 		sshClient:  client,
 		cfg:        cfg,
 		server:     server,
 		gatewayURL: gatewayURL,
+		progressCh: progressCh,
+	}
+}
+
+// sendProgress sends a progress message to the channel if it's set
+func (i *RemoteInstaller) sendProgress(message string) {
+	if i.progressCh != nil {
+		select {
+		case i.progressCh <- message:
+		default:
+			// Channel full or closed, skip message
+		}
 	}
 }
 
@@ -42,6 +55,7 @@ func (i *RemoteInstaller) EnsureBinary() error {
 		return nil
 	}
 
+	i.sendProgress("Checking for infer binary on remote server...")
 	logger.Info("Checking if infer binary exists on remote server", "server", i.server.Name)
 
 	exists, err := i.checkBinaryExists()
@@ -50,16 +64,19 @@ func (i *RemoteInstaller) EnsureBinary() error {
 	}
 
 	if exists {
+		i.sendProgress("Infer binary found on remote server")
 		logger.Info("Infer binary already exists on remote server", "server", i.server.Name)
 		return nil
 	}
 
+	i.sendProgress("Infer binary not found, starting installation...")
 	logger.Info("Infer binary not found, installing...", "server", i.server.Name)
 
 	if err := i.installBinary(); err != nil {
 		return fmt.Errorf("failed to install binary: %w", err)
 	}
 
+	i.sendProgress("Infer binary successfully installed")
 	logger.Info("Infer binary successfully installed", "server", i.server.Name)
 	return nil
 }
@@ -94,31 +111,30 @@ func (i *RemoteInstaller) installBinary() error {
 	version := i.cfg.InstallVersion
 	var err error
 	if version == "latest" || version == "" {
+		i.sendProgress("Fetching latest version from GitHub...")
 		version, err = i.getLatestVersion()
 		if err != nil {
 			return fmt.Errorf("failed to get latest version: %w", err)
 		}
+		i.sendProgress(fmt.Sprintf("Latest version: v%s", version))
 	}
 
 	logger.Info("Installing version using install script", "version", version, "server", i.server.Name)
 
-	installDir := "$HOME/bin"
+	installDir := i.cfg.InstallDir
 	if i.server.InstallPath != "" {
 		installDir = strings.TrimSuffix(i.server.InstallPath, "/infer")
 	}
 
 	installScript := fmt.Sprintf(`
 set -e
-mkdir -p %s
 echo "Downloading and running install script for version v%s..."
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v%s --install-dir %s
 echo "Installation complete!"
 echo "Binary installed to: %s/infer"
-if ! echo $PATH | grep -q "%s"; then
-    echo "Note: Add %s to your PATH to use 'infer' command globally"
-fi
-`, installDir, version, version, installDir, installDir, installDir, installDir)
+`, version, version, installDir, installDir)
 
+	i.sendProgress(fmt.Sprintf("Downloading infer v%s (this may take a minute)...", version))
 	logger.Info("Running installation script", "server", i.server.Name)
 
 	session, err := i.sshClient.NewSession()
@@ -134,6 +150,7 @@ fi
 
 	logger.Info("Installation output", "output", string(output))
 
+	i.sendProgress("Verifying installation...")
 	session2, err := i.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH session for verification: %w", err)
@@ -147,7 +164,9 @@ fi
 	}
 
 	logger.Info("Installation verified", "version_output", string(verifyOutput))
+	i.sendProgress("Binary verified successfully")
 
+	i.sendProgress("Initializing configuration...")
 	session3, err := i.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH session for initialization: %w", err)
@@ -162,6 +181,7 @@ fi
 		logger.Info("Infer configuration initialized", "output", string(initOutput))
 	}
 
+	i.sendProgress("Configuring environment...")
 	session4, err := i.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH session for env setup: %w", err)
@@ -174,7 +194,6 @@ if ! grep -q "INFER_REMOTE_MANAGED" ~/.bashrc 2>/dev/null; then
   echo "# Infer CLI - Remote managed instance" >> ~/.bashrc
   echo "export INFER_REMOTE_MANAGED=true" >> ~/.bashrc
   echo "export INFER_GATEWAY_URL=%s" >> ~/.bashrc
-  echo "export INFER_GATEWAY_MODE=remote" >> ~/.bashrc
 fi`, i.gatewayURL)
 
 	envOutput, err := session4.CombinedOutput(envSetupCmd)

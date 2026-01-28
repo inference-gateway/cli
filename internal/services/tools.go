@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -17,15 +17,6 @@ type LLMToolService struct {
 	registry *tools.Registry
 	enabled  bool
 	config   *config.Config
-}
-
-// NewLLMToolService creates a new LLM tool service with a new registry
-func NewLLMToolService(cfg *config.Config) *LLMToolService {
-	return &LLMToolService{
-		registry: tools.NewRegistry(cfg, nil, nil, nil),
-		enabled:  cfg.Tools.Enabled,
-		config:   cfg,
-	}
 }
 
 // NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry

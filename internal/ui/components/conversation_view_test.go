@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // createMockStyleProvider creates a mock styles provider for testing
@@ -258,7 +259,7 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 	done := make(chan bool)
 	go func() {
 		for i := 0; i < 1000; i++ {
-			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "test-model")
+			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "", "test-model")
 			time.Sleep(time.Microsecond)
 		}
 		done <- true

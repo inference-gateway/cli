@@ -8,6 +8,7 @@ class TerminalManager {
         this.newTabBtn = document.getElementById('new-tab-btn');
         this.serverSelector = document.getElementById('server-selector');
         this.welcomeMessage = document.getElementById('welcome-message');
+        this.screenshotToggleBtn = document.getElementById('screenshot-toggle-btn');
         this.servers = [];
         this.currentServerID = 'local';
 
@@ -16,6 +17,7 @@ class TerminalManager {
         this.serverSelector.addEventListener('change', (e) => {
             this.currentServerID = e.target.value;
         });
+        this.screenshotToggleBtn.addEventListener('click', () => this.toggleScreenshot());
     }
 
     async loadServers() {
@@ -75,6 +77,39 @@ class TerminalManager {
         const newTab = this.tabs.get(tabId);
         if (newTab) {
             newTab.activate();
+            this.updateScreenshotButton(newTab);
+        }
+    }
+
+    updateScreenshotButton(tab) {
+        if (tab && tab.screenshotOverlay) {
+            // Show button for tabs with screenshot overlay
+            this.screenshotToggleBtn.classList.remove('hidden');
+            // Update active state
+            if (tab.screenshotOverlay.enabled) {
+                this.screenshotToggleBtn.classList.add('active');
+            } else {
+                this.screenshotToggleBtn.classList.remove('active');
+            }
+        } else {
+            // Hide button for tabs without screenshot overlay
+            this.screenshotToggleBtn.classList.add('hidden');
+            this.screenshotToggleBtn.classList.remove('active');
+        }
+    }
+
+    toggleScreenshot() {
+        if (this.activeTabId === null) return;
+
+        const activeTab = this.tabs.get(this.activeTabId);
+        if (activeTab && activeTab.screenshotOverlay) {
+            activeTab.screenshotOverlay.toggle();
+            // Update button state
+            if (activeTab.screenshotOverlay.enabled) {
+                this.screenshotToggleBtn.classList.add('active');
+            } else {
+                this.screenshotToggleBtn.classList.remove('active');
+            }
         }
     }
 
@@ -108,9 +143,11 @@ class TerminalTab {
         this.tabElement = null;
         this.containerElement = null;
         this.connected = false;
+        this.screenshotOverlay = null;
 
         this.createUI();
         this.createTerminal();
+        this.createScreenshotOverlay();
         this.connect();
     }
 
@@ -188,6 +225,14 @@ class TerminalTab {
         });
     }
 
+    createScreenshotOverlay() {
+        // Only create overlay for remote SSH sessions
+        if (this.serverID !== 'local' && typeof ScreenshotOverlay !== 'undefined') {
+            this.screenshotOverlay = new ScreenshotOverlay(this);
+            console.log(`Tab ${this.id}: Screenshot overlay created for ${this.serverID}`);
+        }
+    }
+
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -219,6 +264,23 @@ class TerminalTab {
                     this.term.write(new Uint8Array(buffer));
                 });
             } else {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'init_response') {
+                        this.sessionID = msg.session_id;
+                        console.log(`Tab ${this.id}: Session initialized with ID: ${this.sessionID}`);
+                        return;
+                    }
+                    if (msg.type === 'screenshot_port') {
+                        console.log(`Tab ${this.id}: Received screenshot port: ${msg.port}, session: ${this.sessionID}`);
+                        if (this.screenshotOverlay && this.sessionID) {
+                            this.screenshotOverlay.startPolling(this.sessionID);
+                        }
+                        return;
+                    }
+                } catch (e) {
+                    // Not JSON, treat as terminal data
+                }
                 this.term.write(event.data);
             }
         };
@@ -261,6 +323,10 @@ class TerminalTab {
     }
 
     destroy() {
+        if (this.screenshotOverlay) {
+            this.screenshotOverlay.destroy();
+            this.screenshotOverlay = null;
+        }
         if (this.socket) {
             this.socket.close();
         }

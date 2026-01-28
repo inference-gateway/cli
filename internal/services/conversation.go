@@ -58,6 +58,7 @@ func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry
 	}
 
 	r.messages = append(r.messages, msg)
+
 	return nil
 }
 
@@ -467,6 +468,15 @@ func (r *InMemoryConversationRepository) GetSessionCostStats() domain.SessionCos
 	return stats
 }
 
+// SetSessionStats sets the session token and cost statistics (used when loading conversations)
+func (r *InMemoryConversationRepository) SetSessionStats(tokenStats domain.SessionTokenStats, costStats domain.SessionCostStats) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats = tokenStats
+	r.costStats = costStats
+}
+
 // FormatToolResultForLLM formats tool execution results for LLM consumption
 func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
 	if r.formatterService != nil {
@@ -503,4 +513,9 @@ func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain
 // GetCurrentConversationTitle returns the current conversation title
 func (r *InMemoryConversationRepository) GetCurrentConversationTitle() string {
 	return "New Conversation"
+}
+
+// GetCurrentConversationID returns the current conversation ID (empty for in-memory)
+func (r *InMemoryConversationRepository) GetCurrentConversationID() string {
+	return ""
 }

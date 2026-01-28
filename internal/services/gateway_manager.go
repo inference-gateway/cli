@@ -171,17 +171,26 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the gateway container or binary
+// Stop stops the gateway container or binary and cleans up the network
 func (gm *GatewayManager) Stop(ctx context.Context) error {
 	if !gm.isRunning {
 		return nil
 	}
 
+	var stopErr error
 	if gm.containerRuntime != nil && gm.containerID != "" {
-		return gm.stopContainer(ctx)
+		stopErr = gm.stopContainer(ctx)
+	} else {
+		stopErr = gm.stopBinary()
 	}
 
-	return gm.stopBinary()
+	if gm.containerRuntime != nil {
+		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network during gateway shutdown", "session", gm.sessionID, "error", err)
+		}
+	}
+
+	return stopErr
 }
 
 // stopBinary stops the binary process
@@ -203,7 +212,7 @@ func (gm *GatewayManager) stopBinary() error {
 	return nil
 }
 
-// stopContainer stops the container and cleans up the network
+// stopContainer stops the container (network cleanup is handled in Stop() method)
 func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
@@ -212,9 +221,6 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 	if gm.containerRuntime != nil && !gm.containerRuntime.ContainerExists(gm.containerID) {
 		gm.isRunning = false
 		gm.containerID = ""
-		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
-		}
 		return nil
 	}
 
@@ -226,11 +232,6 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 
 	gm.isRunning = false
 	gm.containerID = ""
-	if gm.containerRuntime != nil {
-		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
-		}
-	}
 	return nil
 }
 
@@ -495,20 +496,9 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
 	}
 
-	logDir := filepath.Join(".infer", "logs")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		logger.Warn("Failed to create gateway log directory", "error", err)
-	} else {
-		logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
-		gatewayLogPath := filepath.Join(logDir, logFileName)
-
-		logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			logger.Warn("Failed to open gateway log file", "error", err)
-		} else {
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
-		}
+	// Configure gateway output streams
+	if err := gm.configureGatewayOutput(cmd); err != nil {
+		return err
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -517,6 +507,36 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	gm.binaryCmd = cmd
 
+	return nil
+}
+
+// configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
+func (gm *GatewayManager) configureGatewayOutput(cmd *exec.Cmd) error {
+	if gm.config.Logging.ConsoleOutput == "stderr" {
+		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		if err != nil {
+			return fmt.Errorf("failed to open /dev/null: %w", err)
+		}
+		cmd.Stdout = devNull
+		cmd.Stderr = devNull
+		return nil
+	}
+
+	logDir := filepath.Join(".infer", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create gateway log directory: %w", err)
+	}
+
+	logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
+	gatewayLogPath := filepath.Join(logDir, logFileName)
+
+	logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open gateway log file: %w", err)
+	}
+
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	return nil
 }
 

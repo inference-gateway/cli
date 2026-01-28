@@ -1,0 +1,115 @@
+---
+services:
+  ssh-keygen:
+    image: alpine:3.23.0
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-keygen
+        if [ ! -f /keys/id_rsa ]; then
+          echo "Generating SSH keys for demo..."
+          ssh-keygen -t rsa -b 2048 -f /keys/id_rsa -N ""
+          chmod 600 /keys/id_rsa
+          chmod 644 /keys/id_rsa.pub
+          echo "✓ SSH keys generated in .ssh-keys/"
+        else
+          echo "✓ Using existing SSH keys from .ssh-keys/"
+        fi
+    volumes:
+      - ./.ssh-keys:/keys
+
+  ubuntu-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ubuntu-gui
+    hostname: ubuntu-gui
+    environment:
+      DISPLAY: :1
+      SCREEN_RESOLUTION: 1280x720
+      SCREEN_DEPTH: 24
+      INFER_LOGGING_CONSOLE_OUTPUT: "stderr"
+      INFER_COMPUTER_USE_ENABLED: "true"
+      INFER_COMPUTER_USE_SCREENSHOT_ENABLED: "true"
+      INFER_COMPUTER_USE_SCREENSHOT_STREAMING_ENABLED: "true"
+      INFER_COMPUTER_USE_SCREENSHOT_CAPTURE_INTERVAL: "3"
+      INFER_COMPUTER_USE_SCREENSHOT_BUFFER_SIZE: "30"
+      INFER_COMPUTER_USE_MOUSE_MOVE_ENABLED: "true"
+      INFER_COMPUTER_USE_MOUSE_CLICK_ENABLED: "true"
+      INFER_COMPUTER_USE_KEYBOARD_TYPE_ENABLED: "true"
+    volumes:
+      - ubuntu-home:/home/ubuntu
+      - ./.ssh-keys/id_rsa.pub:/tmp/authorized_keys:ro
+    networks:
+      - computer-use-network
+    depends_on:
+      ssh-keygen:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - pgrep
+        - Xvfb
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cli:
+    image: ghcr.io/inference-gateway/cli:latest
+    hostname: cli
+    environment:
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_WEB_ENABLED: true
+      INFER_WEB_HOST: 0.0.0.0
+      INFER_WEB_PORT: 3000
+      INFER_AGENT_MODEL: anthropic/claude-sonnet-4.5
+      INFER_WEB_SSH_INSTALL_VERSION: 0.96.0
+      INFER_WEB_SSH_AUTO_INSTALL: true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.infer:/home/infer/.infer
+      - ./.ssh-keys:/home/infer/.ssh:ro
+    networks:
+      - computer-use-network
+    depends_on:
+      ssh-keygen:
+        condition: service_completed_successfully
+      ubuntu-gui:
+        condition: service_healthy
+      inference-gateway:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        echo 'Waiting for Ubuntu GUI server to be ready...'
+        sleep 5
+        echo 'Starting Inference Gateway CLI in web mode...'
+        infer chat --web
+    restart: unless-stopped
+
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    hostname: inference-gateway
+    environment:
+      PORT: 8080
+      LOG_LEVEL: info
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    networks:
+      - computer-use-network
+    restart: unless-stopped
+
+volumes:
+  ubuntu-home:
+    driver: local
+  gateway-data:
+    driver: local
+
+networks:
+  computer-use-network:
+    driver: bridge

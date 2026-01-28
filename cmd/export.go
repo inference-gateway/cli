@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -46,8 +47,11 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil)
-	toolFormatterService := services.NewToolFormatterService(toolRegistry)
+	configService := services.NewConfigService(V, cfg)
+	toolRegistry := tools.NewRegistry(configService, nil, nil, nil, nil, nil)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 	pricingService := services.NewPricingService(&cfg.Pricing)
 	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)
 

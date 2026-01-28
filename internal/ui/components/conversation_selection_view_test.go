@@ -3,11 +3,12 @@ package components
 import (
 	"testing"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {

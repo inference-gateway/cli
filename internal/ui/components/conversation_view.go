@@ -9,15 +9,18 @@ import (
 	"strings"
 	"sync"
 
+	spinner "github.com/charmbracelet/bubbles/spinner"
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // NavigationMode represents the current navigation state of the conversation view
@@ -32,30 +35,33 @@ const (
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
-	conversation        []domain.ConversationEntry
-	Viewport            viewport.Model
-	width               int
-	height              int
-	expandedToolResults map[int]bool
-	allToolsExpanded    bool
-	toolFormatter       domain.ToolFormatter
-	lineFormatter       *formatting.ConversationLineFormatter
-	plainTextLines      []string
-	configPath          string
-	versionInfo         *domain.VersionInfo
-	styleProvider       *styles.Provider
-	toolCallRenderer    *ToolCallRenderer
-	markdownRenderer    *markdown.Renderer
-	rawFormat           bool
-	userScrolledUp      bool
-	stateManager        domain.StateManager
-	renderedContent     string
+	conversation           []domain.ConversationEntry
+	Viewport               viewport.Model
+	width                  int
+	height                 int
+	expandedToolResults    map[int]bool
+	expandedThinkingBlocks map[int]bool
+	allToolsExpanded       bool
+	allThinkingExpanded    bool
+	toolFormatter          domain.ToolFormatter
+	lineFormatter          *formatting.ConversationLineFormatter
+	plainTextLines         []string
+	configPath             string
+	versionInfo            *domain.VersionInfo
+	styleProvider          *styles.Provider
+	toolCallRenderer       *ToolCallRenderer
+	markdownRenderer       *markdown.Renderer
+	rawFormat              bool
+	userScrolledUp         bool
+	stateManager           domain.StateManager
+	renderedContent        string
 
 	// Streaming state with mutex protection
-	streamingMu     sync.RWMutex
-	streamingBuffer strings.Builder
-	isStreaming     bool
-	streamingModel  string
+	streamingMu              sync.RWMutex
+	streamingBuffer          strings.Builder
+	streamingReasoningBuffer strings.Builder
+	isStreaming              bool
+	streamingModel           string
 
 	// Viewport mutex to protect concurrent access
 	viewportMu sync.Mutex
@@ -80,16 +86,18 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	}
 
 	return &ConversationView{
-		conversation:        []domain.ConversationEntry{},
-		Viewport:            vp,
-		width:               80,
-		height:              20,
-		expandedToolResults: make(map[int]bool),
-		allToolsExpanded:    false,
-		lineFormatter:       formatting.NewConversationLineFormatter(80, nil),
-		plainTextLines:      []string{},
-		styleProvider:       styleProvider,
-		markdownRenderer:    mdRenderer,
+		conversation:           []domain.ConversationEntry{},
+		Viewport:               vp,
+		width:                  80,
+		height:                 20,
+		expandedToolResults:    make(map[int]bool),
+		expandedThinkingBlocks: make(map[int]bool),
+		allToolsExpanded:       false,
+		allThinkingExpanded:    false,
+		lineFormatter:          formatting.NewConversationLineFormatter(80, nil),
+		plainTextLines:         []string{},
+		styleProvider:          styleProvider,
+		markdownRenderer:       mdRenderer,
 	}
 }
 
@@ -181,6 +189,27 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 	if index >= 0 && index < len(cv.conversation) {
 		return cv.expandedToolResults[index]
+	}
+	return false
+}
+
+func (cv *ConversationView) ToggleAllThinkingExpansion() {
+	cv.allThinkingExpanded = !cv.allThinkingExpanded
+
+	for i, entry := range cv.conversation {
+		if entry.ReasoningContent != "" {
+			cv.expandedThinkingBlocks[i] = cv.allThinkingExpanded
+		}
+	}
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+	}
+}
+
+func (cv *ConversationView) IsThinkingExpanded(index int) bool {
+	if expanded, exists := cv.expandedThinkingBlocks[index]; exists {
+		return expanded
 	}
 	return false
 }
@@ -280,11 +309,12 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
-func (cv *ConversationView) appendStreamingContent(content, model string) {
+func (cv *ConversationView) appendStreamingContent(content, reasoning, model string) {
 	cv.streamingMu.Lock()
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
+	cv.streamingReasoningBuffer.WriteString(reasoning)
 	cv.streamingMu.Unlock()
 
 	cv.updateViewportContentFull()
@@ -296,6 +326,7 @@ func (cv *ConversationView) flushStreamingBuffer() {
 	defer cv.streamingMu.Unlock()
 
 	cv.streamingBuffer.Reset()
+	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
 	cv.streamingModel = ""
 }
@@ -304,8 +335,17 @@ func (cv *ConversationView) flushStreamingBuffer() {
 func (cv *ConversationView) renderStreamingContent() string {
 	cv.streamingMu.RLock()
 	streamingContent := cv.streamingBuffer.String()
+	streamingReasoning := cv.streamingReasoningBuffer.String()
 	model := cv.streamingModel
 	cv.streamingMu.RUnlock()
+
+	var result strings.Builder
+
+	if streamingReasoning != "" {
+		isExpanded := cv.allThinkingExpanded || cv.expandedThinkingBlocks[-1]
+		thinkingBlock := cv.renderThinkingBlock(streamingReasoning, -1, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
 
 	rolePrefixLength := 13
 	if model != "" {
@@ -330,7 +370,8 @@ func (cv *ConversationView) renderStreamingContent() string {
 		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
 	}
 
-	return roleStyled + " " + streamingContent + "\n"
+	result.WriteString(roleStyled + " " + streamingContent + "\n")
+	return result.String()
 }
 
 // updateViewportContentFull performs a full rebuild of the viewport content
@@ -350,14 +391,13 @@ func (cv *ConversationView) updateViewportContentFull() {
 	if cv.toolCallRenderer != nil {
 		toolPreviews := cv.toolCallRenderer.RenderPreviews()
 		if toolPreviews != "" {
-			b.WriteString("\n")
 			b.WriteString(toolPreviews)
-			b.WriteString("\n")
+			b.WriteString("\n\n")
 		}
 	}
 
 	cv.streamingMu.RLock()
-	shouldRenderStreaming := cv.isStreaming && cv.streamingBuffer.Len() > 0
+	shouldRenderStreaming := cv.isStreaming && (cv.streamingBuffer.Len() > 0 || cv.streamingReasoningBuffer.Len() > 0)
 	cv.streamingMu.RUnlock()
 
 	if shouldRenderStreaming {
@@ -444,7 +484,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		return ""
 	}
 
-	return cv.renderStandardEntry(entry, color, role)
+	return cv.renderStandardEntry(entry, index, color, role)
 }
 
 // tryRenderSpecialEntry attempts to render special entry types (user commands, plans, tools)
@@ -459,15 +499,14 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry
 			return true, cv.renderPlanEntry(entry, index)
 		}
 		if entry.PendingToolCall != nil {
-			return true, cv.renderPendingToolEntry(entry, index)
+			return true, cv.renderPendingToolEntry(entry)
 		}
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			color, role := cv.getAssistantRoleAndColor(entry)
 			return true, cv.renderAssistantWithToolCalls(entry, index, color, role)
 		}
 	case "tool":
-		color, role := cv.getToolRoleAndColor(entry)
-		return true, cv.renderToolEntry(entry, index, color, role)
+		return true, cv.renderToolEntry(entry, index)
 	}
 	return false, ""
 }
@@ -528,7 +567,15 @@ func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) 
 }
 
 // renderStandardEntry renders a standard message entry
-func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, color, role string) string {
+func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, index int, color, role string) string {
+	var result strings.Builder
+
+	if entry.Message.Role == sdk.Assistant && entry.ReasoningContent != "" {
+		isExpanded := cv.IsThinkingExpanded(index)
+		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
+
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
@@ -546,18 +593,15 @@ func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, 
 		wrapWidth = 40
 	}
 
-	var formattedContent string
-	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
-		originalWidth := cv.width
-		cv.markdownRenderer.SetWidth(wrapWidth)
-		formattedContent = cv.markdownRenderer.Render(contentStr)
-		cv.markdownRenderer.SetWidth(originalWidth)
+	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
+
+	if entry.Message.Role == sdk.Assistant && entry.Model == "" {
+		cv.renderShortcutOutput(&result, roleStyled, contentStr, wrapWidth)
 	} else {
-		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+		cv.renderInlineContent(&result, roleStyled, entry, contentStr, wrapWidth)
 	}
 
-	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
-	return roleStyled + " " + formattedContent + "\n"
+	return result.String()
 }
 
 // formatRoleWithModel formats the role prefix with optional model label
@@ -572,8 +616,47 @@ func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText stri
 	return rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", color)
 }
 
-func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
+// renderShortcutOutput renders shortcut output on a new line with markdown support
+func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleStyled, contentStr string, wrapWidth int) {
+	result.WriteString(roleStyled + "\n\n")
+	formattedContent := cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
+	lines := strings.Split(formattedContent, "\n")
+	for _, line := range lines {
+		result.WriteString("  " + line + "\n")
+	}
+}
+
+// renderInlineContent renders content inline with the role
+func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry domain.ConversationEntry, contentStr string, wrapWidth int) {
+	var formattedContent string
+	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
+		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
+	} else {
+		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+	}
+	result.WriteString(roleStyled + " " + formattedContent + "\n")
+}
+
+// applyMarkdownIfEnabled applies markdown rendering if enabled, otherwise formats as plain text
+func (cv *ConversationView) applyMarkdownIfEnabled(contentStr string, wrapWidth int) string {
+	if cv.markdownRenderer != nil && !cv.rawFormat {
+		originalWidth := cv.width
+		cv.markdownRenderer.SetWidth(wrapWidth)
+		formattedContent := cv.markdownRenderer.Render(contentStr)
+		cv.markdownRenderer.SetWidth(originalWidth)
+		return formattedContent
+	}
+	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+}
+
+func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
+
+	if entry.ReasoningContent != "" {
+		isExpanded := cv.IsThinkingExpanded(index)
+		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
 
 	var roleStyled string
 	if entry.Model != "" && !entry.Rejected {
@@ -591,40 +674,22 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	}
 
 	if contentStr != "" {
-		modelLabelLen := 0
-		if entry.Model != "" && !entry.Rejected {
-			modelLabelLen = len(fmt.Sprintf(" (%s)", entry.Model))
+		if entry.Model == "" {
+			result.WriteString(roleStyled + "\n")
+			lines := strings.Split(contentStr, "\n")
+			for _, line := range lines {
+				result.WriteString("  " + line + "\n")
+			}
+		} else {
+			modelLabelLen := len(fmt.Sprintf(" (%s)", entry.Model))
+			formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
+			result.WriteString(roleStyled + " " + formattedContent + "\n")
 		}
-		formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
-		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
 	}
 
-	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
-		toolCallsColor := cv.styleProvider.GetThemeColor("accent")
-
-		for _, toolCall := range *entry.Message.ToolCalls {
-			toolName := toolCall.Function.Name
-			toolArgs := toolCall.Function.Arguments
-
-			var argsDisplay string
-			if toolArgs != "" && toolArgs != "{}" {
-				if len(toolArgs) > 100 {
-					argsDisplay = toolArgs[:97] + "..."
-				} else {
-					argsDisplay = toolArgs
-				}
-				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
-				result.WriteString(fmt.Sprintf("  • %s: %s\n", toolNameStyled, argsDisplay))
-			} else {
-				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
-				result.WriteString(fmt.Sprintf("  • %s\n", toolNameStyled))
-			}
-		}
-	}
-
-	return result.String() + "\n"
+	return result.String()
 }
 
 // formatAssistantContent formats assistant message content with proper wrapping
@@ -646,7 +711,7 @@ func (cv *ConversationView) formatAssistantContent(contentStr, role string, mode
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int) string {
 	var isExpanded bool
 	if index >= 0 {
 		isExpanded = cv.IsToolResultExpanded(index)
@@ -660,9 +725,7 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 
 	content := cv.formatEntryContent(entry, isExpanded)
 
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	message := roleStyled + " " + content
-	return message + "\n"
+	return content + "\n"
 }
 
 func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, isExpanded bool) string {
@@ -773,6 +836,48 @@ func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
 	}
 }
 
+// renderThinkingBlock renders a thinking/reasoning block for assistant messages
+func (cv *ConversationView) renderThinkingBlock(thinking string, index int, expanded bool) string {
+	if thinking == "" {
+		return ""
+	}
+
+	if !expanded {
+		preview := cv.extractThinkingPreview(thinking, 3)
+		hint := cv.getToggleThinkingHint("expand")
+		collapsedText := fmt.Sprintf("%s...\n• %s", preview, hint)
+		return cv.styleProvider.RenderDimText(collapsedText) + "\n"
+	}
+
+	wrappedThinking := formatting.FormatResponsiveMessage(thinking, cv.width)
+	hint := cv.getToggleThinkingHint("collapse")
+	expandedText := fmt.Sprintf("%s\n• %s", wrappedThinking, hint)
+	return cv.styleProvider.RenderDimText(expandedText) + "\n"
+}
+
+// extractThinkingPreview extracts the first N lines from thinking text for collapsed view
+func (cv *ConversationView) extractThinkingPreview(text string, maxLines int) string {
+	wrappedText := formatting.FormatResponsiveMessage(text, cv.width)
+	lines := strings.Split(wrappedText, "\n")
+
+	if len(lines) <= maxLines {
+		return wrappedText
+	}
+
+	preview := strings.Join(lines[:maxLines], "\n")
+	return preview
+}
+
+// getToggleThinkingHint returns the keybinding hint for toggling thinking blocks
+func (cv *ConversationView) getToggleThinkingHint(action string) string {
+	if cv.keyHintFormatter == nil {
+		return ""
+	}
+
+	actionID := config.ActionID(config.NamespaceDisplay, "toggle_thinking")
+	return cv.keyHintFormatter.GetKeyHint(actionID, action+" thinking")
+}
+
 // buildConfigLine constructs the configuration line for the welcome screen
 func (cv *ConversationView) buildConfigLine() string {
 	if cv.configPath == "" {
@@ -860,16 +965,47 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress {
-			switch mouseMsg.Button {
-			case tea.MouseButtonWheelUp:
-				cv.userScrolledUp = true
-			case tea.MouseButtonWheelDown:
-			}
-		}
+	if cmd = cv.handleMouseEvents(msg); cmd != nil {
+		return cv, cmd
 	}
 
+	if cmd = cv.handleWindowSizeEvents(msg); cmd != nil {
+		return cv, cmd
+	}
+
+	switch msg := msg.(type) {
+	case domain.ApprovalSelectionChangedEvent:
+		return cv.handleApprovalSelectionChanged(msg, cmd)
+	case domain.UpdateHistoryEvent:
+		return cv.handleUpdateHistoryEvent(msg, cmd)
+	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
+		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+		return cv.handleToolCallEvents(msg, cmd)
+	case domain.BashCommandCompletedEvent:
+		return cv.handleBashCommandCompletedEvent(msg, cmd)
+	case domain.StreamingContentEvent:
+		return cv.handleStreamingContentEvent(msg, cmd)
+	case domain.ScrollRequestEvent:
+		return cv.handleScrollRequestEvent(msg, cmd)
+	case spinner.TickMsg:
+		return cv.handleSpinnerTick(msg, cmd)
+	default:
+		return cv.handleDefaultEvents(msg, cmd)
+	}
+}
+
+// handleMouseEvents processes mouse wheel events
+func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress && mouseMsg.Button == tea.MouseButtonWheelUp {
+			cv.userScrolledUp = true
+		}
+	}
+	return nil
+}
+
+// handleWindowSizeEvents processes window resize events
+func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		cv.SetWidth(windowMsg.Width)
 		cv.height = windowMsg.Height
@@ -879,44 +1015,84 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cv.updateMessageHistoryView()
 		}
 	}
+	return nil
+}
 
+// handleApprovalSelectionChanged processes approval selection change events
+func (cv *ConversationView) handleApprovalSelectionChanged(msg domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+// handleUpdateHistoryEvent processes history update events
+func (cv *ConversationView) handleUpdateHistoryEvent(msg domain.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.flushStreamingBuffer()
+		cv.SetConversation(msg.History)
+	}
+	return cv, cmd
+}
+
+// handleToolCallEvents processes tool call related events
+func (cv *ConversationView) handleToolCallEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.toolCallRenderer != nil {
 		cmd = cv.handleToolCallRendererEvents(msg, cmd)
 	}
+	return cv, cmd
+}
 
-	switch msg := msg.(type) {
-	case domain.UpdateHistoryEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.flushStreamingBuffer()
-			cv.SetConversation(msg.History)
-		}
-		return cv, cmd
-	case domain.BashCommandCompletedEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.SetConversation(msg.History)
-			if cv.toolCallRenderer != nil {
-				cv.toolCallRenderer.ClearPreviews()
-			}
-		}
-		return cv, cmd
-	case domain.StreamingContentEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.appendStreamingContent(msg.Content, msg.Model)
-		}
-		return cv, cmd
-	case domain.ScrollRequestEvent:
-		if msg.ComponentID == "conversation" {
-			return cv.handleScrollRequest(msg)
-		}
-	default:
-		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
-			cv.Viewport, cmd = cv.Viewport.Update(msg)
-			if cv.Viewport.AtBottom() {
-				cv.userScrolledUp = false
-			}
+// handleBashCommandCompletedEvent processes bash command completion events
+func (cv *ConversationView) handleBashCommandCompletedEvent(msg domain.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.SetConversation(msg.History)
+		if cv.toolCallRenderer != nil {
+			cv.toolCallRenderer.ClearPreviews()
 		}
 	}
+	return cv, cmd
+}
 
+// handleStreamingContentEvent processes streaming content events
+func (cv *ConversationView) handleStreamingContentEvent(msg domain.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
+	}
+	return cv, cmd
+}
+
+// handleScrollRequestEvent processes scroll request events
+func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.ComponentID == "conversation" {
+		return cv.handleScrollRequest(msg)
+	}
+	return cv, cmd
+}
+
+// handleSpinnerTick processes spinner tick events
+func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.toolCallRenderer != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if cv.navigationMode != NavigationModeMessageHistory && cv.toolCallRenderer.HasActivePreviews() {
+			cv.updateViewportContent()
+		}
+		if rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	}
+	return cv, cmd
+}
+
+// handleDefaultEvents processes all other events
+func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+		cv.Viewport, cmd = cv.Viewport.Update(msg)
+		if cv.Viewport.AtBottom() {
+			cv.userScrolledUp = false
+		}
+	}
 	return cv, cmd
 }
 
@@ -1172,15 +1348,16 @@ func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
 	return fmt.Sprintf("  Arguments:\n  %s\n", string(argsJSON))
 }
 
-func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry) string {
+	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
+		return ""
+	}
+
 	var result strings.Builder
 
 	var color string
 	var role string
 	switch entry.ToolApprovalStatus {
-	case domain.ToolApprovalPending:
-		color = cv.styleProvider.GetThemeColor("accent")
-		role = "Tool (Pending Approval)"
 	case domain.ToolApprovalApproved:
 		color = cv.styleProvider.GetThemeColor("success")
 		role = "Tool (Approved)"
@@ -1216,88 +1393,46 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
 	}
 
-	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
-		result.WriteString("\n")
-		result.WriteString(cv.renderInlineToolApprovalButtons(index))
-	}
-
 	return result.String() + "\n"
-}
-
-// renderInlineToolApprovalButtons renders inline approval buttons for a tool
-func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
-	selectedIndex := 0
-	if cv.stateManager != nil {
-		if approvalState := cv.stateManager.GetApprovalUIState(); approvalState != nil {
-			selectedIndex = approvalState.SelectedIndex
-		}
-	}
-
-	approveText := "Approve"
-	rejectText := "Reject"
-	autoApproveText := "Auto-Approve"
-
-	successColor := cv.styleProvider.GetThemeColor("success")
-	errorColor := cv.styleProvider.GetThemeColor("error")
-	accentColor := cv.styleProvider.GetThemeColor("accent")
-	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
-
-	// Render buttons with highlighting for selected one
-	var approveStyled, rejectStyled, autoApproveStyled string
-	if selectedIndex == int(domain.ApprovalApprove) {
-		approveStyled = cv.styleProvider.RenderStyledText("[ "+approveText+" ]", styles.StyleOptions{
-			Foreground: successColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		approveStyled = cv.styleProvider.RenderWithColor("[ "+approveText+" ]", successColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalReject) {
-		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
-			Foreground: errorColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalAutoAccept) {
-		autoApproveStyled = cv.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
-			Foreground: accentColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
-	}
-
-	return fmt.Sprintf("  %s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events
 func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	switch msg := msg.(type) {
-	case domain.ParallelToolsStartEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+	case domain.ToolCallPreviewEvent:
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ToolCallUpdateEvent:
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ToolCallReadyEvent:
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ToolExecutionProgressEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.BashOutputChunkEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
-			cmd = tea.Batch(cmd, rendererCmd)
-		}
-	case domain.ParallelToolsCompleteEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ChatCompleteEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	}
@@ -1315,16 +1450,11 @@ func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
 
 func (cv *ConversationView) getToggleToolHint(action string) string {
 	if cv.keyHintFormatter == nil {
-		return "Press ctrl+o to " + action
+		return ""
 	}
 
 	actionID := config.ActionID(config.NamespaceTools, "toggle_tool_expansion")
-	hint := cv.keyHintFormatter.GetKeyHint(actionID, action)
-	if hint == "" {
-		return "Press ctrl+o to " + action
-	}
-
-	return hint
+	return cv.keyHintFormatter.GetKeyHint(actionID, action)
 }
 
 // Message History Navigation Methods
@@ -1334,7 +1464,7 @@ func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSn
 	cv.navigationMode = NavigationModeMessageHistory
 	cv.messageSnapshots = snapshots
 	if len(snapshots) > 0 {
-		cv.historySelectedIndex = len(snapshots) - 1 // Default to most recent
+		cv.historySelectedIndex = len(snapshots) - 1
 	} else {
 		cv.historySelectedIndex = 0
 	}

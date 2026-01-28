@@ -17,6 +17,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
@@ -927,7 +928,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 		return nil
 	}
 
-	services := container.NewServiceContainer(cfg)
+	services := container.NewServiceContainer(cfg, V)
 	toolService := services.GetToolService()
 	toolArgs := map[string]any{
 		"command": command,
@@ -950,7 +951,7 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
-	serviceContainer := container.NewServiceContainer(cfg)
+	serviceContainer := container.NewServiceContainer(cfg, V)
 	toolService := serviceContainer.GetToolService()
 	toolRegistry := serviceContainer.GetToolRegistry()
 
@@ -988,7 +989,8 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	formatterService := services.NewToolFormatterService(toolRegistry)
+	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
+	formatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 
 	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
 	return nil

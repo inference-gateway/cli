@@ -8,9 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/inference-gateway/cli?style=for-the-badge&logo=github)](https://github.com/inference-gateway/cli/releases)
 [![Go Report Card](https://img.shields.io/badge/Go%20Report%20Card-A+-brightgreen?style=for-the-badge&logo=go&logoColor=white)](https://goreportcard.com/report/github.com/inference-gateway/cli)
 
-A powerful command-line interface for managing and interacting with the
-Inference Gateway. This CLI provides tools for configuration, monitoring,
-and management of inference services.
+An agentic command-line assistant that writes code, understands project context, and uses tools to perform real tasks.
 
 </div>
 
@@ -65,6 +63,8 @@ and management of inference services.
 - **Cost Tracking**: Real-time cost calculation for API usage with per-model breakdown and configurable pricing
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
+- **Model Thinking Visualization**: When models use extended thinking,
+  their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
 - **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
   [Learn more →](docs/mcp-integration.md)
@@ -184,6 +184,212 @@ Now that you're up and running, explore these guides:
 - **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
+
+## Claude Code Mode (Subscription)
+
+Save on API costs by using your Claude Max or Pro subscription instead of pay-as-you-go API pricing.
+
+### Overview
+
+Claude Code mode enables you to use your **Claude Max or Pro subscription** ($100-200/month fixed cost)
+instead of paying per token via the Anthropic API. This is ideal for heavy users who want
+predictable monthly costs.
+
+**Cost Comparison:**
+
+| Mode                 | Pricing                                 | Best For                                |
+| -------------------- | --------------------------------------- | --------------------------------------- |
+| **Gateway Mode**     | Pay per token ($3-$75 per million)      | API users, multi-provider needs         |
+| **Claude Code Mode** | Fixed monthly ($100-200)                | Heavy Claude users, cost predictability |
+
+### Prerequisites
+
+- **Claude Max or Pro subscription** - Required ($100-200/month)
+- **Claude Code CLI** - Official CLI from Anthropic
+
+Install the Claude Code CLI:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Setup
+
+1. **Configure for Claude Code mode**:
+
+Edit `.infer/config.yaml`:
+
+```yaml
+# Enable Claude Code mode
+claude_code:
+  enabled: true
+  cli_path: claude  # or /usr/local/bin/claude if not in PATH
+  timeout: 600
+  max_output_tokens: 32000
+  thinking_budget: 10000
+
+# Disable gateway mode
+gateway:
+  run: false
+
+# Set model (no provider prefix needed)
+agent:
+  model: claude-sonnet-4-5-20250929
+```
+
+2. **Authenticate with your subscription**:
+
+```bash
+infer claude-code setup
+```
+
+This opens your browser to authenticate with your Claude Max/Pro account.
+
+3. **Verify authentication**:
+
+```bash
+infer claude-code test
+```
+
+4. **Use normally**:
+
+```bash
+infer chat  # Now using your subscription!
+```
+
+### Available Commands
+
+- `infer claude-code setup` - Authenticate with Claude subscription
+- `infer claude-code test` - Test authentication and CLI integration
+
+### Configuration Options
+
+```yaml
+claude_code:
+  enabled: true                  # Enable/disable Claude Code mode
+  cli_path: claude               # Path to claude binary
+  timeout: 600                   # Command timeout in seconds
+  max_output_tokens: 32000       # Maximum output tokens per request
+  thinking_budget: 10000         # Token budget for extended thinking
+```
+
+**Environment Variables:**
+
+```bash
+export INFER_CLAUDE_CODE_ENABLED=true
+export INFER_CLAUDE_CODE_CLI_PATH=/usr/local/bin/claude
+export INFER_CLAUDE_CODE_TIMEOUT=600
+```
+
+### Features and Limitations
+
+| Feature               | Gateway Mode                            | Claude Code Mode                         |
+| --------------------- | --------------------------------------- | ---------------------------------------- |
+| **Cost**              | Pay-per-token                           | Fixed monthly                            |
+| **Providers**         | All providers (Anthropic, OpenAI, etc.) | Claude only                              |
+| **Models**            | All provider models                     | Claude models only                       |
+| **Images**            | ✓ Supported                             | ✗ Not supported (stripped from messages) |
+| **Prompt Caching**    | ✓ Supported                             | ✗ Not available via CLI                  |
+| **Streaming**         | ✓ Supported                             | ✓ Supported                              |
+| **Tool Execution**    | ✓ Supported                             | ✓ Supported                              |
+| **Extended Thinking** | ✓ Supported                             | ✓ Supported                              |
+| **Authentication**    | API keys                                | Browser login                            |
+
+**Supported Models:**
+
+The following Claude models are available via Claude Code subscription mode:
+
+**Claude 4.5 Series (Latest):**
+
+- `claude-opus-4-5` - Most capable Claude model (vision support)
+- `claude-haiku-4-5-20251001` - Fastest Claude model (vision support)
+- `claude-sonnet-4-5-20250929` - Latest Sonnet model (default, vision support)
+
+**Claude 4.1 Series:**
+
+- `claude-opus-4-1-20250805` - Claude 4.1 Opus (vision support)
+- `claude-sonnet-4-1-20250805` - Claude 4.1 Sonnet (vision support)
+
+**Claude 4 Series:**
+
+- `claude-opus-4-20250514` - Claude 4 Opus (vision support)
+- `claude-sonnet-4-20250514` - Claude 4 Sonnet (vision support)
+
+**Claude 3.7 Series:**
+
+- `claude-3-7-sonnet-20250219` - Claude 3.7 Sonnet (vision support)
+
+**Claude 3.5 Series:**
+
+- `claude-3-5-haiku-20241022` - Claude 3.5 Haiku (vision support)
+
+**Claude 3 Series:**
+
+- `claude-3-haiku-20240307` - Claude 3 Haiku (vision support)
+- `claude-3-opus-20240229` - Claude 3 Opus (vision support)
+
+**Note:** All modern Claude models support vision capabilities. The Claude Code CLI automatically strips images
+from messages when using subscription mode.
+
+### Troubleshooting
+
+**CLI Not Found:**
+
+```bash
+# Check if Claude CLI is installed
+which claude
+
+# If not found, install it
+npm install -g @anthropic-ai/claude-code
+
+# Or set custom path in config
+claude_code:
+  cli_path: /full/path/to/claude
+```
+
+**Authentication Issues:**
+
+```bash
+# Re-authenticate
+infer claude-code setup
+
+# Test authentication
+infer claude-code test
+```
+
+**Update CLI:**
+
+```bash
+npm update -g @anthropic-ai/claude-code
+```
+
+### Switching Between Modes
+
+You can easily switch between gateway and Claude Code modes:
+
+**To Claude Code mode:**
+
+```yaml
+# .infer/config.yaml
+claude_code:
+  enabled: true
+gateway:
+  run: false
+agent:
+  model: claude-sonnet-4-5-20250929  # No provider prefix
+```
+
+**To Gateway mode:**
+
+```yaml
+# .infer/config.yaml
+claude_code:
+  enabled: false
+gateway:
+  run: true
+agent:
+  model: anthropic/claude-sonnet-4-5-20250929  # With provider prefix
+```
 
 ## Commands
 
@@ -776,9 +982,10 @@ infer chat --web  # Uses config file settings
 For development, use [Task](https://taskfile.dev) for build automation:
 
 ```bash
-task dev   # Format, build, and test
 task build # Build binary
 task test  # Run tests
+task fmt   # Format code
+task lint  # Run linter
 ```
 
 See [CLAUDE.md](CLAUDE.md) for detailed development documentation.

@@ -20,6 +20,7 @@ type PersistentConversationRepository struct {
 	storage        storage.ConversationStorage
 	conversationID string
 	metadata       storage.ConversationMetadata
+	metadataMutex  sync.RWMutex
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
@@ -60,10 +61,15 @@ func (r *PersistentConversationRepository) SetTaskTracker(taskTracker domain.Tas
 
 // StartNewConversation saves the current conversation (if any), then begins a new conversation with a unique ID
 func (r *PersistentConversationRepository) StartNewConversation(title string) error {
-	if r.conversationID != "" && r.GetMessageCount() > 0 {
+	r.metadataMutex.RLock()
+	hasExistingConversation := r.conversationID != ""
+	existingConversationID := r.conversationID
+	r.metadataMutex.RUnlock()
+
+	if hasExistingConversation && r.GetMessageCount() > 0 {
 		ctx := context.Background()
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("Failed to save current conversation before starting new one", "error", err, "conversation_id", r.conversationID)
+			logger.Warn("Failed to save current conversation before starting new one", "error", err, "conversation_id", existingConversationID)
 		}
 	}
 
@@ -71,11 +77,13 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		return fmt.Errorf("failed to clear in-memory conversation: %w", err)
 	}
 
-	r.conversationID = uuid.New().String()
-
+	conversationID := uuid.New().String()
 	now := time.Now()
+
+	r.metadataMutex.Lock()
+	r.conversationID = conversationID
 	r.metadata = storage.ConversationMetadata{
-		ID:               r.conversationID,
+		ID:               conversationID,
 		Title:            title,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -85,6 +93,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		TitleGenerated:   false,
 		TitleInvalidated: false,
 	}
+	r.metadataMutex.Unlock()
 
 	if r.taskTracker != nil {
 		r.taskTracker.ClearAllAgents()
@@ -110,11 +119,12 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 		}
 	}
 
+	r.metadataMutex.Lock()
 	r.conversationID = conversationID
 	r.metadata = metadata
+	r.metadataMutex.Unlock()
 
-	r.sessionStats = metadata.TokenStats
-	r.costStats = metadata.CostStats
+	r.SetSessionStats(metadata.TokenStats, metadata.CostStats)
 
 	if r.taskTracker != nil {
 		r.taskTracker.ClearAllAgents()
@@ -125,18 +135,34 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 
 // SaveConversation saves the current conversation to persistent storage
 func (r *PersistentConversationRepository) SaveConversation(ctx context.Context) error {
-	if r.conversationID == "" {
+	r.metadataMutex.RLock()
+	conversationID := r.conversationID
+	r.metadataMutex.RUnlock()
+
+	if conversationID == "" {
 		return fmt.Errorf("no active conversation to save")
 	}
 
-	entries := r.GetMessages()
+	allEntries := r.GetMessages()
+	tokenStats := r.GetSessionTokens()
+	costStats := r.GetSessionCostStats()
 
+	entries := make([]domain.ConversationEntry, 0, len(allEntries))
+	for _, entry := range allEntries {
+		if entry.PendingToolCall == nil {
+			entries = append(entries, entry)
+		}
+	}
+
+	r.metadataMutex.Lock()
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
-	r.metadata.TokenStats = r.GetSessionTokens()
-	r.metadata.CostStats = r.GetSessionCostStats()
+	r.metadata.TokenStats = tokenStats
+	r.metadata.CostStats = costStats
+	metadata := r.metadata
+	r.metadataMutex.Unlock()
 
-	return r.storage.SaveConversation(ctx, r.conversationID, entries, r.metadata)
+	return r.storage.SaveConversation(ctx, conversationID, entries, metadata)
 }
 
 // ListSavedConversations returns a list of saved conversations
@@ -151,25 +177,36 @@ func (r *PersistentConversationRepository) DeleteSavedConversation(ctx context.C
 
 // SetConversationTitle sets the title for the current conversation
 func (r *PersistentConversationRepository) SetConversationTitle(title string) {
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
 	r.metadata.Title = title
 	r.metadata.UpdatedAt = time.Now()
 }
 
 // SetConversationTags sets tags for the current conversation
 func (r *PersistentConversationRepository) SetConversationTags(tags []string) {
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
 	r.metadata.Tags = tags
 	r.metadata.UpdatedAt = time.Now()
 }
 
 // GetCurrentConversationID returns the current conversation ID
 func (r *PersistentConversationRepository) GetCurrentConversationID() string {
+	r.metadataMutex.RLock()
+	defer r.metadataMutex.RUnlock()
 	return r.conversationID
 }
 
 // GetCurrentConversationMetadata returns the current conversation metadata
 func (r *PersistentConversationRepository) GetCurrentConversationMetadata() storage.ConversationMetadata {
-	r.metadata.MessageCount = r.GetMessageCount()
-	r.metadata.TokenStats = r.GetSessionTokens()
+	messageCount := r.GetMessageCount()
+	tokenStats := r.GetSessionTokens()
+
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
+	r.metadata.MessageCount = messageCount
+	r.metadata.TokenStats = tokenStats
 	return r.metadata
 }
 
@@ -180,10 +217,13 @@ func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
 
 // Override AddMessage to trigger auto-save
 func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
+	r.metadataMutex.RLock()
 	wasExistingConversation := r.conversationID != ""
+	needsInit := r.autoSave && r.conversationID == ""
+	r.metadataMutex.RUnlock()
 
-	if r.autoSave && r.conversationID == "" {
-		r.conversationID = uuid.New().String()
+	if needsInit {
+		conversationID := uuid.New().String()
 		now := time.Now()
 
 		title := "New Conversation"
@@ -192,8 +232,10 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			title = domain.CreateTitleFromMessage(contentStr)
 		}
 
+		r.metadataMutex.Lock()
+		r.conversationID = conversationID
 		r.metadata = storage.ConversationMetadata{
-			ID:           r.conversationID,
+			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -207,35 +249,44 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			TitleGenerated:   false,
 			TitleInvalidated: false,
 		}
+		r.metadataMutex.Unlock()
 	}
 
 	if err := r.InMemoryConversationRepository.AddMessage(msg); err != nil {
 		return err
 	}
 
-	if wasExistingConversation && r.metadata.TitleGenerated && r.titleGenerator != nil {
+	r.metadataMutex.RLock()
+	titleGenerated := r.metadata.TitleGenerated
+	conversationIDForInvalidation := r.conversationID
+	r.metadataMutex.RUnlock()
+
+	if wasExistingConversation && titleGenerated && r.titleGenerator != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			if err := r.titleGenerator.InvalidateTitle(ctx, r.conversationID); err != nil {
-				logger.Warn("Failed to invalidate conversation title", "error", err, "conversationID", r.conversationID)
+			if err := r.titleGenerator.InvalidateTitle(ctx, conversationIDForInvalidation); err != nil {
+				logger.Warn("Failed to invalidate conversation title", "error", err, "conversationID", conversationIDForInvalidation)
 			}
 		}()
 	}
 
-	if r.autoSave && r.conversationID != "" {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+	r.metadataMutex.RLock()
+	shouldAutoSave := r.autoSave && r.conversationID != ""
+	r.metadataMutex.RUnlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+	if shouldAutoSave {
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation", "error", err)
-			}
-		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation", "error", err)
+			return err
+		}
 	}
 
 	return nil
@@ -247,8 +298,10 @@ func (r *PersistentConversationRepository) Clear() error {
 		return err
 	}
 
-	r.conversationID = ""
 	now := time.Now()
+
+	r.metadataMutex.Lock()
+	r.conversationID = ""
 	r.metadata = storage.ConversationMetadata{
 		Title:            "New Conversation",
 		CreatedAt:        now,
@@ -259,6 +312,7 @@ func (r *PersistentConversationRepository) Clear() error {
 		TitleGenerated:   false,
 		TitleInvalidated: false,
 	}
+	r.metadataMutex.Unlock()
 
 	return nil
 }
@@ -269,18 +323,21 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 		return err
 	}
 
-	if r.autoSave && r.conversationID != "" {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+	r.metadataMutex.RLock()
+	shouldAutoSave := r.autoSave && r.conversationID != ""
+	r.metadataMutex.RUnlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+	if shouldAutoSave {
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
-			}
-		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
+			return err
+		}
 	}
 
 	return nil
@@ -288,8 +345,12 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 
 // AddTokenUsage wraps the in-memory implementation with persistence and auto-save
 func (r *PersistentConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
-	if r.autoSave && r.conversationID == "" {
-		r.conversationID = uuid.New().String()
+	r.metadataMutex.RLock()
+	needsInit := r.autoSave && r.conversationID == ""
+	r.metadataMutex.RUnlock()
+
+	if needsInit {
+		conversationID := uuid.New().String()
 		now := time.Now()
 
 		title := "New Conversation"
@@ -302,8 +363,10 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 			}
 		}
 
+		r.metadataMutex.Lock()
+		r.conversationID = conversationID
 		r.metadata = storage.ConversationMetadata{
-			ID:           r.conversationID,
+			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -317,24 +380,28 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 			TitleGenerated:   false,
 			TitleInvalidated: false,
 		}
+		r.metadataMutex.Unlock()
 	}
 
 	if err := r.InMemoryConversationRepository.AddTokenUsage(model, inputTokens, outputTokens, totalTokens); err != nil {
 		return err
 	}
 
-	if r.autoSave && r.conversationID != "" {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+	r.metadataMutex.RLock()
+	shouldAutoSave := r.autoSave && r.conversationID != ""
+	r.metadataMutex.RUnlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+	if shouldAutoSave {
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation after token usage", "error", err)
-			}
-		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation after token usage", "error", err)
+			return err
+		}
 	}
 
 	return nil
@@ -350,5 +417,7 @@ func (r *PersistentConversationRepository) Close() error {
 
 // GetCurrentConversationTitle returns the current conversation title
 func (r *PersistentConversationRepository) GetCurrentConversationTitle() string {
+	r.metadataMutex.RLock()
+	defer r.metadataMutex.RUnlock()
 	return r.metadata.Title
 }

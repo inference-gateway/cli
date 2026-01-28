@@ -25,6 +25,7 @@ const (
 type Config struct {
 	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
+	ClaudeCode       ClaudeCodeConfig       `yaml:"claude_code" mapstructure:"claude_code"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -42,6 +43,7 @@ type Config struct {
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
+	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
 	configDir        string
 }
 
@@ -64,6 +66,16 @@ type GatewayConfig struct {
 	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
 }
 
+// ClaudeCodeConfig contains Claude Code CLI integration settings
+type ClaudeCodeConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	CLIPath         string `yaml:"cli_path" mapstructure:"cli_path"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
+	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
+	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"`
+}
+
 // ClientConfig contains HTTP client settings
 type ClientConfig struct {
 	Timeout int         `yaml:"timeout" mapstructure:"timeout"`
@@ -82,8 +94,22 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool   `yaml:"debug" mapstructure:"debug"`
-	Dir   string `yaml:"dir" mapstructure:"dir"`
+	Debug         bool   `yaml:"debug" mapstructure:"debug"`
+	Dir           string `yaml:"dir" mapstructure:"dir"`
+	ConsoleOutput string `yaml:"console_output" mapstructure:"console_output"`
+}
+
+// ValidateConsoleOutput validates the console_output field value
+func (l *LoggingConfig) ValidateConsoleOutput() error {
+	if l.ConsoleOutput == "" {
+		return nil
+	}
+
+	if l.ConsoleOutput == "stderr" {
+		return nil
+	}
+
+	return fmt.Errorf("invalid console_output value '%s': must be empty or 'stderr'", l.ConsoleOutput)
 }
 
 // ImageConfig contains image service settings
@@ -247,6 +273,89 @@ type SandboxConfig struct {
 	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
+// ComputerUseConfig contains computer use tool settings
+type ComputerUseConfig struct {
+	Enabled        bool                   `yaml:"enabled" mapstructure:"enabled"`
+	FloatingWindow FloatingWindowConfig   `yaml:"floating_window" mapstructure:"floating_window"`
+	Screenshot     ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
+	RateLimit      RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Tools          ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
+}
+
+// ComputerUseToolsConfig contains individual computer use tool settings
+type ComputerUseToolsConfig struct {
+	MouseMove     MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
+	MouseClick    MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
+	MouseScroll   MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
+	KeyboardType  KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
+	GetFocusedApp GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
+	ActivateApp   ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
+}
+
+// ScreenshotToolConfig contains screenshot-specific tool settings
+type ScreenshotToolConfig struct {
+	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
+	MaxWidth         int    `yaml:"max_width" mapstructure:"max_width"`
+	MaxHeight        int    `yaml:"max_height" mapstructure:"max_height"`
+	TargetWidth      int    `yaml:"target_width" mapstructure:"target_width"`
+	TargetHeight     int    `yaml:"target_height" mapstructure:"target_height"`
+	Format           string `yaml:"format" mapstructure:"format"`
+	Quality          int    `yaml:"quality" mapstructure:"quality"`
+	StreamingEnabled bool   `yaml:"streaming_enabled" mapstructure:"streaming_enabled"`
+	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"`
+	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`
+	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
+	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
+	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
+}
+
+// FloatingWindowConfig contains floating progress window settings
+type FloatingWindowConfig struct {
+	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
+	RespawnOnClose bool   `yaml:"respawn_on_close" mapstructure:"respawn_on_close"`
+	Position       string `yaml:"position" mapstructure:"position"`
+	AlwaysOnTop    bool   `yaml:"always_on_top" mapstructure:"always_on_top"`
+}
+
+// MouseMoveToolConfig contains mouse move-specific tool settings
+type MouseMoveToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// MouseClickToolConfig contains mouse click-specific tool settings
+type MouseClickToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// MouseScrollToolConfig contains mouse scroll-specific tool settings
+type MouseScrollToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// KeyboardTypeToolConfig contains keyboard type-specific tool settings
+type KeyboardTypeToolConfig struct {
+	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxTextLength int  `yaml:"max_text_length" mapstructure:"max_text_length"`
+	TypingDelayMs int  `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
+}
+
+// GetFocusedAppToolConfig contains get focused app-specific tool settings
+type GetFocusedAppToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// ActivateAppToolConfig contains activate app-specific tool settings
+type ActivateAppToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// RateLimitConfig contains rate limiting settings
+type RateLimitConfig struct {
+	Enabled             bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxActionsPerMinute int  `yaml:"max_actions_per_minute" mapstructure:"max_actions_per_minute"`
+	WindowSeconds       int  `yaml:"window_seconds" mapstructure:"window_seconds"`
+}
+
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
@@ -282,6 +391,7 @@ type WebSSHConfig struct {
 	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
 	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
 	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
+	InstallDir     string `yaml:"install_dir" mapstructure:"install_dir"`
 }
 
 // SSHServerConfig contains configuration for a single remote SSH server
@@ -306,6 +416,13 @@ type SystemRemindersConfig struct {
 	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
+// AgentContextConfig contains settings for agent context enrichment
+type AgentContextConfig struct {
+	GitContextEnabled      bool `yaml:"git_context_enabled" mapstructure:"git_context_enabled"`
+	WorkingDirEnabled      bool `yaml:"working_dir_enabled" mapstructure:"working_dir_enabled"`
+	GitContextRefreshTurns int  `yaml:"git_context_refresh_turns" mapstructure:"git_context_refresh_turns"`
+}
+
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
 	Model              string                `yaml:"model" mapstructure:"model"`
@@ -313,6 +430,7 @@ type AgentConfig struct {
 	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
 	SystemPromptRemote string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	Context            AgentContextConfig    `yaml:"context" mapstructure:"context"`
 	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
@@ -569,6 +687,14 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			VisionEnabled: true,
 		},
+		ClaudeCode: ClaudeCodeConfig{
+			Enabled:         false,
+			CLIPath:         "claude",
+			Timeout:         600,
+			MaxOutputTokens: 32000,
+			ThinkingBudget:  10000,
+			MaxTurns:        10,
+		},
 		Client: ClientConfig{
 			Timeout: 200,
 			Retry: RetryConfig{
@@ -581,8 +707,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Logging: LoggingConfig{
-			Debug: false,
-			Dir:   "",
+			Debug:         false,
+			Dir:           "",
+			ConsoleOutput: "",
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
@@ -705,6 +832,11 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Agent: AgentConfig{
 			Model: "",
+			Context: AgentContextConfig{
+				GitContextEnabled:      true,
+				WorkingDirEnabled:      true,
+				GitContextRefreshTurns: 10,
+			},
 			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
 
 CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
@@ -775,6 +907,41 @@ PARALLEL TOOL EXECUTION:
 - The system supports up to 5 concurrent tool executions by default
 - This reduces back-and-forth communication and significantly improves performance
 
+COMPUTER USE TOOLS:
+You have TWO ways to interact with the system:
+1. Direct terminal tools (PRIMARY): Bash, Read, Write, Edit, Grep, etc.
+2. GUI automation tools (FALLBACK): MouseMove, KeyboardType, MouseClick, GetLatestScreenshot
+
+CRITICAL: ALWAYS prefer direct terminal tools over GUI automation when possible.
+
+When to use DIRECT tools (preferred):
+- Reading files: Use Read tool, NOT KeyboardType to open an editor
+- Writing files: Use Write/Edit tools, NOT GUI text editor
+- Running commands: Use Bash tool, NOT KeyboardType in a terminal window
+- Searching code: Use Grep tool, NOT opening files via GUI
+- File operations: Use Bash/Read/Write, NOT GUI file manager
+
+When to use GUI tools (only when necessary):
+- Interacting with graphical applications that have no CLI equivalent
+- Testing UI behavior or visual elements
+- Automating tasks that MUST be done through a GUI
+- Taking screenshots to inspect visual state
+
+Why prefer direct tools:
+- 10-100x faster execution (no GUI rendering delays)
+- More reliable (no window focus issues, no timing problems)
+- Precise output (structured data, not visual interpretation)
+- Parallel execution support (batch multiple operations)
+- Lower resource usage (no display server overhead)
+
+Example - WRONG approach:
+<tool>MouseMove(x=100, y=200)</tool>
+<tool>MouseClick(button="left")</tool>
+<tool>KeyboardType(text="cat file.txt")</tool>
+
+Example - CORRECT approach:
+<tool>Read(file_path="/path/to/file.txt")</tool>
+
 WORKFLOW:
 When asked to implement features or fix issues:
 1. Plan with TodoWrite
@@ -811,7 +978,33 @@ EXAMPLE:
 
 FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
 
-CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.`,
+CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.
+
+COMPUTER USE TOOLS:
+You have TWO ways to interact with the system:
+1. Direct terminal tools (PRIMARY): Bash, Read, Write, Edit, Grep, etc.
+2. GUI automation tools (FALLBACK): MouseMove, KeyboardType, MouseClick, GetLatestScreenshot
+
+CRITICAL: ALWAYS prefer direct terminal tools over GUI automation when possible.
+
+When to use DIRECT tools (preferred):
+- Reading files: Use Read tool, NOT KeyboardType to open an editor
+- Writing files: Use Write/Edit tools, NOT GUI text editor
+- Running commands: Use Bash tool, NOT KeyboardType in a terminal window
+- Searching code: Use Grep tool, NOT opening files via GUI
+- System operations: Use Bash for systemctl, journalctl, docker, etc.
+
+When to use GUI tools (only when necessary):
+- Interacting with graphical applications that have no CLI equivalent
+- Testing UI behavior or visual elements
+- Remote desktop administration tasks that MUST be done through a GUI
+
+Why prefer direct tools:
+- 10-100x faster execution (no GUI rendering delays)
+- More reliable (no window focus issues, no timing problems)
+- Works over SSH without X11 forwarding
+- Precise output (structured data, not visual interpretation)
+- Lower resource usage (critical for remote systems)`,
 			SystemReminders: SystemRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
@@ -974,8 +1167,60 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				KnownHostsPath: "~/.ssh/known_hosts",
 				AutoInstall:    true,
 				InstallVersion: "latest",
+				InstallDir:     "~/.local/bin",
 			},
 			Servers: []SSHServerConfig{},
+		},
+		ComputerUse: ComputerUseConfig{
+			Enabled: false,
+			FloatingWindow: FloatingWindowConfig{
+				Enabled:        true,
+				RespawnOnClose: true,
+				Position:       "top-right",
+				AlwaysOnTop:    true,
+			},
+			Screenshot: ScreenshotToolConfig{
+				Enabled:          true,
+				MaxWidth:         1920,
+				MaxHeight:        1080,
+				TargetWidth:      1024,
+				TargetHeight:     768,
+				Format:           "jpeg",
+				Quality:          85,
+				StreamingEnabled: true,
+				CaptureInterval:  3,
+				BufferSize:       5,
+				TempDir:          "",
+				LogCaptures:      false,
+				ShowOverlay:      true,
+			},
+			RateLimit: RateLimitConfig{
+				Enabled:             true,
+				MaxActionsPerMinute: 60,
+				WindowSeconds:       60,
+			},
+			Tools: ComputerUseToolsConfig{
+				MouseMove: MouseMoveToolConfig{
+					Enabled: true,
+				},
+				MouseClick: MouseClickToolConfig{
+					Enabled: true,
+				},
+				MouseScroll: MouseScrollToolConfig{
+					Enabled: true,
+				},
+				KeyboardType: KeyboardTypeToolConfig{
+					Enabled:       true,
+					MaxTextLength: 1000,
+					TypingDelayMs: 100,
+				},
+				GetFocusedApp: GetFocusedAppToolConfig{
+					Enabled: true,
+				},
+				ActivateApp: ActivateAppToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 }
@@ -1045,6 +1290,9 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
+	// Computer use tools bypass approval entirely (checked in shouldRequireApproval)
+	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":
+		return false
 	}
 
 	return globalApproval
@@ -1054,6 +1302,12 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 // A2A tools are enabled when a2a.enabled is true, regardless of tools.enabled
 func (c *Config) IsA2AToolsEnabled() bool {
 	return c.A2A.Enabled
+}
+
+// IsClaudeCodeMode checks if Claude Code CLI mode is enabled
+// When enabled, the CLI will use Claude Max/Pro subscription instead of gateway
+func (c *Config) IsClaudeCodeMode() bool {
+	return c.ClaudeCode.Enabled
 }
 
 func (c *Config) GetAgentConfig() *AgentConfig {
@@ -1153,6 +1407,16 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	if c.ClaudeCode.Enabled {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			claudeDir := filepath.Join(homeDir, ".claude")
+			if strings.HasPrefix(absPath, claudeDir) {
+				return nil
+			}
+		}
 	}
 
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {

@@ -6,6 +6,162 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.3](https://github.com/inference-gateway/cli/compare/v0.100.2...v0.100.3) (2026-01-27)
+
+### 🧹 Maintenance
+
+* **deps:** Bump modernc.org/sqlite from 1.44.2 to 1.44.3 ([#385](https://github.com/inference-gateway/cli/issues/385)) ([357b451](https://github.com/inference-gateway/cli/commit/357b451b4eceaf0aa81de2f5ac77519404d7da8d))
+
+## [0.100.2](https://github.com/inference-gateway/cli/compare/v0.100.1...v0.100.2) (2026-01-26)
+
+### 🐛 Bug Fixes
+
+* Ensure agent wakes up on A2A task completion ([#384](https://github.com/inference-gateway/cli/issues/384)) ([a35a5e9](https://github.com/inference-gateway/cli/commit/a35a5e995af4bec660fb471f72c650843950b9f8))
+
+## [0.100.1](https://github.com/inference-gateway/cli/compare/v0.100.0...v0.100.1) (2026-01-26)
+
+### ♻️ Code Refactoring
+
+* Implement JSONL v2 format for conversation storage ([#383](https://github.com/inference-gateway/cli/issues/383)) ([b09fe84](https://github.com/inference-gateway/cli/commit/b09fe8489de7ff1f7ce53ef11174a9efd370de13))
+
+## [0.100.0](https://github.com/inference-gateway/cli/compare/v0.99.2...v0.100.0) (2026-01-26)
+
+### 🚀 Features
+
+* Add Claude Code subscription mode support ([#382](https://github.com/inference-gateway/cli/issues/382)) ([a04504e](https://github.com/inference-gateway/cli/commit/a04504e868989e1d7c0fec9ea1746e287b1e7841))
+
+## [0.99.2](https://github.com/inference-gateway/cli/compare/v0.99.1...v0.99.2) (2026-01-25)
+
+### ♻️ Code Refactoring
+
+* Replace agent loop with event-driven state machine ([#379](https://github.com/inference-gateway/cli/issues/379)) ([536fdc6](https://github.com/inference-gateway/cli/commit/536fdc600254a266a518ad6e1044778b7c790032))
+
+## [0.99.1](https://github.com/inference-gateway/cli/compare/v0.99.0...v0.99.1) (2026-01-24)
+
+### ♻️ Code Refactoring
+
+* Ensure only one chat session at a time ([#378](https://github.com/inference-gateway/cli/issues/378)) ([4ebea6d](https://github.com/inference-gateway/cli/commit/4ebea6d57bf3f078175772f48c3daf19c406c85a))
+
+### 📚 Documentation
+
+* Revise README description for CLI functionality ([6f3702f](https://github.com/inference-gateway/cli/commit/6f3702f65e62e455b606c0dbd16a85477bb93824))
+
+### 🧹 Maintenance
+
+* Update package dependencies to latest versions ([#377](https://github.com/inference-gateway/cli/issues/377)) ([43960ce](https://github.com/inference-gateway/cli/commit/43960ced89a733d2d23ba791b1a1fbdc471c8562))
+
+## [0.99.0](https://github.com/inference-gateway/cli/compare/v0.98.0...v0.99.0) (2026-01-24)
+
+### 🚀 Features
+
+* Add model context system for improved project awareness ([#375](https://github.com/inference-gateway/cli/issues/375)) ([1afb26b](https://github.com/inference-gateway/cli/commit/1afb26bd382ba6ac976fe549bd4232085495db24))
+
+### 🐛 Bug Fixes
+
+* Skip migrations for JSONL storage in infer init ([#376](https://github.com/inference-gateway/cli/issues/376)) ([3793345](https://github.com/inference-gateway/cli/commit/3793345d249ec37584f576bb8f0c1a33bd06e57e)), closes [#372](https://github.com/inference-gateway/cli/issues/372)
+
+### ♻️ Code Refactoring
+
+* Improve the testability of conversation optimizer ([#374](https://github.com/inference-gateway/cli/issues/374)) ([4c7c428](https://github.com/inference-gateway/cli/commit/4c7c428f42bb16ba1bd0ac2d5ea889cf6454fdb6))
+
+## [0.98.0](https://github.com/inference-gateway/cli/compare/v0.97.0...v0.98.0) (2026-01-24)
+
+### 🚀 Features
+
+* Add Moonshot and Kimi AI model support ([#373](https://github.com/inference-gateway/cli/issues/373)) ([c4bc709](https://github.com/inference-gateway/cli/commit/c4bc7097c58ed9e3e3906049b4b67e0cf9311afc))
+
+## [0.97.0](https://github.com/inference-gateway/cli/compare/v0.96.0...v0.97.0) (2026-01-19)
+
+### 🚀 Features
+
+* Add model thinking visualization with collapsible blocks ([#366](https://github.com/inference-gateway/cli/issues/366)) ([533c02a](https://github.com/inference-gateway/cli/commit/533c02a251386b4a04c24f08ac609973630559ea)), closes [#360](https://github.com/inference-gateway/cli/issues/360)
+
+### ♻️ Code Refactoring
+
+* Consolidate chat handler and improve context helpers ([#363](https://github.com/inference-gateway/cli/issues/363)) ([cb48392](https://github.com/inference-gateway/cli/commit/cb48392ce4e13dadcad25f8ac85cb44ee055ee1e))
+
+### 📚 Documentation
+
+* Re-create AGENTS.md and CLAUDE.md ([a04d109](https://github.com/inference-gateway/cli/commit/a04d109255eb84493c6095679cf2e12d6ed5be3d))
+
+### 🧹 Maintenance
+
+* Add unknown words to cspell ([9a42067](https://github.com/inference-gateway/cli/commit/9a420670cc4b2ddaac320edf8c97456ec57647af))
+* **deps:** Bump golang.org/x/crypto from 0.46.0 to 0.47.0 ([#367](https://github.com/inference-gateway/cli/issues/367)) ([93ff87e](https://github.com/inference-gateway/cli/commit/93ff87ebc1cda8062197ae66d19ca44bb40d217f))
+* **deps:** Bump modernc.org/sqlite from 1.42.2 to 1.43.0 ([#362](https://github.com/inference-gateway/cli/issues/362)) ([7368ac6](https://github.com/inference-gateway/cli/commit/7368ac6e0188fbc8684b14ea8ba1432f42989820))
+* **deps:** Bump modernc.org/sqlite from 1.43.0 to 1.44.2 ([#369](https://github.com/inference-gateway/cli/issues/369)) ([2c942f9](https://github.com/inference-gateway/cli/commit/2c942f9837fd0211c336ff3fd790b39c7919df13))
+* **examples:** Bump versions ([80a024f](https://github.com/inference-gateway/cli/commit/80a024f01e1477ebd21a8fbdacf1a173b0bfe9d0))
+* **deps:** Update flox environment dependencies ([#364](https://github.com/inference-gateway/cli/issues/364)) ([b179523](https://github.com/inference-gateway/cli/commit/b1795237a55b92d63526fecd7d9645bcf06363d0))
+
+## [0.96.0](https://github.com/inference-gateway/cli/compare/v0.95.1...v0.96.0) (2026-01-11)
+
+### 🚀 Features
+
+* Add computer use tools for remote and local GUI automation ([#359](https://github.com/inference-gateway/cli/issues/359)) ([7de2498](https://github.com/inference-gateway/cli/commit/7de2498abc40d2d3796714fe11bcf84b102d6a7a))
+
+## [0.96.0-rc.5](https://github.com/inference-gateway/cli/compare/v0.96.0-rc.4...v0.96.0-rc.5) (2026-01-11)
+
+### ♻️ Code Refactoring
+
+* Update Docker configuration and cspell ([5944c30](https://github.com/inference-gateway/cli/commit/5944c3011cee028a3b3115549737dcb997c7a6f4))
+
+## [0.96.0-rc.4](https://github.com/inference-gateway/cli/compare/v0.96.0-rc.3...v0.96.0-rc.4) (2026-01-10)
+
+### ♻️ Code Refactoring
+
+* **config:** Use the ~/.local/bin directory for the infer binary ([d3783f5](https://github.com/inference-gateway/cli/commit/d3783f57b3a99874a69bbb7fde8cca42527493a6))
+
+### 🧹 Maintenance
+
+* **example:** Update the example to use the new binary path ([3febe65](https://github.com/inference-gateway/cli/commit/3febe6526ab407effc3505404b9fa9db4c54995f))
+
+## [0.96.0-rc.3](https://github.com/inference-gateway/cli/compare/v0.96.0-rc.2...v0.96.0-rc.3) (2026-01-10)
+
+### ♻️ Code Refactoring
+
+* Redirect logs to stderr when using containers ([f9d0d7a](https://github.com/inference-gateway/cli/commit/f9d0d7a3ab7734fd0ebb742039dca452e3be7328))
+
+## [0.96.0-rc.2](https://github.com/inference-gateway/cli/compare/v0.96.0-rc.1...v0.96.0-rc.2) (2026-01-10)
+
+### ♻️ Code Refactoring
+
+* Don't run as root ([f24663e](https://github.com/inference-gateway/cli/commit/f24663ee218fd9cc2f0b5386f4a9dc7328acc97e))
+
+## [0.96.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.95.1...v0.96.0-rc.1) (2026-01-10)
+
+### 🚀 Features
+
+* Add computer use tools with screenshot streaming and remote GUI control ([ebe5cef](https://github.com/inference-gateway/cli/commit/ebe5cefda7f06b242ca7f8898cfcff05add4090d))
+* Add floating window for computer use ([c863fef](https://github.com/inference-gateway/cli/commit/c863fef2c3543a3ef2b8e94051edbbdc145281fe))
+* Add macOS support and focus management tools ([0153abc](https://github.com/inference-gateway/cli/commit/0153abcc623b385565ca9534632170ad9e1395ee))
+* Add native macOS floating window for computer use ([b10a45f](https://github.com/inference-gateway/cli/commit/b10a45fb558b29e0ff2b72d703d536090067df6f))
+* Add typing delay and improve X11 keyboard support ([5bd5520](https://github.com/inference-gateway/cli/commit/5bd552050c8bcd350f4f12b7bd98e21e7e51215f))
+
+### 🐛 Bug Fixes
+
+* Thread safety, coordinate fixes, and manual tool execution ([32adf3b](https://github.com/inference-gateway/cli/commit/32adf3b25f5598acc6bbde43946c291cc7a1783b))
+* Window title overlapping the conversation history ([0ed1361](https://github.com/inference-gateway/cli/commit/0ed136146ac055d2f03cefb6ccec887e30ed1f83))
+
+### ♻️ Code Refactoring
+
+* Add some space when approval actions appear ([c69d5b4](https://github.com/inference-gateway/cli/commit/c69d5b42da925c1e2d8e42ecab8538568955a3c1))
+* Forward inference gateway cli logs to stdout for easy debugging ([cdc8657](https://github.com/inference-gateway/cli/commit/cdc8657271c8813094575dc720e9c422ad346f34))
+* Improve UI layout and mouse click logic ([ed38ee7](https://github.com/inference-gateway/cli/commit/ed38ee707cb058dcd20f7f627cc154c9d97d3f9a))
+* Progress on events ([d0b6631](https://github.com/inference-gateway/cli/commit/d0b6631c1756901e0a2f7a1f240ea7993facc90f))
+* Refactor computer use tools with display protocol abstraction ([9c32649](https://github.com/inference-gateway/cli/commit/9c326499634e00de3609c62ee4eb9f0224dbb0d2))
+* Remove horizontal scrolling from ComputerUse dialog ([157bc38](https://github.com/inference-gateway/cli/commit/157bc38de0770d5904af16c2666cba566b19a0eb))
+* **web:** Rename screenshot overlay to preview ([841bb09](https://github.com/inference-gateway/cli/commit/841bb09444c59987cbcb4390c2cecf6bc6e62452))
+* Replace interface{} with any type ([75610a0](https://github.com/inference-gateway/cli/commit/75610a0f4a51c910a4b9ffe2ff75f215496fc870))
+
+### 📚 Documentation
+
+* Add computer use tools documentation ([ab05f03](https://github.com/inference-gateway/cli/commit/ab05f030542534b6e76bda2ecb829948cf66db6b))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code ([ffe52bf](https://github.com/inference-gateway/cli/commit/ffe52bfd3e0de2ddf7b721fb25cdfedc5c067fe1))
+* Enable computer use ([69ead75](https://github.com/inference-gateway/cli/commit/69ead75e80aece0e09b1d70a8c66fffd86e44063))
+
 ## [0.95.1](https://github.com/inference-gateway/cli/compare/v0.95.0...v0.95.1) (2026-01-01)
 
 ### ♻️ Code Refactoring

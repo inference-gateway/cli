@@ -61,6 +61,12 @@ func addDisplayBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "display",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceDisplay, "toggle_thinking")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+k"},
+		Description: "expand/collapse thinking blocks",
+		Category:    "display",
+		Enabled:     &enabled,
+	}
 }
 
 func addNavigationBindings(bindings map[string]KeyBindingEntry) {

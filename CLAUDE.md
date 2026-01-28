@@ -4,20 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-The Inference Gateway CLI is a Go-based command-line interface for managing AI model interactions.
-It provides interactive chat, autonomous agent execution, and extensive tool integration for LLMs.
-The project uses Clean Architecture with domain-driven design patterns.
+This is the **Inference Gateway CLI** - a Go-based command-line interface for managing and interacting with AI inference services.
+It provides interactive chat, autonomous agent capabilities, and extensive tool execution for AI models.
 
-## Build & Test Commands
+**Key Technology Stack:**
 
-### Development Commands
+- **Language**: Go 1.25+
+- **UI Framework**: Bubble Tea (TUI framework)
+- **Gateway Integration**: Via `inference-gateway/sdk` and `inference-gateway/adk`
+- **Storage Backends**: JSONL (default), SQLite, PostgreSQL, Redis, In-memory
+- **Build Tool**: Task (Taskfile)
+- **Environment**: Flox (development environment manager)
+
+## Common Commands
+
+### Building and Testing
 
 ```bash
-# Build the binary (pure Go, no CGO required)
+# Build the binary
 task build
 
 # Run all tests
 task test
+
+# Run tests with verbose output
+task test:verbose
 
 # Run tests with coverage
 task test:coverage
@@ -27,705 +38,439 @@ task fmt
 
 # Run linter
 task lint
-
-# Run all quality checks (format, vet, lint, test)
-task check
-
-# Complete development workflow (format, build, test)
-task dev
-
-# Verify dependencies
-task verify:deps
 ```
 
-### Module Management
+### Running the CLI
 
 ```bash
-# Tidy go modules
-task mod:tidy
+# Run locally without building
+task run CLI_ARGS="chat"
+task run CLI_ARGS="status"
+task run CLI_ARGS="version"
 
-# Generate mocks for testing
+# Or after building
+./infer chat
+./infer agent "task description"
+./infer status
+```
+
+### Development Setup
+
+```bash
+# Download Go modules
+task mod:download
+
+# Install pre-commit hooks
+task precommit:install
+
+# Run pre-commit on all files
+task precommit:run
+```
+
+### Mock Generation
+
+```bash
+# Regenerate all mocks (uses counterfeiter)
 task mocks:generate
 
 # Clean generated mocks
 task mocks:clean
 ```
 
-### Running Specific Tests
+### Release Builds
 
 ```bash
-# Run tests for a specific package
-go test ./internal/services/tools
+# Build for current platform
+task release:build
 
-# Run specific test with verbose output
-go test -v ./internal/services -run TestSpecificFunction
+# Build macOS binary
+task release:build:darwin
 
-# Run tests with race detection
-go test -race ./...
+# Build portable Linux binary (via Docker)
+task release:build:linux
+
+# Build and push container images
+task container:build
+task container:push
 ```
 
-## Architecture
+## Architecture Overview
 
-### Clean Architecture Layers
+### Core Package Structure
 
-The codebase follows Clean Architecture principles with clear separation:
+```text
+cmd/                    # CLI commands (cobra-based)
+├── agent.go           # Autonomous agent command
+├── chat.go            # Interactive chat command
+├── config.go          # Configuration management commands
+├── agents.go          # A2A agent management
+└── root.go            # Root command and global flags
 
-1. **Domain Layer** (`internal/domain/`): Core business logic and interfaces
-   - Contains domain models, interfaces, and business rules
-   - No dependencies on external frameworks or infrastructure
-   - Defines contracts for services through interfaces
+internal/
+├── app/               # Application initialization
+├── container/         # Dependency injection container
+├── domain/            # Domain interfaces and models
+│   ├── interfaces.go  # Core service interfaces
+│   └── filewriter/    # File writing domain logic
+├── handlers/          # Message/event handlers
+│   ├── chat_handler.go              # Main chat orchestrator
+│   ├── chat_message_processor.go    # Message processing logic
+│   └── chat_shortcut_handler.go     # Shortcut command handling
+├── services/          # Business logic implementations
+│   ├── agent.go                     # Agent service
+│   ├── conversation.go              # Conversation management
+│   ├── conversation_optimizer.go    # Conversation compaction
+│   ├── approval_policy.go           # Tool approval logic
+│   ├── tools/                       # Tool implementations
+│   │   ├── registry.go              # Tool registry
+│   │   ├── bash.go                  # Bash execution
+│   │   ├── read.go, write.go        # File I/O
+│   │   ├── edit.go, multiedit.go    # File editing
+│   │   ├── web_search.go            # Web search
+│   │   └── mcp_tool.go              # MCP integration
+│   └── filewriter/                  # File writing services
+├── infra/             # Infrastructure layer
+│   ├── storage/       # Conversation storage backends
+│   │   ├── factory.go               # Storage factory
+│   │   ├── sqlite.go                # SQLite implementation
+│   │   ├── postgres.go              # PostgreSQL implementation
+│   │   ├── redis.go                 # Redis implementation
+│   │   └── memory.go                # In-memory implementation
+│   └── adapters/      # External service adapters
+├── ui/                # Terminal UI components
+│   ├── components/    # Reusable UI components
+│   ├── styles/        # Theme and styling
+│   └── keybinding/    # Keyboard handling
+├── shortcuts/         # Shortcut system
+│   └── registry.go    # Shortcut management
+├── web/               # Web terminal interface
+└── utils/             # Shared utilities
 
-2. **Application Layer** (`cmd/`, `internal/handlers/`): Application-specific logic
-   - CLI command implementations using Cobra
-   - Event handlers for chat and tool execution
-   - Orchestrates domain services
+config/                # Configuration structs
+└── config.go          # Main config definition
+```
 
-3. **Infrastructure Layer** (`internal/infra/`, `internal/services/`): External concerns
-   - Storage implementations (JSONL, SQLite, PostgreSQL, Redis)
-   - Tool implementations (Bash, Read, Write, Grep, etc.)
-   - SDK integration for model communication
+### Architectural Patterns
 
-4. **UI Layer** (`internal/ui/`): Terminal user interface
-   - BubbleTea components for interactive chat
-   - Approval modals for tool execution
-   - Theme management and styling
+#### Dependency Injection Container
 
-### Dependency Injection
+The application uses a service container pattern (`internal/container/container.go`) for dependency management.
+All services are initialized once and injected where needed:
 
-The project uses a **ServiceContainer** pattern (`internal/container/container.go`):
+- Configuration service
+- Model service
+- Agent service
+- Tool service
+- Conversation repository
+- Storage backends
+- MCP manager
 
-- Centralizes dependency creation and wiring
-- Manages service lifecycles
-- Provides access to all services through getter methods
-- Initialized once at application startup
+#### Tool System Architecture
 
-Example:
+Tools are self-contained modules that implement the `domain.Tool` interface:
+
+1. **Tool Interface** (`internal/domain/interfaces.go`): Defines `Execute()`, `Definition()`, `Validate()`, `IsEnabled()`
+2. **Tool Registry** (`internal/services/tools/registry.go`): Manages tool registration and lookup
+3. **Tool Implementations** (`internal/services/tools/*.go`): Individual tool logic
+4. **Approval System** (`internal/services/approval_policy.go`): Handles user approval for sensitive operations
+
+#### Message Flow (Chat Mode)
+
+1. User input → `ChatHandler.Handle()` → routes to appropriate handler
+2. `ChatMessageProcessor` processes user message
+3. Tool calls → `ToolService.Execute()` → Tool registry → Individual tool
+4. Tool approval (if required) → Approval UI → Execute or reject
+5. LLM response → Stream to UI via Bubble Tea messages
+6. Conversation saved to storage backend
+
+#### Agent vs Chat Mode
+
+- **Chat Mode**: Interactive TUI with real-time user input and approval
+- **Agent Mode**: Autonomous background execution with minimal user interaction
+- Both use the same `AgentService` but different handlers and UI flows
+
+#### Storage Backend Strategy
+
+The conversation storage uses a factory pattern with pluggable backends:
+
+- JSONL: Default, file-based, human-readable, zero-config
+- SQLite: SQL-based, file-based, structured queries
+- PostgreSQL: Production-grade, concurrent access
+- Redis: Fast, in-memory, distributed setups
+- Memory: Testing and ephemeral sessions
+
+Backend selection is config-driven via `config.yaml` or environment variables.
+
+### Handler Architecture
+
+**ChatHandler Responsibilities:**
+
+- Orchestrates message flow between user, LLM, and tools
+- Manages conversation state
+- Routes shortcuts to `ChatShortcutHandler`
+- Handles tool approval workflow
+- Manages background bash shells
+- Integrates with message queue for async operations
+
+**Key Handler Methods:**
+
+- `Handle()`: Main entry point, routes messages
+- `handleUserMessage()`: Processes user input
+- `handleToolCalls()`: Executes tool requests from LLM
+- `handleShortcut()`: Delegates to shortcut handler
+
+## Tool Development
+
+When adding a new tool:
+
+1. **Create tool file**: `internal/services/tools/your_tool.go`
+2. **Implement `domain.Tool` interface**:
+   - `Definition()`: Returns SDK tool definition with JSON schema
+   - `Execute(ctx, args)`: Tool execution logic
+   - `Validate(args)`: Parameter validation
+   - `IsEnabled()`: Check if tool is enabled
+3. **Register tool**: Add to `registry.go` in `registerTools()`
+4. **Add config**: Update `config/config.go` if tool needs configuration
+5. **Write tests**: Create `your_tool_test.go`
+6. **Update approval policy**: If tool needs approval, configure in `approval_policy.go`
+
+**Tool Parameter Extraction:**
+
+Use `ParameterExtractor` for type-safe parameter extraction:
 
 ```go
-container := container.NewServiceContainer(cfg, viper)
-chatService := container.ChatService()
-toolService := container.ToolService()
+extractor := tools.NewParameterExtractor(args)
+filePath, err := extractor.GetString("file_path")
+lineNum, err := extractor.GetInt("line_number")
 ```
 
-### Tool System Architecture
+**Important Tool Conventions:**
 
-Tools are implemented as plugins following a registry pattern:
-
-1. **Tool Interface** (`internal/domain/tools.go`): Defines contract for all tools
-2. **Tool Registry** (`internal/services/tools/registry.go`): Manages tool registration and execution
-3. **Individual Tools** (`internal/services/tools/*.go`): Specific tool implementations
-
-Each tool must implement:
-
-- `Definition()`: Returns tool schema for LLM
-- `Execute(ctx, args)`: Executes the tool with given arguments
-- `Validate(args)`: Validates arguments before execution
-- `IsEnabled()`: Reports if tool is enabled in config
+- Always respect `ctx` for cancellation
+- Return `*domain.ToolExecutionResult` with meaningful output
+- Use `config` to check if tool is enabled
+- File operations should use absolute paths
+- Validate all user inputs before execution
 
 ## Configuration System
 
-### Configuration Precedence (highest to lowest)
+The CLI uses a 2-layer configuration system:
 
-1. Environment variables (`INFER_*`)
-2. Command line flags
-3. Project config (`.infer/config.yaml`)
-4. Userspace config (`~/.infer/config.yaml`)
-5. Built-in defaults
+1. **Project config**: `.infer/config.yaml` (project-specific)
+2. **Userspace config**: `~/.infer/config.yaml` (user defaults)
+3. **Environment variables**: `INFER_*` prefix (highest priority)
+4. **Command flags**: Override config values
 
-### Important Config Files
+**Key Config Sections:**
 
-- **`config/config.go`**: Config struct definitions and defaults
-- **`config/agents.go`**: A2A agent configuration
-- **`.infer/config.yaml`**: Project-level configuration (committed)
-- **`~/.infer/config.yaml`**: User-level configuration (not committed)
+- `gateway.*`: Gateway connection settings
+- `agent.*`: Agent behavior (model, max_turns, system prompt)
+- `tools.*`: Tool-specific configuration
+- `chat.*`: Chat UI settings (theme, keybindings, status bar)
+- `web.*`: Web terminal settings
+- `pricing.*`: Cost tracking configuration
+- `computer_use.*`: Computer use tool settings
 
-### Environment Variable Pattern
+Environment variable format: `INFER_<PATH>` (dots become underscores)
+Example: `agent.model` → `INFER_AGENT_MODEL`
 
-All config fields can be overridden via environment variables:
+## Model Context System
 
-- Format: `INFER_<PATH>` where dots become underscores
-- Example: `gateway.url` → `INFER_GATEWAY_URL`
-- Example: `tools.bash.enabled` → `INFER_TOOLS_BASH_ENABLED`
+The CLI automatically enhances the model's context with project awareness to reduce confusion and improve accuracy.
 
-### Keybinding Configuration
+### Git Context
 
-The CLI supports customizable keybindings for the chat interface with a namespace-based organization
-system. All keybindings are visible in the config file by default for self-documentation.
+When operating in a git repository, the model receives:
 
-**Configuration Location:** `chat.keybindings` in config.yaml
+- **Repository name** (extracted from remote URL, e.g., "inference-gateway/cli")
+- **Current branch** (e.g., "main", "feature/xyz")
+- **Main branch** name (detected as "main" or "master")
+- **Recent commits** (last 5 commits with hashes and messages)
 
-**Default State:** Keybindings are **disabled by default**. Users must explicitly enable them.
+This context is automatically injected into the system prompt on every request.
+The git context is cached and refreshed every N turns (configurable) to balance performance with up-to-date information.
 
-**Namespace System:**
+### Working Directory
 
-Action IDs use the format `namespace_action` (e.g., `global_quit`, `mode_cycle_agent_mode`). This
-allows the same key to be used in different namespaces without conflict, as actions are
-context-specific. The namespace is extracted from the first part of the action ID before the
-underscore.
+The model receives the current working directory path, helping it understand:
 
-**Environment Variable Support:**
+- Where files should be read from or written to
+- Which directory commands will execute in
+- Project location context
 
-Keybindings can be configured via environment variables using comma-separated or newline-separated
-lists:
+### Performance Characteristics
 
-```bash
-# Enable keybindings
-export INFER_CHAT_KEYBINDINGS_ENABLED=true
+- **First prompt:** +50-100ms (git command execution)
+- **Subsequent prompts:** <1ms (cached)
+- **Token overhead:** ~100-300 tokens (depends on git history)
+- **Git refresh:** Every 10 turns by default (configurable)
 
-# Set keys for an action (comma-separated or newline-separated)
-export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+### Configuration
 
-# Multiline format
-export INFER_CHAT_KEYBINDINGS_BINDINGS_MODE_CYCLE_AGENT_MODE_KEYS="shift+tab
-ctrl+m"
-
-# Enable/disable specific actions
-export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
-```
-
-Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
-
-- `<ACTION_ID>`: Uppercase namespaced action ID (e.g., `GLOBAL_QUIT`, `MODE_CYCLE_AGENT_MODE`)
-- `<FIELD>`: Either `KEYS` (comma/newline-separated) or `ENABLED` (true/false)
-
-**Configuration Structure:**
+Control via `.infer/config.yaml`:
 
 ```yaml
-chat:
-  theme: tokyo-night
-  keybindings:
-    enabled: false  # Set to true to enable custom keybindings
-    bindings:
-      # All keybindings are listed with their defaults
-      # Format: namespace_action
-      global_quit:
-        keys:
-          - ctrl+c
-        description: "exit application"
-        category: "global"
-        enabled: true
-      mode_cycle_agent_mode:
-        keys:
-          - shift+tab  # Modify this to change the key
-        description: "cycle agent mode (Standard/Plan/Auto-Accept)"
-        category: "mode"
-        enabled: true
-      tools_toggle_tool_expansion:
-        keys:
-          - ctrl+o
-        enabled: false  # Disable specific actions
-      # ... all other keybindings visible
+agent:
+  context:
+    git_context_enabled: true        # Enable git repository context
+    working_dir_enabled: true        # Enable working directory context
+    git_context_refresh_turns: 10    # Refresh git context every N turns
 ```
 
-**Key Features:**
-
-- **Namespace-Based Organization**: Actions organized by namespace for context-specific bindings
-- **Context-Aware Conflicts**: Same key allowed across namespaces, validated within namespaces
-- **Self-Documenting**: All keybindings are visible in config with descriptions
-- **Fallback to Defaults**: Remove an entry from config to use the default
-- **No Runtime Validation**: Config is loaded once at startup for performance
-- **Explicit Validation**: Run `infer keybindings validate` before committing changes
-
-**Available Commands:**
+Or via environment variables:
 
 ```bash
-# List all keybindings with their current assignments
-infer keybindings list
-
-# Set custom key for an action (use namespaced action ID)
-infer keybindings set mode_cycle_agent_mode ctrl+m
-
-# Disable a specific action
-infer keybindings disable display_toggle_raw_format
-
-# Enable a specific action
-infer keybindings enable display_toggle_raw_format
-
-# Reset all keybindings to defaults
-infer keybindings reset
-
-# Validate configuration for conflicts, invalid keys, and unknown actions
-infer keybindings validate
+INFER_AGENT_CONTEXT_GIT_CONTEXT_ENABLED=true
+INFER_AGENT_CONTEXT_WORKING_DIR_ENABLED=true
+INFER_AGENT_CONTEXT_GIT_CONTEXT_REFRESH_TURNS=10
 ```
 
-**Validation:**
+### Benefits
 
-The `validate` command checks for:
+**Before:**
 
-- Unknown action IDs not in the registry
-- Invalid keys not in the known keys list
-- Key conflicts **within the same namespace** (cross-namespace conflicts are allowed)
+- Model confused about repository name ("inference-gateway" vs "inference-gateway/cli" vs "inference-gateway/infer")
+- No awareness of current branch or git state
+- Unclear about working directory
 
-Validation is namespace-aware: actions in different namespaces can share the same key without
-triggering a conflict, as they operate in different contexts.
+**After:**
 
-**Key Action Namespaces:**
+- Model knows exact repository: `inference-gateway/cli`
+- Aware of current branch and recent commits
+- Understands working directory context
+- Reduced need for clarifying questions
 
-Actions are organized by namespace. Each namespace represents a specific context or domain:
+### Technical Implementation
 
-- **global**: Application-level actions (e.g., `global_quit`, `global_cancel`)
-- **chat**: Chat-specific actions (e.g., `chat_enter_key_handler`)
-- **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
-- **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
-- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`)
-- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`,
-  `text_editing_history_up`)
-- **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
-- **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
-- **selection**: Selection mode controls (e.g., `selection_toggle_mouse_mode`)
-- **plan_approval**: Plan approval navigation (e.g., `plan_approval_plan_approval_accept`)
-- **help**: Help system (e.g., `help_toggle_help`)
+- **Location:** `internal/services/agent_utils.go`
+- **Context builders:** `buildGitContextInfo()`, `buildWorkingDirectoryInfo()`
+- **Git helpers:** `isGitRepository()`, `getGitRepositoryName()`, `getGitBranch()`, `getGitMainBranch()`, `getRecentCommits()`
+- **Caching:** Thread-safe caching via `sync.RWMutex` in `AgentServiceImpl`
+- **Error handling:** All git operations fail gracefully (log debug, return empty string)
 
-**Implementation Details:**
+## Shortcuts System
 
-- Registry pattern in `internal/ui/keybinding/`
-- Layer-based priority system for context-aware bindings
-- Namespace definitions in `config/config.go` with `ActionID()` helper function
-- Config loaded once at chat startup (no runtime reloading)
-- Conflict resolution: layer system handles priority, last binding wins at runtime
-- Key validation uses `internal/ui/keys/` package
-- Namespace-aware validation in `cmd/keybindings.go`
+Shortcuts are YAML-defined commands stored in `.infer/shortcuts/`:
 
-## Code Conventions
+- **Built-in shortcuts**: `/clear`, `/exit`, `/help`, `/switch`, `/theme`, `/cost`
+- **Git shortcuts**: `/git status`, `/git commit`, `/git push`
+- **SCM shortcuts**: `/scm issues`, `/scm pr-create`
+- **Custom shortcuts**: User-defined in project
 
-### File Organization
+Shortcuts support:
 
-- **Snake case** for file names: `conversation_title.go`
-- **Camel case** for Go identifiers: `ConversationTitle`
-- **Grouped imports**: stdlib, third-party, local
-- **Tests co-located**: `file.go` + `file_test.go`
+- Subcommands (e.g., `/git commit`)
+- AI-powered snippets (LLM-generated content)
+- Command chaining
+- Dynamic context injection
 
-### Naming Patterns
+## Testing Guidelines
 
-- **Services**: End with `Service` (e.g., `ChatService`, `ToolService`)
-- **Repositories**: End with `Repository` (e.g., `ConversationRepository`)
-- **Interfaces**: Descriptive names, often ending in `-er` (e.g., `FileWriter`, `PathValidator`)
-- **Config structs**: End with `Config` (e.g., `GatewayConfig`, `ToolsConfig`)
+**Test Organization:**
 
-### Error Handling
+- Unit tests: `*_test.go` files alongside implementation
+- Mocks: `tests/mocks/` (generated via counterfeiter)
 
-- Use `fmt.Errorf` with `%w` for error wrapping
-- Return errors explicitly, don't panic
-- Provide context in error messages
-- Use domain-specific error types when appropriate
-
-### Testing Patterns
-
-1. **Table-driven tests** for multiple scenarios:
-
-```go
-tests := []struct {
-    name    string
-    input   string
-    want    string
-    wantErr bool
-}{
-    // test cases
-}
-```
-
-2. **Mock generation** with counterfeiter:
-
-- Mocks stored in `tests/mocks/`
-- Regenerate with `task mocks:generate`
-
-3. **Test helpers** for common setup:
-
-```go
-func setupTestConfig() *config.Config {
-    return &config.Config{
-        Tools: config.ToolsConfig{Enabled: true},
-    }
-}
-```
-
-## Key Design Patterns
-
-### Repository Pattern
-
-Storage implementations abstracted behind interfaces:
-
-- Interface: `domain.ConversationRepository`
-- Implementations: `storage.JsonlStorage`, `storage.SQLiteStorage`, `storage.PostgresStorage`, `storage.RedisStorage`
-- Factory: `storage.NewConversationStorage(cfg)`
-
-### Strategy Pattern
-
-Tools and services use strategy pattern for different implementations:
-
-- Grep backend: ripgrep vs Go implementation
-- Gateway mode: Docker vs binary mode
-- Storage backend: JSONL (default) vs SQLite vs PostgreSQL vs Redis
-
-### Observer Pattern
-
-Event-driven architecture for chat and agent execution:
-
-- Events defined in `internal/domain/events.go`
-- Handlers in `internal/handlers/`
-- State management through `StateManager`
-
-### Registry Pattern
-
-Tools registered and accessed through central registry:
-
-```go
-registry := tools.NewRegistry(cfg, services...)
-registry.GetTool("Bash")
-registry.ListTools()
-```
-
-## Adding New Tools
-
-See `CONTRIBUTING.md` for detailed guide. Key steps:
-
-1. Create `internal/services/tools/your_tool.go`
-2. Implement `Tool` interface (Definition, Execute, Validate, IsEnabled)
-3. Register in `internal/services/tools/registry.go`
-4. Add config section to `config/config.go` if needed
-5. Write tests in `your_tool_test.go`
-
-## Working with UI Components
-
-The TUI uses BubbleTea framework:
-
-- Models in `internal/ui/components/`
-- Shared styles in `internal/ui/styles/`
-- Theme system in `internal/domain/theme_provider.go`
-
-### Testing UI Components
-
-Use the internal `test-view` command for rapid iteration:
+**Running Specific Tests:**
 
 ```bash
-./infer test-view approval    # Test approval modal
-./infer test-view diff         # Test diff renderer
-./infer test-view multiedit    # Test MultiEdit formatting
+# Test specific package
+go test ./internal/services/tools
+
+# Test specific function
+go test ./internal/services/tools -run TestBashTool
+
+# With race detector
+go test -race ./...
 ```
 
-Generate snapshots for regression testing:
+## MCP (Model Context Protocol) Integration
 
-```bash
-task test:ui:snapshots    # Generate baseline snapshots
-task test:ui:verify       # Verify against snapshots
-```
+The CLI supports MCP servers for extended tool capabilities:
 
-## Commit Message Format
+- MCP manager: `internal/services/mcp_manager.go`
+- MCP tools: `internal/services/tools/mcp_tool.go`
+- Configuration: `config.Tools.MCPServers`
 
-Follow Conventional Commits specification:
+MCP servers are configured in `.infer/config.yaml` and tools are dynamically registered at runtime.
+
+## A2A (Agent-to-Agent) System
+
+A2A enables agents to delegate tasks to specialized agents:
+
+- Agent registry: `~/.infer/agents.yaml`
+- A2A tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`
+- Agent polling: Background monitor for task status
+- Configuration: Via `infer agents` commands
+
+## Model Thinking Visualization
+
+When models use extended thinking (reasoning), their internal thought process is displayed as collapsible blocks above responses.
+
+### Implementation Details
+
+- **Data Storage**: Thinking content is stored in `ConversationEntry.ThinkingContent` field
+- **Event Flow**: Reasoning content flows through `StreamingContentEvent.ReasoningContent` during streaming
+- **Rendering**: Thinking blocks are rendered before assistant message content in `renderStandardEntry()` and `renderAssistantWithToolCalls()`
+- **Display State**: Collapsed by default, showing first sentence with ellipsis
+- **Styling**: Rendered using dim color (theme-aware) with 💭 icon
+- **Expansion**: Toggled via keybinding (configurable as `display_toggle_thinking`, defaults to `ctrl+k`)
+
+### Key Files
+
+- `internal/domain/interfaces.go`: `ConversationEntry.ThinkingContent` field
+- `internal/domain/ui_events.go`: `StreamingContentEvent.ReasoningContent` field
+- `internal/ui/components/conversation_view.go`: Rendering logic and expansion state
+- `config/keybindings.go`: Keybinding definition
+- `internal/ui/keybinding/actions.go`: Action handler registration
+
+### User Controls
+
+- Toggle thinking block expansion/collapse using the configured keybinding (default: `ctrl+k`)
+- Default state: collapsed (first sentence visible)
+- Expanded state: full thinking content with word wrapping
+- Keybinding can be customized via `chat.keybindings.bindings.display_toggle_thinking` in config
+
+## Commit Message Convention
+
+This project uses **Conventional Commits**:
 
 ```text
 <type>[optional scope]: <description>
 
 [optional body]
-
 [optional footer]
 ```
 
-**Types**: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+**Types:** feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
 
-**Examples**:
+**Breaking changes:** Add `!` after type (e.g., `feat!:`) or footer `BREAKING CHANGE:`
 
-- `feat: add WebSearch tool for DuckDuckGo and Google`
-- `fix(tools): resolve Bash command validation edge case`
-- `docs: update tool configuration guide`
-- `feat!: change tool approval system interface` (breaking change)
+Pre-commit hooks automatically validate commit messages.
 
-## Important Implementation Details
+## Development Workflow
 
-### Tool Approval System
+1. **Make changes** following Go best practices
+2. **Run quality checks**: `task precommit:run` (runs formatting, linting, validation)
+3. **Test thoroughly**: `task test`
+4. **Commit with conventional commit message**
+5. **Pre-commit hooks** run automatically on commit
+6. **Push and create PR**
 
-Tools requiring user approval use a two-phase execution:
+**Release Process:**
 
-1. **Validation Phase**: `Validate(args)` checks arguments
-2. **Approval Phase**: UI shows modal with tool details and diff preview
-3. **Execution Phase**: `Execute(ctx, args)` runs only if approved
+Automated via semantic-release on `main` branch:
 
-Controlled by `require_approval` config per tool.
+- Commit types determine version bumps
+- Binaries built for macOS (Intel/ARM64) and Linux (AMD64/ARM64)
+- GitHub releases created automatically with changelogs
 
-### Conversation Management Commands
+## Important Notes
 
-The CLI provides commands to manage saved conversation history:
-
-**Command:** `infer conversations list [flags]`
-
-**Purpose:** List all saved conversations from the database with pagination support
-
-**Flags:**
-
-- `--limit, -l int` (default: 50) - Maximum conversations to display
-- `--offset int` (default: 0) - Number of conversations to skip
-- `--format, -f string` (default: "text") - Output format (text, json)
-
-**Output Columns (text format):**
-
-- **ID**: Full conversation ID (36 chars)
-- **Summary**: Conversation title (truncated to 25 chars)
-- **Messages**: Total message count
-- **Requests**: API request count
-- **Input Tokens**: Total input tokens used
-- **Output Tokens**: Total output tokens generated
-- **Cost**: Formatted cost with adaptive precision (e.g., "$0.023" or "-")
-
-**JSON Output:**
-
-```json
-{
-  "conversations": [
-    {
-      "id": "...",
-      "title": "...",
-      "created_at": "...",
-      "updated_at": "...",
-      "message_count": 10,
-      "token_stats": {...},
-      "cost_stats": {...}
-    }
-  ],
-  "count": 42
-}
-```
-
-**Storage Backend:** Uses `ConversationStorage.ListConversations(ctx, limit, offset)` interface
-
-**Implementation Files:**
-
-- `cmd/conversations.go` - Command implementation
-- `cmd/conversations_test.go` - Unit tests
-- `internal/formatting/formatting.go` - Contains `FormatCost()` helper
-
-**Examples:**
-
-```bash
-# List all conversations (default: 50)
-infer conversations list
-
-# Pagination
-infer conversations list --limit 20 --offset 40
-
-# JSON output for scripting
-infer conversations list --format json
-```
-
-### Agent Mode Persistence
-
-Agent mode conversations are automatically saved to the database, allowing you to review agent execution history
-alongside interactive chat sessions.
-
-**Behavior:**
-
-- Agent conversations are saved by default to the configured storage backend (JSONL/SQLite/PostgreSQL/Redis)
-- Each message, tool execution, and token usage is persisted automatically
-- Agent sessions appear in `infer conversations list` alongside chat conversations
-- Auto-save uses async goroutines to prevent blocking execution
-- Graceful degradation: if storage fails, the agent continues without persistence
-
-**Disable saving for specific runs:**
-
-```bash
-# Run agent without saving conversation
-infer agent "task description" --no-save
-```
-
-**Viewing saved agent sessions:**
-
-```bash
-# List all conversations (includes both chat and agent sessions)
-infer conversations list
-
-# Agent conversations are marked with session metadata
-# Use conversation ID to review execution history
-```
-
-**Key Features:**
-
-- Automatic persistence of all messages (user, assistant, tool responses)
-- Token usage tracking per model
-- Cost calculation integrated with pricing service
-- Session completion summary with statistics
-- Works with all storage backends (JSONL, SQLite, PostgreSQL, Redis)
-
-**Implementation Files:**
-
-- `cmd/agent.go` - Agent command with persistence integration
-- `config/config.go` - `SaveConversations` field in `AgentConfig`
-- Uses `ConversationRepository` interface for storage
-
-### A2A (Agent-to-Agent) Communication
-
-Enables task delegation to specialized agents:
-
-- Configuration in `.infer/agents.yaml`
-- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`
-- Background task monitoring with exponential backoff polling
-
-### MCP (Model Context Protocol) Integration
-
-Direct integration with MCP servers for stateless tool execution:
-
-**Configuration**: `.infer/mcp.yaml`
-
-**Key Features**:
-
-- Direct CLI → MCP server connections (bypasses gateway)
-- Stateless HTTP SSE transport
-- **Auto-start MCP servers in OCI/Docker containers**
-- **Automatic port assignment** (no manual configuration needed)
-- Per-server enable/disable toggle
-- Tool filtering with include/exclude lists
-- Concurrent tool discovery at startup
-- Automatic exclusion from Plan mode
-
-**Global Settings**:
-
-```yaml
-enabled: true
-connection_timeout: 30  # seconds
-discovery_timeout: 30   # seconds
-```
-
-**Server Configuration (External)**:
-
-```yaml
-servers:
-  - name: "filesystem"
-    url: "http://localhost:3000/sse"
-    enabled: true
-    timeout: 60  # Override global timeout
-    description: "File system operations"
-    exclude_tools:  # Blacklist dangerous operations
-      - "delete_file"
-      - "format_disk"
-```
-
-**Server Configuration (Auto-start)**:
-
-```yaml
-servers:
-  - name: "demo-server"
-    enabled: true
-    run: true                      # Auto-start in container
-    oci: "mcp-demo-server:latest"  # OCI/Docker image
-    port: 3000                     # Auto-assigned if omitted
-    path: /mcp
-    startup_timeout: 60
-    env:
-      LOG_LEVEL: "debug"
-    volumes:
-      - "/data:/mnt/data"
-```
-
-**Tool Naming**: MCP tools use `MCP_<servername>_<toolname>` format
-
-- Example: `MCP_filesystem_read_file`
-
-**Environment Variables**:
-
-- `INFER_MCP_ENABLED` - Enable/disable MCP globally
-- `INFER_MCP_CONNECTION_TIMEOUT` - Override connection timeout
-- Server URLs support ${VAR} expansion
-
-**Implementation**:
-
-- Client manager: `internal/services/mcp_client_manager.go`
-- Server manager: `internal/services/mcp_server_manager.go` (OCI container lifecycle)
-- Tool wrapper: `internal/services/tools/mcp_tool.go`
-- Config service: `internal/services/mcp_config.go`
-- Uses `github.com/metoro-io/mcp-golang` library
-
-**Mode Behavior**:
-
-- Standard mode: All MCP tools available
-- Auto-Accept mode: All MCP tools available
-- Plan mode: MCP tools excluded (read-only)
-
-**Resilience**:
-
-- Failed servers log warnings but don't prevent CLI startup
-- Partial tool discovery continues if some servers fail
-- Timeouts prevent hanging connections
-- Background server startup (non-blocking)
-
-**CLI Commands**:
-
-```bash
-# Add server with auto-start (automatic port assignment)
-infer mcp add <name> --run --oci=<image>
-
-# Add server with specific port
-infer mcp add <name> --run --oci=<image> --port=8080
-
-# Add external server (manual start)
-infer mcp add <name> <url>
-
-# List all MCP servers
-infer mcp list
-
-# Remove server
-infer mcp remove <name>
-
-# Toggle server enable/disable
-infer mcp toggle <name>
-```
-
-**See Also**: `docs/mcp-integration.md` for comprehensive guide
-
-### Shortcuts System
-
-User-defined commands in `.infer/shortcuts/`:
-
-- Built-in: `/clear`, `/exit`, `/help`, `/switch`, `/theme`
-- Git: `/git status`, `/git commit`, `/git push`
-- SCM: `/scm issues`, `/scm pr-create`
-- Custom: `custom-*.yaml` files in shortcuts directory
-
-**AI-powered snippets**: Execute commands, send output to LLM, use response in template
-
-### State Management
-
-Conversation state managed through `StateManager`:
-
-- Tracks agent modes (Standard, Plan, Auto-Accept)
-- Manages conversation history
-- Handles tool execution state
-- Coordinates background tasks
-
-### Gateway Management
-
-Automatic gateway lifecycle management:
-
-- Downloads gateway binary if not present
-- Starts gateway in background (Docker or binary mode)
-- Monitors health via `/status` endpoint
-- Shuts down on CLI exit
-
-## Common Gotchas
-
-1. **Config changes**: After modifying config structs, update defaults in `config/defaults.go`
-2. **Tool registration**: New tools must be registered in registry's `registerTools()` method
-3. **Viper environment variables**: Use underscores, not dots (e.g., `INFER_GATEWAY_URL`)
-4. **Mock regeneration**: Run `task mocks:generate` after changing interfaces
-5. **Read before Edit**: Edit tools require Read tool to be used first on the file
-6. **Context propagation**: Always pass context through to allow cancellation
-
-## External Dependencies
-
-Key third-party libraries:
-
-- **Cobra**: CLI framework for commands and flags
-- **Viper**: Configuration management with env var support
-- **BubbleTea**: Terminal UI framework
-- **Lipgloss**: Styling for terminal output
-- **go-redis**: Redis client for storage backend
-- **lib/pq**: PostgreSQL driver
-- **modernc.org/sqlite**: Pure Go SQLite driver (no CGO required)
-- **metoro-io/mcp-golang**: MCP (Model Context Protocol) client library
-
-## Development Environment
-
-- **Go version**: 1.25.4+ required
-- **Task**: Task runner (taskfile.dev) for build automation
-- **golangci-lint**: Linting and static analysis
-- **pre-commit**: Git hooks for code quality
-- **Docker**: Optional, for gateway Docker mode
-- **Flox**: Optional, for reproducible dev environment
+- **No CGO**: Project uses pure Go dependencies for portability
+- **Flox environment**: Use `flox activate` for consistent dev environment
+- **Binary name**: Built as `infer` (not `cli`)
+- **Gateway dependency**: CLI requires Inference Gateway (auto-managed in Docker/binary mode)
+- **Storage migrations**: SQLite and PostgreSQL use automatic schema migrations
+- **Tool safety**: File modification tools require user approval by default
+- **Context limits**: Conversation optimizer handles token limits automatically

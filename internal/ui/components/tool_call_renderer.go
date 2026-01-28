@@ -7,12 +7,13 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	config "github.com/inference-gateway/cli/config"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 type ToolCallRenderer struct {
@@ -35,15 +36,17 @@ type KeyHintFormatter interface {
 
 // ToolRenderState represents the unified rendering state for all tool executions
 type ToolRenderState struct {
-	CallID       string
-	ToolName     string
-	Status       string
-	Arguments    string
-	StartTime    time.Time
-	EndTime      *time.Time
-	LastUpdate   time.Time
-	OutputBuffer []string
-	IsComplete   bool
+	CallID           string
+	ToolName         string
+	Status           string
+	Arguments        string
+	StartTime        time.Time
+	EndTime          *time.Time
+	LastUpdate       time.Time
+	OutputBuffer     []string
+	TotalOutputLines int
+	IsComplete       bool
+	IsExpanded       bool
 }
 
 type ToolInfo struct {
@@ -53,7 +56,9 @@ type ToolInfo struct {
 
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
 	s := spinner.New()
-	s.Spinner = spinner.Dot
+	customDot := spinner.Dot
+	customDot.FPS = 100 * time.Millisecond
+	s.Spinner = customDot
 
 	return &ToolCallRenderer{
 		spinner:       s,
@@ -81,16 +86,9 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 		return r.handleToolCallUpdate(msg)
 
 	case domain.ToolCallReadyEvent:
-		r.ClearPreviews()
 
 	case domain.ChatCompleteEvent:
 		r.ClearPreviews()
-
-	case domain.ParallelToolsCompleteEvent:
-		r.ClearPreviews()
-
-	case domain.ParallelToolsStartEvent:
-		return r.handleParallelToolsStart(msg)
 
 	case domain.ToolExecutionProgressEvent:
 		return r.handleToolExecutionProgress(msg)
@@ -112,6 +110,7 @@ func (r *ToolCallRenderer) handleWindowSize(msg tea.WindowSizeMsg) {
 
 func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
 	now := time.Now()
+
 	if _, exists := r.tools[msg.ToolCallID]; !exists {
 		r.toolsOrder = append(r.toolsOrder, msg.ToolCallID)
 	}
@@ -148,81 +147,65 @@ func (r *ToolCallRenderer) handleToolCallUpdate(msg domain.ToolCallUpdateEvent) 
 	return r, nil
 }
 
-func (r *ToolCallRenderer) handleParallelToolsStart(msg domain.ParallelToolsStartEvent) (*ToolCallRenderer, tea.Cmd) {
-	for _, tool := range msg.Tools {
-		now := time.Now()
-		if _, exists := r.tools[tool.CallID]; !exists {
-			r.toolsOrder = append(r.toolsOrder, tool.CallID)
-		}
-		r.tools[tool.CallID] = &ToolRenderState{
-			CallID:     tool.CallID,
-			ToolName:   tool.Name,
-			Status:     tool.Status,
+func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) (*ToolCallRenderer, tea.Cmd) {
+	now := time.Now()
+
+	state, exists := r.tools[msg.ToolCallID]
+	if !exists {
+		r.toolsOrder = append(r.toolsOrder, msg.ToolCallID)
+		r.tools[msg.ToolCallID] = &ToolRenderState{
+			CallID:     msg.ToolCallID,
+			ToolName:   msg.ToolName,
+			Status:     msg.Status,
+			Arguments:  msg.Arguments,
 			StartTime:  now,
 			LastUpdate: now,
 		}
-	}
-	return r, r.spinner.Tick
-}
-
-func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) (*ToolCallRenderer, tea.Cmd) {
-	if state, exists := r.tools[msg.ToolCallID]; exists {
-		state.Status = msg.Status
-		state.LastUpdate = time.Now()
-		if msg.Status == "complete" || msg.Status == "failed" {
-			endTime := time.Now()
-			state.EndTime = &endTime
-			state.IsComplete = true
-		}
-		if r.hasActiveTools() {
+		if len(r.tools) == 1 {
 			return r, r.spinner.Tick
 		}
+		return r, nil
+	}
+
+	state.Status = msg.Status
+	state.LastUpdate = now
+	if msg.Arguments != "" && state.Arguments == "" {
+		state.Arguments = msg.Arguments
+	}
+	if msg.Status == "completed" || msg.Status == "failed" {
+		state.EndTime = &now
+		state.IsComplete = true
 	}
 	return r, nil
 }
 
 func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEvent) (*ToolCallRenderer, tea.Cmd) {
 	if state, exists := r.tools[msg.ToolCallID]; exists {
-		state.OutputBuffer = append(state.OutputBuffer, msg.Output)
-		if len(state.OutputBuffer) > 10 {
-			state.OutputBuffer = state.OutputBuffer[len(state.OutputBuffer)-10:]
+		if msg.Output != "" {
+			state.OutputBuffer = append(state.OutputBuffer, msg.Output)
+			state.TotalOutputLines++
+			if len(state.OutputBuffer) > 7 {
+				state.OutputBuffer = state.OutputBuffer[len(state.OutputBuffer)-7:]
+			}
 		}
 		state.LastUpdate = time.Now()
-		if r.hasActiveTools() {
-			return r, r.spinner.Tick
-		}
 	}
 	return r, nil
 }
 
 func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
+	var cmd tea.Cmd
+	r.spinner, cmd = r.spinner.Update(msg)
+
 	now := time.Now()
-
-	hasRecentBashOutput := false
-	for _, tool := range r.tools {
-		if tool.ToolName == "Bash" && now.Sub(tool.LastUpdate) < 200*time.Millisecond {
-			hasRecentBashOutput = true
-			break
-		}
-	}
-
-	if !hasRecentBashOutput && now.Sub(r.lastTimerRender) < constants.TimerUpdateThrottle {
-		if r.hasActiveTools() {
-			var cmd tea.Cmd
-			r.spinner, cmd = r.spinner.Update(msg)
-			return r, cmd
-		}
-		return r, nil
-	}
-
 	r.spinnerStep = (r.spinnerStep + 1) % 4
 	r.lastTimerRender = now
+
 	if r.hasActiveTools() {
-		var cmd tea.Cmd
-		r.spinner, cmd = r.spinner.Update(msg)
 		return r, cmd
 	}
-	return r, nil
+
+	return r, cmd
 }
 
 func (r *ToolCallRenderer) SetWidth(width int) {
@@ -236,7 +219,6 @@ func (r *ToolCallRenderer) SetKeyHintFormatter(formatter KeyHintFormatter) {
 
 func (r *ToolCallRenderer) RenderPreviews() string {
 	var allPreviews []string
-	now := time.Now()
 	var remainingTools []string
 
 	for _, callID := range r.toolsOrder {
@@ -245,12 +227,9 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 			continue
 		}
 
-		if (tool.Status == "complete" || tool.Status == "failed") && tool.EndTime != nil {
-			showDuration := now.Sub(*tool.EndTime)
-			if showDuration > 1000*time.Millisecond {
-				delete(r.tools, callID)
-				continue
-			}
+		if tool.Status == "completed" || tool.Status == "failed" {
+			delete(r.tools, callID)
+			continue
 		}
 
 		allPreviews = append(allPreviews, r.renderTool(tool))
@@ -282,13 +261,15 @@ func (r *ToolCallRenderer) RenderToolCalls(toolCalls []sdk.ChatCompletionMessage
 func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 	var statusIcon string
 	var statusText string
-	var colorName string
+	var iconColor string
+	var statusColor string
 
 	switch tool.Status {
 	case "queued", "ready":
 		statusIcon = icons.QueuedIcon
 		statusText = "queued"
-		colorName = "dim"
+		iconColor = "dim"
+		statusColor = "dim"
 	case "running", "starting", "saving", "executing", "streaming":
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		if tool.EndTime == nil {
@@ -297,8 +278,9 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		} else {
 			statusText = "executing"
 		}
-		colorName = "spinner"
-	case "complete", "completed", "executed":
+		iconColor = "accent"
+		statusColor = "accent"
+	case "completed", "executed":
 		statusIcon = icons.CheckMark
 		if tool.EndTime != nil {
 			duration := tool.EndTime.Sub(tool.StartTime)
@@ -306,7 +288,8 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		} else {
 			statusText = "completed"
 		}
-		colorName = "success"
+		iconColor = "success"
+		statusColor = "dim"
 	case "error", "failed":
 		statusIcon = icons.CrossMark
 		if tool.EndTime != nil {
@@ -315,54 +298,35 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		} else {
 			statusText = "failed"
 		}
-		colorName = "error"
+		iconColor = "error"
+		statusColor = "error"
 	default:
 		statusIcon = icons.BulletIcon
 		statusText = tool.Status
-		colorName = "dim"
+		iconColor = "dim"
+		statusColor = "dim"
 	}
 
-	toolInfo := r.parseToolName(tool.ToolName)
-
-	statusPart := r.styleProvider.RenderWithColor(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name), r.styleProvider.GetThemeColor(colorName))
-	metaPart := r.styleProvider.RenderDimText(fmt.Sprintf(" (%s)", statusText))
-	header := statusPart + metaPart
-
-	var parts []string
-	parts = append(parts, header)
-
-	if tool.Arguments != "" && tool.Arguments != "{}" {
-		argsPreview := r.formatArgsPreview(tool.Arguments)
-		if argsPreview != "" {
-			argsPart := r.styleProvider.RenderDimText(fmt.Sprintf("  %s", argsPreview))
-			parts = append(parts, argsPart)
-		}
+	argsPreview := r.formatArgsPreview(tool.Arguments)
+	if argsPreview == "" || argsPreview == "{}" {
+		argsPreview = ""
 	}
 
-	if tool.ToolName == "Bash" && len(tool.OutputBuffer) > 0 {
-		indicator := r.styleProvider.RenderDimText(fmt.Sprintf("    [showing last %d lines]", len(tool.OutputBuffer)))
-		parts = append(parts, indicator)
+	styledIcon := r.styleProvider.RenderWithColor(statusIcon, r.styleProvider.GetThemeColor(iconColor))
+	styledStatus := r.styleProvider.RenderWithColor(statusText, r.styleProvider.GetThemeColor(statusColor))
 
-		for _, line := range tool.OutputBuffer {
-			truncatedLine := line
-			maxLineLen := r.width - 6
-			if maxLineLen < 20 {
-				maxLineLen = 20
-			}
-			if len(truncatedLine) > maxLineLen {
-				truncatedLine = truncatedLine[:maxLineLen-3] + "..."
-			}
-			parts = append(parts, r.styleProvider.RenderDimText("    "+truncatedLine))
-		}
+	var singleLine string
+	if argsPreview != "" {
+		singleLine = fmt.Sprintf("%s %s(%s) %s", styledIcon, tool.ToolName, argsPreview, styledStatus)
+	} else {
+		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, tool.ToolName, styledStatus)
 	}
 
-	isRunning := tool.Status == "running" || tool.Status == "starting" || tool.Status == "saving" || tool.Status == "executing" || tool.Status == "streaming"
-	if tool.ToolName == "Bash" && isRunning {
-		hint := r.getBashRunningHint()
-		parts = append(parts, "  "+hint)
+	if r.shouldRenderBashOutput(tool) {
+		return r.renderBashOutput(tool, singleLine)
 	}
 
-	return strings.Join(parts, "\n")
+	return singleLine
 }
 
 func (r *ToolCallRenderer) renderCompletedToolCall(toolCall sdk.ChatCompletionMessageToolCall, status string) string {
@@ -381,7 +345,7 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 	case "executing", "running", "starting", "saving":
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		statusText = status
-	case "executed", "completed", "complete":
+	case "executed", "completed":
 		statusIcon = icons.CheckMark
 		statusText = status
 	case "error", "failed":
@@ -392,34 +356,22 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 		statusText = status
 	}
 
-	toolNameColor := r.styleProvider.GetThemeColor("accent")
-	var header string
-	if toolInfo.Prefix != "TOOL" {
-		prefixPart := r.styleProvider.RenderWithColorAndBold(toolInfo.Prefix, toolNameColor)
-		namePart := r.styleProvider.RenderWithColorAndBold(toolInfo.Name, toolNameColor)
-		metaPart := r.styleProvider.RenderDimText(statusText)
-		header = fmt.Sprintf("%s %s:%s (%s)", statusIcon, prefixPart, namePart, metaPart)
+	argsPreview := r.formatArgsPreview(arguments)
+	if argsPreview == "" || argsPreview == "{}" {
+		argsPreview = ""
+	}
+
+	var singleLine string
+	if argsPreview != "" {
+		singleLine = fmt.Sprintf("%s %s(%s) %s", statusIcon, toolInfo.Name, argsPreview, statusText)
 	} else {
-		namePart := r.styleProvider.RenderWithColorAndBold(toolInfo.Name, toolNameColor)
-		metaPart := r.styleProvider.RenderDimText(statusText)
-		header = fmt.Sprintf("%s %s (%s)", statusIcon, namePart, metaPart)
+		singleLine = fmt.Sprintf("%s %s() %s", statusIcon, toolInfo.Name, statusText)
 	}
 
-	if arguments != "" && arguments != "{}" {
-		args := strings.TrimSpace(arguments)
-		if len(args) > 200 {
-			args = args[:197] + "..."
-		}
+	toolNameColor := r.styleProvider.GetThemeColor("accent")
+	styledLine := r.styleProvider.RenderWithColor(singleLine, toolNameColor)
 
-		formattedArgs := r.styleProvider.RenderDimText(args)
-		return r.styleProvider.JoinVertical(header, formattedArgs)
-	}
-
-	return header
-}
-
-func (r *ToolCallRenderer) parseToolName(toolName string) ToolInfo {
-	return ToolInfo{Name: toolName, Prefix: "TOOL"}
+	return styledLine
 }
 
 func (r *ToolCallRenderer) formatArgsPreview(args string) string {
@@ -428,31 +380,10 @@ func (r *ToolCallRenderer) formatArgsPreview(args string) string {
 	}
 
 	args = strings.TrimSpace(args)
-	if len(args) > 100 {
-		return args[:97] + "..."
+	if len(args) > 50 {
+		return args[:47] + "..."
 	}
 	return args
-}
-
-// getBashRunningHint returns the hint text for running Bash commands with dynamic keybinding support
-func (r *ToolCallRenderer) getBashRunningHint() string {
-	cancelHint := "Press esc to interrupt"
-	backgroundHint := "Press ctrl+b to background"
-
-	if r.keyHintFormatter != nil {
-		cancelActionID := config.ActionID(config.NamespaceGlobal, "cancel")
-		if hint := r.keyHintFormatter.GetKeyHint(cancelActionID, "interrupt"); hint != "" {
-			cancelHint = hint
-		}
-
-		backgroundActionID := config.ActionID(config.NamespaceTools, "background_shell")
-		if hint := r.keyHintFormatter.GetKeyHint(backgroundActionID, "background"); hint != "" {
-			backgroundHint = hint
-		}
-	}
-
-	hintText := fmt.Sprintf("%s, %s", cancelHint, backgroundHint)
-	return r.styleProvider.RenderDimText("• " + hintText)
 }
 
 func (r *ToolCallRenderer) ClearPreviews() {
@@ -493,4 +424,45 @@ func (r *ToolCallRenderer) formatDuration(d time.Duration) string {
 	minutes := int(seconds / 60)
 	remainingSeconds := seconds - float64(minutes*60)
 	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
+}
+
+// shouldRenderBashOutput determines if Bash tool output should be rendered
+func (r *ToolCallRenderer) shouldRenderBashOutput(tool *ToolRenderState) bool {
+	if tool.ToolName != "Bash" {
+		return false
+	}
+	if len(tool.OutputBuffer) == 0 {
+		return false
+	}
+	return tool.Status == "running" || tool.Status == "starting" || tool.Status == "executing"
+}
+
+// renderBashOutput renders the output for a Bash tool
+func (r *ToolCallRenderer) renderBashOutput(tool *ToolRenderState, singleLine string) string {
+	outputLines := make([]string, 0, len(tool.OutputBuffer)+3)
+	outputLines = append(outputLines, singleLine)
+
+	dimColor := r.styleProvider.GetThemeColor("dim")
+
+	truncatedLines := tool.TotalOutputLines - len(tool.OutputBuffer)
+	if truncatedLines > 0 {
+		truncationText := fmt.Sprintf("  +%d more lines", truncatedLines)
+		styledTruncation := r.styleProvider.RenderWithColor(truncationText, dimColor)
+		outputLines = append(outputLines, styledTruncation)
+	}
+
+	for _, line := range tool.OutputBuffer {
+		styledLine := r.styleProvider.RenderWithColor("  "+line, dimColor)
+		outputLines = append(outputLines, styledLine)
+	}
+
+	if r.keyHintFormatter != nil {
+		hint := r.keyHintFormatter.GetKeyHint("tools_background_shell", "move to background")
+		if hint != "" {
+			hintLine := r.styleProvider.RenderWithColor("  "+hint, dimColor)
+			outputLines = append(outputLines, hintLine)
+		}
+	}
+
+	return strings.Join(outputLines, "\n")
 }

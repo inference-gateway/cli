@@ -113,6 +113,16 @@ type FakeConversationRepository struct {
 	formatToolResultForUIReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetCurrentConversationIDStub        func() string
+	getCurrentConversationIDMutex       sync.RWMutex
+	getCurrentConversationIDArgsForCall []struct {
+	}
+	getCurrentConversationIDReturns struct {
+		result1 string
+	}
+	getCurrentConversationIDReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetCurrentConversationTitleStub        func() string
 	getCurrentConversationTitleMutex       sync.RWMutex
 	getCurrentConversationTitleArgsForCall []struct {
@@ -742,6 +752,59 @@ func (fake *FakeConversationRepository) FormatToolResultForUIReturnsOnCall(i int
 		})
 	}
 	fake.formatToolResultForUIReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationID() string {
+	fake.getCurrentConversationIDMutex.Lock()
+	ret, specificReturn := fake.getCurrentConversationIDReturnsOnCall[len(fake.getCurrentConversationIDArgsForCall)]
+	fake.getCurrentConversationIDArgsForCall = append(fake.getCurrentConversationIDArgsForCall, struct {
+	}{})
+	stub := fake.GetCurrentConversationIDStub
+	fakeReturns := fake.getCurrentConversationIDReturns
+	fake.recordInvocation("GetCurrentConversationID", []interface{}{})
+	fake.getCurrentConversationIDMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationIDCallCount() int {
+	fake.getCurrentConversationIDMutex.RLock()
+	defer fake.getCurrentConversationIDMutex.RUnlock()
+	return len(fake.getCurrentConversationIDArgsForCall)
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationIDCalls(stub func() string) {
+	fake.getCurrentConversationIDMutex.Lock()
+	defer fake.getCurrentConversationIDMutex.Unlock()
+	fake.GetCurrentConversationIDStub = stub
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationIDReturns(result1 string) {
+	fake.getCurrentConversationIDMutex.Lock()
+	defer fake.getCurrentConversationIDMutex.Unlock()
+	fake.GetCurrentConversationIDStub = nil
+	fake.getCurrentConversationIDReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationIDReturnsOnCall(i int, result1 string) {
+	fake.getCurrentConversationIDMutex.Lock()
+	defer fake.getCurrentConversationIDMutex.Unlock()
+	fake.GetCurrentConversationIDStub = nil
+	if fake.getCurrentConversationIDReturnsOnCall == nil {
+		fake.getCurrentConversationIDReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getCurrentConversationIDReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }

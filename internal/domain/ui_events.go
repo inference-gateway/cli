@@ -1,10 +1,16 @@
 package domain
 
 import (
+	"time"
+
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // UI Events for application state management
+//
+// All events in this file implement tea.Msg (Bubble Tea's message interface) and are part
+// of the Bubble Tea message system. These events represent UI-specific operations like
+// input handling, status updates, and navigation.
 
 // UpdateHistoryEvent updates the conversation history display
 type UpdateHistoryEvent struct {
@@ -13,10 +19,11 @@ type UpdateHistoryEvent struct {
 
 // StreamingContentEvent delivers live streaming content for immediate UI display
 type StreamingContentEvent struct {
-	RequestID string
-	Content   string
-	Delta     bool
-	Model     string
+	RequestID        string
+	Content          string
+	ReasoningContent string
+	Delta            bool
+	Model            string
 }
 
 // SetStatusEvent sets a status message
@@ -43,6 +50,12 @@ type ShowErrorEvent struct {
 
 // ClearErrorEvent clears any displayed error
 type ClearErrorEvent struct{}
+
+// SaveStatusStateEvent saves the current status state for later restoration
+type SaveStatusStateEvent struct{}
+
+// RestoreStatusStateEvent restores a previously saved status state
+type RestoreStatusStateEvent struct{}
 
 // ClearInputEvent clears the input field
 type ClearInputEvent struct{}
@@ -174,11 +187,16 @@ type ToolExecutionStartedEvent struct {
 // ToolExecutionCompletedEvent indicates tool execution is complete
 type ToolExecutionCompletedEvent struct {
 	SessionID     string
+	RequestID     string
+	Timestamp     time.Time
 	TotalExecuted int
 	SuccessCount  int
 	FailureCount  int
 	Results       []*ToolExecutionResult
 }
+
+func (e ToolExecutionCompletedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolExecutionCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // Approval Events
 
@@ -256,3 +274,9 @@ type MCPServerStatusUpdateEvent struct {
 
 // TriggerGithubActionSetupEvent triggers the GitHub App setup flow
 type TriggerGithubActionSetupEvent struct{}
+
+// ApprovalSelectionChangedEvent signals that the approval selection index has changed
+// and the UI needs to refresh to show the new selection
+type ApprovalSelectionChangedEvent struct {
+	NewIndex int
+}

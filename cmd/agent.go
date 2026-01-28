@@ -88,7 +88,7 @@ type AgentSession struct {
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string) error {
-	services := container.NewServiceContainer(cfg)
+	services := container.NewServiceContainer(cfg, V)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -129,6 +129,9 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
 	conversationRepo := services.GetConversationRepository()
+	stateManager := services.GetStateManager()
+
+	stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 
 	saveEnabled := !noSave
 

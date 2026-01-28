@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
@@ -25,7 +26,9 @@ func setupWriterTest(t *testing.T) (string, filewriter.FileWriter, context.Conte
 	validator := NewPathValidator(cfg)
 	backupMgr := NewBackupManager(tempDir)
 	writer := NewSafeFileWriter(validator, backupMgr)
-	ctx := context.Background()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
 
 	return tempDir, writer, ctx
 }

@@ -11,13 +11,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
@@ -31,10 +31,10 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService         *config.Config
+	configService         domain.ConfigService
 	agentService          domain.AgentService
 	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizerService
+	conversationOptimizer domain.ConversationOptimizer
 	modelService          domain.ModelService
 	toolService           domain.ToolService
 	fileService           domain.FileService
@@ -62,6 +62,7 @@ type ChatApplication struct {
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
 	todoBoxView          *components.TodoBoxView
+	approvalBoxView      *components.ApprovalBoxView
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
@@ -75,7 +76,7 @@ type ChatApplication struct {
 	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Event handling
-	chatHandler           handlers.EventHandler
+	chatHandler           domain.ChatHandler
 	messageHistoryHandler *handlers.MessageHistoryHandler
 
 	// Current active component for key handling
@@ -100,9 +101,9 @@ func NewChatApplication(
 	defaultModel string,
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
-	conversationOptimizer domain.ConversationOptimizerService,
+	conversationOptimizer domain.ConversationOptimizer,
 	modelService domain.ModelService,
-	configService *config.Config,
+	configService domain.ConfigService,
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
@@ -154,7 +155,7 @@ func NewChatApplication(
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
 	app.conversationView = factory.CreateConversationView(app.themeService)
-	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
+	toolFormatterService := services.NewToolFormatterService(app.toolRegistry, styleProvider)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
@@ -175,7 +176,7 @@ func NewChatApplication(
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
 		iv.SetImageService(app.imageService)
-		iv.SetConfigService(app.configService)
+		iv.SetConfigService(app.configService.GetConfig())
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
@@ -189,7 +190,7 @@ func NewChatApplication(
 		isb.SetModelService(app.modelService)
 		isb.SetThemeService(app.themeService)
 		isb.SetStateManager(app.stateManager)
-		isb.SetConfigService(app.configService)
+		isb.SetConfigService(app.configService.GetConfig())
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
@@ -203,13 +204,14 @@ func NewChatApplication(
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
+	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService.GetConfig())
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
@@ -221,7 +223,7 @@ func NewChatApplication(
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, styleProvider)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.configService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
@@ -272,7 +274,7 @@ func NewChatApplication(
 		app.backgroundTaskService,
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
-		configService,
+		app.configService.GetConfig(),
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
@@ -326,11 +328,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 	if cmd := app.modelSelector.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-	if app.conversationSelector != nil {
-		if cmd := app.conversationSelector.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
 
 	if readiness := app.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
 		cmds = append(cmds, func() tea.Msg {
@@ -380,18 +377,12 @@ type mcpStatusUpdateWithChannel struct {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if _, ok := msg.(domain.TriggerGithubActionSetupEvent); ok {
-		cmds = append(cmds, app.handleGithubActionSetupTrigger()...)
-		return app, tea.Batch(cmds...)
-	}
-
-	if cmd := app.chatHandler.Handle(msg); cmd != nil {
+	if cmd := app.handleAppEvents(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
-	switch m := msg.(type) {
-	case domain.MessageHistoryRestoreEvent:
-		if cmd := app.messageHistoryHandler.HandleRestore(m); cmd != nil {
+	if isDomainEvent(msg) {
+		if cmd := app.chatHandler.Handle(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -408,6 +399,84 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return app, tea.Batch(cmds...)
+}
+
+// isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
+// This replaces the negative filtering pattern (isUIOnlyEvent) with an explicit declaration
+// of what ChatHandler SHOULD handle, not what it shouldn't.
+func isDomainEvent(msg tea.Msg) bool {
+	switch msg.(type) {
+	// User input and interaction
+	case domain.UserInputEvent,
+		domain.FileSelectionRequestEvent,
+		domain.ConversationSelectedEvent:
+		return true
+
+	// Chat lifecycle
+	case domain.ChatStartEvent,
+		domain.ChatChunkEvent,
+		domain.ChatCompleteEvent,
+		domain.ChatErrorEvent,
+		domain.OptimizationStatusEvent:
+		return true
+
+	// Tool execution
+	case domain.ToolCallUpdateEvent,
+		domain.ToolCallReadyEvent,
+		domain.ToolExecutionStartedEvent,
+		domain.ToolExecutionProgressEvent,
+		domain.ToolExecutionCompletedEvent:
+		return true
+
+	// Tool and plan approval
+	case domain.ToolApprovalRequestedEvent,
+		domain.ToolApprovalResponseEvent,
+		domain.PlanApprovalRequestedEvent,
+		domain.PlanApprovalResponseEvent:
+		return true
+
+	// Bash command execution
+	case domain.BashOutputChunkEvent,
+		domain.BashCommandCompletedEvent,
+		domain.BackgroundShellRequestEvent:
+		return true
+
+	// A2A (Agent-to-Agent) task management
+	case domain.A2AToolCallExecutedEvent,
+		domain.A2ATaskSubmittedEvent,
+		domain.A2ATaskStatusUpdateEvent,
+		domain.A2ATaskCompletedEvent,
+		domain.A2ATaskFailedEvent,
+		domain.A2ATaskInputRequiredEvent:
+		return true
+
+	// Other domain events
+	case domain.CancelledEvent,
+		domain.MessageQueuedEvent,
+		domain.TodoUpdateChatEvent,
+		domain.AgentStatusUpdateEvent,
+		domain.NavigateBackInTimeEvent,
+		domain.MessageHistoryRestoreEvent,
+		domain.ComputerUsePausedEvent,
+		domain.ComputerUseResumedEvent:
+		return true
+	}
+
+	return false
+}
+
+// handleAppEvents handles application-level events (not component-specific)
+func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
+	switch m := msg.(type) {
+	case domain.TriggerGithubActionSetupEvent:
+		return tea.Batch(app.handleGithubActionSetupTrigger()...)
+
+	case domain.MessageHistoryRestoreEvent:
+		return app.messageHistoryHandler.HandleRestore(m)
+
+	}
+
+	return nil
 }
 
 // handleMCPStatusUpdate processes MCP server connection status changes
@@ -995,7 +1064,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		if !app.configService.A2A.Enabled {
+		if !app.configService.GetConfig().A2A.Enabled {
 			cmds = append(cmds, func() tea.Msg {
 				return domain.ShowErrorEvent{
 					Error:  "Task management requires A2A to be enabled in configuration.",
@@ -1124,7 +1193,7 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, styleProvider)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, app.configService, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
@@ -1188,6 +1257,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
+		app.approvalBoxView,
 	)
 
 	return chatInterface
@@ -1544,7 +1614,7 @@ func (app *ChatApplication) GetImageService() domain.ImageService {
 
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
-	return app.configService
+	return app.configService.GetConfig()
 }
 
 // GetConfigDir returns the configuration directory path
@@ -1643,6 +1713,11 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 // ToggleToolResultExpansion toggles tool result expansion
 func (app *ChatApplication) ToggleToolResultExpansion() {
 	app.toggleToolResultExpansion()
+}
+
+// ToggleThinkingExpansion toggles thinking block expansion
+func (app *ChatApplication) ToggleThinkingExpansion() {
+	app.conversationView.ToggleAllThinkingExpansion()
 }
 
 // ToggleRawFormat toggles between raw and rendered markdown display

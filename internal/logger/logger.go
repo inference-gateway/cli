@@ -3,11 +3,12 @@ package logger
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	zap "go.uber.org/zap"
+	zapcore "go.uber.org/zap/zapcore"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 var (
@@ -15,100 +16,84 @@ var (
 	sugar  *zap.SugaredLogger
 )
 
-// Init initializes the logger with the specified verbose level and config
-func Init(verbose, debug bool, logDir string) {
+// Init initializes the logger with the specified verbose level, config, and optional console output
+func Init(verbose, debug bool, logDir string, consoleOutput string) {
 	verbose = verbose || debug
 
-	if logDir == "" {
-		logDir = ".infer/logs"
-	}
+	var cfg zap.Config
 
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		logger = zap.NewNop()
-		sugar = logger.Sugar()
-		return
-	}
+	if consoleOutput == "stderr" {
+		// Console mode: JSON output to stderr
+		cfg = zap.Config{
+			Level:            zap.NewAtomicLevelAt(getLogLevel(verbose)),
+			Encoding:         "json",
+			OutputPaths:      []string{"stderr"},
+			ErrorOutputPaths: []string{"stderr"},
+			EncoderConfig: zapcore.EncoderConfig{
+				TimeKey:        "timestamp",
+				LevelKey:       "level",
+				NameKey:        "logger",
+				CallerKey:      "caller",
+				MessageKey:     "msg",
+				StacktraceKey:  "stacktrace",
+				LineEnding:     zapcore.DefaultLineEnding,
+				EncodeLevel:    zapcore.LowercaseLevelEncoder,
+				EncodeTime:     zapcore.ISO8601TimeEncoder,
+				EncodeDuration: zapcore.SecondsDurationEncoder,
+				EncodeCaller:   zapcore.ShortCallerEncoder,
+			},
+		}
+	} else {
+		// File mode: JSON output to log directory
+		if logDir == "" {
+			logDir = config.DefaultLogsPath
+		}
 
-	timestamp := time.Now().Format("2006-01-02")
-	errorLogPath := filepath.Join(logDir, fmt.Sprintf("error-%s.log", timestamp))
-	infoLogPath := filepath.Join(logDir, fmt.Sprintf("info-%s.log", timestamp))
-	debugLogPath := filepath.Join(logDir, fmt.Sprintf("debug-%s.log", timestamp))
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			logger = zap.NewNop()
+			sugar = logger.Sugar()
+			return
+		}
 
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "timestamp",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		FunctionKey:    zapcore.OmitKey,
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	}
-
-	encoder := zapcore.NewJSONEncoder(encoderConfig)
-
-	errorFile, err := os.OpenFile(errorLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		logger = zap.NewNop()
-		sugar = logger.Sugar()
-		return
-	}
-
-	infoFile, err := os.OpenFile(infoLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		_ = errorFile.Close()
-		logger = zap.NewNop()
-		sugar = logger.Sugar()
-		return
-	}
-
-	var cores []zapcore.Core
-
-	// Error file - only ERROR and FATAL levels
-	errorCore := zapcore.NewCore(
-		encoder,
-		zapcore.AddSync(errorFile),
-		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-			return lvl >= zapcore.ErrorLevel
-		}),
-	)
-	cores = append(cores, errorCore)
-
-	// Info file - only INFO and WARN levels (not error, not debug)
-	infoCore := zapcore.NewCore(
-		encoder,
-		zapcore.AddSync(infoFile),
-		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-			return lvl >= zapcore.InfoLevel && lvl < zapcore.ErrorLevel
-		}),
-	)
-	cores = append(cores, infoCore)
-
-	if verbose {
-		debugFile, err := os.OpenFile(debugLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err == nil {
-			// Debug file - only DEBUG level (not info, not error)
-			debugCore := zapcore.NewCore(
-				encoder,
-				zapcore.AddSync(debugFile),
-				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-					return lvl == zapcore.DebugLevel
-				}),
-			)
-			cores = append(cores, debugCore)
+		logFileName := fmt.Sprintf("app-%s.log", time.Now().Format("2006-01-02"))
+		cfg = zap.Config{
+			Level:            zap.NewAtomicLevelAt(getLogLevel(verbose)),
+			Encoding:         "json",
+			OutputPaths:      []string{logDir + "/" + logFileName},
+			ErrorOutputPaths: []string{"stderr"},
+			EncoderConfig: zapcore.EncoderConfig{
+				TimeKey:        "timestamp",
+				LevelKey:       "level",
+				NameKey:        "logger",
+				CallerKey:      "caller",
+				MessageKey:     "msg",
+				StacktraceKey:  "stacktrace",
+				LineEnding:     zapcore.DefaultLineEnding,
+				EncodeLevel:    zapcore.LowercaseLevelEncoder,
+				EncodeTime:     zapcore.ISO8601TimeEncoder,
+				EncodeDuration: zapcore.SecondsDurationEncoder,
+				EncodeCaller:   zapcore.ShortCallerEncoder,
+			},
 		}
 	}
 
-	core := zapcore.NewTee(cores...)
+	var err error
+	logger, err = cfg.Build(zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
+	if err != nil {
+		logger = zap.NewNop()
+		sugar = logger.Sugar()
+		return
+	}
 
-	logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
 	sugar = logger.Sugar()
-
 	zap.ReplaceGlobals(logger)
+}
+
+func getLogLevel(verbose bool) zapcore.Level {
+	if verbose {
+		return zapcore.DebugLevel
+	}
+	return zapcore.InfoLevel
 }
 
 // Debug logs a debug message
@@ -144,7 +129,7 @@ func Warn(msg string, args ...any) {
 	}
 }
 
-// Error logs an error message to the error log file
+// Error logs an error message
 func Error(msg string, args ...any) {
 	if sugar != nil {
 		if len(args) > 0 {

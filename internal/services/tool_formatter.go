@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // ToolFormatterService provides formatting for tool results by delegating to individual tools
 type ToolFormatterService struct {
-	toolRegistry ToolRegistry
+	toolRegistry  ToolRegistry
+	styleProvider *styles.Provider
 }
 
 // ToolRegistry interface for accessing tools (implemented by tools.Registry)
@@ -20,9 +24,10 @@ type ToolRegistry interface {
 }
 
 // NewToolFormatterService creates a new tool formatter service
-func NewToolFormatterService(registry ToolRegistry) *ToolFormatterService {
+func NewToolFormatterService(registry ToolRegistry, styleProvider *styles.Provider) *ToolFormatterService {
 	return &ToolFormatterService{
-		toolRegistry: registry,
+		toolRegistry:  registry,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -78,19 +83,86 @@ func (s *ToolFormatterService) joinArgs(args []string) string {
 }
 
 // FormatToolResultForUI formats tool execution results for UI display
+// Uses single-line format with colors (consolidated with live preview format)
 func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	tool, err := s.toolRegistry.GetTool(result.ToolName)
-	if err != nil {
-		content := s.formatFallback(result, domain.FormatterUI)
-		return s.formatResponsive(content, terminalWidth)
+	var statusIcon string
+	var statusText string
+	var iconColor string
+	var statusColor string
+
+	if result.Success {
+		statusIcon = icons.CheckMark
+		duration := result.Duration
+		statusText = fmt.Sprintf("completed in %s", s.formatDuration(duration))
+		iconColor = "success"
+		statusColor = "dim"
+	} else {
+		statusIcon = icons.CrossMark
+		duration := result.Duration
+		statusText = fmt.Sprintf("failed after %s", s.formatDuration(duration))
+		iconColor = "error"
+		statusColor = "error"
 	}
 
-	content := tool.FormatResult(result, domain.FormatterUI)
-	return s.formatResponsive(content, terminalWidth)
+	argsPreview := s.formatArgsPreview(result.Arguments)
+
+	styledIcon := s.styleProvider.RenderWithColor(statusIcon, s.styleProvider.GetThemeColor(iconColor))
+	styledStatus := s.styleProvider.RenderWithColor(statusText, s.styleProvider.GetThemeColor(statusColor))
+
+	var singleLine string
+	if argsPreview != "" && argsPreview != "{}" {
+		singleLine = fmt.Sprintf("%s %s(%s) %s", styledIcon, result.ToolName, argsPreview, styledStatus)
+	} else {
+		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledStatus)
+	}
+
+	return singleLine
+}
+
+// formatArgsPreview formats arguments for compact preview display
+func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var argPairs []string
+	for _, key := range keys {
+		value := args[key]
+		// Truncate long values
+		valueStr := fmt.Sprintf("%v", value)
+		if len(valueStr) > 50 {
+			valueStr = valueStr[:47] + "..."
+		}
+		argPairs = append(argPairs, fmt.Sprintf("%s=%s", key, valueStr))
+	}
+
+	preview := strings.Join(argPairs, ", ")
+	if len(preview) > 100 {
+		preview = preview[:97] + "..."
+	}
+
+	return preview
+}
+
+// formatDuration formats a duration in human-readable way
+func (s *ToolFormatterService) formatDuration(d time.Duration) string {
+	seconds := d.Seconds()
+	if seconds < 60 {
+		return fmt.Sprintf("%.1fs", seconds)
+	}
+	minutes := int(seconds / 60)
+	remainingSeconds := seconds - float64(minutes*60)
+	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
 }
 
 // FormatToolResultExpanded formats expanded tool execution results
@@ -101,12 +173,10 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
-		content := s.formatFallback(result, domain.FormatterLLM)
-		return s.formatResponsive(content, terminalWidth)
+		return s.formatFallback(result, domain.FormatterLLM)
 	}
 
-	content := tool.FormatResult(result, domain.FormatterLLM)
-	return s.formatResponsive(content, terminalWidth)
+	return tool.FormatResult(result, domain.FormatterLLM)
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption
@@ -135,15 +205,12 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 
 		toolCall := formatter.FormatToolCall(result.Arguments, false)
 		statusIcon := formatter.FormatStatusIcon(result.Success)
-		preview := "Execution completed"
+		statusText := "completed"
 		if !result.Success {
-			preview = "Execution failed"
+			statusText = "failed"
 		}
 
-		var output strings.Builder
-		output.WriteString(fmt.Sprintf("%s\n", toolCall))
-		output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
-		return output.String()
+		return fmt.Sprintf("%s %s %s", statusIcon, toolCall, statusText)
 
 	case domain.FormatterLLM:
 		var output strings.Builder
@@ -163,93 +230,6 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 		}
 		return "Execution failed"
 	}
-}
-
-// formatResponsive handles text wrapping for responsive display
-func (s *ToolFormatterService) formatResponsive(content string, terminalWidth int) string {
-	if terminalWidth <= 0 {
-		return content
-	}
-
-	lines := strings.Split(content, "\n")
-	var result []string
-
-	for _, line := range lines {
-		if len(line) <= terminalWidth {
-			result = append(result, line)
-		} else {
-			wrapped := s.wrapText(line, terminalWidth)
-			result = append(result, wrapped)
-		}
-	}
-
-	return strings.Join(result, "\n")
-}
-
-// isFormattedLineNumberText checks if text appears to be formatted with line numbers
-func (s *ToolFormatterService) isFormattedLineNumberText(text string) bool {
-	if !strings.Contains(text, "\t") || len(text) == 0 {
-		return false
-	}
-
-	if text[0] != ' ' && (text[0] < '0' || text[0] > '9') {
-		return false
-	}
-
-	trimmed := strings.TrimLeft(text, " ")
-	if len(trimmed) == 0 {
-		return false
-	}
-
-	tabIndex := strings.Index(trimmed, "\t")
-	if tabIndex <= 0 {
-		return false
-	}
-
-	prefix := trimmed[:tabIndex]
-	for _, r := range prefix {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-
-	return true
-}
-
-// wrapText wraps text using word wrapping, but preserves formatted content like line numbers
-func (s *ToolFormatterService) wrapText(text string, width int) string {
-	if width <= 0 {
-		return text
-	}
-
-	if s.isFormattedLineNumberText(text) {
-		return text
-	}
-
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return text
-	}
-
-	var lines []string
-	currentLine := ""
-
-	for _, word := range words {
-		if len(currentLine) == 0 {
-			currentLine = word
-		} else if len(currentLine)+1+len(word) <= width {
-			currentLine += " " + word
-		} else {
-			lines = append(lines, currentLine)
-			currentLine = word
-		}
-	}
-
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-
-	return strings.Join(lines, "\n")
 }
 
 // FormatToolArgumentsForApproval formats tool arguments for approval display

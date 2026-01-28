@@ -7,7 +7,13 @@ import (
 	"strings"
 	"time"
 
+	viper "github.com/spf13/viper"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agent "github.com/inference-gateway/cli/internal/agent"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
@@ -15,11 +21,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	sdk "github.com/inference-gateway/sdk"
-	viper "github.com/spf13/viper"
 )
 
 // ServiceContainer manages all application dependencies
@@ -37,10 +41,10 @@ type ServiceContainer struct {
 
 	// Domain services
 	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizerService
+	conversationOptimizer domain.ConversationOptimizer
 	modelService          domain.ModelService
 	chatService           domain.ChatService
-	agentService          domain.AgentService
+	agent                 domain.AgentService
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
@@ -218,10 +222,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.initializeMCPManager()
 
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService())
+	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
-	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
+	styleProvider := styles.NewProvider(c.themeService)
+	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
@@ -251,7 +256,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationRepo = persistentRepo
 		logger.Info("Initialized conversation storage", "type", storageConfig.Type)
 
-		titleClient := c.createSDKClient()
+		titleClient := c.createRawSDKClient()
 		c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
@@ -259,8 +264,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 		persistentRepo.SetTaskTracker(c.taskTrackerService)
 	}
 
-	modelClient := c.createSDKClient()
-	c.modelService = services.NewHTTPModelService(modelClient)
+	if c.config.IsClaudeCodeMode() {
+		logger.Info("Using static Claude model list (Claude Code mode)")
+		c.modelService = services.NewClaudeCodeModelService()
+	} else {
+		modelClient := c.createRawSDKClient()
+		c.modelService = services.NewHTTPModelService(modelClient)
+	}
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
@@ -269,7 +279,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	if c.config.Compact.Enabled {
-		summaryClient := c.createSDKClient()
+		summaryClient := c.createAgentSDKClient()
 		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
 			Enabled:           c.config.Compact.Enabled,
@@ -284,11 +294,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
 
-	agentClient := c.createSDKClient()
-	c.agentService = services.NewAgentService(
+	agentClient := c.createAgentSDKClient()
+	c.agent = agent.NewAgent(
 		agentClient,
 		c.toolService,
-		c.config,
+		c.configService,
 		c.conversationRepo,
 		c.a2aAgentService,
 		c.messageQueue,
@@ -297,7 +307,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationOptimizer,
 	)
 
-	c.chatService = services.NewStreamingChatService(c.agentService)
+	c.chatService = services.NewStreamingChatService(c.agent)
 }
 
 // initializeStateManager creates the state manager before domain services need it
@@ -361,7 +371,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 
 	configDir := c.determineConfigDirectory()
-	customShortcutClient := c.createSDKClient()
+	customShortcutClient := c.createRawSDKClient()
 	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
 		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
@@ -386,7 +396,7 @@ func (c *ServiceContainer) GetConversationRepository() domain.ConversationReposi
 	return c.conversationRepo
 }
 
-func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizerService {
+func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizer {
 	return c.conversationOptimizer
 }
 
@@ -452,7 +462,7 @@ func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {
-	return c.agentService
+	return c.agent
 }
 
 func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
@@ -507,7 +517,8 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 }
 
 // createSDKClient creates a configured SDK client with retry and timeout settings
-func (c *ServiceContainer) createSDKClient() sdk.Client {
+// createRawSDKClient creates the raw SDK client for services that need it
+func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 	if c.config == nil {
 		panic("ServiceContainer: config is nil when creating SDK client")
 	}
@@ -538,6 +549,22 @@ func (c *ServiceContainer) createSDKClient() sdk.Client {
 		Timeout:     time.Duration(timeout) * time.Second,
 		RetryConfig: c.createRetryConfig(),
 	})
+}
+
+// createAgentSDKClient creates the SDK client for the agent
+// Returns domain.SDKClient which can be either ClaudeCodeClient or SDKClientAdapter
+func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
+	if c.config == nil {
+		panic("ServiceContainer: config is nil when creating SDK client")
+	}
+
+	if c.config.IsClaudeCodeMode() {
+		logger.Info("Using Claude Code CLI mode (subscription-based)")
+		return adapters.NewClaudeCodeClient(&c.config.ClaudeCode, c.stateManager)
+	}
+
+	logger.Debug("Using gateway mode (API-based)")
+	return adapters.NewSDKClientAdapter(c.createRawSDKClient())
 }
 
 // RegisterCommand allows external registration of commands

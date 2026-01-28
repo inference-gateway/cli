@@ -112,21 +112,6 @@ tasks:
     cmds:
       - go run {{.MAIN_PACKAGE}} --help
 
-  check:
-    desc: Run all quality checks
-    deps:
-      - fmt
-      - vet
-      - lint
-      - test
-
-  dev:
-    desc: Development workflow - format, build, and test
-    deps:
-      - fmt
-      - build
-      - test
-
   release:build:
     desc: Build release binary for current platform only
     cmds:
@@ -226,18 +211,6 @@ tasks:
           -f Dockerfile \
           .
 
-  deps:install:
-    desc: Install development dependencies
-    cmds:
-      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-  setup:
-    desc: Set up development environment
-    deps:
-      - deps:install
-      - mod:download
-      - precommit:install
-
   precommit:install:
     desc: Install pre-commit hooks
     cmds:
@@ -266,10 +239,21 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SDKClient
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain StateManager
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalPolicy
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentStateMachine
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MCPClient
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain RateLimiter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/infra/storage ConversationStorage
+      - mkdir -p tests/mocks/filewriter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter FileWriter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
+      - mkdir -p tests/mocks/display
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display DisplayController
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display Provider
       - mkdir -p tests/mocks/services
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
       - mkdir -p tests/mocks/shortcuts

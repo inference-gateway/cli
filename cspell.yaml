@@ -1,98 +1,307 @@
 version: "0.2"
 language: en
 words:
+  - adduser
   - afero
   - alecthomas
   - alrvd
   - apapsch
+  - asciicircum
+  - asciitilde
+  - autoreleasepool
   - aymanbagabas
   - aymerick
   - bahlo
+  - bakllava
+  - bigfft
+  - BIGSERIAL
+  - blocklist
   - bluemonday
+  - braceleft
+  - braceright
+  - bracketleft
+  - bracketright
   - bubbletea
   - buger
+  - buildx
   - cancelreader
+  - Catmull
   - cellbuf
   - cespare
+  - CFLAGS
+  - chans
   - charmbracelet
+  - checkmark
   - cloudevents
   - codegen
   - codellama
+  - cogvlm
   - colorprofile
+  - commitlintrc
   - coninput
+  - conv
+  - coverprofile
   - creack
+  - cyclop
   - davecgh
+  - dblohm
+  - dbname
+  - dbus
+  - dearmor
+  - Debugw
   - deepseek
   - DEEPSEEK
   - dgryski
+  - diffinfo
   - difflib
   - dlclark
+  - domainmocks
+  - dotall
   - duckduckgo
   - easyjson
+  - ebitengine
+  - ecommerce
+  - edgemac
+  - Emph
   - erikgeiser
+  - Errorf
+  - Errorw
+  - exclam
+  - Fatalw
+  - filewriter
+  - filewriterdomain
+  - filewriterservice
+  - floatingwindow
+  - flox
+  - Flox
+  - Fprintf
+  - freetype
+  - frontmost
   - fsnotify
   - funlen
   - gjson
+  - GOARCH
+  - gocognit
   - gocyclo
+  - godbus
+  - gofmt
+  - golangci
   - goldmark
+  - googlecode
+  - GOPATH
   - gopkg
+  - gops
+  - gopsutil
+  - Goroutines
+  - gosseract
   - gotenv
   - groq
   - GROQ
   - healthcheck
+  - healthchecks
+  - HTMLURL
+  - htpasswd
+  - imgo
   - inconshreveable
+  - Infow
+  - internvl
   - invopop
+  - ipynb
   - isatty
+  - ISPEED
+  - iterm
+  - jezek
+  - journalctl
   - jsonmerge
   - jsonparser
   - jsonschema
+  - keybind
+  - keybindingmocks
   - keygen
+  - keyrings
+  - keysym
+  - KHTML
   - kimi
+  - KLMNO
+  - knownhosts
+  - kovidgoyal
+  - ldflags
   - ledongthuc
+  - letterboxing
+  - libc
   - libsqlite
+  - linenum
   - lipgloss
+  - llava
+  - Loadash
   - locafero
   - localereader
+  - localtime
   - lucasb
+  - lufia
   - mailru
   - mapstructure
+  - mathutil
   - mattn
   - maxbrunsfeld
+  - mcphttp
   - mekayelanik
   - metoro
+  - mimeapps
+  - minicpm
   - mixtral
+  - mockdomain
+  - mocksdomain
+  - modelcontextprotocol
+  - modernc
+  - moondream
   - moonshotai
+  - mousemove
   - mtoken
+  - multicasting
+  - multicasts
+  - multiedit
   - multierr
+  - multimodal
+  - Multimodal
+  - myapp
+  - myorg
+  - myrepo
   - myshortcuts
+  - nbsp
+  - ncruces
   - nolint
+  - noninteractive
   - NOPASSWD
+  - nord
+  - noreset
+  - numbersign
+  - numcpus
   - oapi
+  - octocat
   - ollama
   - OLLAMA
   - oneline
+  - opencontainers
+  - OSPEED
+  - otiai
+  - parenleft
+  - parenright
+  - perfstat
   - pflag
   - pgdn
+  - pgdown
+  - pgrep
   - pgup
   - playai
   - pmezard
+  - postmanlabs
+  - Preproc
+  - procps
+  - psql
+  - purego
+  - pycache
+  - pytest
+  - quotedbl
   - qwen
+  - randr
+  - rasterizer
+  - releaserc
+  - remyoudompheng
+  - respawn
+  - Respawn
+  - respawning
+  - Respawning
+  - respawns
   - resty
   - retryable
   - rivo
+  - robotgo
+  - robotn
   - runewidth
+  - runuser
   - sabhiram
+  - sagents
   - sagikazarmark
+  - sandboxed
+  - Sandboxed
+  - Sandboxing
+  - SCMPR
+  - sconfiguration
+  - screenshotsvc
+  - sdkclient
+  - secureowner
+  - securerepo
+  - servicesmocks
+  - shirou
+  - shortcutsmocks
   - SHTTP
+  - sigstore
+  - Sigstore
   - sjson
+  - slackmacgap
   - sname
   - sourcegraph
+  - SSEHTTP
+  - sslmode
+  - startxfce
+  - Streamable
   - stretchr
+  - strftime
+  - strikethrough
+  - Strikethrough
+  - strs
+  - sublimetext
   - subosito
+  - swiftc
+  - syscall
+  - sysconf
   - sysinfo
+  - systemctl
+  - Taskfile
   - termenv
   - terminfo
+  - testdb
+  - testdir
+  - testowner
+  - testrepo
+  - testuser
+  - thunar
   - tidwall
+  - tinyspeck
+  - tklauser
+  - tmpl
+  - todowrite
+  - toolname
+  - uimocks
   - uniseg
+  - Unticked
+  - upgrader
+  - usermod
+  - userspace
+  - VARCHAR
+  - vcaesar
+  - Warnw
+  - webfetch
+  - webp
+  - websearch
+  - wingoes
+  - Winsize
+  - wordwrap
+  - writability
+  - wrongowner
+  - wtype
+  - Wtype
+  - xclipboard
+  - xdraw
+  - xgbutil
+  - xgraphics
+  - ximg
+  - xtest
   - xxhash
+  - ydotool
+  - Ydotool
+  - yourname
   - yuin
+  - yusufpapurcu
+  - zoneinfo

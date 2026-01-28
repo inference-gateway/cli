@@ -13,15 +13,18 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	web "github.com/inference-gateway/cli/internal/web"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -37,8 +40,16 @@ and have a conversational interface with the inference gateway.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		if os.Getenv("INFER_WEB_MODE") == "true" {
+			cfg.Web.Enabled = true
+			V.Set("web.enabled", true)
+		}
+
 		webMode, _ := cmd.Flags().GetBool("web")
 		if webMode {
+			cfg.Web.Enabled = true
+			V.Set("web.enabled", true)
+
 			if cmd.Flags().Changed("port") {
 				cfg.Web.Port, _ = cmd.Flags().GetInt("port")
 			}
@@ -46,7 +57,6 @@ and have a conversational interface with the inference gateway.`,
 				cfg.Web.Host, _ = cmd.Flags().GetString("host")
 			}
 
-			// SSH remote mode flags
 			if cmd.Flags().Changed("ssh-host") {
 				cfg.Web.SSH.Enabled = true
 				sshHost, _ := cmd.Flags().GetString("ssh-host")
@@ -55,7 +65,6 @@ and have a conversational interface with the inference gateway.`,
 				sshCommand, _ := cmd.Flags().GetString("ssh-command")
 				noInstall, _ := cmd.Flags().GetBool("ssh-no-install")
 
-				// Create a single server config from CLI flags
 				cfg.Web.Servers = []config.SSHServerConfig{
 					{
 						Name:        "CLI Remote Server",
@@ -82,6 +91,8 @@ and have a conversational interface with the inference gateway.`,
 }
 
 // StartChatSession starts a chat session
+//
+//nolint:funlen // Chat session initialization requires multiple setup steps
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	_ = clipboard.Init()
 
@@ -140,6 +151,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	conversationRepo := services.GetConversationRepository()
 	modelService := services.GetModelService()
 	config := services.GetConfig()
+	configService := services.GetConfigService()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
@@ -155,6 +167,31 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
 
+	var screenshotServer *screenshotsvc.ScreenshotServer
+
+	if config.ComputerUse.Enabled && config.ComputerUse.Screenshot.StreamingEnabled {
+		screenshotServer = startScreenshotServer(config, imageService, toolRegistry)
+		if screenshotServer != nil {
+			defer func() {
+				if err := screenshotServer.Stop(); err != nil {
+					logger.Error("Failed to stop screenshot server", "error", err)
+				}
+			}()
+		}
+	}
+
+	floatingWindowMgr, err := initFloatingWindow(config, stateManager, agentService)
+	if err != nil {
+		return fmt.Errorf("failed to initialize floating window: %w", err)
+	}
+	if floatingWindowMgr != nil {
+		defer func() {
+			if err := floatingWindowMgr.Shutdown(); err != nil {
+				logger.Error("Failed to shutdown floating window", "error", err)
+			}
+		}()
+	}
+
 	versionInfo := GetVersionInfo()
 	application := app.NewChatApplication(
 		models,
@@ -163,7 +200,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		conversationRepo,
 		conversationOptimizer,
 		modelService,
-		config,
+		configService,
 		toolService,
 		fileService,
 		imageService,
@@ -186,6 +223,13 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		tea.WithMouseCellMotion(),
 		tea.WithReportFocus(),
 	)
+
+	if floatingWindowMgr != nil {
+		eventBridge := stateManager.GetEventBridge()
+		if eventBridge != nil {
+			go forwardControlEventsToBubbleTea(program, eventBridge)
+		}
+	}
 
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)
@@ -367,6 +411,50 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 		}
 	}
 	return nil
+}
+
+// startScreenshotServer initializes and starts the screenshot streaming server
+func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *screenshotsvc.ScreenshotServer {
+	logger.Info("Screenshot streaming conditions met, starting server")
+	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
+	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
+
+	if err := screenshotServer.Start(); err != nil {
+		logger.Warn("Failed to start screenshot server", "error", err)
+		return nil
+	}
+
+	fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
+
+	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
+
+	toolRegistry.SetScreenshotServer(screenshotServer)
+	logger.Info("Registered GetLatestScreenshot tool with tool registry")
+
+	return screenshotServer
+}
+
+// forwardControlEventsToBubbleTea forwards control events from EventBridge to BubbleTea program
+// This ensures control events (pause/resume) reach ChatHandler even when chat session is closed
+func forwardControlEventsToBubbleTea(program *tea.Program, eventBridge domain.EventBridge) {
+	logger.Debug("Starting control event forwarder")
+	subscription := eventBridge.Subscribe()
+
+	for event := range subscription {
+		switch e := event.(type) {
+		case domain.ComputerUsePausedEvent:
+			logger.Debug("Forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
+			program.Send(e)
+
+		case domain.ComputerUseResumedEvent:
+			logger.Debug("Forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
+			program.Send(e)
+
+		default:
+		}
+	}
+
+	logger.Debug("Control event forwarder stopped")
 }
 
 func init() {
