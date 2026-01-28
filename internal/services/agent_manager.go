@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/utils"
 	gotenv "github.com/subosito/gotenv"
 )
 
@@ -65,6 +67,14 @@ func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, 
 
 // StartAgents starts all local agents (run: true) and monitors external agents
 func (am *AgentManager) StartAgents(ctx context.Context) error {
+	// When running in a container, skip local agent startup (no Docker-in-Docker)
+	if utils.IsRunningInContainer() {
+		logger.Info("Running in container mode - skipping local agent startup, only discovering remote agents")
+		am.initializeExternalAgents(ctx)
+		am.isRunning = true
+		return nil
+	}
+
 	agentsToStart := []config.AgentEntry{}
 	for _, agent := range am.agentsConfig.Agents {
 		if agent.Run {
@@ -241,9 +251,13 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 // pullImage pulls the OCI image for an agent
 func (am *AgentManager) pullImage(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
+
+	// Redirect stdout/stderr to prevent TUI pollution
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker pull failed: %w", err)
 	}
 	return nil
 }
@@ -314,12 +328,17 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	args = append(args, agent.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
+
+	// Capture container ID from stdout, but discard stderr to prevent TUI pollution
+	var outputBuf strings.Builder
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker run failed: %w", err)
 	}
 
-	containerID := strings.TrimSpace(string(output))
+	containerID := strings.TrimSpace(outputBuf.String())
 	am.containersMutex.Lock()
 	am.containers[agent.Name] = containerID
 	am.containersMutex.Unlock()

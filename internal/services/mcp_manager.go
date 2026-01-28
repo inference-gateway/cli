@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/utils"
 	mcp "github.com/metoro-io/mcp-golang"
 )
 
@@ -655,6 +657,12 @@ func (m *MCPManager) Close() error {
 // StartServers starts all MCP servers that have run=true
 // This method is non-fatal and always returns nil
 func (m *MCPManager) StartServers(ctx context.Context) error {
+	// When running in a container, skip local MCP server startup (no Docker-in-Docker)
+	if utils.IsRunningInContainer() {
+		logger.Info("Running in container mode - skipping local MCP server startup")
+		return nil
+	}
+
 	serversToStart := make([]config.MCPServerEntry, 0)
 	for _, server := range m.config.Servers {
 		if server.Run && server.Enabled {
@@ -757,9 +765,13 @@ func (m *MCPManager) StopServers(ctx context.Context) error {
 // pullImage pulls the container image
 func (m *MCPManager) pullImage(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
+
+	// Redirect stdout/stderr to prevent TUI pollution
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker pull failed: %w", err)
 	}
 	return nil
 }
@@ -825,12 +837,17 @@ func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServer
 		"command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
+
+	// Capture container ID from stdout, but discard stderr to prevent TUI pollution
+	var outputBuf strings.Builder
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker run failed: %w", err)
 	}
 
-	containerID := strings.TrimSpace(string(output))
+	containerID := strings.TrimSpace(outputBuf.String())
 	m.mu.Lock()
 	m.containerIDs[containerName] = containerID
 	m.mu.Unlock()
