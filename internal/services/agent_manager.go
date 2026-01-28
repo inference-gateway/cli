@@ -69,7 +69,7 @@ func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, 
 func (am *AgentManager) StartAgents(ctx context.Context) error {
 	// When running in a container, skip local agent startup (no Docker-in-Docker)
 	if utils.IsRunningInContainer() {
-		logger.Info("Running in container mode - skipping local agent startup, only discovering remote agents")
+		logger.Debug("running in container mode - skipping local agent startup, only discovering remote agents")
 		am.initializeExternalAgents(ctx)
 		am.isRunning = true
 		return nil
