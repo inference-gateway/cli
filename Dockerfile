@@ -27,6 +27,7 @@ WORKDIR /home/infer
 RUN mkdir -p .infer && chown -R infer:infer .infer
 USER infer
 
+ENV INFER_IN_CONTAINER=true
 ENV INFER_GATEWAY_RUN=false
 ENV INFER_GATEWAY_URL=http://inference-gateway:8080
 ENV INFER_LOGGING_CONSOLE_OUTPUT=stderr
