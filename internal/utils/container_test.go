@@ -75,5 +75,5 @@ func TestIsRunningInContainer_NoEnvVars(t *testing.T) {
 	// Note: This test will return false on most systems unless running in an actual container
 	// We're mainly testing that the function doesn't panic without env vars
 	result := IsRunningInContainer()
-	_ = result // Result depends on whether test is run in container or not
+	_ = result
 }

@@ -13,7 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	mcp "github.com/metoro-io/mcp-golang"
 )
 
@@ -659,7 +659,7 @@ func (m *MCPManager) Close() error {
 func (m *MCPManager) StartServers(ctx context.Context) error {
 	// When running in a container, skip local MCP server startup (no Docker-in-Docker)
 	if utils.IsRunningInContainer() {
-		logger.Info("Running in container mode - skipping local MCP server startup")
+		logger.Debug("running in container mode - skipping local mcp server startup")
 		return nil
 	}
 

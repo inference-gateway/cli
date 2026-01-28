@@ -15,7 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	gotenv "github.com/subosito/gotenv"
 )
 
