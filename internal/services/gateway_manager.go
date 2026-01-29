@@ -246,8 +246,6 @@ func (gm *GatewayManager) pullImage(ctx context.Context) error {
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
-
-	// Redirect stdout/stderr to prevent TUI pollution
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 
@@ -336,7 +334,6 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, "docker", args...)
 
-	// Capture container ID from stdout, but discard stderr to prevent TUI pollution
 	var outputBuf strings.Builder
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = io.Discard
@@ -505,7 +502,6 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
 	}
 
-	// Configure gateway output streams
 	if err := gm.configureGatewayOutput(cmd); err != nil {
 		return err
 	}

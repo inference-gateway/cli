@@ -67,7 +67,6 @@ func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, 
 
 // StartAgents starts all local agents (run: true) and monitors external agents
 func (am *AgentManager) StartAgents(ctx context.Context) error {
-	// When running in a container, skip local agent startup (no Docker-in-Docker)
 	if utils.IsRunningInContainer() {
 		logger.Debug("running in container mode - skipping local agent startup, only discovering remote agents")
 		am.initializeExternalAgents(ctx)
@@ -251,8 +250,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 // pullImage pulls the OCI image for an agent
 func (am *AgentManager) pullImage(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-
-	// Redirect stdout/stderr to prevent TUI pollution
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 
@@ -328,8 +325,6 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	args = append(args, agent.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-
-	// Capture container ID from stdout, but discard stderr to prevent TUI pollution
 	var outputBuf strings.Builder
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = io.Discard

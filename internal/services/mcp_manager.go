@@ -657,7 +657,6 @@ func (m *MCPManager) Close() error {
 // StartServers starts all MCP servers that have run=true
 // This method is non-fatal and always returns nil
 func (m *MCPManager) StartServers(ctx context.Context) error {
-	// When running in a container, skip local MCP server startup (no Docker-in-Docker)
 	if utils.IsRunningInContainer() {
 		logger.Debug("running in container mode - skipping local mcp server startup")
 		return nil
@@ -765,8 +764,6 @@ func (m *MCPManager) StopServers(ctx context.Context) error {
 // pullImage pulls the container image
 func (m *MCPManager) pullImage(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-
-	// Redirect stdout/stderr to prevent TUI pollution
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 
@@ -838,7 +835,6 @@ func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServer
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
 
-	// Capture container ID from stdout, but discard stderr to prevent TUI pollution
 	var outputBuf strings.Builder
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = io.Discard
