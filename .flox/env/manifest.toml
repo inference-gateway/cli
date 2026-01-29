@@ -22,6 +22,7 @@ golangci-lint.pkg-path = "golangci-lint"
 golangci-lint.version = "^2.8.0"
 pre-commit.pkg-path = "pre-commit"
 pre-commit.version = "^4.5.1"
+pre-commit.pkg-group = "pre-commit"
 go-task.pkg-path = "go-task"
 go-task.version = "^3.45.5"
 ripgrep.pkg-path = "ripgrep"
@@ -29,27 +30,8 @@ ripgrep.version = "^15.1.0"
 markdownlint-cli.pkg-path = "markdownlint-cli"
 markdownlint-cli.version = "^0.47.0"
 claude-code.pkg-path = "claude-code"
-claude-code.version = "^2.1.14"
+claude-code.version = "^2.1.15"
 docker.pkg-path = "docker"
 docker.version = "^29.1.5"
 docker-compose.pkg-path = "docker-compose"
 docker-compose.version = "^5.0.1"
-
-[hook]
-on-activate = """
-  mkdir -p "$NPM_CONFIG_PREFIX"
-  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin:$HOME/.local/bin"
-
-  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release" ]; then
-    echo "Installing semantic-release and plugins..."
-    npm install -g \
-      semantic-release@25.0.2 \
-      @semantic-release/commit-analyzer@13.0.1 \
-      @semantic-release/release-notes-generator@14.1.0 \
-      @semantic-release/changelog@6.0.3 \
-      @semantic-release/git@10.0.1 \
-      @semantic-release/github@1.0.0 \
-      conventional-changelog-conventionalcommits@9.1.0 \
-      conventional-changelog-cli@5.0.0
-  fi
-"""
