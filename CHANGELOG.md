@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.4-rc.2](https://github.com/inference-gateway/cli/compare/v0.100.4-rc.1...v0.100.4-rc.2) (2026-02-02)
+
+### ♻️ Code Refactoring
+
+* Move all logs back to a file ([c8784ab](https://github.com/inference-gateway/cli/commit/c8784abb4b67ded4f2f49969b9841384c2cff275))
+* **config:** Remove config option for console output ([aa52528](https://github.com/inference-gateway/cli/commit/aa52528a4904464caf11c1b0acb2cac95f20b9dc))
+* **docs:** Remove the environment variable for console output ([eb716ac](https://github.com/inference-gateway/cli/commit/eb716ac1f9b254bb03d5ea9497abdb7437bad19d))
+
 ## [0.100.4-rc.1](https://github.com/inference-gateway/cli/compare/v0.100.3...v0.100.4-rc.1) (2026-02-02)
 
 ### 🐛 Bug Fixes
