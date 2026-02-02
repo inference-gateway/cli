@@ -517,16 +517,6 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 // configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
 func (gm *GatewayManager) configureGatewayOutput(cmd *exec.Cmd) error {
-	if gm.config.Logging.ConsoleOutput == "stderr" {
-		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-		if err != nil {
-			return fmt.Errorf("failed to open /dev/null: %w", err)
-		}
-		cmd.Stdout = devNull
-		cmd.Stderr = devNull
-		return nil
-	}
-
 	logDir := filepath.Join(".infer", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create gateway log directory: %w", err)

@@ -12,88 +12,59 @@ import (
 )
 
 var (
-	logger *zap.Logger
-	sugar  *zap.SugaredLogger
+	globalLogger *zap.Logger
+	sugar        *zap.SugaredLogger
 )
 
-// Init initializes the logger with the specified verbose level, config, and optional console output
-func Init(verbose, debug bool, logDir string, consoleOutput string) {
-	verbose = verbose || debug
-
-	var cfg zap.Config
-
-	if consoleOutput == "stderr" {
-		// Console mode: JSON output to stderr
-		cfg = zap.Config{
-			Level:            zap.NewAtomicLevelAt(getLogLevel(verbose)),
-			Encoding:         "json",
-			OutputPaths:      []string{"stderr"},
-			ErrorOutputPaths: []string{"stderr"},
-			EncoderConfig: zapcore.EncoderConfig{
-				TimeKey:        "timestamp",
-				LevelKey:       "level",
-				NameKey:        "logger",
-				CallerKey:      "caller",
-				MessageKey:     "msg",
-				StacktraceKey:  "stacktrace",
-				LineEnding:     zapcore.DefaultLineEnding,
-				EncodeLevel:    zapcore.LowercaseLevelEncoder,
-				EncodeTime:     zapcore.ISO8601TimeEncoder,
-				EncodeDuration: zapcore.SecondsDurationEncoder,
-				EncodeCaller:   zapcore.ShortCallerEncoder,
-			},
-		}
-	} else {
-		// File mode: JSON output to log directory
-		if logDir == "" {
-			logDir = config.DefaultLogsPath
-		}
-
-		if err := os.MkdirAll(logDir, 0755); err != nil {
-			logger = zap.NewNop()
-			sugar = logger.Sugar()
-			return
-		}
-
-		logFileName := fmt.Sprintf("app-%s.log", time.Now().Format("2006-01-02"))
-		cfg = zap.Config{
-			Level:            zap.NewAtomicLevelAt(getLogLevel(verbose)),
-			Encoding:         "json",
-			OutputPaths:      []string{logDir + "/" + logFileName},
-			ErrorOutputPaths: []string{"stderr"},
-			EncoderConfig: zapcore.EncoderConfig{
-				TimeKey:        "timestamp",
-				LevelKey:       "level",
-				NameKey:        "logger",
-				CallerKey:      "caller",
-				MessageKey:     "msg",
-				StacktraceKey:  "stacktrace",
-				LineEnding:     zapcore.DefaultLineEnding,
-				EncodeLevel:    zapcore.LowercaseLevelEncoder,
-				EncodeTime:     zapcore.ISO8601TimeEncoder,
-				EncodeDuration: zapcore.SecondsDurationEncoder,
-				EncodeCaller:   zapcore.ShortCallerEncoder,
-			},
-		}
-	}
-
-	var err error
-	logger, err = cfg.Build(zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
-	if err != nil {
-		logger = zap.NewNop()
-		sugar = logger.Sugar()
-		return
-	}
-
-	sugar = logger.Sugar()
-	zap.ReplaceGlobals(logger)
+// Config for logger initialization
+type Config struct {
+	Verbose bool
+	Debug   bool
+	LogDir  string
 }
 
-func getLogLevel(verbose bool) zapcore.Level {
-	if verbose {
-		return zapcore.DebugLevel
+// Init initializes the global logger (for migration period)
+func Init(cfg Config) {
+	var err error
+	globalLogger, err = NewLogger(cfg)
+	if err != nil {
+		globalLogger = zap.NewNop()
 	}
-	return zapcore.InfoLevel
+	sugar = globalLogger.Sugar()
+	zap.ReplaceGlobals(globalLogger)
+	zap.RedirectStdLog(globalLogger)
+}
+
+// NewLogger creates a new configured logger instance
+func NewLogger(cfg Config) (*zap.Logger, error) {
+	logDir := cfg.LogDir
+	if logDir == "" {
+		logDir = config.DefaultLogsPath
+	}
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return zap.NewNop(), err
+	}
+
+	logFile := fmt.Sprintf("%s/app-%s.log", logDir, time.Now().Format("2006-01-02"))
+
+	zapCfg := zap.NewProductionConfig()
+	zapCfg.OutputPaths = []string{logFile}
+	zapCfg.ErrorOutputPaths = []string{logFile}
+
+	if cfg.Verbose || cfg.Debug {
+		zapCfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	}
+
+	return zapCfg.Build(zap.AddCallerSkip(1))
+}
+
+// GetGlobalLogger returns the global logger instance
+// Useful for services that need to store a logger reference
+func GetGlobalLogger() *zap.Logger {
+	if globalLogger == nil {
+		return zap.L()
+	}
+	return globalLogger
 }
 
 // Debug logs a debug message
@@ -154,15 +125,15 @@ func Fatal(msg string, args ...any) {
 
 // Sync flushes any buffered log entries
 func Sync() error {
-	if logger != nil {
-		return logger.Sync()
+	if globalLogger != nil {
+		return globalLogger.Sync()
 	}
 	return nil
 }
 
 // Close closes the logger and flushes any buffered entries
 func Close() {
-	if logger != nil {
-		_ = logger.Sync()
+	if globalLogger != nil {
+		_ = globalLogger.Sync()
 	}
 }
