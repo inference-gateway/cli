@@ -8,6 +8,7 @@ import (
 	"time"
 
 	viper "github.com/spf13/viper"
+	zap "go.uber.org/zap"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -33,6 +34,9 @@ type ServiceContainer struct {
 
 	// Container runtime
 	containerRuntime domain.ContainerRuntime
+
+	// Logger
+	log *zap.Logger
 
 	// Configuration
 	viper         *viper.Viper
@@ -90,6 +94,8 @@ type ServiceContainer struct {
 func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
 	sessionID := domain.GenerateSessionID()
 
+	log := logger.GetGlobalLogger()
+
 	containerRuntime, err := services.NewContainerRuntime(
 		sessionID,
 		services.RuntimeType(cfg.ContainerRuntime.Type),
@@ -102,6 +108,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: containerRuntime,
+		log:              log,
 	}
 
 	if len(v) > 0 && v[0] != nil {
@@ -390,6 +397,11 @@ func (c *ServiceContainer) determineConfigDirectory() string {
 
 func (c *ServiceContainer) GetConfig() *config.Config {
 	return c.config
+}
+
+// Logger returns the logger instance for this container
+func (c *ServiceContainer) Logger() *zap.Logger {
+	return c.log
 }
 
 func (c *ServiceContainer) GetConversationRepository() domain.ConversationRepository {

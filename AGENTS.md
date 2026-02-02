@@ -352,9 +352,6 @@ lineNum, err := extractor.GetInt("line_number")
 # Run with verbose logging
 INFER_LOGGING_LEVEL=debug infer chat
 
-# Enable debug mode for specific components
-INFER_LOGGING_CONSOLE_OUTPUT=stdout infer chat
-
 # Check configuration
 infer config show
 ```
@@ -453,7 +450,6 @@ infer init
 ```bash
 # Enable debug logging
 export INFER_LOGGING_LEVEL=debug
-export INFER_LOGGING_CONSOLE_OUTPUT=stdout
 infer chat
 ```
 
