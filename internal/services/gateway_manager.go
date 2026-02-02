@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -245,10 +246,11 @@ func (gm *GatewayManager) pullImage(ctx context.Context) error {
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker pull failed: %w", err)
 	}
 
 	fmt.Println("• Gateway image pulled successfully")
@@ -331,12 +333,16 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 
 	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
+
+	var outputBuf strings.Builder
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker run failed: %w", err)
 	}
 
-	gm.containerID = strings.TrimSpace(string(output))
+	gm.containerID = strings.TrimSpace(outputBuf.String())
 	return nil
 }
 
@@ -496,7 +502,6 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
 	}
 
-	// Configure gateway output streams
 	if err := gm.configureGatewayOutput(cmd); err != nil {
 		return err
 	}
