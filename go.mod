@@ -19,7 +19,7 @@ require (
 	github.com/inference-gateway/adk v0.17.0
 	github.com/inference-gateway/sdk v1.15.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/metoro-io/mcp-golang v0.16.0
 	github.com/muesli/reflow v0.3.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
