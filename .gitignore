@@ -10,6 +10,11 @@ flox.*-linux.*
 /.task
 infer
 
+# Nix build artifacts
+result
+result-*
+*.drv
+
 # IDE's
 .vscode
 .idea

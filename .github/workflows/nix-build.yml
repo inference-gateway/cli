@@ -1,0 +1,119 @@
+name: Nix Build Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'nix/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.go'
+      - '.github/workflows/nix-build.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'nix/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.go'
+      - '.github/workflows/nix-build.yml'
+  workflow_dispatch:
+
+jobs:
+  nix-build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-amd64
+          - os: ubuntu-24.04
+            platform: linux-arm64
+          - os: macos-15-intel
+            platform: darwin-amd64
+          - os: macos-latest
+            platform: darwin-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build with Nix
+        run: |
+          nix-build nix/default.nix --show-trace
+
+      - name: Verify binary
+        run: |
+          result/bin/infer version
+          result/bin/infer --help
+
+      - name: Check binary size
+        run: |
+          ls -lh result/bin/infer
+          size=$(stat -c%s result/bin/infer 2>/dev/null || stat -f%z result/bin/infer)
+          echo "Binary size: $(numfmt --to=iec $size 2>/dev/null || echo $size bytes)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: infer-${{ matrix.platform }}
+          path: result/bin/infer
+          retention-days: 7
+
+  nix-fmt-check:
+    name: Check Nix formatting
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Check Nix formatting
+        run: |
+          nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt --check nix/"
+
+      - name: Evaluate Nix expression
+        run: |
+          nix-instantiate --eval --strict nix/default.nix --show-trace
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-24.04
+    needs:
+      - nix-build
+      - nix-fmt-check
+    if: always()
+
+    steps:
+      - name: Check build results
+        run: |
+          if [ "${{ needs.nix-build.result }}" != "success" ]; then
+            echo "::error::Nix build failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.nix-fmt-check.result }}" != "success" ]; then
+            echo "::error::Nix formatting check failed"
+            exit 1
+          fi
+
+          echo "✅ All Nix build checks passed!"
