@@ -80,7 +80,6 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("logging", defaults.Logging)
 	v.SetDefault("logging.debug", defaults.Logging.Debug)
 	v.SetDefault("logging.dir", defaults.Logging.Dir)
-	v.SetDefault("logging.console_output", defaults.Logging.ConsoleOutput)
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
@@ -248,14 +247,11 @@ func initConfig() { // nolint:funlen
 		}
 	}
 
-	consoleOutput := v.GetString("logging.console_output")
-
-	if consoleOutput != "" && consoleOutput != "stderr" {
-		fmt.Fprintf(os.Stderr, "Warning: invalid logging.console_output value '%s', must be 'stderr' or empty\n", consoleOutput)
-		consoleOutput = ""
-	}
-
-	logger.Init(verbose, debug, logDir, consoleOutput)
+	logger.Init(logger.Config{
+		Verbose: verbose,
+		Debug:   debug,
+		LogDir:  logDir,
+	})
 }
 
 // processKeybindingEnvVars processes environment variables for keybinding configuration
