@@ -196,10 +196,10 @@ func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 
 	var output strings.Builder
 	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	fmt.Fprintf(&output, "%s\n", toolCall)
 
 	if !result.Success {
-		output.WriteString(fmt.Sprintf("└─ %s Write failed: %s", statusIcon, result.Error))
+		fmt.Fprintf(&output, "└─ %s Write failed: %s", statusIcon, result.Error)
 		return output.String()
 	}
 
@@ -208,12 +208,12 @@ func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		if writeResult.Created {
 			action = "Created"
 		}
-		output.WriteString(fmt.Sprintf("└─ %s %s file (%d bytes, %d lines)",
-			statusIcon, action, writeResult.BytesWritten, writeResult.LinesWritten))
+		fmt.Fprintf(&output, "└─ %s %s file (%d bytes, %d lines)",
+			statusIcon, action, writeResult.BytesWritten, writeResult.LinesWritten)
 		return output.String()
 	}
 
-	output.WriteString(fmt.Sprintf("└─ %s Write completed", statusIcon))
+	fmt.Fprintf(&output, "└─ %s Write completed", statusIcon)
 	return output.String()
 }
 
@@ -256,10 +256,10 @@ func (t *WriteTool) formatWriteResultData(result *domain.ToolExecutionResult) st
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s Result:\n", connector))
-	output.WriteString(fmt.Sprintf("   %s file: %s\n", action, writeResult.FilePath))
-	output.WriteString(fmt.Sprintf("   Bytes written: %d\n", writeResult.BytesWritten))
-	output.WriteString(fmt.Sprintf("   Lines: %d\n", writeResult.LinesWritten))
+	fmt.Fprintf(&output, "%s Result:\n", connector)
+	fmt.Fprintf(&output, "   %s file: %s\n", action, writeResult.FilePath)
+	fmt.Fprintf(&output, "   Bytes written: %d\n", writeResult.BytesWritten)
+	fmt.Fprintf(&output, "   Lines: %d\n", writeResult.LinesWritten)
 
 	return output.String()
 }

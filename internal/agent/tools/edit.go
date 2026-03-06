@@ -533,8 +533,8 @@ func (t *EditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -591,19 +591,19 @@ func (t *EditTool) formatEditData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("File: %s\n", editResult.FilePath))
-	output.WriteString(fmt.Sprintf("Replaced Count: %d\n", editResult.ReplacedCount))
-	output.WriteString(fmt.Sprintf("Replace All: %t\n", editResult.ReplaceAll))
-	output.WriteString(fmt.Sprintf("File Modified: %t\n", editResult.FileModified))
-	output.WriteString(fmt.Sprintf("Original Size: %d bytes\n", editResult.OriginalSize))
-	output.WriteString(fmt.Sprintf("New Size: %d bytes\n", editResult.NewSize))
-	output.WriteString(fmt.Sprintf("Bytes Difference: %+d\n", editResult.BytesDifference))
-	output.WriteString(fmt.Sprintf("Original Lines: %d\n", editResult.OriginalLines))
-	output.WriteString(fmt.Sprintf("New Lines: %d\n", editResult.NewLines))
-	output.WriteString(fmt.Sprintf("Lines Difference: %+d\n", editResult.LinesDifference))
+	fmt.Fprintf(&output, "File: %s\n", editResult.FilePath)
+	fmt.Fprintf(&output, "Replaced Count: %d\n", editResult.ReplacedCount)
+	fmt.Fprintf(&output, "Replace All: %t\n", editResult.ReplaceAll)
+	fmt.Fprintf(&output, "File Modified: %t\n", editResult.FileModified)
+	fmt.Fprintf(&output, "Original Size: %d bytes\n", editResult.OriginalSize)
+	fmt.Fprintf(&output, "New Size: %d bytes\n", editResult.NewSize)
+	fmt.Fprintf(&output, "Bytes Difference: %+d\n", editResult.BytesDifference)
+	fmt.Fprintf(&output, "Original Lines: %d\n", editResult.OriginalLines)
+	fmt.Fprintf(&output, "New Lines: %d\n", editResult.NewLines)
+	fmt.Fprintf(&output, "Lines Difference: %+d\n", editResult.LinesDifference)
 
 	if editResult.Diff != "" {
-		output.WriteString(fmt.Sprintf("Diff:\n%s\n", editResult.Diff))
+		fmt.Fprintf(&output, "Diff:\n%s\n", editResult.Diff)
 	}
 
 	return output.String()

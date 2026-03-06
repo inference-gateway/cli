@@ -120,7 +120,7 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 	}
 
 	var md strings.Builder
-	md.WriteString(fmt.Sprintf("**SAVED CONVERSATIONS:** %d total\n\n", len(conversations)))
+	fmt.Fprintf(&md, "**SAVED CONVERSATIONS:** %d total\n\n", len(conversations))
 
 	// Table header
 	md.WriteString("| ID                                   | Summary                  | Messages | Requests | Input Tokens | Output Tokens | Cost    |\n")
@@ -136,17 +136,17 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 		outputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens)
 		cost := formatting.FormatCost(conv.CostStats.TotalCost)
 
-		md.WriteString(fmt.Sprintf("| %-36s | %-24s | %8s | %8s | %12s | %13s | %7s |\n",
-			id, summary, messages, requests, inputTokens, outputTokens, cost))
+		fmt.Fprintf(&md, "| %-36s | %-24s | %8s | %8s | %12s | %13s | %7s |\n",
+			id, summary, messages, requests, inputTokens, outputTokens, cost)
 	}
 
 	// Footer with pagination info
 	if len(conversations) >= limit {
-		md.WriteString(fmt.Sprintf("\nShowing %d-%d conversations (use --limit and --offset for pagination)\n",
-			offset+1, offset+len(conversations)))
+		fmt.Fprintf(&md, "\nShowing %d-%d conversations (use --limit and --offset for pagination)\n",
+			offset+1, offset+len(conversations))
 	} else if offset > 0 {
-		md.WriteString(fmt.Sprintf("\nShowing %d-%d of conversations\n",
-			offset+1, offset+len(conversations)))
+		fmt.Fprintf(&md, "\nShowing %d-%d of conversations\n",
+			offset+1, offset+len(conversations))
 	}
 
 	// Render markdown with glamour

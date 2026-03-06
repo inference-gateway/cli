@@ -115,12 +115,12 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 	var output strings.Builder
 	toolCall := f.FormatToolCall(result.Arguments, false)
 
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("├─ Duration: %s\n", f.FormatDuration(result)))
-	output.WriteString(fmt.Sprintf("├─ Status: %s\n", f.FormatStatus(result.Success)))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "├─ Duration: %s\n", f.FormatDuration(result))
+	fmt.Fprintf(&output, "├─ Status: %s\n", f.FormatStatus(result.Success))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ Error: %s\n", result.Error))
+		fmt.Fprintf(&output, "├─ Error: %s\n", result.Error)
 	}
 
 	if len(result.Arguments) > 0 {
@@ -138,9 +138,9 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 			}
 			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
 			if hasMore {
-				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, value))
+				fmt.Fprintf(&output, "│  ├─ %s: %v\n", key, value)
 			} else {
-				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, value))
+				fmt.Fprintf(&output, "│  └─ %s: %v\n", key, value)
 			}
 		}
 	}
@@ -169,9 +169,9 @@ func (f BaseFormatter) FormatExpandedFooter(result *ToolExecutionResult, hasData
 
 	for i, key := range keys {
 		if i == len(keys)-1 {
-			output.WriteString(fmt.Sprintf("   └─ %s: %s\n", key, result.Metadata[key]))
+			fmt.Fprintf(&output, "   └─ %s: %s\n", key, result.Metadata[key])
 		} else {
-			output.WriteString(fmt.Sprintf("   ├─ %s: %s\n", key, result.Metadata[key]))
+			fmt.Fprintf(&output, "   ├─ %s: %s\n", key, result.Metadata[key])
 		}
 	}
 
@@ -252,12 +252,12 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 	var output strings.Builder
 	toolCall := f.FormatToolCall(result.Arguments, false)
 
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("├─ Duration: %s\n", f.FormatDuration(result)))
-	output.WriteString(fmt.Sprintf("├─ Status: %s\n", f.FormatStatus(result.Success)))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "├─ Duration: %s\n", f.FormatDuration(result))
+	fmt.Fprintf(&output, "├─ Status: %s\n", f.FormatStatus(result.Success))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ Error: %s\n", result.Error))
+		fmt.Fprintf(&output, "├─ Error: %s\n", result.Error)
 	}
 
 	if len(result.Arguments) > 0 {
@@ -278,7 +278,7 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 			if isLast {
 				prefix = "│ └─"
 			}
-			output.WriteString(fmt.Sprintf("%s %s: %v\n", prefix, key, value))
+			fmt.Fprintf(&output, "%s %s: %v\n", prefix, key, value)
 		}
 	}
 
