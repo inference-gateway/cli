@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.4](https://github.com/inference-gateway/cli/compare/v0.100.3...v0.100.4) (2026-03-06)
+
+### 🐛 Bug Fixes
+
+* Flox dev environment ([6e2fd6e](https://github.com/inference-gateway/cli/commit/6e2fd6e451f5a13192811a7347eaa02ce567e5be))
+* **agents:** Prevent Docker output pollution and skip agent pulling in container mode ([#387](https://github.com/inference-gateway/cli/issues/387)) ([0fe503d](https://github.com/inference-gateway/cli/commit/0fe503d1503ec74c373372ebca09871edd5edc6f)), closes [#386](https://github.com/inference-gateway/cli/issues/386)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/bubbles from 0.21.0 to 1.0.0 ([#393](https://github.com/inference-gateway/cli/issues/393)) ([504ebbf](https://github.com/inference-gateway/cli/commit/504ebbf265a7a13963f7e946fc490ba71d9be25c))
+* **deps:** Bump github.com/lib/pq from 1.10.9 to 1.11.1 ([#388](https://github.com/inference-gateway/cli/issues/388)) ([8ab85d7](https://github.com/inference-gateway/cli/commit/8ab85d76e547560366d3323b0679f3608fe0375c))
+* **deps:** Bump github.com/lib/pq from 1.11.1 to 1.11.2 ([#394](https://github.com/inference-gateway/cli/issues/394)) ([cd3ad4a](https://github.com/inference-gateway/cli/commit/cd3ad4ac42ada603e93f08000585859bfc8341b8))
+* **deps:** Bump golang.org/x/crypto from 0.47.0 to 0.48.0 ([#392](https://github.com/inference-gateway/cli/issues/392)) ([55a2c36](https://github.com/inference-gateway/cli/commit/55a2c3654b211e096155f53ea6efeadf4379d749))
+* **deps:** Bump golang.org/x/image from 0.34.0 to 0.36.0 ([#391](https://github.com/inference-gateway/cli/issues/391)) ([1f7948a](https://github.com/inference-gateway/cli/commit/1f7948a77c3c5418e6a391442fa6111deff61043))
+* **deps:** Bump modernc.org/sqlite from 1.44.3 to 1.45.0 ([#395](https://github.com/inference-gateway/cli/issues/395)) ([a3cbd52](https://github.com/inference-gateway/cli/commit/a3cbd52c6cc2d73a4006dbd5d78acab3a6672690))
+* Update development dependencies ([#396](https://github.com/inference-gateway/cli/issues/396)) ([aab8ab9](https://github.com/inference-gateway/cli/commit/aab8ab91d9aed53fd92ff6f5cbd45129256d8450))
+
 ## [0.100.4-rc.2](https://github.com/inference-gateway/cli/compare/v0.100.4-rc.1...v0.100.4-rc.2) (2026-02-02)
 
 ### ♻️ Code Refactoring
