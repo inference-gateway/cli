@@ -445,7 +445,7 @@ func listAgents(cmd *cobra.Command, args []string) error {
 	}
 
 	var md strings.Builder
-	md.WriteString(fmt.Sprintf("**CONFIGURED A2A AGENTS:** %d total (%d local, %d external)\n\n", totalAgents, len(localAgents), len(externalAgents)))
+	fmt.Fprintf(&md, "**CONFIGURED A2A AGENTS:** %d total (%d local, %d external)\n\n", totalAgents, len(localAgents), len(externalAgents))
 
 	md.WriteString("| Source | Enabled | Name | URL | OCI Image | Local | Model | Env |\n")
 	md.WriteString("|--------|---------|------|-----|-----------|-------|-------|-----|\n")
@@ -480,18 +480,18 @@ func listAgents(cmd *cobra.Command, args []string) error {
 			envStr = fmt.Sprintf("%d", len(agent.Environment))
 		}
 
-		md.WriteString(fmt.Sprintf("| yaml | %s | %s | %s | %s | %s | %s | %s |\n",
-			status, name, url, oci, runLocally, model, envStr))
+		fmt.Fprintf(&md, "| yaml | %s | %s | %s | %s | %s | %s | %s |\n",
+			status, name, url, oci, runLocally, model, envStr)
 	}
 
 	for _, agent := range externalAgents {
-		md.WriteString(fmt.Sprintf("| env | %s | %s | %s | - | - | - | - |\n",
-			icons.CheckMark, agent.Name, agent.URL))
+		fmt.Fprintf(&md, "| env | %s | %s | %s | - | - | - | - |\n",
+			icons.CheckMark, agent.Name, agent.URL)
 	}
 
-	md.WriteString(fmt.Sprintf("\n%s = enabled, %s = disabled\n",
+	fmt.Fprintf(&md, "\n%s = enabled, %s = disabled\n",
 		icons.CheckMark,
-		icons.CrossMark))
+		icons.CrossMark)
 
 	rendered, err := renderMarkdown(md.String())
 	if err != nil {
@@ -526,31 +526,31 @@ func showAgent(cmd *cobra.Command, name string) error {
 	}
 
 	var md strings.Builder
-	md.WriteString(fmt.Sprintf("**AGENT:** %s\n\n", agent.Name))
+	fmt.Fprintf(&md, "**AGENT:** %s\n\n", agent.Name)
 
 	status := icons.CheckMark + " enabled"
 	if !agent.Enabled {
 		status = icons.CrossMark + " disabled"
 	}
-	md.WriteString(fmt.Sprintf("**Status:** %s  \n", status))
-	md.WriteString(fmt.Sprintf("**URL:** `%s`  \n", agent.URL))
+	fmt.Fprintf(&md, "**Status:** %s  \n", status)
+	fmt.Fprintf(&md, "**URL:** `%s`  \n", agent.URL)
 
 	if agent.ArtifactsURL != "" {
-		md.WriteString(fmt.Sprintf("**Artifacts URL:** `%s`  \n", agent.ArtifactsURL))
+		fmt.Fprintf(&md, "**Artifacts URL:** `%s`  \n", agent.ArtifactsURL)
 	}
 
 	if agent.OCI != "" {
-		md.WriteString(fmt.Sprintf("**OCI:** `%s`  \n", agent.OCI))
+		fmt.Fprintf(&md, "**OCI:** `%s`  \n", agent.OCI)
 	}
 
 	runLocally := icons.CrossMark
 	if agent.Run {
 		runLocally = icons.CheckMark
 	}
-	md.WriteString(fmt.Sprintf("**Run Locally:** %s  \n", runLocally))
+	fmt.Fprintf(&md, "**Run Locally:** %s  \n", runLocally)
 
 	if agent.Model != "" {
-		md.WriteString(fmt.Sprintf("**Model:** `%s`  \n", agent.Model))
+		fmt.Fprintf(&md, "**Model:** `%s`  \n", agent.Model)
 	}
 
 	if len(agent.Environment) > 0 {
@@ -558,7 +558,7 @@ func showAgent(cmd *cobra.Command, name string) error {
 		md.WriteString("| Variable | Value |\n")
 		md.WriteString("|----------|-------|\n")
 		for key, value := range agent.Environment {
-			md.WriteString(fmt.Sprintf("| `%s` | `%s` |\n", key, value))
+			fmt.Fprintf(&md, "| `%s` | `%s` |\n", key, value)
 		}
 	}
 

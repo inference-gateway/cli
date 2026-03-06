@@ -370,8 +370,8 @@ func (t *DeleteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -406,16 +406,16 @@ func (t *DeleteTool) formatDeleteData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Path: %s\n", deleteResult.Path))
-	output.WriteString(fmt.Sprintf("Total Files Deleted: %d\n", deleteResult.TotalFilesDeleted))
-	output.WriteString(fmt.Sprintf("Total Directories Deleted: %d\n", deleteResult.TotalDirsDeleted))
-	output.WriteString(fmt.Sprintf("Wildcard Expanded: %t\n", deleteResult.WildcardExpanded))
+	fmt.Fprintf(&output, "Path: %s\n", deleteResult.Path)
+	fmt.Fprintf(&output, "Total Files Deleted: %d\n", deleteResult.TotalFilesDeleted)
+	fmt.Fprintf(&output, "Total Directories Deleted: %d\n", deleteResult.TotalDirsDeleted)
+	fmt.Fprintf(&output, "Wildcard Expanded: %t\n", deleteResult.WildcardExpanded)
 
 	if len(deleteResult.DeletedFiles) > 0 {
 		output.WriteString("\nDeleted Files:\n")
 		for _, file := range deleteResult.DeletedFiles {
 			fileName := t.formatter.GetFileName(file)
-			output.WriteString(fmt.Sprintf("  - %s\n", fileName))
+			fmt.Fprintf(&output, "  - %s\n", fileName)
 		}
 	}
 
@@ -423,14 +423,14 @@ func (t *DeleteTool) formatDeleteData(data any) string {
 		output.WriteString("\nDeleted Directories:\n")
 		for _, dir := range deleteResult.DeletedDirs {
 			dirName := t.formatter.GetFileName(dir)
-			output.WriteString(fmt.Sprintf("  - %s/\n", dirName))
+			fmt.Fprintf(&output, "  - %s/\n", dirName)
 		}
 	}
 
 	if len(deleteResult.Errors) > 0 {
 		output.WriteString("\nErrors:\n")
 		for _, err := range deleteResult.Errors {
-			output.WriteString(fmt.Sprintf("  - %s\n", err))
+			fmt.Fprintf(&output, "  - %s\n", err)
 		}
 	}
 

@@ -313,8 +313,8 @@ func (t *WebFetchTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -349,32 +349,32 @@ func (t *WebFetchTool) formatFetchData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("URL: %s\n", fetchResult.URL))
-	output.WriteString(fmt.Sprintf("Status: %d\n", fetchResult.Status))
-	output.WriteString(fmt.Sprintf("Size: %s\n", t.formatSize(fetchResult.Size)))
-	output.WriteString(fmt.Sprintf("Content Type: %s\n", fetchResult.ContentType))
-	output.WriteString(fmt.Sprintf("Cached: %t\n", fetchResult.Cached))
+	fmt.Fprintf(&output, "URL: %s\n", fetchResult.URL)
+	fmt.Fprintf(&output, "Status: %d\n", fetchResult.Status)
+	fmt.Fprintf(&output, "Size: %s\n", t.formatSize(fetchResult.Size))
+	fmt.Fprintf(&output, "Content Type: %s\n", fetchResult.ContentType)
+	fmt.Fprintf(&output, "Cached: %t\n", fetchResult.Cached)
 
 	if fetchResult.SavedPath != "" {
-		output.WriteString(fmt.Sprintf("Saved to: %s\n", fetchResult.SavedPath))
+		fmt.Fprintf(&output, "Saved to: %s\n", fetchResult.SavedPath)
 	}
 
 	if fetchResult.Warning != "" {
-		output.WriteString(fmt.Sprintf("Warning: %s\n", fetchResult.Warning))
+		fmt.Fprintf(&output, "Warning: %s\n", fetchResult.Warning)
 	}
 
 	if len(fetchResult.Metadata) > 0 {
 		output.WriteString("Metadata:\n")
 		for key, value := range fetchResult.Metadata {
 			if value != "" {
-				output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+				fmt.Fprintf(&output, "  %s: %s\n", key, value)
 			}
 		}
 	}
 
 	if fetchResult.Content != "" {
 		contentPreview := t.formatter.TruncateText(fetchResult.Content, 500)
-		output.WriteString(fmt.Sprintf("Content:\n%s\n", contentPreview))
+		fmt.Fprintf(&output, "Content:\n%s\n", contentPreview)
 	}
 
 	return output.String()

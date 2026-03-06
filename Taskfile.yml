@@ -308,6 +308,26 @@ tasks:
     cmds:
       - rm -rf tests/mocks
 
+  semantic-release:install:
+    desc: Install semantic-release and plugins
+    vars:
+      NPM_CONFIG_PREFIX:
+        sh: echo "${NPM_CONFIG_PREFIX:-.flox/npm}"
+    cmds:
+      - mkdir -p "{{.NPM_CONFIG_PREFIX}}"
+      - |
+        npm install -g --prefix "{{.NPM_CONFIG_PREFIX}}" \
+          semantic-release@25.0.2 \
+          @semantic-release/commit-analyzer@13.0.1 \
+          @semantic-release/release-notes-generator@14.1.0 \
+          @semantic-release/changelog@6.0.3 \
+          @semantic-release/git@10.0.1 \
+          @semantic-release/github@1.0.0 \
+          conventional-changelog-conventionalcommits@9.1.0 \
+          conventional-changelog-cli@5.0.0
+    status:
+      - test -d "{{.NPM_CONFIG_PREFIX}}/lib/node_modules/semantic-release"
+
   clean:release:
     desc: Clean release artifacts
     cmds:

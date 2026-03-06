@@ -1055,8 +1055,8 @@ func (t *GrepTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -1091,17 +1091,17 @@ func (t *GrepTool) formatGrepData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Pattern: %s\n", grepResult.Pattern))
-	output.WriteString(fmt.Sprintf("Output Mode: %s\n", grepResult.OutputMode))
-	output.WriteString(fmt.Sprintf("Total Matches: %d\n", grepResult.Total))
-	output.WriteString(fmt.Sprintf("Duration: %s\n", grepResult.Duration))
+	fmt.Fprintf(&output, "Pattern: %s\n", grepResult.Pattern)
+	fmt.Fprintf(&output, "Output Mode: %s\n", grepResult.OutputMode)
+	fmt.Fprintf(&output, "Total Matches: %d\n", grepResult.Total)
+	fmt.Fprintf(&output, "Duration: %s\n", grepResult.Duration)
 
 	if grepResult.Truncated {
 		output.WriteString("Results: Truncated (showing first results only)\n")
 	}
 
 	if grepResult.Error != "" {
-		output.WriteString(fmt.Sprintf("Error: %s\n", grepResult.Error))
+		fmt.Fprintf(&output, "Error: %s\n", grepResult.Error)
 	}
 
 	switch grepResult.OutputMode {
@@ -1110,7 +1110,7 @@ func (t *GrepTool) formatGrepData(data any) string {
 			output.WriteString("\nMatch Counts by File:\n")
 			for _, count := range grepResult.Counts {
 				fileName := t.formatter.GetFileName(count.File)
-				output.WriteString(fmt.Sprintf("  %s: %d\n", fileName, count.Count))
+				fmt.Fprintf(&output, "  %s: %d\n", fileName, count.Count)
 			}
 		}
 
@@ -1119,7 +1119,7 @@ func (t *GrepTool) formatGrepData(data any) string {
 			output.WriteString("\nFiles with Matches:\n")
 			for _, file := range grepResult.Files {
 				fileName := t.formatter.GetFileName(file)
-				output.WriteString(fmt.Sprintf("  %s\n", fileName))
+				fmt.Fprintf(&output, "  %s\n", fileName)
 			}
 		}
 
@@ -1128,7 +1128,7 @@ func (t *GrepTool) formatGrepData(data any) string {
 			output.WriteString("\nMatches:\n")
 			for _, match := range grepResult.Matches {
 				fileName := t.formatter.GetFileName(match.File)
-				output.WriteString(fmt.Sprintf("  %s:%d  %s\n", fileName, match.Line, match.Text))
+				fmt.Fprintf(&output, "  %s:%d  %s\n", fileName, match.Line, match.Text)
 			}
 		}
 	}

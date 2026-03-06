@@ -333,14 +333,14 @@ func (t *MCPTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	fmt.Fprintf(&output, "%s\n", toolCall)
 
 	previewLines := strings.Split(preview, "\n")
 	for i, line := range previewLines {
 		if i == 0 {
-			output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, line))
+			fmt.Fprintf(&output, "└─ %s %s", statusIcon, line)
 		} else {
-			output.WriteString(fmt.Sprintf("\n     %s", line))
+			fmt.Fprintf(&output, "\n     %s", line)
 		}
 	}
 
@@ -377,12 +377,12 @@ func (t *MCPTool) formatMCPData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Server: %s\n", mcpResult.ServerName))
-	output.WriteString(fmt.Sprintf("Tool: %s\n", mcpResult.ToolName))
+	fmt.Fprintf(&output, "Server: %s\n", mcpResult.ServerName)
+	fmt.Fprintf(&output, "Tool: %s\n", mcpResult.ToolName)
 
 	if mcpResult.Error != "" {
 		output.WriteString("Status: Error\n")
-		output.WriteString(fmt.Sprintf("Error: %s\n", mcpResult.Error))
+		fmt.Fprintf(&output, "Error: %s\n", mcpResult.Error)
 	} else {
 		output.WriteString("Status: Success\n")
 	}

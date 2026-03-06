@@ -269,7 +269,7 @@ func (s *ToolFormatterService) formatGenericArguments(args map[string]any) strin
 
 	for i, key := range keys {
 		value := args[key]
-		result.WriteString(fmt.Sprintf("  • %s: %v", key, value))
+		fmt.Fprintf(&result, "  • %s: %v", key, value)
 		if i < len(keys)-1 {
 			result.WriteString("\n")
 		}
@@ -315,15 +315,15 @@ func (s *ToolFormatterService) formatEnhancedGatewayTool(result *domain.ToolExec
 	toolType, _ := data["type"].(string)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", visualDisplay))
+	fmt.Fprintf(&output, "%s\n", visualDisplay)
 
 	switch toolType {
 	case "A2A":
-		output.WriteString(fmt.Sprintf("└─ %s 🔗 Delegated to A2A Agent on Gateway", statusIcon))
+		fmt.Fprintf(&output, "└─ %s 🔗 Delegated to A2A Agent on Gateway", statusIcon)
 	case "MCP":
-		output.WriteString(fmt.Sprintf("└─ %s 🔧 Executed via MCP on Gateway", statusIcon))
+		fmt.Fprintf(&output, "└─ %s 🔧 Executed via MCP on Gateway", statusIcon)
 	default:
-		output.WriteString(fmt.Sprintf("└─ %s Executed on Gateway", statusIcon))
+		fmt.Fprintf(&output, "└─ %s Executed on Gateway", statusIcon)
 	}
 
 	return output.String()

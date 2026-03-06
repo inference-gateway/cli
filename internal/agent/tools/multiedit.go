@@ -626,8 +626,8 @@ func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCallDisplay))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCallDisplay)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -679,13 +679,13 @@ func (t *MultiEditTool) formatMultiEditData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("File: %s\n", multiEditResult.FilePath))
-	output.WriteString(fmt.Sprintf("Total Edits: %d\n", multiEditResult.TotalEdits))
-	output.WriteString(fmt.Sprintf("Successful Edits: %d\n", multiEditResult.SuccessfulEdits))
-	output.WriteString(fmt.Sprintf("File Modified: %t\n", multiEditResult.FileModified))
-	output.WriteString(fmt.Sprintf("Original Size: %d bytes\n", multiEditResult.OriginalSize))
-	output.WriteString(fmt.Sprintf("New Size: %d bytes\n", multiEditResult.NewSize))
-	output.WriteString(fmt.Sprintf("Bytes Difference: %+d\n", multiEditResult.BytesDifference))
+	fmt.Fprintf(&output, "File: %s\n", multiEditResult.FilePath)
+	fmt.Fprintf(&output, "Total Edits: %d\n", multiEditResult.TotalEdits)
+	fmt.Fprintf(&output, "Successful Edits: %d\n", multiEditResult.SuccessfulEdits)
+	fmt.Fprintf(&output, "File Modified: %t\n", multiEditResult.FileModified)
+	fmt.Fprintf(&output, "Original Size: %d bytes\n", multiEditResult.OriginalSize)
+	fmt.Fprintf(&output, "New Size: %d bytes\n", multiEditResult.NewSize)
+	fmt.Fprintf(&output, "Bytes Difference: %+d\n", multiEditResult.BytesDifference)
 
 	if len(multiEditResult.Edits) > 0 {
 		output.WriteString("\nEdit Operations:\n")
@@ -698,14 +698,14 @@ func (t *MultiEditTool) formatMultiEditData(data any) string {
 			oldPreview := t.formatter.TruncateText(edit.OldString, 30)
 			newPreview := t.formatter.TruncateText(edit.NewString, 30)
 
-			output.WriteString(fmt.Sprintf("  %d. %s %s → %s", i+1, status, oldPreview, newPreview))
+			fmt.Fprintf(&output, "  %d. %s %s → %s", i+1, status, oldPreview, newPreview)
 
 			if edit.ReplacedCount > 0 {
-				output.WriteString(fmt.Sprintf(" (%d replacements)", edit.ReplacedCount))
+				fmt.Fprintf(&output, " (%d replacements)", edit.ReplacedCount)
 			}
 
 			if edit.Error != "" {
-				output.WriteString(fmt.Sprintf(" [Error: %s]", edit.Error))
+				fmt.Fprintf(&output, " [Error: %s]", edit.Error)
 			}
 
 			output.WriteString("\n")
@@ -741,12 +741,12 @@ func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *c
 
 	var summary strings.Builder
 
-	summary.WriteString(fmt.Sprintf("Successfully applied %d edits", multiEditResult.SuccessfulEdits))
+	fmt.Fprintf(&summary, "Successfully applied %d edits", multiEditResult.SuccessfulEdits)
 	if multiEditResult.BytesDifference != 0 {
 		if multiEditResult.BytesDifference > 0 {
-			summary.WriteString(fmt.Sprintf(" (+%d bytes)", multiEditResult.BytesDifference))
+			fmt.Fprintf(&summary, " (+%d bytes)", multiEditResult.BytesDifference)
 		} else {
-			summary.WriteString(fmt.Sprintf(" (%d bytes)", multiEditResult.BytesDifference))
+			fmt.Fprintf(&summary, " (%d bytes)", multiEditResult.BytesDifference)
 		}
 	}
 
