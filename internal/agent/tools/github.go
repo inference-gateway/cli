@@ -898,8 +898,8 @@ func (t *GithubTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -921,7 +921,7 @@ func (t *GithubTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	}
 
 	if len(result.Images) > 0 {
-		output.WriteString(fmt.Sprintf("\n[Images attached: %d image(s) from issue - you can see and analyze these images]\n", len(result.Images)))
+		fmt.Fprintf(&output, "\n[Images attached: %d image(s) from issue - you can see and analyze these images]\n", len(result.Images))
 	}
 
 	hasDataSection := result.Data != nil
@@ -949,16 +949,16 @@ func (t *GithubTool) formatGithubData(data any) string {
 // formatIssue formats a GitHub issue
 func (t *GithubTool) formatIssue(issue *domain.GitHubIssue) string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Issue #%d: %s\n", issue.Number, issue.Title))
-	output.WriteString(fmt.Sprintf("State: %s\n", issue.State))
-	output.WriteString(fmt.Sprintf("Author: %s\n", issue.User.Login))
+	fmt.Fprintf(&output, "Issue #%d: %s\n", issue.Number, issue.Title)
+	fmt.Fprintf(&output, "State: %s\n", issue.State)
+	fmt.Fprintf(&output, "Author: %s\n", issue.User.Login)
 
 	if len(issue.Assignees) > 0 {
 		var assigneeNames []string
 		for _, assignee := range issue.Assignees {
 			assigneeNames = append(assigneeNames, assignee.Login)
 		}
-		output.WriteString(fmt.Sprintf("Assignees: %s\n", strings.Join(assigneeNames, ", ")))
+		fmt.Fprintf(&output, "Assignees: %s\n", strings.Join(assigneeNames, ", "))
 	}
 
 	if len(issue.Labels) > 0 {
@@ -966,20 +966,20 @@ func (t *GithubTool) formatIssue(issue *domain.GitHubIssue) string {
 		for _, label := range issue.Labels {
 			labelNames = append(labelNames, label.Name)
 		}
-		output.WriteString(fmt.Sprintf("Labels: %s\n", strings.Join(labelNames, ", ")))
+		fmt.Fprintf(&output, "Labels: %s\n", strings.Join(labelNames, ", "))
 	}
 
 	if issue.Milestone != nil {
-		output.WriteString(fmt.Sprintf("Milestone: %s\n", issue.Milestone.Title))
+		fmt.Fprintf(&output, "Milestone: %s\n", issue.Milestone.Title)
 	}
 
-	output.WriteString(fmt.Sprintf("Created: %s\n", issue.CreatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("Updated: %s\n", issue.UpdatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("URL: %s\n", issue.HTMLURL))
+	fmt.Fprintf(&output, "Created: %s\n", issue.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "Updated: %s\n", issue.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "URL: %s\n", issue.HTMLURL)
 
 	if issue.Body != "" {
 		bodyPreview := t.formatter.TruncateText(issue.Body, 300)
-		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+		fmt.Fprintf(&output, "Body:\n%s\n", bodyPreview)
 	}
 
 	return output.String()
@@ -988,40 +988,40 @@ func (t *GithubTool) formatIssue(issue *domain.GitHubIssue) string {
 // formatPullRequest formats a GitHub pull request
 func (t *GithubTool) formatPullRequest(pr *domain.GitHubPullRequest) string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Pull Request #%d: %s\n", pr.Number, pr.Title))
-	output.WriteString(fmt.Sprintf("State: %s\n", pr.State))
-	output.WriteString(fmt.Sprintf("Author: %s\n", pr.User.Login))
+	fmt.Fprintf(&output, "Pull Request #%d: %s\n", pr.Number, pr.Title)
+	fmt.Fprintf(&output, "State: %s\n", pr.State)
+	fmt.Fprintf(&output, "Author: %s\n", pr.User.Login)
 
 	if len(pr.Assignees) > 0 {
 		var assigneeNames []string
 		for _, assignee := range pr.Assignees {
 			assigneeNames = append(assigneeNames, assignee.Login)
 		}
-		output.WriteString(fmt.Sprintf("Assignees: %s\n", strings.Join(assigneeNames, ", ")))
+		fmt.Fprintf(&output, "Assignees: %s\n", strings.Join(assigneeNames, ", "))
 	}
 
-	output.WriteString(fmt.Sprintf("Base: %s\n", pr.Base.Ref))
-	output.WriteString(fmt.Sprintf("Head: %s\n", pr.Head.Ref))
+	fmt.Fprintf(&output, "Base: %s\n", pr.Base.Ref)
+	fmt.Fprintf(&output, "Head: %s\n", pr.Head.Ref)
 
 	if len(pr.Labels) > 0 {
 		var labelNames []string
 		for _, label := range pr.Labels {
 			labelNames = append(labelNames, label.Name)
 		}
-		output.WriteString(fmt.Sprintf("Labels: %s\n", strings.Join(labelNames, ", ")))
+		fmt.Fprintf(&output, "Labels: %s\n", strings.Join(labelNames, ", "))
 	}
 
 	if pr.Milestone != nil {
-		output.WriteString(fmt.Sprintf("Milestone: %s\n", pr.Milestone.Title))
+		fmt.Fprintf(&output, "Milestone: %s\n", pr.Milestone.Title)
 	}
 
-	output.WriteString(fmt.Sprintf("Created: %s\n", pr.CreatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("Updated: %s\n", pr.UpdatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("URL: %s\n", pr.HTMLURL))
+	fmt.Fprintf(&output, "Created: %s\n", pr.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "Updated: %s\n", pr.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "URL: %s\n", pr.HTMLURL)
 
 	if pr.Body != "" {
 		bodyPreview := t.formatter.TruncateText(pr.Body, 300)
-		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+		fmt.Fprintf(&output, "Body:\n%s\n", bodyPreview)
 	}
 
 	return output.String()
@@ -1030,15 +1030,15 @@ func (t *GithubTool) formatPullRequest(pr *domain.GitHubPullRequest) string {
 // formatComment formats a GitHub comment
 func (t *GithubTool) formatComment(comment *domain.GitHubComment) string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Comment ID: %d\n", comment.ID))
-	output.WriteString(fmt.Sprintf("Author: %s\n", comment.User.Login))
-	output.WriteString(fmt.Sprintf("Created: %s\n", comment.CreatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("Updated: %s\n", comment.UpdatedAt.Format("2006-01-02 15:04:05")))
-	output.WriteString(fmt.Sprintf("URL: %s\n", comment.HTMLURL))
+	fmt.Fprintf(&output, "Comment ID: %d\n", comment.ID)
+	fmt.Fprintf(&output, "Author: %s\n", comment.User.Login)
+	fmt.Fprintf(&output, "Created: %s\n", comment.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "Updated: %s\n", comment.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&output, "URL: %s\n", comment.HTMLURL)
 
 	if comment.Body != "" {
 		bodyPreview := t.formatter.TruncateText(comment.Body, 300)
-		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+		fmt.Fprintf(&output, "Body:\n%s\n", bodyPreview)
 	}
 
 	return output.String()
@@ -1047,7 +1047,7 @@ func (t *GithubTool) formatComment(comment *domain.GitHubComment) string {
 // formatList formats a list of GitHub objects
 func (t *GithubTool) formatList(items []any) string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Count: %d items\n", len(items)))
+	fmt.Fprintf(&output, "Count: %d items\n", len(items))
 
 	if len(items) == 0 {
 		return output.String()
@@ -1058,22 +1058,22 @@ func (t *GithubTool) formatList(items []any) string {
 		// Limit display to first 5 items to avoid overwhelming output
 		if i >= 5 {
 			remaining := len(items) - i
-			output.WriteString(fmt.Sprintf("... and %d more items\n", remaining))
+			fmt.Fprintf(&output, "... and %d more items\n", remaining)
 			break
 		}
 
 		switch typedItem := item.(type) {
 		case *domain.GitHubIssue:
-			output.WriteString(fmt.Sprintf("  %d. Issue #%d: %s [%s]\n",
-				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State))
+			fmt.Fprintf(&output, "  %d. Issue #%d: %s [%s]\n",
+				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State)
 		case *domain.GitHubPullRequest:
-			output.WriteString(fmt.Sprintf("  %d. PR #%d: %s [%s]\n",
-				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State))
+			fmt.Fprintf(&output, "  %d. PR #%d: %s [%s]\n",
+				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State)
 		case *domain.GitHubComment:
-			output.WriteString(fmt.Sprintf("  %d. Comment by %s\n",
-				i+1, typedItem.User.Login))
+			fmt.Fprintf(&output, "  %d. Comment by %s\n",
+				i+1, typedItem.User.Login)
 		default:
-			output.WriteString(fmt.Sprintf("  %d. GitHub item (type: %T)\n", i+1, typedItem))
+			fmt.Fprintf(&output, "  %d. GitHub item (type: %T)\n", i+1, typedItem)
 		}
 	}
 

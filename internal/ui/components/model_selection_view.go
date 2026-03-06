@@ -244,7 +244,7 @@ func (m *ModelSelectorImpl) View() string {
 			}
 			b.WriteString("\n")
 		} else {
-			b.WriteString(fmt.Sprintf("  %s", model))
+			fmt.Fprintf(&b, "  %s", model)
 			if pricingSuffix != "" {
 				b.WriteString(" ")
 				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))

@@ -307,8 +307,8 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 
 		case <-ticker.C:
 			pollAttempt++
-			pollingDetails.WriteString(fmt.Sprintf("Poll #%d: interval=%v, elapsed=%v\n",
-				pollAttempt, currentInterval, time.Since(state.StartedAt)))
+			fmt.Fprintf(&pollingDetails, "Poll #%d: interval=%v, elapsed=%v\n",
+				pollAttempt, currentInterval, time.Since(state.StartedAt))
 
 			state.LastPollAt = time.Now()
 
@@ -602,17 +602,17 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 	}
 
 	var dataContent strings.Builder
-	dataContent.WriteString(fmt.Sprintf("Task ID: %s\n", taskData.TaskID))
+	fmt.Fprintf(&dataContent, "Task ID: %s\n", taskData.TaskID)
 	if taskData.ContextID != "" {
-		dataContent.WriteString(fmt.Sprintf("Context ID: %s\n", taskData.ContextID))
+		fmt.Fprintf(&dataContent, "Context ID: %s\n", taskData.ContextID)
 	}
-	dataContent.WriteString(fmt.Sprintf("State: %s\n", taskData.State))
+	fmt.Fprintf(&dataContent, "State: %s\n", taskData.State)
 	if taskData.TaskResult != "" {
-		dataContent.WriteString(fmt.Sprintf("\n%s", taskData.TaskResult))
+		fmt.Fprintf(&dataContent, "\n%s", taskData.TaskResult)
 	}
 
 	if taskData.Task != nil && len(taskData.Task.Artifacts) > 0 {
-		dataContent.WriteString(fmt.Sprintf("\n\nArtifacts Available: %d\n", len(taskData.Task.Artifacts)))
+		fmt.Fprintf(&dataContent, "\n\nArtifacts Available: %d\n", len(taskData.Task.Artifacts))
 		for i, artifact := range taskData.Task.Artifacts {
 			t.formatArtifact(&dataContent, i+1, artifact)
 		}
@@ -680,8 +680,8 @@ func (t *A2ASubmitTaskTool) FormatForUI(result *domain.ToolExecutionResult) stri
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }

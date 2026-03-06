@@ -109,12 +109,12 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	output.WriteString("## Context Window Usage\n\n")
 
 	if currentModel != "" {
-		output.WriteString(fmt.Sprintf("**Model:** %s\n", currentModel))
+		fmt.Fprintf(&output, "**Model:** %s\n", currentModel)
 	}
-	output.WriteString(fmt.Sprintf("**Messages:** %d\n", messageCount))
-	output.WriteString(fmt.Sprintf("**Current Context Size:** %d tokens\n", stats.LastInputTokens))
-	output.WriteString(fmt.Sprintf("**API Requests:** %d\n", stats.RequestCount))
-	output.WriteString(fmt.Sprintf("**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens))
+	fmt.Fprintf(&output, "**Messages:** %d\n", messageCount)
+	fmt.Fprintf(&output, "**Current Context Size:** %d tokens\n", stats.LastInputTokens)
+	fmt.Fprintf(&output, "**API Requests:** %d\n", stats.RequestCount)
+	fmt.Fprintf(&output, "**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens)
 
 	if contextWindowSize > 0 && stats.LastInputTokens > 0 {
 		output.WriteString(c.formatContextUsage(stats.LastInputTokens, contextWindowSize))
@@ -146,9 +146,9 @@ func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize 
 		displayPercent = 100
 	}
 
-	output.WriteString(fmt.Sprintf("\n**Context Window:** %d tokens\n", contextWindowSize))
-	output.WriteString(fmt.Sprintf("**Usage:** %.1f%%\n", displayPercent))
-	output.WriteString(fmt.Sprintf("**Remaining:** ~%d tokens\n", remaining))
+	fmt.Fprintf(&output, "\n**Context Window:** %d tokens\n", contextWindowSize)
+	fmt.Fprintf(&output, "**Usage:** %.1f%%\n", displayPercent)
+	fmt.Fprintf(&output, "**Remaining:** ~%d tokens\n", remaining)
 
 	barWidth := 20
 	filledWidth := int(displayPercent * float64(barWidth) / 100)
@@ -156,7 +156,7 @@ func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize 
 		filledWidth = barWidth
 	}
 	bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
-	output.WriteString(fmt.Sprintf("\n`[%s]` %.1f%%\n", bar, displayPercent))
+	fmt.Fprintf(&output, "\n`[%s]` %.1f%%\n", bar, displayPercent)
 
 	if usagePercent > 80 {
 		output.WriteString("\n**Warning:** Context window is getting full. Consider using `/compact` to optimize.")
@@ -188,15 +188,15 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 
 	output.WriteString("| Metric | Value |\n")
 	output.WriteString("|--------|-------|\n")
-	output.WriteString(fmt.Sprintf("| **Input Cost** | $%.4f (%s tokens) |\n",
+	fmt.Fprintf(&output, "| **Input Cost** | $%.4f (%s tokens) |\n",
 		costStats.TotalInputCost,
-		formatTokenCount(tokenStats.TotalInputTokens)))
-	output.WriteString(fmt.Sprintf("| **Output Cost** | $%.4f (%s tokens) |\n",
+		formatTokenCount(tokenStats.TotalInputTokens))
+	fmt.Fprintf(&output, "| **Output Cost** | $%.4f (%s tokens) |\n",
 		costStats.TotalOutputCost,
-		formatTokenCount(tokenStats.TotalOutputTokens)))
-	output.WriteString(fmt.Sprintf("| **API Requests** | %d |\n", tokenStats.RequestCount))
-	output.WriteString(fmt.Sprintf("| **Total Cost** | $%.4f %s |\n\n",
-		costStats.TotalCost, costStats.Currency))
+		formatTokenCount(tokenStats.TotalOutputTokens))
+	fmt.Fprintf(&output, "| **API Requests** | %d |\n", tokenStats.RequestCount)
+	fmt.Fprintf(&output, "| **Total Cost** | $%.4f %s |\n\n",
+		costStats.TotalCost, costStats.Currency)
 
 	if len(costStats.PerModelStats) > 1 {
 		output.WriteString("### Cost by Model\n\n")
@@ -217,7 +217,7 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 		output.WriteString("|-------|------|-------|--------|----------|\n")
 		for _, mc := range models {
 			stats := costStats.PerModelStats[mc.model]
-			output.WriteString(fmt.Sprintf("| %s | $%.4f (%.1f%%) | %s tokens ($%.4f) | %s tokens ($%.4f) | %d |\n",
+			fmt.Fprintf(&output, "| %s | $%.4f (%.1f%%) | %s tokens ($%.4f) | %s tokens ($%.4f) | %d |\n",
 				stats.Model,
 				stats.TotalCost,
 				(stats.TotalCost/costStats.TotalCost)*100,
@@ -225,12 +225,12 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 				stats.InputCost,
 				formatTokenCount(stats.OutputTokens),
 				stats.OutputCost,
-				stats.RequestCount))
+				stats.RequestCount)
 		}
 		output.WriteString("\n")
 	} else if len(costStats.PerModelStats) == 1 {
 		for model := range costStats.PerModelStats {
-			output.WriteString(fmt.Sprintf("**Model:** %s\n", model))
+			fmt.Fprintf(&output, "**Model:** %s\n", model)
 		}
 	}
 
@@ -331,8 +331,8 @@ func (c *HelpShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 
 	shortcuts := c.registry.GetAll()
 	for _, shortcut := range shortcuts {
-		output.WriteString(fmt.Sprintf("/%s\n", shortcut.GetName()))
-		output.WriteString(fmt.Sprintf("  %s\n\n", shortcut.GetDescription()))
+		fmt.Fprintf(&output, "/%s\n", shortcut.GetName())
+		fmt.Fprintf(&output, "  %s\n\n", shortcut.GetDescription())
 	}
 
 	output.WriteString("Type `/help <shortcut>` for detailed usage information.")

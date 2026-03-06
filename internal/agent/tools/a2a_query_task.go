@@ -241,23 +241,23 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 		return output.String()
 	}
 
-	output.WriteString(fmt.Sprintf("\nArtifacts (%d):\n", len(task.Artifacts)))
+	fmt.Fprintf(&output, "\nArtifacts (%d):\n", len(task.Artifacts))
 	for i, artifact := range task.Artifacts {
-		output.WriteString(fmt.Sprintf("%d. ", i+1))
+		fmt.Fprintf(&output, "%d. ", i+1)
 		if artifact.Name != nil {
-			output.WriteString(fmt.Sprintf("Name: %s", *artifact.Name))
+			fmt.Fprintf(&output, "Name: %s", *artifact.Name)
 		}
-		output.WriteString(fmt.Sprintf(" (ID: %s)", artifact.ArtifactID))
+		fmt.Fprintf(&output, " (ID: %s)", artifact.ArtifactID)
 
 		if artifact.Metadata != nil {
 			if url, ok := (*artifact.Metadata)["url"].(string); ok {
-				output.WriteString(fmt.Sprintf("\n   Download URL: %s", url))
+				fmt.Fprintf(&output, "\n   Download URL: %s", url)
 			}
 			if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok {
-				output.WriteString(fmt.Sprintf("\n   MIME Type: %s", mimeType))
+				fmt.Fprintf(&output, "\n   MIME Type: %s", mimeType)
 			}
 			if size, ok := (*artifact.Metadata)["size"].(float64); ok {
-				output.WriteString(fmt.Sprintf("\n   Size: %d bytes", int64(size)))
+				fmt.Fprintf(&output, "\n   Size: %d bytes", int64(size))
 			}
 		}
 		output.WriteString("\n")
@@ -284,8 +284,8 @@ func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) strin
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }

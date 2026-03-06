@@ -1277,7 +1277,7 @@ func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
 	filePath, hasPath := args["file_path"].(string)
 
 	if hasOld && hasNew && hasPath {
-		result.WriteString(fmt.Sprintf("  File: %s\n\n", filePath))
+		fmt.Fprintf(&result, "  File: %s\n\n", filePath)
 		diffRenderer := NewDiffRenderer(cv.styleProvider)
 		diffInfo := DiffInfo{
 			FilePath:   filePath,
@@ -1298,14 +1298,14 @@ func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
 	var result strings.Builder
 
 	if filePath, ok := args["file_path"].(string); ok {
-		result.WriteString(fmt.Sprintf("  File: %s\n", filePath))
+		fmt.Fprintf(&result, "  File: %s\n", filePath)
 	}
 	if content, ok := args["content"].(string); ok {
 		preview := content
 		if len(preview) > 200 {
 			preview = preview[:200] + "..."
 		}
-		result.WriteString(fmt.Sprintf("  Content: %s\n", preview))
+		fmt.Fprintf(&result, "  Content: %s\n", preview)
 	}
 
 	return result.String()
@@ -1377,7 +1377,7 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
+		fmt.Fprintf(&result, "  Tool: %s\n", toolName)
 
 		switch toolName {
 		case "Edit":
@@ -1390,7 +1390,7 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 			result.WriteString(cv.renderGenericToolArgs(args))
 		}
 	} else {
-		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
+		fmt.Fprintf(&result, "  Tool: %s\n", toolName)
 	}
 
 	return result.String() + "\n"
