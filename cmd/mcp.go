@@ -158,17 +158,17 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 		globalStatus = icons.CrossMark
 	}
 
-	md.WriteString(fmt.Sprintf("**Global Status:** %s %s  \n", globalStatus, enabledText(cfg.Enabled)))
-	md.WriteString(fmt.Sprintf("**Connection Timeout:** %ds  \n", cfg.ConnectionTimeout))
-	md.WriteString(fmt.Sprintf("**Discovery Timeout:** %ds  \n", cfg.DiscoveryTimeout))
-	md.WriteString(fmt.Sprintf("**Liveness Probes:** %s", enabledText(cfg.LivenessProbeEnabled)))
+	fmt.Fprintf(&md, "**Global Status:** %s %s  \n", globalStatus, enabledText(cfg.Enabled))
+	fmt.Fprintf(&md, "**Connection Timeout:** %ds  \n", cfg.ConnectionTimeout)
+	fmt.Fprintf(&md, "**Discovery Timeout:** %ds  \n", cfg.DiscoveryTimeout)
+	fmt.Fprintf(&md, "**Liveness Probes:** %s", enabledText(cfg.LivenessProbeEnabled))
 	if cfg.LivenessProbeEnabled {
-		md.WriteString(fmt.Sprintf(" (Interval: %ds)", cfg.LivenessProbeInterval))
+		fmt.Fprintf(&md, " (Interval: %ds)", cfg.LivenessProbeInterval)
 	}
 	md.WriteString("\n")
-	md.WriteString(fmt.Sprintf("**Config Path:** `%s`\n\n", configPath))
+	fmt.Fprintf(&md, "**Config Path:** `%s`\n\n", configPath)
 
-	md.WriteString(fmt.Sprintf("**Servers:** %d total\n\n", len(cfg.Servers)))
+	fmt.Fprintf(&md, "**Servers:** %d total\n\n", len(cfg.Servers))
 
 	md.WriteString("| Enabled | Name | URL | Description | Timeout | Auto |\n")
 	md.WriteString("|---------|------|-----|-------------|---------|------|\n")
@@ -201,8 +201,8 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		md.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
-			status, name, url, description, timeoutStr, autoStart))
+		fmt.Fprintf(&md, "| %s | %s | %s | %s | %s | %s |\n",
+			status, name, url, description, timeoutStr, autoStart)
 	}
 
 	md.WriteString("\n")
@@ -219,18 +219,18 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 		md.WriteString("### Tool Filters\n\n")
 		for _, server := range cfg.Servers {
 			if len(server.IncludeTools) > 0 {
-				md.WriteString(fmt.Sprintf("**%s** - Include: `%s`  \n", server.Name, strings.Join(server.IncludeTools, ", ")))
+				fmt.Fprintf(&md, "**%s** - Include: `%s`  \n", server.Name, strings.Join(server.IncludeTools, ", "))
 			}
 			if len(server.ExcludeTools) > 0 {
-				md.WriteString(fmt.Sprintf("**%s** - Exclude: `%s`  \n", server.Name, strings.Join(server.ExcludeTools, ", ")))
+				fmt.Fprintf(&md, "**%s** - Exclude: `%s`  \n", server.Name, strings.Join(server.ExcludeTools, ", "))
 			}
 		}
 		md.WriteString("\n")
 	}
 
-	md.WriteString(fmt.Sprintf("\n%s = enabled, %s = disabled\n",
+	fmt.Fprintf(&md, "\n%s = enabled, %s = disabled\n",
 		icons.CheckMark,
-		icons.CrossMark))
+		icons.CrossMark)
 
 	rendered, err := renderMarkdown(md.String())
 	if err != nil {

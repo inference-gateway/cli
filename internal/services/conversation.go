@@ -293,14 +293,14 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	filteredMessages := r.filterHiddenMessages()
 
 	content.WriteString("# Chat Session Export\n\n")
-	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", len(filteredMessages)))
+	fmt.Fprintf(&content, "**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&content, "**Total Messages:** %d\n", len(filteredMessages))
 
 	if r.sessionStats.RequestCount > 0 {
-		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens))
-		content.WriteString(fmt.Sprintf("**Total Output Tokens:** %d\n", r.sessionStats.TotalOutputTokens))
-		content.WriteString(fmt.Sprintf("**Total Tokens:** %d\n", r.sessionStats.TotalTokens))
-		content.WriteString(fmt.Sprintf("**API Requests:** %d\n", r.sessionStats.RequestCount))
+		fmt.Fprintf(&content, "**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens)
+		fmt.Fprintf(&content, "**Total Output Tokens:** %d\n", r.sessionStats.TotalOutputTokens)
+		fmt.Fprintf(&content, "**Total Tokens:** %d\n", r.sessionStats.TotalTokens)
+		fmt.Fprintf(&content, "**API Requests:** %d\n", r.sessionStats.RequestCount)
 	}
 	content.WriteString("\n---\n\n")
 
@@ -323,8 +323,8 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 			role = fmt.Sprintf("**%s**", string(entry.Message.Role))
 		}
 
-		content.WriteString(fmt.Sprintf("## Message %d - %s\n\n", i+1, role))
-		content.WriteString(fmt.Sprintf("*%s*\n\n", entry.Time.Format("2006-01-02 15:04:05")))
+		fmt.Fprintf(&content, "## Message %d - %s\n\n", i+1, role)
+		fmt.Fprintf(&content, "*%s*\n\n", entry.Time.Format("2006-01-02 15:04:05"))
 
 		contentStr, err := entry.Message.Content.AsMessageContent0()
 		if err == nil && contentStr != "" {
@@ -335,7 +335,7 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			content.WriteString("### Tool Calls\n\n")
 			for _, toolCall := range *entry.Message.ToolCalls {
-				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", r.formatToolCall(toolCall)))
+				fmt.Fprintf(&content, "**Tool:** %s\n\n", r.formatToolCall(toolCall))
 				if toolCall.Function.Arguments != "" {
 					content.WriteString("**Arguments:**\n```json\n")
 					content.WriteString(toolCall.Function.Arguments)
@@ -345,13 +345,13 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		}
 
 		if entry.Message.ToolCallId != nil {
-			content.WriteString(fmt.Sprintf("*Tool Call ID: %s*\n\n", *entry.Message.ToolCallId))
+			fmt.Fprintf(&content, "*Tool Call ID: %s*\n\n", *entry.Message.ToolCallId)
 		}
 
 		content.WriteString("---\n\n")
 	}
 
-	content.WriteString(fmt.Sprintf("*Exported on %s using Inference Gateway CLI*\n", time.Now().Format("2006-01-02 15:04:05")))
+	fmt.Fprintf(&content, "*Exported on %s using Inference Gateway CLI*\n", time.Now().Format("2006-01-02 15:04:05"))
 
 	return []byte(content.String())
 }
@@ -384,8 +384,8 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 			role = string(entry.Message.Role)
 		}
 
-		content.WriteString(fmt.Sprintf("[%s] %s: %s\n\n",
-			entry.Time.Format("15:04:05"), role, entry.Message.Content))
+		fmt.Fprintf(&content, "[%s] %s: %s\n\n",
+			entry.Time.Format("15:04:05"), role, entry.Message.Content)
 	}
 
 	return []byte(content.String())

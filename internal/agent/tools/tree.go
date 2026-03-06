@@ -282,12 +282,12 @@ func (t *TreeTool) buildTreeFallback(rootPath string, maxDepth, maxFiles int, sh
 	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%s\n", rootPath))
+	fmt.Fprintf(&builder, "%s\n", rootPath)
 	builder.WriteString(output)
 	if truncated {
-		builder.WriteString(fmt.Sprintf("\n... (truncated at %d files for efficiency)\n", maxFiles))
+		fmt.Fprintf(&builder, "\n... (truncated at %d files for efficiency)\n", maxFiles)
 	}
-	builder.WriteString(fmt.Sprintf("\n%d directories, %d files", dirs, files))
+	fmt.Fprintf(&builder, "\n%d directories, %d files", dirs, files)
 	if truncated {
 		builder.WriteString(" (partial)")
 	}
@@ -373,7 +373,7 @@ func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, showHidden, respe
 			newPrefix = prefix + "│   "
 		}
 
-		builder.WriteString(fmt.Sprintf("%s%s%s\n", prefix, connector, entry.Name()))
+		fmt.Fprintf(&builder, "%s%s%s\n", prefix, connector, entry.Name())
 
 		if entry.IsDir() {
 			totalDirs++
@@ -563,8 +563,8 @@ func (t *TreeTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -599,18 +599,18 @@ func (t *TreeTool) formatTreeData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Path: %s\n", treeResult.Path))
-	output.WriteString(fmt.Sprintf("Total Files: %d\n", treeResult.TotalFiles))
-	output.WriteString(fmt.Sprintf("Total Directories: %d\n", treeResult.TotalDirs))
-	output.WriteString(fmt.Sprintf("Max Depth: %d\n", treeResult.MaxDepth))
-	output.WriteString(fmt.Sprintf("Max Files: %d\n", treeResult.MaxFiles))
-	output.WriteString(fmt.Sprintf("Format: %s\n", treeResult.Format))
-	output.WriteString(fmt.Sprintf("Show Hidden: %t\n", treeResult.ShowHidden))
-	output.WriteString(fmt.Sprintf("Using Native Tree: %t\n", treeResult.UsingNativeTree))
-	output.WriteString(fmt.Sprintf("Truncated: %t\n", treeResult.Truncated))
+	fmt.Fprintf(&output, "Path: %s\n", treeResult.Path)
+	fmt.Fprintf(&output, "Total Files: %d\n", treeResult.TotalFiles)
+	fmt.Fprintf(&output, "Total Directories: %d\n", treeResult.TotalDirs)
+	fmt.Fprintf(&output, "Max Depth: %d\n", treeResult.MaxDepth)
+	fmt.Fprintf(&output, "Max Files: %d\n", treeResult.MaxFiles)
+	fmt.Fprintf(&output, "Format: %s\n", treeResult.Format)
+	fmt.Fprintf(&output, "Show Hidden: %t\n", treeResult.ShowHidden)
+	fmt.Fprintf(&output, "Using Native Tree: %t\n", treeResult.UsingNativeTree)
+	fmt.Fprintf(&output, "Truncated: %t\n", treeResult.Truncated)
 
 	if treeResult.Output != "" {
-		output.WriteString(fmt.Sprintf("\nTree Output:\n%s\n", treeResult.Output))
+		fmt.Fprintf(&output, "\nTree Output:\n%s\n", treeResult.Output)
 	}
 
 	return output.String()

@@ -628,8 +628,8 @@ func (t *WebSearchTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -664,13 +664,13 @@ func (t *WebSearchTool) formatSearchData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Query: %s\n", searchResponse.Query))
-	output.WriteString(fmt.Sprintf("Engine: %s\n", searchResponse.Engine))
-	output.WriteString(fmt.Sprintf("Total Results: %d\n", searchResponse.Total))
-	output.WriteString(fmt.Sprintf("Search Time: %v\n", searchResponse.Time))
+	fmt.Fprintf(&output, "Query: %s\n", searchResponse.Query)
+	fmt.Fprintf(&output, "Engine: %s\n", searchResponse.Engine)
+	fmt.Fprintf(&output, "Total Results: %d\n", searchResponse.Total)
+	fmt.Fprintf(&output, "Search Time: %v\n", searchResponse.Time)
 
 	if searchResponse.Error != "" {
-		output.WriteString(fmt.Sprintf("Error: %s\n", searchResponse.Error))
+		fmt.Fprintf(&output, "Error: %s\n", searchResponse.Error)
 	}
 
 	// Search results
@@ -678,11 +678,11 @@ func (t *WebSearchTool) formatSearchData(data any) string {
 		output.WriteString("\nSearch Results:\n")
 		for i, result := range searchResponse.Results {
 			domain := t.extractDomainFromURL(result.URL)
-			output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, result.Title))
-			output.WriteString(fmt.Sprintf("     %s [%s]\n", result.URL, domain))
+			fmt.Fprintf(&output, "  %d. %s\n", i+1, result.Title)
+			fmt.Fprintf(&output, "     %s [%s]\n", result.URL, domain)
 			if result.Snippet != "" {
 				snippetPreview := t.formatter.TruncateText(result.Snippet, 150)
-				output.WriteString(fmt.Sprintf("     %s\n", snippetPreview))
+				fmt.Fprintf(&output, "     %s\n", snippetPreview)
 			}
 			output.WriteString("\n")
 		}

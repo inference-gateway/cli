@@ -536,13 +536,13 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
 	content.WriteString(separator + "\n\n")
 
-	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID))
-	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL))
-	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Status:"), task.Status))
-	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Started:"), task.StartedAt.Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("%-12s %v\n", t.styleProvider.RenderDimText("Elapsed:"), task.ElapsedTime.Round(time.Second)))
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID)
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL)
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Status:"), task.Status)
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Started:"), task.StartedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&content, "%-12s %v\n", t.styleProvider.RenderDimText("Elapsed:"), task.ElapsedTime.Round(time.Second))
 	if task.ContextID != "" {
-		content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Context:"), task.ContextID))
+		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Context:"), task.ContextID)
 	}
 
 	if task.TaskRef != nil {

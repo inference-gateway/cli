@@ -189,7 +189,7 @@ func (s *AgentServiceImpl) buildSandboxInfo() string {
 	if len(sandboxDirs) > 0 {
 		sandboxInfo.WriteString("You are restricted to work within these allowed directories:\n")
 		for _, dir := range sandboxDirs {
-			sandboxInfo.WriteString(fmt.Sprintf("- %s\n", dir))
+			fmt.Fprintf(&sandboxInfo, "- %s\n", dir)
 		}
 		sandboxInfo.WriteString("\n")
 	}
@@ -197,7 +197,7 @@ func (s *AgentServiceImpl) buildSandboxInfo() string {
 	if len(protectedPaths) > 0 {
 		sandboxInfo.WriteString("You MUST NOT attempt to access these protected paths:\n")
 		for _, path := range protectedPaths {
-			sandboxInfo.WriteString(fmt.Sprintf("- %s\n", path))
+			fmt.Fprintf(&sandboxInfo, "- %s\n", path)
 		}
 	}
 
@@ -267,22 +267,22 @@ func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 	gitInfo.WriteString("\n\nGIT REPOSITORY CONTEXT:")
 
 	if repoName := getGitRepositoryName(); repoName != "" {
-		gitInfo.WriteString(fmt.Sprintf("\nRepository: %s", repoName))
+		fmt.Fprintf(&gitInfo, "\nRepository: %s", repoName)
 	}
 
 	if branch := getGitBranch(); branch != "" {
-		gitInfo.WriteString(fmt.Sprintf("\nCurrent branch: %s", branch))
+		fmt.Fprintf(&gitInfo, "\nCurrent branch: %s", branch)
 	}
 
 	if mainBranch := getGitMainBranch(); mainBranch != "" {
-		gitInfo.WriteString(fmt.Sprintf("\nMain branch: %s", mainBranch))
+		fmt.Fprintf(&gitInfo, "\nMain branch: %s", mainBranch)
 	}
 
 	commits := getRecentCommits(5)
 	if len(commits) > 0 {
 		gitInfo.WriteString("\n\nRecent commits:")
 		for _, commit := range commits {
-			gitInfo.WriteString(fmt.Sprintf("\n%s", commit))
+			fmt.Fprintf(&gitInfo, "\n%s", commit)
 		}
 	}
 

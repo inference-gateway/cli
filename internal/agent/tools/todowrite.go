@@ -397,12 +397,12 @@ func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult)
 	var output strings.Builder
 	toolCall := t.formatToolCallWithCollapse(result.Arguments)
 
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", t.formatter.FormatDuration(result)))
-	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success)))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "├─ ⏱️  Duration: %s\n", t.formatter.FormatDuration(result))
+	fmt.Fprintf(&output, "├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ %s Error: %s\n", icons.CrossMarkStyle.Render(icons.CrossMark), result.Error))
+		fmt.Fprintf(&output, "├─ %s Error: %s\n", icons.CrossMarkStyle.Render(icons.CrossMark), result.Error)
 	}
 
 	if len(result.Arguments) > 0 {
@@ -420,9 +420,9 @@ func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult)
 			}
 			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
 			if hasMore {
-				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, value))
+				fmt.Fprintf(&output, "│  ├─ %s: %v\n", key, value)
 			} else {
-				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, value))
+				fmt.Fprintf(&output, "│  └─ %s: %v\n", key, value)
 			}
 		}
 	}
@@ -465,26 +465,26 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 
 	header := colors.CreateColoredText("Todo List", colors.AccentColor)
 	completionText := colors.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), colors.DimColor)
-	output.WriteString(fmt.Sprintf("%s %s\n\n", header, completionText))
+	fmt.Fprintf(&output, "%s %s\n\n", header, completionText)
 
 	if todoResult.TotalTasks > 0 {
 		progressBar := t.formatColoredProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
 		progressText := colors.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), colors.AccentColor)
-		output.WriteString(fmt.Sprintf("%s\n\n", progressText))
+		fmt.Fprintf(&output, "%s\n\n", progressText)
 	}
 
 	if len(todoResult.Todos) > 0 {
 		for _, todo := range todoResult.Todos {
 			checkbox, content := t.formatTodoItem(todo)
-			output.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
+			fmt.Fprintf(&output, "%s %s\n", checkbox, content)
 		}
 	}
 
 	if todoResult.InProgressTask != "" {
 		workingText := colors.CreateColoredText("Currently working on:", colors.AccentColor)
 		taskText := colors.CreateColoredText(todoResult.InProgressTask, colors.SuccessColor)
-		output.WriteString(fmt.Sprintf("\n%s %s\n", workingText, taskText))
+		fmt.Fprintf(&output, "\n%s %s\n", workingText, taskText)
 	}
 
 	return output.String()

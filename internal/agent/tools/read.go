@@ -473,8 +473,8 @@ func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
 
 	return output.String()
 }
@@ -509,7 +509,7 @@ func (t *ReadTool) formatReadData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("File: %s\n", readResult.FilePath))
+	fmt.Fprintf(&output, "File: %s\n", readResult.FilePath)
 
 	lineCount := 0
 	if readResult.Content != "" {
@@ -517,21 +517,21 @@ func (t *ReadTool) formatReadData(data any) string {
 	}
 
 	if readResult.StartLine > 0 {
-		output.WriteString(fmt.Sprintf("Lines: %d", readResult.StartLine))
+		fmt.Fprintf(&output, "Lines: %d", readResult.StartLine)
 		if readResult.EndLine > 0 && readResult.EndLine != readResult.StartLine {
-			output.WriteString(fmt.Sprintf("-%d", readResult.EndLine))
+			fmt.Fprintf(&output, "-%d", readResult.EndLine)
 		}
 		output.WriteString("\n")
 	}
 
-	output.WriteString(fmt.Sprintf("Lines: %d\n", lineCount))
-	output.WriteString(fmt.Sprintf("Size: %d bytes\n", readResult.Size))
+	fmt.Fprintf(&output, "Lines: %d\n", lineCount)
+	fmt.Fprintf(&output, "Size: %d bytes\n", readResult.Size)
 
 	if readResult.Error != "" {
-		output.WriteString(fmt.Sprintf("Error: %s\n", readResult.Error))
+		fmt.Fprintf(&output, "Error: %s\n", readResult.Error)
 	}
 	if readResult.Content != "" {
-		output.WriteString(fmt.Sprintf("Content:\n%s\n", readResult.Content))
+		fmt.Fprintf(&output, "Content:\n%s\n", readResult.Content)
 	}
 	return output.String()
 }
