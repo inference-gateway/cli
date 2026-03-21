@@ -13,7 +13,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-vgo/robotgo v1.0.0
+	github.com/go-vgo/robotgo v1.0.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/inference-gateway/adk v0.17.0
