@@ -108,8 +108,8 @@ github.com/go-redis/redis/v8 v8.11.5 h1:AcZZR7igkdvfVmQTPnu9WE37LRrO/YrBH5zWyjDC
 github.com/go-redis/redis/v8 v8.11.5/go.mod h1:gREzHqY1hg6oD9ngVRbLStwAWKhA0FEgq8Jd4h5lpwo=
 github.com/go-resty/resty/v2 v2.16.5 h1:hBKqmWrr7uRc3euHVqmh1HTHcKn99Smr7o5spptdhTM=
 github.com/go-resty/resty/v2 v2.16.5/go.mod h1:hkJtXbA2iKHzJheXYvQ8snQES5ZLGKMwQ07xAwp/fiA=
-github.com/go-vgo/robotgo v1.0.0 h1:LTzPB8cQsP0E/iMMrh3sPhH9LgywyuuJHGPHk70UA74=
-github.com/go-vgo/robotgo v1.0.0/go.mod h1:NcSL/tqNqkpWJ3rmT6YSDUVhQKZwyRsaanDMO4qkT5I=
+github.com/go-vgo/robotgo v1.0.1 h1:4dS+dXSMPRt+VmvG4QZPlH9BNG9Jfywq4q0YjSiFN0A=
+github.com/go-vgo/robotgo v1.0.1/go.mod h1:NcSL/tqNqkpWJ3rmT6YSDUVhQKZwyRsaanDMO4qkT5I=
 github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
 github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/goccy/go-json v0.10.4 h1:JSwxQzIqKfmFX1swYPpUThQZp/Ka4wzJdK0LWVytLPM=
@@ -172,8 +172,8 @@ github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byF
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/maxbrunsfeld/counterfeiter/v6 v6.11.3 h1:Eaq36EIyJNp7b3qDhjV7jmDVq/yPeW2v4pTqzGbOGB4=
 github.com/maxbrunsfeld/counterfeiter/v6 v6.11.3/go.mod h1:6KKUoQBZBW6PDXJtNfqeEjPXMj/ITTk+cWK9t9uS5+E=
-github.com/metoro-io/mcp-golang v0.16.0 h1:7NrP8Hca4IDLipPitZaTClzmN8uQcQWX8IsziXU813Y=
-github.com/metoro-io/mcp-golang v0.16.0/go.mod h1:ifLP9ZzKpN1UqFWNTpAHOqSvNkMK6b7d1FSZ5Lu0lN0=
+github.com/metoro-io/mcp-golang v0.16.1 h1:0tXO9FrPweQz/M8dNFhTiAIri2g1ikvJ3O2P3Iwl/AY=
+github.com/metoro-io/mcp-golang v0.16.1/go.mod h1:ifLP9ZzKpN1UqFWNTpAHOqSvNkMK6b7d1FSZ5Lu0lN0=
 github.com/microcosm-cc/bluemonday v1.0.27 h1:MpEUotklkwCSLeH+Qdx1VJgNqLlpY2KXwXFM08ygZfk=
 github.com/microcosm-cc/bluemonday v1.0.27/go.mod h1:jFi9vgW+H7c3V0lb6nR74Ib/DIB5OBs92Dimizgw2cA=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=

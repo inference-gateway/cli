@@ -13,14 +13,14 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-vgo/robotgo v1.0.0
+	github.com/go-vgo/robotgo v1.0.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/inference-gateway/adk v0.17.0
 	github.com/inference-gateway/sdk v1.15.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.11.2
-	github.com/metoro-io/mcp-golang v0.16.0
+	github.com/metoro-io/mcp-golang v0.16.1
 	github.com/muesli/reflow v0.3.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/spf13/cobra v1.10.2
