@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.5](https://github.com/inference-gateway/cli/compare/v0.100.4...v0.100.5) (2026-04-01)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/glamour from 0.10.0 to 1.0.0 ([#400](https://github.com/inference-gateway/cli/issues/400)) ([0ec9116](https://github.com/inference-gateway/cli/commit/0ec9116210f3d8854621c8be17d84b4327a71b73))
+* **deps:** Bump github.com/go-vgo/robotgo from 1.0.0 to 1.0.1 ([#397](https://github.com/inference-gateway/cli/issues/397)) ([52865f0](https://github.com/inference-gateway/cli/commit/52865f006bcd651b3af18cb175fa280a053403e0))
+* **deps:** Bump github.com/lib/pq from 1.11.2 to 1.12.0 ([#402](https://github.com/inference-gateway/cli/issues/402)) ([b687e61](https://github.com/inference-gateway/cli/commit/b687e6173e0d2da313a78e6edb5d482a02c5120f))
+* **deps:** Bump github.com/metoro-io/mcp-golang from 0.16.0 to 0.16.1 ([#398](https://github.com/inference-gateway/cli/issues/398)) ([f0c2e88](https://github.com/inference-gateway/cli/commit/f0c2e88119ff23d002e8dcb0eec30e7d6ffb4d25))
+* **deps:** Bump golang.org/x/crypto from 0.48.0 to 0.49.0 ([#401](https://github.com/inference-gateway/cli/issues/401)) ([12f8de8](https://github.com/inference-gateway/cli/commit/12f8de81714c720b47914af3537f64b05f3400e2))
+* **deps:** Bump golang.org/x/image from 0.36.0 to 0.37.0 ([#399](https://github.com/inference-gateway/cli/issues/399)) ([06f9e22](https://github.com/inference-gateway/cli/commit/06f9e22a0a1c5ab13926a0dc651e4bb3f7cea1d1))
+* **deps:** Bump golang.org/x/image from 0.37.0 to 0.38.0 ([#405](https://github.com/inference-gateway/cli/issues/405)) ([5d8b375](https://github.com/inference-gateway/cli/commit/5d8b375886201a315ea7b28367697875aa6da05e))
+* **deps:** Bump modernc.org/sqlite from 1.46.1 to 1.48.0 ([#404](https://github.com/inference-gateway/cli/issues/404)) ([652076c](https://github.com/inference-gateway/cli/commit/652076c6ddee07efb6e59fc8133d5c1160432c66))
+
 ## [0.100.4](https://github.com/inference-gateway/cli/compare/v0.100.3...v0.100.4) (2026-03-06)
 
 ### 🐛 Bug Fixes
