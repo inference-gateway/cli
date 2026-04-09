@@ -390,6 +390,10 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	if response.Content == "" && len(response.ToolCalls) == 0 {
+		return nil
+	}
+
 	assistantMsg := ConversationMessage{
 		Role:       "assistant",
 		Content:    response.Content,
