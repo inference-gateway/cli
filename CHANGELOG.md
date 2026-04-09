@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.5](https://github.com/inference-gateway/cli/compare/v0.100.4...v0.100.5) (2026-04-01)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/glamour from 0.10.0 to 1.0.0 ([#400](https://github.com/inference-gateway/cli/issues/400)) ([0ec9116](https://github.com/inference-gateway/cli/commit/0ec9116210f3d8854621c8be17d84b4327a71b73))
+* **deps:** Bump github.com/go-vgo/robotgo from 1.0.0 to 1.0.1 ([#397](https://github.com/inference-gateway/cli/issues/397)) ([52865f0](https://github.com/inference-gateway/cli/commit/52865f006bcd651b3af18cb175fa280a053403e0))
+* **deps:** Bump github.com/lib/pq from 1.11.2 to 1.12.0 ([#402](https://github.com/inference-gateway/cli/issues/402)) ([b687e61](https://github.com/inference-gateway/cli/commit/b687e6173e0d2da313a78e6edb5d482a02c5120f))
+* **deps:** Bump github.com/metoro-io/mcp-golang from 0.16.0 to 0.16.1 ([#398](https://github.com/inference-gateway/cli/issues/398)) ([f0c2e88](https://github.com/inference-gateway/cli/commit/f0c2e88119ff23d002e8dcb0eec30e7d6ffb4d25))
+* **deps:** Bump golang.org/x/crypto from 0.48.0 to 0.49.0 ([#401](https://github.com/inference-gateway/cli/issues/401)) ([12f8de8](https://github.com/inference-gateway/cli/commit/12f8de81714c720b47914af3537f64b05f3400e2))
+* **deps:** Bump golang.org/x/image from 0.36.0 to 0.37.0 ([#399](https://github.com/inference-gateway/cli/issues/399)) ([06f9e22](https://github.com/inference-gateway/cli/commit/06f9e22a0a1c5ab13926a0dc651e4bb3f7cea1d1))
+* **deps:** Bump golang.org/x/image from 0.37.0 to 0.38.0 ([#405](https://github.com/inference-gateway/cli/issues/405)) ([5d8b375](https://github.com/inference-gateway/cli/commit/5d8b375886201a315ea7b28367697875aa6da05e))
+* **deps:** Bump modernc.org/sqlite from 1.46.1 to 1.48.0 ([#404](https://github.com/inference-gateway/cli/issues/404)) ([652076c](https://github.com/inference-gateway/cli/commit/652076c6ddee07efb6e59fc8133d5c1160432c66))
+
+## [0.100.4](https://github.com/inference-gateway/cli/compare/v0.100.3...v0.100.4) (2026-03-06)
+
+### 🐛 Bug Fixes
+
+* Flox dev environment ([6e2fd6e](https://github.com/inference-gateway/cli/commit/6e2fd6e451f5a13192811a7347eaa02ce567e5be))
+* **agents:** Prevent Docker output pollution and skip agent pulling in container mode ([#387](https://github.com/inference-gateway/cli/issues/387)) ([0fe503d](https://github.com/inference-gateway/cli/commit/0fe503d1503ec74c373372ebca09871edd5edc6f)), closes [#386](https://github.com/inference-gateway/cli/issues/386)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/bubbles from 0.21.0 to 1.0.0 ([#393](https://github.com/inference-gateway/cli/issues/393)) ([504ebbf](https://github.com/inference-gateway/cli/commit/504ebbf265a7a13963f7e946fc490ba71d9be25c))
+* **deps:** Bump github.com/lib/pq from 1.10.9 to 1.11.1 ([#388](https://github.com/inference-gateway/cli/issues/388)) ([8ab85d7](https://github.com/inference-gateway/cli/commit/8ab85d76e547560366d3323b0679f3608fe0375c))
+* **deps:** Bump github.com/lib/pq from 1.11.1 to 1.11.2 ([#394](https://github.com/inference-gateway/cli/issues/394)) ([cd3ad4a](https://github.com/inference-gateway/cli/commit/cd3ad4ac42ada603e93f08000585859bfc8341b8))
+* **deps:** Bump golang.org/x/crypto from 0.47.0 to 0.48.0 ([#392](https://github.com/inference-gateway/cli/issues/392)) ([55a2c36](https://github.com/inference-gateway/cli/commit/55a2c3654b211e096155f53ea6efeadf4379d749))
+* **deps:** Bump golang.org/x/image from 0.34.0 to 0.36.0 ([#391](https://github.com/inference-gateway/cli/issues/391)) ([1f7948a](https://github.com/inference-gateway/cli/commit/1f7948a77c3c5418e6a391442fa6111deff61043))
+* **deps:** Bump modernc.org/sqlite from 1.44.3 to 1.45.0 ([#395](https://github.com/inference-gateway/cli/issues/395)) ([a3cbd52](https://github.com/inference-gateway/cli/commit/a3cbd52c6cc2d73a4006dbd5d78acab3a6672690))
+* Update development dependencies ([#396](https://github.com/inference-gateway/cli/issues/396)) ([aab8ab9](https://github.com/inference-gateway/cli/commit/aab8ab91d9aed53fd92ff6f5cbd45129256d8450))
+
+## [0.100.4-rc.2](https://github.com/inference-gateway/cli/compare/v0.100.4-rc.1...v0.100.4-rc.2) (2026-02-02)
+
+### ♻️ Code Refactoring
+
+* Move all logs back to a file ([c8784ab](https://github.com/inference-gateway/cli/commit/c8784abb4b67ded4f2f49969b9841384c2cff275))
+* **config:** Remove config option for console output ([aa52528](https://github.com/inference-gateway/cli/commit/aa52528a4904464caf11c1b0acb2cac95f20b9dc))
+* **docs:** Remove the environment variable for console output ([eb716ac](https://github.com/inference-gateway/cli/commit/eb716ac1f9b254bb03d5ea9497abdb7437bad19d))
+
+## [0.100.4-rc.1](https://github.com/inference-gateway/cli/compare/v0.100.3...v0.100.4-rc.1) (2026-02-02)
+
+### 🐛 Bug Fixes
+
+* Flox dev environment ([6e2fd6e](https://github.com/inference-gateway/cli/commit/6e2fd6e451f5a13192811a7347eaa02ce567e5be))
+* **agents:** Prevent Docker output pollution and skip agent pulling in container mode ([a7f4758](https://github.com/inference-gateway/cli/commit/a7f4758d0b0333f094a9d36b4db195ce2edbcbac)), closes [#386](https://github.com/inference-gateway/cli/issues/386)
+
+### ♻️ Code Refactoring
+
+* Remove outdated container detection comments ([bdcc917](https://github.com/inference-gateway/cli/commit/bdcc9179dcaa0f73dbd4dce9ab8b2715f70e8f2f))
+
+### 🧹 Maintenance
+
+* Apply suggestions from code review ([00bad3d](https://github.com/inference-gateway/cli/commit/00bad3d41a3aac9e93abde42581fc38a02c4ac8b))
+* Apply suggestions from code review ([e83f9e5](https://github.com/inference-gateway/cli/commit/e83f9e534d8f370ee9d385c3bb42b2047e97da87))
+* Merge branch 'main' into claude/issue-386-20260128-1108 ([61e7f70](https://github.com/inference-gateway/cli/commit/61e7f7094912ab06141ec243bcaaaca7bcd6102a))
+
 ## [0.100.3](https://github.com/inference-gateway/cli/compare/v0.100.2...v0.100.3) (2026-01-27)
 
 ### 🧹 Maintenance

@@ -17,7 +17,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Create GitHub App Token
-        uses: actions/create-github-app-token@v2.2.0
+        uses: actions/create-github-app-token@v3.0.0
         id: app_token
         with:
           app-id: ${{ secrets.BOT_GH_APP_ID }}
@@ -27,7 +27,7 @@ jobs:
             ${{ github.event.repository.name }}
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
           token: ${{ steps.app_token.outputs.token }}
@@ -46,12 +46,12 @@ jobs:
           git config --global commit.signoff true
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6.3.0
         with:
           node-version: 'lts/*'
 
       - name: Cache npm global packages
-        uses: actions/cache@v4.3.0
+        uses: actions/cache@v5.0.4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-global-${{ hashFiles('**/release.yml') }}
