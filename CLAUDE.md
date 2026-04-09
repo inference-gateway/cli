@@ -267,7 +267,7 @@ The CLI uses a 2-layer configuration system:
 **Key Config Sections:**
 
 - `gateway.*`: Gateway connection settings
-- `agent.*`: Agent behavior (model, max_turns, system prompt)
+- `agent.*`: Agent behavior (model, max_turns, system_prompt, custom_instructions)
 - `tools.*`: Tool-specific configuration
 - `chat.*`: Chat UI settings (theme, keybindings, status bar)
 - `web.*`: Web terminal settings

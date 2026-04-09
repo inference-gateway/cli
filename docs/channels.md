@@ -93,6 +93,8 @@ channels:
 
 agent:
   model: "openai/gpt-4"
+  system_prompt: "You are a helpful assistant"
+  custom_instructions: ""  # clear default instructions for lightweight channel use
   max_turns: 1  # recommended for conversational channel use
 ```
 
@@ -147,8 +149,10 @@ channels:
 
 # Recommended agent settings for channel use
 agent:
-  model: "openai/gpt-4"       # Model to use
-  max_turns: 1                 # Single-turn for conversational use
+  model: "deepseek/deepseek-chat"              # Model to use
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""             # Clear default instructions for lightweight use
+  max_turns: 1                        # Single-turn for conversational use
 ```
 
 ### Environment Variables

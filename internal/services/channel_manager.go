@@ -1,13 +1,14 @@
 package services
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -124,7 +125,7 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 	}
 }
 
-// handleMessage triggers the agent as a subprocess and sends the response back through the channel
+// handleMessage triggers the agent as a subprocess and streams responses back through the channel
 func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.InboundMessage) {
 	select {
 	case cm.semaphore <- struct{}{}:
@@ -142,17 +143,6 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 
 	log.Printf("[channels] processing message from %s/%s (session=%s)", msg.ChannelName, msg.SenderID, sessionID)
 
-	response, err := cm.runAgent(ctx, sessionID, msg.Content)
-	if err != nil {
-		log.Printf("[channels] agent failed for %s/%s: %v", msg.ChannelName, msg.SenderID, err)
-		return
-	}
-
-	if response == "" {
-		log.Printf("[channels] agent returned empty response for %s/%s", msg.ChannelName, msg.SenderID)
-		return
-	}
-
 	cm.mu.RLock()
 	ch, exists := cm.channels[msg.ChannelName]
 	cm.mu.RUnlock()
@@ -162,62 +152,104 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 		return
 	}
 
-	outMsg := domain.OutboundMessage{
-		ChannelName: msg.ChannelName,
-		RecipientID: msg.SenderID,
-		Content:     response,
-		Timestamp:   time.Now(),
+	sendFn := func(content string) {
+		outMsg := domain.OutboundMessage{
+			ChannelName: msg.ChannelName,
+			RecipientID: msg.SenderID,
+			Content:     content,
+			Timestamp:   time.Now(),
+		}
+		if err := ch.Send(ctx, outMsg); err != nil {
+			log.Printf("[channels] failed to send response via %s: %v", msg.ChannelName, err)
+		}
 	}
 
-	if err := ch.Send(ctx, outMsg); err != nil {
-		log.Printf("[channels] failed to send response via %s: %v", msg.ChannelName, err)
+	if err := cm.runAgent(ctx, sessionID, msg.Content, sendFn); err != nil {
+		log.Printf("[channels] agent failed for %s/%s: %v", msg.ChannelName, msg.SenderID, err)
 	}
 }
 
-// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess
-func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string) (string, error) {
+// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess,
+// streaming each assistant message back through the sendFn callback in real-time.
+func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string, sendFn func(string)) error {
 	cmd := cm.execCommandFunc(ctx, os.Args[0], "agent", "--session-id", sessionID, message)
 	cmd.Env = os.Environ()
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("agent process failed: %w (stderr: %s)", err, stderr.String())
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start agent: %w", err)
 	}
 
-	return parseAgentOutput(stdout.Bytes())
-}
-
-// parseAgentOutput extracts the last assistant response from the agent's JSON stdout
-func parseAgentOutput(output []byte) (string, error) {
-	var lastAssistantContent string
-
-	lines := bytes.Split(output, []byte("\n"))
-	for _, line := range lines {
-		line = bytes.TrimSpace(line)
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
 
-		var msg map[string]interface{}
-		if err := json.Unmarshal(line, &msg); err != nil {
-			continue
+		content := formatAgentMessage(line)
+		if content != "" {
+			sendFn(content)
 		}
+	}
 
-		if role, ok := msg["role"].(string); ok && role == "assistant" {
-			if content, ok := msg["content"].(string); ok {
-				lastAssistantContent = content
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("agent process failed: %w", err)
+	}
+
+	return nil
+}
+
+// formatAgentMessage parses a JSON line from the agent's stdout and returns
+// a human-readable message to send to the channel. Returns empty string for
+// messages that should not be forwarded (status messages, tool results, etc.).
+func formatAgentMessage(line []byte) string {
+	var msg map[string]interface{}
+	if err := json.Unmarshal(line, &msg); err != nil {
+		return ""
+	}
+
+	// Skip status messages (type: "info", "warning", etc.)
+	if _, isStatus := msg["type"]; isStatus {
+		return ""
+	}
+
+	role, _ := msg["role"].(string)
+
+	switch role {
+	case "assistant":
+		content, _ := msg["content"].(string)
+
+		// If this message has tool calls, format them
+		if tools, ok := msg["tools"].([]interface{}); ok && len(tools) > 0 {
+			toolNames := make([]string, 0, len(tools))
+			for _, t := range tools {
+				if name, ok := t.(string); ok {
+					toolNames = append(toolNames, name)
+				}
 			}
+			toolMsg := fmt.Sprintf("🔧 Using tool: %s", strings.Join(toolNames, ", "))
+			if content != "" {
+				return content + "\n\n" + toolMsg
+			}
+			return toolMsg
 		}
+
+		if content != "" {
+			return content
+		}
+
+	case "tool":
+		// Skip raw tool results — the next assistant message will summarize
+		return ""
 	}
 
-	if lastAssistantContent == "" {
-		return "", fmt.Errorf("no assistant response found in agent output")
-	}
-
-	return lastAssistantContent, nil
+	return ""
 }
 
 // getSenderMutex returns a per-sender mutex, creating one if it doesn't exist

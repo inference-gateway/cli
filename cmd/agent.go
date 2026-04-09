@@ -150,16 +150,16 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	}
 
 	if sessionID != "" {
-		if err := session.loadExistingSession(sessionID); err != nil {
+		loaded, err := session.initializeSession(sessionID)
+		if err != nil {
 			logger.Warn("Failed to load session, starting fresh",
 				"session_id", sessionID,
 				"error", err)
-			session.sessionID = sessionID
 			session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
 				"session_id": sessionID,
 				"error":      err.Error(),
 			})
-		} else {
+		} else if loaded {
 			logger.Info("Resumed agent session",
 				"session_id", sessionID,
 				"messages", len(session.conversation))
@@ -390,44 +390,37 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
-	if response.Content != "" {
-		assistantMsg := ConversationMessage{
-			Role:       "assistant",
-			Content:    response.Content,
-			TokenUsage: response.Usage,
-			Timestamp:  time.Now(),
-			RequestID:  requestID,
-		}
-		s.addMessage(assistantMsg)
-		s.outputMessage(assistantMsg)
+	assistantMsg := ConversationMessage{
+		Role:       "assistant",
+		Content:    response.Content,
+		TokenUsage: response.Usage,
+		Timestamp:  time.Now(),
+		RequestID:  requestID,
+	}
 
-		if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
-			go func() {
-				if err := s.conversationRepo.AddTokenUsage(
-					s.model,
-					int(response.Usage.PromptTokens),
-					int(response.Usage.CompletionTokens),
-					int(response.Usage.TotalTokens),
-				); err != nil {
-					logger.Warn("Failed to track token usage", "error", err)
-				}
-			}()
-		}
+	if len(response.ToolCalls) > 0 {
+		assistantMsg.ToolCalls = &response.ToolCalls
+	}
+
+	s.addMessage(assistantMsg)
+	s.outputMessage(assistantMsg)
+
+	if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
+		go func() {
+			if err := s.conversationRepo.AddTokenUsage(
+				s.model,
+				int(response.Usage.PromptTokens),
+				int(response.Usage.CompletionTokens),
+				int(response.Usage.TotalTokens),
+			); err != nil {
+				logger.Warn("Failed to track token usage", "error", err)
+			}
+		}()
 	}
 
 	if len(response.ToolCalls) == 0 {
 		return nil
 	}
-
-	toolCallMsg := ConversationMessage{
-		Role:      "assistant",
-		Content:   "",
-		ToolCalls: &response.ToolCalls,
-		Timestamp: time.Now(),
-		RequestID: requestID,
-	}
-	s.addMessage(toolCallMsg)
-	s.outputMessage(toolCallMsg)
 
 	toolResults := s.executeToolCallsParallel(response.ToolCalls)
 
@@ -590,22 +583,27 @@ func (s *AgentSession) addMessage(msg ConversationMessage) {
 	}
 }
 
-// loadExistingSession loads a conversation from the database and restores session state
-func (s *AgentSession) loadExistingSession(conversationID string) error {
-	ctx := context.Background()
+// initializeSession sets up the session with the given ID and attempts to load
+// existing conversation history. Returns (true, nil) if history was loaded,
+// (false, nil) if starting fresh with the provided ID, or (false, err) on error.
+func (s *AgentSession) initializeSession(sessionID string) (bool, error) {
+	s.sessionID = sessionID
 
 	persistentRepo, ok := s.conversationRepo.(*services.PersistentConversationRepository)
 	if !ok {
-		return fmt.Errorf("conversation repository does not support loading")
+		return false, nil
 	}
 
-	if err := persistentRepo.LoadConversation(ctx, conversationID); err != nil {
-		return fmt.Errorf("failed to load conversation: %w", err)
+	persistentRepo.SetConversationID(sessionID)
+
+	ctx := context.Background()
+	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
+		return false, nil
 	}
 
 	entries := persistentRepo.GetMessages()
 	if len(entries) == 0 {
-		return fmt.Errorf("loaded conversation is empty")
+		return false, nil
 	}
 
 	s.conversation = make([]ConversationMessage, 0, len(entries))
@@ -614,13 +612,11 @@ func (s *AgentSession) loadExistingSession(conversationID string) error {
 		s.conversation = append(s.conversation, msg)
 	}
 
-	s.sessionID = conversationID
-
 	logger.Info("Loaded conversation history",
-		"session_id", conversationID,
+		"session_id", sessionID,
 		"message_count", len(entries))
 
-	return nil
+	return true, nil
 }
 
 func (s *AgentSession) outputMessage(msg ConversationMessage) {

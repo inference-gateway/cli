@@ -1197,7 +1197,8 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 	fakeConfig := &domainmocks.FakeConfigService{}
 	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-		SystemPrompt: "You are a helpful assistant.",
+		SystemPrompt:             "You are a helpful assistant.",
+		SystemPromptWithDefaults: true,
 	})
 	fakeConfig.GetSandboxDirectoriesReturns([]string{"/home/user"})
 	fakeConfig.GetProtectedPathsReturns([]string{"/etc"})

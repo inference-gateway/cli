@@ -570,6 +570,8 @@ tools:
 
 agent:
   model: "deepseek/deepseek-chat"
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""  # Additional instructions appended to system prompt
   max_turns: 50
 
 chat:
@@ -603,6 +605,8 @@ infer chat --model "anthropic/claude-4"
 - **gateway.docker** - Use Docker mode vs binary mode (default: `true`)
 - **tools.enabled** - Enable/disable all tools (default: `true`)
 - **agent.model** - Default model for agent operations
+- **agent.system_prompt** - Base identity for the agent (e.g., `"You are a helpful assistant"`)
+- **agent.custom_instructions** - Additional instructions appended after the system prompt
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
 - **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)

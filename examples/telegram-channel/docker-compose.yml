@@ -17,15 +17,19 @@ services:
     env_file:
       - .env
     environment:
-      - INFER_GATEWAY_URL=http://inference-gateway:8080
-      - INFER_GATEWAY_RUN=false
-      - INFER_CHANNELS_ENABLED=true
-      - INFER_CHANNELS_TELEGRAM_ENABLED=true
-      # Set these in .env:
-      # INFER_CHANNELS_TELEGRAM_BOT_TOKEN=your-bot-token
-      # INFER_CHANNELS_TELEGRAM_ALLOWED_USERS=your-chat-id
-      # INFER_AGENT_MODEL=openai/gpt-4
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_GATEWAY_RUN: false
+      INFER_CHANNELS_ENABLED: true
+      INFER_CHANNELS_TELEGRAM_ENABLED: true
+      INFER_TOOLS_ENABLED: false
+      INFER_A2A_ENABLED: false
+      INFER_AGENT_MODEL: deepseek/deepseek-chat
+      INFER_AGENT_SYSTEM_PROMPT: |
+        You are an helpful assistant
+      INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: false
     volumes:
-      - ./config.yaml:/app/.infer/config.yaml:ro
-    command: ["channels-manager"]
+      - ./tmp:/home/infer
+      - ../../dist/infer-linux-arm64:/usr/local/bin/infer
+    command:
+      - channels-manager
     restart: unless-stopped
