@@ -154,6 +154,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 			logger.Warn("Failed to load session, starting fresh",
 				"session_id", sessionID,
 				"error", err)
+			session.sessionID = sessionID
 			session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
 				"session_id": sessionID,
 				"error":      err.Error(),

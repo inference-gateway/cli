@@ -1,49 +1,44 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
 	"sync"
 	"time"
-
-	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// ChannelManagerService manages pluggable messaging channels and routes messages
-// between external channels and the agent.
+// ChannelManagerService manages pluggable messaging channels and triggers
+// the agent as a subprocess for each inbound message.
 type ChannelManagerService struct {
 	mu       sync.RWMutex
 	channels map[string]domain.Channel
 	inbox    chan domain.InboundMessage
 	cfg      config.ChannelsConfig
 
-	// Dependencies for routing
-	messageQueue domain.MessageQueue
-	eventBridge  domain.EventBridge
+	// Per-sender mutex to serialize agent invocations for the same session
+	senderMutexes sync.Map // map[string]*sync.Mutex
 
-	// Track channel origins for routing responses back
-	pendingResponses sync.Map // requestID -> channelOrigin
+	// execCommandFunc allows overriding exec.CommandContext for testing
+	execCommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 	cancel context.CancelFunc
 }
 
-// channelOrigin tracks which channel and sender a message came from
-type channelOrigin struct {
-	ChannelName string
-	SenderID    string
-}
-
 // NewChannelManagerService creates a new channel manager
-func NewChannelManagerService(cfg config.ChannelsConfig, messageQueue domain.MessageQueue) *ChannelManagerService {
+func NewChannelManagerService(cfg config.ChannelsConfig) *ChannelManagerService {
 	return &ChannelManagerService{
-		channels:     make(map[string]domain.Channel),
-		inbox:        make(chan domain.InboundMessage, 100),
-		cfg:          cfg,
-		messageQueue: messageQueue,
+		channels:        make(map[string]domain.Channel),
+		inbox:           make(chan domain.InboundMessage, 100),
+		cfg:             cfg,
+		execCommandFunc: exec.CommandContext,
 	}
 }
 
@@ -52,13 +47,6 @@ func (cm *ChannelManagerService) Register(ch domain.Channel) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.channels[ch.Name()] = ch
-}
-
-// SetEventBridge sets the event bridge for subscribing to agent responses
-func (cm *ChannelManagerService) SetEventBridge(bridge domain.EventBridge) {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.eventBridge = bridge
 }
 
 // Start begins all registered channels and the message routing loop
@@ -90,9 +78,6 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 	// Start the inbound message router
 	go cm.routeInbound(ctx)
 
-	// Start the outbound response router (subscribes to EventBridge)
-	go cm.routeOutbound(ctx)
-
 	return nil
 }
 
@@ -114,7 +99,7 @@ func (cm *ChannelManagerService) Stop() error {
 	return firstErr
 }
 
-// routeInbound reads messages from the shared inbox and enqueues them for the agent
+// routeInbound reads messages from the shared inbox and triggers the agent for each one
 func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 	for {
 		select {
@@ -126,99 +111,105 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 				continue
 			}
 
-			// Generate a request ID for tracking this message through the pipeline
-			requestID := fmt.Sprintf("ch-%s-%s-%d", msg.ChannelName, msg.SenderID, time.Now().UnixNano())
-
-			// Track the origin so we can route the response back
-			cm.pendingResponses.Store(requestID, channelOrigin{
-				ChannelName: msg.ChannelName,
-				SenderID:    msg.SenderID,
-			})
-
-			// Build the SDK message with proper types
-			var content sdk.MessageContent
-			if err := content.FromMessageContent0(msg.Content); err != nil {
-				log.Printf("[channels] failed to create message content: %v", err)
-				continue
-			}
-
-			// Enqueue the message for the agent to process
-			cm.messageQueue.Enqueue(sdk.Message{
-				Role:    sdk.User,
-				Content: content,
-			}, requestID)
-
-			log.Printf("[channels] enqueued message from %s/%s (requestID=%s)", msg.ChannelName, msg.SenderID, requestID)
+			go cm.handleMessage(ctx, msg)
 		}
 	}
 }
 
-// routeOutbound subscribes to the EventBridge and routes agent responses back to the originating channel
-func (cm *ChannelManagerService) routeOutbound(ctx context.Context) {
+// handleMessage triggers the agent as a subprocess and sends the response back through the channel
+func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.InboundMessage) {
+	// Serialize per-sender to prevent concurrent session access
+	senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
+	mu := cm.getSenderMutex(senderKey)
+	mu.Lock()
+	defer mu.Unlock()
+
+	sessionID := fmt.Sprintf("channel-%s-%s", msg.ChannelName, msg.SenderID)
+
+	log.Printf("[channels] processing message from %s/%s (session=%s)", msg.ChannelName, msg.SenderID, sessionID)
+
+	response, err := cm.runAgent(ctx, sessionID, msg.Content)
+	if err != nil {
+		log.Printf("[channels] agent failed for %s/%s: %v", msg.ChannelName, msg.SenderID, err)
+		return
+	}
+
+	if response == "" {
+		log.Printf("[channels] agent returned empty response for %s/%s", msg.ChannelName, msg.SenderID)
+		return
+	}
+
 	cm.mu.RLock()
-	bridge := cm.eventBridge
-	cm.mu.RUnlock()
-
-	if bridge == nil {
-		log.Printf("[channels] no event bridge configured, outbound routing disabled")
-		return
-	}
-
-	eventChan := bridge.Subscribe()
-	defer bridge.Unsubscribe(eventChan)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event, ok := <-eventChan:
-			if !ok {
-				return
-			}
-			cm.handleOutboundEvent(ctx, event)
-		}
-	}
-}
-
-// handleOutboundEvent processes an event and routes it back to the originating channel if applicable
-func (cm *ChannelManagerService) handleOutboundEvent(ctx context.Context, event domain.ChatEvent) {
-	// We only care about complete messages to send back
-	completeEvent, ok := event.(domain.ChatCompleteEvent)
-	if !ok {
-		return
-	}
-
-	requestID := completeEvent.GetRequestID()
-
-	// Look up the channel origin for this request
-	originVal, ok := cm.pendingResponses.LoadAndDelete(requestID)
-	if !ok {
-		// Not a channel-originated message, skip
-		return
-	}
-
-	origin := originVal.(channelOrigin)
-
-	// Find the channel and send the response
-	cm.mu.RLock()
-	ch, exists := cm.channels[origin.ChannelName]
+	ch, exists := cm.channels[msg.ChannelName]
 	cm.mu.RUnlock()
 
 	if !exists {
-		log.Printf("[channels] channel %s not found for response routing", origin.ChannelName)
+		log.Printf("[channels] channel %s not found for response routing", msg.ChannelName)
 		return
 	}
 
 	outMsg := domain.OutboundMessage{
-		ChannelName: origin.ChannelName,
-		RecipientID: origin.SenderID,
-		Content:     completeEvent.Message,
+		ChannelName: msg.ChannelName,
+		RecipientID: msg.SenderID,
+		Content:     response,
 		Timestamp:   time.Now(),
 	}
 
 	if err := ch.Send(ctx, outMsg); err != nil {
-		log.Printf("[channels] failed to send response via %s: %v", origin.ChannelName, err)
+		log.Printf("[channels] failed to send response via %s: %v", msg.ChannelName, err)
 	}
+}
+
+// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess
+func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string) (string, error) {
+	cmd := cm.execCommandFunc(ctx, os.Args[0], "agent", "--session-id", sessionID, message)
+	cmd.Env = os.Environ()
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("agent process failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	return parseAgentOutput(stdout.Bytes())
+}
+
+// parseAgentOutput extracts the last assistant response from the agent's JSON stdout
+func parseAgentOutput(output []byte) (string, error) {
+	var lastAssistantContent string
+
+	lines := bytes.Split(output, []byte("\n"))
+	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		var msg map[string]interface{}
+		if err := json.Unmarshal(line, &msg); err != nil {
+			continue
+		}
+
+		if role, ok := msg["role"].(string); ok && role == "assistant" {
+			if content, ok := msg["content"].(string); ok {
+				lastAssistantContent = content
+			}
+		}
+	}
+
+	if lastAssistantContent == "" {
+		return "", fmt.Errorf("no assistant response found in agent output")
+	}
+
+	return lastAssistantContent, nil
+}
+
+// getSenderMutex returns a per-sender mutex, creating one if it doesn't exist
+func (cm *ChannelManagerService) getSenderMutex(key string) *sync.Mutex {
+	val, _ := cm.senderMutexes.LoadOrStore(key, &sync.Mutex{})
+	return val.(*sync.Mutex)
 }
 
 // isAllowedUser checks if a sender is in the allowed users list for the given channel

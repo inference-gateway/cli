@@ -9,7 +9,7 @@ services:
       - .env
     restart: unless-stopped
 
-  infer-agent:
+  infer-channels-manager:
     image: ghcr.io/inference-gateway/cli:latest
     pull_policy: always
     depends_on:
@@ -27,5 +27,5 @@ services:
       # INFER_AGENT_MODEL=openai/gpt-4
     volumes:
       - ./config.yaml:/app/.infer/config.yaml:ro
-    command: ["agent", "You are a helpful assistant responding to Telegram messages."]
+    command: ["channels-manager"]
     restart: unless-stopped

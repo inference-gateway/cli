@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -49,8 +50,7 @@ func (m *mockChannel) Stop() error {
 
 func TestChannelManagerService_Register(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
 	ch := &mockChannel{name: "test"}
 	cm.Register(ch)
@@ -66,8 +66,7 @@ func TestChannelManagerService_Register(t *testing.T) {
 
 func TestChannelManagerService_StartDisabled(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: false}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
 	err := cm.Start(context.Background())
 	if err != nil {
@@ -77,8 +76,7 @@ func TestChannelManagerService_StartDisabled(t *testing.T) {
 
 func TestChannelManagerService_StopChannels(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
 	ch := &mockChannel{name: "test"}
 	cm.Register(ch)
@@ -111,8 +109,7 @@ func TestChannelManagerService_IsAllowedUser(t *testing.T) {
 			AllowedUsers: []string{"123", "456"},
 		},
 	}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
 	tests := []struct {
 		channel  string
@@ -140,8 +137,7 @@ func TestChannelManagerService_IsAllowedUser_EmptyList(t *testing.T) {
 			AllowedUsers: []string{},
 		},
 	}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
 	// Empty allowed list = reject all (secure by default)
 	if cm.isAllowedUser("telegram", "123") {
@@ -156,10 +152,14 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
 
-	inboxSent := make(chan struct{}, 1)
+	// Override exec to return a mock agent response
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"Hello from agent!","timestamp":"2024-01-01T00:00:00Z"}`)
+	}
+
+	responseSent := make(chan domain.OutboundMessage, 1)
 	ch := &mockChannel{
 		name: "telegram",
 		startFn: func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
@@ -169,9 +169,12 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 				Content:     "hello agent",
 				Timestamp:   time.Now(),
 			}
-			inboxSent <- struct{}{}
 			<-ctx.Done()
 			return ctx.Err()
+		},
+		sendFn: func(ctx context.Context, msg domain.OutboundMessage) error {
+			responseSent <- msg
+			return nil
 		},
 	}
 	cm.Register(ch)
@@ -184,31 +187,20 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Wait for message to be sent to inbox
+	// Wait for the response to be sent back through the channel
 	select {
-	case <-inboxSent:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for inbox message")
-	}
-
-	// Give the router time to process
-	time.Sleep(100 * time.Millisecond)
-
-	if mq.IsEmpty() {
-		t.Fatal("expected message to be enqueued")
-	}
-
-	msg := mq.Dequeue()
-	if msg == nil {
-		t.Fatal("expected non-nil message")
-	}
-
-	content, err := msg.Message.Content.AsMessageContent0()
-	if err != nil {
-		t.Fatalf("unexpected error getting content: %v", err)
-	}
-	if content != "hello agent" {
-		t.Errorf("expected 'hello agent', got %q", content)
+	case msg := <-responseSent:
+		if msg.Content != "Hello from agent!" {
+			t.Errorf("expected 'Hello from agent!', got %q", msg.Content)
+		}
+		if msg.RecipientID != "123" {
+			t.Errorf("expected recipient '123', got %q", msg.RecipientID)
+		}
+		if msg.ChannelName != "telegram" {
+			t.Errorf("expected channel 'telegram', got %q", msg.ChannelName)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for response")
 	}
 }
 
@@ -219,8 +211,14 @@ func TestChannelManagerService_UnauthorizedUserRejected(t *testing.T) {
 			AllowedUsers: []string{"allowed_user"},
 		},
 	}
-	mq := NewMessageQueueService()
-	cm := NewChannelManagerService(cfg, mq)
+	cm := NewChannelManagerService(cfg)
+
+	// If exec is called, the test should fail — unauthorized messages should not trigger agent
+	agentCalled := false
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		agentCalled = true
+		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"should not happen"}`)
+	}
 
 	inboxSent := make(chan struct{}, 1)
 	ch := &mockChannel{
@@ -256,7 +254,133 @@ func TestChannelManagerService_UnauthorizedUserRejected(t *testing.T) {
 	// Give router time to process (and reject)
 	time.Sleep(100 * time.Millisecond)
 
-	if !mq.IsEmpty() {
-		t.Fatal("expected message queue to be empty (unauthorized user)")
+	if agentCalled {
+		t.Fatal("agent should not have been called for unauthorized user")
+	}
+}
+
+func TestParseAgentOutput(t *testing.T) {
+	tests := []struct {
+		name    string
+		output  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "single assistant message",
+			output: `{"role":"assistant","content":"Hello!","timestamp":"2024-01-01T00:00:00Z"}`,
+			want:   "Hello!",
+		},
+		{
+			name: "mixed output with status and assistant",
+			output: `{"type":"info","message":"Starting new agent session","timestamp":"2024-01-01T00:00:00Z"}
+{"role":"user","content":"hi","timestamp":"2024-01-01T00:00:00Z"}
+{"role":"assistant","content":"Hello there!","timestamp":"2024-01-01T00:00:01Z"}`,
+			want: "Hello there!",
+		},
+		{
+			name: "multiple assistant messages returns last",
+			output: `{"role":"assistant","content":"First response","timestamp":"2024-01-01T00:00:00Z"}
+{"role":"assistant","content":"Final response","timestamp":"2024-01-01T00:00:01Z"}`,
+			want: "Final response",
+		},
+		{
+			name:    "no assistant message",
+			output:  `{"type":"info","message":"Starting session"}`,
+			wantErr: true,
+		},
+		{
+			name:    "empty output",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name: "malformed lines are skipped",
+			output: `not json
+{"role":"assistant","content":"Valid response"}
+also not json`,
+			want: "Valid response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseAgentOutput([]byte(tt.output))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChannelManagerService_SessionID(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	// Capture the session ID passed to the agent
+	var capturedArgs []string
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		capturedArgs = args
+		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"ok"}`)
+	}
+
+	responseSent := make(chan struct{}, 1)
+	ch := &mockChannel{
+		name: "telegram",
+		startFn: func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+			inbox <- domain.InboundMessage{
+				ChannelName: "telegram",
+				SenderID:    "123",
+				Content:     "test message",
+				Timestamp:   time.Now(),
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		sendFn: func(ctx context.Context, msg domain.OutboundMessage) error {
+			responseSent <- struct{}{}
+			return nil
+		},
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-responseSent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Verify session ID format: agent --session-id channel-telegram-123 "test message"
+	expectedSessionID := "channel-telegram-123"
+	found := false
+	for i, arg := range capturedArgs {
+		if arg == "--session-id" && i+1 < len(capturedArgs) && capturedArgs[i+1] == expectedSessionID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected session ID %q in args, got %v", expectedSessionID, capturedArgs)
 	}
 }

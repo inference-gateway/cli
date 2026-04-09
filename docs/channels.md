@@ -16,38 +16,39 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 
 ## Overview
 
-Channels provide a bidirectional bridge between external messaging platforms
-and the CLI agent. When a message arrives from a platform (e.g., Telegram),
-it is routed to the agent as a user message. The agent's response is then
-sent back through the same platform to the original sender.
+Channels provide a bridge between external messaging platforms and the CLI
+agent. The `infer channels-manager` command runs as a standalone long-running daemon
+that listens for messages from platforms like Telegram. When a message arrives,
+it triggers `infer agent --session-id <id>` as a subprocess. The agent
+processes the message and the response is sent back through the channel.
 
 Key features:
 
 - **Pluggable**: Add new platforms by implementing a single Go interface
+- **Decoupled**: Channel listener is independent from the agent
 - **Secure by default**: Allowlist-based access control per channel
+- **Persistent sessions**: Deterministic session IDs per sender
 - **Text and image support**: Forward text messages and images to the agent
-- **Video filtering**: Videos are filtered out (text and images only)
 
 ## Architecture
 
 ```text
-                    ┌─────────────────────────────────────────────────┐
-                    │                  Inference CLI                   │
-                    │                                                  │
-                    │  ┌──────────────────┐    ┌──────────────────┐   │
-                    │  │ Channel Manager  │    │   Agent Service  │   │
-                    │  │                  │    │                  │   │
-                    │  │ • Registry       │    │  • Process msg   │   │
-┌──────────┐       │  │ • Inbound router ├───▶│  • Tool calls    │   │
-│ Telegram │◀─────▶│  │ • Outbound router│◀───┤  • LLM response  │   │
-│ Bot API  │       │  │ • Auth check     │    │                  │   │
-└──────────┘       │  └──────────────────┘    └──────────────────┘   │
-                    │         ▲                        │              │
-┌──────────┐       │         │    ┌──────────────┐    │              │
-│ WhatsApp │◀─────▶│         └────┤ EventBridge  │◀───┘              │
-│ API      │       │              │ (pub-sub)    │                   │
-└──────────┘       │              └──────────────┘                   │
-                    └─────────────────────────────────────────────────┘
+┌──────────┐       ┌────────────────────────────────────────────────────┐
+│ Telegram │◀─────▶│     infer channels-manager (long-running daemon)   │
+│ Bot API  │       │                                                    │
+└──────────┘       │     Channel ──▶ inbox ──▶ routeInbound             │
+                   │                            │                       │
+                   │    ┌───────────────────────▼─────────────┐         │
+                   │    │  Per message:                       │         │
+                   │    │  1. Check allowlist                 │         │
+                   │    │  2. Derive session ID               │         │
+                   │    │  3. exec: infer agent               │         │
+                   │    │     --session-id channel-telegram-X │         │
+                   │    │     "user message"                  │         │
+                   │    │  4. Parse JSON stdout               │         │
+                   │    │  5. Send response via channel       │         │
+                   │    └─────────────────────────────────────┘         │
+                   └────────────────────────────────────────────────────┘
 ```
 
 **Message flow:**
@@ -55,10 +56,11 @@ Key features:
 1. External platform delivers a message to the Channel implementation
 2. Channel converts it to an `InboundMessage` and sends to the shared inbox
 3. Channel Manager checks the sender against the allowlist
-4. If authorized, the message is enqueued via `MessageQueue` for the agent
-5. Agent processes the message and produces a `ChatCompleteEvent`
-6. Channel Manager subscribes to the `EventBridge`, captures the response
-7. Response is routed back through the originating channel via `Channel.Send()`
+4. If authorized, derives a deterministic session ID (e.g.,
+   `channel-telegram-123456789`)
+5. Triggers `infer agent --session-id <id> "<message>"` as a subprocess
+6. Parses the agent's JSON stdout for the assistant response
+7. Sends the response back through the originating channel
 
 ## Quick Start (Telegram)
 
@@ -88,6 +90,10 @@ channels:
     allowed_users:
       - "123456789"  # your chat ID
     poll_timeout: 30
+
+agent:
+  model: "openai/gpt-4"
+  max_turns: 1  # recommended for conversational channel use
 ```
 
 Or use environment variables:
@@ -97,13 +103,18 @@ export INFER_CHANNELS_ENABLED=true
 export INFER_CHANNELS_TELEGRAM_ENABLED=true
 export INFER_CHANNELS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789"
+export INFER_AGENT_MODEL="openai/gpt-4"
 ```
 
-### 4. Start the Agent
+### 4. Start the Channel Listener
 
 ```bash
-infer agent "You are a helpful assistant responding to Telegram messages"
+infer channels-manager
 ```
+
+This starts a long-running daemon that listens for Telegram messages. Each
+incoming message triggers a new `infer agent` invocation with a persistent
+session per sender.
 
 ### 5. Send a Message
 
@@ -117,9 +128,6 @@ Open Telegram, message your bot, and the agent will respond.
 channels:
   # Master switch for all channels
   enabled: false
-
-
-
 
   # Telegram Bot API channel
   telegram:
@@ -136,19 +144,25 @@ channels:
     verify_token: ""           # Webhook verification token
     webhook_port: 8443         # Local port for webhook receiver
     allowed_users: []          # List of allowed phone numbers
+
+# Recommended agent settings for channel use
+agent:
+  model: "openai/gpt-4"       # Model to use
+  max_turns: 1                 # Single-turn for conversational use
 ```
 
 ### Environment Variables
 
-All channel settings can be configured via environment variables with the `INFER_` prefix:
+All channel settings can be configured via environment variables with the
+`INFER_` prefix:
 
-| Setting                          | Environment Variable                     |
-| -------------------------------- | ---------------------------------------- |
-| `channels.enabled`               | `INFER_CHANNELS_ENABLED`                 |
-| `channels.telegram.enabled`      | `INFER_CHANNELS_TELEGRAM_ENABLED`        |
-| `channels.telegram.bot_token`    | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`      |
-| `channels.telegram.allowed_users`| `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS`  |
-| `channels.telegram.poll_timeout` | `INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT`   |
+| Setting                           | Environment Variable                    |
+|-----------------------------------|-----------------------------------------|
+| `channels.enabled`                | `INFER_CHANNELS_ENABLED`                |
+| `channels.telegram.enabled`       | `INFER_CHANNELS_TELEGRAM_ENABLED`       |
+| `channels.telegram.bot_token`     | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`     |
+| `channels.telegram.allowed_users` | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS` |
+| `channels.telegram.poll_timeout`  | `INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT`  |
 
 ## Security
 
@@ -164,30 +178,31 @@ Channels enforce a **secure-by-default** policy:
 ### Recommendations
 
 1. **Always set `allowed_users`** - never run with an empty list in production
-2. **Use environment variables for tokens** - avoid committing secrets to config files
+2. **Use environment variables for tokens** - avoid committing secrets to
+   config files
 3. **Use a dedicated bot** - don't reuse bots across projects
 4. **Monitor logs** - watch for unauthorized access attempts
 
 ## Conversation Memory
 
-Channel messages use the same `ConversationRepository` as interactive chat
-and agent sessions. This means:
+Each sender gets a deterministic session ID (e.g.,
+`channel-telegram-123456789`). The agent uses `--session-id` to persist
+conversations, which means:
 
-- **Full conversation history**: The agent automatically includes all prior
-  messages when calling the LLM. Your Telegram bot remembers everything
-  discussed in the current session.
+- **Full conversation history**: The agent loads all prior messages when
+  calling the LLM. Your Telegram bot remembers everything discussed.
 - **Auto-compaction**: When the conversation grows too long, auto-compact
   summarizes older messages to stay within context limits. This is controlled
   by the existing `compact.auto_at` setting (default: 80% of context window).
 - **Persistent storage**: If you use a persistent storage backend (JSONL,
-  SQLite, PostgreSQL), conversations survive agent restarts. Resume with
-  `--session-id`.
+  SQLite, PostgreSQL), conversations survive restarts.
 - **No extra configuration needed**: Conversation memory works out of the box
-  using the same settings as regular agent/chat sessions.
+  using the same settings as regular agent sessions.
 
 ## Adding a Custom Channel
 
-To add support for a new messaging platform, implement the `domain.Channel` interface:
+To add support for a new messaging platform, implement the `domain.Channel`
+interface:
 
 ```go
 // Channel represents a pluggable messaging transport
@@ -201,7 +216,8 @@ type Channel interface {
 
 ### Step-by-Step
 
-1. **Create the implementation** in `internal/services/channels/your_channel.go`:
+1. **Create the implementation** in
+   `internal/services/channels/your_channel.go`:
 
 ```go
 package channels
@@ -212,7 +228,10 @@ type MyChannel struct {
 
 func (c *MyChannel) Name() string { return "mychannel" }
 
-func (c *MyChannel) Start(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+func (c *MyChannel) Start(
+    ctx context.Context,
+    inbox chan<- domain.InboundMessage,
+) error {
     // Poll or listen for messages, send to inbox channel
     for {
         select {
@@ -230,7 +249,10 @@ func (c *MyChannel) Start(ctx context.Context, inbox chan<- domain.InboundMessag
     }
 }
 
-func (c *MyChannel) Send(ctx context.Context, msg domain.OutboundMessage) error {
+func (c *MyChannel) Send(
+    ctx context.Context,
+    msg domain.OutboundMessage,
+) error {
     // Deliver the response through your platform's API
     return sendToMyPlatform(msg.RecipientID, msg.Content)
 }
@@ -239,12 +261,13 @@ func (c *MyChannel) Stop() error { return nil }
 ```
 
 2. **Add config types** to `config/config.go`
-3. **Register in the container** in `internal/container/container.go`:
+
+3. **Register in the channels command** in `cmd/channels.go`:
 
 ```go
-if c.config.Channels.MyChannel.Enabled {
-    ch := channels.NewMyChannel(c.config.Channels.MyChannel)
-    c.channelManager.Register(ch)
+if cfg.Channels.MyChannel.Enabled {
+    ch := channels.NewMyChannel(cfg.Channels.MyChannel)
+    cm.Register(ch)
 }
 ```
 
@@ -259,27 +282,29 @@ case "mychannel":
 
 ## Supported Channels
 
-| Channel  | Status    | Transport              | Notes                                 |
-| -------- | --------- | ---------------------- | ------------------------------------- |
-| Telegram | Available | Long-polling (Bot API) | No webhook needed, works behind NAT   |
-| WhatsApp | Planned   | Webhook (Meta Business)| Requires Meta Business account        |
-| Discord  | Not yet   | -                      | Contributions welcome                 |
-| Slack    | Not yet   | -                      | Contributions welcome                 |
+| Channel  | Status    | Transport               | Notes                               |
+|----------|-----------|-------------------------|-------------------------------------|
+| Telegram | Available | Long-polling (Bot API)  | No webhook needed, works behind NAT |
+| WhatsApp | Planned   | Webhook (Meta Business) | Requires Meta Business account      |
+| Discord  | Not yet   | -                       | Contributions welcome               |
+| Slack    | Not yet   | -                       | Contributions welcome               |
 
 ## Troubleshooting
 
 ### Messages not arriving
 
 1. Check `channels.enabled: true` and `channels.telegram.enabled: true`
-2. Verify the bot token is correct: `curl https://api.telegram.org/bot<TOKEN>/getMe`
+2. Verify the bot token is correct:
+   `curl https://api.telegram.org/bot<TOKEN>/getMe`
 3. Ensure your chat ID is in `allowed_users`
 4. Check CLI logs for `[channels]` or `[telegram]` entries
 
 ### Bot not responding
 
-1. Verify the agent is running (`infer agent ...`)
-2. Check that the EventBridge is connected (responses route through it)
-3. Look for `[channels] failed to send response` in logs
+1. Verify the channel listener is running (`infer channels-manager`)
+2. Check that `infer agent` works independently:
+   `infer agent "Hello" --session-id test`
+3. Look for `[channels] agent failed` in logs
 
 ### Rate limiting
 

@@ -57,24 +57,27 @@ Open Telegram and send a message to your bot. The agent will respond.
 ## How It Works
 
 ```text
-You (Telegram) --> Telegram Bot API --> infer-agent container
+You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
                                             |
                                             v
-                                     Inference Gateway
+                                     infer agent --session-id <id>
                                             |
                                             v
-                                      LLM Provider
+                                     Inference Gateway --> LLM Provider
                                             |
                                             v
-                                     infer-agent container --> Telegram Bot API --> You (Telegram)
+                                     JSON stdout (parsed)
+                                            |
+                                            v
+                                     infer channels-manager --> Telegram Bot API --> You (Telegram)
 ```
 
 1. You send a message in Telegram
-2. The Telegram channel (long-polling) picks it up
+2. The channel listener (long-polling) picks it up
 3. The message is checked against `allowed_users`
-4. If authorized, it's forwarded to the agent
+4. If authorized, `infer agent --session-id <id>` is triggered as a subprocess
 5. The agent processes it (may use tools, call LLM)
-6. The response is sent back through Telegram
+6. The response is parsed from stdout and sent back through Telegram
 
 ## Running Without Docker
 
@@ -84,9 +87,10 @@ export INFER_CHANNELS_ENABLED=true
 export INFER_CHANNELS_TELEGRAM_ENABLED=true
 export INFER_CHANNELS_TELEGRAM_BOT_TOKEN="your-bot-token"
 export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="your-chat-id"
+export INFER_AGENT_MODEL="openai/gpt-4"
 
-# Start the agent
-infer agent "You are a helpful assistant responding to Telegram messages."
+# Start the channel listener
+infer channels-manager
 ```
 
 ## Security
@@ -120,8 +124,8 @@ channels:
 ### Bot not responding
 
 ```bash
-# Check agent logs
-docker compose logs infer-agent
+# Check channel listener logs
+docker compose logs infer-channels-manager
 
 # Verify bot token is valid
 curl https://api.telegram.org/bot<TOKEN>/getMe

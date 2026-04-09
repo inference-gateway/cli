@@ -930,13 +930,16 @@ export INFER_CHANNELS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
 export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789"
 ```
 
-**4. Start the agent:**
+**4. Start the channel listener:**
 
 ```bash
-infer agent "You are a helpful assistant"
+infer channels-manager
 ```
 
 **5. Send a message** to your bot in Telegram - the agent will respond.
+
+Each incoming message triggers `infer agent --session-id <id>` as a
+subprocess with a persistent session per sender.
 
 ### Security
 

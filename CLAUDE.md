@@ -101,6 +101,7 @@ task container:push
 ```text
 cmd/                    # CLI commands (cobra-based)
 ├── agent.go           # Autonomous agent command
+├── channels.go        # Channel listener daemon command
 ├── chat.go            # Interactive chat command
 ├── config.go          # Configuration management commands
 ├── agents.go          # A2A agent management
@@ -407,14 +408,18 @@ A2A enables agents to delegate tasks to specialized agents:
 
 ## Channels (Remote Messaging)
 
-Channels provide pluggable messaging transports (Telegram, WhatsApp, etc.) for remote-controlling the agent from external platforms.
+Channels provide pluggable messaging transports (Telegram, WhatsApp, etc.)
+for remote-controlling the agent from external platforms. The
+`infer channels-manager` command runs as a standalone daemon, completely
+decoupled from the agent. Each incoming message triggers
+`infer agent --session-id <id>` as a subprocess.
 
+- Channels command: `cmd/channels.go`
 - Channel Manager: `internal/services/channel_manager.go`
 - Telegram channel: `internal/services/channels/telegram.go`
 - Domain types: `Channel`, `InboundMessage`, `OutboundMessage` in `internal/domain/interfaces.go`
 - Events: `ChannelMessageReceivedEvent`, `ChannelMessageSentEvent` in `internal/domain/chat_events.go`
 - Configuration: `config.Channels` in `config/config.go`
-- Container wiring: `initializeChannelManager()` and `StartChannels()` in `internal/container/container.go`
 
 Channels are configured in `.infer/config.yaml` under the `channels` key.
 Each channel has its own allowlist for security.
@@ -424,7 +429,7 @@ See `docs/channels.md` for full documentation.
 
 1. Implement `domain.Channel` interface in `internal/services/channels/`
 2. Add config type to `config/config.go`
-3. Register in `initializeChannelManager()` in `container.go`
+3. Register in `registerChannels()` in `cmd/channels.go`
 4. Add allowlist case in `channel_manager.go` `isAllowedUser()`
 
 ## Model Thinking Visualization

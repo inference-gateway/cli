@@ -389,16 +389,6 @@ type OutboundMessage struct {
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
-// ChannelManager manages pluggable messaging channels
-type ChannelManager interface {
-	// Register adds a channel to the manager
-	Register(ch Channel)
-	// Start begins all registered channels and the message routing loop
-	Start(ctx context.Context) error
-	// Stop gracefully shuts down all channels
-	Stop() error
-}
-
 // FileService handles file operations
 type FileService interface {
 	ListProjectFiles() ([]string, error)
