@@ -26,6 +26,9 @@ type ChannelManagerService struct {
 	// Per-sender mutex to serialize agent invocations for the same session
 	senderMutexes sync.Map // map[string]*sync.Mutex
 
+	// semaphore limits the number of concurrent agent subprocesses
+	semaphore chan struct{}
+
 	// execCommandFunc allows overriding exec.CommandContext for testing
 	execCommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
 
@@ -34,10 +37,16 @@ type ChannelManagerService struct {
 
 // NewChannelManagerService creates a new channel manager
 func NewChannelManagerService(cfg config.ChannelsConfig) *ChannelManagerService {
+	maxWorkers := cfg.MaxWorkers
+	if maxWorkers <= 0 {
+		maxWorkers = 5
+	}
+
 	return &ChannelManagerService{
 		channels:        make(map[string]domain.Channel),
 		inbox:           make(chan domain.InboundMessage, 100),
 		cfg:             cfg,
+		semaphore:       make(chan struct{}, maxWorkers),
 		execCommandFunc: exec.CommandContext,
 	}
 }
@@ -75,7 +84,6 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 		}(name, ch)
 	}
 
-	// Start the inbound message router
 	go cm.routeInbound(ctx)
 
 	return nil
@@ -118,7 +126,13 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 
 // handleMessage triggers the agent as a subprocess and sends the response back through the channel
 func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.InboundMessage) {
-	// Serialize per-sender to prevent concurrent session access
+	select {
+	case cm.semaphore <- struct{}{}:
+		defer func() { <-cm.semaphore }()
+	case <-ctx.Done():
+		return
+	}
+
 	senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
 	mu := cm.getSenderMutex(senderKey)
 	mu.Lock()

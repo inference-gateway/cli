@@ -600,9 +600,10 @@ type JsonlStorageConfig struct {
 
 // ChannelsConfig contains configuration for external messaging channels
 type ChannelsConfig struct {
-	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
-	Telegram TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
-	WhatsApp WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+	Enabled    bool                  `yaml:"enabled" mapstructure:"enabled"`
+	MaxWorkers int                   `yaml:"max_workers" mapstructure:"max_workers"`
+	Telegram   TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
+	WhatsApp   WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
 }
 
 // TelegramChannelConfig contains Telegram bot settings
@@ -1234,7 +1235,8 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Channels: ChannelsConfig{
-			Enabled: false,
+			Enabled:    false,
+			MaxWorkers: 5,
 			Telegram: TelegramChannelConfig{
 				Enabled:      false,
 				BotToken:     "",
