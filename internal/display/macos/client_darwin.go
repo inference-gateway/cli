@@ -246,13 +246,21 @@ func (c *MacOSClient) ClickMouse(button string, clicks int) error {
 
 	switch clicks {
 	case 1:
-		robotgo.Click(robotButton, false)
+		if err := robotgo.Click(robotButton, false); err != nil {
+			return err
+		}
 	case 2:
-		robotgo.Click(robotButton, true)
+		if err := robotgo.Click(robotButton, true); err != nil {
+			return err
+		}
 	case 3:
-		robotgo.Click(robotButton, true)
+		if err := robotgo.Click(robotButton, true); err != nil {
+			return err
+		}
 		time.Sleep(100 * time.Millisecond)
-		robotgo.Click(robotButton, false)
+		if err := robotgo.Click(robotButton, false); err != nil {
+			return err
+		}
 	}
 
 	return nil
