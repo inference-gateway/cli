@@ -44,6 +44,7 @@ type Config struct {
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
+	Channels         ChannelsConfig         `yaml:"channels" mapstructure:"channels"`
 	configDir        string
 }
 
@@ -595,6 +596,31 @@ type RedisStorageConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `yaml:"path" mapstructure:"path"`
+}
+
+// ChannelsConfig contains configuration for external messaging channels
+type ChannelsConfig struct {
+	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
+	Telegram TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
+	WhatsApp WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+}
+
+// TelegramChannelConfig contains Telegram bot settings
+type TelegramChannelConfig struct {
+	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
+	BotToken     string   `yaml:"bot_token" mapstructure:"bot_token"`
+	AllowedUsers []string `yaml:"allowed_users" mapstructure:"allowed_users"`
+	PollTimeout  int      `yaml:"poll_timeout" mapstructure:"poll_timeout"`
+}
+
+// WhatsAppChannelConfig contains WhatsApp Business API settings
+type WhatsAppChannelConfig struct {
+	Enabled       bool     `yaml:"enabled" mapstructure:"enabled"`
+	PhoneNumberID string   `yaml:"phone_number_id" mapstructure:"phone_number_id"`
+	AccessToken   string   `yaml:"access_token" mapstructure:"access_token"`
+	VerifyToken   string   `yaml:"verify_token" mapstructure:"verify_token"`
+	WebhookPort   int      `yaml:"webhook_port" mapstructure:"webhook_port"`
+	AllowedUsers  []string `yaml:"allowed_users" mapstructure:"allowed_users"`
 }
 
 // A2AAgentInfo contains information about an A2A agent connection
@@ -1205,6 +1231,23 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				ActivateApp: ActivateAppToolConfig{
 					Enabled: true,
 				},
+			},
+		},
+		Channels: ChannelsConfig{
+			Enabled: false,
+			Telegram: TelegramChannelConfig{
+				Enabled:      false,
+				BotToken:     "",
+				AllowedUsers: []string{},
+				PollTimeout:  30,
+			},
+			WhatsApp: WhatsAppChannelConfig{
+				Enabled:       false,
+				PhoneNumberID: "",
+				AccessToken:   "",
+				VerifyToken:   "",
+				WebhookPort:   8443,
+				AllowedUsers:  []string{},
 			},
 		},
 	}

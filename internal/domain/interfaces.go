@@ -358,6 +358,47 @@ type StateManager interface {
 	ClearComputerUsePauseState()
 }
 
+// Channel represents a pluggable messaging transport (WhatsApp, Telegram, etc.)
+type Channel interface {
+	// Name returns the channel identifier (e.g., "whatsapp", "telegram")
+	Name() string
+	// Start begins listening for inbound messages. Blocks until ctx is cancelled.
+	Start(ctx context.Context, inbox chan<- InboundMessage) error
+	// Send delivers an outbound message through this channel
+	Send(ctx context.Context, msg OutboundMessage) error
+	// Stop gracefully shuts down the channel
+	Stop() error
+}
+
+// InboundMessage represents a message received from an external channel
+type InboundMessage struct {
+	ChannelName string            `json:"channel_name"`
+	SenderID    string            `json:"sender_id"`
+	Content     string            `json:"content"`
+	Images      []ImageAttachment `json:"images,omitempty"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// OutboundMessage represents a response to send back through a channel
+type OutboundMessage struct {
+	ChannelName string            `json:"channel_name"`
+	RecipientID string            `json:"recipient_id"`
+	Content     string            `json:"content"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// ChannelManager manages pluggable messaging channels
+type ChannelManager interface {
+	// Register adds a channel to the manager
+	Register(ch Channel)
+	// Start begins all registered channels and the message routing loop
+	Start(ctx context.Context) error
+	// Stop gracefully shuts down all channels
+	Stop() error
+}
+
 // FileService handles file operations
 type FileService interface {
 	ListProjectFiles() ([]string, error)

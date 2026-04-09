@@ -1,0 +1,31 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  infer-agent:
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
+    depends_on:
+      - inference-gateway
+    env_file:
+      - .env
+    environment:
+      - INFER_GATEWAY_URL=http://inference-gateway:8080
+      - INFER_GATEWAY_RUN=false
+      - INFER_CHANNELS_ENABLED=true
+      - INFER_CHANNELS_TELEGRAM_ENABLED=true
+      # Set these in .env:
+      # INFER_CHANNELS_TELEGRAM_BOT_TOKEN=your-bot-token
+      # INFER_CHANNELS_TELEGRAM_ALLOWED_USERS=your-chat-id
+      # INFER_AGENT_MODEL=openai/gpt-4
+    volumes:
+      - ./config.yaml:/app/.infer/config.yaml:ro
+    command: ["agent", "You are a helpful assistant responding to Telegram messages."]
+    restart: unless-stopped

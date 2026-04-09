@@ -21,6 +21,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -82,6 +83,9 @@ type ServiceContainer struct {
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
 
+	// Channel manager
+	channelManager *services.ChannelManagerService
+
 	// File writing services
 	pathValidator  filewriterdomain.PathValidator
 	backupManager  filewriterdomain.BackupManager
@@ -124,6 +128,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	container.initializeDomainServices()
 	container.initializeAgentManager()
 	container.initializeServices()
+	container.initializeChannelManager()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
 
@@ -333,6 +338,21 @@ func (c *ServiceContainer) initializeServices() {
 	}
 }
 
+// initializeChannelManager creates and configures the channel manager if channels are enabled
+func (c *ServiceContainer) initializeChannelManager() {
+	if !c.config.Channels.Enabled {
+		return
+	}
+
+	c.channelManager = services.NewChannelManagerService(c.config.Channels, c.messageQueue)
+
+	// Register Telegram channel if enabled
+	if c.config.Channels.Telegram.Enabled {
+		telegramCh := channels.NewTelegramChannel(c.config.Channels.Telegram)
+		c.channelManager.Register(telegramCh)
+	}
+}
+
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
 	themeProvider := domain.NewThemeProvider()
@@ -499,6 +519,21 @@ func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskServi
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
 func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
 	return c.mcpManager
+}
+
+// GetChannelManager returns the channel manager (may be nil if channels are not enabled)
+func (c *ServiceContainer) GetChannelManager() *services.ChannelManagerService {
+	return c.channelManager
+}
+
+// StartChannels starts the channel manager with the provided event bridge for response routing.
+// This should be called after the EventBridge is available (e.g., during chat/agent setup).
+func (c *ServiceContainer) StartChannels(ctx context.Context, bridge domain.EventBridge) error {
+	if c.channelManager == nil {
+		return nil
+	}
+	c.channelManager.SetEventBridge(bridge)
+	return c.channelManager.Start(ctx)
 }
 
 // createRetryConfig creates a retry config with logging callback
@@ -674,6 +709,13 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 		if err := c.gatewayManager.Stop(ctx); err != nil {
 			logger.Error("Failed to stop gateway container", "error", err)
 			return err
+		}
+	}
+
+	if c.channelManager != nil {
+		logger.Info("Stopping channel manager...")
+		if err := c.channelManager.Stop(); err != nil {
+			logger.Error("Failed to stop channel manager", "error", err)
 		}
 	}
 

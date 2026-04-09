@@ -70,3 +70,16 @@ type StateTransitionEvent struct {
 	FromState AgentExecutionState
 	ToState   AgentExecutionState
 }
+
+// ChannelMessageReceivedEvent indicates an inbound message was received from an external channel
+type ChannelMessageReceivedEvent struct {
+	BaseChatEvent
+	Message InboundMessage
+}
+
+// ChannelMessageSentEvent indicates an outbound message was sent through an external channel
+type ChannelMessageSentEvent struct {
+	BaseChatEvent
+	Message OutboundMessage
+	Error   string
+}

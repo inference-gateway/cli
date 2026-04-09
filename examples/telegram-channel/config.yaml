@@ -1,0 +1,22 @@
+gateway:
+  url: http://inference-gateway:8080
+  run: false
+
+agent:
+  model: ""  # Will use model selection or set via INFER_AGENT_MODEL
+
+channels:
+  enabled: true
+
+  telegram:
+    enabled: true
+    bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
+    allowed_users: []  # Set via INFER_CHANNELS_TELEGRAM_ALLOWED_USERS
+    poll_timeout: 30
+
+tools:
+  enabled: true
+  bash:
+    enabled: true
+  safety:
+    require_approval: false  # Auto-approve for remote usage
