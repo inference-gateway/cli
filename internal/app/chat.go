@@ -1984,13 +1984,14 @@ permissions:
 
 jobs:
   infer:
+	if: "!endsWith(github.actor, '[bot]')"
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@main
+        uses: inference-gateway/infer-action@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"
@@ -2029,10 +2030,11 @@ permissions:
 
 jobs:
   infer:
+    if: "!endsWith(github.actor, '[bot]')"
     runs-on: ubuntu-24.04
     steps:
       - name: Generate GitHub App Token
-        uses: actions/create-github-app-token@v2.2.0
+        uses: actions/create-github-app-token@v3.0.0
         id: app_token
         with:
           app-id: ${{ secrets.INFER_APP_ID }}
@@ -2042,12 +2044,12 @@ jobs:
             ${{ github.event.repository.name }}
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
         with:
           token: ${{ steps.app_token.outputs.token }}
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.3.1
+        uses: inference-gateway/infer-action@v0.4.0
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"

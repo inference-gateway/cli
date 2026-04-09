@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.2
 
     - name: Setup Go
       uses: actions/setup-go@v6.2.0
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.2
 
     - name: Setup Go
       uses: actions/setup-go@v6.2.0
@@ -62,7 +62,7 @@ jobs:
     - name: Install golangci-lint
       uses: golangci/golangci-lint-action@v9.2.0
       with:
-        version: v2.10.1
+        version: v2.11.4
         args: --timeout=5m
 
   vet:
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.2
 
     - name: Setup Go
       uses: actions/setup-go@v6.2.0
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.2
 
     - name: Setup Go
       uses: actions/setup-go@v6.2.0
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.2
 
     - name: Setup Go
       uses: actions/setup-go@v6.2.0
