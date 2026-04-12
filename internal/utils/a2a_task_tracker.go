@@ -6,7 +6,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-var _ domain.TaskTracker = (*TaskTrackerImpl)(nil)
+var _ domain.A2ATaskTracker = (*A2ATaskTrackerImpl)(nil)
 
 // AgentContext represents a context within an agent with its tasks
 type AgentContext struct {
@@ -20,8 +20,8 @@ type Agent struct {
 	Contexts []*AgentContext
 }
 
-// TaskTrackerImpl provides a hierarchical implementation of TaskTracker
-type TaskTrackerImpl struct {
+// A2ATaskTrackerImpl provides a hierarchical implementation of A2ATaskTracker
+type A2ATaskTrackerImpl struct {
 	mu sync.RWMutex
 
 	// Hierarchical structure
@@ -32,9 +32,12 @@ type TaskTrackerImpl struct {
 	taskIndex    map[string]*domain.TaskPollingState
 }
 
-// NewTaskTracker creates a new TaskTrackerImpl
-func NewTaskTracker() domain.TaskTracker {
-	return &TaskTrackerImpl{
+// NewA2ATaskTracker creates a new A2ATaskTrackerImpl. Returns the concrete
+// type so callers that need to embed it (e.g. the unified
+// services.BackgroundTaskRegistry) don't need to type-assert. The result
+// still satisfies domain.A2ATaskTracker via interface conversion.
+func NewA2ATaskTracker() *A2ATaskTrackerImpl {
+	return &A2ATaskTrackerImpl{
 		agents:       make([]*Agent, 0),
 		agentIndex:   make(map[string]int),
 		contextIndex: make(map[string]*AgentContext),
@@ -43,7 +46,7 @@ func NewTaskTracker() domain.TaskTracker {
 }
 
 // RegisterContext registers a server-generated context ID for an agent
-func (t *TaskTrackerImpl) RegisterContext(agentURL, contextID string) {
+func (t *A2ATaskTrackerImpl) RegisterContext(agentURL, contextID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -76,7 +79,7 @@ func (t *TaskTrackerImpl) RegisterContext(agentURL, contextID string) {
 }
 
 // GetContextsForAgent returns all context IDs for a specific agent
-func (t *TaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
+func (t *A2ATaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -95,7 +98,7 @@ func (t *TaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
 }
 
 // GetAgentForContext returns the agent URL for a given context ID
-func (t *TaskTrackerImpl) GetAgentForContext(contextID string) string {
+func (t *A2ATaskTrackerImpl) GetAgentForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -111,7 +114,7 @@ func (t *TaskTrackerImpl) GetAgentForContext(contextID string) string {
 }
 
 // GetLatestContextForAgent returns the most recently registered context for an agent
-func (t *TaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
+func (t *A2ATaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -129,7 +132,7 @@ func (t *TaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
 }
 
 // HasContext checks if a context ID is registered
-func (t *TaskTrackerImpl) HasContext(contextID string) bool {
+func (t *A2ATaskTrackerImpl) HasContext(contextID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -138,7 +141,7 @@ func (t *TaskTrackerImpl) HasContext(contextID string) bool {
 }
 
 // RemoveContext removes a context and all its tasks
-func (t *TaskTrackerImpl) RemoveContext(contextID string) {
+func (t *A2ATaskTrackerImpl) RemoveContext(contextID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -177,7 +180,7 @@ func (t *TaskTrackerImpl) RemoveContext(contextID string) {
 }
 
 // AddTask adds a server-generated task ID to a context
-func (t *TaskTrackerImpl) AddTask(contextID, taskID string) {
+func (t *A2ATaskTrackerImpl) AddTask(contextID, taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -206,7 +209,7 @@ func (t *TaskTrackerImpl) AddTask(contextID, taskID string) {
 }
 
 // GetTasksForContext returns all task IDs for a specific context
-func (t *TaskTrackerImpl) GetTasksForContext(contextID string) []string {
+func (t *A2ATaskTrackerImpl) GetTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -224,7 +227,7 @@ func (t *TaskTrackerImpl) GetTasksForContext(contextID string) []string {
 }
 
 // GetLatestTaskForContext returns the most recently added task for a context
-func (t *TaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
+func (t *A2ATaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -237,7 +240,7 @@ func (t *TaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
 }
 
 // GetContextForTask returns the context ID for a given task
-func (t *TaskTrackerImpl) GetContextForTask(taskID string) string {
+func (t *A2ATaskTrackerImpl) GetContextForTask(taskID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -250,7 +253,7 @@ func (t *TaskTrackerImpl) GetContextForTask(taskID string) string {
 }
 
 // RemoveTask removes a task from its context
-func (t *TaskTrackerImpl) RemoveTask(taskID string) {
+func (t *A2ATaskTrackerImpl) RemoveTask(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -277,7 +280,7 @@ func (t *TaskTrackerImpl) RemoveTask(taskID string) {
 }
 
 // HasTask checks if a task ID exists
-func (t *TaskTrackerImpl) HasTask(taskID string) bool {
+func (t *A2ATaskTrackerImpl) HasTask(taskID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -286,7 +289,7 @@ func (t *TaskTrackerImpl) HasTask(taskID string) bool {
 }
 
 // GetAllAgents returns all agent URLs being tracked
-func (t *TaskTrackerImpl) GetAllAgents() []string {
+func (t *A2ATaskTrackerImpl) GetAllAgents() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -299,7 +302,7 @@ func (t *TaskTrackerImpl) GetAllAgents() []string {
 }
 
 // GetAllContexts returns all context IDs being tracked
-func (t *TaskTrackerImpl) GetAllContexts() []string {
+func (t *A2ATaskTrackerImpl) GetAllContexts() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -312,7 +315,7 @@ func (t *TaskTrackerImpl) GetAllContexts() []string {
 }
 
 // ClearAllAgents clears all tracked agents, contexts, tasks, and polling states
-func (t *TaskTrackerImpl) ClearAllAgents() {
+func (t *A2ATaskTrackerImpl) ClearAllAgents() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -329,7 +332,7 @@ func (t *TaskTrackerImpl) ClearAllAgents() {
 }
 
 // StartPolling starts tracking a background polling operation for a task
-func (t *TaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPollingState) {
+func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPollingState) {
 	if state == nil || taskID == "" {
 		return
 	}
@@ -367,7 +370,7 @@ func (t *TaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPollingS
 }
 
 // StopPolling stops and clears the polling state for a task
-func (t *TaskTrackerImpl) StopPolling(taskID string) {
+func (t *A2ATaskTrackerImpl) StopPolling(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -396,7 +399,7 @@ func (t *TaskTrackerImpl) StopPolling(taskID string) {
 }
 
 // GetPollingState returns the current polling state for a task
-func (t *TaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingState {
+func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -404,7 +407,7 @@ func (t *TaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingStat
 }
 
 // IsPolling returns whether a task currently has an active polling operation
-func (t *TaskTrackerImpl) IsPolling(taskID string) bool {
+func (t *A2ATaskTrackerImpl) IsPolling(taskID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -417,7 +420,7 @@ func (t *TaskTrackerImpl) IsPolling(taskID string) bool {
 }
 
 // GetPollingTasksForContext returns all task IDs that are currently being polled for a context
-func (t *TaskTrackerImpl) GetPollingTasksForContext(contextID string) []string {
+func (t *A2ATaskTrackerImpl) GetPollingTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -437,7 +440,7 @@ func (t *TaskTrackerImpl) GetPollingTasksForContext(contextID string) []string {
 }
 
 // GetAllPollingTasks returns all task IDs that are currently being polled
-func (t *TaskTrackerImpl) GetAllPollingTasks() []string {
+func (t *A2ATaskTrackerImpl) GetAllPollingTasks() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 

@@ -98,6 +98,16 @@ type FakeInputComponent struct {
 		result1 tea.Model
 		result2 tea.Cmd
 	}
+	IsDisabledStub        func() bool
+	isDisabledMutex       sync.RWMutex
+	isDisabledArgsForCall []struct {
+	}
+	isDisabledReturns struct {
+		result1 bool
+	}
+	isDisabledReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	NavigateHistoryDownStub        func()
 	navigateHistoryDownMutex       sync.RWMutex
 	navigateHistoryDownArgsForCall []struct {
@@ -626,6 +636,59 @@ func (fake *FakeInputComponent) HandleKeyReturnsOnCall(i int, result1 tea.Model,
 		result1 tea.Model
 		result2 tea.Cmd
 	}{result1, result2}
+}
+
+func (fake *FakeInputComponent) IsDisabled() bool {
+	fake.isDisabledMutex.Lock()
+	ret, specificReturn := fake.isDisabledReturnsOnCall[len(fake.isDisabledArgsForCall)]
+	fake.isDisabledArgsForCall = append(fake.isDisabledArgsForCall, struct {
+	}{})
+	stub := fake.IsDisabledStub
+	fakeReturns := fake.isDisabledReturns
+	fake.recordInvocation("IsDisabled", []interface{}{})
+	fake.isDisabledMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) IsDisabledCallCount() int {
+	fake.isDisabledMutex.RLock()
+	defer fake.isDisabledMutex.RUnlock()
+	return len(fake.isDisabledArgsForCall)
+}
+
+func (fake *FakeInputComponent) IsDisabledCalls(stub func() bool) {
+	fake.isDisabledMutex.Lock()
+	defer fake.isDisabledMutex.Unlock()
+	fake.IsDisabledStub = stub
+}
+
+func (fake *FakeInputComponent) IsDisabledReturns(result1 bool) {
+	fake.isDisabledMutex.Lock()
+	defer fake.isDisabledMutex.Unlock()
+	fake.IsDisabledStub = nil
+	fake.isDisabledReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) IsDisabledReturnsOnCall(i int, result1 bool) {
+	fake.isDisabledMutex.Lock()
+	defer fake.isDisabledMutex.Unlock()
+	fake.IsDisabledStub = nil
+	if fake.isDisabledReturnsOnCall == nil {
+		fake.isDisabledReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isDisabledReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeInputComponent) NavigateHistoryDown() {

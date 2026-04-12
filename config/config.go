@@ -356,9 +356,10 @@ type ExportConfig struct {
 
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
-	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+	Enabled               bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt                int  `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages     int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+	RolloverOnIdleMinutes int  `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
 }
 
 // WebConfig contains web terminal settings
@@ -639,13 +640,14 @@ type A2AAgentInfo struct {
 
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
-	StatusPollSeconds      int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
-	PollingStrategy        string  `yaml:"polling_strategy" mapstructure:"polling_strategy"`
-	InitialPollIntervalSec int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
-	MaxPollIntervalSec     int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
-	BackoffMultiplier      float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
-	BackgroundMonitoring   bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
-	CompletedTaskRetention int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
+	StatusPollSeconds       int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+	PollingStrategy         string  `yaml:"polling_strategy" mapstructure:"polling_strategy"`
+	InitialPollIntervalSec  int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
+	MaxPollIntervalSec      int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
+	BackoffMultiplier       float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
+	BackgroundMonitoring    bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
+	CompletedTaskRetention  int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
+	AgentModeMaxWaitSeconds int     `yaml:"agent_mode_max_wait_seconds" mapstructure:"agent_mode_max_wait_seconds"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -1027,13 +1029,14 @@ Respond with ONLY the title, no quotes or explanation.`,
 				TTL:     300,
 			},
 			Task: A2ATaskConfig{
-				StatusPollSeconds:      5,
-				PollingStrategy:        "exponential",
-				InitialPollIntervalSec: 2,
-				MaxPollIntervalSec:     60,
-				BackoffMultiplier:      2.0,
-				BackgroundMonitoring:   true,
-				CompletedTaskRetention: 5,
+				StatusPollSeconds:       5,
+				PollingStrategy:         "exponential",
+				InitialPollIntervalSec:  2,
+				MaxPollIntervalSec:      60,
+				BackoffMultiplier:       2.0,
+				BackgroundMonitoring:    true,
+				CompletedTaskRetention:  5,
+				AgentModeMaxWaitSeconds: 300,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{
@@ -1080,9 +1083,10 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled:           true,
-			AutoAt:            80,
-			KeepFirstMessages: 2,
+			Enabled:               true,
+			AutoAt:                80,
+			KeepFirstMessages:     2,
+			RolloverOnIdleMinutes: 30,
 		},
 		Web: WebConfig{
 			Enabled:               false,

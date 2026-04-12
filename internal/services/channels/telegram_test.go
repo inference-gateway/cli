@@ -25,7 +25,7 @@ func TestTelegramChannel_StartRequiresToken(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
 	inbox := make(chan domain.InboundMessage, 10)
 	err := ch.Start(ctx, inbox)
@@ -140,7 +140,6 @@ func TestProcessUpdate_EmptyMessage(t *testing.T) {
 			ID:   42,
 			Chat: models.Chat{ID: 123, Type: "private"},
 			Date: int(time.Now().Unix()),
-			// No text, no caption, no photo — e.g., a sticker
 		},
 	}
 
@@ -169,7 +168,7 @@ func TestSplitMessage(t *testing.T) {
 			if len(chunks) != tt.expected {
 				t.Errorf("expected %d chunks, got %d", tt.expected, len(chunks))
 			}
-			// Verify all content is preserved
+
 			joined := strings.Join(chunks, "")
 			if joined != tt.text {
 				t.Error("content not preserved after splitting")
@@ -179,14 +178,13 @@ func TestSplitMessage(t *testing.T) {
 }
 
 func TestSplitMessage_SplitsAtNewline(t *testing.T) {
-	// 60 chars + newline + 50 chars = 111 chars total, split at 100
 	text := strings.Repeat("a", 60) + "\n" + strings.Repeat("b", 50)
 	chunks := splitMessage(text, 100)
 
 	if len(chunks) != 2 {
 		t.Fatalf("expected 2 chunks, got %d", len(chunks))
 	}
-	// Should split at the newline
+
 	if !strings.HasSuffix(chunks[0], "\n") {
 		t.Error("expected first chunk to end at newline boundary")
 	}

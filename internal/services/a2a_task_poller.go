@@ -13,8 +13,13 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-type A2APollingMonitor struct {
-	taskTracker      domain.TaskTracker
+// A2ATaskPoller drives the per-task polling goroutines that watch in-flight
+// A2A tasks for terminal state and emit results onto the shared message
+// queue. It is the *behavior* layer that operates on the state stored in the
+// task tracker (see domain.A2ATaskTracker / A2ATaskTrackerImpl). The tracker holds
+// the data; the poller does the work.
+type A2ATaskPoller struct {
+	taskTracker      domain.A2ATaskTracker
 	eventChan        chan<- domain.ChatEvent
 	messageQueue     domain.MessageQueue
 	requestID        string
@@ -23,17 +28,16 @@ type A2APollingMonitor struct {
 	activeMonitors   map[string]context.CancelFunc
 	stopChan         chan struct{}
 	stopped          bool
-	agentEventChan   chan<- domain.AgentEvent
 }
 
-func NewA2APollingMonitor(
-	taskTracker domain.TaskTracker,
+func NewA2ATaskPoller(
+	taskTracker domain.A2ATaskTracker,
 	eventChan chan<- domain.ChatEvent,
 	messageQueue domain.MessageQueue,
 	requestID string,
 	conversationRepo domain.ConversationRepository,
-) *A2APollingMonitor {
-	return &A2APollingMonitor{
+) *A2ATaskPoller {
+	return &A2ATaskPoller{
 		taskTracker:      taskTracker,
 		eventChan:        eventChan,
 		messageQueue:     messageQueue,
@@ -45,15 +49,7 @@ func NewA2APollingMonitor(
 	}
 }
 
-// SetAgentEventChannel sets the agent's internal event channel for waking up the agent
-// when an A2A task completes. This should be called after the agent is created.
-func (m *A2APollingMonitor) SetAgentEventChannel(eventChan chan<- domain.AgentEvent) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.agentEventChan = eventChan
-}
-
-func (m *A2APollingMonitor) Start(ctx context.Context) {
+func (m *A2ATaskPoller) Start(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -71,7 +67,7 @@ func (m *A2APollingMonitor) Start(ctx context.Context) {
 	}
 }
 
-func (m *A2APollingMonitor) Stop() {
+func (m *A2ATaskPoller) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -81,7 +77,7 @@ func (m *A2APollingMonitor) Stop() {
 	}
 }
 
-func (m *A2APollingMonitor) checkForNewPollingTasks(ctx context.Context) {
+func (m *A2ATaskPoller) checkForNewPollingTasks(ctx context.Context) {
 	if m.taskTracker == nil {
 		return
 	}
@@ -104,7 +100,7 @@ func (m *A2APollingMonitor) checkForNewPollingTasks(ctx context.Context) {
 	}
 }
 
-func (m *A2APollingMonitor) MonitorPollingState(ctx context.Context, taskID string, state *domain.TaskPollingState) {
+func (m *A2ATaskPoller) MonitorPollingState(ctx context.Context, taskID string, state *domain.TaskPollingState) {
 	m.mu.Lock()
 	if _, exists := m.activeMonitors[taskID]; exists {
 		m.mu.Unlock()
@@ -118,7 +114,7 @@ func (m *A2APollingMonitor) MonitorPollingState(ctx context.Context, taskID stri
 	go m.monitorSingleTask(monitorCtx, taskID, state)
 }
 
-func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string, state *domain.TaskPollingState) {
+func (m *A2ATaskPoller) monitorSingleTask(ctx context.Context, taskID string, state *domain.TaskPollingState) {
 	defer func() {
 		m.mu.Lock()
 		delete(m.activeMonitors, taskID)
@@ -175,7 +171,7 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string
 	}
 }
 
-func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
+func (m *A2ATaskPoller) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
 	if result == nil {
 		logger.Error("Received nil result in emitCompletionEvent",
 			"task_id", taskID)
@@ -214,7 +210,7 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 	}
 }
 
-func (m *A2APollingMonitor) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate) {
+func (m *A2ATaskPoller) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate) {
 	if update == nil {
 		logger.Error("Received nil update in emitStatusUpdateEvent")
 		return
@@ -251,7 +247,7 @@ func (m *A2APollingMonitor) emitStatusUpdateEvent(update *domain.A2ATaskStatusUp
 	}
 }
 
-func (m *A2APollingMonitor) emitErrorEvent(taskID string, err error) {
+func (m *A2ATaskPoller) emitErrorEvent(taskID string, err error) {
 	errorMsg := ""
 	if err != nil {
 		errorMsg = err.Error()
@@ -277,7 +273,7 @@ func (m *A2APollingMonitor) emitErrorEvent(taskID string, err error) {
 	}
 }
 
-func (m *A2APollingMonitor) stopAllMonitors() {
+func (m *A2ATaskPoller) stopAllMonitors() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -289,7 +285,7 @@ func (m *A2APollingMonitor) stopAllMonitors() {
 }
 
 // addResultToMessageQueue adds the A2A task result to the centralized message queue
-func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domain.ToolExecutionResult) {
+func (m *A2ATaskPoller) addResultToMessageQueue(taskID string, result *domain.ToolExecutionResult) {
 	if result == nil || m.messageQueue == nil {
 		return
 	}
@@ -314,21 +310,6 @@ func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domai
 	}
 
 	m.messageQueue.Enqueue(message, m.requestID)
-
-	m.mu.RLock()
-	agentChan := m.agentEventChan
-	m.mu.RUnlock()
-
-	if agentChan != nil {
-		select {
-		case agentChan <- domain.MessageReceivedEvent{}:
-			logger.Debug("Sent wake-up event to agent for A2A task completion",
-				"task_id", taskID)
-		default:
-			logger.Debug("Failed to send wake-up event to agent - channel full",
-				"task_id", taskID)
-		}
-	}
 
 	if m.eventChan != nil {
 		event := domain.MessageQueuedEvent{

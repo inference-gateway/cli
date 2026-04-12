@@ -264,6 +264,7 @@ func TestNewAgentService(t *testing.T) {
 		fakeStateManager,
 		120,
 		nil,
+		nil,
 	)
 
 	assert.NotNil(t, agentService)

@@ -29,6 +29,7 @@ type AgentServiceImpl struct {
 	optimizer        domain.ConversationOptimizer
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
+	bgRegistry       domain.BackgroundTaskRegistry
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -241,6 +242,7 @@ func NewAgent(
 	stateManager domain.StateManager,
 	timeoutSeconds int,
 	optimizer domain.ConversationOptimizer,
+	bgRegistry domain.BackgroundTaskRegistry,
 ) *AgentServiceImpl {
 	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 
@@ -259,6 +261,7 @@ func NewAgent(
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
+		bgRegistry:       bgRegistry,
 		activeRequests:   make(map[string]context.CancelFunc),
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
@@ -428,18 +431,18 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
-	taskTracker := s.toolService.GetTaskTracker()
-	var monitor *services.A2APollingMonitor
+	taskTracker := s.toolService.GetA2ATaskTracker()
+	var poller *services.A2ATaskPoller
 
 	if taskTracker != nil {
-		monitor = services.NewA2APollingMonitor(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		go monitor.Start(ctx)
+		poller = services.NewA2ATaskPoller(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
+		go poller.Start(ctx)
 	}
 
 	go func() {
 		defer func() {
-			if monitor != nil {
-				monitor.Stop()
+			if poller != nil {
+				poller.Stop()
 			}
 			close(chatEvents)
 		}()
@@ -455,12 +458,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			cancelChan,
 			provider,
 			model,
-			taskTracker,
+			s.bgRegistry,
 		)
-
-		if monitor != nil {
-			monitor.SetAgentEventChannel(agent.GetEventChannel())
-		}
 
 		agent.Start()
 		agent.Wait()

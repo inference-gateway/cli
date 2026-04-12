@@ -22,7 +22,7 @@ type Registry struct {
 	config             domain.ConfigService
 	tools              map[string]domain.Tool
 	readToolUsed       bool
-	taskTracker        domain.TaskTracker
+	taskTracker        domain.A2ATaskTracker
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
 	shellService       domain.BackgroundShellService
@@ -30,14 +30,20 @@ type Registry struct {
 	screenshotProvider domain.ScreenshotProvider
 }
 
-// NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider) *Registry {
+// NewRegistry creates a new tool registry with self-contained tools.
+// taskTracker must be provided by the caller (typically the container, which
+// constructs the unified BackgroundTaskRegistry and passes its A2A view in
+// here so all tools observe the same tracker the agent's wait loop does).
+func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
+	if taskTracker == nil {
+		taskTracker = utils.NewA2ATaskTracker()
+	}
 	registry := &Registry{
 		config:             cfg,
 		tools:              make(map[string]domain.Tool),
 		shellService:       shellService,
 		readToolUsed:       false,
-		taskTracker:        utils.NewTaskTracker(),
+		taskTracker:        taskTracker,
 		imageService:       imageService,
 		mcpManager:         mcpManager,
 		stateManager:       stateManager,
@@ -300,8 +306,8 @@ func (r *Registry) IsReadToolUsed() bool {
 	return r.readToolUsed
 }
 
-// GetTaskTracker returns the task tracker instance
-func (r *Registry) GetTaskTracker() domain.TaskTracker {
+// GetA2ATaskTracker returns the task tracker instance
+func (r *Registry) GetA2ATaskTracker() domain.A2ATaskTracker {
 	return r.taskTracker
 }
 

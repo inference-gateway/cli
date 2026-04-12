@@ -11,6 +11,8 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -21,6 +23,7 @@ type BackgroundShellService struct {
 	shellTracker  domain.ShellTracker
 	config        *config.Config
 	eventChannel  chan<- domain.ChatEvent
+	messageQueue  domain.MessageQueue
 	cleanupTicker *time.Ticker
 	stopCleanup   chan struct{}
 	wg            sync.WaitGroup
@@ -32,11 +35,13 @@ func NewBackgroundShellService(
 	tracker domain.ShellTracker,
 	cfg *config.Config,
 	eventChannel chan<- domain.ChatEvent,
+	messageQueue domain.MessageQueue,
 ) *BackgroundShellService {
 	service := &BackgroundShellService{
 		shellTracker: tracker,
 		config:       cfg,
 		eventChannel: eventChannel,
+		messageQueue: messageQueue,
 		stopCleanup:  make(chan struct{}),
 	}
 
@@ -122,6 +127,7 @@ func (s *BackgroundShellService) monitorShell(_ context.Context, shell *domain.B
 		shell.State = domain.ShellStateCompleted
 
 		logger.Info("Background shell completed", "shell_id", shell.ShellID, "duration", duration)
+		s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, duration, "")
 		if s.eventChannel != nil {
 			select {
 			case s.eventChannel <- domain.ShellCompletedEvent{
@@ -151,6 +157,7 @@ func (s *BackgroundShellService) handleShellFailure(shell *domain.BackgroundShel
 	shell.State = domain.ShellStateFailed
 
 	logger.Error("Background shell failed", "shell_id", shell.ShellID, "error", err, "exit_code", exitCode)
+	s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, time.Since(shell.StartedAt), err.Error())
 
 	if s.eventChannel == nil {
 		return
@@ -401,6 +408,31 @@ func (s *BackgroundShellService) terminateShell(shell *domain.BackgroundShell) {
 	shell.State = domain.ShellStateCancelled
 	completedAt := time.Now()
 	shell.CompletedAt = &completedAt
+}
+
+// enqueueShellNotification pushes a short completion/failure notification onto
+// the shared message queue so the agent learns a background shell finished.
+// Only the shell ID, command, exit code, and duration are included — NOT the
+// full output. The LLM can call BashOutput to retrieve the output if needed.
+func (s *BackgroundShellService) enqueueShellNotification(shellID, command string, exitCode int, duration time.Duration, errMsg string) {
+	if s.messageQueue == nil {
+		return
+	}
+
+	var content string
+	if errMsg != "" {
+		content = fmt.Sprintf("[Background Shell Failed: %s] Command: %s | Exit code: %d | Duration: %s | Error: %s. Use BashOutput to retrieve the full output.",
+			shellID, command, exitCode, duration, errMsg)
+	} else {
+		content = fmt.Sprintf("[Background Shell Completed: %s] Command: %s | Exit code: %d | Duration: %s. Use BashOutput to retrieve the full output.",
+			shellID, command, exitCode, duration)
+	}
+
+	msg := sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(content),
+	}
+	s.messageQueue.Enqueue(msg, "system")
 }
 
 // generateShellID generates a unique shell ID

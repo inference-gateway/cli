@@ -15,13 +15,13 @@ import (
 // BackgroundTaskService handles background task operations (A2A-specific)
 // Only instantiated when A2A tools are enabled
 type BackgroundTaskService struct {
-	taskTracker     domain.TaskTracker
+	taskTracker     domain.A2ATaskTracker
 	createADKClient func(agentURL string) client.A2AClient
 	mutex           sync.RWMutex
 }
 
 // NewBackgroundTaskService creates a new background task service
-func NewBackgroundTaskService(taskTracker domain.TaskTracker) *BackgroundTaskService {
+func NewBackgroundTaskService(taskTracker domain.A2ATaskTracker) *BackgroundTaskService {
 	return &BackgroundTaskService{
 		taskTracker: taskTracker,
 		createADKClient: func(agentURL string) client.A2AClient {

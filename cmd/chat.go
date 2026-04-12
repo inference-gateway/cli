@@ -166,6 +166,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
+	sessionRolloverManager := services.GetSessionRolloverManager()
 
 	var screenshotServer *screenshotsvc.ScreenshotServer
 
@@ -199,6 +200,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		agentService,
 		conversationRepo,
 		conversationOptimizer,
+		sessionRolloverManager,
 		modelService,
 		configService,
 		toolService,

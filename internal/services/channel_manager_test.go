@@ -274,7 +274,6 @@ func TestChannelManagerService_UnauthorizedUserRejected(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg)
 
-	// If exec is called, the test should fail — unauthorized messages should not trigger agent
 	agentCalled := false
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		agentCalled = true

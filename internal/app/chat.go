@@ -31,21 +31,22 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService         domain.ConfigService
-	agentService          domain.AgentService
-	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizer
-	modelService          domain.ModelService
-	toolService           domain.ToolService
-	fileService           domain.FileService
-	imageService          domain.ImageService
-	pricingService        domain.PricingService
-	shortcutRegistry      *shortcuts.Registry
-	themeService          domain.ThemeService
-	toolRegistry          *tools.Registry
-	mcpManager            domain.MCPManager
-	taskRetentionService  domain.TaskRetentionService
-	backgroundTaskService domain.BackgroundTaskService
+	configService          domain.ConfigService
+	agentService           domain.AgentService
+	conversationRepo       domain.ConversationRepository
+	conversationOptimizer  domain.ConversationOptimizer
+	sessionRolloverManager *services.SessionRolloverManager
+	modelService           domain.ModelService
+	toolService            domain.ToolService
+	fileService            domain.FileService
+	imageService           domain.ImageService
+	pricingService         domain.PricingService
+	shortcutRegistry       *shortcuts.Registry
+	themeService           domain.ThemeService
+	toolRegistry           *tools.Registry
+	mcpManager             domain.MCPManager
+	taskRetentionService   domain.TaskRetentionService
+	backgroundTaskService  domain.BackgroundTaskService
 
 	// State management
 	stateManager domain.StateManager
@@ -102,6 +103,7 @@ func NewChatApplication(
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
 	conversationOptimizer domain.ConversationOptimizer,
+	sessionRolloverManager *services.SessionRolloverManager,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
 	toolService domain.ToolService,
@@ -126,25 +128,26 @@ func NewChatApplication(
 	}
 
 	app := &ChatApplication{
-		agentService:          agentService,
-		conversationRepo:      conversationRepo,
-		conversationOptimizer: conversationOptimizer,
-		modelService:          modelService,
-		configService:         configService,
-		toolService:           toolService,
-		fileService:           fileService,
-		imageService:          imageService,
-		pricingService:        pricingService,
-		shortcutRegistry:      shortcutRegistry,
-		themeService:          themeService,
-		toolRegistry:          toolRegistry,
-		mcpManager:            mcpManager,
-		taskRetentionService:  taskRetentionService,
-		backgroundTaskService: backgroundTaskService,
-		availableModels:       models,
-		stateManager:          stateManager,
-		messageQueue:          messageQueue,
-		mouseEnabled:          true,
+		agentService:           agentService,
+		conversationRepo:       conversationRepo,
+		conversationOptimizer:  conversationOptimizer,
+		sessionRolloverManager: sessionRolloverManager,
+		modelService:           modelService,
+		configService:          configService,
+		toolService:            toolService,
+		fileService:            fileService,
+		imageService:           imageService,
+		pricingService:         pricingService,
+		shortcutRegistry:       shortcutRegistry,
+		themeService:           themeService,
+		toolRegistry:           toolRegistry,
+		mcpManager:             mcpManager,
+		taskRetentionService:   taskRetentionService,
+		backgroundTaskService:  backgroundTaskService,
+		availableModels:        models,
+		stateManager:           stateManager,
+		messageQueue:           messageQueue,
+		mouseEnabled:           true,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -262,6 +265,7 @@ func NewChatApplication(
 		app.agentService,
 		app.conversationRepo,
 		app.conversationOptimizer,
+		app.sessionRolloverManager,
 		app.modelService,
 		app.configService,
 		app.toolService,
@@ -520,7 +524,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 			inHistoryMode = cv.IsInMessageHistoryMode()
 		}
 
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode {
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode || app.stateManager.IsAgentBusy() {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)

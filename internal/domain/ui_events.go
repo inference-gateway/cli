@@ -231,7 +231,10 @@ type ToggleTodoBoxEvent struct{}
 
 // BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
 type BashCommandCompletedEvent struct {
-	History []ConversationEntry
+	History       []ConversationEntry
+	Failed        bool
+	UserInitiated bool
+	ErrorMessage  string
 }
 
 // Agent Readiness Events

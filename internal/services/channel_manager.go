@@ -245,7 +245,6 @@ func formatAgentMessage(line []byte) string {
 		}
 
 	case "tool":
-		// Skip raw tool results — the next assistant message will summarize
 		return ""
 	}
 

@@ -98,10 +98,10 @@ type StateContext struct {
 	ToolResults          *[]ConversationEntry
 
 	// Request context
-	Request     *AgentRequest
-	TaskTracker TaskTracker
-	Provider    string
-	Model       string
+	Request                *AgentRequest
+	BackgroundTaskRegistry BackgroundTaskRegistry
+	Provider               string
+	Model                  string
 
 	// Function callbacks
 	ToolExecutor   *func()

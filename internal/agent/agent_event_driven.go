@@ -24,7 +24,7 @@ type EventDrivenAgent struct {
 	req            *domain.AgentRequest
 	provider       string
 	model          string
-	taskTracker    domain.TaskTracker
+	registry       domain.BackgroundTaskRegistry
 
 	// Event channel
 	events chan domain.AgentEvent
@@ -61,7 +61,7 @@ func NewEventDrivenAgent(
 	cancelChan <-chan struct{},
 	provider string,
 	model string,
-	taskTracker domain.TaskTracker,
+	registry domain.BackgroundTaskRegistry,
 ) *EventDrivenAgent {
 	stateMachine := NewAgentStateMachine(service.stateManager)
 
@@ -88,7 +88,7 @@ func NewEventDrivenAgent(
 		req:            req,
 		provider:       provider,
 		model:          model,
-		taskTracker:    taskTracker,
+		registry:       registry,
 		events:         make(chan domain.AgentEvent, constants.EventChannelBufferSize),
 		stateHandlers:  make(map[domain.AgentExecutionState]domain.StateHandler),
 	}
@@ -103,25 +103,25 @@ func NewEventDrivenAgent(
 // This method is called during agent initialization to set up the state handler registry.
 func (a *EventDrivenAgent) registerStateHandlers() {
 	ctx := &domain.StateContext{
-		StateMachine:         a.stateMachine,
-		AgentCtx:             a.agentCtx,
-		Events:               a.events,
-		WaitGroup:            &a.wg,
-		CancelChan:           a.cancelChan,
-		Mutex:                &a.mu,
-		CurrentMessage:       &a.currentMessage,
-		CurrentToolCalls:     &a.currentToolCalls,
-		CurrentReasoning:     &a.currentReasoning,
-		AvailableTools:       &a.availableTools,
-		ToolsNeedingApproval: &a.toolsNeedingApproval,
-		CurrentToolIndex:     &a.currentToolIndex,
-		ToolResults:          &a.toolResults,
-		Request:              a.req,
-		TaskTracker:          a.taskTracker,
-		Provider:             a.provider,
-		Model:                a.model,
-		ToolExecutor:         &a.toolExecutor,
-		StartStreaming:       a.startStreaming,
+		StateMachine:           a.stateMachine,
+		AgentCtx:               a.agentCtx,
+		Events:                 a.events,
+		WaitGroup:              &a.wg,
+		CancelChan:             a.cancelChan,
+		Mutex:                  &a.mu,
+		CurrentMessage:         &a.currentMessage,
+		CurrentToolCalls:       &a.currentToolCalls,
+		CurrentReasoning:       &a.currentReasoning,
+		AvailableTools:         &a.availableTools,
+		ToolsNeedingApproval:   &a.toolsNeedingApproval,
+		CurrentToolIndex:       &a.currentToolIndex,
+		ToolResults:            &a.toolResults,
+		Request:                a.req,
+		BackgroundTaskRegistry: a.registry,
+		Provider:               a.provider,
+		Model:                  a.model,
+		ToolExecutor:           &a.toolExecutor,
+		StartStreaming:         a.startStreaming,
 
 		GetMetrics: a.service.GetMetrics,
 		ShouldRequireApproval: func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
@@ -189,12 +189,6 @@ func (a *EventDrivenAgent) Wait() {
 	close(a.events)
 }
 
-// GetEventChannel returns the agent's internal event channel for external components
-// to send wake-up events (e.g., when A2A tasks complete)
-func (a *EventDrivenAgent) GetEventChannel() chan<- domain.AgentEvent {
-	return a.events
-}
-
 // processEvents is the main event processing loop
 func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
@@ -221,10 +215,9 @@ func (a *EventDrivenAgent) processEvents() {
 			}
 
 			if currentState == domain.StateIdle {
-				hasPendingTasks := a.taskTracker != nil && len(a.taskTracker.GetAllPollingTasks()) > 0
+				hasPendingTasks := a.registry != nil && a.registry.HasPending()
 				if hasPendingTasks {
-					logger.Debug("agent in Idle state but has pending A2A tasks, staying alive",
-						"pending_tasks", len(a.taskTracker.GetAllPollingTasks()))
+					logger.Debug("agent in Idle state but has pending background tasks, staying alive")
 				} else {
 					logger.Debug("agent reached Idle state with no pending tasks",
 						"total_turns", a.agentCtx.Turns)

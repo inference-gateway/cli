@@ -56,9 +56,8 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 			logger.Debug("batched queued messages", "count", numBatched)
 		}
 
-		if s.ctx.TaskTracker != nil && len(s.ctx.TaskTracker.GetAllPollingTasks()) > 0 {
-			numTasks := len(s.ctx.TaskTracker.GetAllPollingTasks())
-			logger.Debug("background tasks pending, waiting", "tasks", numTasks)
+		if s.ctx.BackgroundTaskRegistry != nil && s.ctx.BackgroundTaskRegistry.HasPending() {
+			logger.Debug("background tasks pending, waiting")
 			s.ctx.WaitGroup.Add(1)
 			go func() {
 				defer s.ctx.WaitGroup.Done()
