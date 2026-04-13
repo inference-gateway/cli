@@ -152,7 +152,7 @@ tasks:
         docker run --rm \
           -v "{{.PWD}}":/build \
           -w /build \
-          golang:1.25-alpine \
+          golang:1.26-alpine \
           sh -c 'CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH}} \
             go build \
             -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" \
