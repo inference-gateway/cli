@@ -11,7 +11,7 @@ execution for AI models.
 
 ### Key Technologies
 
-- **Language**: Go 1.25+
+- **Language**: Go 1.26+
 - **UI Framework**: Bubble Tea (TUI framework)
 - **Gateway Integration**: Via `inference-gateway/sdk` and `inference-gateway/adk`
 - **Storage Backends**: JSONL (default), SQLite, PostgreSQL, Redis, In-memory
@@ -80,7 +80,7 @@ The conversation storage uses a factory pattern with pluggable backends:
 
 ### Prerequisites
 
-- **Go 1.25+**: Required for building and development
+- **Go 1.26+**: Required for building and development
 - **Flox**: Development environment manager (recommended)
 - **Docker**: For container builds and testing
 - **Task**: Build automation tool

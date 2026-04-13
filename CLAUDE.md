@@ -9,7 +9,7 @@ It provides interactive chat, autonomous agent capabilities, and extensive tool 
 
 **Key Technology Stack:**
 
-- **Language**: Go 1.25+
+- **Language**: Go 1.26+
 - **UI Framework**: Bubble Tea (TUI framework)
 - **Gateway Integration**: Via `inference-gateway/sdk` and `inference-gateway/adk`
 - **Storage Backends**: JSONL (default), SQLite, PostgreSQL, Redis, In-memory
