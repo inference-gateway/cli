@@ -2,8 +2,11 @@ package channels
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
-	"log"
+	"io"
+	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 const maxMessageLen = 4096
@@ -43,11 +47,21 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 	b, err := bot.New(t.cfg.BotToken,
 		bot.WithDefaultHandler(func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			msg := processUpdate(update)
-			if msg != nil {
-				select {
-				case inbox <- *msg:
-				case <-ctx.Done():
+			if msg == nil {
+				return
+			}
+
+			if fileID, ok := msg.Metadata["photo_file_id"]; ok && fileID != "" {
+				if img, err := downloadTelegramPhoto(ctx, b, t.cfg.BotToken, fileID); err != nil {
+					logger.Error("Failed to download photo: %v", err)
+				} else {
+					msg.Images = append(msg.Images, *img)
 				}
+			}
+
+			select {
+			case inbox <- *msg:
+			case <-ctx.Done():
 			}
 		}),
 	)
@@ -57,7 +71,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 
 	t.bot = b
 
-	log.Printf("[telegram] starting long-polling")
+	logger.Info("Starting long-polling")
 
 	b.Start(ctx)
 	return ctx.Err()
@@ -100,7 +114,7 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 	msg := update.Message
 
 	if msg.Video != nil {
-		log.Printf("[telegram] skipping video message from %d", msg.Chat.ID)
+		logger.Warn("Skipping video message from %d", msg.Chat.ID)
 		return nil
 	}
 
@@ -138,9 +152,73 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 		inbound.Metadata["photo_file_id"] = largest.FileID
 		inbound.Metadata["photo_width"] = strconv.Itoa(largest.Width)
 		inbound.Metadata["photo_height"] = strconv.Itoa(largest.Height)
+
+		if inbound.Content == "" {
+			inbound.Content = "[Attached image]"
+		}
 	}
 
 	return inbound
+}
+
+// downloadTelegramPhoto fetches a photo from Telegram's file API and returns it as an ImageAttachment.
+func downloadTelegramPhoto(ctx context.Context, b *bot.Bot, token, fileID string) (*domain.ImageAttachment, error) {
+	file, err := b.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
+	if err != nil {
+		return nil, fmt.Errorf("getFile: %w", err)
+	}
+	if file.FilePath == "" {
+		return nil, fmt.Errorf("empty file path for file_id %s", fileID)
+	}
+
+	url := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", token, file.FilePath)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("downloading file: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error("Failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	mimeType := mimeFromPath(file.FilePath)
+
+	return &domain.ImageAttachment{
+		Data:        base64.StdEncoding.EncodeToString(data),
+		MimeType:    mimeType,
+		Filename:    filepath.Base(file.FilePath),
+		DisplayName: filepath.Base(file.FilePath),
+	}, nil
+}
+
+// mimeFromPath guesses MIME type from a file path extension.
+func mimeFromPath(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/jpeg"
+	}
 }
 
 // splitMessage splits a long message into chunks that fit Telegram's message limit

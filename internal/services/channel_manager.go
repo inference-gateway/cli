@@ -2,18 +2,23 @@ package services
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // ChannelManagerService manages pluggable messaging channels and triggers
@@ -79,7 +84,7 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 		go func(name string, ch domain.Channel) {
 			if err := ch.Start(ctx, cm.inbox); err != nil {
 				if ctx.Err() == nil {
-					log.Printf("[channels] channel %s stopped with error: %v", name, err)
+					logger.Error("Channel stopped with error", "channel", name, "error", err)
 				}
 			}
 		}(name, ch)
@@ -116,7 +121,7 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 			return
 		case msg := <-cm.inbox:
 			if !cm.isAllowedUser(msg.ChannelName, msg.SenderID) {
-				log.Printf("[channels] rejected message from unauthorized user %s on channel %s", msg.SenderID, msg.ChannelName)
+				logger.Warn("Rejected message from unauthorized user", "sender_id", msg.SenderID, "channel", msg.ChannelName)
 				continue
 			}
 
@@ -141,14 +146,14 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 
 	sessionID := fmt.Sprintf("channel-%s-%s", msg.ChannelName, msg.SenderID)
 
-	log.Printf("[channels] processing message from %s/%s (session=%s)", msg.ChannelName, msg.SenderID, sessionID)
+	logger.Info("Processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
 
 	cm.mu.RLock()
 	ch, exists := cm.channels[msg.ChannelName]
 	cm.mu.RUnlock()
 
 	if !exists {
-		log.Printf("[channels] channel %s not found for response routing", msg.ChannelName)
+		logger.Error("Channel not found for response routing", "channel", msg.ChannelName)
 		return
 	}
 
@@ -160,32 +165,54 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 			Timestamp:   time.Now(),
 		}
 		if err := ch.Send(ctx, outMsg); err != nil {
-			log.Printf("[channels] failed to send response via %s: %v", msg.ChannelName, err)
+			logger.Error("Failed to send response", "channel", msg.ChannelName, "error", err)
 		}
 	}
 
-	if err := cm.runAgent(ctx, sessionID, msg.Content, sendFn); err != nil {
-		log.Printf("[channels] agent failed for %s/%s: %v", msg.ChannelName, msg.SenderID, err)
+	if err := cm.runAgent(ctx, sessionID, msg.Content, msg.Images, sendFn); err != nil {
+		logger.Error("Agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
 	}
 }
 
 // runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess,
 // streaming each assistant message back through the sendFn callback in real-time.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string, sendFn func(string)) error {
-	cmd := cm.execCommandFunc(ctx, os.Args[0], "agent", "--session-id", sessionID, message)
+// If images are present, they are written to session-scoped files and passed via --files flags.
+func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string, images []domain.ImageAttachment, sendFn func(string)) error {
+	args := []string{"agent", "--session-id", sessionID}
+
+	for _, img := range images {
+		imgPath, err := writeSessionImage(sessionID, img)
+		if err != nil {
+			logger.Error("Failed to write session image", "error", err)
+			continue
+		}
+		logger.Info("Wrote session image", "path", imgPath, "base64_bytes", len(img.Data))
+		args = append(args, "--files", imgPath)
+	}
+
+	pruneSessionImages(sessionID, cm.cfg.ImageRetention)
+
+	args = append(args, message)
+
+	logger.Info("Running agent subprocess", "args", args)
+
+	cmd := cm.execCommandFunc(ctx, os.Args[0], args...)
 	cmd.Env = os.Environ()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
-	cmd.Stderr = os.Stderr
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start agent: %w", err)
 	}
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -199,6 +226,9 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, messag
 	}
 
 	if err := cmd.Wait(); err != nil {
+		if stderrBuf.Len() > 0 {
+			logger.Error("Agent stderr output", "stderr", stderrBuf.String())
+		}
 		return fmt.Errorf("agent process failed: %w", err)
 	}
 
@@ -225,7 +255,6 @@ func formatAgentMessage(line []byte) string {
 	case "assistant":
 		content, _ := msg["content"].(string)
 
-		// If this message has tool calls, format them
 		if tools, ok := msg["tools"].([]interface{}); ok && len(tools) > 0 {
 			toolNames := make([]string, 0, len(tools))
 			for _, t := range tools {
@@ -257,6 +286,105 @@ func (cm *ChannelManagerService) getSenderMutex(key string) *sync.Mutex {
 	return val.(*sync.Mutex)
 }
 
+// imageBaseDir is the root directory for session images. Tests may override this
+// to use t.TempDir() so no files leak into the working tree.
+var imageBaseDir = filepath.Join(config.ConfigDirName, "tmp", "channel-images")
+
+// sessionImageDir returns the directory for storing session images under <imageBaseDir>/<sessionID>/.
+func sessionImageDir(sessionID string) string {
+	return filepath.Join(imageBaseDir, sessionID)
+}
+
+// writeSessionImage decodes a base64 ImageAttachment to a file in the session image directory.
+func writeSessionImage(sessionID string, img domain.ImageAttachment) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(img.Data)
+	if err != nil {
+		return "", fmt.Errorf("decoding base64: %w", err)
+	}
+
+	ext := ".jpg"
+	switch img.MimeType {
+	case "image/png":
+		ext = ".png"
+	case "image/gif":
+		ext = ".gif"
+	case "image/webp":
+		ext = ".webp"
+	}
+
+	dir := sessionImageDir(sessionID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("creating session image dir: %w", err)
+	}
+
+	name := img.Filename
+	if name == "" {
+		name = "channel-image"
+	}
+	name = strings.TrimSuffix(name, filepath.Ext(name))
+
+	f, err := os.CreateTemp(dir, "infer-"+name+"-*"+ext)
+	if err != nil {
+		return "", fmt.Errorf("creating image file: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("writing image file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("closing image file: %w", err)
+	}
+
+	return f.Name(), nil
+}
+
+// pruneSessionImages removes the oldest images in the session directory when
+// the count exceeds the retention limit. A retention of 0 means keep all.
+func pruneSessionImages(sessionID string, retention int) {
+	if retention <= 0 {
+		return
+	}
+
+	dir := sessionImageDir(sessionID)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	var files []os.DirEntry
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "infer-") {
+			files = append(files, e)
+		}
+	}
+
+	if len(files) <= retention {
+		return
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		fi, _ := files[i].Info()
+		fj, _ := files[j].Info()
+		if fi == nil || fj == nil {
+			return false
+		}
+		return fi.ModTime().Before(fj.ModTime())
+	})
+
+	toRemove := len(files) - retention
+	for i := 0; i < toRemove; i++ {
+		path := filepath.Join(dir, files[i].Name())
+		if err := os.Remove(path); err != nil {
+			logger.Warn("Failed to prune session image", "path", path, "error", err)
+			continue
+		}
+		logger.Info("Pruned old session image", "path", path)
+	}
+}
+
 // isAllowedUser checks if a sender is in the allowed users list for the given channel
 func (cm *ChannelManagerService) isAllowedUser(channelName, senderID string) bool {
 	var allowedUsers []string
@@ -270,7 +398,6 @@ func (cm *ChannelManagerService) isAllowedUser(channelName, senderID string) boo
 		return false
 	}
 
-	// If no allowed users are configured, reject all (secure by default)
 	if len(allowedUsers) == 0 {
 		return false
 	}

@@ -220,6 +220,7 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("channels", defaults.Channels)
 	v.SetDefault("channels.enabled", defaults.Channels.Enabled)
 	v.SetDefault("channels.max_workers", defaults.Channels.MaxWorkers)
+	v.SetDefault("channels.image_retention", defaults.Channels.ImageRetention)
 	v.SetDefault("channels.telegram.enabled", defaults.Channels.Telegram.Enabled)
 	v.SetDefault("channels.telegram.bot_token", defaults.Channels.Telegram.BotToken)
 	v.SetDefault("channels.telegram.allowed_users", defaults.Channels.Telegram.AllowedUsers)

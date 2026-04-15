@@ -2,6 +2,8 @@ package channels
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -121,6 +123,32 @@ func TestProcessUpdate_PhotoWithCaption(t *testing.T) {
 	}
 }
 
+func TestProcessUpdate_PhotoWithoutCaption(t *testing.T) {
+	update := &models.Update{
+		ID: 1,
+		Message: &models.Message{
+			ID:   42,
+			Chat: models.Chat{ID: 123, Type: "private"},
+			Date: int(time.Now().Unix()),
+			Photo: []models.PhotoSize{
+				{FileID: "photo123", Width: 800, Height: 600},
+			},
+		},
+	}
+
+	msg := processUpdate(update)
+	if msg == nil {
+		t.Fatal("expected non-nil message for photo without caption")
+	}
+
+	if msg.Content != "[Attached image]" {
+		t.Errorf("expected fallback content '[Attached image]', got %q", msg.Content)
+	}
+	if msg.Metadata["photo_file_id"] != "photo123" {
+		t.Errorf("expected photo_file_id 'photo123', got %q", msg.Metadata["photo_file_id"])
+	}
+}
+
 func TestProcessUpdate_NilMessage(t *testing.T) {
 	update := &models.Update{
 		ID:      1,
@@ -188,6 +216,49 @@ func TestSplitMessage_SplitsAtNewline(t *testing.T) {
 	if !strings.HasSuffix(chunks[0], "\n") {
 		t.Error("expected first chunk to end at newline boundary")
 	}
+}
+
+func TestMimeFromPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"photos/image.jpg", "image/jpeg"},
+		{"photos/image.jpeg", "image/jpeg"},
+		{"photos/image.png", "image/png"},
+		{"photos/image.gif", "image/gif"},
+		{"photos/image.webp", "image/webp"},
+		{"photos/image.JPG", "image/jpeg"},
+		{"photos/image.PNG", "image/png"},
+		{"photos/unknown", "image/jpeg"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := mimeFromPath(tt.path)
+			if got != tt.want {
+				t.Errorf("mimeFromPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDownloadTelegramPhoto(t *testing.T) {
+	imageData := []byte("fake-png-data")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/file/bot") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		if _, err := w.Write(imageData); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	_ = downloadTelegramPhoto
 }
 
 func TestTelegramChannel_SendRequiresBot(t *testing.T) {
