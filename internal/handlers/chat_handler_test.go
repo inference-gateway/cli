@@ -545,6 +545,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // agentService
 		conversationRepo,
 		nil, // conversationOptimizer
+		nil, // sessionRolloverManager
 		nil, // modelService
 		nil, // configService
 		nil, // toolService
@@ -843,7 +844,8 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	return NewChatHandler(
 		mockAgent,
 		conversationRepo,
-		nil,
+		nil, // conversationOptimizer
+		nil, // sessionRolloverManager
 		mockModel,
 		mockConfig,
 		mockTool,
@@ -991,7 +993,8 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			handler := NewChatHandler(
 				mockAgent,
 				conversationRepo,
-				nil,
+				nil, // conversationOptimizer
+				nil, // sessionRolloverManager
 				mockModel,
 				mockConfig,
 				mockTool,

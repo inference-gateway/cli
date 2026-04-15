@@ -19,7 +19,7 @@ import (
 type A2ASubmitTaskTool struct {
 	config      *config.Config
 	formatter   domain.CustomFormatter
-	taskTracker domain.TaskTracker
+	taskTracker domain.A2ATaskTracker
 	client      client.A2AClient
 }
 
@@ -36,7 +36,7 @@ type A2ASubmitTaskResult struct {
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
-func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
@@ -48,7 +48,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A
 }
 
 // NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.TaskTracker, client client.A2AClient) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.A2ATaskTracker, client client.A2AClient) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,

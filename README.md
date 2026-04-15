@@ -31,6 +31,7 @@ An agentic command-line assistant that writes code, understands project context,
 - [Cost Tracking](#cost-tracking)
 - [Tool Approval System](#tool-approval-system)
 - [Shortcuts](#shortcuts)
+- [Channels (Remote Messaging)](#channels-remote-messaging)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
 - [Development](#development)
@@ -69,6 +70,7 @@ An agentic command-line assistant that writes code, understands project context,
 - **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
   [Learn more →](docs/mcp-integration.md)
 - **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
+- **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
 
 ## Installation
 
@@ -568,6 +570,8 @@ tools:
 
 agent:
   model: "deepseek/deepseek-chat"
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""  # Additional instructions appended to system prompt
   max_turns: 50
 
 chat:
@@ -601,6 +605,8 @@ infer chat --model "anthropic/claude-4"
 - **gateway.docker** - Use Docker mode vs binary mode (default: `true`)
 - **tools.enabled** - Enable/disable all tools (default: `true`)
 - **agent.model** - Default model for agent operations
+- **agent.system_prompt** - Base identity for the agent (e.g., `"You are a helpful assistant"`)
+- **agent.custom_instructions** - Additional instructions appended after the system prompt
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
 - **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)
@@ -886,6 +892,76 @@ Use as: `/docker build` or `/docker run`
 Use with `/tests` or `/build`.
 
 For complete shortcuts documentation, including advanced features and examples, see [Shortcuts Guide](docs/shortcuts-guide.md).
+
+## Channels (Remote Messaging)
+
+Control the agent remotely from messaging platforms like Telegram or
+WhatsApp. Messages sent to a bot are forwarded to the agent, and the
+agent's responses are sent back through the same platform.
+
+### Setup (Telegram)
+
+**1. Create a Telegram bot** by messaging [@BotFather](https://t.me/BotFather) and sending `/newbot`. Copy the bot token.
+
+**2. Get your chat ID** by messaging your bot, then visiting:
+
+```text
+https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+```
+
+Find `"chat":{"id":123456789}` in the response.
+
+**3. Configure** in `.infer/config.yaml`:
+
+```yaml
+channels:
+  enabled: true
+
+  telegram:
+    enabled: true
+    bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
+    allowed_users:
+      - "123456789"
+    poll_timeout: 30
+```
+
+Or via environment variables:
+
+```bash
+export INFER_CHANNELS_ENABLED=true
+export INFER_CHANNELS_TELEGRAM_ENABLED=true
+export INFER_CHANNELS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789"
+```
+
+**4. Start the channel listener:**
+
+```bash
+infer channels-manager
+```
+
+**5. Send a message** to your bot in Telegram - the agent will respond.
+
+Each incoming message triggers `infer agent --session-id <id>` as a
+subprocess with a persistent session per sender.
+
+### Security
+
+- **Allowlist-only access**: Only chat IDs in `allowed_users` can interact with the agent
+- **Empty allowlist = reject all**: If no users are configured, all messages are rejected (secure by default)
+- **Per-channel allowlists**: Each channel (Telegram, WhatsApp) has its own independent allowlist
+- **Use environment variables** for tokens - never commit secrets to config files
+
+### Supported Channels
+
+| Channel  | Status    | Transport                   |
+| -------- | --------- | --------------------------- |
+| Telegram | Available | Long-polling (Bot API)      |
+| WhatsApp | Planned   | Webhook (Meta Business API) |
+
+For a complete working example with Docker Compose, see [examples/telegram-channel](examples/telegram-channel/).
+
+For detailed documentation including custom channel development, see [Channels Documentation](docs/channels.md).
 
 ## Global Flags
 

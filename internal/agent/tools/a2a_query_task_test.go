@@ -414,7 +414,7 @@ func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 				},
 			}
 
-			tracker := &mocks.FakeTaskTracker{}
+			tracker := &mocks.FakeA2ATaskTracker{}
 			tracker.IsPollingReturns(tt.isPolling)
 
 			tool := NewA2AQueryTaskTool(cfg, tracker)

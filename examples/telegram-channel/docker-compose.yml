@@ -1,0 +1,96 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      SERVER_READ_TIMEOUT: 230s
+      SERVER_WRITE_TIMEOUT: 230s
+      SERVER_IDLE_TIMEOUT: 230s
+      CLIENT_TIMEOUT: 230s
+    restart: unless-stopped
+
+  browser-agent:
+    image: ghcr.io/inference-gateway/browser-agent:latest
+    pull_policy: always
+    depends_on:
+      - inference-gateway
+    environment:
+      BROWSER_DATA_DIR: /tmp/playwright
+      BROWSER_HEADLESS: false
+      BROWSER_XVFB_ENABLED: true
+      BROWSER_XVFB_DISPLAY: ":99"
+      BROWSER_XVFB_SCREEN_RESOLUTION: "1920x1080x24"
+      BROWSER_XVFB_ALLOW_TCP: "true"
+      A2A_AGENT_URL: http://browser-agent:8080
+      A2A_AGENT_CLIENT_PROVIDER: deepseek
+      A2A_AGENT_CLIENT_MODEL: deepseek-chat
+      A2A_AGENT_CLIENT_BASE_URL: http://inference-gateway:8080/v1
+      A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT: true
+      A2A_AGENT_CLIENT_TIMEOUT: 120s
+      A2A_SERVER_READ_TIMEOUT: 120s
+      A2A_SERVER_WRITE_TIMEOUT: 120s
+      A2A_SERVER_IDLE_TIMEOUT: 120s
+      A2A_QUEUE_CLEANUP_INTERVAL: 500s
+      A2A_ARTIFACTS_ENABLE: true
+      A2A_ARTIFACTS_SERVER_HOST: browser-agent
+      A2A_ARTIFACTS_SERVER_PORT: 8081
+      A2A_ARTIFACTS_STORAGE_PROVIDER: filesystem
+      A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/artifacts
+      A2A_ARTIFACTS_STORAGE_BASE_URL: http://browser-agent:8081
+      A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
+      A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
+      A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
+    volumes:
+      - ./agents/browser-agent:/tmp/artifacts
+    restart: unless-stopped
+
+  browser-vnc:
+    profiles:
+      - vnc
+    build:
+      context: ../a2a
+      dockerfile: Dockerfile.vnc
+    environment:
+      X_HOST: browser-agent
+      X_DISPLAY: 99
+    ports:
+      - "5900:5900"
+    depends_on:
+      - browser-agent
+    restart: unless-stopped
+
+  infer-channels-manager:
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
+    depends_on:
+      - inference-gateway
+      - browser-agent
+    env_file:
+      - .env
+    environment:
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_GATEWAY_RUN: false
+      INFER_CHANNELS_ENABLED: true
+      INFER_CHANNELS_TELEGRAM_ENABLED: true
+      INFER_TOOLS_ENABLED: false
+      INFER_A2A_ENABLED: true
+      INFER_A2A_AGENTS: |
+        http://browser-agent:8080
+      INFER_AGENT_MODEL: deepseek/deepseek-chat
+      INFER_AGENT_SYSTEM_PROMPT: |
+        You are a helpful assistant with access to a remote browser agent via A2A.
+        When the user asks you to look something up, browse a website, or fetch
+        information from the web, delegate the task to the browser agent using
+        the A2A_SubmitTask tool. Summarize the results back to the user
+        concisely - remember the response will be sent over Telegram.
+      INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
+    volumes:
+      - ./tmp:/home/infer
+    command:
+      - channels-manager
+    restart: unless-stopped

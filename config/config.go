@@ -44,6 +44,7 @@ type Config struct {
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
+	Channels         ChannelsConfig         `yaml:"channels" mapstructure:"channels"`
 	configDir        string
 }
 
@@ -355,9 +356,10 @@ type ExportConfig struct {
 
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
-	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+	Enabled               bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt                int  `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages     int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+	RolloverOnIdleMinutes int  `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
 }
 
 // WebConfig contains web terminal settings
@@ -411,16 +413,18 @@ type AgentContextConfig struct {
 
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
-	Model              string                `yaml:"model" mapstructure:"model"`
-	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptRemote string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
-	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
-	Context            AgentContextConfig    `yaml:"context" mapstructure:"context"`
-	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
-	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
-	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
-	MaxConcurrentTools int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
+	Model                    string                `yaml:"model" mapstructure:"model"`
+	SystemPrompt             string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPromptWithDefaults bool                  `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
+	CustomInstructions       string                `yaml:"custom_instructions" mapstructure:"custom_instructions"`
+	SystemPromptPlan         string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptRemote       string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
+	SystemReminders          SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	Context                  AgentContextConfig    `yaml:"context" mapstructure:"context"`
+	VerboseTools             bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns                 int                   `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens                int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	MaxConcurrentTools       int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
 }
 
 // GitConfig contains git shortcut-specific settings
@@ -597,6 +601,33 @@ type JsonlStorageConfig struct {
 	Path string `yaml:"path" mapstructure:"path"`
 }
 
+// ChannelsConfig contains configuration for external messaging channels
+type ChannelsConfig struct {
+	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
+	MaxWorkers     int                   `yaml:"max_workers" mapstructure:"max_workers"`
+	ImageRetention int                   `yaml:"image_retention" mapstructure:"image_retention"`
+	Telegram       TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
+	WhatsApp       WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+}
+
+// TelegramChannelConfig contains Telegram bot settings
+type TelegramChannelConfig struct {
+	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
+	BotToken     string   `yaml:"bot_token" mapstructure:"bot_token"`
+	AllowedUsers []string `yaml:"allowed_users" mapstructure:"allowed_users"`
+	PollTimeout  int      `yaml:"poll_timeout" mapstructure:"poll_timeout"`
+}
+
+// WhatsAppChannelConfig contains WhatsApp Business API settings
+type WhatsAppChannelConfig struct {
+	Enabled       bool     `yaml:"enabled" mapstructure:"enabled"`
+	PhoneNumberID string   `yaml:"phone_number_id" mapstructure:"phone_number_id"`
+	AccessToken   string   `yaml:"access_token" mapstructure:"access_token"`
+	VerifyToken   string   `yaml:"verify_token" mapstructure:"verify_token"`
+	WebhookPort   int      `yaml:"webhook_port" mapstructure:"webhook_port"`
+	AllowedUsers  []string `yaml:"allowed_users" mapstructure:"allowed_users"`
+}
+
 // A2AAgentInfo contains information about an A2A agent connection
 type A2AAgentInfo struct {
 	Name        string            `yaml:"name" mapstructure:"name"`
@@ -610,13 +641,14 @@ type A2AAgentInfo struct {
 
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
-	StatusPollSeconds      int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
-	PollingStrategy        string  `yaml:"polling_strategy" mapstructure:"polling_strategy"`
-	InitialPollIntervalSec int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
-	MaxPollIntervalSec     int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
-	BackoffMultiplier      float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
-	BackgroundMonitoring   bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
-	CompletedTaskRetention int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
+	StatusPollSeconds       int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+	PollingStrategy         string  `yaml:"polling_strategy" mapstructure:"polling_strategy"`
+	InitialPollIntervalSec  int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
+	MaxPollIntervalSec      int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
+	BackoffMultiplier       float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
+	BackgroundMonitoring    bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
+	CompletedTaskRetention  int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
+	AgentModeMaxWaitSeconds int     `yaml:"agent_mode_max_wait_seconds" mapstructure:"agent_mode_max_wait_seconds"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -870,95 +902,9 @@ REMEMBER:
 - If accepted, YOU will execute this plan. Make it specific and actionable!
 - Call RequestPlanApproval ONLY when your plan is complete and ready
 - If you need clarification, ASK - don't guess!`,
-			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
-
-IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
-IMPORTANT: You ALWAYS prefer to search for specific matches in a file rather than reading it all - prefer to use Grep tool over Read tool for efficiency.
-IMPORTANT: You ALWAYS prefer to see AGENTS.md before README.md files.
-IMPORTANT: When reading project documentation, prefer AGENTS.md if available, otherwise fallback to README.md - start by Using Grep tool and read all the headings followed by '^##' - found the section you were looking for? great - use Read tool. You didn't find anything? continue to see '^###'
-
-RULES:
-- Security: Defensive only (analysis, detection, docs)
-- Style: no emojis/comments unless asked, use conventional commits
-- Code: Follow existing patterns, check deps, no secrets
-- Tasks: Use TodoWrite, mark progress immediately
-- Chat exports: Read only "## Summary" to "---" section
-- Tools: ALWAYS use parallel execution when possible - batch multiple tool calls in a single response to improve efficiency
-- Tools: Prefer Grep for search, Read for specific files
-
-PARALLEL TOOL EXECUTION:
-- When you need to perform multiple operations, make ALL tool calls in a single response
-- Examples: Read multiple files, search multiple patterns, execute multiple commands
-- The system supports up to 5 concurrent tool executions by default
-- This reduces back-and-forth communication and significantly improves performance
-
-COMPUTER USE TOOLS:
-You have TWO ways to interact with the system:
-1. Direct terminal tools (PRIMARY): Bash, Read, Write, Edit, Grep, etc.
-2. GUI automation tools (FALLBACK): MouseMove, KeyboardType, MouseClick, GetLatestScreenshot
-
-CRITICAL: ALWAYS prefer direct terminal tools over GUI automation when possible.
-
-When to use DIRECT tools (preferred):
-- Reading files: Use Read tool, NOT KeyboardType to open an editor
-- Writing files: Use Write/Edit tools, NOT GUI text editor
-- Running commands: Use Bash tool, NOT KeyboardType in a terminal window
-- Searching code: Use Grep tool, NOT opening files via GUI
-- File operations: Use Bash/Read/Write, NOT GUI file manager
-
-When to use GUI tools (only when necessary):
-- Interacting with graphical applications that have no CLI equivalent
-- Testing UI behavior or visual elements
-- Automating tasks that MUST be done through a GUI
-- Taking screenshots to inspect visual state
-
-Why prefer direct tools:
-- 10-100x faster execution (no GUI rendering delays)
-- More reliable (no window focus issues, no timing problems)
-- Precise output (structured data, not visual interpretation)
-- Parallel execution support (batch multiple operations)
-- Lower resource usage (no display server overhead)
-
-Example - WRONG approach:
-<tool>MouseMove(x=100, y=200)</tool>
-<tool>MouseClick(button="left")</tool>
-<tool>KeyboardType(text="cat file.txt")</tool>
-
-Example - CORRECT approach:
-<tool>Read(file_path="/path/to/file.txt")</tool>
-
-WORKFLOW:
-When asked to implement features or fix issues:
-1. Plan with TodoWrite
-2. Search codebase to understand context
-3. Implement solution
-4. Run tests with: task test
-5. Run lint/format with: task fmt and task lint
-6. Commit changes (only if explicitly asked)
-7. Create a pull request (only if explicitly asked)
-
-A2A ARTIFACT DOWNLOADS:
-When a delegated A2A task completes with artifacts:
-1. Wait for the automatic completion notification
-2. The completion message will show artifact details including Download URLs
-3. Use WebFetch with download=true to automatically save artifacts to disk
-   Example: WebFetch(url="http://agent/artifacts/123/file.png", download=true)
-4. The file will be saved to <configDir>/tmp with filename extracted from URL
-5. Check the tool result for the saved file path
-
-EXAMPLE:
-<user>Can you create a pull request with the changes?</user>
-<assistant>I will checkout to a new branch</assistant>
-<tool>Bash(git checkout -b feat/my-new-feature)</tool>
-<assistant>Now I will modify the files</assistant>
-<tool>Read|Edit|Grep etc</tool>
-<tool>Bash(git add <files>)</tool>
-<tool>Bash(git commit -m <message>)</tool>
-<assistant>Now I will push the changes</assistant>
-<tool>Bash(git push origin <branch>)</tool>
-<assistant>Now I'll create a pull request</assistant>
-<tool>Github(...)</tool>
-`,
+			SystemPrompt:             `Autonomous software engineering agent. Execute tasks iteratively until completion.`,
+			SystemPromptWithDefaults: true,
+			CustomInstructions:       ``,
 			SystemPromptRemote: `Remote system administration agent. You are operating on a remote machine via SSH.
 
 FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
@@ -1084,13 +1030,14 @@ Respond with ONLY the title, no quotes or explanation.`,
 				TTL:     300,
 			},
 			Task: A2ATaskConfig{
-				StatusPollSeconds:      5,
-				PollingStrategy:        "exponential",
-				InitialPollIntervalSec: 2,
-				MaxPollIntervalSec:     60,
-				BackoffMultiplier:      2.0,
-				BackgroundMonitoring:   true,
-				CompletedTaskRetention: 5,
+				StatusPollSeconds:       5,
+				PollingStrategy:         "exponential",
+				InitialPollIntervalSec:  2,
+				MaxPollIntervalSec:      60,
+				BackoffMultiplier:       2.0,
+				BackgroundMonitoring:    true,
+				CompletedTaskRetention:  5,
+				AgentModeMaxWaitSeconds: 300,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{
@@ -1137,9 +1084,10 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled:           true,
-			AutoAt:            80,
-			KeepFirstMessages: 2,
+			Enabled:               true,
+			AutoAt:                80,
+			KeepFirstMessages:     2,
+			RolloverOnIdleMinutes: 30,
 		},
 		Web: WebConfig{
 			Enabled:               false,
@@ -1205,6 +1153,25 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				ActivateApp: ActivateAppToolConfig{
 					Enabled: true,
 				},
+			},
+		},
+		Channels: ChannelsConfig{
+			Enabled:        false,
+			MaxWorkers:     5,
+			ImageRetention: 5,
+			Telegram: TelegramChannelConfig{
+				Enabled:      false,
+				BotToken:     "",
+				AllowedUsers: []string{},
+				PollTimeout:  30,
+			},
+			WhatsApp: WhatsAppChannelConfig{
+				Enabled:       false,
+				PhoneNumberID: "",
+				AccessToken:   "",
+				VerifyToken:   "",
+				WebhookPort:   8443,
+				AllowedUsers:  []string{},
 			},
 		},
 	}

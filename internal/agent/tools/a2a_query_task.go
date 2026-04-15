@@ -18,7 +18,7 @@ import (
 type A2AQueryTaskTool struct {
 	config      *config.Config
 	formatter   domain.CustomFormatter
-	taskTracker domain.TaskTracker
+	taskTracker domain.A2ATaskTracker
 }
 
 type A2AQueryTaskResult struct {
@@ -31,7 +31,7 @@ type A2AQueryTaskResult struct {
 	Duration  time.Duration `json:"duration"`
 }
 
-func NewA2AQueryTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2AQueryTaskTool {
+func NewA2AQueryTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
 		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {

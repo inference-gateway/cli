@@ -92,6 +92,7 @@ type InputComponent interface {
 	AddToHistory(text string) error
 	SetUsageHint(hint string)
 	GetUsageHint() string
+	IsDisabled() bool
 }
 
 // StatusComponent interface for status display

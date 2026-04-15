@@ -37,6 +37,14 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 	}
 }
 
+// engines returns the configured engines, falling back to defaults if nil
+func (t *WebSearchTool) engines() []string {
+	if t.config.Tools.WebSearch.Engines != nil {
+		return t.config.Tools.WebSearch.Engines
+	}
+	return []string{"duckduckgo", "google"}
+}
+
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
 	description := "Search the web using Google or DuckDuckGo search engines"
@@ -54,8 +62,8 @@ func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
 					},
 					"engine": map[string]any{
 						"type":        "string",
-						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.Tools.WebSearch.Engines, " or "), t.config.Tools.WebSearch.DefaultEngine),
-						"enum":        t.config.Tools.WebSearch.Engines,
+						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.engines(), " or "), t.config.Tools.WebSearch.DefaultEngine),
+						"enum":        t.engines(),
 						"default":     t.config.Tools.WebSearch.DefaultEngine,
 					},
 					"limit": map[string]any{

@@ -358,6 +358,37 @@ type StateManager interface {
 	ClearComputerUsePauseState()
 }
 
+// Channel represents a pluggable messaging transport (WhatsApp, Telegram, etc.)
+type Channel interface {
+	// Name returns the channel identifier (e.g., "whatsapp", "telegram")
+	Name() string
+	// Start begins listening for inbound messages. Blocks until ctx is cancelled.
+	Start(ctx context.Context, inbox chan<- InboundMessage) error
+	// Send delivers an outbound message through this channel
+	Send(ctx context.Context, msg OutboundMessage) error
+	// Stop gracefully shuts down the channel
+	Stop() error
+}
+
+// InboundMessage represents a message received from an external channel
+type InboundMessage struct {
+	ChannelName string            `json:"channel_name"`
+	SenderID    string            `json:"sender_id"`
+	Content     string            `json:"content"`
+	Images      []ImageAttachment `json:"images,omitempty"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// OutboundMessage represents a response to send back through a channel
+type OutboundMessage struct {
+	ChannelName string            `json:"channel_name"`
+	RecipientID string            `json:"recipient_id"`
+	Content     string            `json:"content"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
 // FileService handles file operations
 type FileService interface {
 	ListProjectFiles() ([]string, error)
@@ -466,9 +497,12 @@ type BackgroundTaskService interface {
 	CancelBackgroundTask(taskID string) error
 }
 
-// TaskTracker handles task ID and context ID tracking within chat sessions
-// Following A2A spec: supports multi-tenant with multiple contexts per agent
-type TaskTracker interface {
+// A2ATaskTracker handles A2A task ID and context ID tracking within chat
+// sessions. Following A2A spec: supports multi-tenant with multiple
+// contexts per agent. This is one half of the BackgroundTaskRegistry; the
+// other half is ShellTracker (defined in shell.go). Code that only needs
+// the A2A surface can depend on this narrower interface.
+type A2ATaskTracker interface {
 	// Context management (contexts are server-generated and tracked here)
 	// Multiple contexts per agent enable multi-tenant/multi-session support
 	RegisterContext(agentURL, contextID string)
@@ -498,6 +532,29 @@ type TaskTracker interface {
 	IsPolling(taskID string) bool
 	GetPollingTasksForContext(contextID string) []string
 	GetAllPollingTasks() []string
+}
+
+// BackgroundTaskRegistry is the single tracker that owns *all* in-flight
+// background work an agent session can produce: A2A tasks (long-running
+// work delegated to remote agents) and background bash shells (long-running
+// commands the agent has detached from the foreground). Both are
+// conceptually the same thing — async producers of results that need to
+// land back on the conversation when they finish — so they live behind one
+// type here.
+//
+// The interface unifies what used to be two separate trackers
+// (A2ATaskTracker and ShellTracker) via composition: depending on what a
+// caller needs, it can use the narrower A2ATaskTracker or ShellTracker
+// interface, or this full BackgroundTaskRegistry to access both plus the
+// HasPending() aggregator method.
+type BackgroundTaskRegistry interface {
+	A2ATaskTracker
+	ShellTracker
+
+	// HasPending reports whether *any* background work is still in flight,
+	// regardless of type. True when there is at least one A2A task being
+	// polled OR at least one running background shell.
+	HasPending() bool
 }
 
 // FetchResult represents the result of a fetch operation
