@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
 	cobra "github.com/spf13/cobra"
@@ -56,7 +57,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return err
 	}
 
-	fmt.Println("Starting channel listener...")
+	logger.Info("Starting channel listener...")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -68,17 +69,17 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start channels: %w", err)
 	}
 
-	fmt.Println("Listening for messages. Press Ctrl+C to stop.")
+	logger.Info("Listening for messages. Press Ctrl+C to stop.")
 
 	<-sigChan
-	fmt.Println("\nShutting down channels...")
+	logger.Info("Shutting down channels...")
 	cancel()
 
 	if err := cm.Stop(); err != nil {
 		return fmt.Errorf("failed to stop channels: %w", err)
 	}
 
-	fmt.Println("Channels stopped.")
+	logger.Info("Channels stopped.")
 	return nil
 }
 
@@ -90,8 +91,17 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram)
 		cm.Register(telegramCh)
 		registered++
-		fmt.Println("Registered Telegram channel")
+		logger.Info("Registered channel", "channel", "telegram")
 	}
+
+	// WhatsApp channel is not yet implemented; enable this block once
+	// channels.NewWhatsAppChannel exists.
+	// if cfg.Channels.WhatsApp.Enabled {
+	// 	whatsappCh := channels.NewWhatsAppChannel(cfg.Channels.WhatsApp)
+	// 	cm.Register(whatsappCh)
+	// 	registered++
+	// 	logger.Info("Registered channel", "channel", "whatsapp")
+	// }
 
 	if registered == 0 {
 		return fmt.Errorf("no channels are enabled. Enable at least one channel in config")

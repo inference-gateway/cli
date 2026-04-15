@@ -418,7 +418,6 @@ decoupled from the agent. Each incoming message triggers
 - Channel Manager: `internal/services/channel_manager.go`
 - Telegram channel: `internal/services/channels/telegram.go`
 - Domain types: `Channel`, `InboundMessage`, `OutboundMessage` in `internal/domain/interfaces.go`
-- Events: `ChannelMessageReceivedEvent`, `ChannelMessageSentEvent` in `internal/domain/chat_events.go`
 - Configuration: `config.Channels` in `config/config.go`
 
 Channels are configured in `.infer/config.yaml` under the `channels` key.
