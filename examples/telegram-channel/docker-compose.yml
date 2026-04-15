@@ -91,7 +91,6 @@ services:
       INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
     volumes:
       - ./tmp:/home/infer
-      - ../../dist/infer-linux-arm64:/usr/local/bin/infer
     command:
       - channels-manager
     restart: unless-stopped
