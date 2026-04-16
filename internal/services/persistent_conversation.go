@@ -24,7 +24,7 @@ type PersistentConversationRepository struct {
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
-	taskTracker    domain.TaskTracker
+	taskTracker    domain.A2ATaskTracker
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -54,8 +54,8 @@ func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *Con
 	r.titleGenerator = titleGenerator
 }
 
-// SetTaskTracker sets the task tracker for context ID persistence
-func (r *PersistentConversationRepository) SetTaskTracker(taskTracker domain.TaskTracker) {
+// SetA2ATaskTracker sets the task tracker for context ID persistence
+func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker domain.A2ATaskTracker) {
 	r.taskTracker = taskTracker
 }
 
@@ -189,6 +189,21 @@ func (r *PersistentConversationRepository) SetConversationTags(tags []string) {
 	defer r.metadataMutex.Unlock()
 	r.metadata.Tags = tags
 	r.metadata.UpdatedAt = time.Now()
+}
+
+// SetConversationID pre-sets the conversation ID so that subsequent AddMessage
+// calls use this ID instead of generating a random one. This is used when
+// resuming a session by ID that doesn't exist yet in storage.
+func (r *PersistentConversationRepository) SetConversationID(id string) {
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
+	r.conversationID = id
+	r.metadata.ID = id
+	if r.metadata.CreatedAt.IsZero() {
+		now := time.Now()
+		r.metadata.CreatedAt = now
+		r.metadata.UpdatedAt = now
+	}
 }
 
 // GetCurrentConversationID returns the current conversation ID

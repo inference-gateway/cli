@@ -85,17 +85,18 @@ type AgentSession struct {
 	config           *config.Config
 	conversationRepo domain.ConversationRepository
 	saveEnabled      bool
+	bgWaiter         *services.BackgroundTasksWaiter
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string) error {
-	services := container.NewServiceContainer(cfg, V)
+	svc := container.NewServiceContainer(cfg, V)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = services.Shutdown(ctx)
+		_ = svc.Shutdown(ctx)
 	}()
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {
 		return fmt.Errorf(`failed to start inference gateway: %w
 
 Possible solutions:
@@ -110,7 +111,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
-	models, err := services.GetModelService().ListModels(ctx)
+	models, err := svc.GetModelService().ListModels(ctx)
 	if err != nil {
 		return fmt.Errorf("inference gateway is not available: %w", err)
 	}
@@ -124,50 +125,53 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		return err
 	}
 
-	agentService := services.GetAgentService()
-	toolService := services.GetToolService()
-	fileService := services.GetFileService()
-	imageService := services.GetImageService()
-	conversationRepo := services.GetConversationRepository()
-	stateManager := services.GetStateManager()
+	agentService := svc.GetAgentService()
+	toolService := svc.GetToolService()
+	fileService := svc.GetFileService()
+	imageService := svc.GetImageService()
+	conversationRepo := svc.GetConversationRepository()
+	stateManager := svc.GetStateManager()
 
 	stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 
 	saveEnabled := !noSave
 
+	newSessionID := uuid.New().String()
 	session := &AgentSession{
 		agentService:     agentService,
 		toolService:      toolService,
 		fileService:      fileService,
 		imageService:     imageService,
 		model:            selectedModel,
-		sessionID:        uuid.New().String(),
+		sessionID:        newSessionID,
 		maxTurns:         cfg.Agent.MaxTurns,
 		conversation:     []ConversationMessage{},
 		config:           cfg,
 		conversationRepo: conversationRepo,
 		saveEnabled:      saveEnabled,
+		bgWaiter: services.NewBackgroundTasksWaiter(
+			cfg,
+			newSessionID,
+			svc.GetBackgroundTaskRegistry(),
+			svc.GetMessageQueue(),
+			conversationRepo,
+		),
 	}
 
-	if sessionID != "" {
-		if err := session.loadExistingSession(sessionID); err != nil {
-			logger.Warn("Failed to load session, starting fresh",
-				"session_id", sessionID,
-				"error", err)
-			session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
-				"session_id": sessionID,
-				"error":      err.Error(),
-			})
-		} else {
-			logger.Info("Resumed agent session",
-				"session_id", sessionID,
-				"messages", len(session.conversation))
-			session.outputStatusMessage("info", "Resumed agent session", map[string]any{
-				"session_id":    sessionID,
-				"message_count": len(session.conversation),
-			})
-		}
-	} else {
+	rolloverMgr := svc.GetSessionRolloverManager()
+	groupKey := resolveAndLoadSession(session, rolloverMgr, sessionID, selectedModel)
+
+	maybeRolloverSession(session, rolloverMgr, selectedModel, groupKey)
+
+	return session.execute(taskDescription, files)
+}
+
+// resolveAndLoadSession resolves --session-id through the rollover manager
+// (literal UUIDs pass through unchanged; non-UUID inputs are treated as group
+// keys and resolved via .infer/session_groups.json), then loads the resulting
+// session. Returns the group key (empty for literal UUIDs).
+func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionRolloverManager, sessionID, selectedModel string) string {
+	if sessionID == "" {
 		logger.Info("Starting agent session",
 			"session_id", session.sessionID,
 			"model", selectedModel)
@@ -175,9 +179,61 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 			"session_id": session.sessionID,
 			"model":      selectedModel,
 		})
+		return ""
 	}
 
-	return session.execute(taskDescription, files)
+	groupKey := ""
+	if rolloverMgr != nil {
+		if resolved, gk, _ := rolloverMgr.ResolveSessionID(sessionID); resolved != "" {
+			sessionID = resolved
+			groupKey = gk
+		}
+	}
+
+	loaded, err := session.initializeSession(sessionID)
+	if err != nil {
+		logger.Warn("Failed to load session, starting fresh", "session_id", sessionID, "error", err)
+		session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		})
+		return groupKey
+	}
+
+	if loaded {
+		logger.Info("Resumed agent session", "session_id", sessionID, "messages", len(session.conversation))
+		session.outputStatusMessage("info", "Resumed agent session", map[string]any{
+			"session_id":    sessionID,
+			"message_count": len(session.conversation),
+		})
+	}
+	return groupKey
+}
+
+// maybeRolloverSession checks the idle/token thresholds and, if either fires,
+// performs the rollover (summary + new conversation file) and reloads the
+// session into the in-memory AgentSession. Mirrors chat-mode /compact behavior.
+func maybeRolloverSession(session *AgentSession, rolloverMgr *services.SessionRolloverManager, selectedModel, groupKey string) {
+	if rolloverMgr == nil || !rolloverMgr.ShouldRollover(selectedModel) {
+		return
+	}
+
+	newID, err := rolloverMgr.PerformRollover(context.Background(), selectedModel, groupKey)
+	if err != nil {
+		logger.Warn("Auto-rollover failed, continuing with current session",
+			"error", err, "session_id", session.sessionID)
+		return
+	}
+
+	session.outputStatusMessage("info", "Rolled over to new session (summary preserved)", map[string]any{
+		"previous_session_id": session.sessionID,
+		"new_session_id":      newID,
+	})
+	session.sessionID = newID
+	session.conversation = nil
+	if _, err := session.initializeSession(newID); err != nil {
+		logger.Warn("Failed to reload session after rollover", "error", err, "session_id", newID)
+	}
 }
 
 // fileExpansionResult holds the result of expanding file references
@@ -270,6 +326,11 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 	s.outputMessage(s.conversation[len(s.conversation)-1])
 
+	monitorCtx, monitorCancel := context.WithCancel(context.Background())
+	defer monitorCancel()
+	s.bgWaiter.Start(monitorCtx)
+	defer s.bgWaiter.Stop()
+
 	consecutiveNoToolCalls := 0
 
 	for s.completedTurns < s.maxTurns {
@@ -280,32 +341,86 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		s.completedTurns++
 
-		if s.lastResponseHadNoToolCalls() {
-			consecutiveNoToolCalls++
-
-			if consecutiveNoToolCalls >= 2 {
-				logger.Info("Task appears complete (no more tool calls)", "turns", s.completedTurns)
-				break
-			}
-
-			verifyMsg := ConversationMessage{
-				Role:      "user",
-				Content:   "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
-				Timestamp: time.Now(),
-				Internal:  true,
-			}
-			s.addMessage(verifyMsg)
-		} else {
+		if !s.lastResponseHadNoToolCalls() {
 			consecutiveNoToolCalls = 0
+			continue
 		}
+
+		injected := s.drainBackgroundResults(monitorCtx)
+		if injected > 0 {
+			consecutiveNoToolCalls = 0
+			continue
+		}
+
+		consecutiveNoToolCalls++
+
+		if consecutiveNoToolCalls >= 2 {
+			logger.Info("Task appears complete (no more tool calls)", "turns", s.completedTurns)
+			break
+		}
+
+		verifyMsg := ConversationMessage{
+			Role:      "user",
+			Content:   "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
+			Timestamp: time.Now(),
+			Internal:  true,
+		}
+		s.addMessage(verifyMsg)
 	}
 
 	if s.completedTurns >= s.maxTurns {
 		logger.Info("Maximum turns reached", "turns", s.completedTurns)
 	}
 
+	s.waitForBackgroundTasks(monitorCtx)
+
 	logger.Info("Agent session completed", "turns", s.completedTurns)
 	return nil
+}
+
+// waitForBackgroundTasks is the post-loop final-wait. Ensures we never exit
+// `infer agent` with in-flight background work. If draining surfaces new
+// completion messages, runs one final integration turn.
+func (s *AgentSession) waitForBackgroundTasks(ctx context.Context) {
+	if !s.bgWaiter.HasPendingTasks() {
+		return
+	}
+
+	injected := s.drainBackgroundResults(ctx)
+	if injected == 0 {
+		return
+	}
+
+	logger.Info("Running final integration turn after background task drain",
+		"injected", injected)
+	if err := s.executeTurn(); err != nil {
+		logger.Error("Final integration turn failed", "error", err)
+	}
+}
+
+// drainBackgroundResults blocks on the waiter until background tasks complete
+// (or the per-session timeout fires), then materializes the drained payloads
+// as internal user messages on the conversation. Returns the number of
+// messages injected.
+func (s *AgentSession) drainBackgroundResults(ctx context.Context) int {
+	drained := s.bgWaiter.WaitAndDrain(ctx)
+	if len(drained) == 0 {
+		return 0
+	}
+
+	for _, d := range drained {
+		msg := ConversationMessage{
+			Role:      "user",
+			Content:   d.Content,
+			Timestamp: d.Timestamp,
+			Internal:  true,
+		}
+		s.addMessage(msg)
+		s.outputMessage(msg)
+	}
+
+	logger.Info("Injected background task results into conversation", "count", len(drained))
+	return len(drained)
 }
 
 func (s *AgentSession) executeTurn() error {
@@ -389,44 +504,41 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
-	if response.Content != "" {
-		assistantMsg := ConversationMessage{
-			Role:       "assistant",
-			Content:    response.Content,
-			TokenUsage: response.Usage,
-			Timestamp:  time.Now(),
-			RequestID:  requestID,
-		}
-		s.addMessage(assistantMsg)
-		s.outputMessage(assistantMsg)
+	if response.Content == "" && len(response.ToolCalls) == 0 {
+		return nil
+	}
 
-		if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
-			go func() {
-				if err := s.conversationRepo.AddTokenUsage(
-					s.model,
-					int(response.Usage.PromptTokens),
-					int(response.Usage.CompletionTokens),
-					int(response.Usage.TotalTokens),
-				); err != nil {
-					logger.Warn("Failed to track token usage", "error", err)
-				}
-			}()
-		}
+	assistantMsg := ConversationMessage{
+		Role:       "assistant",
+		Content:    response.Content,
+		TokenUsage: response.Usage,
+		Timestamp:  time.Now(),
+		RequestID:  requestID,
+	}
+
+	if len(response.ToolCalls) > 0 {
+		assistantMsg.ToolCalls = &response.ToolCalls
+	}
+
+	s.addMessage(assistantMsg)
+	s.outputMessage(assistantMsg)
+
+	if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
+		go func() {
+			if err := s.conversationRepo.AddTokenUsage(
+				s.model,
+				int(response.Usage.PromptTokens),
+				int(response.Usage.CompletionTokens),
+				int(response.Usage.TotalTokens),
+			); err != nil {
+				logger.Warn("Failed to track token usage", "error", err)
+			}
+		}()
 	}
 
 	if len(response.ToolCalls) == 0 {
 		return nil
 	}
-
-	toolCallMsg := ConversationMessage{
-		Role:      "assistant",
-		Content:   "",
-		ToolCalls: &response.ToolCalls,
-		Timestamp: time.Now(),
-		RequestID: requestID,
-	}
-	s.addMessage(toolCallMsg)
-	s.outputMessage(toolCallMsg)
 
 	toolResults := s.executeToolCallsParallel(response.ToolCalls)
 
@@ -589,22 +701,27 @@ func (s *AgentSession) addMessage(msg ConversationMessage) {
 	}
 }
 
-// loadExistingSession loads a conversation from the database and restores session state
-func (s *AgentSession) loadExistingSession(conversationID string) error {
-	ctx := context.Background()
+// initializeSession sets up the session with the given ID and attempts to load
+// existing conversation history. Returns (true, nil) if history was loaded,
+// (false, nil) if starting fresh with the provided ID, or (false, err) on error.
+func (s *AgentSession) initializeSession(sessionID string) (bool, error) {
+	s.sessionID = sessionID
 
 	persistentRepo, ok := s.conversationRepo.(*services.PersistentConversationRepository)
 	if !ok {
-		return fmt.Errorf("conversation repository does not support loading")
+		return false, nil
 	}
 
-	if err := persistentRepo.LoadConversation(ctx, conversationID); err != nil {
-		return fmt.Errorf("failed to load conversation: %w", err)
+	persistentRepo.SetConversationID(sessionID)
+
+	ctx := context.Background()
+	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
+		return false, nil
 	}
 
 	entries := persistentRepo.GetMessages()
 	if len(entries) == 0 {
-		return fmt.Errorf("loaded conversation is empty")
+		return false, nil
 	}
 
 	s.conversation = make([]ConversationMessage, 0, len(entries))
@@ -613,13 +730,11 @@ func (s *AgentSession) loadExistingSession(conversationID string) error {
 		s.conversation = append(s.conversation, msg)
 	}
 
-	s.sessionID = conversationID
-
 	logger.Info("Loaded conversation history",
-		"session_id", conversationID,
+		"session_id", sessionID,
 		"message_count", len(entries))
 
-	return nil
+	return true, nil
 }
 
 func (s *AgentSession) outputMessage(msg ConversationMessage) {

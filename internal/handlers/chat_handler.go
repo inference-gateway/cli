@@ -29,6 +29,7 @@ type ChatHandler struct {
 	agentService              domain.AgentService
 	conversationRepo          domain.ConversationRepository
 	conversationOptimizer     domain.ConversationOptimizer
+	sessionRolloverManager    *services.SessionRolloverManager
 	modelService              domain.ModelService
 	configService             domain.ConfigService
 	toolService               domain.ToolService
@@ -60,6 +61,7 @@ func NewChatHandler(
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
 	conversationOptimizer domain.ConversationOptimizer,
+	sessionRolloverManager *services.SessionRolloverManager,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
 	toolService domain.ToolService,
@@ -78,6 +80,7 @@ func NewChatHandler(
 		agentService:           agentService,
 		conversationRepo:       conversationRepo,
 		conversationOptimizer:  conversationOptimizer,
+		sessionRolloverManager: sessionRolloverManager,
 		modelService:           modelService,
 		configService:          configService,
 		toolService:            toolService,
@@ -451,9 +454,30 @@ func (h *ChatHandler) HandleBashOutputChunkEvent(
 func (h *ChatHandler) HandleBashCommandCompletedEvent(
 	msg domain.BashCommandCompletedEvent,
 ) tea.Cmd {
-	return func() tea.Msg {
-		return domain.UpdateHistoryEvent(msg)
+	h.stateManager.EndToolExecution()
+
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{History: msg.History}
+	})
+
+	if msg.ErrorMessage != "" {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
+		})
 	}
+
+	if msg.Failed && msg.UserInitiated {
+		logger.Info("User-initiated bash command failed - triggering auto-fix")
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UserInputEvent{
+				Content: "The bash command failed. Please analyze the error and help me fix it.",
+			}
+		})
+	}
+
+	return tea.Sequence(cmds...)
 }
 
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
@@ -1842,6 +1866,18 @@ func (h *ChatHandler) executeBashCommand(commandText, command string) tea.Cmd {
 	}
 	_ = h.conversationRepo.AddMessage(userEntry)
 
+	if err := h.stateManager.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{
+		Id:       toolCallID,
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: fmt.Sprintf(`{"command":"%s"}`, command)},
+	}}); err != nil {
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to start tool execution: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
 	return tea.Batch(
 		func() tea.Msg {
 			history := h.conversationRepo.GetMessages()
@@ -1919,18 +1955,11 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 		result, err := h.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
-			eventChan <- domain.ToolExecutionProgressEvent{
-				BaseChatEvent: domain.BaseChatEvent{
-					RequestID: toolCallID,
-					Timestamp: time.Now(),
-				},
-				ToolCallID: toolCallID,
-				Status:     "failed",
-				Message:    "Execution failed",
-			}
-			eventChan <- domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to execute command: %v", err),
-				Sticky: false,
+			eventChan <- domain.BashCommandCompletedEvent{
+				History:       h.conversationRepo.GetMessages(),
+				Failed:        true,
+				UserInitiated: strings.HasPrefix(toolCallID, "user-bash-"),
+				ErrorMessage:  fmt.Sprintf("Failed to execute command: %v", err),
 			}
 			return
 		}
@@ -1987,18 +2016,12 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 		_ = h.conversationRepo.AddMessage(toolEntry)
 
 		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
-		logger.Debug("Checking bash result", "success", result != nil && result.Success, "user_initiated", isUserInitiated)
-
-		if result != nil && !result.Success && isUserInitiated {
-			logger.Info("User-initiated bash command failed - triggering auto-fix", "tool_call_id", toolCallID)
-
-			eventChan <- domain.UserInputEvent{
-				Content: "The bash command failed. Please analyze the error and help me fix it.",
-			}
-		}
+		failed := result != nil && !result.Success
 
 		eventChan <- domain.BashCommandCompletedEvent{
-			History: h.conversationRepo.GetMessages(),
+			History:       h.conversationRepo.GetMessages(),
+			Failed:        failed,
+			UserInitiated: isUserInitiated,
 		}
 	}()
 

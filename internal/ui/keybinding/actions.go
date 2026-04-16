@@ -1486,6 +1486,10 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	inputView := app.GetInputView()
+	if inputView != nil && inputView.IsDisabled() {
+		return nil
+	}
+
 	if inputView != nil {
 		if inputView.CanHandle(keyMsg) {
 			_, cmd := inputView.HandleKey(keyMsg)

@@ -267,7 +267,7 @@ func TestProcessSyncResponseParallel(t *testing.T) {
 				},
 			},
 			maxConcurrentTools:    2,
-			expectedMessageCount:  4,
+			expectedMessageCount:  3,
 			expectedToolCallCount: 2,
 		},
 		{

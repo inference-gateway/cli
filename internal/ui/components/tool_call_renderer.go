@@ -326,6 +326,10 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		return r.renderBashOutput(tool, singleLine)
 	}
 
+	if r.shouldShowBackgroundHint(tool) {
+		return r.renderBackgroundHint(tool, singleLine)
+	}
+
 	return singleLine
 }
 
@@ -435,6 +439,27 @@ func (r *ToolCallRenderer) shouldRenderBashOutput(tool *ToolRenderState) bool {
 		return false
 	}
 	return tool.Status == "running" || tool.Status == "starting" || tool.Status == "executing"
+}
+
+// shouldShowBackgroundHint returns true for running Bash tools even when
+// there's no output yet (e.g. `sleep`). The hint tells the user they can
+// press ctrl+b to detach the command.
+func (r *ToolCallRenderer) shouldShowBackgroundHint(tool *ToolRenderState) bool {
+	if tool.ToolName != "Bash" || r.keyHintFormatter == nil {
+		return false
+	}
+	return tool.Status == "running" || tool.Status == "starting" || tool.Status == "executing"
+}
+
+// renderBackgroundHint appends just the ctrl+b hint below the tool line.
+func (r *ToolCallRenderer) renderBackgroundHint(_ *ToolRenderState, singleLine string) string {
+	hint := r.keyHintFormatter.GetKeyHint("tools_background_shell", "move to background")
+	if hint == "" {
+		return singleLine
+	}
+	dimColor := r.styleProvider.GetThemeColor("dim")
+	hintLine := r.styleProvider.RenderWithColor("  "+hint, dimColor)
+	return singleLine + "\n" + hintLine
 }
 
 // renderBashOutput renders the output for a Bash tool

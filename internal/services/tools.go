@@ -165,8 +165,8 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	return tool.Validate(args)
 }
 
-func (s *LLMToolService) GetTaskTracker() domain.TaskTracker {
-	return s.registry.GetTaskTracker()
+func (s *LLMToolService) GetA2ATaskTracker() domain.A2ATaskTracker {
+	return s.registry.GetA2ATaskTracker()
 }
 
 func (s *LLMToolService) GetTool(name string) (domain.Tool, error) {
@@ -209,7 +209,7 @@ func (s *NoOpToolService) ValidateTool(name string, args map[string]any) error {
 	return fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) GetTaskTracker() domain.TaskTracker {
+func (s *NoOpToolService) GetA2ATaskTracker() domain.A2ATaskTracker {
 	return nil
 }
 

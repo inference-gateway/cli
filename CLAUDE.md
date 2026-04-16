@@ -9,7 +9,7 @@ It provides interactive chat, autonomous agent capabilities, and extensive tool 
 
 **Key Technology Stack:**
 
-- **Language**: Go 1.25+
+- **Language**: Go 1.26+
 - **UI Framework**: Bubble Tea (TUI framework)
 - **Gateway Integration**: Via `inference-gateway/sdk` and `inference-gateway/adk`
 - **Storage Backends**: JSONL (default), SQLite, PostgreSQL, Redis, In-memory
@@ -101,6 +101,7 @@ task container:push
 ```text
 cmd/                    # CLI commands (cobra-based)
 ├── agent.go           # Autonomous agent command
+├── channels.go        # Channel listener daemon command
 ├── chat.go            # Interactive chat command
 ├── config.go          # Configuration management commands
 ├── agents.go          # A2A agent management
@@ -128,6 +129,8 @@ internal/
 │   │   ├── edit.go, multiedit.go    # File editing
 │   │   ├── web_search.go            # Web search
 │   │   └── mcp_tool.go              # MCP integration
+│   ├── channels/                    # Pluggable messaging channels
+│   │   └── telegram.go              # Telegram Bot API channel
 │   └── filewriter/                  # File writing services
 ├── infra/             # Infrastructure layer
 │   ├── storage/       # Conversation storage backends
@@ -264,7 +267,7 @@ The CLI uses a 2-layer configuration system:
 **Key Config Sections:**
 
 - `gateway.*`: Gateway connection settings
-- `agent.*`: Agent behavior (model, max_turns, system prompt)
+- `agent.*`: Agent behavior (model, max_turns, system_prompt, custom_instructions)
 - `tools.*`: Tool-specific configuration
 - `chat.*`: Chat UI settings (theme, keybindings, status bar)
 - `web.*`: Web terminal settings
@@ -402,6 +405,31 @@ A2A enables agents to delegate tasks to specialized agents:
 - A2A tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`
 - Agent polling: Background monitor for task status
 - Configuration: Via `infer agents` commands
+
+## Channels (Remote Messaging)
+
+Channels provide pluggable messaging transports (Telegram, WhatsApp, etc.)
+for remote-controlling the agent from external platforms. The
+`infer channels-manager` command runs as a standalone daemon, completely
+decoupled from the agent. Each incoming message triggers
+`infer agent --session-id <id>` as a subprocess.
+
+- Channels command: `cmd/channels.go`
+- Channel Manager: `internal/services/channel_manager.go`
+- Telegram channel: `internal/services/channels/telegram.go`
+- Domain types: `Channel`, `InboundMessage`, `OutboundMessage` in `internal/domain/interfaces.go`
+- Configuration: `config.Channels` in `config/config.go`
+
+Channels are configured in `.infer/config.yaml` under the `channels` key.
+Each channel has its own allowlist for security.
+See `docs/channels.md` for full documentation.
+
+### Adding a New Channel
+
+1. Implement `domain.Channel` interface in `internal/services/channels/`
+2. Add config type to `config/config.go`
+3. Register in `registerChannels()` in `cmd/channels.go`
+4. Add allowlist case in `channel_manager.go` `isAllowedUser()`
 
 ## Model Thinking Visualization
 

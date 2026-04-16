@@ -97,39 +97,43 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 
 // addSystemPrompt adds system prompt with dynamic sandbox info and returns messages
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
-	var systemMessages []sdk.Message
-
 	baseSystemPrompt := s.getSystemPromptForMode()
-	if baseSystemPrompt != "" {
-		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
-
-		currentTurn := len(messages) / 2
-
-		sandboxInfo := s.buildSandboxInfo()
-		a2aAgentInfo := s.buildA2AAgentInfo()
-		osInfo := s.buildOSInfo()
-		workingDirInfo := s.buildWorkingDirectoryInfo()
-		gitContextInfo := s.buildGitContextInfo(currentTurn)
-
-		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s%s%s\n\nCurrent date and time: %s",
-			baseSystemPrompt,
-			sandboxInfo,
-			a2aAgentInfo,
-			osInfo,
-			workingDirInfo,
-			gitContextInfo,
-			currentTime)
-
-		systemMessages = append(systemMessages, sdk.Message{
-			Role:    sdk.System,
-			Content: sdk.NewMessageContent(systemPromptWithInfo),
-		})
+	if baseSystemPrompt == "" {
+		return messages
 	}
 
-	if len(systemMessages) > 0 {
-		messages = append(systemMessages, messages...)
+	agentConfig := s.config.GetAgentConfig()
+	parts := []string{baseSystemPrompt}
+
+	if agentConfig.CustomInstructions != "" {
+		parts = append(parts, agentConfig.CustomInstructions)
 	}
-	return messages
+
+	if agentConfig.SystemPromptWithDefaults {
+		contextInfo := s.buildContextInfo(len(messages) / 2)
+		if contextInfo != "" {
+			parts = append(parts, contextInfo)
+		}
+	}
+
+	currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
+	parts = append(parts, fmt.Sprintf("Current date and time: %s", currentTime))
+
+	systemMessage := sdk.Message{
+		Role:    sdk.System,
+		Content: sdk.NewMessageContent(strings.Join(parts, "\n\n")),
+	}
+
+	return append([]sdk.Message{systemMessage}, messages...)
+}
+
+// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git) for the system prompt
+func (s *AgentServiceImpl) buildContextInfo(currentTurn int) string {
+	return s.buildSandboxInfo() +
+		s.buildA2AAgentInfo() +
+		s.buildOSInfo() +
+		s.buildWorkingDirectoryInfo() +
+		s.buildGitContextInfo(currentTurn)
 }
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode

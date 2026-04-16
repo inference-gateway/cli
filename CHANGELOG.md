@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.101.0](https://github.com/inference-gateway/cli/compare/v0.100.5...v0.101.0) (2026-04-15)
+
+### 🚀 Features
+
+* Add pluggable channel system for remote messaging via Telegram ([#410](https://github.com/inference-gateway/cli/issues/410)) ([7c66058](https://github.com/inference-gateway/cli/commit/7c660580656c484cc9c54ecb561dfa70281f9ae7)), closes [#380](https://github.com/inference-gateway/cli/issues/380)
+
+### 🐛 Bug Fixes
+
+* Bump all golang versions to 1.26+ ([9f6e985](https://github.com/inference-gateway/cli/commit/9f6e9850be66b13b1212ade41539120a671bf48b))
+
+### 🧹 Maintenance
+
+* Bump development dependencies and GitHub Actions ([#409](https://github.com/inference-gateway/cli/issues/409)) ([92e1a6b](https://github.com/inference-gateway/cli/commit/92e1a6b6e481191df23a8361f34c842ca1e271c7))
+* **deps:** Bump github.com/go-vgo/robotgo from 1.0.1 to 1.0.2 ([#408](https://github.com/inference-gateway/cli/issues/408)) ([17ebf9b](https://github.com/inference-gateway/cli/commit/17ebf9b7f253e093fe92fcda7c454f1132bfb5e3))
+* **deps:** Bump github.com/lib/pq from 1.12.0 to 1.12.3 ([#407](https://github.com/inference-gateway/cli/issues/407)) ([cc7ea5f](https://github.com/inference-gateway/cli/commit/cc7ea5f5e16770f46d1342df92ba6af3d2e92e46))
+* **deps:** Bump golang.org/x/crypto from 0.49.0 to 0.50.0 ([#412](https://github.com/inference-gateway/cli/issues/412)) ([00a611e](https://github.com/inference-gateway/cli/commit/00a611e922611ecf9a84c954870787b30154542e))
+* **deps:** Bump golang.org/x/image from 0.38.0 to 0.39.0 ([d027cc3](https://github.com/inference-gateway/cli/commit/d027cc38e74f0fc11220220058f7d2de6aa75383))
+* **deps:** Bump modernc.org/sqlite from 1.48.0 to 1.48.1 ([#406](https://github.com/inference-gateway/cli/issues/406)) ([ae2f4d5](https://github.com/inference-gateway/cli/commit/ae2f4d5eed3a383f4930acd6e201c98cebde339b))
+* **deps:** Bump modernc.org/sqlite from 1.48.1 to 1.48.2 ([#411](https://github.com/inference-gateway/cli/issues/411)) ([eaedede](https://github.com/inference-gateway/cli/commit/eaedede942192d917808ac62d283582cc5dc4b58))
+
 ## [0.100.5](https://github.com/inference-gateway/cli/compare/v0.100.4...v0.100.5) (2026-04-01)
 
 ### 🧹 Maintenance

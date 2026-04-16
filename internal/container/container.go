@@ -24,7 +24,6 @@ import (
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // ServiceContainer manages all application dependencies
@@ -44,22 +43,26 @@ type ServiceContainer struct {
 	configService *services.ConfigService
 
 	// Domain services
-	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizer
-	modelService          domain.ModelService
-	chatService           domain.ChatService
-	agent                 domain.AgentService
-	toolService           domain.ToolService
-	fileService           domain.FileService
-	imageService          domain.ImageService
-	pricingService        domain.PricingService
-	a2aAgentService       domain.A2AAgentService
-	messageQueue          domain.MessageQueue
-	taskTrackerService    domain.TaskTracker
-	taskRetentionService  domain.TaskRetentionService
-	backgroundTaskService domain.BackgroundTaskService
-	gatewayManager        domain.GatewayManager
-	agentManager          domain.AgentManager
+	conversationRepo       domain.ConversationRepository
+	conversationOptimizer  domain.ConversationOptimizer
+	sessionRolloverManager *services.SessionRolloverManager
+	modelService           domain.ModelService
+	chatService            domain.ChatService
+	agent                  domain.AgentService
+	toolService            domain.ToolService
+	fileService            domain.FileService
+	imageService           domain.ImageService
+	pricingService         domain.PricingService
+	a2aAgentService        domain.A2AAgentService
+	messageQueue           domain.MessageQueue
+	// backgroundTaskRegistry is the single unified tracker for both A2A
+	// tasks and background bash shells. The narrower domain.A2ATaskTracker
+	// and domain.ShellTracker views are accessed via the same instance.
+	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	taskRetentionService   domain.TaskRetentionService
+	backgroundTaskService  domain.BackgroundTaskService
+	gatewayManager         domain.GatewayManager
+	agentManager           domain.AgentManager
 
 	// Services
 	stateManager domain.StateManager
@@ -68,7 +71,6 @@ type ServiceContainer struct {
 	titleGenerator         *services.ConversationTitleGenerator
 	backgroundJobManager   *services.BackgroundJobManager
 	backgroundShellService *services.BackgroundShellService
-	shellTracker           domain.ShellTracker
 	storage                storage.ConversationStorage
 	agentsConfigService    *services.AgentsConfigService
 
@@ -229,8 +231,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.initializeMCPManager()
 
-	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil)
-	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
+	c.ensureBackgroundTaskRegistry()
+	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
@@ -268,7 +270,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 		persistentRepo.SetTitleGenerator(c.titleGenerator)
-		persistentRepo.SetTaskTracker(c.taskTrackerService)
+		persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
 	}
 
 	if c.config.IsClaudeCodeMode() {
@@ -297,6 +299,15 @@ func (c *ServiceContainer) initializeDomainServices() {
 			Config:            c.config,
 			Tokenizer:         tokenizer,
 		})
+
+		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
+			c.sessionRolloverManager = services.NewSessionRolloverManager(
+				c.config,
+				c.conversationOptimizer,
+				persistentRepo,
+				tokenizer,
+			)
+		}
 	}
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
@@ -312,6 +323,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.stateManager,
 		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
+		c.backgroundTaskRegistry,
 	)
 
 	c.chatService = services.NewStreamingChatService(c.agent)
@@ -329,7 +341,7 @@ func (c *ServiceContainer) initializeServices() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
 		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
 
-		c.backgroundTaskService = services.NewBackgroundTaskService(c.taskTrackerService)
+		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry)
 	}
 }
 
@@ -354,7 +366,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.taskTrackerService))
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.backgroundTaskRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
@@ -367,7 +379,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, c.taskTrackerService))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, c.backgroundTaskRegistry))
 	}
 
 	c.shortcutRegistry.Register(shortcuts.NewInitGithubActionShortcut())
@@ -410,6 +422,10 @@ func (c *ServiceContainer) GetConversationRepository() domain.ConversationReposi
 
 func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizer {
 	return c.conversationOptimizer
+}
+
+func (c *ServiceContainer) GetSessionRolloverManager() *services.SessionRolloverManager {
+	return c.sessionRolloverManager
 }
 
 func (c *ServiceContainer) GetModelService() domain.ModelService {
@@ -481,9 +497,12 @@ func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
 	return c.messageQueue
 }
 
-// GetTaskTrackerService returns the task tracker service
-func (c *ServiceContainer) GetTaskTrackerService() domain.TaskTracker {
-	return c.taskTrackerService
+// GetBackgroundTaskRegistry returns the unified background task registry
+// (the single tracker that owns both A2A tasks and background bash shells).
+// Callers that need only the narrower A2A or shell view can use the
+// returned value as a domain.A2ATaskTracker or domain.ShellTracker.
+func (c *ServiceContainer) GetBackgroundTaskRegistry() domain.BackgroundTaskRegistry {
+	return c.backgroundTaskRegistry
 }
 
 // GetTaskRetentionService returns the task retention service (may be nil if A2A is not enabled)
@@ -635,25 +654,30 @@ func (c *ServiceContainer) GetGatewayManager() domain.GatewayManager {
 	return c.gatewayManager
 }
 
-// ShellTracker returns the shell tracker
-func (c *ServiceContainer) ShellTracker() domain.ShellTracker {
-	if c.shellTracker == nil {
-		maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
-		c.shellTracker = utils.NewShellTracker(maxConcurrent)
-	}
-	return c.shellTracker
-}
-
 // BackgroundShellService returns the background shell service
 func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellService {
 	if c.backgroundShellService == nil {
+		c.ensureBackgroundTaskRegistry()
 		c.backgroundShellService = services.NewBackgroundShellService(
-			c.ShellTracker(),
+			c.backgroundTaskRegistry,
 			c.config,
 			nil,
+			c.messageQueue,
 		)
 	}
 	return c.backgroundShellService
+}
+
+// ensureBackgroundTaskRegistry lazily constructs the unified registry. Called
+// from BackgroundShellService() and from initializeDomainServices() so the
+// shell view and the A2A view are guaranteed to be projections of the same
+// underlying instance regardless of construction order.
+func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
+	if c.backgroundTaskRegistry != nil {
+		return
+	}
+	maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
+	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent)
 }
 
 // Shutdown gracefully shuts down the service container and its resources
