@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.102.0](https://github.com/inference-gateway/cli/compare/v0.101.0...v0.102.0) (2026-04-16)
+
+### 🚀 Features
+
+* Add tool approval flow for Telegram channel ([#415](https://github.com/inference-gateway/cli/issues/415)) ([2199628](https://github.com/inference-gateway/cli/commit/21996284efb1608920eea7fde0ed48857b1be214)), closes [#414](https://github.com/inference-gateway/cli/issues/414)
+
 ## [0.101.0](https://github.com/inference-gateway/cli/compare/v0.100.5...v0.101.0) (2026-04-15)
 
 ### 🚀 Features
