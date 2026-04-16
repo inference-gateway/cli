@@ -424,6 +424,25 @@ Channels are configured in `.infer/config.yaml` under the `channels` key.
 Each channel has its own allowlist for security.
 See `docs/channels.md` for full documentation.
 
+### Tool Approval Flow
+
+When `channels.require_approval` is `true` (default), the channel manager
+enables interactive tool approval via stdin/stdout IPC with the agent subprocess:
+
+1. Channel manager passes `--require-approval` to `infer agent`
+2. Agent emits `ApprovalRequest` JSON on stdout, blocks reading stdin
+3. Channel manager detects request, sends approval prompt to user
+4. User replies "yes"/"no"; reply intercepted in `routeInbound()` before
+   `handleMessage()` to avoid sender mutex deadlock
+5. Channel manager writes `ApprovalResponse` JSON to agent stdin
+6. 5-minute timeout auto-rejects if no reply
+
+- IPC types: `internal/domain/ipc.go` (`ApprovalRequest`, `ApprovalResponse`)
+- Agent side: `cmd/agent.go` (`executeToolCallsWithApproval`, `readApprovalResponses`, `outputApprovalRequest`)
+- Channel manager side: `internal/services/channel_manager.go` (`handleApprovalRequest`, `parseApprovalRequest`, `isApprovalReply`)
+- Reuses existing `tools.*.require_approval` and `tools.safety.require_approval` config
+- Read-only tools (Tree, Read, Grep) default to `require_approval: false`
+
 ### Adding a New Channel
 
 1. Implement `domain.Channel` interface in `internal/services/channels/`

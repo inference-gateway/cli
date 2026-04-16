@@ -38,6 +38,10 @@ type ChannelManagerService struct {
 	// execCommandFunc allows overriding exec.CommandContext for testing
 	execCommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
 
+	// pendingApprovals tracks senders waiting for tool approval replies.
+	// Key: senderKey ("channel-senderID"), Value: chan domain.ApprovalResponse
+	pendingApprovals sync.Map
+
 	cancel context.CancelFunc
 }
 
@@ -125,6 +129,17 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 				continue
 			}
 
+			// Intercept approval replies before handleMessage to avoid sender mutex deadlock
+			senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
+			if respChan, ok := cm.pendingApprovals.Load(senderKey); ok {
+				approved := isApprovalReply(msg.Content)
+				respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
+					Type:     "approval_response",
+					Approved: approved,
+				}
+				continue
+			}
+
 			go cm.handleMessage(ctx, msg)
 		}
 	}
@@ -169,7 +184,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 		}
 	}
 
-	if err := cm.runAgent(ctx, sessionID, msg.Content, msg.Images, sendFn); err != nil {
+	if err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn); err != nil {
 		logger.Error("Agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
 	}
 }
@@ -177,8 +192,13 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 // runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess,
 // streaming each assistant message back through the sendFn callback in real-time.
 // If images are present, they are written to session-scoped files and passed via --files flags.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, message string, images []domain.ImageAttachment, sendFn func(string)) error {
+// When require_approval is enabled, it also creates a stdin pipe for approval IPC.
+func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string)) error {
 	args := []string{"agent", "--session-id", sessionID}
+
+	if cm.cfg.RequireApproval {
+		args = append(args, "--require-approval")
+	}
 
 	for _, img := range images {
 		imgPath, err := writeSessionImage(sessionID, img)
@@ -204,6 +224,20 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, messag
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	// Create stdin pipe for approval responses when require_approval is enabled
+	var stdinWriter io.WriteCloser
+	if cm.cfg.RequireApproval {
+		stdinWriter, err = cmd.StdinPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create stdin pipe: %w", err)
+		}
+		defer func() {
+			if err := stdinWriter.Close(); err != nil {
+				logger.Error("Failed to close stdin pipe", "error", err)
+			}
+		}()
+	}
+
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
@@ -217,6 +251,16 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, messag
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
+		}
+
+		// Check for approval requests when require_approval is enabled
+		if cm.cfg.RequireApproval && stdinWriter != nil {
+			if req, ok := parseApprovalRequest(line); ok {
+				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn); err != nil {
+					logger.Error("Approval handling failed", "error", err)
+				}
+				continue
+			}
 		}
 
 		content := formatAgentMessage(line)
@@ -233,6 +277,83 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, sessionID, messag
 	}
 
 	return nil
+}
+
+// handleApprovalRequest sends an approval prompt to the channel, waits for the user's reply,
+// and writes the approval response to the agent's stdin.
+func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, senderKey string, req *domain.ApprovalRequest, stdinWriter io.Writer, sendFn func(string)) error {
+	respChan := make(chan domain.ApprovalResponse, 1)
+	cm.pendingApprovals.Store(senderKey, respChan)
+	defer cm.pendingApprovals.Delete(senderKey)
+
+	sendFn(formatApprovalPrompt(req))
+
+	var resp domain.ApprovalResponse
+	resp.Type = "approval_response"
+	resp.ToolCallID = req.ToolCallID
+
+	select {
+	case reply := <-respChan:
+		resp.Approved = reply.Approved
+	case <-time.After(5 * time.Minute):
+		resp.Approved = false
+		sendFn("⏱ Approval timed out — tool execution was automatically rejected.")
+		logger.Warn("Approval timeout", "tool", req.ToolName, "sender", senderKey)
+	case <-ctx.Done():
+		resp.Approved = false
+	}
+
+	respJSON, err := json.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("failed to marshal approval response: %w", err)
+	}
+
+	if _, err := stdinWriter.Write(append(respJSON, '\n')); err != nil {
+		return fmt.Errorf("failed to write approval response to stdin: %w", err)
+	}
+
+	return nil
+}
+
+// parseApprovalRequest attempts to parse a JSON line as an ApprovalRequest.
+func parseApprovalRequest(line []byte) (*domain.ApprovalRequest, bool) {
+	var req domain.ApprovalRequest
+	if err := json.Unmarshal(line, &req); err != nil {
+		return nil, false
+	}
+	if req.Type != "approval_request" {
+		return nil, false
+	}
+	return &req, true
+}
+
+// formatApprovalPrompt creates a human-readable approval prompt for the channel user.
+func formatApprovalPrompt(req *domain.ApprovalRequest) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
+
+	// Show a summary of the arguments
+	var args map[string]any
+	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
+		if cmd, ok := args["command"].(string); ok {
+			fmt.Fprintf(&sb, "Command: %s\n", cmd)
+		} else if filePath, ok := args["file_path"].(string); ok {
+			fmt.Fprintf(&sb, "File: %s\n", filePath)
+		}
+	}
+
+	sb.WriteString("\nReply 'yes' to approve or 'no' to reject.")
+	return sb.String()
+}
+
+// isApprovalReply checks if a message is an approval or rejection reply.
+func isApprovalReply(content string) bool {
+	switch strings.ToLower(strings.TrimSpace(content)) {
+	case "yes", "y", "approve", "ok":
+		return true
+	default:
+		return false
+	}
 }
 
 // formatAgentMessage parses a JSON line from the agent's stdout and returns

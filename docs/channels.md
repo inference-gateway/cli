@@ -131,6 +131,12 @@ channels:
   # Master switch for all channels
   enabled: false
 
+  # Require user approval for sensitive tools (default: true)
+  # When true, tools like Write, Edit, Delete, and Bash will prompt the user
+  # for approval before executing. Read-only tools (Read, Grep, Tree) are
+  # not affected. Reuses existing tools.*.require_approval configuration.
+  require_approval: true
+
   # Telegram Bot API channel
   telegram:
     enabled: false
@@ -163,6 +169,7 @@ All channel settings can be configured via environment variables with the
 | Setting                           | Environment Variable                    |
 |-----------------------------------|-----------------------------------------|
 | `channels.enabled`                | `INFER_CHANNELS_ENABLED`                |
+| `channels.require_approval`       | `INFER_CHANNELS_REQUIRE_APPROVAL`       |
 | `channels.telegram.enabled`       | `INFER_CHANNELS_TELEGRAM_ENABLED`       |
 | `channels.telegram.bot_token`     | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`     |
 | `channels.telegram.allowed_users` | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS` |
@@ -186,6 +193,66 @@ Channels enforce a **secure-by-default** policy:
    config files
 3. **Use a dedicated bot** - don't reuse bots across projects
 4. **Monitor logs** - watch for unauthorized access attempts
+
+## Tool Approval
+
+By default (`channels.require_approval: true`), the channel manager enables
+interactive tool approval for sensitive operations. When the agent needs to
+execute a tool that requires approval (e.g., Write, Edit, Delete, Bash), it
+prompts the channel user and waits for confirmation.
+
+### How It Works
+
+1. The channel manager spawns `infer agent --require-approval`
+2. When the agent encounters a tool that requires approval, it outputs a JSON
+   approval request on stdout and blocks
+3. The channel manager detects the request and sends a human-readable prompt
+   to the user (e.g., "Tool approval required: Bash / Command: `rm -rf tmp/`")
+4. The user replies **yes** (or y, approve, ok) to approve, or **no** (or n,
+   reject) to reject
+5. The channel manager writes the approval response to the agent's stdin
+6. If no reply is received within **5 minutes**, the tool is automatically
+   rejected
+
+### Which Tools Require Approval
+
+This reuses the existing `tools.*.require_approval` configuration:
+
+| Tool      | Default                                           |
+|-----------|---------------------------------------------------|
+| Bash      | Requires approval (unless command is whitelisted) |
+| Write     | Requires approval                                 |
+| Edit      | Requires approval                                 |
+| Delete    | Requires approval                                 |
+| Read      | No approval needed                                |
+| Grep      | No approval needed                                |
+| Tree      | No approval needed                                |
+| TodoWrite | No approval needed                                |
+
+You can customize per-tool behavior in `.infer/config.yaml`:
+
+```yaml
+tools:
+  bash:
+    require_approval: true
+    whitelist:
+      commands: ["ls", "pwd", "git status"]
+  write:
+    require_approval: true
+  read:
+    require_approval: false
+```
+
+### Disabling Tool Approval
+
+To disable approval and auto-execute all tools (original behavior):
+
+```yaml
+channels:
+  require_approval: false
+```
+
+Or: `INFER_CHANNELS_REQUIRE_APPROVAL=false`
 
 ## Conversation Memory
 

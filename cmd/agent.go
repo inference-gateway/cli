@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -48,11 +50,12 @@ Examples:
 		files, _ := cmd.Flags().GetStringSlice("files")
 		noSave, _ := cmd.Flags().GetBool("no-save")
 		sessionID, _ := cmd.Flags().GetString("session-id")
+		requireApproval, _ := cmd.Flags().GetBool("require-approval")
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return RunAgentCommand(cfg, model, args[0], files, noSave, sessionID)
+		return RunAgentCommand(cfg, model, args[0], files, noSave, sessionID, requireApproval)
 	},
 }
 
@@ -86,9 +89,11 @@ type AgentSession struct {
 	conversationRepo domain.ConversationRepository
 	saveEnabled      bool
 	bgWaiter         *services.BackgroundTasksWaiter
+	requireApproval  bool
+	approvalCh       chan domain.ApprovalResponse
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval bool) error {
 	svc := container.NewServiceContainer(cfg, V)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -132,7 +137,11 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	conversationRepo := svc.GetConversationRepository()
 	stateManager := svc.GetStateManager()
 
-	stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+	if requireApproval {
+		stateManager.SetAgentMode(domain.AgentModeStandard)
+	} else {
+		stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+	}
 
 	saveEnabled := !noSave
 
@@ -156,6 +165,8 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 			svc.GetMessageQueue(),
 			conversationRepo,
 		),
+		requireApproval: requireApproval,
+		approvalCh:      make(chan domain.ApprovalResponse, 1),
 	}
 
 	rolloverMgr := svc.GetSessionRolloverManager()
@@ -330,6 +341,10 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	defer monitorCancel()
 	s.bgWaiter.Start(monitorCtx)
 	defer s.bgWaiter.Stop()
+
+	if s.requireApproval {
+		go s.readApprovalResponses()
+	}
 
 	consecutiveNoToolCalls := 0
 
@@ -540,7 +555,12 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		return nil
 	}
 
-	toolResults := s.executeToolCallsParallel(response.ToolCalls)
+	var toolResults []ConversationMessage
+	if s.requireApproval {
+		toolResults = s.executeToolCallsWithApproval(response.ToolCalls)
+	} else {
+		toolResults = s.executeToolCallsParallel(response.ToolCalls)
+	}
 
 	for _, result := range toolResults {
 		s.addMessage(result)
@@ -613,6 +633,180 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 
 	wg.Wait()
 	return results
+}
+
+// readApprovalResponses reads JSON approval responses from stdin and dispatches them to approvalCh.
+func (s *AgentSession) readApprovalResponses() {
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var resp domain.ApprovalResponse
+		if err := json.Unmarshal(line, &resp); err != nil {
+			logger.Warn("Failed to parse approval response from stdin", "error", err)
+			continue
+		}
+		if resp.Type != "approval_response" {
+			continue
+		}
+
+		s.approvalCh <- resp
+	}
+}
+
+// executeToolCallsWithApproval executes tool calls, requesting approval for sensitive tools via stdout/stdin IPC.
+// Non-approval tools run in parallel; approval-required tools run sequentially with user prompts.
+func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompletionMessageToolCall) []ConversationMessage {
+	if len(toolCalls) == 0 {
+		return []ConversationMessage{}
+	}
+
+	results := make([]ConversationMessage, len(toolCalls))
+
+	type indexedCall struct {
+		index int
+		call  sdk.ChatCompletionMessageToolCall
+	}
+	var approvalRequired []indexedCall
+	var autoApproved []indexedCall
+
+	for i, tc := range toolCalls {
+		if s.isToolApprovalRequired(tc) {
+			approvalRequired = append(approvalRequired, indexedCall{i, tc})
+		} else {
+			autoApproved = append(autoApproved, indexedCall{i, tc})
+		}
+	}
+
+	if len(autoApproved) > 0 {
+		semaphore := make(chan struct{}, s.config.Agent.MaxConcurrentTools)
+		var wg sync.WaitGroup
+		for _, ic := range autoApproved {
+			wg.Add(1)
+			go func(idx int, tc sdk.ChatCompletionMessageToolCall) {
+				defer wg.Done()
+				semaphore <- struct{}{}
+				defer func() { <-semaphore }()
+
+				result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+				if err != nil {
+					results[idx] = ConversationMessage{
+						Role:       "tool",
+						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+						ToolCallID: tc.Id,
+						ToolExecution: &domain.ToolExecutionResult{
+							ToolName: tc.Function.Name,
+							Success:  false,
+							Error:    err.Error(),
+						},
+						Timestamp: time.Now(),
+					}
+					return
+				}
+				results[idx] = ConversationMessage{
+					Role:          "tool",
+					Content:       s.formatToolResult(result),
+					ToolCallID:    tc.Id,
+					ToolExecution: result,
+					Timestamp:     time.Now(),
+				}
+			}(ic.index, ic.call)
+		}
+		wg.Wait()
+	}
+
+	for _, ic := range approvalRequired {
+		tc := ic.call
+
+		s.outputApprovalRequest(tc)
+
+		approved := false
+		select {
+		case resp := <-s.approvalCh:
+			approved = resp.Approved
+		case <-time.After(5 * time.Minute):
+			logger.Warn("Approval timeout for tool", "tool", tc.Function.Name)
+		}
+
+		if !approved {
+			results[ic.index] = ConversationMessage{
+				Role:       "tool",
+				Content:    fmt.Sprintf("Tool '%s' was rejected by the user.", tc.Function.Name),
+				ToolCallID: tc.Id,
+				ToolExecution: &domain.ToolExecutionResult{
+					ToolName: tc.Function.Name,
+					Success:  false,
+					Error:    "tool execution rejected by user",
+					Rejected: true,
+				},
+				Timestamp: time.Now(),
+			}
+			continue
+		}
+
+		result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+		if err != nil {
+			results[ic.index] = ConversationMessage{
+				Role:       "tool",
+				Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+				ToolCallID: tc.Id,
+				ToolExecution: &domain.ToolExecutionResult{
+					ToolName: tc.Function.Name,
+					Success:  false,
+					Error:    err.Error(),
+				},
+				Timestamp: time.Now(),
+			}
+			continue
+		}
+		results[ic.index] = ConversationMessage{
+			Role:          "tool",
+			Content:       s.formatToolResult(result),
+			ToolCallID:    tc.Id,
+			ToolExecution: result,
+			Timestamp:     time.Now(),
+		}
+	}
+
+	return results
+}
+
+// isToolApprovalRequired checks if a tool requires user approval based on config.
+func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCall) bool {
+	if tc.Function.Name == "Bash" {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			return true
+		}
+		command, ok := args["command"].(string)
+		if !ok {
+			return true
+		}
+		if s.config.IsBashCommandWhitelisted(command) {
+			return false
+		}
+	}
+	return s.config.IsApprovalRequired(tc.Function.Name)
+}
+
+// outputApprovalRequest writes an approval request JSON line to stdout for the channel manager.
+func (s *AgentSession) outputApprovalRequest(tc sdk.ChatCompletionMessageToolCall) {
+	req := domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   tc.Function.Name,
+		ToolArgs:   tc.Function.Arguments,
+		ToolCallID: tc.Id,
+	}
+	output, err := json.Marshal(req)
+	if err != nil {
+		logger.Error("Failed to marshal approval request", "error", err)
+		return
+	}
+	fmt.Println(string(output))
 }
 
 func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) string {
@@ -830,5 +1024,6 @@ func init() {
 	agentCmd.Flags().StringSliceP("files", "f", []string{}, "Files or images to include (e.g., -f image.png -f code.go)")
 	agentCmd.Flags().Bool("no-save", false, "Disable saving conversation to database")
 	agentCmd.Flags().String("session-id", "", "Resume an existing agent session by conversation ID")
+	agentCmd.Flags().Bool("require-approval", false, "Enable IPC-based tool approval via stdin/stdout (used by channel manager)")
 	rootCmd.AddCommand(agentCmd)
 }
