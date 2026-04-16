@@ -667,7 +667,6 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 
 	results := make([]ConversationMessage, len(toolCalls))
 
-	// Partition into approval-required and auto-approved
 	type indexedCall struct {
 		index int
 		call  sdk.ChatCompletionMessageToolCall
@@ -683,7 +682,6 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 		}
 	}
 
-	// Execute auto-approved tools in parallel
 	if len(autoApproved) > 0 {
 		semaphore := make(chan struct{}, s.config.Agent.MaxConcurrentTools)
 		var wg sync.WaitGroup
