@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
@@ -597,5 +598,310 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 	}
 	if !foundFiles {
 		t.Errorf("expected --files flag in args, got %v", capturedArgs)
+	}
+}
+
+func TestParseApprovalRequest(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		ok    bool
+	}{
+		{
+			name:  "valid approval request",
+			input: `{"type":"approval_request","tool_name":"Bash","tool_args":"{\"command\":\"rm -rf /\"}","tool_call_id":"call_123"}`,
+			ok:    true,
+		},
+		{
+			name:  "different type is not approval",
+			input: `{"type":"info","message":"starting"}`,
+			ok:    false,
+		},
+		{
+			name:  "assistant message is not approval",
+			input: `{"role":"assistant","content":"hello"}`,
+			ok:    false,
+		},
+		{
+			name:  "invalid JSON",
+			input: `not json`,
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, ok := parseApprovalRequest([]byte(tt.input))
+			if ok != tt.ok {
+				t.Errorf("parseApprovalRequest() ok = %v, want %v", ok, tt.ok)
+			}
+			if ok && req.ToolName != "Bash" {
+				t.Errorf("expected tool_name 'Bash', got %q", req.ToolName)
+			}
+		})
+	}
+}
+
+func TestIsApprovalReply(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"yes", true},
+		{"Yes", true},
+		{"YES", true},
+		{"y", true},
+		{"Y", true},
+		{"approve", true},
+		{"ok", true},
+		{"no", false},
+		{"No", false},
+		{"n", false},
+		{"reject", false},
+		{"something else", false},
+		{"  yes  ", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := isApprovalReply(tt.input)
+			if got != tt.want {
+				t.Errorf("isApprovalReply(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatApprovalPrompt(t *testing.T) {
+	req := &domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   "Bash",
+		ToolArgs:   `{"command":"ls -la"}`,
+		ToolCallID: "call_1",
+	}
+
+	prompt := formatApprovalPrompt(req)
+
+	if !strings.Contains(prompt, "Bash") {
+		t.Error("expected prompt to contain tool name")
+	}
+	if !strings.Contains(prompt, "ls -la") {
+		t.Error("expected prompt to contain command")
+	}
+	if !strings.Contains(prompt, "yes") {
+		t.Error("expected prompt to contain approval instruction")
+	}
+}
+
+func TestFormatApprovalPrompt_FilePath(t *testing.T) {
+	req := &domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   "Write",
+		ToolArgs:   `{"file_path":"/tmp/test.txt","content":"hello"}`,
+		ToolCallID: "call_2",
+	}
+
+	prompt := formatApprovalPrompt(req)
+
+	if !strings.Contains(prompt, "Write") {
+		t.Error("expected prompt to contain tool name")
+	}
+	if !strings.Contains(prompt, "/tmp/test.txt") {
+		t.Error("expected prompt to contain file path")
+	}
+}
+
+func TestChannelManagerService_ApprovalInterception(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled:         true,
+		RequireApproval: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	// Simulate: the agent outputs an approval request, then an assistant message after approval
+	approvalReq := domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   "Bash",
+		ToolArgs:   `{"command":"echo hello"}`,
+		ToolCallID: "call_1",
+	}
+	approvalJSON, _ := json.Marshal(approvalReq)
+	agentOutput := string(approvalJSON) + "\n" + `{"role":"assistant","content":"Done!"}`
+
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "echo", agentOutput)
+	}
+
+	var messages []domain.OutboundMessage
+	allSent := make(chan struct{}, 1)
+	ch := &fakesdomain.FakeChannel{}
+	ch.NameReturns("telegram")
+	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		// First message triggers the agent
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "do something",
+			Timestamp:   time.Now(),
+		}
+
+		// Wait a bit for approval prompt to be sent, then send approval reply
+		time.Sleep(200 * time.Millisecond)
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "yes",
+			Timestamp:   time.Now(),
+		}
+
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		messages = append(messages, msg)
+		// Expect: approval prompt + "Done!" = 2 messages
+		if len(messages) >= 2 {
+			allSent <- struct{}{}
+		}
+		return nil
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-allSent:
+		// First message should be the approval prompt
+		if !strings.Contains(messages[0].Content, "Bash") {
+			t.Errorf("expected approval prompt, got %q", messages[0].Content)
+		}
+		// Second message should be the agent's response
+		if messages[1].Content != "Done!" {
+			t.Errorf("expected 'Done!', got %q", messages[1].Content)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timeout waiting for messages, got %d messages", len(messages))
+	}
+}
+
+func TestChannelManagerService_RequireApprovalFlag(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled:         true,
+		RequireApproval: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	var capturedArgs []string
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		capturedArgs = args
+		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"ok"}`)
+	}
+
+	responseSent := make(chan struct{}, 1)
+	ch := &fakesdomain.FakeChannel{}
+	ch.NameReturns("telegram")
+	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "test",
+			Timestamp:   time.Now(),
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		responseSent <- struct{}{}
+		return nil
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-responseSent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout")
+	}
+
+	found := false
+	for _, arg := range capturedArgs {
+		if arg == "--require-approval" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --require-approval in args, got %v", capturedArgs)
+	}
+}
+
+func TestChannelManagerService_NoApprovalFlagByDefault(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	var capturedArgs []string
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		capturedArgs = args
+		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"ok"}`)
+	}
+
+	responseSent := make(chan struct{}, 1)
+	ch := &fakesdomain.FakeChannel{}
+	ch.NameReturns("telegram")
+	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "test",
+			Timestamp:   time.Now(),
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		responseSent <- struct{}{}
+		return nil
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-responseSent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout")
+	}
+
+	for _, arg := range capturedArgs {
+		if arg == "--require-approval" {
+			t.Error("--require-approval should not be present when RequireApproval is false")
+		}
 	}
 }
