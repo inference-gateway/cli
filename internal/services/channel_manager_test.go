@@ -905,3 +905,179 @@ func TestChannelManagerService_NoApprovalFlagByDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled:         true,
+		RequireApproval: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	approvalReq := domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   "Bash",
+		ToolArgs:   `{"command":"echo hello"}`,
+		ToolCallID: "call_1",
+	}
+	approvalJSON, _ := json.Marshal(approvalReq)
+	agentOutput := string(approvalJSON) + "\n" + `{"role":"assistant","content":"Done!"}`
+
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "echo", agentOutput)
+	}
+
+	var messages []domain.OutboundMessage
+	allSent := make(chan struct{}, 1)
+	ch := &fakesdomain.FakeChannel{}
+	ch.NameReturns("telegram")
+	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "do something",
+			Timestamp:   time.Now(),
+		}
+
+		time.Sleep(200 * time.Millisecond)
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "approve",
+			Timestamp:   time.Now(),
+			Metadata: map[string]string{
+				"approval_response": "true",
+				"approved":          "true",
+				"tool_call_id":      "call_1",
+			},
+		}
+
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		messages = append(messages, msg)
+		if len(messages) >= 2 {
+			allSent <- struct{}{}
+		}
+		return nil
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-allSent:
+		if !strings.Contains(messages[0].Content, "Bash") {
+			t.Errorf("expected approval prompt, got %q", messages[0].Content)
+		}
+		if messages[1].Content != "Done!" {
+			t.Errorf("expected 'Done!', got %q", messages[1].Content)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timeout waiting for messages, got %d messages", len(messages))
+	}
+}
+
+// fakeApprovalChannel implements both Channel and ApprovalChannel for testing.
+type fakeApprovalChannel struct {
+	*fakesdomain.FakeChannel
+	sendApprovalCalled bool
+	sendApprovalReq    *domain.ApprovalRequest
+}
+
+func (f *fakeApprovalChannel) SendApproval(_ context.Context, _ string, req *domain.ApprovalRequest) error {
+	f.sendApprovalCalled = true
+	f.sendApprovalReq = req
+	return nil
+}
+
+func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
+	cfg := config.ChannelsConfig{
+		Enabled:         true,
+		RequireApproval: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+
+	approvalReq := domain.ApprovalRequest{
+		Type:       "approval_request",
+		ToolName:   "Bash",
+		ToolArgs:   `{"command":"echo test"}`,
+		ToolCallID: "call_2",
+	}
+	approvalJSON, _ := json.Marshal(approvalReq)
+	agentOutput := string(approvalJSON) + "\n" + `{"role":"assistant","content":"All done!"}`
+
+	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "echo", agentOutput)
+	}
+
+	var messages []domain.OutboundMessage
+	allSent := make(chan struct{}, 1)
+
+	fakeCh := &fakesdomain.FakeChannel{}
+	fakeCh.NameReturns("telegram")
+	fakeCh.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "run a command",
+			Timestamp:   time.Now(),
+		}
+
+		time.Sleep(200 * time.Millisecond)
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "approve",
+			Timestamp:   time.Now(),
+			Metadata: map[string]string{
+				"approval_response": "true",
+				"approved":          "true",
+				"tool_call_id":      "call_2",
+			},
+		}
+
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	fakeCh.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		messages = append(messages, msg)
+		if len(messages) >= 1 {
+			allSent <- struct{}{}
+		}
+		return nil
+	}
+
+	approvalCh := &fakeApprovalChannel{FakeChannel: fakeCh}
+	cm.Register(approvalCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := cm.Start(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-allSent:
+		if !approvalCh.sendApprovalCalled {
+			t.Error("expected SendApproval to be called on ApprovalChannel")
+		}
+		if approvalCh.sendApprovalReq == nil || approvalCh.sendApprovalReq.ToolName != "Bash" {
+			t.Error("expected SendApproval to receive the correct ApprovalRequest")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timeout waiting for messages, got %d messages", len(messages))
+	}
+}

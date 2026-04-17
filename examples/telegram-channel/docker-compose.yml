@@ -82,16 +82,9 @@ services:
       INFER_A2A_AGENTS: |
         http://browser-agent:8080
       INFER_AGENT_MODEL: deepseek/deepseek-chat
-      INFER_AGENT_SYSTEM_PROMPT: |
-        You are a helpful assistant with access to a remote browser agent via A2A.
-        When the user asks you to look something up, browse a website, or fetch
-        information from the web, delegate the task to the browser agent using
-        the A2A_SubmitTask tool. Summarize the results back to the user
-        concisely - remember the response will be sent over Telegram.
       INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
     volumes:
       - ./tmp:/home/infer
-      - ../../dist/infer-linux-arm64:/usr/local/bin/infer
     command:
       - channels-manager
     restart: unless-stopped

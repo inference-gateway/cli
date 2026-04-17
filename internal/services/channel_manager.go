@@ -129,9 +129,15 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 				continue
 			}
 
-			// Intercept approval replies before handleMessage to avoid sender mutex deadlock
 			senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
 			if respChan, ok := cm.pendingApprovals.Load(senderKey); ok {
+				if msg.Metadata["approval_response"] == "true" {
+					respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
+						Type:     "approval_response",
+						Approved: msg.Metadata["approved"] == "true",
+					}
+					continue
+				}
 				approved := isApprovalReply(msg.Content)
 				respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
 					Type:     "approval_response",
@@ -184,7 +190,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 		}
 	}
 
-	if err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn); err != nil {
+	if err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn, ch); err != nil {
 		logger.Error("Agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
 	}
 }
@@ -193,7 +199,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 // streaming each assistant message back through the sendFn callback in real-time.
 // If images are present, they are written to session-scoped files and passed via --files flags.
 // When require_approval is enabled, it also creates a stdin pipe for approval IPC.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string)) error {
+func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
 	args := []string{"agent", "--session-id", sessionID}
 
 	if cm.cfg.RequireApproval {
@@ -256,7 +262,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 		// Check for approval requests when require_approval is enabled
 		if cm.cfg.RequireApproval && stdinWriter != nil {
 			if req, ok := parseApprovalRequest(line); ok {
-				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn); err != nil {
+				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn, ch); err != nil {
 					logger.Error("Approval handling failed", "error", err)
 				}
 				continue
@@ -281,12 +287,20 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 
 // handleApprovalRequest sends an approval prompt to the channel, waits for the user's reply,
 // and writes the approval response to the agent's stdin.
-func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, senderKey string, req *domain.ApprovalRequest, stdinWriter io.Writer, sendFn func(string)) error {
+func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, senderKey string, req *domain.ApprovalRequest, stdinWriter io.Writer, sendFn func(string), ch domain.Channel) error {
 	respChan := make(chan domain.ApprovalResponse, 1)
 	cm.pendingApprovals.Store(senderKey, respChan)
 	defer cm.pendingApprovals.Delete(senderKey)
 
-	sendFn(formatApprovalPrompt(req))
+	if ac, ok := ch.(domain.ApprovalChannel); ok {
+		recipientID := strings.TrimPrefix(senderKey, ch.Name()+"-")
+		if err := ac.SendApproval(ctx, recipientID, req); err != nil {
+			logger.Error("Rich approval failed, falling back to text", "error", err)
+			sendFn(formatApprovalPrompt(req))
+		}
+	} else {
+		sendFn(formatApprovalPrompt(req))
+	}
 
 	var resp domain.ApprovalResponse
 	resp.Type = "approval_response"
@@ -332,7 +346,6 @@ func formatApprovalPrompt(req *domain.ApprovalRequest) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
 
-	// Show a summary of the arguments
 	var args map[string]any
 	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
 		if cmd, ok := args["command"].(string); ok {

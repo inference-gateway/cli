@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,6 +50,25 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 			msg := processUpdate(update)
 			if msg == nil {
 				return
+			}
+
+			if update.CallbackQuery != nil {
+				_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: update.CallbackQuery.ID,
+				})
+				if update.CallbackQuery.Message.Message != nil {
+					action := strings.SplitN(update.CallbackQuery.Data, ":", 2)[0]
+					statusText := "❌ Rejected"
+					if action == "approve" {
+						statusText = "✅ Approved"
+					}
+					origMsg := update.CallbackQuery.Message.Message
+					_, _ = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+						ChatID:    origMsg.Chat.ID,
+						MessageID: origMsg.ID,
+						Text:      origMsg.Text + "\n\n" + statusText,
+					})
+				}
 			}
 
 			if fileID, ok := msg.Metadata["photo_file_id"]; ok && fileID != "" {
@@ -101,6 +121,37 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 	return nil
 }
 
+// SendApproval sends a tool approval prompt with inline keyboard buttons.
+// Implements domain.ApprovalChannel.
+func (t *TelegramChannel) SendApproval(ctx context.Context, recipientID string, req *domain.ApprovalRequest) error {
+	if t.bot == nil {
+		return fmt.Errorf("telegram bot not started")
+	}
+
+	chatID, err := strconv.ParseInt(recipientID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid chat ID %q: %w", recipientID, err)
+	}
+
+	text := formatApprovalText(req)
+
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "✅ Approve", CallbackData: "approve:" + req.ToolCallID},
+				{Text: "❌ Reject", CallbackData: "reject:" + req.ToolCallID},
+			},
+		},
+	}
+
+	_, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        text,
+		ReplyMarkup: kb,
+	})
+	return err
+}
+
 // Stop gracefully shuts down the Telegram channel
 func (t *TelegramChannel) Stop() error {
 	return nil
@@ -108,6 +159,10 @@ func (t *TelegramChannel) Stop() error {
 
 // processUpdate converts a Telegram update into an InboundMessage (or nil if skipped)
 func processUpdate(update *models.Update) *domain.InboundMessage {
+	if update.CallbackQuery != nil {
+		return processCallbackQuery(update.CallbackQuery)
+	}
+
 	if update.Message == nil {
 		return nil
 	}
@@ -219,6 +274,68 @@ func mimeFromPath(path string) string {
 	default:
 		return "image/jpeg"
 	}
+}
+
+// processCallbackQuery converts a Telegram callback query (e.g., inline button click)
+// into an InboundMessage with approval metadata. Returns nil for unrecognized data.
+func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
+	parts := strings.SplitN(cq.Data, ":", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+
+	action := parts[0]
+	toolCallID := parts[1]
+
+	var approved string
+	switch action {
+	case "approve":
+		approved = "true"
+	case "reject":
+		approved = "false"
+	default:
+		return nil
+	}
+
+	var chatID int64
+	if cq.Message.Message != nil {
+		chatID = cq.Message.Message.Chat.ID
+	} else if cq.Message.InaccessibleMessage != nil {
+		chatID = cq.Message.InaccessibleMessage.Chat.ID
+	} else {
+		return nil
+	}
+
+	return &domain.InboundMessage{
+		ChannelName: "telegram",
+		SenderID:    strconv.FormatInt(chatID, 10),
+		Content:     action,
+		Timestamp:   time.Now(),
+		Metadata: map[string]string{
+			"approval_response": "true",
+			"approved":          approved,
+			"tool_call_id":      toolCallID,
+			"callback_query_id": cq.ID,
+			"user_id":           strconv.FormatInt(cq.From.ID, 10),
+		},
+	}
+}
+
+// formatApprovalText creates a prompt for inline keyboard approval (no "Reply yes/no" text).
+func formatApprovalText(req *domain.ApprovalRequest) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
+		if cmd, ok := args["command"].(string); ok {
+			fmt.Fprintf(&sb, "Command: %s\n", cmd)
+		} else if filePath, ok := args["file_path"].(string); ok {
+			fmt.Fprintf(&sb, "File: %s\n", filePath)
+		}
+	}
+
+	return sb.String()
 }
 
 // splitMessage splits a long message into chunks that fit Telegram's message limit
