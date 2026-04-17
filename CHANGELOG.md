@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.103.0](https://github.com/inference-gateway/cli/compare/v0.102.0...v0.103.0) (2026-04-17)
+
+### 🚀 Features
+
+* Add rich approval UI with inline keyboard buttons for Telegram ([#417](https://github.com/inference-gateway/cli/issues/417)) ([265ff0b](https://github.com/inference-gateway/cli/commit/265ff0b8cb69400bc7e00370c151773cfcc799d4))
+
 ## [0.102.0](https://github.com/inference-gateway/cli/compare/v0.101.0...v0.102.0) (2026-04-16)
 
 ### 🚀 Features
