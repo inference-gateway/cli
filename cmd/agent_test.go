@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,72 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
+
+func TestFormatToolCallSummary(t *testing.T) {
+	cases := []struct {
+		name     string
+		tool     string
+		args     string
+		want     string
+		contains []string // alternative: substring assertions for long/truncated cases
+	}{
+		{
+			name: "empty args returns bare name",
+			tool: "Schedule",
+			args: "",
+			want: "Schedule",
+		},
+		{
+			name: "empty json object returns bare name",
+			tool: "Schedule",
+			args: "{}",
+			want: "Schedule",
+		},
+		{
+			name: "invalid json returns bare name",
+			tool: "Schedule",
+			args: "not json",
+			want: "Schedule",
+		},
+		{
+			name: "single arg",
+			tool: "Bash",
+			args: `{"command":"echo hello"}`,
+			want: "Bash(command=echo hello)",
+		},
+		{
+			name: "multiple args sorted alphabetically",
+			tool: "Schedule",
+			args: `{"operation":"delete","job_id":"abc"}`,
+			want: "Schedule(job_id=abc, operation=delete)",
+		},
+		{
+			name:     "long values are truncated",
+			tool:     "Write",
+			args:     `{"content":"` + strings.Repeat("x", 200) + `"}`,
+			contains: []string{"Write(content=", "…)"},
+		},
+		{
+			name: "newlines in values are stripped",
+			tool: "Write",
+			args: `{"content":"line1\nline2"}`,
+			want: "Write(content=line1 line2)",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatToolCallSummary(tc.tool, tc.args)
+			if tc.want != "" && got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+			for _, sub := range tc.contains {
+				if !strings.Contains(got, sub) {
+					t.Fatalf("got %q does not contain %q", got, sub)
+				}
+			}
+		})
+	}
+}
 
 func TestIsModelAvailable(t *testing.T) {
 	models := []string{"openai/gpt-4", "anthropic/claude-4", "openai/gpt-4.5-turbo"}

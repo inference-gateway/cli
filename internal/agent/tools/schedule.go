@@ -53,24 +53,29 @@ func NewScheduleTool(cfg *config.Config) *ScheduleTool {
 
 // Definition returns the tool definition for the LLM
 func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
-	description := `Schedule a recurring task that fires on a cron schedule and delivers its output through a configured messaging channel (e.g. Telegram).
+	description := `Schedule a task that fires on a cron schedule and delivers its output through the same messaging channel that triggered the current session (e.g. Telegram).
+
+IMPORTANT — clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. "remind me at 6pm today to call mum") or **recurring** (e.g. "send me a quote every morning"). If their request is ambiguous, ASK them — do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.
 
 Each fire creates a brand-new agent session — no context is carried between runs. Choose narrow, specific prompts to avoid wasted compute.
 
 Operations:
-- create: Add a new scheduled job. Required: cron_expression, prompt, channel, recipient_id.
+- create: Add a new scheduled job. Required: cron_expression, prompt. Optional: run_once, name, description, model.
 - list: List all scheduled jobs.
 - get: Fetch one job. Required: job_id.
-- update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, channel, recipient_id, name, description, model can be updated.
+- update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, run_once, name, description, model can be updated.
 - delete: Remove a job. Required: job_id.
 
-Cron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The "@every <duration>" descriptor is also supported. Examples:
-- "0 8 * * *"       — every day at 08:00
-- "*/15 * * * *"    — every 15 minutes
-- "0 9 * * 1-5"     — weekdays at 09:00
-- "@every 1h"       — every hour
+Routing (channel + recipient) is derived automatically from the current session — you never pass it. The tool can therefore only be used from a channel-driven session (e.g. when responding to a Telegram message); it will fail with a clear error if invoked from any other context.
 
-The channel and recipient_id are required for create because they tell the scheduler where to deliver the response. When invoked from a channel-driven session, the calling agent should derive the recipient from the original sender.
+Cron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The "@every <duration>" descriptor is also supported. Examples:
+- "0 8 * * *"       — every day at 08:00 (recurring)
+- "*/15 * * * *"    — every 15 minutes (recurring)
+- "0 9 * * 1-5"     — weekdays at 09:00 (recurring)
+- "@every 1h"       — every hour (recurring)
+- "0 18 26 4 *"     — April 26 at 18:00 (use with run_once=true for "today at 6pm")
+
+For one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.
 
 The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.`
 
@@ -100,13 +105,9 @@ The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire wh
 						"type":        "string",
 						"description": "The task to give the agent on each fire. Should be specific and self-contained — no prior context is available.",
 					},
-					"channel": map[string]any{
-						"type":        "string",
-						"description": "Name of the channel to deliver the response through (e.g. 'telegram'). Must be configured + enabled in channels config.",
-					},
-					"recipient_id": map[string]any{
-						"type":        "string",
-						"description": "Recipient ID within the channel (e.g. Telegram chat ID).",
+					"run_once": map[string]any{
+						"type":        "boolean",
+						"description": "When true, the job is deleted automatically after its first fire (one-off reminder). Default false (recurring). ALWAYS confirm with the user whether they want one-off or recurring before creating the job.",
 					},
 					"name": map[string]any{
 						"type":        "string",
@@ -144,7 +145,7 @@ func (t *ScheduleTool) Execute(ctx context.Context, args map[string]any) (*domai
 
 	switch op {
 	case scheduleOpCreate:
-		return t.execCreate(args, store, start)
+		return t.execCreate(ctx, args, store, start)
 	case scheduleOpList:
 		return t.execList(args, store, start)
 	case scheduleOpGet:
@@ -212,12 +213,6 @@ func validateCreateArgs(args map[string]any) error {
 	if _, err := requireString(args, "prompt"); err != nil {
 		return err
 	}
-	if _, err := requireString(args, "channel"); err != nil {
-		return err
-	}
-	if _, err := requireString(args, "recipient_id"); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -231,6 +226,11 @@ func requireString(args map[string]any, key string) (string, error) {
 
 func optionalString(args map[string]any, key string) string {
 	v, _ := args[key].(string)
+	return v
+}
+
+func optionalBool(args map[string]any, key string) bool {
+	v, _ := args[key].(bool)
 	return v
 }
 
@@ -261,13 +261,13 @@ func (t *ScheduleTool) channelConfigured(name string) bool {
 	}
 }
 
-func (t *ScheduleTool) execCreate(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
 	if err := validateCreateArgs(args); err != nil {
 		return t.fail(args, start, err)
 	}
-	channel := optionalString(args, "channel")
-	if !t.channelConfigured(channel) {
-		return t.fail(args, start, fmt.Errorf("channel %q is not enabled in config (enable it under channels.<name>.enabled)", channel))
+	channel, recipient, err := t.resolveRouting(ctx)
+	if err != nil {
+		return t.fail(args, start, err)
 	}
 	max := t.config.Tools.Schedule.MaxJobs
 	if max > 0 {
@@ -284,19 +284,44 @@ func (t *ScheduleTool) execCreate(args map[string]any, store *scheduler.Store, s
 		CronExpression: optionalString(args, "cron_expression"),
 		Prompt:         optionalString(args, "prompt"),
 		Channel:        channel,
-		RecipientID:    optionalString(args, "recipient_id"),
+		RecipientID:    recipient,
 		Model:          optionalString(args, "model"),
+		RunOnce:        optionalBool(args, "run_once"),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
 	if err := store.Save(job); err != nil {
 		return t.fail(args, start, err)
 	}
+	mode := "recurring"
+	if job.RunOnce {
+		mode = "one-off"
+	}
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpCreate,
 		Job:       job,
-		Message:   fmt.Sprintf("Scheduled job %s created. Will fire while 'infer channels-manager' is running.", job.ID),
+		Message:   fmt.Sprintf("Scheduled %s job %s created. Will fire via %s while 'infer channels-manager' is running.", mode, job.ID, channel),
 	})
+}
+
+// resolveRouting derives channel + recipient_id from the current session ID
+// (set by cmd/agent.go via domain.WithSessionID). Channel-driven sessions are
+// formatted "channel-<name>-<sender_id>" by the channels-manager. Returns an
+// error when the tool is invoked outside a channel-driven session, or when
+// the channel is not enabled in config.
+func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient string, err error) {
+	sessionID := domain.GetSessionID(ctx)
+	if sessionID == "" {
+		return "", "", errors.New("schedule can only be used from a channel-driven session (no session id in context)")
+	}
+	channel, recipient, ok := domain.ParseChannelSessionID(sessionID)
+	if !ok {
+		return "", "", fmt.Errorf("schedule can only be used from a channel-driven session; current session %q is not channel-formatted", sessionID)
+	}
+	if !t.channelConfigured(channel) {
+		return "", "", fmt.Errorf("channel %q is not enabled in config (enable it under channels.<name>.enabled)", channel)
+	}
+	return channel, recipient, nil
 }
 
 func (t *ScheduleTool) execList(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
@@ -356,17 +381,6 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store *scheduler.Store, s
 		job.Prompt = v
 		changed = true
 	}
-	if v, ok := args["channel"].(string); ok && v != "" {
-		if !t.channelConfigured(v) {
-			return t.fail(args, start, fmt.Errorf("channel %q is not enabled", v))
-		}
-		job.Channel = v
-		changed = true
-	}
-	if v, ok := args["recipient_id"].(string); ok && v != "" {
-		job.RecipientID = v
-		changed = true
-	}
 	if v, ok := args["name"].(string); ok {
 		job.Name = v
 		changed = true
@@ -377,6 +391,10 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store *scheduler.Store, s
 	}
 	if v, ok := args["model"].(string); ok {
 		job.Model = v
+		changed = true
+	}
+	if v, ok := args["run_once"].(bool); ok {
+		job.RunOnce = v
 		changed = true
 	}
 	if !changed {

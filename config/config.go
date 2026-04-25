@@ -761,7 +761,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Timeout: 120,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
-						"ls", "pwd", "tree",
+						"echo", "ls", "pwd", "tree",
 						"wc", "sort", "uniq", "head", "tail",
 						"task", "make", "find",
 					},

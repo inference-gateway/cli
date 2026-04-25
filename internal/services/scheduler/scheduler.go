@@ -258,6 +258,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 		return
 	}
 
+	var firstSendErr error
 	sendFn := func(content string) {
 		if content == "" {
 			return
@@ -270,15 +271,30 @@ func (s *Service) fire(job domain.ScheduledJob) {
 		}
 		if err := ch.Send(ctx, out); err != nil {
 			logger.Error("Failed to send scheduled-job output", "id", job.ID, "channel", job.Channel, "error", err)
+			if firstSendErr == nil {
+				firstSendErr = err
+			}
 		}
 	}
 
-	if err := s.runAgent(ctx, job, sendFn); err != nil {
+	switch err := s.runAgent(ctx, job, sendFn); {
+	case err != nil:
 		job.LastError = err.Error()
 		logger.Error("Scheduled job execution failed", "id", job.ID, "error", err)
 		sendFn(fmt.Sprintf("⚠️ Scheduled task %q failed: %v", displayName(&job), err))
-	} else {
+	case firstSendErr != nil:
+		job.LastError = fmt.Sprintf("delivery to %s/%s failed: %v", job.Channel, job.RecipientID, firstSendErr)
+	default:
 		job.LastError = ""
+	}
+
+	if job.RunOnce {
+		if err := s.store.Delete(job.ID); err != nil {
+			logger.Warn("Failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
+		} else {
+			logger.Info("One-off scheduled job consumed and deleted", "id", job.ID)
+		}
+		return
 	}
 	s.persistRun(&job)
 }

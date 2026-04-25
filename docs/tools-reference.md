@@ -525,9 +525,10 @@ tools:
 
 ### Schedule Tool
 
-Create recurring tasks that the agent runs on a cron schedule and delivers back
-through a configured messaging channel (e.g. Telegram). Useful for "send me X
-every morning" workflows initiated from a chat.
+Create recurring or one-off tasks that the agent runs on a cron schedule and
+delivers back through the messaging channel that triggered the current session
+(e.g. Telegram). Useful for "send me X every morning" or "remind me at 6pm
+today to call mum" — initiated from a chat with the bot.
 
 > **📖 For an end-to-end walkthrough, see [Scheduling Guide](scheduling.md).**
 
@@ -536,7 +537,10 @@ every morning" workflows initiated from a chat.
 - Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
 - The `infer channels-manager` daemon hosts the scheduler and watches that directory via fsnotify, so newly created jobs fire without a restart.
 - Each fire spawns a brand-new `infer agent` session — no context carries between runs. Make prompts specific and self-contained.
-- Output is delivered to the configured channel + recipient.
+- Channel + recipient are derived automatically from the current session ID -
+  the LLM never passes them. The tool can therefore only be used from a
+  channel-driven session.
+- One-off jobs (`run_once: true`) are deleted automatically after their first fire.
 
 **Disabled by default.** Enable in config under `tools.schedule.enabled: true`.
 
@@ -546,20 +550,33 @@ every morning" workflows initiated from a chat.
 - `job_id`: Required for `get`, `update`, `delete`.
 - `cron_expression`: Required for `create`. Standard 5-field crontab or `@every <duration>`.
 - `prompt`: Required for `create`. The task to give the agent on each fire.
-- `channel`: Required for `create`. Channel name (e.g. `telegram`).
-- `recipient_id`: Required for `create`. Recipient within the channel.
+- `run_once` (optional, default `false`): When true, the job is deleted after its first fire.
 - `name`, `description`, `model`: Optional metadata; `model` overrides `agent.model` for that job.
 
-**Example — create:**
+The LLM is instructed to **always confirm with the user whether they want a
+one-off or recurring job** before creating one - there is no safe default
+for that decision.
+
+**Example — recurring:**
 
 ```json
 {
   "operation": "create",
   "cron_expression": "0 8 * * *",
   "prompt": "Find an inspiring quote for today and respond with the quote and its author. Keep it under 3 sentences.",
-  "channel": "telegram",
-  "recipient_id": "12345",
   "name": "Daily morning quote"
+}
+```
+
+**Example — one-off reminder:**
+
+```json
+{
+  "operation": "create",
+  "cron_expression": "0 18 26 4 *",
+  "prompt": "Remind me to call mum.",
+  "run_once": true,
+  "name": "Call mum reminder"
 }
 ```
 
@@ -588,9 +605,10 @@ tools:
 
 **Security:**
 
-- **Approval required by default** — the LLM cannot create/modify schedules without user confirmation.
-- **Channel must be configured** — the tool refuses to schedule for channels that aren't enabled in `channels.<name>.enabled`.
-- **Daemon-bound execution** — jobs only fire while `infer channels-manager` is running.
+- **Approval required by default** - the LLM cannot create/modify schedules without user confirmation.
+- **Channel must be configured** - the tool refuses to schedule for channels that aren't enabled in `channels.<name>.enabled`.
+- **Channel-session only** - the tool errors out if invoked from chat mode or any non-channel session, since it has no recipient to route to.
+- **Daemon-bound execution** - jobs only fire while `infer channels-manager` is running.
 
 ---
 

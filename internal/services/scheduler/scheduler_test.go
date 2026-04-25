@@ -2,7 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -234,6 +236,123 @@ func TestService_FsNotifyReload_RemovesJob(t *testing.T) {
 	}
 	if got := svc.JobIDs(); len(got) != 0 {
 		t.Fatalf("expected 0 jobs after delete, got %v", got)
+	}
+}
+
+type sendErrChannel struct {
+	name    string
+	sendErr error
+	calls   atomic.Int32
+}
+
+func (s *sendErrChannel) Name() string                                                    { return s.name }
+func (s *sendErrChannel) Start(ctx context.Context, _ chan<- domain.InboundMessage) error { return nil }
+func (s *sendErrChannel) Stop() error                                                     { return nil }
+func (s *sendErrChannel) Send(_ context.Context, _ domain.OutboundMessage) error {
+	s.calls.Add(1)
+	return s.sendErr
+}
+
+func TestService_Fire_SendError_RecordedInLastError(t *testing.T) {
+	ch := &sendErrChannel{name: "telegram", sendErr: errors.New("invalid chat ID \"test\"")}
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	svc, err := NewService(Options{
+		Store: store,
+		ChannelLookup: func(name string) domain.Channel {
+			if name == ch.name {
+				return ch
+			}
+			return nil
+		},
+		ExecCommand: func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "echo",
+				`{"role":"assistant","content":"will fail to deliver"}`)
+		},
+		BinaryPath: "/usr/bin/true",
+	})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	job := &domain.ScheduledJob{
+		ID:             "send-fails",
+		CronExpression: "@every 1s",
+		Prompt:         "x",
+		Channel:        "telegram",
+		RecipientID:    "test",
+		CreatedAt:      time.Now().UTC(),
+	}
+	if err := store.Save(job); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = svc.Stop(ctx) }()
+
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		loaded, err := store.Load("send-fails")
+		if err == nil && loaded.LastError != "" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	loaded, err := store.Load("send-fails")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.LastError == "" {
+		t.Fatal("expected LastError to be set when channel.Send fails")
+	}
+	if !strings.Contains(loaded.LastError, "invalid chat ID") {
+		t.Fatalf("expected LastError to mention underlying send error, got %q", loaded.LastError)
+	}
+}
+
+func TestService_Fire_RunOnce_DeletesAfterFire(t *testing.T) {
+	ch := &fakeChannel{name: "telegram"}
+	fired := &atomic.Int32{}
+	svc, store := newTestService(t, ch, fired)
+
+	job := &domain.ScheduledJob{
+		ID:             "one-shot",
+		CronExpression: "@every 1s",
+		Prompt:         "x",
+		Channel:        "telegram",
+		RecipientID:    "user1",
+		RunOnce:        true,
+		CreatedAt:      time.Now().UTC(),
+	}
+	if err := store.Save(job); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = svc.Stop(ctx) }()
+
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := store.Load("one-shot"); errors.Is(err, ErrNotFound) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if _, err := store.Load("one-shot"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected one-off job to be deleted after fire, got err=%v", err)
+	}
+	if fired.Load() < 1 {
+		t.Fatal("expected job to fire at least once")
 	}
 }
 

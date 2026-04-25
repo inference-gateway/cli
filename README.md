@@ -71,6 +71,8 @@ An agentic command-line assistant that writes code, understands project context,
   [Learn more →](docs/mcp-integration.md)
 - **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
+- **Scheduled Tasks**: Ask the agent (over Telegram, etc.) to run a prompt on a cron schedule and deliver the result back through the same channel -
+  recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
 
 ## Installation
 
@@ -529,6 +531,7 @@ summary of available tools. For detailed documentation, parameters, and examples
 | **WebFetch** | Fetch content from URLs | No | [Details](docs/tools-reference.md#webfetch-tool) |
 | **Github** | Interact with GitHub API | No | [Details](docs/tools-reference.md#github-tool) |
 | **TodoWrite** | Create and manage task lists | No | [Details](docs/tools-reference.md#todowrite-tool) |
+| **Schedule** | Cron-driven recurring or one-off tasks delivered via the originating channel | Yes | [Details](docs/tools-reference.md#schedule-tool) |
 | **A2A_SubmitTask** | Submit tasks to A2A agents | No | [Details](docs/tools-reference.md#a2a_submittask-tool) |
 | **A2A_QueryAgent** | Query A2A agent capabilities | No | [Details](docs/tools-reference.md#a2a_queryagent-tool) |
 | **A2A_QueryTask** | Check A2A task status | No | [Details](docs/tools-reference.md#a2a_querytask-tool) |
@@ -981,6 +984,37 @@ Approvals time out after 5 minutes and are automatically rejected.
 For a complete working example with Docker Compose, see [examples/telegram-channel](examples/telegram-channel/).
 
 For detailed documentation including custom channel development, see [Channels Documentation](docs/channels.md).
+
+### Scheduled Tasks
+
+When the channels-manager daemon is running, you can ask the bot to schedule
+prompts on a cron schedule. The agent's response is delivered back through
+the originating channel (e.g. the Telegram chat where you set it up).
+
+> *"Send me an inspiring quote every day at 8 AM"* — recurring
+> *"Remind me at 6pm today to call mum"* — one-off (deletes itself after firing)
+
+Enable in `.infer/config.yaml`:
+
+```yaml
+tools:
+  schedule:
+    enabled: true               # disabled by default
+    require_approval: true      # default; recommended
+```
+
+Or via env var: `INFER_TOOLS_SCHEDULE_ENABLED=true`.
+
+Jobs are persisted as YAML in `~/.infer/schedules/<id>.yaml` and hot-reloaded
+by the daemon (no restart needed). Channel + recipient are derived
+automatically from the session — the LLM never has to guess them.
+
+Container deployments must set `TZ=Europe/Berlin` (or your zone) so cron
+expressions are interpreted in local time. The binary embeds the IANA zone
+database so this works on any base image.
+
+For the full guide, including the cron syntax primer and end-to-end Telegram
+walkthroughs, see [Scheduling Documentation](docs/scheduling.md).
 
 ## Global Flags
 

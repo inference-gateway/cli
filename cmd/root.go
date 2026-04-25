@@ -85,6 +85,8 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("tools.enabled", defaults.Tools.Enabled)
 	v.SetDefault("tools.bash.enabled", defaults.Tools.Bash.Enabled)
 	v.SetDefault("tools.bash.timeout", defaults.Tools.Bash.Timeout)
+	v.SetDefault("tools.bash.whitelist.commands", defaults.Tools.Bash.Whitelist.Commands)
+	v.SetDefault("tools.bash.whitelist.patterns", defaults.Tools.Bash.Whitelist.Patterns)
 	v.SetDefault("tools.bash.background_shells.enabled", defaults.Tools.Bash.BackgroundShells.Enabled)
 	v.SetDefault("tools.bash.background_shells.max_concurrent", defaults.Tools.Bash.BackgroundShells.MaxConcurrent)
 	v.SetDefault("tools.bash.background_shells.max_output_buffer_mb", defaults.Tools.Bash.BackgroundShells.MaxOutputBufferMB)

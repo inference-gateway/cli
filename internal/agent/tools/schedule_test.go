@@ -11,6 +11,12 @@ import (
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 )
 
+// channelCtx returns a context tagged with a channel-formatted session ID,
+// matching the format the channels-manager uses when spawning agents.
+func channelCtx(channel, recipient string) context.Context {
+	return domain.WithSessionID(context.Background(), "channel-"+channel+"-"+recipient)
+}
+
 func newScheduleCfg(t *testing.T, telegramEnabled bool) *config.Config {
 	t.Helper()
 	return &config.Config{
@@ -78,7 +84,7 @@ func TestScheduleTool_Validate(t *testing.T) {
 		{"missing operation", map[string]any{}, true},
 		{"unknown operation", map[string]any{"operation": "blarg"}, true},
 		{
-			"create missing required",
+			"create missing prompt",
 			map[string]any{"operation": "create", "cron_expression": "* * * * *"},
 			true,
 		},
@@ -88,8 +94,6 @@ func TestScheduleTool_Validate(t *testing.T) {
 				"operation":       "create",
 				"cron_expression": "definitely not cron",
 				"prompt":          "p",
-				"channel":         "telegram",
-				"recipient_id":    "1",
 			},
 			true,
 		},
@@ -99,8 +103,6 @@ func TestScheduleTool_Validate(t *testing.T) {
 				"operation":       "create",
 				"cron_expression": "0 8 * * *",
 				"prompt":          "p",
-				"channel":         "telegram",
-				"recipient_id":    "1",
 			},
 			false,
 		},
@@ -144,15 +146,13 @@ func TestScheduleTool_Execute_Disabled(t *testing.T) {
 func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 	cfg := newScheduleCfg(t, true)
 	tool := NewScheduleTool(cfg)
-	ctx := context.Background()
+	ctx := channelCtx("telegram", "12345")
 
-	// Create
+	// Create — channel + recipient are derived from session ID, never passed by caller.
 	createArgs := map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",
 		"prompt":          "morning quote",
-		"channel":         "telegram",
-		"recipient_id":    "12345",
 		"name":            "morning",
 	}
 	r, err := tool.Execute(ctx, createArgs)
@@ -164,6 +164,12 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("expected ScheduleToolResult with job, got %+v", r.Data)
 	}
 	id := created.Job.ID
+	if created.Job.Channel != "telegram" || created.Job.RecipientID != "12345" {
+		t.Fatalf("expected routing derived from session, got channel=%q recipient=%q", created.Job.Channel, created.Job.RecipientID)
+	}
+	if created.Job.RunOnce {
+		t.Fatal("expected RunOnce=false by default")
+	}
 
 	// List should contain it
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "list"})
@@ -179,15 +185,19 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("get returned wrong: %+v", got.Job)
 	}
 
-	// Update prompt
+	// Update prompt + flip to one-off
 	r, _ = tool.Execute(ctx, map[string]any{
 		"operation": "update",
 		"job_id":    id,
 		"prompt":    "evening quote",
+		"run_once":  true,
 	})
 	updated := r.Data.(*ScheduleToolResult)
 	if updated.Job == nil || updated.Job.Prompt != "evening quote" {
 		t.Fatalf("update did not change prompt: %+v", updated.Job)
+	}
+	if !updated.Job.RunOnce {
+		t.Fatalf("update did not set run_once: %+v", updated.Job)
 	}
 	if updated.Job.Channel != "telegram" {
 		t.Fatalf("update accidentally changed untouched field: %+v", updated.Job)
@@ -213,15 +223,55 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 	}
 }
 
-func TestScheduleTool_Execute_RejectsDisabledChannel(t *testing.T) {
-	cfg := newScheduleCfg(t, false) // telegram disabled
-	tool := NewScheduleTool(cfg)
+func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
+	tool := NewScheduleTool(newScheduleCfg(t, true))
+	r, err := tool.Execute(channelCtx("telegram", "42"), map[string]any{
+		"operation":       "create",
+		"cron_expression": "0 18 26 4 *",
+		"prompt":          "remind me to call mum",
+		"run_once":        true,
+	})
+	if err != nil || !r.Success {
+		t.Fatalf("create failed: err=%v result=%+v", err, r)
+	}
+	job := r.Data.(*ScheduleToolResult).Job
+	if !job.RunOnce {
+		t.Fatal("expected RunOnce=true on created job")
+	}
+}
+
+func TestScheduleTool_Execute_RejectsNonChannelSession(t *testing.T) {
+	tool := NewScheduleTool(newScheduleCfg(t, true))
+	// Plain context — no session ID at all.
 	r, err := tool.Execute(context.Background(), map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",
 		"prompt":          "x",
-		"channel":         "telegram",
-		"recipient_id":    "1",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error: %v", err)
+	}
+	if r.Success {
+		t.Fatal("expected failure when no session ID is in context")
+	}
+
+	// Non-channel session ID (e.g. chat mode generates "1234567890-abcdef").
+	r, _ = tool.Execute(domain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"), map[string]any{
+		"operation":       "create",
+		"cron_expression": "0 8 * * *",
+		"prompt":          "x",
+	})
+	if r.Success {
+		t.Fatal("expected failure when session is not channel-formatted")
+	}
+}
+
+func TestScheduleTool_Execute_RejectsDisabledChannel(t *testing.T) {
+	tool := NewScheduleTool(newScheduleCfg(t, false)) // telegram disabled
+	r, err := tool.Execute(channelCtx("telegram", "1"), map[string]any{
+		"operation":       "create",
+		"cron_expression": "0 8 * * *",
+		"prompt":          "x",
 	})
 	if err != nil {
 		t.Fatalf("expected nil error (failure encoded in result): %v", err)
@@ -235,14 +285,12 @@ func TestScheduleTool_Execute_MaxJobs(t *testing.T) {
 	cfg := newScheduleCfg(t, true)
 	cfg.Tools.Schedule.MaxJobs = 1
 	tool := NewScheduleTool(cfg)
-	ctx := context.Background()
+	ctx := channelCtx("telegram", "1")
 	mk := func() *domain.ToolExecutionResult {
 		r, _ := tool.Execute(ctx, map[string]any{
 			"operation":       "create",
 			"cron_expression": "0 8 * * *",
 			"prompt":          "x",
-			"channel":         "telegram",
-			"recipient_id":    "1",
 		})
 		return r
 	}

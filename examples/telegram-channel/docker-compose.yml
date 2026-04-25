@@ -73,11 +73,13 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Europe/Berlin
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_GATEWAY_RUN: false
       INFER_CHANNELS_ENABLED: true
       INFER_CHANNELS_TELEGRAM_ENABLED: true
       INFER_TOOLS_ENABLED: true
+      INFER_TOOLS_SCHEDULE_ENABLED: true
       INFER_A2A_ENABLED: false
       INFER_A2A_AGENTS: |
         http://browser-agent:8080

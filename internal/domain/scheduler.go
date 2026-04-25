@@ -20,6 +20,7 @@ type ScheduledJob struct {
 	Channel        string     `yaml:"channel" json:"channel"`
 	RecipientID    string     `yaml:"recipient_id" json:"recipient_id"`
 	Model          string     `yaml:"model,omitempty" json:"model,omitempty"`
+	RunOnce        bool       `yaml:"run_once,omitempty" json:"run_once,omitempty"`
 	CreatedAt      time.Time  `yaml:"created_at" json:"created_at"`
 	UpdatedAt      time.Time  `yaml:"updated_at" json:"updated_at"`
 	LastRun        *time.Time `yaml:"last_run,omitempty" json:"last_run,omitempty"`

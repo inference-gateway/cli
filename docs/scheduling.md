@@ -90,19 +90,37 @@ The full grammar (including `@every`, `@daily`, `@hourly` descriptors) is docume
 
 The `Schedule` tool is a single tool with an `operation` parameter. The LLM picks the operation at call time.
 
-### create
+### create — recurring
 
-Required: `cron_expression`, `prompt`, `channel`, `recipient_id`. Optional: `name`, `description`, `model`.
+Required: `cron_expression`, `prompt`. Optional: `run_once`, `name`, `description`, `model`.
+
+Channel and recipient are **derived automatically** from the current session
+(format: `channel-<name>-<sender_id>`). The LLM never passes them. The tool
+errors out when invoked outside a channel-driven session.
 
 ```json
 {
   "operation": "create",
   "cron_expression": "0 8 * * *",
   "prompt": "Find an inspiring quote for today and respond with the quote and its author. Keep it under 3 sentences.",
-  "channel": "telegram",
-  "recipient_id": "12345",
   "name": "Daily morning quote",
-  "description": "Wake-up quote for chat 12345"
+  "description": "Wake-up quote"
+}
+```
+
+### create — one-off
+
+Set `run_once: true` to make the scheduler delete the job after its first
+fire. The LLM is instructed to **always confirm with the user whether they
+want a one-off or recurring job** before creating one.
+
+```json
+{
+  "operation": "create",
+  "cron_expression": "0 18 26 4 *",
+  "prompt": "Remind me to call mum.",
+  "run_once": true,
+  "name": "Call mum reminder"
 }
 ```
 
@@ -124,7 +142,7 @@ Returns all jobs sorted by creation time, including their `last_run` and `last_e
 
 ### update
 
-Provide `job_id` and any of: `cron_expression`, `prompt`, `channel`, `recipient_id`, `name`, `description`, `model`. Untouched fields are preserved.
+Provide `job_id` and any of: `cron_expression`, `prompt`, `run_once`, `name`, `description`, `model`. Untouched fields are preserved.
 
 ```json
 {
@@ -153,30 +171,45 @@ prompt: |
 channel: telegram
 recipient_id: "12345"
 model: ""                   # empty = use agent.model from config
+run_once: false             # true → deleted after first fire
 created_at: 2026-04-25T10:30:00Z
 updated_at: 2026-04-25T10:30:00Z
 last_run: 2026-04-26T08:00:01Z
 last_error: ""
 ```
 
-The daemon updates `last_run` and `last_error` after each fire.
+The daemon updates `last_run` and `last_error` after each fire (recurring jobs only — one-off jobs are deleted instead).
 
-## End-to-end Telegram example
+## End-to-end Telegram example — recurring
 
 1. **User (Telegram):** *"Can you send me an inspiring quote every day at 8 AM?"*
-2. **Bot (Telegram):** *"Sure — what time zone are you in, and is one short quote OK?"*
-3. **User:** *"UTC, yes."*
+2. **Bot:** *"Sure — should this run every day from now on, or just once tomorrow?"*
+3. **User:** *"Every day."*
 4. **Bot calls `Schedule` tool** with:
    - `operation=create`
    - `cron_expression="0 8 * * *"`
-   - `channel="telegram"`
-   - `recipient_id="<chat-id>"`
    - `prompt="Find one inspiring quote and respond with quote + author, max 3 sentences."`
+   - (channel + recipient are derived from the session ID — not passed)
 5. **User approves** (because `require_approval: true`).
 6. **Bot:** *"Done — job 01HG... scheduled. I'll message you tomorrow at 8 AM UTC."*
 7. **At 08:00 UTC the next day**, the daemon fires the job: spawns a fresh
    `infer agent` session with the saved prompt, captures the assistant's response,
    and sends it to the user via Telegram.
+
+## End-to-end Telegram example — one-off
+
+1. **User (Telegram):** *"Remind me at 6pm today to call mum."*
+2. **Bot:** *"Got it — should this be a one-off reminder for today, or recurring every day at 6pm?"*
+3. **User:** *"Just once, today."*
+4. **Bot calls `Schedule` tool** with:
+   - `operation=create`
+   - `cron_expression="0 18 26 4 *"` (6pm on April 26)
+   - `prompt="Remind me to call mum."`
+   - `run_once=true`
+5. **User approves**.
+6. **Bot:** *"Done — I'll ping you at 6pm today."*
+7. **At 18:00**, the daemon fires the job, sends the reminder, and deletes the
+   YAML file (because `run_once=true`). Next April 26 it will not fire again.
 
 ## Troubleshooting
 
