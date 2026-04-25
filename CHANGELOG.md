@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.104.0](https://github.com/inference-gateway/cli/compare/v0.103.7...v0.104.0) (2026-04-25)
+
+### 🚀 Features
+
+* **scheduler:** Schedule tool for cron-driven recurring & one-off tasks ([#431](https://github.com/inference-gateway/cli/issues/431)) ([9f3a9fe](https://github.com/inference-gateway/cli/commit/9f3a9fe532b4ff9d2adcd6675c8da9ed73346765))
+
+### 🐛 Bug Fixes
+
+* **agent:** Persist reasoning_content across non-streaming agent path ([#429](https://github.com/inference-gateway/cli/issues/429)) ([0062e28](https://github.com/inference-gateway/cli/commit/0062e283c6b574a876b1817719bf2196d4cc888a))
+
+### 🧹 Maintenance
+
+* **deepseek:** Migrate to deepseek-v4 lineup across configs, docs, examples ([#430](https://github.com/inference-gateway/cli/issues/430)) ([248880f](https://github.com/inference-gateway/cli/commit/248880f506a749c0f2b09ed705aef4bbece355fb))
+* **nix:** Set __structuredAttrs = true (NPV-166) ([6136e33](https://github.com/inference-gateway/cli/commit/6136e336820a2f747a2d715d8487f72bdb3c1f3f)), closes [NixOS/nixpkgs#513418](https://github.com/NixOS/nixpkgs/issues/513418)
+* **nix:** Update package to v0.103.7 ([#427](https://github.com/inference-gateway/cli/issues/427)) ([2040bc2](https://github.com/inference-gateway/cli/commit/2040bc2489feaad8cf45c708cb7f0ac7e1992459))
+
 ## [0.103.7](https://github.com/inference-gateway/cli/compare/v0.103.6...v0.103.7) (2026-04-25)
 
 ### 🐛 Bug Fixes
