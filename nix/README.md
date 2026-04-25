@@ -46,7 +46,7 @@ This is the hash of the GitHub source tarball:
 
 ```bash
 # Calculate for a specific version
-VERSION="0.76.1"
+VERSION="0.103.0"
 nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs/tags/v${VERSION}.tar.gz"
 
 # Update in package.nix:
@@ -86,7 +86,7 @@ You can also trigger it manually:
 ```bash
 # Via GitHub UI: Actions > Nix Version Sync > Run workflow
 # Or via gh CLI:
-gh workflow run nix-version-sync.yml -f version=0.76.1
+gh workflow run nix-version-sync.yml -f version=0.103.0
 ```
 
 ## CI Integration

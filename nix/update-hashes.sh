@@ -2,7 +2,7 @@
 #
 # Script to calculate and update Nix package hashes
 # Usage: ./nix/update-hashes.sh [VERSION]
-# Example: ./nix/update-hashes.sh 0.76.1
+# Example: ./nix/update-hashes.sh 0.103.0
 #
 
 set -euo pipefail

@@ -27,7 +27,7 @@ nix-build -A infer
 
 # 5. Commit and create PR
 git add pkgs/by-name/in/infer/package.nix maintainers/maintainer-list.nix
-git commit -m "infer: init at 0.76.1"
+git commit -m "infer: init at 0.103.0"
 git push origin infer-init
 ```
 
@@ -36,7 +36,7 @@ git push origin infer-init
 - **Package**: `../package.nix` (use this file for submission)
 - **Name**: `infer`
 - **Command**: `infer`
-- **Version**: 0.76.1
+- **Version**: 0.103.0
 - **Status**: ✅ Builds on all platforms
 
 ## Install After Merge

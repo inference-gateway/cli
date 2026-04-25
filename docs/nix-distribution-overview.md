@@ -266,7 +266,7 @@ Keep an eye on:
 
 ```bash
 # Recalculate the hash
-nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs/tags/v0.76.1.tar.gz"
+nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs/tags/v0.103.0.tar.gz"
 
 # Update in nix/package.nix
 ```

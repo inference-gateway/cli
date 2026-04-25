@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to sync (e.g., 0.76.1)'
+        description: 'Version to sync (e.g., 0.103.0)'
         required: true
         type: string
 

@@ -37,7 +37,7 @@ The `nix/package.nix` file contains placeholder hashes that need to be calculate
 ```bash
 # Source hash (already calculated by nix-version-sync workflow)
 # Verify it's correct:
-nix-prefetch-url --unpack https://github.com/inference-gateway/cli/archive/refs/tags/v0.76.1.tar.gz
+nix-prefetch-url --unpack https://github.com/inference-gateway/cli/archive/refs/tags/v0.103.0.tar.gz
 
 # Vendor hash (also calculated by workflow)
 # To manually verify:
@@ -85,7 +85,7 @@ Update the file for nixpkgs conventions:
 
 buildGoModule rec {
   pname = "infer";
-  version = "0.76.1";
+  version = "0.103.0";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
@@ -140,7 +140,7 @@ git checkout -b infer-init
 git add pkgs/by-name/in/infer/package.nix
 
 # Commit with proper message
-git commit -m "infer: init at 0.76.1"
+git commit -m "infer: init at 0.103.0"
 ```
 
 **Commit message format:**
@@ -169,7 +169,7 @@ This PR adds the Inference Gateway CLI (`infer`), a command-line tool for managi
 #### Package Details
 
 - **Package name**: `infer`
-- **Version**: `0.76.1`
+- **Version**: `0.103.0`
 - **License**: MIT
 - **Platforms**: Linux (x86_64, aarch64), macOS (x86_64, aarch64)
 - **Homepage**: https://github.com/inference-gateway/cli
@@ -243,8 +243,8 @@ git checkout -b infer-0.77.0
 # Copy from the updated nix/package.nix in the CLI repo
 
 git add pkgs/by-name/in/infer/package.nix
-git commit -m "infer: 0.76.1 -> 0.77.0"
-git push origin infer-0.77.0
+git commit -m "infer: 0.103.0 -> 0.103.1"
+git push origin infer-0.103.0
 ```
 
 4. Create PR with update
@@ -300,8 +300,8 @@ nix-build -A infer 2>&1 | grep "got:" | grep -oP "sha256-[A-Za-z0-9+/=]+"
 ### Commit Messages
 
 ```text
-infer: init at 0.76.1           # New package
-infer: 0.76.1 -> 0.77.0         # Version update
+infer: init at 0.103.0          # New package
+infer: 0.103.0 -> 0.103.1       # Version update
 infer: fix build on aarch64     # Bug fix
 infer: add shell completions    # Enhancement
 ```
