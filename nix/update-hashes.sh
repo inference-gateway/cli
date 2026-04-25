@@ -41,12 +41,15 @@ echo -e "${YELLOW}[1/4] Calculating source hash...${NC}"
 TARBALL_URL="https://github.com/inference-gateway/cli/archive/refs/tags/v${VERSION}.tar.gz"
 echo "Fetching: ${TARBALL_URL}"
 
-SOURCE_HASH=$(nix-prefetch-url --unpack "$TARBALL_URL" 2>&1 | tail -1)
+NIX32_HASH=$(nix-prefetch-url --unpack "$TARBALL_URL" 2>&1 | tail -1)
 
-if [ -z "$SOURCE_HASH" ]; then
+if [ -z "$NIX32_HASH" ]; then
     echo -e "${RED}Error: Failed to calculate source hash${NC}"
     exit 1
 fi
+
+# Convert nix-base32 to SRI (base64) — fetchFromGitHub.hash expects SRI format.
+SOURCE_HASH=$(nix-hash --to-sri --type sha256 "$NIX32_HASH" | sed 's/^sha256-//')
 
 echo -e "${GREEN}Source hash: sha256-${SOURCE_HASH}${NC}\n"
 

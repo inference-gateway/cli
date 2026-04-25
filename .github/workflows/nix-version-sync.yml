@@ -52,8 +52,13 @@ jobs:
           URL="https://github.com/inference-gateway/cli/archive/refs/tags/v${VERSION}.tar.gz"
 
           echo "Downloading source from: $URL"
-          HASH=$(nix-prefetch-url --unpack "$URL")
-          echo "Source hash: $HASH"
+          # nix-prefetch-url emits a nix-base32 hash; convert to SRI (base64)
+          # because that's what fetchFromGitHub's `hash` attribute expects.
+          NIX32_HASH=$(nix-prefetch-url --unpack "$URL")
+          SRI_HASH=$(nix-hash --to-sri --type sha256 "$NIX32_HASH")
+          # Strip the "sha256-" prefix so the consumer can prepend it consistently.
+          HASH="${SRI_HASH#sha256-}"
+          echo "Source hash: sha256-$HASH"
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
       - name: Update version in Nix expression
@@ -71,6 +76,8 @@ jobs:
           echo "Attempting build to calculate vendorHash..."
           sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = "";|' nix/package.nix
           BUILD_OUTPUT=$(nix-build nix/default.nix 2>&1 || true)
+          # `got: sha256-<base64>=` is already SRI-formatted in the build error,
+          # so we just capture it verbatim.
           VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+sha256-\K[A-Za-z0-9+/=]+" | head -1)
 
           if [ -z "$VENDOR_HASH" ]; then
