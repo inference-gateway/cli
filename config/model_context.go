@@ -12,6 +12,7 @@ const DefaultContextWindow = 8192
 // ContextMatchers defines all model patterns in priority order.
 // More specific patterns must come before less specific ones.
 var ContextMatchers = []ModelMatcher{
+	{Patterns: []string{"deepseek-v4"}, ContextWindow: 1000000},
 	{Patterns: []string{"deepseek"}, ContextWindow: 128000},
 	{Patterns: []string{"o1", "o3"}, ContextWindow: 200000},
 	{Patterns: []string{"gpt-4o", "gpt-4-turbo"}, ContextWindow: 128000},

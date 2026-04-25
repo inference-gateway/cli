@@ -450,7 +450,7 @@ infer agent "analyze new logs" --session-id abc-123 --files error.log
 
 ```bash
 # Agent configuration
-infer config agent set-model "deepseek/deepseek-chat"
+infer config agent set-model "deepseek/deepseek-v4-pro"
 infer config agent set-system "You are a helpful assistant"
 infer config agent set-max-turns 100
 infer config agent verbose-tools enable
@@ -569,7 +569,7 @@ tools:
     enabled: true
 
 agent:
-  model: "deepseek/deepseek-chat"
+  model: "deepseek/deepseek-v4-pro"
   system_prompt: "You are a helpful assistant"  # Base identity
   custom_instructions: ""  # Additional instructions appended to system prompt
   max_turns: 50
@@ -593,7 +593,7 @@ chat:
 export INFER_AGENT_MODEL="openai/gpt-4"
 
 # Or via config file
-infer config agent set-model "deepseek/deepseek-chat"
+infer config agent set-model "deepseek/deepseek-v4-pro"
 
 # Or via command flag
 infer chat --model "anthropic/claude-4"
@@ -622,7 +622,7 @@ All configuration can be set via environment variables with the `INFER_` prefix:
 
 ```bash
 export INFER_GATEWAY_URL="http://localhost:8080"
-export INFER_AGENT_MODEL="deepseek/deepseek-chat"
+export INFER_AGENT_MODEL="deepseek/deepseek-v4-pro"
 export INFER_TOOLS_BASH_ENABLED=true
 export INFER_CHAT_THEME="tokyo-night"
 
@@ -1028,7 +1028,7 @@ infer chat
 
 ```bash
 # Set default model
-infer config agent set-model "deepseek/deepseek-chat"
+infer config agent set-model "deepseek/deepseek-v4-pro"
 
 # Enable bash tool
 infer config tools bash enable

@@ -155,7 +155,7 @@ channels:
 
 # Recommended agent settings for channel use
 agent:
-  model: "deepseek/deepseek-chat"              # Model to use
+  model: "deepseek/deepseek-v4-pro"              # Model to use
   system_prompt: "You are a helpful assistant"  # Base identity
   custom_instructions: ""             # Clear default instructions for lightweight use
   max_turns: 1                        # Single-turn for conversational use

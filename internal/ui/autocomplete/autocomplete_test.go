@@ -255,8 +255,8 @@ func TestAutocomplete_ModelsMode(t *testing.T) {
 
 	mockModelService := &domainmocks.FakeModelService{}
 	mockModelService.ListModelsReturns([]string{
-		"deepseek-chat",
-		"deepseek-reasoner",
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
 		"claude-opus-4",
 		"claude-sonnet-4",
 		"gpt-4o",

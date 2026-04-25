@@ -278,7 +278,7 @@ func TestOptimizeMessages_ToolCallIntegrity(t *testing.T) {
 				Tokenizer:         nil,
 			})
 
-			result := optimizer.OptimizeMessages(tt.messages, "deepseek/deepseek-chat", true)
+			result := optimizer.OptimizeMessages(tt.messages, "deepseek/deepseek-v4-pro", true)
 
 			if tt.expectedValid {
 				validateOptimizedResult(t, result, tt.description)

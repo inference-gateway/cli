@@ -30,7 +30,7 @@ var agentBaseDefaults = map[string]struct {
 		ArtifactsPortOffset: 1,
 		OCI:                 "ghcr.io/inference-gateway/browser-agent:latest",
 		Run:                 true,
-		Model:               "deepseek/deepseek-chat",
+		Model:               "deepseek/deepseek-v4-pro",
 		Environment: map[string]string{
 			"A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT": "true",
 		},
@@ -44,19 +44,19 @@ var agentBaseDefaults = map[string]struct {
 		BasePort: 8082,
 		OCI:      "ghcr.io/inference-gateway/google-calendar-agent:latest",
 		Run:      true,
-		Model:    "deepseek/deepseek-chat",
+		Model:    "deepseek/deepseek-v4-pro",
 	},
 	"documentation-agent": {
 		BasePort: 8085,
 		OCI:      "ghcr.io/inference-gateway/documentation-agent:latest",
 		Run:      true,
-		Model:    "deepseek/deepseek-chat",
+		Model:    "deepseek/deepseek-v4-pro",
 	},
 	"n8n-agent": {
 		BasePort: 8086,
 		OCI:      "ghcr.io/inference-gateway/n8n-agent:latest",
 		Run:      true,
-		Model:    "deepseek/deepseek-chat",
+		Model:    "deepseek/deepseek-v4-pro",
 	},
 }
 

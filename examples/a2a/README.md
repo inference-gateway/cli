@@ -32,7 +32,7 @@ Set up your CLI configuration via environment variables (review docker-compose.y
 INFER_GATEWAY_URL: http://inference-gateway:8080
 INFER_A2A_ENABLED: true
 INFER_TOOLS_ENABLED: false
-INFER_AGENT_MODEL: deepseek/deepseek-chat # Choose whatever LLM you would like to use from the configured providers
+INFER_AGENT_MODEL: deepseek/deepseek-v4-pro # Choose whatever LLM you would like to use from the configured providers
 ```
 
 ** Using `INFER_A2A_ENABLED: true` automatically enables A2A tools (QueryAgent, QueryTask, SubmitTask) even when local tools

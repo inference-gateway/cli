@@ -13,7 +13,7 @@ conversation context. After the prompt completes, the CLI automatically restores
 
 This example shows a practical workflow where you:
 
-1. Use a cost-effective model (`deepseek/deepseek-chat`) as your default for all coding tasks
+1. Use a cost-effective model (`deepseek/deepseek-v4-pro`) as your default for all coding tasks
 2. Temporarily switch to vision model (`anthropic/claude-opus-4-5-20251101`) only when you need to analyze screenshots
 3. Automatically return to the cheap model for implementation
 4. Switch back to vision model for verification, then return to cheap model
@@ -79,7 +79,7 @@ credits before starting.
    /switch
    ```
 
-   Then select `deepseek/deepseek-chat` from the interactive menu.
+   Then select `deepseek/deepseek-v4-pro` from the interactive menu.
 
 5. **Open the demo store**: Navigate to <http://localhost:3000>, take a screenshot, and paste it into the CLI.
 
@@ -99,11 +99,11 @@ the issues you see. Be specific and comprehensive.
 - CLI temporarily switches to `opus-4-5-20251101` (vision-capable model)
 - Sends your detailed prompt with the screenshot to Opus 4.5
 - Opus visually analyzes the ecommerce store and identifies all issues it sees
-- **Automatically restores your default model** (deepseek-chat)
+- **Automatically restores your default model** (deepseek-v4-pro)
 
 ### Step 2: Implement Fixes with DeepSeek Chat
 
-Your default model (`deepseek-chat`) is automatically restored. Now implement the fixes:
+Your default model (`deepseek-v4-pro`) is automatically restored. Now implement the fixes:
 
 ```text
 Based on the analysis above, please fix all the identified issues in frontend/index.html
@@ -111,14 +111,14 @@ Based on the analysis above, please fix all the identified issues in frontend/in
 
 **What happens**:
 
-- CLI automatically restored `deepseek-chat` after Opus 4.5 completed
+- CLI automatically restored `deepseek-v4-pro` after Opus 4.5 completed
 - DeepSeek has full conversation context including Opus 4.5's screenshot analysis
 - Implements the fixes at the cheap rate ($0.28/$0.42 per MTok)
 - You stay on DeepSeek for all subsequent prompts
 
 ### Step 3: Continue with DeepSeek
 
-Your default model (`deepseek-chat`) remains active. Continue enhancing:
+Your default model (`deepseek-v4-pro`) remains active. Continue enhancing:
 
 ```text
 Now add hover effects, search functionality, and make the category links work
@@ -153,16 +153,16 @@ if all the previous issues have been properly fixed. What improvements do you se
 - CLI temporarily switches back to `opus-4-5-20251101` for vision-based verification
 - Opus analyzes the new screenshot and compares against the original issues
 - Provides visual confirmation of what was fixed and identifies any remaining problems
-- **Automatically restores your default model** (deepseek-chat)
+- **Automatically restores your default model** (deepseek-v4-pro)
 - You can continue iterating with DeepSeek based on Opus's feedback
 
 ## Cost Optimization Strategy
 
-**Best Practice**: Use `deepseek/deepseek-chat` as your default model and only switch to Opus 4.5 when you need vision capabilities.
+**Best Practice**: Use `deepseek/deepseek-v4-pro` as your default model and only switch to Opus 4.5 when you need vision capabilities.
 
 | Task Type | Model Choice | Cost per MTok |
 | --------- | ------------ | ------------- |
-| **Default for everything** | `deepseek/deepseek-chat` | $0.28/$0.42 |
+| **Default for everything** | `deepseek/deepseek-v4-pro` | $0.28/$0.42 |
 | **Only for screenshots** | `/model anthropic/claude-opus-4-5-20251101` (temporary) | $5.00/$25.00 |
 
 **Cost Comparison** (with `/compact` before verification):

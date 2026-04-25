@@ -85,13 +85,13 @@ func TestJsonlStorage_SaveAndLoad(t *testing.T) {
 	entries := []domain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 			Hidden:  false,
 		},
 		{
 			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Hi there!")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 			Hidden:  false,
 		},
@@ -326,7 +326,7 @@ func TestJsonlStorage_UpdateMetadata(t *testing.T) {
 	entries := []domain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		},
 	}
@@ -452,7 +452,7 @@ func TestJsonlStorage_LargeConversation(t *testing.T) {
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent(fmt.Sprintf("Message %d with some content to make it realistic", i)),
 			},
-			Model: "deepseek/deepseek-chat",
+			Model: "deepseek/deepseek-v4-pro",
 			Time:  time.Now(),
 		}
 	}
@@ -485,12 +485,12 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 	entries := []domain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First message")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		},
 		{
 			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("First response")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		},
 	}
@@ -507,7 +507,7 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 
 	entries = append(entries, domain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Second message")},
-		Model:   "deepseek/deepseek-chat",
+		Model:   "deepseek/deepseek-v4-pro",
 		Time:    time.Now(),
 	})
 	metadata.MessageCount = 3
@@ -554,12 +554,12 @@ func TestJsonlStorage_V1FormatMigration(t *testing.T) {
 	v1Entries := []domain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("V1 message")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		},
 		{
 			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("V1 response")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		},
 	}
@@ -578,7 +578,7 @@ func TestJsonlStorage_V1FormatMigration(t *testing.T) {
 
 	loadedEntries = append(loadedEntries, domain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("New message after migration")},
-		Model:   "deepseek/deepseek-chat",
+		Model:   "deepseek/deepseek-v4-pro",
 		Time:    time.Now(),
 	})
 	loadedMetadata.MessageCount = 3
@@ -607,7 +607,7 @@ func TestJsonlStorage_EntryDeletionTriggersRewrite(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		entries[i] = domain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Message %d", i))},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		}
 	}
@@ -678,7 +678,7 @@ func TestJsonlStorage_MultipleAppends(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		entries = append(entries, domain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Message %d", i))},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		})
 		metadata.MessageCount = i + 1
@@ -711,7 +711,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 		entries := []domain.ConversationEntry{
 			{
 				Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Initial")},
-				Model:   "deepseek/deepseek-chat",
+				Model:   "deepseek/deepseek-v4-pro",
 				Time:    time.Now(),
 			},
 		}
@@ -728,7 +728,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 
 		entries = append(entries, domain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Response")},
-			Model:   "deepseek/deepseek-chat",
+			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
 		})
 		metadata.MessageCount = 2
