@@ -24,9 +24,20 @@ else
     TARGET="x86_64-apple-macos10.15.4"
 fi
 
-echo "Compiling Swift source for ${ARCH} (${TARGET})..."
+# Resolve SDK path. Prefer SDKROOT (set by Nix darwin builds via apple-sdk),
+# fall back to xcrun on systems with Xcode Command Line Tools installed.
+if [ -n "${SDKROOT:-}" ]; then
+    SDK_PATH="${SDKROOT}"
+elif command -v xcrun >/dev/null 2>&1; then
+    SDK_PATH="$(xcrun --show-sdk-path)"
+else
+    echo "Error: Cannot locate macOS SDK. Set SDKROOT or install Xcode Command Line Tools." >&2
+    exit 1
+fi
+
+echo "Compiling Swift source for ${ARCH} (${TARGET}) using SDK ${SDK_PATH}..."
 swiftc -O \
-    -sdk "$(xcrun --show-sdk-path)" \
+    -sdk "${SDK_PATH}" \
     -target "${TARGET}" \
     -o "${MACOS_DIR}/${APP_NAME}" \
     "${SCRIPT_DIR}/Models/Events.swift" \
@@ -46,8 +57,12 @@ swiftc -O \
 echo "Copying Info.plist..."
 cp "${SCRIPT_DIR}/Info.plist" "${CONTENTS_DIR}/Info.plist"
 
-echo "Signing app..."
-codesign --force --deep --sign - "${APP_BUNDLE}"
+if command -v codesign >/dev/null 2>&1; then
+    echo "Signing app..."
+    codesign --force --deep --sign - "${APP_BUNDLE}"
+else
+    echo "Skipping codesign (codesign not available in this environment)"
+fi
 
 echo "Build complete: ${APP_BUNDLE}"
 echo "App size: $(du -sh "${APP_BUNDLE}" | cut -f1)"
