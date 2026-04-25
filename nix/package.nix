@@ -6,7 +6,7 @@
 }:
 
 buildGoModule rec {
-  pname = "inference-gateway-cli";
+  pname = "infer";
   version = "0.76.1";
 
   src = fetchFromGitHub {

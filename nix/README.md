@@ -8,14 +8,14 @@ This directory contains the Nix package expression for building the Inference Ga
 
 ```bash
 # Build the package
-nix-build nix/infer.nix
+nix-build nix/package.nix
 
 # Test the binary
 ./result/bin/infer version
 ./result/bin/infer --help
 
 # Install to user profile
-nix-env -if nix/infer.nix
+nix-env -if nix/package.nix
 ```
 
 ### Testing Before Release
@@ -24,7 +24,7 @@ Before each release, ensure the Nix package builds correctly:
 
 ```bash
 # Clean build
-nix-build nix/infer.nix --show-trace
+nix-build nix/package.nix --show-trace
 
 # Verify the binary works
 ./result/bin/infer version
@@ -49,7 +49,7 @@ This is the hash of the GitHub source tarball:
 VERSION="0.76.1"
 nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs/tags/v${VERSION}.tar.gz"
 
-# Update in infer.nix:
+# Update in package.nix:
 # hash = "sha256-CALCULATED_HASH";
 ```
 
@@ -58,16 +58,16 @@ nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs
 This is the hash of the Go module dependencies:
 
 ```bash
-# Set vendorHash to empty string in infer.nix
-sed -i 's|vendorHash = "sha256-.*";|vendorHash = "";|' infer.nix
+# Set vendorHash to empty string in package.nix
+sed -i 's|vendorHash = "sha256-.*";|vendorHash = "";|' package.nix
 
 # Attempt to build - it will fail with the correct hash
-nix-build nix/infer.nix 2>&1 | tee build.log
+nix-build nix/package.nix 2>&1 | tee build.log
 
 # Extract the hash from the error
 grep "got:" build.log | grep -oP "sha256-[A-Za-z0-9+/=]+"
 
-# Update in infer.nix:
+# Update in package.nix:
 # vendorHash = "sha256-CALCULATED_HASH";
 ```
 
@@ -77,7 +77,7 @@ The `.github/workflows/nix-version-sync.yml` workflow automatically:
 
 1. Triggers on new releases
 2. Calculates both hashes
-3. Updates `nix/infer.nix`
+3. Updates `nix/package.nix`
 4. Creates a PR with the changes
 5. Verifies the build succeeds
 
@@ -140,8 +140,8 @@ nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs
 
 ```bash
 # Set to empty string and rebuild to get correct hash
-sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/infer.nix
-nix-build nix/infer.nix 2>&1 | grep "got:"
+sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/package.nix
+nix-build nix/package.nix 2>&1 | grep "got:"
 ```
 
 ### CGO Errors on macOS
@@ -168,10 +168,10 @@ checkFlags = [
 
 ```bash
 # Override Go version
-nix-build nix/infer.nix --arg go go_1_23
+nix-build nix/package.nix --arg go go_1_23
 
 # With specific nixpkgs version
-nix-build nix/infer.nix -I nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-24.11.tar.gz
+nix-build nix/package.nix -I nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-24.11.tar.gz
 ```
 
 ### Formatting
@@ -187,7 +187,7 @@ nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt nix/"
 Ensure the expression evaluates without errors:
 
 ```bash
-nix-instantiate --eval --strict nix/infer.nix --show-trace
+nix-instantiate --eval --strict nix/package.nix --show-trace
 ```
 
 ## Resources

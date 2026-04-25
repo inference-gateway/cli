@@ -60,17 +60,17 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           HASH="${{ steps.source-hash.outputs.hash }}"
-          sed -i "s/version = \"[0-9.]*\";/version = \"$VERSION\";/" nix/infer.nix
-          sed -i "s|hash = \"sha256-[A-Za-z0-9+/=]*\";|hash = \"sha256-$HASH\";|" nix/infer.nix
-          echo "Updated nix/infer.nix with version $VERSION"
-          cat nix/infer.nix | grep -A2 "version ="
+          sed -i "s/version = \"[0-9.]*\";/version = \"$VERSION\";/" nix/package.nix
+          sed -i "s|hash = \"sha256-[A-Za-z0-9+/=]*\";|hash = \"sha256-$HASH\";|" nix/package.nix
+          echo "Updated nix/package.nix with version $VERSION"
+          cat nix/package.nix | grep -A2 "version ="
 
       - name: Calculate vendor hash
         id: vendor-hash
         run: |
           echo "Attempting build to calculate vendorHash..."
-          sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = "";|' nix/infer.nix
-          BUILD_OUTPUT=$(nix-build nix/infer.nix 2>&1 || true)
+          sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = "";|' nix/package.nix
+          BUILD_OUTPUT=$(nix-build nix/package.nix 2>&1 || true)
           VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+sha256-\K[A-Za-z0-9+/=]+" | head -1)
 
           if [ -z "$VENDOR_HASH" ]; then
@@ -85,20 +85,20 @@ jobs:
       - name: Update vendor hash in Nix expression
         run: |
           VENDOR_HASH="${{ steps.vendor-hash.outputs.hash }}"
-          sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"sha256-$VENDOR_HASH\";|" nix/infer.nix
-          echo "Updated vendorHash in nix/infer.nix"
+          sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"sha256-$VENDOR_HASH\";|" nix/package.nix
+          echo "Updated vendorHash in nix/package.nix"
 
       - name: Verify build
         run: |
           echo "Building with updated hashes to verify..."
-          nix-build nix/infer.nix --show-trace
+          nix-build nix/package.nix --show-trace
 
           echo "Verifying binary..."
           result/bin/infer version
 
       - name: Format Nix file
         run: |
-          nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt nix/infer.nix"
+          nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt nix/package.nix"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
@@ -120,7 +120,7 @@ jobs:
 
             ### Verification
             ```bash
-            nix-build nix/infer.nix
+            nix-build nix/package.nix
             result/bin/infer version
             ```
 

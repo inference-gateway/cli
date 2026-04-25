@@ -4,7 +4,7 @@ This document provides a comprehensive overview of the NixOS package distributio
 
 ## What Was Implemented
 
-### 1. Nix Package Expression (`nix/infer.nix`)
+### 1. Nix Package Expression (`nix/package.nix`)
 
 A complete Nix derivation that:
 
@@ -52,7 +52,7 @@ Automatically updates the Nix package on releases:
 - 🔄 Triggers on GitHub releases (or manual workflow dispatch)
 - 🔢 Calculates source hash from GitHub tarball
 - 📦 Determines vendorHash by building
-- ✏️ Updates `nix/infer.nix` with new hashes
+- ✏️ Updates `nix/package.nix` with new hashes
 - 🎨 Formats with nixpkgs-fmt
 - ✅ Verifies build succeeds
 - 🔀 Creates PR with changes
@@ -141,14 +141,14 @@ Added NixOS installation section to main README.md:
 ### ⏳ Pending (Next Steps)
 
 1. **Calculate Actual Hashes**
-   - Replace placeholder hashes in `nix/infer.nix`
+   - Replace placeholder hashes in `nix/package.nix`
    - Source hash: `nix-prefetch-url --unpack TARBALL_URL`
    - Vendor hash: Build with empty string, extract from error
 
 2. **Verify Build Locally**
 
    ```bash
-   nix-build nix/infer.nix
+   nix-build nix/package.nix
    ./result/bin/infer version
    ```
 
@@ -183,7 +183,7 @@ inference-gateway/cli/
 │   ├── nixpkgs-submission.md      # Submission guide
 │   └── nix-distribution-overview.md  # This file
 ├── nix/
-│   ├── infer.nix                  # Nix package expression
+│   ├── package.nix                  # Nix package expression
 │   └── README.md                  # Quick reference
 ├── .gitignore                      # Updated with Nix artifacts
 └── README.md                       # Updated with NixOS section
@@ -268,7 +268,7 @@ Keep an eye on:
 # Recalculate the hash
 nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs/tags/v0.76.1.tar.gz"
 
-# Update in nix/infer.nix
+# Update in nix/package.nix
 ```
 
 #### Issue: "vendor hash mismatch"
@@ -277,12 +277,12 @@ nix-prefetch-url --unpack "https://github.com/inference-gateway/cli/archive/refs
 
 ```bash
 # Set vendorHash to empty string
-sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/infer.nix
+sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/package.nix
 
 # Build and capture error
-nix-build nix/infer.nix 2>&1 | grep "got:" | grep -oP "sha256-[A-Za-z0-9+/=]+"
+nix-build nix/package.nix 2>&1 | grep "got:" | grep -oP "sha256-[A-Za-z0-9+/=]+"
 
-# Use that hash in infer.nix
+# Use that hash in package.nix
 ```
 
 #### Issue: CGO errors on macOS

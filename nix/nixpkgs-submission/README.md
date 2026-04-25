@@ -1,6 +1,6 @@
 # nixpkgs Submission
 
-Quick guide for submitting `inference-gateway-cli` to nixpkgs.
+Quick guide for submitting `infer` to nixpkgs.
 
 ## Steps
 
@@ -8,7 +8,7 @@ Quick guide for submitting `inference-gateway-cli` to nixpkgs.
 # 1. Fork https://github.com/NixOS/nixpkgs
 git clone https://github.com/YOUR_USERNAME/nixpkgs.git
 cd nixpkgs
-git checkout -b inference-gateway-cli-init
+git checkout -b infer-init
 
 # 2. Add maintainer info to maintainers/maintainer-list.nix
 edenreich = {
@@ -19,22 +19,22 @@ edenreich = {
 };
 
 # 3. Copy package definition
-mkdir -p pkgs/by-name/in/inference-gateway-cli
-cp path/to/cli/nix/package.nix pkgs/by-name/in/inference-gateway-cli/package.nix
+mkdir -p pkgs/by-name/in/infer
+cp path/to/cli/nix/package.nix pkgs/by-name/in/infer/package.nix
 
 # 4. Test build
-nix-build -A inference-gateway-cli
+nix-build -A infer
 
 # 5. Commit and create PR
-git add pkgs/by-name/in/inference-gateway-cli/package.nix maintainers/maintainer-list.nix
-git commit -m "inference-gateway-cli: init at 0.76.1"
-git push origin inference-gateway-cli-init
+git add pkgs/by-name/in/infer/package.nix maintainers/maintainer-list.nix
+git commit -m "infer: init at 0.76.1"
+git push origin infer-init
 ```
 
 ## Package Info
 
 - **Package**: `../package.nix` (use this file for submission)
-- **Name**: `inference-gateway-cli`
+- **Name**: `infer`
 - **Command**: `infer`
 - **Version**: 0.76.1
 - **Status**: ✅ Builds on all platforms
@@ -42,5 +42,5 @@ git push origin inference-gateway-cli-init
 ## Install After Merge
 
 ```bash
-nix profile install nixpkgs#inference-gateway-cli
+nix profile install nixpkgs#infer
 ```

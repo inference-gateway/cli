@@ -18,7 +18,7 @@ First, test the Nix package builds correctly:
 
 ```bash
 # Build the package
-nix-build nix/infer.nix
+nix-build nix/package.nix
 
 # Test the binary
 result/bin/infer version
@@ -32,7 +32,7 @@ If any issues arise, fix them before proceeding.
 
 ## Step 2: Calculate Final Hashes
 
-The `nix/infer.nix` file contains placeholder hashes that need to be calculated:
+The `nix/package.nix` file contains placeholder hashes that need to be calculated:
 
 ```bash
 # Source hash (already calculated by nix-version-sync workflow)
@@ -41,8 +41,8 @@ nix-prefetch-url --unpack https://github.com/inference-gateway/cli/archive/refs/
 
 # Vendor hash (also calculated by workflow)
 # To manually verify:
-sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/infer.nix
-nix-build nix/infer.nix 2>&1 | grep "got:" | grep -oP "sha256-[A-Za-z0-9+/=]+"
+sed -i 's|vendorHash = ".*";|vendorHash = "";|' nix/package.nix
+nix-build nix/package.nix 2>&1 | grep "got:" | grep -oP "sha256-[A-Za-z0-9+/=]+"
 ```
 
 ## Step 3: Fork nixpkgs
@@ -65,7 +65,7 @@ nixpkgs now uses the `pkgs/by-name` structure for new packages:
 mkdir -p pkgs/by-name/in/infer
 
 # Copy the Nix expression
-cp /path/to/cli/nix/infer.nix pkgs/by-name/in/infer/package.nix
+cp /path/to/cli/nix/package.nix pkgs/by-name/in/infer/package.nix
 
 # Note: In nixpkgs, the file MUST be named "package.nix"
 ```
@@ -230,7 +230,7 @@ Once merged, you're responsible for maintaining the package:
 ### Updating to New Versions
 
 1. Wait for the nix-version-sync workflow to create a PR in the CLI repo
-2. Merge that PR to update `nix/infer.nix`
+2. Merge that PR to update `nix/package.nix`
 3. Create an update PR in nixpkgs:
 
 ```bash
@@ -240,7 +240,7 @@ git pull upstream master
 git checkout -b infer-0.77.0
 
 # Update version and hashes in pkgs/by-name/in/infer/package.nix
-# Copy from the updated nix/infer.nix in the CLI repo
+# Copy from the updated nix/package.nix in the CLI repo
 
 git add pkgs/by-name/in/infer/package.nix
 git commit -m "infer: 0.76.1 -> 0.77.0"
@@ -275,7 +275,7 @@ Monitor:
 
 ```bash
 # Local build in CLI repo
-nix-build nix/infer.nix
+nix-build nix/package.nix
 
 # Build in nixpkgs
 nix-build -A infer
