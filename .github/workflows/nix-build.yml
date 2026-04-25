@@ -73,7 +73,7 @@ jobs:
           retention-days: 7
 
   nix-fmt-check:
-    name: Check Nix formatting
+    name: Check Nix formatting and lint
     runs-on: ubuntu-24.04
 
     steps:
@@ -87,9 +87,13 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      - name: Check Nix formatting
+      - name: Check Nix formatting (nixfmt-rfc-style)
         run: |
-          nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt --check nix/"
+          nix-shell -p nixfmt-rfc-style --run "nixfmt --check nix/package.nix nix/default.nix"
+
+      - name: Lint with statix
+        run: |
+          nix-shell -p statix --run "statix check nix/"
 
       - name: Evaluate Nix expression
         run: |
