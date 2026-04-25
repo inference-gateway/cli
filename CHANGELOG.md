@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.103.3](https://github.com/inference-gateway/cli/compare/v0.103.2...v0.103.3) (2026-04-25)
+
+### 🐛 Bug Fixes
+
+* **ci:** Convert nix-prefetch-url output to SRI hash ([92990b9](https://github.com/inference-gateway/cli/commit/92990b9e5f17c28d93384d8fdc6665047d9d9c00))
+
+### 👷 CI/CD
+
+* Bump actions to latest ([481da5d](https://github.com/inference-gateway/cli/commit/481da5d843e84bb33c3bb465f19f530289b3d9f2))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.103.2 ([#421](https://github.com/inference-gateway/cli/issues/421)) ([13a5eea](https://github.com/inference-gateway/cli/commit/13a5eea0cf70ede56b1e5a15264d6679bcd1d1e1))
+
 ## [0.103.2](https://github.com/inference-gateway/cli/compare/v0.103.1...v0.103.2) (2026-04-25)
 
 ### 🐛 Bug Fixes
