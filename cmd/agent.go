@@ -61,17 +61,18 @@ Examples:
 
 // ConversationMessage represents a message in the JSON output conversation
 type ConversationMessage struct {
-	Role          string                               `json:"role"`
-	Content       string                               `json:"content"`
-	ToolCalls     *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
-	Tools         []string                             `json:"tools,omitempty"`
-	ToolCallID    string                               `json:"tool_call_id,omitempty"`
-	ToolExecution *domain.ToolExecutionResult          `json:"-"`
-	TokenUsage    *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
-	Timestamp     time.Time                            `json:"timestamp"`
-	RequestID     string                               `json:"request_id,omitempty"`
-	Internal      bool                                 `json:"-"`
-	Images        []domain.ImageAttachment             `json:"images,omitempty"`
+	Role             string                               `json:"role"`
+	Content          string                               `json:"content"`
+	ReasoningContent string                               `json:"reasoning_content,omitempty"`
+	ToolCalls        *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	Tools            []string                             `json:"tools,omitempty"`
+	ToolCallID       string                               `json:"tool_call_id,omitempty"`
+	ToolExecution    *domain.ToolExecutionResult          `json:"-"`
+	TokenUsage       *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
+	Timestamp        time.Time                            `json:"timestamp"`
+	RequestID        string                               `json:"request_id,omitempty"`
+	Internal         bool                                 `json:"-"`
+	Images           []domain.ImageAttachment             `json:"images,omitempty"`
 }
 
 // AgentSession manages the background execution session
@@ -469,6 +470,12 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 			Content: content,
 		}
 
+		if msg.ReasoningContent != "" {
+			reasoning := msg.ReasoningContent
+			sdkMsg.Reasoning = &reasoning
+			sdkMsg.ReasoningContent = &reasoning
+		}
+
 		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
 			sdkMsg.ToolCalls = msg.ToolCalls
 		}
@@ -524,11 +531,12 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	}
 
 	assistantMsg := ConversationMessage{
-		Role:       "assistant",
-		Content:    response.Content,
-		TokenUsage: response.Usage,
-		Timestamp:  time.Now(),
-		RequestID:  requestID,
+		Role:             "assistant",
+		Content:          response.Content,
+		ReasoningContent: response.ReasoningContent,
+		TokenUsage:       response.Usage,
+		Timestamp:        time.Now(),
+		RequestID:        requestID,
 	}
 
 	if len(response.ToolCalls) > 0 {
@@ -832,6 +840,12 @@ func (s *AgentSession) convertToConversationEntry(msg ConversationMessage) domai
 	sdkMsg.Role = sdk.MessageRole(msg.Role)
 	sdkMsg.Content = sdk.NewMessageContent(msg.Content)
 
+	if msg.ReasoningContent != "" {
+		reasoning := msg.ReasoningContent
+		sdkMsg.Reasoning = &reasoning
+		sdkMsg.ReasoningContent = &reasoning
+	}
+
 	if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
 		sdkMsg.ToolCalls = msg.ToolCalls
 	}
@@ -841,12 +855,13 @@ func (s *AgentSession) convertToConversationEntry(msg ConversationMessage) domai
 	}
 
 	entry := domain.ConversationEntry{
-		Message:       sdkMsg,
-		Model:         s.model,
-		Time:          msg.Timestamp,
-		Images:        msg.Images,
-		Hidden:        msg.Internal,
-		ToolExecution: msg.ToolExecution,
+		Message:          sdkMsg,
+		Model:            s.model,
+		Time:             msg.Timestamp,
+		Images:           msg.Images,
+		Hidden:           msg.Internal,
+		ReasoningContent: msg.ReasoningContent,
+		ToolExecution:    msg.ToolExecution,
 	}
 
 	return entry
@@ -864,6 +879,15 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 
 	if contentStr, err := entry.Message.Content.AsMessageContent0(); err == nil {
 		msg.Content = contentStr
+	}
+
+	switch {
+	case entry.ReasoningContent != "":
+		msg.ReasoningContent = entry.ReasoningContent
+	case entry.Message.ReasoningContent != nil && *entry.Message.ReasoningContent != "":
+		msg.ReasoningContent = *entry.Message.ReasoningContent
+	case entry.Message.Reasoning != nil && *entry.Message.Reasoning != "":
+		msg.ReasoningContent = *entry.Message.Reasoning
 	}
 
 	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {

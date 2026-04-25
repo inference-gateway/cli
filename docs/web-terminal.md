@@ -248,7 +248,7 @@ infer chat --web --host 0.0.0.0 --port 8080
 Work on multiple tasks simultaneously without terminal multiplexer:
 
 - Tab 1: Chat with `claude-4.1-haiku` for quick questions
-- Tab 2: Long-running agent task with `deepseek-chat`
+- Tab 2: Long-running agent task with `deepseek-v4-pro`
 - Tab 3: Testing with `gpt-4o`
 
 Each tab is completely independent with its own model, conversation history, and containers.

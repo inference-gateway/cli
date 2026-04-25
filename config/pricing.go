@@ -190,18 +190,18 @@ var DefaultModelPricing = map[string]ModelPricing{
 		OutputPricePerMToken: 1.50,
 		Currency:             "USD",
 	},
-	"deepseek/deepseek-chat": {
+	"deepseek/deepseek-v4-pro": {
 		Provider:             "deepseek",
-		Model:                "deepseek-chat",
-		InputPricePerMToken:  0.28,
-		OutputPricePerMToken: 0.42,
+		Model:                "deepseek-v4-pro",
+		InputPricePerMToken:  1.74,
+		OutputPricePerMToken: 3.48,
 		Currency:             "USD",
 	},
-	"deepseek/deepseek-reasoner": {
+	"deepseek/deepseek-v4-flash": {
 		Provider:             "deepseek",
-		Model:                "deepseek-reasoner",
-		InputPricePerMToken:  0.28,
-		OutputPricePerMToken: 0.42,
+		Model:                "deepseek-v4-flash",
+		InputPricePerMToken:  0.14,
+		OutputPricePerMToken: 0.28,
 		Currency:             "USD",
 	},
 	"groq/llama-3.3-70b-versatile": {

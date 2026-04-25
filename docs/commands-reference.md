@@ -291,7 +291,7 @@ infer agents show browser-agent
 infer agents update browser-agent --url http://browser-agent:9090
 
 # Update agent model
-infer agents update browser-agent --model "deepseek/deepseek-chat"
+infer agents update browser-agent --model "deepseek/deepseek-v4-pro"
 
 # Update multiple settings
 infer agents update browser-agent --url http://browser-agent:9090 --model "openai/gpt-4"
@@ -538,7 +538,7 @@ infer conversation-title daemon
 conversation:
   title_generation:
     enabled: true
-    model: "deepseek/deepseek-chat"
+    model: "deepseek/deepseek-v4-pro"
     batch_size: 5
     interval: 30  # seconds between generation attempts
 ```

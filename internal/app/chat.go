@@ -1999,7 +1999,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"
-          model: deepseek/deepseek-chat
+          model: deepseek/deepseek-v4-pro
           max-turns: 50
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -2057,7 +2057,7 @@ jobs:
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"
-          model: deepseek/deepseek-chat
+          model: deepseek/deepseek-v4-pro
           max-turns: 50
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
