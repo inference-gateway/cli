@@ -13,10 +13,10 @@ buildGoModule rec {
     owner = "inference-gateway";
     repo = "cli";
     rev = "v${version}";
-    hash = "sha256-ObI6zG8noykPhPq6ESohbkHp6gvUY3Q0qYZl32Kj//I=";
+    hash = "sha256-PUiilcdH1hWVB0MQO53iuPw5dTb/kCdQXaKoUfbBoH8=";
   };
 
-  vendorHash = "sha256-BUrb8mvktPPEbokccVEfc2UCLjWP0nTQbLeCxCCb32k=";
+  vendorHash = "sha256-kDrAkHkNUvW+Ru/C++NEwJhnd9WnY9pjK4FQHIR+Hr4=";
 
   # macOS requires CGO for clipboard support (golang.design/x/clipboard)
   env.CGO_ENABLED = if stdenv.isDarwin then "1" else "0";
