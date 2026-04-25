@@ -9,13 +9,13 @@
 
 buildGoModule rec {
   pname = "infer";
-  version = "0.103.2";
+  version = "0.103.4";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
     repo = "cli";
     rev = "v${version}";
-    hash = "sha256-Tn/5jDMrCMkyyvXhP+lvqVKFXhMp5NLyoE6iQQ3mxKQ=";
+    hash = "sha256-iKPZO+YsXTYyHxfyTQhUcIs9tV8VRBmLEImRYFimwsg=";
   };
 
   vendorHash = "sha256-3kHd6AetSaOGSMeYsmeGPifE8oMrcUp/UQ4L6yK/CIg=";
