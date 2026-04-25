@@ -1,20 +1,21 @@
-{ lib
-, buildGoModule
-, fetchFromGitHub
-, installShellFiles
-, stdenv
-, swift
-, apple-sdk
+{
+  lib,
+  buildGoModule,
+  fetchFromGitHub,
+  installShellFiles,
+  stdenv,
+  swift,
+  apple-sdk,
 }:
 
-buildGoModule rec {
+buildGoModule (finalAttrs: {
   pname = "infer";
   version = "0.103.5";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
     repo = "cli";
-    rev = "v${version}";
+    tag = "v${finalAttrs.version}";
     hash = "sha256-r4fozLRdZMZdvyJCnzOFOaN9SbkH5G22zdazFvdnzO4=";
   };
 
@@ -27,14 +28,14 @@ buildGoModule rec {
   # preserves the full module layout, including the headers CGO needs.
   proxyVendor = true;
 
-  # macOS requires CGO for clipboard support (golang.design/x/clipboard)
-  env.CGO_ENABLED = if stdenv.isDarwin then "1" else "0";
+  # macOS requires CGO for clipboard support (golang.design/x/clipboard).
+  env.CGO_ENABLED = if stdenv.hostPlatform.isDarwin then "1" else "0";
 
   ldflags = [
     "-s"
     "-w"
-    "-X github.com/inference-gateway/cli/cmd.version=${version}"
-    "-X github.com/inference-gateway/cli/cmd.commit=${src.rev}"
+    "-X=github.com/inference-gateway/cli/cmd.version=${finalAttrs.version}"
+    "-X=github.com/inference-gateway/cli/cmd.commit=v${finalAttrs.version}"
   ];
 
   # Disable tests that require network or external dependencies
@@ -47,10 +48,9 @@ buildGoModule rec {
     "-skip=TestIntegration"
   ];
 
-  nativeBuildInputs = [ installShellFiles ]
-    ++ lib.optionals stdenv.isDarwin [ swift ];
+  nativeBuildInputs = [ installShellFiles ] ++ lib.optionals stdenv.hostPlatform.isDarwin [ swift ];
 
-  buildInputs = lib.optionals stdenv.isDarwin [ apple-sdk ];
+  buildInputs = lib.optionals stdenv.hostPlatform.isDarwin [ apple-sdk ];
 
   # On macOS, the Go binary embeds a SwiftUI floating-window helper app via
   # //go:embed. The build/ folder is gitignored, so we compile the Swift
@@ -58,7 +58,7 @@ buildGoModule rec {
   # standard release workflow, keeping a single source of truth for the
   # Swift app build. build.sh reads SDKROOT and skips codesign when it is
   # not available in the sandbox.
-  preBuild = lib.optionalString stdenv.isDarwin ''
+  preBuild = lib.optionalString stdenv.hostPlatform.isDarwin ''
     export SDKROOT="${apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     pushd internal/display/macos/ComputerUse > /dev/null
     bash ./build.sh
@@ -78,25 +78,20 @@ buildGoModule rec {
       --zsh <($out/bin/infer completion zsh)
   '';
 
-  meta = with lib; {
+  meta = {
     description = "Command-line interface for the Inference Gateway - AI model interaction manager";
     longDescription = ''
-      The Inference Gateway CLI is a powerful command-line tool for managing AI model interactions.
-      It provides interactive chat, autonomous agent execution, and extensive tool integration for LLMs.
-
-      Features:
-      - Interactive chat with various AI models
-      - Autonomous agent execution with tool support
-      - Clean Architecture with domain-driven design
-      - Multiple storage backends (SQLite, PostgreSQL, Redis)
-      - Terminal UI with BubbleTea framework
-      - Extensive tool system (Bash, Read, Write, Grep, A2A, etc.)
+      The Inference Gateway CLI is a command-line tool for managing AI model interactions.
+      It provides interactive chat, autonomous agent execution, and extensive tool
+      integration for LLMs, with support for both the MCP and A2A protocols, as well
+      as computer use for GUI automation. It can also run as a Telegram bot for
+      remote-controlling the agent from chat.
     '';
     homepage = "https://github.com/inference-gateway/cli";
-    changelog = "https://github.com/inference-gateway/cli/blob/main/CHANGELOG.md";
-    license = licenses.mit;
-    maintainers = with maintainers; [ edenreich ];
+    changelog = "https://github.com/inference-gateway/cli/blob/v${finalAttrs.version}/CHANGELOG.md";
+    license = lib.licenses.mit;
+    maintainers = with lib.maintainers; [ edenreich ];
     mainProgram = "infer";
-    platforms = platforms.unix;
+    platforms = lib.platforms.unix;
   };
-}
+})
