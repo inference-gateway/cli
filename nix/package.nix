@@ -3,6 +3,8 @@
 , fetchFromGitHub
 , installShellFiles
 , stdenv
+, swift ? null
+, apple-sdk ? null
 }:
 
 buildGoModule rec {
@@ -16,7 +18,14 @@ buildGoModule rec {
     hash = "sha256-PUiilcdH1hWVB0MQO53iuPw5dTb/kCdQXaKoUfbBoH8=";
   };
 
-  vendorHash = "sha256-kDrAkHkNUvW+Ru/C++NEwJhnd9WnY9pjK4FQHIR+Hr4=";
+  vendorHash = "sha256-HfTBmIu06AhNawGeGyBksD6qrmcBsIHzy9xAQTT8li0=";
+
+  # Use the Go module proxy layout instead of `go mod vendor`. The robotgo
+  # dependency includes CGO `#include` directives that reference C headers
+  # in subpackages (e.g. screen/goScreen.h) that `go mod vendor` strips
+  # because no Go code imports those subpackages directly. proxyVendor
+  # preserves the full module layout, including the headers CGO needs.
+  proxyVendor = true;
 
   # macOS requires CGO for clipboard support (golang.design/x/clipboard)
   env.CGO_ENABLED = if stdenv.isDarwin then "1" else "0";
@@ -38,7 +47,34 @@ buildGoModule rec {
     "-skip=TestIntegration"
   ];
 
-  nativeBuildInputs = [ installShellFiles ];
+  nativeBuildInputs = [ installShellFiles ]
+    ++ lib.optionals stdenv.isDarwin [ swift ];
+
+  buildInputs = lib.optionals stdenv.isDarwin [ apple-sdk ];
+
+  # On macOS, the Go binary embeds a SwiftUI floating-window helper app via
+  # //go:embed. The build/ folder is gitignored, so we must compile the
+  # Swift sources before `go build` runs. We delegate to the same build.sh
+  # used by the standard release workflow (.github/workflows/artifacts.yml),
+  # keeping a single source of truth for the Swift app build.
+  #
+  # The build.sh in older release tags (≤ v0.103.0) calls `xcrun` for the SDK
+  # path and `codesign` for ad-hoc signing — neither is available in the Nix
+  # sandbox. We patch those out at unpack time. Once a release containing the
+  # SDKROOT/codesign-aware build.sh is published, the substituteInPlace block
+  # below becomes a no-op and can be removed.
+  postPatch = lib.optionalString stdenv.isDarwin ''
+    substituteInPlace internal/display/macos/ComputerUse/build.sh \
+      --replace-quiet '$(xcrun --show-sdk-path)' '${apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' \
+      --replace-quiet 'codesign --force --deep --sign - "''${APP_BUNDLE}"' 'echo "Skipping codesign (Nix sandbox)"'
+  '';
+
+  preBuild = lib.optionalString stdenv.isDarwin ''
+    echo "Building ComputerUse.app for embed..."
+    pushd internal/display/macos/ComputerUse > /dev/null
+    bash ./build.sh
+    popd > /dev/null
+  '';
 
   postInstall = ''
     # Rename binary from 'cli' to 'infer' if needed
