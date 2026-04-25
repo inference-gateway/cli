@@ -3,8 +3,8 @@
 , fetchFromGitHub
 , installShellFiles
 , stdenv
-, swift ? null
-, apple-sdk ? null
+, swift
+, apple-sdk
 }:
 
 buildGoModule rec {
@@ -53,24 +53,13 @@ buildGoModule rec {
   buildInputs = lib.optionals stdenv.isDarwin [ apple-sdk ];
 
   # On macOS, the Go binary embeds a SwiftUI floating-window helper app via
-  # //go:embed. The build/ folder is gitignored, so we must compile the
-  # Swift sources before `go build` runs. We delegate to the same build.sh
-  # used by the standard release workflow (.github/workflows/artifacts.yml),
-  # keeping a single source of truth for the Swift app build.
-  #
-  # The build.sh in older release tags (≤ v0.103.0) calls `xcrun` for the SDK
-  # path and `codesign` for ad-hoc signing — neither is available in the Nix
-  # sandbox. We patch those out at unpack time. Once a release containing the
-  # SDKROOT/codesign-aware build.sh is published, the substituteInPlace block
-  # below becomes a no-op and can be removed.
-  postPatch = lib.optionalString stdenv.isDarwin ''
-    substituteInPlace internal/display/macos/ComputerUse/build.sh \
-      --replace-quiet '$(xcrun --show-sdk-path)' '${apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' \
-      --replace-quiet 'codesign --force --deep --sign - "''${APP_BUNDLE}"' 'echo "Skipping codesign (Nix sandbox)"'
-  '';
-
+  # //go:embed. The build/ folder is gitignored, so we compile the Swift
+  # sources before `go build` runs. The same build.sh is used by the
+  # standard release workflow, keeping a single source of truth for the
+  # Swift app build. build.sh reads SDKROOT and skips codesign when it is
+  # not available in the sandbox.
   preBuild = lib.optionalString stdenv.isDarwin ''
-    echo "Building ComputerUse.app for embed..."
+    export SDKROOT="${apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     pushd internal/display/macos/ComputerUse > /dev/null
     bash ./build.sh
     popd > /dev/null
