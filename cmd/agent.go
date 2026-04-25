@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -584,7 +585,7 @@ func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecu
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := context.Background()
+	ctx := domain.WithSessionID(context.Background(), s.sessionID)
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{
 		Name:      toolName,
 		Arguments: args,
@@ -963,12 +964,12 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	logMsg := msg
 
 	if !s.config.Agent.VerboseTools && msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
-		toolNames := make([]string, len(*msg.ToolCalls))
+		summaries := make([]string, len(*msg.ToolCalls))
 		for i, toolCall := range *msg.ToolCalls {
-			toolNames[i] = toolCall.Function.Name
+			summaries[i] = formatToolCallSummary(toolCall.Function.Name, toolCall.Function.Arguments)
 		}
 		logMsg.ToolCalls = nil
-		logMsg.Tools = toolNames
+		logMsg.Tools = summaries
 	}
 
 	output, err := json.Marshal(logMsg)
@@ -978,6 +979,46 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	}
 
 	fmt.Println(string(output))
+}
+
+// formatToolCallSummary builds a one-line "Name(key=val, key=val)" preview of
+// a tool call, with each value truncated and newlines stripped so it renders
+// cleanly in remote channels (Telegram, etc.). When arguments cannot be
+// parsed or are empty, the bare tool name is returned.
+func formatToolCallSummary(name, argsJSON string) string {
+	if argsJSON == "" || argsJSON == "{}" {
+		return name
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil || len(args) == 0 {
+		return name
+	}
+
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	const maxValueChars = 60
+	const maxTotalChars = 200
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		raw := fmt.Sprintf("%v", args[k])
+		raw = strings.ReplaceAll(raw, "\n", " ")
+		raw = strings.ReplaceAll(raw, "\r", " ")
+		raw = strings.TrimSpace(raw)
+		if len(raw) > maxValueChars {
+			raw = raw[:maxValueChars-1] + "…"
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", k, raw))
+	}
+
+	summary := strings.Join(parts, ", ")
+	if len(summary) > maxTotalChars {
+		summary = summary[:maxTotalChars-1] + "…"
+	}
+	return fmt.Sprintf("%s(%s)", name, summary)
 }
 
 // outputStatusMessage outputs a structured JSON status message

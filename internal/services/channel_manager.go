@@ -68,6 +68,15 @@ func (cm *ChannelManagerService) Register(ch domain.Channel) {
 	cm.channels[ch.Name()] = ch
 }
 
+// GetChannel returns a registered channel by name, or nil if not registered.
+// Used by the scheduler service to deliver scheduled-job output through the
+// in-process channel registry.
+func (cm *ChannelManagerService) GetChannel(name string) domain.Channel {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.channels[name]
+}
+
 // Start begins all registered channels and the message routing loop
 func (cm *ChannelManagerService) Start(ctx context.Context) error {
 	if !cm.cfg.Enabled {

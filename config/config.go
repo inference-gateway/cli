@@ -130,6 +130,7 @@ type ToolsConfig struct {
 	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
 	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
+	Schedule  ScheduleToolConfig  `yaml:"schedule" mapstructure:"schedule"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -211,6 +212,18 @@ type WebSearchToolConfig struct {
 type TodoWriteToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ScheduleToolConfig contains schedule-specific tool settings.
+// When enabled, the tool lets the LLM create recurring jobs that fire on a
+// cron schedule and deliver their output through a configured channel
+// (e.g. Telegram). Jobs are persisted as YAML files under StorageDir and
+// hot-reloaded by the channels-manager daemon.
+type ScheduleToolConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	StorageDir      string `yaml:"storage_dir,omitempty" mapstructure:"storage_dir,omitempty"`
+	MaxJobs         int    `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings
@@ -748,7 +761,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Timeout: 120,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
-						"ls", "pwd", "tree",
+						"echo", "ls", "pwd", "tree",
 						"wc", "sort", "uniq", "head", "tail",
 						"task", "make", "find",
 					},
@@ -828,6 +841,12 @@ func DefaultConfig() *Config { //nolint:funlen
 			TodoWrite: TodoWriteToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
+			},
+			Schedule: ScheduleToolConfig{
+				Enabled:         false,
+				RequireApproval: &[]bool{true}[0],
+				StorageDir:      "",
+				MaxJobs:         100,
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
@@ -1229,6 +1248,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {
 			return *c.Tools.TodoWrite.RequireApproval
+		}
+	case "Schedule":
+		if c.Tools.Schedule.RequireApproval != nil {
+			return *c.Tools.Schedule.RequireApproval
 		}
 	case "RequestPlanApproval":
 		return false

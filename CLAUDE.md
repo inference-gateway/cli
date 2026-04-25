@@ -424,6 +424,10 @@ Channels are configured in `.infer/config.yaml` under the `channels` key.
 Each channel has its own allowlist for security.
 See `docs/channels.md` for full documentation.
 
+The channels-manager daemon also hosts the **scheduler service** when
+`tools.schedule.enabled: true` — see [Scheduling (Cron-driven Tasks)](#scheduling-cron-driven-tasks)
+below for the full design.
+
 ### Tool Approval Flow
 
 When `channels.require_approval` is `true` (default), the channel manager
@@ -449,6 +453,135 @@ enables interactive tool approval via stdin/stdout IPC with the agent subprocess
 2. Add config type to `config/config.go`
 3. Register in `registerChannels()` in `cmd/channels.go`
 4. Add allowlist case in `channel_manager.go` `isAllowedUser()`
+
+## Scheduling (Cron-driven Tasks)
+
+The `Schedule` tool lets the LLM create recurring or one-off jobs that fire
+on a cron schedule and deliver their output back through the messaging
+channel that triggered the current session (e.g. Telegram). The scheduler
+runs **inside the channels-manager daemon** — there is no separate process —
+and is cross-platform (uses `robfig/cron/v3`, not system crontab).
+
+- Schedule tool: `internal/agent/tools/schedule.go`
+- Scheduler service: `internal/services/scheduler/scheduler.go`
+- YAML store: `internal/services/scheduler/store.go`
+- Domain types: `ScheduledJob`, `SchedulerService` in `internal/domain/scheduler.go`
+- Session-ID parser: `domain.ParseChannelSessionID` in `internal/domain/session.go`
+- Wiring: `cmd/channels.go` `startScheduler()` constructs and lifecycles the service
+- Configuration: `config.Tools.Schedule` (`ScheduleToolConfig`) in `config/config.go`
+
+See `docs/scheduling.md` for the user-facing guide.
+
+### Architecture
+
+```text
+┌─ infer channels-manager (daemon) ─────────────────────────┐
+│  ChannelManagerService                                     │
+│   ├─ inbound msgs    → spawn `infer agent`                 │
+│   └─ SchedulerService (when tools.schedule.enabled)        │
+│        ├─ robfig/cron/v3 scheduler                         │
+│        ├─ fsnotify watcher on ~/.infer/schedules/          │
+│        └─ on fire: spawn `infer agent --session-id <uuid>` │
+│                    capture stdout → channel.Send(...)      │
+└────────────────────────────────────────────────────────────┘
+            ▲                                  ▲
+            │ writes YAML                      │ reads YAML on startup
+            │                                  │   + fsnotify reload
+┌───────────┴─────────┐              ┌─────────┴──────────────┐
+│ Schedule tool       │ create/del   │ ~/.infer/schedules/    │
+│ (runs in any agent) │ ──────────►  │   <job-id>.yaml        │
+└─────────────────────┘              └────────────────────────┘
+```
+
+Key properties:
+
+- **Tool-only file I/O.** The `Schedule` tool never talks directly to the
+  daemon — it just writes YAML. The daemon's fsnotify watcher
+  (`scheduler.startWatcher`) picks up changes within ~150ms (debounced) and
+  registers/unregisters cron entries.
+- **Fresh session per fire.** Each scheduled run gets a new UUID session ID;
+  no context carries between fires (acceptance criterion of issue #418).
+- **Daemon-bound execution.** Jobs only fire while `infer channels-manager`
+  is running. If the daemon is down, the YAML stays on disk and resumes on
+  next startup.
+- **One-off jobs.** When `RunOnce: true` on the job YAML, the scheduler
+  deletes the file after the first fire (regardless of delivery success).
+  Used for "remind me at 6pm today"-style requests.
+
+### Routing context (channel + recipient)
+
+The Schedule tool **does not accept** `channel` or `recipient_id` parameters
+from the LLM. They are derived deterministically from the agent's session ID
+via `domain.ParseChannelSessionID`. Channels-manager session IDs are
+formatted `channel-<name>-<sender_id>` (see `channel_manager.go:177`), so
+parsing is unambiguous.
+
+Wiring chain:
+
+1. `cmd/agent.go executeToolCall()` injects the agent's `sessionID` into the
+   tool-call context via `domain.WithSessionID`.
+2. `Schedule.execCreate` calls `resolveRouting(ctx)` which reads the session
+   ID with `domain.GetSessionID(ctx)` and parses it.
+3. If the session is not channel-formatted (e.g. chat-mode or a generic
+   agent run), the tool returns a clear error — it cannot guess where to
+   deliver.
+
+This means the LLM literally cannot route to the wrong recipient.
+
+### Job YAML format
+
+`~/.infer/schedules/<uuid>.yaml`:
+
+```yaml
+id: 01HG7K2N3M4P5Q6R7S8T9V0W1X
+name: Daily morning quote
+cron_expression: "0 8 * * *"      # standard 5-field crontab or @every <duration>
+prompt: |
+  Find an inspiring quote and respond with quote + author.
+channel: telegram
+recipient_id: "12345"
+model: ""                          # empty = use cfg.Agent.Model
+run_once: false                    # true → deleted after first fire
+created_at: 2026-04-25T10:30:00Z
+updated_at: 2026-04-25T10:30:00Z
+last_run: 2026-04-26T08:00:01Z
+last_error: ""                     # set when delivery fails
+```
+
+`Save` is atomic (write to `<id>.yaml.tmp`, then `os.Rename`) so the
+fsnotify watcher never sees half-written files.
+
+### Timezone
+
+Cron expressions are interpreted in `time.Local`, which honours the `TZ`
+environment variable. The binary imports `_ "time/tzdata"` in `main.go`,
+embedding the IANA zone DB so `TZ=Europe/Berlin` works on minimal container
+images that don't ship `/usr/share/zoneinfo`.
+
+### Adding a new Schedule operation
+
+1. Add the op to the `scheduleOp*` constants in
+   `internal/agent/tools/schedule.go`.
+2. Add an `enum` entry in the `operation` parameter and a `case` in
+   `Execute()`'s switch.
+3. Implement `execMyOp(ctx, args, store, start)` returning a
+   `*ScheduleToolResult`. Use `requireString` / `optionalString` /
+   `optionalBool` for arg extraction.
+4. Add validation in `Validate()`'s switch.
+5. Update the tool description + table in `docs/scheduling.md` and
+   `docs/tools-reference.md`.
+
+### Defaults & approval
+
+- Disabled by default (`ScheduleToolConfig.Enabled = false`); enable
+  explicitly via `tools.schedule.enabled: true` or
+  `INFER_TOOLS_SCHEDULE_ENABLED=true`.
+- Requires approval by default (`ScheduleToolConfig.RequireApproval =
+  ptr(true)`); the `IsApprovalRequired("Schedule")` switch case in
+  `config/config.go` honours this.
+- Defaults are registered with viper via four `v.SetDefault("tools.schedule.*",
+  ...)` calls in `cmd/root.go` — without those, viper unmarshals an empty
+  config and the defaults function's values are ignored.
 
 ## Model Thinking Visualization
 

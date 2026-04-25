@@ -62,3 +62,29 @@ func (s SessionID) Age() time.Duration {
 	}
 	return time.Since(time.Unix(timestamp, 0))
 }
+
+// ParseChannelSessionID extracts the channel name and recipient ID from a
+// session ID created by the channels-manager. The channel manager builds
+// session IDs as "channel-<name>-<sender_id>" (see channel_manager.go).
+//
+// Returns ok=false when the session ID does not match this format (e.g. for
+// chat-mode or generic agent sessions). Channel names cannot contain a '-';
+// recipient IDs may.
+func ParseChannelSessionID(sessionID string) (channel, recipientID string, ok bool) {
+	const prefix = "channel-"
+	if len(sessionID) <= len(prefix) || sessionID[:len(prefix)] != prefix {
+		return "", "", false
+	}
+	rest := sessionID[len(prefix):]
+	dash := -1
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == '-' {
+			dash = i
+			break
+		}
+	}
+	if dash <= 0 || dash == len(rest)-1 {
+		return "", "", false
+	}
+	return rest[:dash], rest[dash+1:], true
+}
