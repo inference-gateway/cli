@@ -1,22 +1,22 @@
-{
-  lib,
-  buildGoModule,
-  fetchFromGitHub,
-  installShellFiles,
-  stdenv,
-  swift,
-  apple-sdk,
+{ lib
+, buildGoModule
+, fetchFromGitHub
+, installShellFiles
+, stdenv
+, swift
+, apple-sdk
+,
 }:
 
 buildGoModule (finalAttrs: {
   pname = "infer";
-  version = "0.103.5";
+  version = "0.103.6";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
     repo = "cli";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-r4fozLRdZMZdvyJCnzOFOaN9SbkH5G22zdazFvdnzO4=";
+    hash = "sha256-VMac+6Heeq2+KTIh/lPmL27HY08WpMMcYU/f0n8ieLQ=";
   };
 
   vendorHash = "sha256-3kHd6AetSaOGSMeYsmeGPifE8oMrcUp/UQ4L6yK/CIg=";
