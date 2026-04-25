@@ -78,13 +78,14 @@ services:
       INFER_CHANNELS_ENABLED: true
       INFER_CHANNELS_TELEGRAM_ENABLED: true
       INFER_TOOLS_ENABLED: true
-      INFER_A2A_ENABLED: true
+      INFER_A2A_ENABLED: false
       INFER_A2A_AGENTS: |
         http://browser-agent:8080
-      INFER_AGENT_MODEL: deepseek/deepseek-chat
+      INFER_AGENT_MODEL: deepseek/deepseek-v4-pro
       INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
     volumes:
       - ./tmp:/home/infer
+      - ../../dist/infer-linux-arm64:/usr/local/bin/infer
     command:
       - channels-manager
     restart: unless-stopped

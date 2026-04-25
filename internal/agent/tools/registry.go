@@ -90,6 +90,10 @@ func (r *Registry) registerTools() {
 	r.tools["TodoWrite"] = NewTodoWriteTool(cfg)
 	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg)
 
+	if cfg.Tools.Schedule.Enabled {
+		r.tools["Schedule"] = NewScheduleTool(cfg)
+	}
+
 	if cfg.Tools.WebFetch.Enabled {
 		r.tools["WebFetch"] = NewWebFetchTool(cfg)
 	}

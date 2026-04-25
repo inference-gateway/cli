@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
+	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -69,11 +72,25 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start channels: %w", err)
 	}
 
+	sched, err := startScheduler(ctx, cm, cfg)
+	if err != nil {
+		_ = cm.Stop()
+		return fmt.Errorf("failed to start scheduler: %w", err)
+	}
+
 	logger.Info("Listening for messages. Press Ctrl+C to stop.")
 
 	<-sigChan
 	logger.Info("Shutting down channels...")
 	cancel()
+
+	if sched != nil {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := sched.Stop(stopCtx); err != nil {
+			logger.Error("Failed to stop scheduler", "error", err)
+		}
+		stopCancel()
+	}
 
 	if err := cm.Stop(); err != nil {
 		return fmt.Errorf("failed to stop channels: %w", err)
@@ -81,6 +98,38 @@ func RunChannelsCommand(cfg *config.Config) error {
 
 	logger.Info("Channels stopped.")
 	return nil
+}
+
+// startScheduler initialises the schedule scheduler service when the schedule
+// tool is enabled. Returns nil scheduler when disabled.
+func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg *config.Config) (*scheduler.Service, error) {
+	if !cfg.Tools.Schedule.Enabled {
+		return nil, nil
+	}
+	dir := cfg.Tools.Schedule.StorageDir
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("resolve home dir: %w", err)
+		}
+		dir = filepath.Join(home, config.ConfigDirName, "schedules")
+	}
+	store, err := scheduler.NewStore(dir)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := scheduler.NewService(scheduler.Options{
+		Store:         store,
+		ChannelLookup: cm.GetChannel,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := svc.Start(ctx); err != nil {
+		return nil, err
+	}
+	logger.Info("Scheduler started", "storage_dir", dir)
+	return svc, nil
 }
 
 // registerChannels registers enabled channel implementations with the manager

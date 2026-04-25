@@ -23,6 +23,7 @@ is enabled in the Inference Gateway CLI.
   - [Github Tool](#github-tool)
 - [Workflow Tools](#workflow-tools)
   - [TodoWrite Tool](#todowrite-tool)
+  - [Schedule Tool](#schedule-tool)
 - [Agent-to-Agent Communication](#agent-to-agent-communication)
   - [A2A_SubmitTask Tool](#a2a_submittask-tool)
   - [A2A_QueryAgent Tool](#a2a_queryagent-tool)
@@ -521,6 +522,75 @@ tools:
     enabled: true
     require_approval: false
 ```
+
+### Schedule Tool
+
+Create recurring tasks that the agent runs on a cron schedule and delivers back
+through a configured messaging channel (e.g. Telegram). Useful for "send me X
+every morning" workflows initiated from a chat.
+
+> **📖 For an end-to-end walkthrough, see [Scheduling Guide](scheduling.md).**
+
+**How it works:**
+
+- Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
+- The `infer channels-manager` daemon hosts the scheduler and watches that directory via fsnotify, so newly created jobs fire without a restart.
+- Each fire spawns a brand-new `infer agent` session — no context carries between runs. Make prompts specific and self-contained.
+- Output is delivered to the configured channel + recipient.
+
+**Disabled by default.** Enable in config under `tools.schedule.enabled: true`.
+
+**Parameters:**
+
+- `operation` (required): One of `create`, `list`, `get`, `update`, `delete`.
+- `job_id`: Required for `get`, `update`, `delete`.
+- `cron_expression`: Required for `create`. Standard 5-field crontab or `@every <duration>`.
+- `prompt`: Required for `create`. The task to give the agent on each fire.
+- `channel`: Required for `create`. Channel name (e.g. `telegram`).
+- `recipient_id`: Required for `create`. Recipient within the channel.
+- `name`, `description`, `model`: Optional metadata; `model` overrides `agent.model` for that job.
+
+**Example — create:**
+
+```json
+{
+  "operation": "create",
+  "cron_expression": "0 8 * * *",
+  "prompt": "Find an inspiring quote for today and respond with the quote and its author. Keep it under 3 sentences.",
+  "channel": "telegram",
+  "recipient_id": "12345",
+  "name": "Daily morning quote"
+}
+```
+
+**Example — list:**
+
+```json
+{ "operation": "list" }
+```
+
+**Example — delete:**
+
+```json
+{ "operation": "delete", "job_id": "0a1b2c3d-..." }
+```
+
+**Configuration:**
+
+```yaml
+tools:
+  schedule:
+    enabled: false              # disabled by default
+    require_approval: true      # require approval by default
+    storage_dir: ""             # default: ~/.infer/schedules
+    max_jobs: 100
+```
+
+**Security:**
+
+- **Approval required by default** — the LLM cannot create/modify schedules without user confirmation.
+- **Channel must be configured** — the tool refuses to schedule for channels that aren't enabled in `channels.<name>.enabled`.
+- **Daemon-bound execution** — jobs only fire while `infer channels-manager` is running.
 
 ---
 

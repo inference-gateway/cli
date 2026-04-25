@@ -424,6 +424,13 @@ Channels are configured in `.infer/config.yaml` under the `channels` key.
 Each channel has its own allowlist for security.
 See `docs/channels.md` for full documentation.
 
+The channels-manager daemon also hosts the **scheduler service**
+(`internal/services/scheduler/`) when `tools.schedule.enabled: true`. The
+`Schedule` tool lets the LLM create recurring jobs persisted as YAML files
+in `~/.infer/schedules/`; the daemon hot-reloads them via fsnotify and fires
+each on its cron schedule, delivering the agent's response back through the
+configured channel. See `docs/scheduling.md` for the full guide.
+
 ### Tool Approval Flow
 
 When `channels.require_approval` is `true` (default), the channel manager
