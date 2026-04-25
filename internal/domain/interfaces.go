@@ -370,6 +370,12 @@ type Channel interface {
 	Stop() error
 }
 
+// ApprovalChannel is an optional interface that channels can implement to provide
+// rich approval UIs (e.g., inline keyboard buttons) instead of text-based prompts.
+type ApprovalChannel interface {
+	SendApproval(ctx context.Context, recipientID string, req *ApprovalRequest) error
+}
+
 // InboundMessage represents a message received from an external channel
 type InboundMessage struct {
 	ChannelName string            `json:"channel_name"`

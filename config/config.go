@@ -603,11 +603,12 @@ type JsonlStorageConfig struct {
 
 // ChannelsConfig contains configuration for external messaging channels
 type ChannelsConfig struct {
-	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
-	MaxWorkers     int                   `yaml:"max_workers" mapstructure:"max_workers"`
-	ImageRetention int                   `yaml:"image_retention" mapstructure:"image_retention"`
-	Telegram       TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
-	WhatsApp       WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+	Enabled         bool                  `yaml:"enabled" mapstructure:"enabled"`
+	MaxWorkers      int                   `yaml:"max_workers" mapstructure:"max_workers"`
+	ImageRetention  int                   `yaml:"image_retention" mapstructure:"image_retention"`
+	RequireApproval bool                  `yaml:"require_approval" mapstructure:"require_approval"`
+	Telegram        TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
+	WhatsApp        WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
 }
 
 // TelegramChannelConfig contains Telegram bot settings
@@ -1156,9 +1157,10 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Channels: ChannelsConfig{
-			Enabled:        false,
-			MaxWorkers:     5,
-			ImageRetention: 5,
+			Enabled:         false,
+			MaxWorkers:      5,
+			ImageRetention:  5,
+			RequireApproval: true,
 			Telegram: TelegramChannelConfig{
 				Enabled:      false,
 				BotToken:     "",

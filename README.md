@@ -945,11 +945,30 @@ infer channels-manager
 Each incoming message triggers `infer agent --session-id <id>` as a
 subprocess with a persistent session per sender.
 
+### Tool Approval
+
+By default, sensitive tools (Write, Edit, Delete, Bash) require user approval
+before executing. The agent sends an approval prompt to the channel and waits
+for the user to reply "yes" or "no". Read-only tools (Read, Grep, Tree) execute
+without approval.
+
+This reuses the existing `tools.*.require_approval` configuration. To disable:
+
+```yaml
+channels:
+  require_approval: false  # default: true
+```
+
+Or: `INFER_CHANNELS_REQUIRE_APPROVAL=false`
+
+Approvals time out after 5 minutes and are automatically rejected.
+
 ### Security
 
 - **Allowlist-only access**: Only chat IDs in `allowed_users` can interact with the agent
 - **Empty allowlist = reject all**: If no users are configured, all messages are rejected (secure by default)
 - **Per-channel allowlists**: Each channel (Telegram, WhatsApp) has its own independent allowlist
+- **Tool approval by default**: Sensitive tools require explicit user approval before executing
 - **Use environment variables** for tokens - never commit secrets to config files
 
 ### Supported Channels
