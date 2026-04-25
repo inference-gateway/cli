@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.103.5](https://github.com/inference-gateway/cli/compare/v0.103.4...v0.103.5) (2026-04-25)
+
+### 🧹 Maintenance
+
+* **nix:** Pre-nixpkgs cleanup ([#423](https://github.com/inference-gateway/cli/issues/423)) ([7e629e0](https://github.com/inference-gateway/cli/commit/7e629e079c8a4a32546ea9589e44bc3f3715a1d7))
+* **nix:** Update package to v0.103.4 ([#422](https://github.com/inference-gateway/cli/issues/422)) ([398816b](https://github.com/inference-gateway/cli/commit/398816b65ff708580c7eca1cd6cf338771d95996))
+
 ## [0.103.4](https://github.com/inference-gateway/cli/compare/v0.103.3...v0.103.4) (2026-04-25)
 
 ### 🐛 Bug Fixes
