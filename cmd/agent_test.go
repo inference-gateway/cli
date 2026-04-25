@@ -356,6 +356,10 @@ func TestConvertFromConversationEntry(t *testing.T) {
 				t.Errorf("ToolCallID = %v, want %v", result.ToolCallID, tt.expected.ToolCallID)
 			}
 
+			if result.ReasoningContent != tt.expected.ReasoningContent {
+				t.Errorf("ReasoningContent = %q, want %q", result.ReasoningContent, tt.expected.ReasoningContent)
+			}
+
 			if len(result.Images) != len(tt.expected.Images) {
 				t.Errorf("Images length = %v, want %v", len(result.Images), len(tt.expected.Images))
 			}
@@ -624,4 +628,111 @@ func validateToolExecution(t *testing.T, actual, expected *domain.ToolExecutionR
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+// TestReasoningContentRoundTripSyncPath is a regression test for issue #428:
+// the non-streaming agent path used to drop reasoning_content end-to-end,
+// which broke multi-turn DeepSeek v4-pro requests after a tool call.
+//
+// This test exercises three layers of the fix:
+//  1. processSyncResponse persists reasoning_content from ChatSyncResponse
+//     onto the assistant ConversationMessage.
+//  2. buildSDKMessages emits both `reasoning` and `reasoning_content` on the
+//     outbound sdk.Message (provider-agnostic).
+//  3. convertToConversationEntry / convertFromConversationEntry round-trip
+//     the field through storage so resumed sessions still carry it.
+func TestReasoningContentRoundTripSyncPath(t *testing.T) {
+	const reasoning = "The user asked me to echo, so I'll call Bash."
+
+	t.Run("processSyncResponse persists reasoning_content on assistant message", func(t *testing.T) {
+		session := &AgentSession{
+			toolService:  &domainmocks.FakeToolService{},
+			config:       &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 1}},
+			conversation: []ConversationMessage{},
+		}
+
+		resp := &domain.ChatSyncResponse{
+			RequestID:        "req_1",
+			Content:          "",
+			ReasoningContent: reasoning,
+			ToolCalls: []sdk.ChatCompletionMessageToolCall{{
+				Id: "call_1",
+				Function: sdk.ChatCompletionMessageToolCallFunction{
+					Name:      "Bash",
+					Arguments: `{"command":"echo hi"}`,
+				},
+			}},
+		}
+
+		if err := session.processSyncResponse(resp, "req_1"); err != nil {
+			t.Fatalf("processSyncResponse: %v", err)
+		}
+
+		if len(session.conversation) == 0 {
+			t.Fatal("expected conversation to contain assistant message")
+		}
+		assistant := session.conversation[0]
+		if assistant.Role != "assistant" {
+			t.Fatalf("expected first message to be assistant, got %q", assistant.Role)
+		}
+		if assistant.ReasoningContent != reasoning {
+			t.Errorf("assistant.ReasoningContent = %q, want %q", assistant.ReasoningContent, reasoning)
+		}
+	})
+
+	t.Run("buildSDKMessages emits reasoning and reasoning_content on outbound", func(t *testing.T) {
+		session := &AgentSession{
+			conversation: []ConversationMessage{
+				{Role: "user", Content: "echo hi"},
+				{
+					Role:             "assistant",
+					Content:          "",
+					ReasoningContent: reasoning,
+					ToolCalls: &[]sdk.ChatCompletionMessageToolCall{{
+						Id: "call_1",
+						Function: sdk.ChatCompletionMessageToolCallFunction{
+							Name: "Bash", Arguments: `{"command":"echo hi"}`,
+						},
+					}},
+				},
+			},
+		}
+
+		msgs := session.buildSDKMessages()
+		if len(msgs) != 2 {
+			t.Fatalf("expected 2 sdk messages, got %d", len(msgs))
+		}
+
+		out := msgs[1]
+		if out.Reasoning == nil || *out.Reasoning != reasoning {
+			t.Errorf("outbound Reasoning = %v, want pointer to %q", out.Reasoning, reasoning)
+		}
+		if out.ReasoningContent == nil || *out.ReasoningContent != reasoning {
+			t.Errorf("outbound ReasoningContent = %v, want pointer to %q", out.ReasoningContent, reasoning)
+		}
+	})
+
+	t.Run("convertTo/From round-trips reasoning_content through storage", func(t *testing.T) {
+		session := &AgentSession{model: "deepseek/deepseek-v4-pro"}
+
+		original := ConversationMessage{
+			Role:             "assistant",
+			Content:          "",
+			ReasoningContent: reasoning,
+			Timestamp:        mockTime(),
+		}
+
+		entry := session.convertToConversationEntry(original)
+		if entry.ReasoningContent != reasoning {
+			t.Errorf("entry.ReasoningContent = %q, want %q", entry.ReasoningContent, reasoning)
+		}
+		if entry.Message.ReasoningContent == nil || *entry.Message.ReasoningContent != reasoning {
+			t.Errorf("entry.Message.ReasoningContent = %v, want pointer to %q", entry.Message.ReasoningContent, reasoning)
+		}
+
+		restored := session.convertFromConversationEntry(entry)
+		if restored.ReasoningContent != reasoning {
+			t.Errorf("restored.ReasoningContent = %q, want %q", restored.ReasoningContent, reasoning)
+		}
+	})
 }

@@ -325,29 +325,47 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	duration := time.Since(startTime)
 
-	var content string
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-
-	if len(response.Choices) > 0 {
-		choice := response.Choices[0]
-		contentStr, err := choice.Message.Content.AsMessageContent0()
-		if err != nil {
-			contentStr = ""
-		}
-		content = contentStr
-
-		if choice.Message.ToolCalls != nil {
-			toolCalls = *choice.Message.ToolCalls
-		}
-	}
+	content, reasoningContent, toolCalls := extractFirstChoice(response)
 
 	return &domain.ChatSyncResponse{
-		RequestID: req.RequestID,
-		Content:   content,
-		ToolCalls: toolCalls,
-		Usage:     response.Usage,
-		Duration:  duration,
+		RequestID:        req.RequestID,
+		Content:          content,
+		ReasoningContent: reasoningContent,
+		ToolCalls:        toolCalls,
+		Usage:            response.Usage,
+		Duration:         duration,
 	}, nil
+}
+
+// extractFirstChoice pulls content, reasoning, and tool calls from the first
+// choice of a non-streaming response. Reasoning preference matches the
+// streaming path in agent_streaming.go.
+func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, string, []sdk.ChatCompletionMessageToolCall) {
+	if len(response.Choices) == 0 {
+		return "", "", nil
+	}
+
+	choice := response.Choices[0]
+
+	content, err := choice.Message.Content.AsMessageContent0()
+	if err != nil {
+		content = ""
+	}
+
+	reasoning := ""
+	switch {
+	case choice.Message.Reasoning != nil && *choice.Message.Reasoning != "":
+		reasoning = *choice.Message.Reasoning
+	case choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "":
+		reasoning = *choice.Message.ReasoningContent
+	}
+
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+	if choice.Message.ToolCalls != nil {
+		toolCalls = *choice.Message.ToolCalls
+	}
+
+	return content, reasoning, toolCalls
 }
 
 // batchDrainQueue drains all queued messages and adds them to conversation
