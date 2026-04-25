@@ -41,7 +41,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6.2.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -81,7 +81,7 @@ jobs:
           go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: infer-${{ matrix.goos }}-${{ matrix.goarch }}
           path: infer-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -140,14 +140,14 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6.2.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: 'go.mod'
           cache: true
 
       - name: Cache task binary
         id: cache-task
-        uses: actions/cache@v5.0.4
+        uses: actions/cache@v5.0.5
         with:
           path: /usr/local/bin/task
           key: ${{ runner.os }}-task-3.48.0
