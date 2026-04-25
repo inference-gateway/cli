@@ -12,16 +12,16 @@ buildGoModule (finalAttrs: {
   __structuredAttrs = true;
 
   pname = "infer";
-  version = "0.103.7";
+  version = "0.104.0";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
     repo = "cli";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-+v2HwNhj2+8OUVf9Xiw4By2TPkf75JZOQpIVnesZm2E=";
+    hash = "sha256-RnmDYFoe2KYj32tVkXelxtgm9j7UL9IcFlBDUgsMAK8=";
   };
 
-  vendorHash = "sha256-3kHd6AetSaOGSMeYsmeGPifE8oMrcUp/UQ4L6yK/CIg=";
+  vendorHash = "sha256-Z1EQAScRDSGVdnQXyrjGH+b84rG53IK4oKNJg845AWY=";
 
   # Use the Go module proxy layout instead of `go mod vendor`. The robotgo
   # dependency includes CGO `#include` directives that reference C headers
