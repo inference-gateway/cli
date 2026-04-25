@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.103.1](https://github.com/inference-gateway/cli/compare/v0.103.0...v0.103.1) (2026-04-25)
+
+### 👷 CI/CD
+
+* **nix:** Add NixOS package distribution ([#295](https://github.com/inference-gateway/cli/issues/295)) ([6a7e4fc](https://github.com/inference-gateway/cli/commit/6a7e4fce86ebc5a9a8de3c8b45f32c9f7ce4b791))
+
+### 🧹 Maintenance
+
+* **deps:** Bump dev dependecies to latest ([cad77b3](https://github.com/inference-gateway/cli/commit/cad77b3cfa5faf4a19b02c6d95b19a3cf9879a85))
+* **deps:** Bump github.com/inference-gateway/adk from 0.17.0 to 0.17.1 ([#419](https://github.com/inference-gateway/cli/issues/419)) ([2974230](https://github.com/inference-gateway/cli/commit/2974230b1b06937c62b31c13db33f3036dfc9382))
+* **deps:** Bump modernc.org/sqlite from 1.48.2 to 1.49.1 ([#420](https://github.com/inference-gateway/cli/issues/420)) ([3e481b2](https://github.com/inference-gateway/cli/commit/3e481b21c9abe21364cfb33384acbee53dd7ea69))
+
 ## [0.103.0](https://github.com/inference-gateway/cli/compare/v0.102.0...v0.103.0) (2026-04-17)
 
 ### 🚀 Features
