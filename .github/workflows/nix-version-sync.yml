@@ -70,7 +70,7 @@ jobs:
         run: |
           echo "Attempting build to calculate vendorHash..."
           sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = "";|' nix/package.nix
-          BUILD_OUTPUT=$(nix-build nix/package.nix 2>&1 || true)
+          BUILD_OUTPUT=$(nix-build nix/default.nix 2>&1 || true)
           VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+sha256-\K[A-Za-z0-9+/=]+" | head -1)
 
           if [ -z "$VENDOR_HASH" ]; then
@@ -91,7 +91,7 @@ jobs:
       - name: Verify build
         run: |
           echo "Building with updated hashes to verify..."
-          nix-build nix/package.nix --show-trace
+          nix-build nix/default.nix --show-trace
 
           echo "Verifying binary..."
           result/bin/infer version
@@ -120,7 +120,7 @@ jobs:
 
             ### Verification
             ```bash
-            nix-build nix/package.nix
+            nix-build nix/default.nix
             result/bin/infer version
             ```
 

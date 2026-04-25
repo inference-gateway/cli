@@ -76,7 +76,7 @@ rm -f nix/package.nix.tmp
 
 # Try to build and capture the vendor hash from error
 echo "Building to determine vendor hash..."
-BUILD_OUTPUT=$(nix-build nix/package.nix 2>&1 || true)
+BUILD_OUTPUT=$(nix-build nix/default.nix 2>&1 || true)
 
 # Extract vendor hash from the error message
 VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+sha256-\K[A-Za-z0-9+/=]+" | head -1)
@@ -116,7 +116,7 @@ echo ""
 
 # Verify the build
 echo -e "${YELLOW}Verifying build...${NC}"
-if nix-build nix/package.nix --show-trace; then
+if nix-build nix/default.nix --show-trace; then
     echo -e "${GREEN}✓ Build successful!${NC}\n"
 
     # Test the binary
