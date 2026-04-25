@@ -43,7 +43,7 @@ Examples:
   infer agents add test-runner https://localhost:8081 --oci ghcr.io/org/test-runner:latest --run
 
   # Add agent with specific model
-  infer agents add code-reviewer https://agent.example.com --run --model deepseek/deepseek-chat
+  infer agents add code-reviewer https://agent.example.com --run --model deepseek/deepseek-v4-pro
 
   # Add agent with custom environment variables
   infer agents add analyzer https://agent.example.com --run --environment CUSTOM_ENV=value --environment A2A_DEBUG=true --environment A2A_PORT=8443`,

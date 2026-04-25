@@ -48,9 +48,9 @@ func TestPricingService_FormatModelPricing(t *testing.T) {
 		{
 			name:    "model with fractional pricing",
 			enabled: true,
-			model:   "deepseek-chat",
+			model:   "deepseek-v4-flash",
 			customPrices: map[string]config.CustomPricing{
-				"deepseek-chat": {
+				"deepseek-v4-flash": {
 					InputPricePerMToken:  0.14,
 					OutputPricePerMToken: 0.28,
 				},

@@ -51,7 +51,7 @@ Configuration values are resolved in the following order (highest to lowest prio
 5. **Built-in Defaults** - **Lowest Priority**
 
 **Example**: If your userspace config sets `agent.model: "anthropic/claude-4"` and your project config
-sets `agent.model: "deepseek/deepseek-chat"`, the project config wins. However, if you also set
+sets `agent.model: "deepseek/deepseek-v4-pro"`, the project config wins. However, if you also set
 `INFER_AGENT_MODEL="openai/gpt-4"`, the environment variable takes precedence over both config files.
 
 ### Usage Examples
@@ -257,7 +257,7 @@ compact:
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - **gateway.include_models**: Only allow specific models (allowlist approach, default: `[]`, allows all models)
   - When set, only the specified models will be allowed by the gateway
-  - Example: `["deepseek/deepseek-reasoner", "deepseek/deepseek-chat"]`
+  - Example: `["deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash"]`
   - This is passed to the gateway as the `ALLOWED_MODELS` environment variable
 - **gateway.exclude_models**: Block specific models (blocklist approach, default: `[]`, blocks none)
   - When set, all models are allowed except those in the list
@@ -521,7 +521,7 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 ### Agent Configuration
 
-- `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-chat`)
+- `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-v4-pro`)
 - `INFER_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
 - `INFER_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
 - `INFER_AGENT_VERBOSE_TOOLS`: Enable verbose tool output (default: `false`)
@@ -702,13 +702,13 @@ http://browser-agent:8080
 
 ### Git Configuration
 
-- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: `deepseek/deepseek-chat`)
+- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: `deepseek/deepseek-v4-pro`)
 
 ### SCM Configuration
 
 - `INFER_SCM_PR_CREATE_BASE_BRANCH`: Base branch for PR creation (default: `main`)
 - `INFER_SCM_PR_CREATE_BRANCH_PREFIX`: Branch prefix for PR creation (default: `feature/`)
-- `INFER_SCM_PR_CREATE_MODEL`: Model for PR creation (default: `deepseek/deepseek-chat`)
+- `INFER_SCM_PR_CREATE_MODEL`: Model for PR creation (default: `deepseek/deepseek-v4-pro`)
 - `INFER_SCM_CLEANUP_RETURN_TO_BASE`: Return to base branch after PR creation (default: `true`)
 - `INFER_SCM_CLEANUP_DELETE_LOCAL_BRANCH`: Delete local branch after PR creation (default: `false`)
 
@@ -773,11 +773,11 @@ This allows sensitive values to be stored as environment variables while keeping
 
 ```bash
 # 1. Setup userspace defaults
-infer config --userspace agent set-model "deepseek/deepseek-chat"
+infer config --userspace agent set-model "deepseek/deepseek-v4-pro"
 infer config --userspace agent set-system "You are a helpful assistant"
 
 # 2. Project-specific overrides
-infer config agent set-model "deepseek/deepseek-chat"  # Project-specific model
+infer config agent set-model "deepseek/deepseek-v4-pro"  # Project-specific model
 infer config tools bash enable  # Enable bash tools for this project
 
 # 3. Runtime overrides

@@ -28,7 +28,7 @@ agents:
     artifacts_url: https://url    # Optional: Artifacts server HTTP endpoint (default: none)
     oci: registry/image:tag       # Optional: OCI image reference for local execution
     run: false                    # Optional: Whether to run agent locally with Docker
-    model: provider/model-name    # Optional: AI model to use (e.g., deepseek/deepseek-chat)
+    model: provider/model-name    # Optional: AI model to use (e.g., deepseek/deepseek-v4-pro)
     environment:                  # Optional: Environment variables for the agent
       KEY: VALUE
 ```
@@ -41,7 +41,7 @@ agents:
   this port when running the agent locally. The artifacts server typically runs on port 8081 inside the container.
 - **oci**: OCI (Docker) image reference for running the agent locally.
 - **run**: Boolean flag indicating whether this agent should be run locally with Docker (default: `false`).
-- **model**: AI model to use in the format `provider/model-name` (e.g., `deepseek/deepseek-chat`).
+- **model**: AI model to use in the format `provider/model-name` (e.g., `deepseek/deepseek-v4-pro`).
   This is automatically expanded to `A2A_AGENT_CLIENT_PROVIDER` and `A2A_AGENT_CLIENT_MODEL` environment variables.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
@@ -275,7 +275,7 @@ agents:
     artifacts_url: http://localhost:8084
     oci: ghcr.io/inference-gateway/browser-agent:latest
     run: true
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-v4-pro
     environment:
       A2A_DEBUG: true
 ```
