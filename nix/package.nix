@@ -9,6 +9,8 @@
 }:
 
 buildGoModule (finalAttrs: {
+  __structuredAttrs = true;
+
   pname = "infer";
   version = "0.103.7";
 
