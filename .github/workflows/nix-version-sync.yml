@@ -106,7 +106,7 @@ jobs:
 
       - name: Format Nix file
         run: |
-          nix-shell -p nixpkgs-fmt --run "nixpkgs-fmt nix/package.nix"
+          nix-shell -p nixfmt-rfc-style --run "nixfmt nix/package.nix"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
@@ -124,7 +124,7 @@ jobs:
             - ✅ Updated source `hash` to `sha256-${{ steps.source-hash.outputs.hash }}`
             - ✅ Updated `vendorHash` to `sha256-${{ steps.vendor-hash.outputs.hash }}`
             - ✅ Verified build succeeds
-            - ✅ Formatted with nixpkgs-fmt
+            - ✅ Formatted with nixfmt-rfc-style
 
             ### Verification
             ```bash
