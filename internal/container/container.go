@@ -3,7 +3,6 @@ package container
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,7 +99,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		log:              log,
 	}
 
-	cfg.SetConfigDir(container.determineConfigDirectory())
+	cfg.SetConfigDir(config.ResolveConfigDir())
 
 	container.initializeGatewayManager()
 	container.initializeStateManager()
@@ -357,30 +356,11 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
 	}
 
-	configDir := c.determineConfigDirectory()
+	configDir := c.config.GetConfigDir()
 	customShortcutClient := c.createRawSDKClient()
 	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
 		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
-}
-
-// determineConfigDirectory returns the directory where configuration and
-// related files should be stored. It searches the standard locations in
-// project / userspace order and falls back to .infer when none exist.
-func (c *ServiceContainer) determineConfigDirectory() string {
-	candidates := []string{config.DefaultConfigPath}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName))
-	}
-
-	for _, path := range candidates {
-		if _, err := os.Stat(path); err == nil {
-			return filepath.Dir(path)
-		}
-	}
-
-	return config.ConfigDirName
 }
 
 // Logger returns the logger instance for this container

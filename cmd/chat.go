@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -15,6 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -25,7 +26,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	web "github.com/inference-gateway/cli/internal/web"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 var chatCmd = &cobra.Command{
@@ -187,31 +187,29 @@ func StartChatSession(cfg *config.Config) error {
 		}()
 	}
 
-	versionInfo := GetVersionInfo()
 	application := app.NewChatApplication(
+		cfg,
 		models,
 		defaultModel,
+		GetVersionInfo(),
+		agentManager,
 		agentService,
-		conversationRepo,
+		backgroundTaskService,
 		conversationOptimizer,
-		sessionRolloverManager,
-		modelService,
-		cfg,
-		toolService,
+		conversationRepo,
 		fileService,
 		imageService,
-		pricingService,
-		shortcutRegistry,
-		stateManager,
-		messageQueue,
-		themeService,
-		toolRegistry,
 		mcpManager,
+		messageQueue,
+		modelService,
+		pricingService,
+		sessionRolloverManager,
+		stateManager,
 		taskRetentionService,
-		backgroundTaskService,
-		agentManager,
-		getEffectiveConfigPath(),
-		versionInfo,
+		themeService,
+		toolService,
+		shortcutRegistry,
+		toolRegistry,
 	)
 
 	program := tea.NewProgram(
@@ -264,31 +262,6 @@ func validateAndSetDefaultModel(modelService domain.ModelService, models []strin
 
 	fmt.Printf("• Using default model: %s\n", defaultModel)
 	return defaultModel
-}
-
-// getEffectiveConfigPath returns the actual config file path that should be displayed
-// It follows Viper's search order and returns the first existing config file
-func getEffectiveConfigPath() string {
-	searchPaths := []string{
-		".infer/config.yaml",
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, ".infer", "config.yaml")
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	if configFile := V.ConfigFileUsed(); configFile != "" {
-		return configFile
-	}
-
-	return ".infer/config.yaml"
 }
 
 // isInteractiveTerminal checks if we're running in an interactive terminal

@@ -98,29 +98,28 @@ type ChatApplication struct {
 
 // nolint: funlen // NewChatApplication creates a new chat application
 func NewChatApplication(
+	cfg *config.Config,
 	models []string,
 	defaultModel string,
+	versionInfo domain.VersionInfo,
+	agentManager domain.AgentManager,
 	agentService domain.AgentService,
-	conversationRepo domain.ConversationRepository,
+	backgroundTaskService domain.BackgroundTaskService,
 	conversationOptimizer domain.ConversationOptimizer,
-	sessionRolloverManager *services.SessionRolloverManager,
-	modelService domain.ModelService,
-	cfg *config.Config,
-	toolService domain.ToolService,
+	conversationRepo domain.ConversationRepository,
 	fileService domain.FileService,
 	imageService domain.ImageService,
-	pricingService domain.PricingService,
-	shortcutRegistry *shortcuts.Registry,
-	stateManager domain.StateManager,
-	messageQueue domain.MessageQueue,
-	themeService domain.ThemeService,
-	toolRegistry *tools.Registry,
 	mcpManager domain.MCPManager,
+	messageQueue domain.MessageQueue,
+	modelService domain.ModelService,
+	pricingService domain.PricingService,
+	sessionRolloverManager *services.SessionRolloverManager,
+	stateManager domain.StateManager,
 	taskRetentionService domain.TaskRetentionService,
-	backgroundTaskService domain.BackgroundTaskService,
-	agentManager domain.AgentManager,
-	configPath string,
-	versionInfo domain.VersionInfo,
+	themeService domain.ThemeService,
+	toolService domain.ToolService,
+	shortcutRegistry *shortcuts.Registry,
+	toolRegistry *tools.Registry,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -160,19 +159,16 @@ func NewChatApplication(
 	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry, styleProvider)
 
+	configDir := cfg.GetConfigDir()
+	app.configDir = configDir
+
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
-		cv.SetConfigPath(configPath)
+		cv.SetConfigPath(filepath.Join(configDir, config.ConfigFileName))
 		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
 	}
-
-	configDir := ".infer"
-	if configPath != "" {
-		configDir = filepath.Dir(configPath)
-	}
-	app.configDir = configDir
 
 	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
