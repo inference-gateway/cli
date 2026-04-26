@@ -1,15 +1,14 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	cobra "github.com/spf13/cobra"
-	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	utils "github.com/inference-gateway/cli/config/utils"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
@@ -40,7 +39,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, agentsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -59,6 +58,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
 		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
+		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -72,15 +72,16 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
 		channelsPath = config.DefaultChannelsPath
+		agentsPath = config.DefaultAgentsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, agentsPath); err != nil {
 			return err
 		}
 	}
 
-	if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
+	if err := utils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
@@ -139,6 +140,10 @@ tmp/
 		return fmt.Errorf("failed to create channels config file: %w", err)
 	}
 
+	if err := createAgentsConfigFile(agentsPath); err != nil {
+		return fmt.Errorf("failed to create agents config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -159,6 +164,7 @@ tmp/
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
 	fmt.Printf("   Created: %s\n", channelsPath)
+	fmt.Printf("   Created: %s\n", agentsPath)
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
@@ -182,29 +188,6 @@ tmp/
 	}
 
 	return nil
-}
-
-// writeConfigAsYAMLWithIndent writes the default configuration to a YAML file with specified indentation
-func writeConfigAsYAMLWithIndent(filename string, indent int) error {
-	defaultConfig := config.DefaultConfig()
-
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	var buf bytes.Buffer
-	yamlEncoder := yaml.NewEncoder(&buf)
-	yamlEncoder.SetIndent(indent)
-
-	if err := yamlEncoder.Encode(defaultConfig); err != nil {
-		return fmt.Errorf("failed to marshal config to YAML: %w", err)
-	}
-
-	if err := yamlEncoder.Close(); err != nil {
-		return fmt.Errorf("failed to close YAML encoder: %w", err)
-	}
-
-	return os.WriteFile(filename, buf.Bytes(), 0644)
 }
 
 // checkFileExists checks if a file exists and returns an error if it does
@@ -464,6 +447,16 @@ func createChannelsConfigFile(path string) (bool, error) {
 		return false, err
 	}
 	return migrated, nil
+}
+
+// createAgentsConfigFile writes a fresh agents.yaml seeded from the in-code
+// defaults so users can manage A2A agents via `infer agents` commands.
+func createAgentsConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return config.SaveAgents(path, config.DefaultAgentsConfig())
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

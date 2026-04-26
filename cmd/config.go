@@ -17,6 +17,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -108,11 +109,7 @@ For complete project initialization, use 'infer init' instead.`,
 			}
 		}
 
-		if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-			return fmt.Errorf("failed to create config directory: %w", err)
-		}
-
-		if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
+		if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
