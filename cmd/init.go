@@ -41,7 +41,7 @@ func initializeProject(cmd *cobra.Command) error {
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -58,6 +58,7 @@ func initializeProject(cmd *cobra.Command) error {
 		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
+		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -69,10 +70,11 @@ func initializeProject(cmd *cobra.Command) error {
 		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = config.DefaultKeybindingsPath
+		promptsPath = config.DefaultPromptsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath); err != nil {
 			return err
 		}
 	}
@@ -127,6 +129,10 @@ tmp/
 		return fmt.Errorf("failed to create keybindings config file: %w", err)
 	}
 
+	if err := createPromptsConfigFile(promptsPath); err != nil {
+		return fmt.Errorf("failed to create prompts config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -145,6 +151,7 @@ tmp/
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Printf("   Created: %s\n", keybindingsPath)
+	fmt.Printf("   Created: %s\n", promptsPath)
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -410,6 +417,18 @@ func createKeybindingsConfigFile(path string) error {
 
 	service := services.NewKeybindingsConfigService(path)
 	return service.Save(services.DefaultKeybindingsConfig())
+}
+
+// createPromptsConfigFile writes a fresh prompts.yaml seeded from the
+// in-code defaults so users can edit individual prompts without touching
+// config.yaml.
+func createPromptsConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	service := services.NewPromptsConfigService(path)
+	return service.Save(config.DefaultPromptsConfig())
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

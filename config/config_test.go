@@ -105,11 +105,12 @@ func testChatDefaults(t *testing.T, cfg *Config) {
 	if cfg.Agent.Model != "" {
 		t.Errorf("Expected default model to be empty, got %q", cfg.Agent.Model)
 	}
-	expectedSystemPrompt := `Autonomous software engineering agent. Execute tasks iteratively until completion.`
-	if cfg.Agent.SystemPrompt != expectedSystemPrompt {
-		t.Errorf("Expected system prompt to match default, got %q", cfg.Agent.SystemPrompt)
+	// Prompt defaults moved to prompts.yaml as of issue #439 — DefaultConfig
+	// leaves these fields empty so the runtime overlay (or env vars) fills
+	// them. See config/prompts.go for the live defaults.
+	if cfg.Agent.SystemPrompt != "" {
+		t.Errorf("Expected system prompt to be empty in main config (now sourced from prompts.yaml), got %q", cfg.Agent.SystemPrompt)
 	}
-
 	if cfg.Agent.CustomInstructions != "" {
 		t.Errorf("Expected custom instructions to be empty by default, got %q", cfg.Agent.CustomInstructions)
 	}
@@ -335,8 +336,12 @@ func TestSaveConfig(t *testing.T) {
 				if cfg.Agent.Model != "anthropic/claude-4" {
 					t.Errorf("Expected default model to be 'anthropic/claude-4', got %q", cfg.Agent.Model)
 				}
-				if cfg.Agent.SystemPrompt != "Be helpful" {
-					t.Errorf("Expected system prompt to be 'Be helpful', got %q", cfg.Agent.SystemPrompt)
+				// SystemPrompt is now sourced from prompts.yaml (issue #439)
+				// and tagged yaml:"-" — it intentionally does NOT round-trip
+				// through config.yaml. Asserting it is empty after save+load
+				// guards against accidentally re-tagging the field.
+				if cfg.Agent.SystemPrompt != "" {
+					t.Errorf("Expected system prompt to be empty after round-trip (it lives in prompts.yaml), got %q", cfg.Agent.SystemPrompt)
 				}
 				if cfg.Gateway.APIKey != "secret-key" {
 					t.Errorf("Expected API key to be 'secret-key', got %q", cfg.Gateway.APIKey)

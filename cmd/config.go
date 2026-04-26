@@ -596,6 +596,27 @@ func getEffectiveKeybindingsConfigPath() string {
 	return config.DefaultKeybindingsPath
 }
 
+// getEffectivePromptsConfigPath returns the path to the prompts config file
+// Searches in this order: 1) project .infer/prompts.yaml, 2) user home ~/.infer/prompts.yaml
+func getEffectivePromptsConfigPath() string {
+	searchPaths := []string{
+		config.DefaultPromptsPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultPromptsPath
+}
+
 // getKeybindingsConfigWritePath returns the path to write keybindings to,
 // honouring the --userspace flag.
 func getKeybindingsConfigWritePath(userspace bool) (string, error) {
@@ -639,7 +660,64 @@ func getConfigFromViper() (*config.Config, error) {
 
 	applyKeybindingEnvOverrides(cfg)
 
+	promptsPath := getEffectivePromptsConfigPath()
+	promptsService := services.NewPromptsConfigService(promptsPath)
+	prompts, err := promptsService.Load()
+	if err != nil {
+		logger.Warn("Failed to load prompts config, using defaults", "error", err, "path", promptsPath)
+		prompts = config.DefaultPromptsConfig()
+	}
+	applyPromptsOverlay(cfg, prompts)
+	applyPromptsEnvOverrides(cfg)
+
 	return cfg, nil
+}
+
+// applyPromptsOverlay copies every prompt loaded from prompts.yaml into the
+// in-memory Config. Empty fields fall back to DefaultPromptsConfig() so a
+// user who blanks one entry doesn't lose every other prompt.
+func applyPromptsOverlay(cfg *config.Config, p *config.PromptsConfig) {
+	defaults := config.DefaultPromptsConfig()
+
+	pickString := func(loaded, fallback string) string {
+		if loaded != "" {
+			return loaded
+		}
+		return fallback
+	}
+
+	cfg.Agent.SystemPrompt = pickString(p.Agent.SystemPrompt, defaults.Agent.SystemPrompt)
+	cfg.Agent.SystemPromptPlan = pickString(p.Agent.SystemPromptPlan, defaults.Agent.SystemPromptPlan)
+	cfg.Agent.SystemPromptRemote = pickString(p.Agent.SystemPromptRemote, defaults.Agent.SystemPromptRemote)
+	cfg.Agent.CustomInstructions = p.Agent.CustomInstructions
+	cfg.Agent.SystemReminders.ReminderText = pickString(p.Agent.SystemReminders.ReminderText, defaults.Agent.SystemReminders.ReminderText)
+
+	cfg.Git.CommitMessage.SystemPrompt = pickString(p.Git.CommitMessage.SystemPrompt, defaults.Git.CommitMessage.SystemPrompt)
+	cfg.Conversation.TitleGeneration.SystemPrompt = pickString(p.Conversation.TitleGeneration.SystemPrompt, defaults.Conversation.TitleGeneration.SystemPrompt)
+	cfg.Init.Prompt = pickString(p.Init.Prompt, defaults.Init.Prompt)
+}
+
+// applyPromptsEnvOverrides lets users force a prompt from the environment.
+// Run AFTER applyPromptsOverlay so envs win over the YAML file. Only the
+// prompt fields exposed in PromptsConfig are checked, so an unrelated
+// INFER_PROMPTS_* var is silently ignored.
+func applyPromptsEnvOverrides(cfg *config.Config) {
+	envOverrides := map[string]*string{
+		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT":                         &cfg.Agent.SystemPrompt,
+		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN":                    &cfg.Agent.SystemPromptPlan,
+		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Agent.SystemPromptRemote,
+		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Agent.CustomInstructions,
+		"INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_REMINDER_TEXT":        &cfg.Agent.SystemReminders.ReminderText,
+		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Git.CommitMessage.SystemPrompt,
+		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Conversation.TitleGeneration.SystemPrompt,
+		"INFER_PROMPTS_INIT_PROMPT":                                 &cfg.Init.Prompt,
+	}
+
+	for envKey, target := range envOverrides {
+		if val, ok := os.LookupEnv(envKey); ok {
+			*target = val
+		}
+	}
 }
 
 // applyKeybindingEnvOverrides walks INFER_CHAT_KEYBINDINGS_BINDINGS_*
