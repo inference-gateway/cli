@@ -27,7 +27,9 @@ Each message spawns a new agent invocation with a deterministic session ID per s
 so conversations persist across messages. The agent runs autonomously, and the response
 is sent back through the originating channel.
 
-Configuration is done via .infer/config.yaml or environment variables.
+Configuration is done via .infer/channels.yaml (seeded by 'infer init') or
+INFER_CHANNELS_* environment variables. The legacy 'channels:' block in
+config.yaml is no longer read — re-run 'infer init' to migrate it.
 
 Examples:
   # Start listening for Telegram messages
@@ -47,7 +49,7 @@ Examples:
 // RunChannelsCommand starts the channel listener daemon
 func RunChannelsCommand(cfg *config.Config) error {
 	if !cfg.Channels.Enabled {
-		return fmt.Errorf("channels are not enabled. Set channels.enabled: true in config or INFER_CHANNELS_ENABLED=true")
+		return fmt.Errorf("channels are not enabled. Set enabled: true in .infer/channels.yaml or INFER_CHANNELS_ENABLED=true")
 	}
 
 	cm := services.NewChannelManagerService(cfg.Channels)

@@ -78,19 +78,27 @@ Key features:
 
 ### 3. Configure the CLI
 
-Add to your `.infer/config.yaml`:
+Channel settings live in their own file at `.infer/channels.yaml` (separate
+from the main `config.yaml` so bot tokens stay out of the agent's reach —
+the file is in `tools.sandbox.protected_paths` by default). `infer init`
+seeds it from the in-code defaults; edit it like so:
 
 ```yaml
-channels:
+# .infer/channels.yaml
+---
+enabled: true
+
+telegram:
   enabled: true
+  bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
+  allowed_users:
+    - "123456789"  # your chat ID
+  poll_timeout: 30
+```
 
-  telegram:
-    enabled: true
-    bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
-    allowed_users:
-      - "123456789"  # your chat ID
-    poll_timeout: 30
+Agent-side settings still live in `.infer/config.yaml`:
 
+```yaml
 agent:
   model: "openai/gpt-4"
   system_prompt: "You are a helpful assistant"
@@ -124,36 +132,61 @@ Open Telegram, message your bot, and the agent will respond.
 
 ## Configuration
 
+### File Layout
+
+Channel settings live in their own file:
+
+- **`.infer/channels.yaml`** — all channel settings (Telegram, WhatsApp,
+  max workers, approval flag). Holds bot tokens, so it's listed in
+  `tools.sandbox.protected_paths` and the agent cannot read or rewrite it.
+- **`.infer/config.yaml`** — agent settings (model, system prompt, etc.).
+  Any legacy `channels:` block here is **ignored** at runtime; only
+  `channels.yaml` is read. Run `infer init` to migrate an existing block:
+  it seeds `channels.yaml` from the loaded values when no
+  `channels.yaml` exists yet.
+
+The lookup order for `channels.yaml` is project (`./.infer/channels.yaml`)
+first, then userspace (`~/.infer/channels.yaml`).
+
 ### Full Configuration Reference
 
 ```yaml
-channels:
-  # Master switch for all channels
+# .infer/channels.yaml
+---
+# Master switch for all channels
+enabled: false
+
+# Worker pool size for processing inbound messages
+max_workers: 5
+
+# Image retention (number of recent images cached per session)
+image_retention: 5
+
+# Require user approval for sensitive tools (default: true)
+# When true, tools like Write, Edit, Delete, and Bash will prompt the user
+# for approval before executing. Read-only tools (Read, Grep, Tree) are
+# not affected. Reuses existing tools.*.require_approval configuration.
+require_approval: true
+
+# Telegram Bot API channel
+telegram:
   enabled: false
+  bot_token: ""              # Bot token from @BotFather
+  allowed_users: []          # List of allowed chat IDs (strings)
+  poll_timeout: 30           # Long-polling timeout in seconds
 
-  # Require user approval for sensitive tools (default: true)
-  # When true, tools like Write, Edit, Delete, and Bash will prompt the user
-  # for approval before executing. Read-only tools (Read, Grep, Tree) are
-  # not affected. Reuses existing tools.*.require_approval configuration.
-  require_approval: true
+# WhatsApp Business API channel (Phase 2 - not yet implemented)
+whatsapp:
+  enabled: false
+  phone_number_id: ""        # Meta Business phone number ID
+  access_token: ""           # Meta API access token
+  verify_token: ""           # Webhook verification token
+  webhook_port: 8443         # Local port for webhook receiver
+  allowed_users: []          # List of allowed phone numbers
+```
 
-  # Telegram Bot API channel
-  telegram:
-    enabled: false
-    bot_token: ""              # Bot token from @BotFather
-    allowed_users: []          # List of allowed chat IDs (strings)
-    poll_timeout: 30           # Long-polling timeout in seconds
-
-  # WhatsApp Business API channel (Phase 2 - not yet implemented)
-  whatsapp:
-    enabled: false
-    phone_number_id: ""        # Meta Business phone number ID
-    access_token: ""           # Meta API access token
-    verify_token: ""           # Webhook verification token
-    webhook_port: 8443         # Local port for webhook receiver
-    allowed_users: []          # List of allowed phone numbers
-
-# Recommended agent settings for channel use
+```yaml
+# .infer/config.yaml — recommended agent settings for channel use
 agent:
   model: "deepseek/deepseek-v4-pro"              # Model to use
   system_prompt: "You are a helpful assistant"  # Base identity

@@ -35,12 +35,12 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func initializeProject(cmd *cobra.Command) error {
+func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -58,6 +58,7 @@ func initializeProject(cmd *cobra.Command) error {
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
+		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -70,10 +71,11 @@ func initializeProject(cmd *cobra.Command) error {
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
+		channelsPath = config.DefaultChannelsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath); err != nil {
 			return err
 		}
 	}
@@ -132,6 +134,11 @@ tmp/
 		return fmt.Errorf("failed to create prompts config file: %w", err)
 	}
 
+	migrated, err := createChannelsConfigFile(channelsPath)
+	if err != nil {
+		return fmt.Errorf("failed to create channels config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -151,6 +158,11 @@ tmp/
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
+	fmt.Printf("   Created: %s\n", channelsPath)
+	if migrated {
+		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
+		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
+	}
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -426,6 +438,32 @@ func createPromptsConfigFile(path string) error {
 	}
 
 	return config.SavePrompts(path, config.DefaultPromptsConfig())
+}
+
+// createChannelsConfigFile writes a fresh channels.yaml. Returns true when
+// the file was seeded from a legacy `channels:` block found in viper (i.e.
+// migrated from config.yaml) rather than from in-code defaults. Migration
+// only runs when no channels.yaml exists yet, so it is safe to re-run init.
+func createChannelsConfigFile(path string) (bool, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return false, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	channelsCfg := config.DefaultChannelsConfig()
+	migrated := false
+
+	if _, err := os.Stat(path); os.IsNotExist(err) && V != nil && V.IsSet("channels") {
+		legacy := config.DefaultChannelsConfig()
+		if err := V.UnmarshalKey("channels", legacy); err == nil {
+			channelsCfg = legacy
+			migrated = true
+		}
+	}
+
+	if err := config.SaveChannels(path, channelsCfg); err != nil {
+		return false, err
+	}
+	return migrated, nil
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file
