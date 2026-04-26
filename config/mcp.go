@@ -1,13 +1,10 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	yaml "gopkg.in/yaml.v3"
+	utils "github.com/inference-gateway/cli/config/utils"
 )
 
 // MCPConfig represents the mcp.yaml configuration file
@@ -19,7 +16,11 @@ type MCPConfig struct {
 	LivenessProbeInterval int              `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
 	MaxRetries            int              `yaml:"max_retries,omitempty" mapstructure:"max_retries,omitempty"`
 	Servers               []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
+
+	path string
 }
+
+var _ CollectionConfig[MCPServerEntry] = (*MCPConfig)(nil)
 
 // MCPServerEntry represents a single MCP server configuration
 type MCPServerEntry struct {
@@ -162,136 +163,61 @@ const (
 // the in-code defaults so callers can treat absence as "use defaults"
 // without special-casing.
 func LoadMCP(path string) (*MCPConfig, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return DefaultMCPConfig(), nil
-	}
-
-	data, err := os.ReadFile(path)
+	cfg, err := utils.LoadYAML(path, "MCP", DefaultMCPConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read MCP config: %w", err)
+		return nil, err
 	}
-
-	expandedData := os.ExpandEnv(string(data))
-
-	var cfg MCPConfig
-	if err := yaml.Unmarshal([]byte(expandedData), &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse MCP config: %w", err)
-	}
-
-	return &cfg, nil
+	cfg.path = path
+	return cfg, nil
 }
 
 // SaveMCP writes the MCP configuration to disk, creating any missing
 // parent directories.
 func SaveMCP(path string, cfg *MCPConfig) error {
-	var buf bytes.Buffer
-	buf.WriteString("---\n")
-
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-
-	if err := encoder.Encode(cfg); err != nil {
-		return fmt.Errorf("failed to marshal MCP config: %w", err)
-	}
-
-	if err := encoder.Close(); err != nil {
-		return fmt.Errorf("failed to close encoder: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write MCP config: %w", err)
-	}
-
-	return nil
+	return utils.SaveYAML(path, "MCP", cfg)
 }
 
-// AddMCPServer adds a new MCP server entry to the configuration file.
-func AddMCPServer(path string, server MCPServerEntry) error {
-	cfg, err := LoadMCP(path)
+func mcpServerName(e MCPServerEntry) string { return e.Name }
+
+const mcpServerKind = "MCP server"
+
+// CreateEntry implements CollectionConfig.
+func (c *MCPConfig) CreateEntry(entry MCPServerEntry) error {
+	next, err := appendEntry(c.Servers, entry, entry.Name, mcpServerName, mcpServerKind)
 	if err != nil {
 		return err
 	}
-
-	for _, existing := range cfg.Servers {
-		if existing.Name == server.Name {
-			return fmt.Errorf("MCP server with name '%s' already exists", server.Name)
-		}
-	}
-
-	cfg.Servers = append(cfg.Servers, server)
-	return SaveMCP(path, cfg)
+	c.Servers = next
+	return SaveMCP(c.path, c)
 }
 
-// UpdateMCPServer updates an existing MCP server entry by name.
-func UpdateMCPServer(path string, server MCPServerEntry) error {
-	cfg, err := LoadMCP(path)
+// ReadEntry implements CollectionConfig.
+func (c *MCPConfig) ReadEntry(name string) (*MCPServerEntry, error) {
+	return findEntry(c.Servers, name, mcpServerName, mcpServerKind)
+}
+
+// UpdateEntry implements CollectionConfig.
+func (c *MCPConfig) UpdateEntry(entry MCPServerEntry) error {
+	next, err := replaceEntry(c.Servers, entry, entry.Name, mcpServerName, mcpServerKind)
 	if err != nil {
 		return err
 	}
-
-	for i, existing := range cfg.Servers {
-		if existing.Name == server.Name {
-			cfg.Servers[i] = server
-			return SaveMCP(path, cfg)
-		}
-	}
-
-	return fmt.Errorf("MCP server with name '%s' not found", server.Name)
+	c.Servers = next
+	return SaveMCP(c.path, c)
 }
 
-// RemoveMCPServer removes an MCP server entry by name.
-func RemoveMCPServer(path, name string) error {
-	cfg, err := LoadMCP(path)
+// DeleteEntry implements CollectionConfig.
+func (c *MCPConfig) DeleteEntry(name string) error {
+	next, err := removeEntry(c.Servers, name, mcpServerName, mcpServerKind)
 	if err != nil {
 		return err
 	}
-
-	found := false
-	newServers := make([]MCPServerEntry, 0, len(cfg.Servers))
-	for _, server := range cfg.Servers {
-		if server.Name != name {
-			newServers = append(newServers, server)
-		} else {
-			found = true
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("MCP server with name '%s' not found", name)
-	}
-
-	cfg.Servers = newServers
-	return SaveMCP(path, cfg)
+	c.Servers = next
+	return SaveMCP(c.path, c)
 }
 
-// ListMCPServers returns all configured MCP servers.
-func ListMCPServers(path string) ([]MCPServerEntry, error) {
-	cfg, err := LoadMCP(path)
-	if err != nil {
-		return nil, err
-	}
-	return cfg.Servers, nil
-}
-
-// GetMCPServer returns a single MCP server entry by name.
-func GetMCPServer(path, name string) (*MCPServerEntry, error) {
-	cfg, err := LoadMCP(path)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, server := range cfg.Servers {
-		if server.Name == name {
-			return &server, nil
-		}
-	}
-
-	return nil, fmt.Errorf("MCP server with name '%s' not found", name)
-}
+// ListEntries implements CollectionConfig.
+func (c *MCPConfig) ListEntries() []MCPServerEntry { return c.Servers }
 
 // MergeMCP merges an optional mcp.yaml config on top of a base config.
 // Optional values take precedence; servers from both are combined and

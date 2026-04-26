@@ -314,7 +314,11 @@ func addMCPServer(cmd *cobra.Command, args []string) error {
 
 	configPath := getMCPConfigPath(cmd)
 
-	if err := config.AddMCPServer(configPath, server); err != nil {
+	cfg, err := config.LoadMCP(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	if err := cfg.CreateEntry(server); err != nil {
 		return fmt.Errorf("failed to add MCP server: %w", err)
 	}
 
@@ -341,7 +345,11 @@ func removeMCPServer(cmd *cobra.Command, args []string) error {
 
 	configPath := getMCPConfigPath(cmd)
 
-	if err := config.RemoveMCPServer(configPath, name); err != nil {
+	cfg, err := config.LoadMCP(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	if err := cfg.DeleteEntry(name); err != nil {
 		return fmt.Errorf("failed to remove MCP server: %w", err)
 	}
 
@@ -358,7 +366,11 @@ func updateMCPServer(cmd *cobra.Command, args []string) error {
 
 	configPath := getMCPConfigPath(cmd)
 
-	existing, err := config.GetMCPServer(configPath, name)
+	cfg, err := config.LoadMCP(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	existing, err := cfg.ReadEntry(name)
 	if err != nil {
 		return fmt.Errorf("failed to get MCP server: %w", err)
 	}
@@ -399,7 +411,7 @@ func updateMCPServer(cmd *cobra.Command, args []string) error {
 		existing.Enabled = enabled
 	}
 
-	if err := config.UpdateMCPServer(configPath, *existing); err != nil {
+	if err := cfg.UpdateEntry(*existing); err != nil {
 		return fmt.Errorf("failed to update MCP server: %w", err)
 	}
 
@@ -416,14 +428,18 @@ func enableMCPServer(cmd *cobra.Command, args []string) error {
 
 	configPath := getMCPConfigPath(cmd)
 
-	server, err := config.GetMCPServer(configPath, name)
+	cfg, err := config.LoadMCP(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	server, err := cfg.ReadEntry(name)
 	if err != nil {
 		return fmt.Errorf("failed to get MCP server: %w", err)
 	}
 
 	server.Enabled = true
 
-	if err := config.UpdateMCPServer(configPath, *server); err != nil {
+	if err := cfg.UpdateEntry(*server); err != nil {
 		return fmt.Errorf("failed to enable MCP server: %w", err)
 	}
 
@@ -441,14 +457,18 @@ func disableMCPServer(cmd *cobra.Command, args []string) error {
 
 	configPath := getMCPConfigPath(cmd)
 
-	server, err := config.GetMCPServer(configPath, name)
+	cfg, err := config.LoadMCP(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	server, err := cfg.ReadEntry(name)
 	if err != nil {
 		return fmt.Errorf("failed to get MCP server: %w", err)
 	}
 
 	server.Enabled = false
 
-	if err := config.UpdateMCPServer(configPath, *server); err != nil {
+	if err := cfg.UpdateEntry(*server); err != nil {
 		return fmt.Errorf("failed to disable MCP server: %w", err)
 	}
 

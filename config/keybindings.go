@@ -1,12 +1,7 @@
 package config
 
 import (
-	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	yaml "gopkg.in/yaml.v3"
+	utils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -25,51 +20,17 @@ func DefaultKeybindingsConfig() *KeybindingsConfig {
 
 // LoadKeybindings reads keybindings.yaml from disk. When the file is
 // missing it returns the in-code defaults so callers can treat absence
-// as "use defaults" without special-casing.
+// as "use defaults" without special-casing. The file body is run through
+// os.ExpandEnv — any literal `${…}` token in a customised binding must be
+// escaped as `$$…`.
 func LoadKeybindings(path string) (*KeybindingsConfig, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return DefaultKeybindingsConfig(), nil
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read keybindings config: %w", err)
-	}
-
-	var cfg KeybindingsConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse keybindings config: %w", err)
-	}
-
-	return &cfg, nil
+	return utils.LoadYAML(path, "keybindings", DefaultKeybindingsConfig)
 }
 
 // SaveKeybindings writes the keybindings configuration to disk, creating
 // any missing parent directories.
 func SaveKeybindings(path string, cfg *KeybindingsConfig) error {
-	var buf bytes.Buffer
-	buf.WriteString("---\n")
-
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-
-	if err := encoder.Encode(cfg); err != nil {
-		return fmt.Errorf("failed to marshal keybindings config: %w", err)
-	}
-
-	if err := encoder.Close(); err != nil {
-		return fmt.Errorf("failed to close encoder: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write keybindings config: %w", err)
-	}
-
-	return nil
+	return utils.SaveYAML(path, "keybindings", cfg)
 }
 
 // GetDefaultKeybindings returns the default keybinding configuration

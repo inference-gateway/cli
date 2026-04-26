@@ -9,7 +9,7 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestAddAgent(t *testing.T) {
+func TestCreateEntry_Agent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
@@ -24,170 +24,138 @@ func TestAddAgent(t *testing.T) {
 		},
 	}
 
-	if err := config.AddAgent(agentsPath, agent); err != nil {
-		t.Fatalf("Failed to add agent: %v", err)
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.CreateEntry(agent))
+
 	if _, err := os.Stat(agentsPath); os.IsNotExist(err) {
 		t.Fatal("Agents config file was not created")
 	}
 
-	cfg, err := config.LoadAgents(agentsPath)
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-	if len(cfg.Agents) != 1 {
-		t.Fatalf("Expected 1 agent, got %d", len(cfg.Agents))
-	}
-	if cfg.Agents[0].Name != agent.Name {
-		t.Errorf("Expected name %s, got %s", agent.Name, cfg.Agents[0].Name)
-	}
-	if cfg.Agents[0].URL != agent.URL {
-		t.Errorf("Expected URL %s, got %s", agent.URL, cfg.Agents[0].URL)
-	}
-	if cfg.Agents[0].OCI != agent.OCI {
-		t.Errorf("Expected OCI %s, got %s", agent.OCI, cfg.Agents[0].OCI)
-	}
-	if cfg.Agents[0].Run != agent.Run {
-		t.Errorf("Expected Run %v, got %v", agent.Run, cfg.Agents[0].Run)
-	}
-	if len(cfg.Agents[0].Environment) != 2 {
-		t.Errorf("Expected 2 environment variables, got %d", len(cfg.Agents[0].Environment))
-	}
+	reloaded, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.Len(t, reloaded.Agents, 1)
+	require.Equal(t, agent.Name, reloaded.Agents[0].Name)
+	require.Equal(t, agent.URL, reloaded.Agents[0].URL)
+	require.Equal(t, agent.OCI, reloaded.Agents[0].OCI)
+	require.Equal(t, agent.Run, reloaded.Agents[0].Run)
+	require.Len(t, reloaded.Agents[0].Environment, 2)
 }
 
-func TestAddAgent_Duplicate(t *testing.T) {
+func TestCreateEntry_Agent_Duplicate(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
 	agent := config.AgentEntry{Name: "test-agent", URL: "https://agent.example.com"}
 
-	if err := config.AddAgent(agentsPath, agent); err != nil {
-		t.Fatalf("Failed to add agent: %v", err)
-	}
-	if err := config.AddAgent(agentsPath, agent); err == nil {
-		t.Fatal("Expected error when adding duplicate agent, got nil")
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.CreateEntry(agent))
+	require.Error(t, cfg.CreateEntry(agent), "expected duplicate-name error")
 }
 
-func TestRemoveAgent(t *testing.T) {
+func TestDeleteEntry_Agent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
 	agent1 := config.AgentEntry{Name: "agent1", URL: "https://agent1.example.com"}
 	agent2 := config.AgentEntry{Name: "agent2", URL: "https://agent2.example.com"}
 
-	require.NoError(t, config.AddAgent(agentsPath, agent1))
-	require.NoError(t, config.AddAgent(agentsPath, agent2))
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.CreateEntry(agent1))
+	require.NoError(t, cfg.CreateEntry(agent2))
+	require.NoError(t, cfg.DeleteEntry("agent1"))
 
-	if err := config.RemoveAgent(agentsPath, "agent1"); err != nil {
-		t.Fatalf("Failed to remove agent: %v", err)
-	}
-
-	agents, err := config.ListAgents(agentsPath)
-	if err != nil {
-		t.Fatalf("Failed to list agents: %v", err)
-	}
-	if len(agents) != 1 {
-		t.Fatalf("Expected 1 agent, got %d", len(agents))
-	}
-	if agents[0].Name != "agent2" {
-		t.Errorf("Expected agent2 to remain, got %s", agents[0].Name)
-	}
+	reloaded, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	agents := reloaded.ListEntries()
+	require.Len(t, agents, 1)
+	require.Equal(t, "agent2", agents[0].Name)
 }
 
-func TestRemoveAgent_Nonexistent(t *testing.T) {
+func TestDeleteEntry_Agent_Nonexistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	if err := config.RemoveAgent(agentsPath, "nonexistent"); err == nil {
-		t.Fatal("Expected error when removing nonexistent agent, got nil")
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.Error(t, cfg.DeleteEntry("nonexistent"))
 }
 
-func TestListAgents(t *testing.T) {
+func TestListEntries_Agents(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	agents := []config.AgentEntry{
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	for _, agent := range []config.AgentEntry{
 		{Name: "agent1", URL: "https://agent1.example.com"},
 		{Name: "agent2", URL: "https://agent2.example.com"},
 		{Name: "agent3", URL: "https://agent3.example.com"},
-	}
-	for _, agent := range agents {
-		require.NoError(t, config.AddAgent(agentsPath, agent))
+	} {
+		require.NoError(t, cfg.CreateEntry(agent))
 	}
 
-	listed, err := config.ListAgents(agentsPath)
-	if err != nil {
-		t.Fatalf("Failed to list agents: %v", err)
-	}
-	if len(listed) != 3 {
-		t.Fatalf("Expected 3 agents, got %d", len(listed))
-	}
+	reloaded, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.Len(t, reloaded.ListEntries(), 3)
 }
 
-func TestGetAgent(t *testing.T) {
+func TestReadEntry_Agent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
 	agent := config.AgentEntry{Name: "test-agent", URL: "https://agent.example.com"}
-	require.NoError(t, config.AddAgent(agentsPath, agent))
 
-	retrieved, err := config.GetAgent(agentsPath, "test-agent")
-	if err != nil {
-		t.Fatalf("Failed to get agent: %v", err)
-	}
-	if retrieved.Name != agent.Name {
-		t.Errorf("Expected name %s, got %s", agent.Name, retrieved.Name)
-	}
-	if retrieved.URL != agent.URL {
-		t.Errorf("Expected URL %s, got %s", agent.URL, retrieved.URL)
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.CreateEntry(agent))
+
+	retrieved, err := cfg.ReadEntry("test-agent")
+	require.NoError(t, err)
+	require.Equal(t, agent.Name, retrieved.Name)
+	require.Equal(t, agent.URL, retrieved.URL)
 }
 
-func TestGetAgent_Nonexistent(t *testing.T) {
+func TestReadEntry_Agent_Nonexistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	if _, err := config.GetAgent(agentsPath, "nonexistent"); err == nil {
-		t.Fatal("Expected error when getting nonexistent agent, got nil")
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	_, err = cfg.ReadEntry("nonexistent")
+	require.Error(t, err)
 }
 
 func TestGetAgentURLs(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	agents := []config.AgentEntry{
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	for _, agent := range []config.AgentEntry{
 		{Name: "agent1", URL: "https://agent1.example.com"},
 		{Name: "agent2", URL: "https://agent2.example.com"},
-	}
-	for _, agent := range agents {
-		require.NoError(t, config.AddAgent(agentsPath, agent))
+	} {
+		require.NoError(t, cfg.CreateEntry(agent))
 	}
 
 	urls, err := config.GetAgentURLs(agentsPath)
-	if err != nil {
-		t.Fatalf("Failed to get agent URLs: %v", err)
-	}
-	if len(urls) != 2 {
-		t.Fatalf("Expected 2 URLs, got %d", len(urls))
-	}
+	require.NoError(t, err)
+	require.Len(t, urls, 2)
 
 	expectedURLs := map[string]bool{
 		"https://agent1.example.com": false,
 		"https://agent2.example.com": false,
 	}
 	for _, url := range urls {
-		if _, exists := expectedURLs[url]; !exists {
-			t.Errorf("Unexpected URL: %s", url)
-		}
+		_, exists := expectedURLs[url]
+		require.True(t, exists, "unexpected URL: %s", url)
 		expectedURLs[url] = true
 	}
 	for url, found := range expectedURLs {
-		if !found {
-			t.Errorf("Expected URL not found: %s", url)
-		}
+		require.True(t, found, "expected URL not found: %s", url)
 	}
 }
 
@@ -196,15 +164,11 @@ func TestLoadAgents_NonexistentFile(t *testing.T) {
 	agentsPath := filepath.Join(tmpDir, "nonexistent.yaml")
 
 	cfg, err := config.LoadAgents(agentsPath)
-	if err != nil {
-		t.Fatalf("Expected no error for nonexistent file, got: %v", err)
-	}
-	if len(cfg.Agents) != 0 {
-		t.Errorf("Expected empty agents list, got %d agents", len(cfg.Agents))
-	}
+	require.NoError(t, err)
+	require.Empty(t, cfg.Agents)
 }
 
-func TestUpdateAgent(t *testing.T) {
+func TestUpdateEntry_Agent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
@@ -218,9 +182,11 @@ func TestUpdateAgent(t *testing.T) {
 			"API_KEY": "secret",
 		},
 	}
-	require.NoError(t, config.AddAgent(agentsPath, agent))
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.CreateEntry(agent))
 
-	updatedAgent := config.AgentEntry{
+	updated := config.AgentEntry{
 		Name:  "test-agent",
 		URL:   "https://new-agent.example.com",
 		OCI:   "ghcr.io/org/test-agent:v2",
@@ -230,42 +196,30 @@ func TestUpdateAgent(t *testing.T) {
 			"DEBUG": "true",
 		},
 	}
-	require.NoError(t, config.UpdateAgent(agentsPath, updatedAgent))
+	require.NoError(t, cfg.UpdateEntry(updated))
 
-	retrieved, err := config.GetAgent(agentsPath, "test-agent")
+	reloaded, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	retrieved, err := reloaded.ReadEntry("test-agent")
 	require.NoError(t, err)
 
-	if retrieved.URL != updatedAgent.URL {
-		t.Errorf("Expected URL %s, got %s", updatedAgent.URL, retrieved.URL)
-	}
-	if retrieved.OCI != updatedAgent.OCI {
-		t.Errorf("Expected OCI %s, got %s", updatedAgent.OCI, retrieved.OCI)
-	}
-	if retrieved.Run != updatedAgent.Run {
-		t.Errorf("Expected Run %v, got %v", updatedAgent.Run, retrieved.Run)
-	}
-	if retrieved.Model != updatedAgent.Model {
-		t.Errorf("Expected Model %s, got %s", updatedAgent.Model, retrieved.Model)
-	}
-	if len(retrieved.Environment) != 1 || retrieved.Environment["DEBUG"] != "true" {
-		t.Errorf("Expected Environment to be updated, got %v", retrieved.Environment)
-	}
-
-	agents, err := config.ListAgents(agentsPath)
-	require.NoError(t, err)
-	if len(agents) != 1 {
-		t.Errorf("Expected 1 agent after update, got %d", len(agents))
-	}
+	require.Equal(t, updated.URL, retrieved.URL)
+	require.Equal(t, updated.OCI, retrieved.OCI)
+	require.Equal(t, updated.Run, retrieved.Run)
+	require.Equal(t, updated.Model, retrieved.Model)
+	require.Len(t, retrieved.Environment, 1)
+	require.Equal(t, "true", retrieved.Environment["DEBUG"])
+	require.Len(t, reloaded.ListEntries(), 1)
 }
 
-func TestUpdateAgent_Nonexistent(t *testing.T) {
+func TestUpdateEntry_Agent_Nonexistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
 	agent := config.AgentEntry{Name: "nonexistent", URL: "https://agent.example.com"}
-	if err := config.UpdateAgent(agentsPath, agent); err == nil {
-		t.Fatal("Expected error when updating nonexistent agent, got nil")
-	}
+	cfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.Error(t, cfg.UpdateEntry(agent))
 }
 
 func TestLoadAgents_EnvironmentVariableExpansion(t *testing.T) {

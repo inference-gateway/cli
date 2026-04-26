@@ -289,7 +289,11 @@ func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool,
 		Environment:  environment,
 	}
 
-	if err := config.AddAgent(path, agent); err != nil {
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return err
+	}
+	if err := cfg.CreateEntry(agent); err != nil {
 		return err
 	}
 
@@ -320,7 +324,11 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 		return err
 	}
 
-	existing, err := config.GetAgent(path, name)
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return err
+	}
+	existing, err := cfg.ReadEntry(name)
 	if err != nil {
 		return err
 	}
@@ -349,7 +357,7 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
-	if err := config.UpdateAgent(path, agent); err != nil {
+	if err := cfg.UpdateEntry(agent); err != nil {
 		return err
 	}
 
@@ -380,7 +388,11 @@ func removeAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	if err := config.RemoveAgent(path, name); err != nil {
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return err
+	}
+	if err := cfg.DeleteEntry(name); err != nil {
 		return err
 	}
 
@@ -394,10 +406,11 @@ func listAgents(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	localAgents, err := config.ListAgents(path)
+	cfg, err := config.LoadAgents(path)
 	if err != nil {
 		return err
 	}
+	localAgents := cfg.ListEntries()
 
 	externalAgents := extractExternalAgents(Cfg)
 
@@ -490,7 +503,11 @@ func showAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	agent, err := config.GetAgent(path, name)
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return err
+	}
+	agent, err := cfg.ReadEntry(name)
 	if err != nil {
 		return err
 	}
@@ -579,13 +596,17 @@ func enableAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	agent, err := config.GetAgent(path, name)
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return fmt.Errorf("failed to load agents: %w", err)
+	}
+	agent, err := cfg.ReadEntry(name)
 	if err != nil {
 		return fmt.Errorf("failed to find agent: %w", err)
 	}
 
 	agent.Enabled = true
-	if err := config.UpdateAgent(path, *agent); err != nil {
+	if err := cfg.UpdateEntry(*agent); err != nil {
 		return fmt.Errorf("failed to enable agent: %w", err)
 	}
 
@@ -602,13 +623,17 @@ func disableAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	agent, err := config.GetAgent(path, name)
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return fmt.Errorf("failed to load agents: %w", err)
+	}
+	agent, err := cfg.ReadEntry(name)
 	if err != nil {
 		return fmt.Errorf("failed to find agent: %w", err)
 	}
 
 	agent.Enabled = false
-	if err := config.UpdateAgent(path, *agent); err != nil {
+	if err := cfg.UpdateEntry(*agent); err != nil {
 		return fmt.Errorf("failed to disable agent: %w", err)
 	}
 
