@@ -33,14 +33,13 @@ type Config struct {
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Git              GitConfig              `yaml:"git" mapstructure:"git"`
-	SCM              SCMConfig              `yaml:"scm" mapstructure:"scm"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
-	Init             InitConfig             `yaml:"init" mapstructure:"init"`
+	Init             InitConfig             `yaml:"-" mapstructure:"-"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
@@ -410,11 +409,13 @@ type SSHServerConfig struct {
 	Tags        []string `yaml:"tags" mapstructure:"tags"`
 }
 
-// SystemRemindersConfig contains settings for dynamic system reminders
+// SystemRemindersConfig contains settings for dynamic system reminders.
+// ReminderText is sourced from prompts.yaml at runtime — it carries no
+// yaml/mapstructure tags so it never appears in config.yaml.
 type SystemRemindersConfig struct {
 	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
-	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
+	ReminderText string `yaml:"-" mapstructure:"-"`
 }
 
 // AgentContextConfig contains settings for agent context enrichment
@@ -424,14 +425,17 @@ type AgentContextConfig struct {
 	GitContextRefreshTurns int  `yaml:"git_context_refresh_turns" mapstructure:"git_context_refresh_turns"`
 }
 
-// AgentConfig contains agent command-specific settings
+// AgentConfig contains agent command-specific settings.
+// The SystemPrompt*, CustomInstructions, and SystemReminders fields are
+// sourced from prompts.yaml at runtime — they carry no yaml/mapstructure
+// tags so they never appear in config.yaml.
 type AgentConfig struct {
 	Model                    string                `yaml:"model" mapstructure:"model"`
-	SystemPrompt             string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPrompt             string                `yaml:"-" mapstructure:"-"`
 	SystemPromptWithDefaults bool                  `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
-	CustomInstructions       string                `yaml:"custom_instructions" mapstructure:"custom_instructions"`
-	SystemPromptPlan         string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptRemote       string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
+	CustomInstructions       string                `yaml:"-" mapstructure:"-"`
+	SystemPromptPlan         string                `yaml:"-" mapstructure:"-"`
+	SystemPromptRemote       string                `yaml:"-" mapstructure:"-"`
 	SystemReminders          SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 	Context                  AgentContextConfig    `yaml:"context" mapstructure:"context"`
 	VerboseTools             bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
@@ -466,17 +470,20 @@ type ConversationConfig struct {
 	TitleGeneration ConversationTitleConfig `yaml:"title_generation" mapstructure:"title_generation"`
 }
 
-// GitCommitMessageConfig contains settings for AI-generated commit messages
+// GitCommitMessageConfig contains settings for AI-generated commit
+// messages. SystemPrompt is sourced from prompts.yaml at runtime — it
+// carries no yaml/mapstructure tags so it never appears in config.yaml.
 type GitCommitMessageConfig struct {
 	Model        string `yaml:"model" mapstructure:"model"`
-	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPrompt string `yaml:"-" mapstructure:"-"`
 }
 
-// ConversationTitleConfig contains settings for AI-generated conversation titles
+// ConversationTitleConfig contains settings for AI-generated conversation
+// titles. SystemPrompt is sourced from prompts.yaml at runtime.
 type ConversationTitleConfig struct {
 	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model        string `yaml:"model" mapstructure:"model"`
-	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPrompt string `yaml:"-" mapstructure:"-"`
 	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
@@ -526,29 +533,10 @@ type StatusBarIndicators struct {
 	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
 }
 
-// InitConfig contains settings for the /init shortcut
+// InitConfig contains settings for the /init shortcut. Prompt is sourced
+// from prompts.yaml at runtime.
 type InitConfig struct {
-	Prompt string `yaml:"prompt" mapstructure:"prompt"`
-}
-
-// SCMConfig contains settings for source control management shortcuts
-type SCMConfig struct {
-	PRCreate SCMPRCreateConfig `yaml:"pr_create" mapstructure:"pr_create"`
-	Cleanup  SCMCleanupConfig  `yaml:"cleanup" mapstructure:"cleanup"`
-}
-
-// SCMPRCreateConfig contains settings for the /scm pr create shortcut
-type SCMPRCreateConfig struct {
-	Prompt       string `yaml:"prompt" mapstructure:"prompt"`
-	BaseBranch   string `yaml:"base_branch" mapstructure:"base_branch"`
-	BranchPrefix string `yaml:"branch_prefix" mapstructure:"branch_prefix"`
-	Model        string `yaml:"model" mapstructure:"model"`
-}
-
-// SCMCleanupConfig contains settings for cleanup after PR creation
-type SCMCleanupConfig struct {
-	ReturnToBase      bool `yaml:"return_to_base" mapstructure:"return_to_base"`
-	DeleteLocalBranch bool `yaml:"delete_local_branch" mapstructure:"delete_local_branch"`
+	Prompt string `yaml:"-" mapstructure:"-"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -752,6 +740,8 @@ func DefaultConfig() *Config { //nolint:funlen
 					ConfigDirName + "/shortcuts/",
 					ConfigDirName + "/agents.yaml",
 					ConfigDirName + "/mcp.yaml",
+					ConfigDirName + "/keybindings.yaml",
+					ConfigDirName + "/prompts.yaml",
 					".git/",
 					"*.env",
 				},
@@ -874,94 +864,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				WorkingDirEnabled:      true,
 				GitContextRefreshTurns: 10,
 			},
-			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
-
-CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
-
-CAPABILITIES IN PLAN MODE:
-- Read, Grep, and Tree tools for gathering information
-- TodoWrite for tracking planning progress
-- RequestPlanApproval tool to submit your plan for user approval
-- Analyze code structure and dependencies
-- Break down complex tasks into concrete, executable steps
-- Identify exact files and code locations that need changes
-
-RESTRICTIONS IN PLAN MODE:
-- DO NOT execute Write, Edit, Delete, Bash, or modification tools
-- DO NOT make any changes to files or system
-- DO NOT attempt to implement the plan
-- Focus solely on creating an executable plan
-
-PLANNING WORKFLOW:
-1. Use Read/Grep/Tree to understand the codebase thoroughly
-2. Analyze the user's request and identify ALL requirements
-3. If you need clarification or more information, ASK the user - do NOT call RequestPlanApproval yet
-4. Break down into specific, numbered action steps
-5. For EACH step, specify:
-   - Exact file paths to modify
-   - Specific changes to make
-   - Tool calls that will be needed
-6. Include testing and validation steps
-7. When your plan is complete and actionable, call RequestPlanApproval tool
-
-DECISION MAKING:
-- Need more info? ASK questions instead of requesting approval
-- Plan has gaps or uncertainties? ASK for clarification
-- Plan is complete and specific? Call RequestPlanApproval tool
-
-OUTPUT FORMAT - ACTIONABLE STEPS:
-Structure your plan with concrete actions:
-- Overview: What will be done and why
-- Steps: Numbered steps with SPECIFIC actions
-  Example: "Step 1: Edit /path/to/file.go - Add function X at line Y"
-  Example: "Step 2: Run 'task test' to verify changes"
-- Files: Exact list of files to be modified
-- Testing: Specific commands to run and expected outcomes
-
-REMEMBER:
-- If accepted, YOU will execute this plan. Make it specific and actionable!
-- Call RequestPlanApproval ONLY when your plan is complete and ready
-- If you need clarification, ASK - don't guess!`,
-			SystemPrompt:             `Autonomous software engineering agent. Execute tasks iteratively until completion.`,
 			SystemPromptWithDefaults: true,
-			CustomInstructions:       ``,
-			SystemPromptRemote: `Remote system administration agent. You are operating on a remote machine via SSH.
-
-FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
-
-CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.
-
-COMPUTER USE TOOLS:
-You have TWO ways to interact with the system:
-1. Direct terminal tools (PRIMARY): Bash, Read, Write, Edit, Grep, etc.
-2. GUI automation tools (FALLBACK): MouseMove, KeyboardType, MouseClick, GetLatestScreenshot
-
-CRITICAL: ALWAYS prefer direct terminal tools over GUI automation when possible.
-
-When to use DIRECT tools (preferred):
-- Reading files: Use Read tool, NOT KeyboardType to open an editor
-- Writing files: Use Write/Edit tools, NOT GUI text editor
-- Running commands: Use Bash tool, NOT KeyboardType in a terminal window
-- Searching code: Use Grep tool, NOT opening files via GUI
-- System operations: Use Bash for systemctl, journalctl, docker, etc.
-
-When to use GUI tools (only when necessary):
-- Interacting with graphical applications that have no CLI equivalent
-- Testing UI behavior or visual elements
-- Remote desktop administration tasks that MUST be done through a GUI
-
-Why prefer direct tools:
-- 10-100x faster execution (no GUI rendering delays)
-- More reliable (no window focus issues, no timing problems)
-- Works over SSH without X11 forwarding
-- Precise output (structured data, not visual interpretation)
-- Lower resource usage (critical for remote systems)`,
 			SystemReminders: SystemRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
-				ReminderText: `<system-reminder>
-This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-</system-reminder>`,
 			},
 			VerboseTools:       false,
 			MaxTurns:           50,
@@ -971,21 +877,6 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 		Git: GitConfig{
 			CommitMessage: GitCommitMessageConfig{
 				Model: "",
-				SystemPrompt: `Generate a concise git commit message following conventional commit format.
-
-REQUIREMENTS:
-- MUST use format: "type: Brief description"
-- MUST be under 50 characters total
-- MUST use imperative mood (e.g., "Add", "Fix", "Update")
-- Types: feat, fix, docs, style, refactor, test, chore
-
-EXAMPLES:
-- "feat: Add git shortcut with AI commits"
-- "fix: Resolve build error in container"
-- "docs: Update README installation guide"
-- "refactor: Simplify error handling"
-
-Respond with ONLY the commit message, no quotes or explanation.`,
 			},
 		},
 		Storage: StorageConfig{
@@ -1017,22 +908,6 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 				Enabled:   true,
 				Model:     "",
 				BatchSize: 10,
-				SystemPrompt: `Generate a concise conversation title based on the messages provided.
-
-REQUIREMENTS:
-- MUST be under 50 characters total
-- MUST be descriptive and capture the main topic
-- MUST use title case
-- NO quotes, colons, or special characters
-- Focus on the primary subject or task discussed
-
-EXAMPLES:
-- "React Component Testing"
-- "Database Migration Setup"
-- "API Error Handling"
-- "Docker Configuration"
-
-Respond with ONLY the title, no quotes or explanation.`,
 			},
 		},
 		Chat: ChatConfig{
@@ -1076,33 +951,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		MCP:     *DefaultMCPConfig(),
 		Pricing: GetDefaultPricingConfig(),
-		Init: InitConfig{
-			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
-Use your available tools to examine configuration files, documentation, build systems, and development workflow.
-Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
-
-The AGENTS.md file should include:
-- Project overview and main technologies
-- Architecture and structure
-- Development environment setup
-- Key commands (build, test, lint, run)
-- Testing instructions
-- Project conventions and coding standards
-- Important files and configurations
-
-Write the AGENTS.md file to the project root when you have gathered enough information.`,
-		},
-		SCM: SCMConfig{
-			PRCreate: SCMPRCreateConfig{
-				Prompt:       "",
-				BaseBranch:   "main",
-				BranchPrefix: "",
-			},
-			Cleanup: SCMCleanupConfig{
-				ReturnToBase:      true,
-				DeleteLocalBranch: false,
-			},
-		},
+		Init:    InitConfig{},
 		Compact: CompactConfig{
 			Enabled:               true,
 			AutoAt:                80,
