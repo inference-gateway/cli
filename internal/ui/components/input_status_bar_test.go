@@ -49,7 +49,7 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 				modelService:  modelService,
 				themeService:  themeService,
 				stateManager:  stateManager,
-				configService: cfg,
+				config:        cfg,
 			}
 
 			output := statusBar.Render()
@@ -127,7 +127,7 @@ func TestInputStatusBar_ShouldShowIndicator(t *testing.T) {
 			}
 
 			statusBar := &InputStatusBar{
-				configService: cfg,
+				config: cfg,
 			}
 
 			result := statusBar.shouldShowIndicator(tt.indicator)
@@ -141,7 +141,7 @@ func TestInputStatusBar_ShouldShowIndicator(t *testing.T) {
 
 func TestInputStatusBar_ShouldShowIndicator_NilConfig(t *testing.T) {
 	statusBar := &InputStatusBar{
-		configService: nil,
+		config: nil,
 	}
 
 	result := statusBar.shouldShowIndicator("model")
@@ -193,7 +193,7 @@ func TestInputStatusBar_BuildMaxOutputIndicator(t *testing.T) {
 			cfg.Agent.MaxTokens = tt.maxTokens
 
 			statusBar := &InputStatusBar{
-				configService: cfg,
+				config: cfg,
 			}
 
 			result := statusBar.buildMaxOutputIndicator()
@@ -310,8 +310,8 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 			}
 
 			statusBar := &InputStatusBar{
-				mcpStatus:     tt.mcpStatus,
-				configService: cfg,
+				mcpStatus: tt.mcpStatus,
+				config:    cfg,
 			}
 
 			result := statusBar.buildMCPIndicator()
@@ -412,7 +412,7 @@ func TestInputStatusBar_ShouldShowIndicator_SessionTokens(t *testing.T) {
 			cfg.Chat.StatusBar.Indicators.SessionTokens = tt.configEnabled
 
 			statusBar := &InputStatusBar{
-				configService: cfg,
+				config: cfg,
 			}
 
 			result := statusBar.shouldShowIndicator("session_tokens")
@@ -438,7 +438,7 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 	themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 	statusBar := &InputStatusBar{
-		configService:    cfg,
+		config:           cfg,
 		themeService:     themeService,
 		conversationRepo: mockRepo,
 	}
@@ -528,7 +528,7 @@ func TestInputStatusBar_ShouldShowIndicator_GitBranch(t *testing.T) {
 			cfg.Chat.StatusBar.Indicators.GitBranch = tt.configEnabled
 
 			statusBar := &InputStatusBar{
-				configService: cfg,
+				config: cfg,
 			}
 
 			result := statusBar.shouldShowIndicator("git_branch")
@@ -554,7 +554,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 	cfg.Chat.StatusBar.Indicators.GitBranch = false
 
 	statusBar := &InputStatusBar{
-		configService: cfg,
+		config: cfg,
 	}
 
 	result := statusBar.buildModelDisplayText("test-model")
@@ -572,8 +572,8 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 	statusBar := &InputStatusBar{
-		configService: cfg,
-		themeService:  themeService,
+		config:       cfg,
+		themeService: themeService,
 	}
 
 	result := statusBar.buildModelDisplayText("test-model")

@@ -13,8 +13,13 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// Global Viper instance for commands to use
-var V *viper.Viper
+// Global Viper instance and resolved Config used by every command. Both
+// are populated exactly once by initConfig() at startup. Commands read
+// Cfg directly instead of re-unmarshalling viper.
+var (
+	V   *viper.Viper
+	Cfg *config.Config
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "infer",
@@ -117,6 +122,13 @@ func initConfig() {
 			os.Exit(1)
 		}
 	}
+
+	cfg, err := loadConfigFromViper()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+	Cfg = cfg
 
 	verbose := v.GetBool("verbose")
 	debug := v.GetBool("logging.debug")

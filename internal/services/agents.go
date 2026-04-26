@@ -15,10 +15,10 @@ import (
 )
 
 type A2AAgentService struct {
-	config          *config.Config
-	agentsConfigSvc *AgentsConfigService
-	cache           map[string]*domain.CachedAgentCard
-	cacheMutex      sync.RWMutex
+	config     *config.Config
+	agentsPath string
+	cache      map[string]*domain.CachedAgentCard
+	cacheMutex sync.RWMutex
 }
 
 func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
@@ -35,12 +35,10 @@ func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
 		agentsPath = config.DefaultAgentsPath
 	}
 
-	agentsConfigSvc := NewAgentsConfigService(agentsPath)
-
 	return &A2AAgentService{
-		config:          cfg,
-		agentsConfigSvc: agentsConfigSvc,
-		cache:           make(map[string]*domain.CachedAgentCard),
+		config:     cfg,
+		agentsPath: agentsPath,
+		cache:      make(map[string]*domain.CachedAgentCard),
 	}
 }
 
@@ -99,7 +97,7 @@ func (s *A2AAgentService) GetConfiguredAgents() []string {
 		return s.config.A2A.Agents
 	}
 
-	urls, err := s.agentsConfigSvc.GetAgentURLs()
+	urls, err := config.GetAgentURLs(s.agentsPath)
 	if err != nil {
 		logger.Error("Failed to load agents from agents.yaml", "error", err)
 		return []string{}

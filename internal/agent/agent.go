@@ -9,6 +9,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -19,7 +20,7 @@ import (
 type AgentServiceImpl struct {
 	client           domain.SDKClient
 	toolService      domain.ToolService
-	config           domain.ConfigService
+	config           *config.Config
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
 	messageQueue     domain.MessageQueue
@@ -235,7 +236,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 func NewAgent(
 	client domain.SDKClient,
 	toolService domain.ToolService,
-	config domain.ConfigService,
+	cfg *config.Config,
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
 	messageQueue domain.MessageQueue,
@@ -246,18 +247,18 @@ func NewAgent(
 ) *AgentServiceImpl {
 	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 
-	approvalPolicy := services.NewStandardApprovalPolicy(config.GetConfig(), stateManager)
+	approvalPolicy := services.NewStandardApprovalPolicy(cfg, stateManager)
 
 	return &AgentServiceImpl{
 		client:           client,
 		toolService:      toolService,
-		config:           config,
+		config:           cfg,
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
 		messageQueue:     messageQueue,
 		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
-		maxTokens:        config.GetAgentConfig().MaxTokens,
+		maxTokens:        cfg.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,

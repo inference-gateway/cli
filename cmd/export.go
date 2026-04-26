@@ -36,10 +36,7 @@ func init() {
 }
 
 func runExport(sessionID string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	cfg := Cfg
 
 	storageConfig := storage.NewStorageFromConfig(cfg)
 	storageBackend, err := storage.NewStorage(storageConfig)
@@ -47,8 +44,7 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	configService := services.NewConfigService(V, cfg)
-	toolRegistry := tools.NewRegistry(configService, nil, nil, nil, nil, nil, nil)
+	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)

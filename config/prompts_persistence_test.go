@@ -1,4 +1,4 @@
-package services
+package config_test
 
 import (
 	"os"
@@ -9,18 +9,16 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func TestPromptsConfigService_Load_NonExistentFile(t *testing.T) {
+func TestLoadPrompts_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "non-existent.yaml")
 
-	service := NewPromptsConfigService(configPath)
-	cfg, err := service.Load()
-
+	cfg, err := config.LoadPrompts(configPath)
 	if err != nil {
-		t.Fatalf("Load() should not error for non-existent file, got: %v", err)
+		t.Fatalf("LoadPrompts() should not error for non-existent file, got: %v", err)
 	}
 	if cfg == nil {
-		t.Fatal("Load() returned nil config")
+		t.Fatal("LoadPrompts() returned nil config")
 	}
 	if cfg.Agent.SystemPrompt == "" {
 		t.Error("Default prompts config should populate agent.system_prompt")
@@ -33,7 +31,7 @@ func TestPromptsConfigService_Load_NonExistentFile(t *testing.T) {
 	}
 }
 
-func TestPromptsConfigService_Load_ValidYAML(t *testing.T) {
+func TestLoadPrompts_ValidYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "prompts.yaml")
 
@@ -52,10 +50,9 @@ init:
 		t.Fatalf("Failed to write test config file: %v", err)
 	}
 
-	service := NewPromptsConfigService(configPath)
-	cfg, err := service.Load()
+	cfg, err := config.LoadPrompts(configPath)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("LoadPrompts() failed: %v", err)
 	}
 	if cfg.Agent.SystemPrompt != "custom agent prompt" {
 		t.Errorf("Expected custom system_prompt, got %q", cfg.Agent.SystemPrompt)
@@ -71,7 +68,7 @@ init:
 	}
 }
 
-func TestPromptsConfigService_Load_PartialYAML(t *testing.T) {
+func TestLoadPrompts_PartialYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "prompts.yaml")
 
@@ -84,16 +81,15 @@ agent:
 		t.Fatalf("Failed to write test config file: %v", err)
 	}
 
-	service := NewPromptsConfigService(configPath)
-	cfg, err := service.Load()
+	cfg, err := config.LoadPrompts(configPath)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("LoadPrompts() failed: %v", err)
 	}
 	if cfg.Agent.SystemPrompt != "only this field is set" {
 		t.Errorf("Expected partial value, got %q", cfg.Agent.SystemPrompt)
 	}
-	// Other prompt fields stay zero — getConfigFromViper's overlay is what
-	// fills them back in from defaults at runtime.
+	// Other prompt fields stay zero — the runtime overlay (cmd applies it
+	// on top of LoadPrompts) is what fills them back in from defaults.
 	if cfg.Agent.SystemPromptPlan != "" {
 		t.Errorf("Expected unset plan prompt to be empty, got %q", cfg.Agent.SystemPromptPlan)
 	}
@@ -102,10 +98,9 @@ agent:
 	}
 }
 
-func TestPromptsConfigService_Save_RoundTrip(t *testing.T) {
+func TestSavePrompts_RoundTrip(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "prompts.yaml")
-	service := NewPromptsConfigService(configPath)
 
 	original := &config.PromptsConfig{
 		Agent: config.PromptsAgentConfig{
@@ -121,13 +116,13 @@ func TestPromptsConfigService_Save_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := service.Save(original); err != nil {
-		t.Fatalf("Save() failed: %v", err)
+	if err := config.SavePrompts(configPath, original); err != nil {
+		t.Fatalf("SavePrompts() failed: %v", err)
 	}
 
-	loaded, err := service.Load()
+	loaded, err := config.LoadPrompts(configPath)
 	if err != nil {
-		t.Fatalf("Load() after save failed: %v", err)
+		t.Fatalf("LoadPrompts() after save failed: %v", err)
 	}
 	if loaded.Agent.SystemPrompt != original.Agent.SystemPrompt {
 		t.Errorf("agent.system_prompt not preserved, got %q", loaded.Agent.SystemPrompt)
@@ -140,26 +135,24 @@ func TestPromptsConfigService_Save_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestPromptsConfigService_Save_CreatesParentDirectory(t *testing.T) {
+func TestSavePrompts_CreatesParentDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "nested", "deep", "prompts.yaml")
-	service := NewPromptsConfigService(configPath)
 
-	if err := service.Save(DefaultPromptsConfig()); err != nil {
-		t.Fatalf("Save() failed to create nested dirs: %v", err)
+	if err := config.SavePrompts(configPath, config.DefaultPromptsConfig()); err != nil {
+		t.Fatalf("SavePrompts() failed to create nested dirs: %v", err)
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("File not created at nested path: %v", err)
 	}
 }
 
-func TestPromptsConfigService_Save_StartsWithYAMLDocumentMarker(t *testing.T) {
+func TestSavePrompts_StartsWithYAMLDocumentMarker(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "prompts.yaml")
-	service := NewPromptsConfigService(configPath)
 
-	if err := service.Save(DefaultPromptsConfig()); err != nil {
-		t.Fatalf("Save() failed: %v", err)
+	if err := config.SavePrompts(configPath, config.DefaultPromptsConfig()); err != nil {
+		t.Fatalf("SavePrompts() failed: %v", err)
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -168,33 +161,5 @@ func TestPromptsConfigService_Save_StartsWithYAMLDocumentMarker(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(data), "---\n") {
 		t.Errorf("Saved file should start with YAML document marker, got: %q", string(data[:min(20, len(data))]))
-	}
-}
-
-func TestDefaultPromptsConfig(t *testing.T) {
-	cfg := DefaultPromptsConfig()
-	if cfg == nil {
-		t.Fatal("DefaultPromptsConfig returned nil")
-	}
-	if cfg.Agent.SystemPrompt == "" {
-		t.Error("agent.system_prompt should be non-empty")
-	}
-	if cfg.Agent.SystemPromptPlan == "" {
-		t.Error("agent.system_prompt_plan should be non-empty")
-	}
-	if cfg.Agent.SystemPromptRemote == "" {
-		t.Error("agent.system_prompt_remote should be non-empty")
-	}
-	if cfg.Agent.SystemReminders.ReminderText == "" {
-		t.Error("agent.system_reminders.reminder_text should be non-empty")
-	}
-	if cfg.Git.CommitMessage.SystemPrompt == "" {
-		t.Error("git.commit_message.system_prompt should be non-empty")
-	}
-	if cfg.Conversation.TitleGeneration.SystemPrompt == "" {
-		t.Error("conversation.title_generation.system_prompt should be non-empty")
-	}
-	if cfg.Init.Prompt == "" {
-		t.Error("init.prompt should be non-empty")
 	}
 }

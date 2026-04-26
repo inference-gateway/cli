@@ -1,6 +1,14 @@
 package config
 
-import "strings"
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	yaml "gopkg.in/yaml.v3"
+)
 
 // AgentsConfig represents the agents.yaml configuration file
 type AgentsConfig struct {
@@ -59,4 +67,151 @@ func (a *AgentEntry) GetEnvironmentWithModel() map[string]string {
 	}
 
 	return env
+}
+
+// LoadAgents reads agents.yaml from disk. When the file is missing it
+// returns the in-code defaults so callers can treat absence as "use
+// defaults" without special-casing.
+func LoadAgents(path string) (*AgentsConfig, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return DefaultAgentsConfig(), nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agents config: %w", err)
+	}
+
+	expandedData := os.ExpandEnv(string(data))
+
+	var cfg AgentsConfig
+	if err := yaml.Unmarshal([]byte(expandedData), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse agents config: %w", err)
+	}
+
+	return &cfg, nil
+}
+
+// SaveAgents writes the agents configuration to disk, creating any
+// missing parent directories.
+func SaveAgents(path string, cfg *AgentsConfig) error {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to marshal agents config: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to close encoder: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write agents config: %w", err)
+	}
+
+	return nil
+}
+
+// AddAgent adds a new agent to the configuration file.
+func AddAgent(path string, agent AgentEntry) error {
+	cfg, err := LoadAgents(path)
+	if err != nil {
+		return err
+	}
+
+	for _, existing := range cfg.Agents {
+		if existing.Name == agent.Name {
+			return fmt.Errorf("agent with name '%s' already exists", agent.Name)
+		}
+	}
+
+	cfg.Agents = append(cfg.Agents, agent)
+	return SaveAgents(path, cfg)
+}
+
+// UpdateAgent updates an existing agent by name.
+func UpdateAgent(path string, agent AgentEntry) error {
+	cfg, err := LoadAgents(path)
+	if err != nil {
+		return err
+	}
+
+	for i, existing := range cfg.Agents {
+		if existing.Name == agent.Name {
+			cfg.Agents[i] = agent
+			return SaveAgents(path, cfg)
+		}
+	}
+
+	return fmt.Errorf("agent with name '%s' not found", agent.Name)
+}
+
+// RemoveAgent removes an agent by name.
+func RemoveAgent(path, name string) error {
+	cfg, err := LoadAgents(path)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	newAgents := make([]AgentEntry, 0, len(cfg.Agents))
+	for _, agent := range cfg.Agents {
+		if agent.Name != name {
+			newAgents = append(newAgents, agent)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("agent with name '%s' not found", name)
+	}
+
+	cfg.Agents = newAgents
+	return SaveAgents(path, cfg)
+}
+
+// ListAgents returns all configured agents.
+func ListAgents(path string) ([]AgentEntry, error) {
+	cfg, err := LoadAgents(path)
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Agents, nil
+}
+
+// GetAgent returns a single agent entry by name.
+func GetAgent(path, name string) (*AgentEntry, error) {
+	cfg, err := LoadAgents(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, agent := range cfg.Agents {
+		if agent.Name == name {
+			return &agent, nil
+		}
+	}
+
+	return nil, fmt.Errorf("agent with name '%s' not found", name)
+}
+
+// GetAgentURLs returns URLs of all configured agents.
+func GetAgentURLs(path string) ([]string, error) {
+	agents, err := ListAgents(path)
+	if err != nil {
+		return nil, err
+	}
+
+	urls := make([]string, 0, len(agents))
+	for _, agent := range agents {
+		urls = append(urls, agent.URL)
+	}
+	return urls, nil
 }

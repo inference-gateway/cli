@@ -245,19 +245,20 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 
 func TestNewAgentService(t *testing.T) {
 	fakeToolService := &domainmocks.FakeToolService{}
-	fakeConfig := &domainmocks.FakeConfigService{}
 	fakeConversationRepo := &domainmocks.FakeConversationRepository{}
 	fakeStateManager := &domainmocks.FakeStateManager{}
 
-	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-		MaxTokens: 4096,
-		MaxTurns:  10,
-	})
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			MaxTokens: 4096,
+			MaxTurns:  10,
+		},
+	}
 
 	agentService := NewAgent(
 		nil,
 		fakeToolService,
-		fakeConfig,
+		cfg,
 		fakeConversationRepo,
 		nil,
 		nil,
@@ -269,7 +270,7 @@ func TestNewAgentService(t *testing.T) {
 
 	assert.NotNil(t, agentService)
 	assert.Equal(t, fakeToolService, agentService.toolService)
-	assert.Equal(t, fakeConfig, agentService.config)
+	assert.Equal(t, cfg, agentService.config)
 	assert.Equal(t, fakeConversationRepo, agentService.conversationRepo)
 	assert.Equal(t, fakeStateManager, agentService.stateManager)
 	assert.Equal(t, 120, agentService.timeoutSeconds)
@@ -419,13 +420,14 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-				SystemReminders: tt.remindersConfig,
-			})
+			cfg := &config.Config{
+				Agent: config.AgentConfig{
+					SystemReminders: tt.remindersConfig,
+				},
+			}
 
 			agentService := &AgentServiceImpl{
-				config: fakeConfig,
+				config: cfg,
 			}
 
 			result := agentService.shouldInjectSystemReminder(tt.turns)
@@ -458,15 +460,16 @@ func TestAgentServiceImpl_GetSystemReminderMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-				SystemReminders: config.SystemRemindersConfig{
-					ReminderText: tt.reminderText,
+			cfg := &config.Config{
+				Agent: config.AgentConfig{
+					SystemReminders: config.SystemRemindersConfig{
+						ReminderText: tt.reminderText,
+					},
 				},
-			})
+			}
 
 			agentService := &AgentServiceImpl{
-				config: fakeConfig,
+				config: cfg,
 			}
 
 			message := agentService.getSystemReminderMessage()
@@ -532,12 +535,17 @@ func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetSandboxDirectoriesReturns(tt.sandboxDirs)
-			fakeConfig.GetProtectedPathsReturns(tt.protectedPaths)
+			cfg := &config.Config{
+				Tools: config.ToolsConfig{
+					Sandbox: config.SandboxConfig{
+						Directories:    tt.sandboxDirs,
+						ProtectedPaths: tt.protectedPaths,
+					},
+				},
+			}
 
 			agentService := &AgentServiceImpl{
-				config: fakeConfig,
+				config: cfg,
 			}
 
 			result := agentService.buildSandboxInfo()
@@ -665,10 +673,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.IsApprovalRequiredReturns(tt.isApprovalRequired)
-			fakeConfig.IsBashCommandWhitelistedReturns(tt.isBashCommandWhitelisted)
-			fakeConfig.GetConfigReturns(&config.Config{
+			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Safety: config.SafetyConfig{
 						RequireApproval: tt.isApprovalRequired,
@@ -684,12 +689,12 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 						},
 					},
 				},
-			})
+			}
 
 			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.agentMode)
 
-			approvalPolicy := services.NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
+			approvalPolicy := services.NewStandardApprovalPolicy(cfg, fakeStateManager)
 
 			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 
@@ -1172,14 +1177,15 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-				SystemPrompt:     tt.systemPrompt,
-				SystemPromptPlan: tt.planPrompt,
-			})
+			cfg := &config.Config{
+				Agent: config.AgentConfig{
+					SystemPrompt:     tt.systemPrompt,
+					SystemPromptPlan: tt.planPrompt,
+				},
+			}
 
 			agentService := &AgentServiceImpl{
-				config: fakeConfig,
+				config: cfg,
 			}
 
 			if !tt.nilStateManager {
@@ -1196,16 +1202,21 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 }
 
 func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
-	fakeConfig := &domainmocks.FakeConfigService{}
-	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-		SystemPrompt:             "You are a helpful assistant.",
-		SystemPromptWithDefaults: true,
-	})
-	fakeConfig.GetSandboxDirectoriesReturns([]string{"/home/user"})
-	fakeConfig.GetProtectedPathsReturns([]string{"/etc"})
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			SystemPrompt:             "You are a helpful assistant.",
+			SystemPromptWithDefaults: true,
+		},
+		Tools: config.ToolsConfig{
+			Sandbox: config.SandboxConfig{
+				Directories:    []string{"/home/user"},
+				ProtectedPaths: []string{"/etc"},
+			},
+		},
+	}
 
 	agentService := &AgentServiceImpl{
-		config: fakeConfig,
+		config: cfg,
 	}
 
 	inputMessages := []sdk.Message{
@@ -1228,15 +1239,14 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 }
 
 func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
-	fakeConfig := &domainmocks.FakeConfigService{}
-	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-		SystemPrompt: "",
-	})
-	fakeConfig.GetSandboxDirectoriesReturns([]string{})
-	fakeConfig.GetProtectedPathsReturns([]string{})
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			SystemPrompt: "",
+		},
+	}
 
 	agentService := &AgentServiceImpl{
-		config: fakeConfig,
+		config: cfg,
 	}
 
 	inputMessages := []sdk.Message{

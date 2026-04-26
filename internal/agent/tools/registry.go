@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -19,7 +20,7 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config             domain.ConfigService
+	config             *config.Config
 	tools              map[string]domain.Tool
 	readToolUsed       bool
 	taskTracker        domain.A2ATaskTracker
@@ -34,7 +35,7 @@ type Registry struct {
 // taskTracker must be provided by the caller (typically the container, which
 // constructs the unified BackgroundTaskRegistry and passes its A2A view in
 // here so all tools observe the same tracker the agent's wait loop does).
-func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -58,7 +59,7 @@ func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcp
 func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
 	r.screenshotProvider = provider
 
-	cfg := r.config.GetConfig()
+	cfg := r.config
 	if cfg.ComputerUse.Enabled {
 		displayProvider, err := display.DetectDisplay()
 		if err == nil {
@@ -70,7 +71,7 @@ func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
 
 // registerTools initializes and registers all available tools
 func (r *Registry) registerTools() {
-	cfg := r.config.GetConfig()
+	cfg := r.config
 
 	r.tools["Bash"] = NewBashTool(cfg, r.shellService)
 
@@ -134,7 +135,7 @@ func (r *Registry) registerTools() {
 
 // registerMCPTools discovers and registers tools from enabled MCP servers
 func (r *Registry) registerMCPTools() {
-	cfg := r.config.GetConfig()
+	cfg := r.config
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.MCP.DiscoveryTimeout)*time.Second)
 	defer cancel()
 
@@ -230,7 +231,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 	}
 
 	toolCount := 0
-	cfg := r.config.GetConfig()
+	cfg := r.config
 
 	for _, tool := range tools {
 		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
@@ -281,7 +282,7 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 // SetScreenshotServer dynamically registers the GetLatestScreenshot tool
 // This should be called after the screenshot server is started
 func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
-	cfg := r.config.GetConfig()
+	cfg := r.config
 	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
 		logger.Debug("Screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
 		return

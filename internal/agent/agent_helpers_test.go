@@ -89,15 +89,16 @@ func TestShouldInjectSystemReminder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-				SystemReminders: config.SystemRemindersConfig{
-					Enabled:  tt.enabled,
-					Interval: tt.interval,
+			cfg := &config.Config{
+				Agent: config.AgentConfig{
+					SystemReminders: config.SystemRemindersConfig{
+						Enabled:  tt.enabled,
+						Interval: tt.interval,
+					},
 				},
-			})
+			}
 
-			agentService := &AgentServiceImpl{config: fakeConfig}
+			agentService := &AgentServiceImpl{config: cfg}
 			result := agentService.shouldInjectSystemReminder(tt.turns)
 
 			assert.Equal(t, tt.expected, result)
@@ -121,17 +122,18 @@ func TestGetSystemPromptForMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &domainmocks.FakeConfigService{}
-			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
-				SystemPrompt:     tt.systemPrompt,
-				SystemPromptPlan: tt.planPrompt,
-			})
+			cfg := &config.Config{
+				Agent: config.AgentConfig{
+					SystemPrompt:     tt.systemPrompt,
+					SystemPromptPlan: tt.planPrompt,
+				},
+			}
 
 			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.mode)
 
 			agentService := &AgentServiceImpl{
-				config:       fakeConfig,
+				config:       cfg,
 				stateManager: fakeStateManager,
 			}
 

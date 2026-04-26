@@ -38,11 +38,7 @@ authentication process.
 Example:
   infer claude-code setup`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return err
-		}
-		claudePath := cfg.ClaudeCode.CLIPath
+		claudePath := Cfg.ClaudeCode.CLIPath
 
 		if _, err := exec.LookPath(claudePath); err != nil {
 			return fmt.Errorf("claude Code CLI not found at '%s'.\n\nMake sure Claude Code CLI is installed and in your PATH,\nor set custom path in .infer/config.yaml:\n  claude_code:\n    cli_path: /path/to/claude", claudePath)
@@ -80,11 +76,7 @@ var claudeCodeTestCmd = &cobra.Command{
 	Short: "Test Claude Code CLI integration",
 	Long:  `Test if Claude Code CLI is properly configured and authenticated.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return err
-		}
-		claudePath := cfg.ClaudeCode.CLIPath
+		claudePath := Cfg.ClaudeCode.CLIPath
 
 		if _, err := exec.LookPath(claudePath); err != nil {
 			fmt.Printf("✗ Claude Code CLI not found at '%s'\n", claudePath)

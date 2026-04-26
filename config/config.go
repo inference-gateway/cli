@@ -1049,7 +1049,6 @@ func DefaultConfig() *Config { //nolint:funlen
 
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
-// ConfigService interface implementation
 func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop
 	globalApproval := c.Tools.Safety.RequireApproval
 
@@ -1198,6 +1197,22 @@ func (c *Config) GetConfigDir() string {
 		return ConfigDirName
 	}
 	return c.configDir
+}
+
+// ResolveConfigDir searches the standard project then userspace locations
+// for an existing config.yaml and returns its directory. Falls back to the
+// default project directory name when nothing is found on disk.
+func ResolveConfigDir() string {
+	candidates := []string{DefaultConfigPath}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(homeDir, ConfigDirName, ConfigFileName))
+	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return filepath.Dir(path)
+		}
+	}
+	return ConfigDirName
 }
 
 // IsBashCommandWhitelisted checks if a specific bash command is whitelisted

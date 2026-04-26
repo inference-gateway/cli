@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -15,7 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
-	viper "github.com/spf13/viper"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -26,7 +26,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	web "github.com/inference-gateway/cli/internal/web"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 var chatCmd = &cobra.Command{
@@ -35,10 +34,7 @@ var chatCmd = &cobra.Command{
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+		cfg := Cfg
 
 		if os.Getenv("INFER_WEB_MODE") == "true" {
 			cfg.Web.Enabled = true
@@ -79,24 +75,24 @@ and have a conversational interface with the inference gateway.`,
 				}
 			}
 
-			return StartWebChatSession(cfg, V)
+			return StartWebChatSession(cfg)
 		}
 
 		if !isInteractiveTerminal() {
-			return runNonInteractiveChat(cfg, V)
+			return runNonInteractiveChat(cfg)
 		}
 
-		return StartChatSession(cfg, V)
+		return StartChatSession(cfg)
 	},
 }
 
 // StartChatSession starts a chat session
 //
 //nolint:funlen // Chat session initialization requires multiple setup steps
-func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+func StartChatSession(cfg *config.Config) error {
 	_ = clipboard.Init()
 
-	services := container.NewServiceContainer(cfg, v)
+	services := container.NewServiceContainer(cfg)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
@@ -150,8 +146,6 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	agentService := services.GetAgentService()
 	conversationRepo := services.GetConversationRepository()
 	modelService := services.GetModelService()
-	config := services.GetConfig()
-	configService := services.GetConfigService()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
@@ -170,8 +164,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 
 	var screenshotServer *screenshotsvc.ScreenshotServer
 
-	if config.ComputerUse.Enabled && config.ComputerUse.Screenshot.StreamingEnabled {
-		screenshotServer = startScreenshotServer(config, imageService, toolRegistry)
+	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
+		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
 		if screenshotServer != nil {
 			defer func() {
 				if err := screenshotServer.Stop(); err != nil {
@@ -181,7 +175,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		}
 	}
 
-	floatingWindowMgr, err := initFloatingWindow(config, stateManager, agentService)
+	floatingWindowMgr, err := initFloatingWindow(cfg, stateManager, agentService)
 	if err != nil {
 		return fmt.Errorf("failed to initialize floating window: %w", err)
 	}
@@ -193,31 +187,29 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		}()
 	}
 
-	versionInfo := GetVersionInfo()
 	application := app.NewChatApplication(
+		cfg,
 		models,
 		defaultModel,
+		GetVersionInfo(),
+		agentManager,
 		agentService,
-		conversationRepo,
+		backgroundTaskService,
 		conversationOptimizer,
-		sessionRolloverManager,
-		modelService,
-		configService,
-		toolService,
+		conversationRepo,
 		fileService,
 		imageService,
-		pricingService,
-		shortcutRegistry,
-		stateManager,
-		messageQueue,
-		themeService,
-		toolRegistry,
 		mcpManager,
+		messageQueue,
+		modelService,
+		pricingService,
+		sessionRolloverManager,
+		stateManager,
 		taskRetentionService,
-		backgroundTaskService,
-		agentManager,
-		getEffectiveConfigPath(),
-		versionInfo,
+		themeService,
+		toolService,
+		shortcutRegistry,
+		toolRegistry,
 	)
 
 	program := tea.NewProgram(
@@ -244,8 +236,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 }
 
 // StartWebChatSession starts a web-based chat session with PTY and WebSocket
-func StartWebChatSession(cfg *config.Config, v *viper.Viper) error {
-	server := web.NewWebTerminalServer(cfg, v)
+func StartWebChatSession(cfg *config.Config) error {
+	server := web.NewWebTerminalServer(cfg)
 	return server.Start()
 }
 
@@ -272,31 +264,6 @@ func validateAndSetDefaultModel(modelService domain.ModelService, models []strin
 	return defaultModel
 }
 
-// getEffectiveConfigPath returns the actual config file path that should be displayed
-// It follows Viper's search order and returns the first existing config file
-func getEffectiveConfigPath() string {
-	searchPaths := []string{
-		".infer/config.yaml",
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, ".infer", "config.yaml")
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	if configFile := V.ConfigFileUsed(); configFile != "" {
-		return configFile
-	}
-
-	return ".infer/config.yaml"
-}
-
 // isInteractiveTerminal checks if we're running in an interactive terminal
 func isInteractiveTerminal() bool {
 	if fileInfo, _ := os.Stdin.Stat(); (fileInfo.Mode() & os.ModeCharDevice) == 0 {
@@ -309,8 +276,8 @@ func isInteractiveTerminal() bool {
 }
 
 // runNonInteractiveChat handles non-interactive chat mode (stdin/stdout)
-func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
-	services := container.NewServiceContainer(cfg, v)
+func runNonInteractiveChat(cfg *config.Config) error {
+	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()

@@ -10,7 +10,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	services "github.com/inference-gateway/cli/internal/services"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
@@ -415,8 +414,7 @@ func createKeybindingsConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	service := services.NewKeybindingsConfigService(path)
-	return service.Save(services.DefaultKeybindingsConfig())
+	return config.SaveKeybindings(path, config.DefaultKeybindingsConfig())
 }
 
 // createPromptsConfigFile writes a fresh prompts.yaml seeded from the
@@ -427,8 +425,7 @@ func createPromptsConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	service := services.NewPromptsConfigService(path)
-	return service.Save(config.DefaultPromptsConfig())
+	return config.SavePrompts(path, config.DefaultPromptsConfig())
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

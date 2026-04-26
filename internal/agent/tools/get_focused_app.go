@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -12,13 +13,13 @@ import (
 
 // GetFocusedAppTool gets the currently focused application
 type GetFocusedAppTool struct {
-	config domain.ConfigService
+	config *config.Config
 }
 
 // NewGetFocusedAppTool creates a new GetFocusedApp tool
-func NewGetFocusedAppTool(config domain.ConfigService) *GetFocusedAppTool {
+func NewGetFocusedAppTool(cfg *config.Config) *GetFocusedAppTool {
 	return &GetFocusedAppTool{
-		config: config,
+		config: cfg,
 	}
 }
 
@@ -91,7 +92,7 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 
 // IsEnabled returns whether the tool is enabled
 func (t *GetFocusedAppTool) IsEnabled() bool {
-	return t.config.GetConfig().ComputerUse.Enabled
+	return t.config.ComputerUse.Enabled
 }
 
 // FormatPreview formats the result for display preview

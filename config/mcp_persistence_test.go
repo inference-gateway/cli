@@ -1,4 +1,4 @@
-package services
+package config_test
 
 import (
 	"os"
@@ -8,19 +8,16 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func TestMCPConfigService_Load_NonExistentFile(t *testing.T) {
+func TestLoadMCP_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "non-existent.yaml")
 
-	service := NewMCPConfigService(configPath)
-	cfg, err := service.Load()
-
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() should not error for non-existent file, got: %v", err)
+		t.Fatalf("LoadMCP() should not error for non-existent file, got: %v", err)
 	}
-
 	if cfg == nil {
-		t.Fatal("Load() returned nil config")
+		t.Fatal("LoadMCP() returned nil config")
 	}
 
 	defaultCfg := config.DefaultMCPConfig()
@@ -29,7 +26,7 @@ func TestMCPConfigService_Load_NonExistentFile(t *testing.T) {
 	}
 }
 
-func TestMCPConfigService_Load_ValidYAML(t *testing.T) {
+func TestLoadMCP_ValidYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
@@ -53,30 +50,24 @@ servers:
       - tool3
 `
 
-	err := os.WriteFile(configPath, []byte(yamlContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config file: %v", err)
 	}
 
-	service := NewMCPConfigService(configPath)
-	cfg, err := service.Load()
-
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("LoadMCP() failed: %v", err)
 	}
 
 	if !cfg.Enabled {
 		t.Error("Expected Enabled to be true")
 	}
-
 	if cfg.ConnectionTimeout != 60 {
 		t.Errorf("Expected ConnectionTimeout=60, got %d", cfg.ConnectionTimeout)
 	}
-
 	if cfg.DiscoveryTimeout != 45 {
 		t.Errorf("Expected DiscoveryTimeout=45, got %d", cfg.DiscoveryTimeout)
 	}
-
 	if len(cfg.Servers) != 1 {
 		t.Fatalf("Expected 1 server, got %d", len(cfg.Servers))
 	}
@@ -90,36 +81,25 @@ servers:
 	if server.GetURL() != expectedURL {
 		t.Errorf("Expected server URL %q, got %q", expectedURL, server.GetURL())
 	}
-
 	if !server.Enabled {
 		t.Error("Expected server to be enabled")
 	}
-
 	if server.Timeout != 30 {
 		t.Errorf("Expected server timeout=30, got %d", server.Timeout)
 	}
-
 	if len(server.IncludeTools) != 2 {
 		t.Errorf("Expected 2 include tools, got %d", len(server.IncludeTools))
 	}
-
 	if len(server.ExcludeTools) != 1 {
 		t.Errorf("Expected 1 exclude tool, got %d", len(server.ExcludeTools))
 	}
 }
 
-func TestMCPConfigService_Load_EnvironmentVariableExpansion(t *testing.T) {
+func TestLoadMCP_EnvironmentVariableExpansion(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
-	if err := os.Setenv("TEST_MCP_URL", "http://env-server:8080/sse"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	defer func() {
-		if err := os.Unsetenv("TEST_MCP_URL"); err != nil {
-			t.Logf("Failed to unset environment variable: %v", err)
-		}
-	}()
+	t.Setenv("TEST_MCP_URL", "http://env-server:8080/sse")
 
 	yamlContent := `enabled: true
 servers:
@@ -132,18 +112,14 @@ servers:
     enabled: true
 `
 
-	err := os.WriteFile(configPath, []byte(yamlContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config file: %v", err)
 	}
 
-	service := NewMCPConfigService(configPath)
-	cfg, err := service.Load()
-
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("LoadMCP() failed: %v", err)
 	}
-
 	if len(cfg.Servers) != 1 {
 		t.Fatalf("Expected 1 server, got %d", len(cfg.Servers))
 	}
@@ -155,11 +131,9 @@ servers:
 	}
 }
 
-func TestMCPConfigService_Save(t *testing.T) {
+func TestSaveMCP(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "subdir", "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	cfg := &config.MCPConfig{
 		Enabled:           true,
@@ -179,34 +153,28 @@ func TestMCPConfigService_Save(t *testing.T) {
 		},
 	}
 
-	err := service.Save(cfg)
-	if err != nil {
-		t.Fatalf("Save() failed: %v", err)
+	if err := config.SaveMCP(configPath, cfg); err != nil {
+		t.Fatalf("SaveMCP() failed: %v", err)
 	}
-
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Fatal("Config file was not created")
 	}
 
-	loadedCfg, err := service.Load()
+	loadedCfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() after Save() failed: %v", err)
+		t.Fatalf("LoadMCP() after SaveMCP() failed: %v", err)
 	}
-
 	if loadedCfg.Enabled != cfg.Enabled {
 		t.Errorf("Expected Enabled=%v, got %v", cfg.Enabled, loadedCfg.Enabled)
 	}
-
 	if len(loadedCfg.Servers) != len(cfg.Servers) {
 		t.Errorf("Expected %d servers, got %d", len(cfg.Servers), len(loadedCfg.Servers))
 	}
 }
 
-func TestMCPConfigService_AddServer(t *testing.T) {
+func TestAddMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	newServer := config.MCPServerEntry{
 		Name:        "new-server",
@@ -218,30 +186,25 @@ func TestMCPConfigService_AddServer(t *testing.T) {
 		Description: "New server",
 	}
 
-	err := service.AddServer(newServer)
-	if err != nil {
-		t.Fatalf("AddServer() failed: %v", err)
+	if err := config.AddMCPServer(configPath, newServer); err != nil {
+		t.Fatalf("AddMCPServer() failed: %v", err)
 	}
 
-	cfg, err := service.Load()
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() after AddServer() failed: %v", err)
+		t.Fatalf("LoadMCP() after AddMCPServer() failed: %v", err)
 	}
-
 	if len(cfg.Servers) != 1 {
 		t.Fatalf("Expected 1 server, got %d", len(cfg.Servers))
 	}
-
 	if cfg.Servers[0].Name != newServer.Name {
 		t.Errorf("Expected server name %q, got %q", newServer.Name, cfg.Servers[0].Name)
 	}
 }
 
-func TestMCPConfigService_AddServer_DuplicateName(t *testing.T) {
+func TestAddMCPServer_DuplicateName(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	server := config.MCPServerEntry{
 		Name:    "duplicate-server",
@@ -252,22 +215,17 @@ func TestMCPConfigService_AddServer_DuplicateName(t *testing.T) {
 		Enabled: true,
 	}
 
-	err := service.AddServer(server)
-	if err != nil {
-		t.Fatalf("First AddServer() failed: %v", err)
+	if err := config.AddMCPServer(configPath, server); err != nil {
+		t.Fatalf("First AddMCPServer() failed: %v", err)
 	}
-
-	err = service.AddServer(server)
-	if err == nil {
+	if err := config.AddMCPServer(configPath, server); err == nil {
 		t.Fatal("Expected error when adding duplicate server, got nil")
 	}
 }
 
-func TestMCPConfigService_UpdateServer(t *testing.T) {
+func TestUpdateMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	initialServer := config.MCPServerEntry{
 		Name:    "update-server",
@@ -277,10 +235,8 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 		Path:    "/sse",
 		Enabled: true,
 	}
-
-	err := service.AddServer(initialServer)
-	if err != nil {
-		t.Fatalf("AddServer() failed: %v", err)
+	if err := config.AddMCPServer(configPath, initialServer); err != nil {
+		t.Fatalf("AddMCPServer() failed: %v", err)
 	}
 
 	updatedServer := config.MCPServerEntry{
@@ -292,17 +248,14 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 		Enabled:     false,
 		Description: "Updated description",
 	}
-
-	err = service.UpdateServer(updatedServer)
-	if err != nil {
-		t.Fatalf("UpdateServer() failed: %v", err)
+	if err := config.UpdateMCPServer(configPath, updatedServer); err != nil {
+		t.Fatalf("UpdateMCPServer() failed: %v", err)
 	}
 
-	cfg, err := service.Load()
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() after UpdateServer() failed: %v", err)
+		t.Fatalf("LoadMCP() after UpdateMCPServer() failed: %v", err)
 	}
-
 	if len(cfg.Servers) != 1 {
 		t.Fatalf("Expected 1 server, got %d", len(cfg.Servers))
 	}
@@ -311,21 +264,17 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 	if server.GetURL() != updatedServer.GetURL() {
 		t.Errorf("Expected URL %q, got %q", updatedServer.GetURL(), server.GetURL())
 	}
-
 	if server.Enabled != updatedServer.Enabled {
 		t.Errorf("Expected Enabled=%v, got %v", updatedServer.Enabled, server.Enabled)
 	}
-
 	if server.Description != updatedServer.Description {
 		t.Errorf("Expected Description %q, got %q", updatedServer.Description, server.Description)
 	}
 }
 
-func TestMCPConfigService_UpdateServer_NotFound(t *testing.T) {
+func TestUpdateMCPServer_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	server := config.MCPServerEntry{
 		Name:    "nonexistent-server",
@@ -335,128 +284,84 @@ func TestMCPConfigService_UpdateServer_NotFound(t *testing.T) {
 		Path:    "/sse",
 		Enabled: true,
 	}
-
-	err := service.UpdateServer(server)
-	if err == nil {
+	if err := config.UpdateMCPServer(configPath, server); err == nil {
 		t.Fatal("Expected error when updating non-existent server, got nil")
 	}
 }
 
-func TestMCPConfigService_RemoveServer(t *testing.T) {
+func TestRemoveMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
-	service := NewMCPConfigService(configPath)
+	server1 := config.MCPServerEntry{Name: "server1", Scheme: "http", Host: "localhost", Ports: []string{"3000:8080"}, Path: "/sse", Enabled: true}
+	server2 := config.MCPServerEntry{Name: "server2", Scheme: "http", Host: "localhost", Ports: []string{"4000:8080"}, Path: "/sse", Enabled: true}
 
-	server1 := config.MCPServerEntry{
-		Name:    "server1",
-		Scheme:  "http",
-		Host:    "localhost",
-		Ports:   []string{"3000:8080"},
-		Path:    "/sse",
-		Enabled: true,
-	}
-	server2 := config.MCPServerEntry{
-		Name:    "server2",
-		Scheme:  "http",
-		Host:    "localhost",
-		Ports:   []string{"4000:8080"},
-		Path:    "/sse",
-		Enabled: true,
-	}
-
-	if err := service.AddServer(server1); err != nil {
+	if err := config.AddMCPServer(configPath, server1); err != nil {
 		t.Fatalf("Failed to add server1: %v", err)
 	}
-	if err := service.AddServer(server2); err != nil {
+	if err := config.AddMCPServer(configPath, server2); err != nil {
 		t.Fatalf("Failed to add server2: %v", err)
 	}
 
-	err := service.RemoveServer("server1")
-	if err != nil {
-		t.Fatalf("RemoveServer() failed: %v", err)
+	if err := config.RemoveMCPServer(configPath, "server1"); err != nil {
+		t.Fatalf("RemoveMCPServer() failed: %v", err)
 	}
 
-	cfg, err := service.Load()
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
-		t.Fatalf("Load() after RemoveServer() failed: %v", err)
+		t.Fatalf("LoadMCP() after RemoveMCPServer() failed: %v", err)
 	}
-
 	if len(cfg.Servers) != 1 {
 		t.Fatalf("Expected 1 server after removal, got %d", len(cfg.Servers))
 	}
-
 	if cfg.Servers[0].Name != "server2" {
 		t.Errorf("Expected remaining server to be 'server2', got %q", cfg.Servers[0].Name)
 	}
 }
 
-func TestMCPConfigService_RemoveServer_NotFound(t *testing.T) {
+func TestRemoveMCPServer_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
-	service := NewMCPConfigService(configPath)
-
-	err := service.RemoveServer("nonexistent-server")
-	if err == nil {
+	if err := config.RemoveMCPServer(configPath, "nonexistent-server"); err == nil {
 		t.Fatal("Expected error when removing non-existent server, got nil")
 	}
 }
 
-func TestMCPConfigService_ListServers(t *testing.T) {
+func TestListMCPServers(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
-	service := NewMCPConfigService(configPath)
-
-	servers, err := service.ListServers()
+	servers, err := config.ListMCPServers(configPath)
 	if err != nil {
-		t.Fatalf("ListServers() failed: %v", err)
+		t.Fatalf("ListMCPServers() failed: %v", err)
 	}
-
 	if len(servers) != 0 {
 		t.Errorf("Expected 0 servers initially, got %d", len(servers))
 	}
 
-	server1 := config.MCPServerEntry{
-		Name:    "server1",
-		Scheme:  "http",
-		Host:    "localhost",
-		Ports:   []string{"3000:8080"},
-		Path:    "/sse",
-		Enabled: true,
-	}
-	server2 := config.MCPServerEntry{
-		Name:    "server2",
-		Scheme:  "http",
-		Host:    "localhost",
-		Ports:   []string{"4000:8080"},
-		Path:    "/sse",
-		Enabled: false,
-	}
+	server1 := config.MCPServerEntry{Name: "server1", Scheme: "http", Host: "localhost", Ports: []string{"3000:8080"}, Path: "/sse", Enabled: true}
+	server2 := config.MCPServerEntry{Name: "server2", Scheme: "http", Host: "localhost", Ports: []string{"4000:8080"}, Path: "/sse", Enabled: false}
 
-	if err := service.AddServer(server1); err != nil {
+	if err := config.AddMCPServer(configPath, server1); err != nil {
 		t.Fatalf("Failed to add server1: %v", err)
 	}
-	if err := service.AddServer(server2); err != nil {
+	if err := config.AddMCPServer(configPath, server2); err != nil {
 		t.Fatalf("Failed to add server2: %v", err)
 	}
 
-	servers, err = service.ListServers()
+	servers, err = config.ListMCPServers(configPath)
 	if err != nil {
-		t.Fatalf("ListServers() failed: %v", err)
+		t.Fatalf("ListMCPServers() failed: %v", err)
 	}
-
 	if len(servers) != 2 {
 		t.Fatalf("Expected 2 servers, got %d", len(servers))
 	}
 }
 
-func TestMCPConfigService_GetServer(t *testing.T) {
+func TestGetMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
-
-	service := NewMCPConfigService(configPath)
 
 	expectedServer := config.MCPServerEntry{
 		Name:        "get-server",
@@ -467,33 +372,27 @@ func TestMCPConfigService_GetServer(t *testing.T) {
 		Enabled:     true,
 		Description: "Test server",
 	}
-
-	if err := service.AddServer(expectedServer); err != nil {
+	if err := config.AddMCPServer(configPath, expectedServer); err != nil {
 		t.Fatalf("Failed to add server: %v", err)
 	}
 
-	server, err := service.GetServer("get-server")
+	server, err := config.GetMCPServer(configPath, "get-server")
 	if err != nil {
-		t.Fatalf("GetServer() failed: %v", err)
+		t.Fatalf("GetMCPServer() failed: %v", err)
 	}
-
 	if server.Name != expectedServer.Name {
 		t.Errorf("Expected name %q, got %q", expectedServer.Name, server.Name)
 	}
-
 	if server.GetURL() != expectedServer.GetURL() {
 		t.Errorf("Expected URL %q, got %q", expectedServer.GetURL(), server.GetURL())
 	}
 }
 
-func TestMCPConfigService_GetServer_NotFound(t *testing.T) {
+func TestGetMCPServer_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "mcp.yaml")
 
-	service := NewMCPConfigService(configPath)
-
-	_, err := service.GetServer("nonexistent-server")
-	if err == nil {
+	if _, err := config.GetMCPServer(configPath, "nonexistent-server"); err == nil {
 		t.Fatal("Expected error when getting non-existent server, got nil")
 	}
 }

@@ -1,8 +1,13 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	yaml "gopkg.in/yaml.v3"
 )
 
 // MCPConfig represents the mcp.yaml configuration file
@@ -152,3 +157,187 @@ const (
 	MCPFileName    = "mcp.yaml"
 	DefaultMCPPath = ConfigDirName + "/" + MCPFileName
 )
+
+// LoadMCP reads mcp.yaml from disk. When the file is missing it returns
+// the in-code defaults so callers can treat absence as "use defaults"
+// without special-casing.
+func LoadMCP(path string) (*MCPConfig, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return DefaultMCPConfig(), nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MCP config: %w", err)
+	}
+
+	expandedData := os.ExpandEnv(string(data))
+
+	var cfg MCPConfig
+	if err := yaml.Unmarshal([]byte(expandedData), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse MCP config: %w", err)
+	}
+
+	return &cfg, nil
+}
+
+// SaveMCP writes the MCP configuration to disk, creating any missing
+// parent directories.
+func SaveMCP(path string, cfg *MCPConfig) error {
+	var buf bytes.Buffer
+	buf.WriteString("---\n")
+
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to marshal MCP config: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to close encoder: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write MCP config: %w", err)
+	}
+
+	return nil
+}
+
+// AddMCPServer adds a new MCP server entry to the configuration file.
+func AddMCPServer(path string, server MCPServerEntry) error {
+	cfg, err := LoadMCP(path)
+	if err != nil {
+		return err
+	}
+
+	for _, existing := range cfg.Servers {
+		if existing.Name == server.Name {
+			return fmt.Errorf("MCP server with name '%s' already exists", server.Name)
+		}
+	}
+
+	cfg.Servers = append(cfg.Servers, server)
+	return SaveMCP(path, cfg)
+}
+
+// UpdateMCPServer updates an existing MCP server entry by name.
+func UpdateMCPServer(path string, server MCPServerEntry) error {
+	cfg, err := LoadMCP(path)
+	if err != nil {
+		return err
+	}
+
+	for i, existing := range cfg.Servers {
+		if existing.Name == server.Name {
+			cfg.Servers[i] = server
+			return SaveMCP(path, cfg)
+		}
+	}
+
+	return fmt.Errorf("MCP server with name '%s' not found", server.Name)
+}
+
+// RemoveMCPServer removes an MCP server entry by name.
+func RemoveMCPServer(path, name string) error {
+	cfg, err := LoadMCP(path)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	newServers := make([]MCPServerEntry, 0, len(cfg.Servers))
+	for _, server := range cfg.Servers {
+		if server.Name != name {
+			newServers = append(newServers, server)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("MCP server with name '%s' not found", name)
+	}
+
+	cfg.Servers = newServers
+	return SaveMCP(path, cfg)
+}
+
+// ListMCPServers returns all configured MCP servers.
+func ListMCPServers(path string) ([]MCPServerEntry, error) {
+	cfg, err := LoadMCP(path)
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Servers, nil
+}
+
+// GetMCPServer returns a single MCP server entry by name.
+func GetMCPServer(path, name string) (*MCPServerEntry, error) {
+	cfg, err := LoadMCP(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, server := range cfg.Servers {
+		if server.Name == name {
+			return &server, nil
+		}
+	}
+
+	return nil, fmt.Errorf("MCP server with name '%s' not found", name)
+}
+
+// MergeMCP merges an optional mcp.yaml config on top of a base config.
+// Optional values take precedence; servers from both are combined and
+// optional entries override base entries with the same name.
+func MergeMCP(base *MCPConfig, optional *MCPConfig) *MCPConfig {
+	if optional == nil {
+		return base
+	}
+
+	merged := &MCPConfig{
+		Enabled:               optional.Enabled || base.Enabled,
+		ConnectionTimeout:     base.ConnectionTimeout,
+		DiscoveryTimeout:      base.DiscoveryTimeout,
+		LivenessProbeEnabled:  base.LivenessProbeEnabled,
+		LivenessProbeInterval: base.LivenessProbeInterval,
+		MaxRetries:            base.MaxRetries,
+		Servers:               make([]MCPServerEntry, 0),
+	}
+
+	if optional.ConnectionTimeout > 0 {
+		merged.ConnectionTimeout = optional.ConnectionTimeout
+	}
+	if optional.DiscoveryTimeout > 0 {
+		merged.DiscoveryTimeout = optional.DiscoveryTimeout
+	}
+	if optional.LivenessProbeInterval > 0 {
+		merged.LivenessProbeInterval = optional.LivenessProbeInterval
+	}
+	if optional.MaxRetries > 0 {
+		merged.MaxRetries = optional.MaxRetries
+	}
+	if optional.LivenessProbeEnabled {
+		merged.LivenessProbeEnabled = true
+	}
+
+	serverMap := make(map[string]MCPServerEntry)
+	for _, server := range base.Servers {
+		serverMap[server.Name] = server
+	}
+	for _, server := range optional.Servers {
+		serverMap[server.Name] = server
+	}
+
+	for _, server := range serverMap {
+		merged.Servers = append(merged.Servers, server)
+	}
+
+	return merged
+}

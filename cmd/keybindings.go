@@ -8,7 +8,6 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
-	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -82,12 +81,7 @@ func init() {
 }
 
 func listKeybindings(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	registry := keybinding.NewRegistry(cfg)
+	registry := keybinding.NewRegistry(Cfg)
 	actions := registry.ListAllActions()
 
 	if len(actions) == 0 {
@@ -132,8 +126,7 @@ func resetKeybindings(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	service := services.NewKeybindingsConfigService(path)
-	if err := service.Save(services.DefaultKeybindingsConfig()); err != nil {
+	if err := config.SaveKeybindings(path, config.DefaultKeybindingsConfig()); err != nil {
 		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
@@ -144,10 +137,7 @@ func resetKeybindings(cmd *cobra.Command, args []string) error {
 }
 
 func validateKeybindings(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	cfg := Cfg
 
 	if !cfg.Chat.Keybindings.Enabled {
 		fmt.Println("Note: Keybindings are currently disabled in config")
@@ -284,7 +274,7 @@ func setKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	path, kbConfig, err := loadKeybindingsForWrite(cmd)
 	if err != nil {
 		return err
 	}
@@ -293,7 +283,7 @@ func setKeybinding(cmd *cobra.Command, args []string) error {
 	entry.Keys = keys
 	kbConfig.Bindings[actionID] = entry
 
-	if err := service.Save(kbConfig); err != nil {
+	if err := config.SaveKeybindings(path, kbConfig); err != nil {
 		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
@@ -314,7 +304,7 @@ func enableKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	path, kbConfig, err := loadKeybindingsForWrite(cmd)
 	if err != nil {
 		return err
 	}
@@ -324,7 +314,7 @@ func enableKeybinding(cmd *cobra.Command, args []string) error {
 	entry.Enabled = &enabled
 	kbConfig.Bindings[actionID] = entry
 
-	if err := service.Save(kbConfig); err != nil {
+	if err := config.SaveKeybindings(path, kbConfig); err != nil {
 		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
@@ -344,7 +334,7 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	path, kbConfig, err := loadKeybindingsForWrite(cmd)
 	if err != nil {
 		return err
 	}
@@ -354,7 +344,7 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 	entry.Enabled = &disabled
 	kbConfig.Bindings[actionID] = entry
 
-	if err := service.Save(kbConfig); err != nil {
+	if err := config.SaveKeybindings(path, kbConfig); err != nil {
 		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
@@ -369,23 +359,22 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 // loadKeybindingsForWrite resolves the destination keybindings.yaml path
 // (honouring --userspace), loads the existing config (or defaults if the
 // file is absent), and returns everything callers need to mutate-and-save.
-func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsConfig, *services.KeybindingsConfigService, error) {
+func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsConfig, error) {
 	path, err := getKeybindingsConfigWritePath(GetUserspaceFlag(cmd))
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
 
-	service := services.NewKeybindingsConfigService(path)
-	kbConfig, err := service.Load()
+	kbConfig, err := config.LoadKeybindings(path)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to load keybindings: %w", err)
+		return "", nil, fmt.Errorf("failed to load keybindings: %w", err)
 	}
 
 	if kbConfig.Bindings == nil {
 		kbConfig.Bindings = make(map[string]config.KeyBindingEntry)
 	}
 
-	return path, kbConfig, service, nil
+	return path, kbConfig, nil
 }
 
 // getValidActionIDs returns all valid action IDs by creating a temporary registry

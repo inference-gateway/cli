@@ -24,7 +24,7 @@ type InputView struct {
 	modelService         domain.ModelService
 	imageService         domain.ImageService
 	stateManager         domain.StateManager
-	configService        *config.Config
+	config               *config.Config
 	conversationRepo     domain.ConversationRepository
 	historyManager       *history.HistoryManager
 	disabled             bool
@@ -80,9 +80,9 @@ func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
 }
 
-// SetConfigService sets the config service for this input view
-func (iv *InputView) SetConfigService(configService *config.Config) {
-	iv.configService = configService
+// SetConfig sets the config for this input view
+func (iv *InputView) SetConfig(cfg *config.Config) {
+	iv.config = cfg
 }
 
 // SetImageService sets the image service for this input view

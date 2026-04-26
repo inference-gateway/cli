@@ -23,7 +23,7 @@ type InputStatusBar struct {
 	modelService           domain.ModelService
 	themeService           domain.ThemeService
 	stateManager           domain.StateManager
-	configService          *config.Config
+	config                 *config.Config
 	conversationRepo       domain.ConversationRepository
 	toolService            domain.ToolService
 	tokenEstimator         domain.TokenEstimator
@@ -61,9 +61,9 @@ func (isb *InputStatusBar) SetStateManager(stateManager domain.StateManager) {
 	isb.stateManager = stateManager
 }
 
-// SetConfigService sets the config service
-func (isb *InputStatusBar) SetConfigService(configService *config.Config) {
-	isb.configService = configService
+// SetConfig sets the config for the status bar
+func (isb *InputStatusBar) SetConfig(cfg *config.Config) {
+	isb.config = cfg
 }
 
 // SetConversationRepo sets the conversation repository
@@ -110,7 +110,7 @@ func (isb *InputStatusBar) SetHeight(height int) {
 }
 
 func (isb *InputStatusBar) Render() string {
-	if isb.configService != nil && !isb.configService.Chat.StatusBar.Enabled {
+	if isb.config != nil && !isb.config.Chat.StatusBar.Enabled {
 		return ""
 	}
 
@@ -370,11 +370,11 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 
 // shouldShowIndicator checks if a specific indicator should be shown
 func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
-	if isb.configService == nil {
+	if isb.config == nil {
 		return true
 	}
 
-	indicators := isb.configService.Chat.StatusBar.Indicators
+	indicators := isb.config.Chat.StatusBar.Indicators
 	switch indicator {
 	case "model":
 		return indicators.Model
@@ -416,10 +416,10 @@ func (isb *InputStatusBar) buildThemeIndicator() string {
 
 // buildMaxOutputIndicator builds the max output tokens indicator text
 func (isb *InputStatusBar) buildMaxOutputIndicator() string {
-	if isb.configService == nil {
+	if isb.config == nil {
 		return ""
 	}
-	maxTokens := isb.configService.Agent.MaxTokens
+	maxTokens := isb.config.Agent.MaxTokens
 	if maxTokens > 0 {
 		return fmt.Sprintf("Max Output: %d", maxTokens)
 	}
@@ -439,7 +439,7 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 
 // buildMCPIndicator builds the MCP server status indicator text
 func (isb *InputStatusBar) buildMCPIndicator() string {
-	if isb.mcpStatus == nil || isb.configService == nil || len(isb.configService.MCP.Servers) == 0 {
+	if isb.mcpStatus == nil || isb.config == nil || len(isb.config.MCP.Servers) == 0 {
 		return ""
 	}
 	if isb.mcpStatus.TotalTools > 0 {

@@ -52,11 +52,7 @@ Examples:
 		noSave, _ := cmd.Flags().GetBool("no-save")
 		sessionID, _ := cmd.Flags().GetString("session-id")
 		requireApproval, _ := cmd.Flags().GetBool("require-approval")
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		return RunAgentCommand(cfg, model, args[0], files, noSave, sessionID, requireApproval)
+		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval)
 	},
 }
 
@@ -96,7 +92,7 @@ type AgentSession struct {
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval bool) error {
-	svc := container.NewServiceContainer(cfg, V)
+	svc := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

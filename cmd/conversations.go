@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	cobra "github.com/spf13/cobra"
+
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	cobra "github.com/spf13/cobra"
 )
 
 var conversationsCmd = &cobra.Command{
@@ -45,47 +46,33 @@ Examples:
 }
 
 func init() {
-	// Register subcommands
 	conversationsCmd.AddCommand(conversationsListCmd)
 
-	// Add flags to list command
 	conversationsListCmd.Flags().IntP("limit", "l", 50, "Maximum number of conversations to display")
 	conversationsListCmd.Flags().Int("offset", 0, "Number of conversations to skip (for pagination)")
 	conversationsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
-	// Register parent command with root
 	rootCmd.AddCommand(conversationsCmd)
 }
 
 func listConversations(cmd *cobra.Command, args []string) error {
-	// Get config
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	services := container.NewServiceContainer(Cfg)
 
-	// Create service container
-	services := container.NewServiceContainer(cfg, V)
-
-	// Get storage
 	store := services.GetStorage()
 	if store == nil {
 		return fmt.Errorf("storage is not configured")
 	}
 
-	// Parse flags
 	limit, _ := cmd.Flags().GetInt("limit")
 	offset, _ := cmd.Flags().GetInt("offset")
 	format, _ := cmd.Flags().GetString("format")
 
-	// Fetch conversations
 	ctx := context.Background()
 	conversations, err := store.ListConversations(ctx, limit, offset)
 	if err != nil {
 		return fmt.Errorf("failed to list conversations: %w", err)
 	}
 
-	// Render output
 	if format == "json" {
 		return renderConversationsJSON(conversations)
 	}
@@ -122,11 +109,9 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 	var md strings.Builder
 	fmt.Fprintf(&md, "**SAVED CONVERSATIONS:** %d total\n\n", len(conversations))
 
-	// Table header
 	md.WriteString("| ID                                   | Summary                  | Messages | Requests | Input Tokens | Output Tokens | Cost    |\n")
 	md.WriteString("|--------------------------------------|--------------------------|----------|----------|--------------|---------------|---------|" + "\n")
 
-	// Table rows
 	for _, conv := range conversations {
 		id := conv.ID
 		summary := formatting.TruncateText(conv.Title, 25)
@@ -140,7 +125,6 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 			id, summary, messages, requests, inputTokens, outputTokens, cost)
 	}
 
-	// Footer with pagination info
 	if len(conversations) >= limit {
 		fmt.Fprintf(&md, "\nShowing %d-%d conversations (use --limit and --offset for pagination)\n",
 			offset+1, offset+len(conversations))
@@ -149,10 +133,8 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 			offset+1, offset+len(conversations))
 	}
 
-	// Render markdown with glamour
 	rendered, err := renderMarkdown(md.String())
 	if err != nil {
-		// Fallback to plain text if glamour fails
 		fmt.Print(md.String())
 		return nil
 	}
