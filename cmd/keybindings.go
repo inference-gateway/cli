@@ -5,11 +5,12 @@ import (
 	"sort"
 	"strings"
 
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
+	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	utils "github.com/inference-gateway/cli/internal/utils"
-	cobra "github.com/spf13/cobra"
 )
 
 var keybindingsCmd = &cobra.Command{
@@ -126,14 +127,18 @@ func listKeybindings(cmd *cobra.Command, args []string) error {
 }
 
 func resetKeybindings(cmd *cobra.Command, args []string) error {
-	V.Set("chat.keybindings.bindings", config.GetDefaultKeybindings())
+	path, err := getKeybindingsConfigWritePath(GetUserspaceFlag(cmd))
+	if err != nil {
+		return err
+	}
 
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	service := services.NewKeybindingsConfigService(path)
+	if err := service.Save(services.DefaultKeybindingsConfig()); err != nil {
+		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
 	fmt.Printf("%s Keybindings reset to defaults\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
+	fmt.Printf("Configuration saved to %s\n", path)
 
 	return nil
 }
@@ -279,29 +284,24 @@ func setKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	bindings := config.GetDefaultKeybindings()
-	if V.IsSet("chat.keybindings.bindings") {
-		if err := V.UnmarshalKey("chat.keybindings.bindings", &bindings); err != nil {
-			return fmt.Errorf("failed to read existing bindings: %w", err)
-		}
+	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	if err != nil {
+		return err
 	}
 
-	binding := bindings[actionID]
-	binding.Keys = keys
-	bindings[actionID] = binding
+	entry := kbConfig.Bindings[actionID]
+	entry.Keys = keys
+	kbConfig.Bindings[actionID] = entry
 
-	V.Set("chat.keybindings.enabled", true)
-	V.Set("chat.keybindings.bindings", bindings)
-
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	if err := service.Save(kbConfig); err != nil {
+		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
 	fmt.Printf("%s Keybinding updated: %s → %s\n",
 		icons.CheckMarkStyle.Render(icons.CheckMark),
 		actionID,
 		strings.Join(keys, ", "))
-	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
+	fmt.Printf("Configuration saved to %s\n", path)
 
 	return nil
 }
@@ -314,29 +314,24 @@ func enableKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	bindings := config.GetDefaultKeybindings()
-	if V.IsSet("chat.keybindings.bindings") {
-		if err := V.UnmarshalKey("chat.keybindings.bindings", &bindings); err != nil {
-			return fmt.Errorf("failed to read existing bindings: %w", err)
-		}
+	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	if err != nil {
+		return err
 	}
 
-	binding := bindings[actionID]
+	entry := kbConfig.Bindings[actionID]
 	enabled := true
-	binding.Enabled = &enabled
-	bindings[actionID] = binding
+	entry.Enabled = &enabled
+	kbConfig.Bindings[actionID] = entry
 
-	V.Set("chat.keybindings.enabled", true)
-	V.Set("chat.keybindings.bindings", bindings)
-
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	if err := service.Save(kbConfig); err != nil {
+		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
 	fmt.Printf("%s Keybinding enabled: %s\n",
 		icons.CheckMarkStyle.Render(icons.CheckMark),
 		actionID)
-	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
+	fmt.Printf("Configuration saved to %s\n", path)
 
 	return nil
 }
@@ -349,31 +344,48 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
-	bindings := config.GetDefaultKeybindings()
-	if V.IsSet("chat.keybindings.bindings") {
-		if err := V.UnmarshalKey("chat.keybindings.bindings", &bindings); err != nil {
-			return fmt.Errorf("failed to read existing bindings: %w", err)
-		}
+	path, kbConfig, service, err := loadKeybindingsForWrite(cmd)
+	if err != nil {
+		return err
 	}
 
-	binding := bindings[actionID]
+	entry := kbConfig.Bindings[actionID]
 	disabled := false
-	binding.Enabled = &disabled
-	bindings[actionID] = binding
+	entry.Enabled = &disabled
+	kbConfig.Bindings[actionID] = entry
 
-	V.Set("chat.keybindings.enabled", true)
-	V.Set("chat.keybindings.bindings", bindings)
-
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	if err := service.Save(kbConfig); err != nil {
+		return fmt.Errorf("failed to save keybindings: %w", err)
 	}
 
 	fmt.Printf("%s Keybinding disabled: %s\n",
 		icons.CrossMarkStyle.Render(icons.CrossMark),
 		actionID)
-	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
+	fmt.Printf("Configuration saved to %s\n", path)
 
 	return nil
+}
+
+// loadKeybindingsForWrite resolves the destination keybindings.yaml path
+// (honouring --userspace), loads the existing config (or defaults if the
+// file is absent), and returns everything callers need to mutate-and-save.
+func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsConfig, *services.KeybindingsConfigService, error) {
+	path, err := getKeybindingsConfigWritePath(GetUserspaceFlag(cmd))
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	service := services.NewKeybindingsConfigService(path)
+	kbConfig, err := service.Load()
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to load keybindings: %w", err)
+	}
+
+	if kbConfig.Bindings == nil {
+		kbConfig.Bindings = make(map[string]config.KeyBindingEntry)
+	}
+
+	return path, kbConfig, service, nil
 }
 
 // getValidActionIDs returns all valid action IDs by creating a temporary registry

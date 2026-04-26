@@ -367,11 +367,14 @@ chat:
 
 ### Keybinding Configuration
 
-The CLI supports customizable keybindings for the chat interface. Keybindings are **disabled by
-default** and must be explicitly enabled.
+Keybindings live in their own file at `<configDir>/keybindings.yaml` (project:
+`.infer/keybindings.yaml`, userspace: `~/.infer/keybindings.yaml`). `infer init`
+seeds it with the defaults. The main `config.yaml` no longer contains a
+`chat.keybindings` block.
 
-- **chat.keybindings.enabled**: Enable/disable custom keybindings (default: `false`)
-- **chat.keybindings.bindings**: Map of keybinding configurations
+- **enabled**: Enable/disable custom keybindings (default: `true` in the
+  generated file)
+- **bindings**: Map of keybinding configurations
 
 **Features:**
 
@@ -382,27 +385,29 @@ default** and must be explicitly enabled.
 - **Explicit Validation**: Run `infer keybindings validate` to check config
 - **Environment Variable Support**: Configure keybindings via comma-separated env vars
 
-**Example Configuration:**
+**Example Configuration (`<configDir>/keybindings.yaml`):**
 
 ```yaml
-chat:
-  theme: tokyo-night
-  keybindings:
-    enabled: false  # Set to true to enable
-    bindings:
-      global_quit:  # Namespace: global, Action: quit
-        keys:
-          - ctrl+c
-        description: "exit application"
-        category: "global"
-        enabled: true
-      mode_cycle_agent_mode:  # Namespace: mode, Action: cycle_agent_mode
-        keys:
-          - shift+tab
-        description: "cycle agent mode"
-        category: "mode"
-        enabled: true
+---
+enabled: true
+bindings:
+  global_quit:  # Namespace: global, Action: quit
+    keys:
+      - ctrl+c
+    description: "exit application"
+    category: "global"
+    enabled: true
+  mode_cycle_agent_mode:  # Namespace: mode, Action: cycle_agent_mode
+    keys:
+      - shift+tab
+    description: "cycle agent mode"
+    category: "mode"
+    enabled: true
 ```
+
+**Resolution order:** project `.infer/keybindings.yaml` → user
+`~/.infer/keybindings.yaml` → in-code defaults (when no file exists).
+Environment variables override whichever file was loaded.
 
 **Available Commands:**
 

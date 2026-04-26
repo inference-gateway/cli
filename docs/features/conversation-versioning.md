@@ -86,19 +86,18 @@ infer keybindings enable navigation_go_back_in_time
 infer keybindings reset
 ```
 
-Configuration can also be set in your `.infer/config.yaml`:
+Configuration can also be set in your `.infer/keybindings.yaml`:
 
 ```yaml
-chat:
-  keybindings:
+---
+enabled: true
+bindings:
+  navigation_go_back_in_time:
+    keys:
+      - "esc,esc"  # or your custom keybinding
+    description: "go back in time to previous message (double ESC)"
+    category: "navigation"
     enabled: true
-    bindings:
-      navigation_go_back_in_time:
-        keys:
-          - "esc,esc"  # or your custom keybinding
-        description: "go back in time to previous message (double ESC)"
-        category: "navigation"
-        enabled: true
 ```
 
 ## Edge Cases
