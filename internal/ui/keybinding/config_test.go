@@ -1,10 +1,11 @@
 package keybinding_test
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui/keybinding"
+	config "github.com/inference-gateway/cli/config"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 
 // TestConfigOverrides tests that keybinding configuration overrides are applied correctly
@@ -162,6 +163,23 @@ func TestListAllActions(t *testing.T) {
 		if prev.Category == curr.Category && prev.ID > curr.ID {
 			t.Errorf("Actions not sorted by ID within category: %s > %s", prev.ID, curr.ID)
 		}
+	}
+}
+
+// TestKeybindingsExcludedFromMainConfigYAML verifies that the Keybindings
+// field is hidden from the main config.yaml via the yaml/mapstructure "-" tags.
+// This guards the issue #435 invariant: keybindings live in their own file.
+func TestKeybindingsExcludedFromMainConfigYAML(t *testing.T) {
+	cfgType := reflect.TypeFor[config.ChatConfig]()
+	field, ok := cfgType.FieldByName("Keybindings")
+	if !ok {
+		t.Fatal("ChatConfig.Keybindings field not found")
+	}
+	if got := field.Tag.Get("yaml"); got != "-" {
+		t.Errorf("Expected yaml tag '-', got %q (Keybindings would leak into config.yaml)", got)
+	}
+	if got := field.Tag.Get("mapstructure"); got != "-" {
+		t.Errorf("Expected mapstructure tag '-', got %q (viper would unmarshal into the field)", got)
 	}
 }
 

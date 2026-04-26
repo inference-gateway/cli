@@ -1,5 +1,10 @@
 package config
 
+const (
+	KeybindingsFileName    = "keybindings.yaml"
+	DefaultKeybindingsPath = ConfigDirName + "/" + KeybindingsFileName
+)
+
 // GetDefaultKeybindings returns the default keybinding configuration
 // Users can override these in their config file, and any missing entries
 // will fall back to these defaults

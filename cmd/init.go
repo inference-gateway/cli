@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	config "github.com/inference-gateway/cli/config"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
+	services "github.com/inference-gateway/cli/internal/services"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 var initCmd = &cobra.Command{
@@ -39,7 +41,7 @@ func initializeProject(cmd *cobra.Command) error {
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -55,6 +57,7 @@ func initializeProject(cmd *cobra.Command) error {
 		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
+		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -65,10 +68,11 @@ func initializeProject(cmd *cobra.Command) error {
 		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
+		keybindingsPath = config.DefaultKeybindingsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath); err != nil {
 			return err
 		}
 	}
@@ -119,6 +123,10 @@ tmp/
 		return fmt.Errorf("failed to create MCP config file: %w", err)
 	}
 
+	if err := createKeybindingsConfigFile(keybindingsPath); err != nil {
+		return fmt.Errorf("failed to create keybindings config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -136,6 +144,7 @@ tmp/
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
+	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -389,6 +398,18 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(gitShortcutsContent), 0644)
+}
+
+// createKeybindingsConfigFile writes a fresh keybindings.yaml seeded from the
+// in-code defaults. Generating from DefaultKeybindings() (rather than a
+// hardcoded YAML blob) keeps the file in sync as new actions are added.
+func createKeybindingsConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	service := services.NewKeybindingsConfigService(path)
+	return service.Save(services.DefaultKeybindingsConfig())
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

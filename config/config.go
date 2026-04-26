@@ -484,7 +484,7 @@ type ConversationTitleConfig struct {
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
 	Theme       string            `yaml:"theme" mapstructure:"theme"`
-	Keybindings KeybindingsConfig `yaml:"keybindings" mapstructure:"keybindings"`
+	Keybindings KeybindingsConfig `yaml:"-" mapstructure:"-"`
 	StatusBar   StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
 }
 
@@ -1038,7 +1038,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
 			Keybindings: KeybindingsConfig{
-				Enabled:  false,
+				Enabled:  true,
 				Bindings: GetDefaultKeybindings(),
 			},
 			StatusBar: GetDefaultStatusBarConfig(),

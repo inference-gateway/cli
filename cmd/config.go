@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	cobra "github.com/spf13/cobra"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -20,8 +24,6 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	sdk "github.com/inference-gateway/sdk"
-	cobra "github.com/spf13/cobra"
 )
 
 var configCmd = &cobra.Command{
@@ -573,6 +575,40 @@ func getEffectiveMCPConfigPath() string {
 	return ".infer/mcp.yaml"
 }
 
+// getEffectiveKeybindingsConfigPath returns the path to the keybindings config file
+// Searches in this order: 1) project .infer/keybindings.yaml, 2) user home ~/.infer/keybindings.yaml
+func getEffectiveKeybindingsConfigPath() string {
+	searchPaths := []string{
+		config.DefaultKeybindingsPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultKeybindingsPath
+}
+
+// getKeybindingsConfigWritePath returns the path to write keybindings to,
+// honouring the --userspace flag.
+func getKeybindingsConfigWritePath(userspace bool) (string, error) {
+	if userspace {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		return filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName), nil
+	}
+	return config.DefaultKeybindingsPath, nil
+}
+
 // getConfigFromViper creates a config object from current Viper settings
 func getConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
@@ -592,7 +628,82 @@ func getConfigFromViper() (*config.Config, error) {
 
 	cfg.MCP = *mcpConfig
 
+	kbPath := getEffectiveKeybindingsConfigPath()
+	kbService := services.NewKeybindingsConfigService(kbPath)
+	kbConfig, err := kbService.Load()
+	if err != nil {
+		logger.Warn("Failed to load keybindings config, using defaults", "error", err, "path", kbPath)
+		kbConfig = services.DefaultKeybindingsConfig()
+	}
+	cfg.Chat.Keybindings = *kbConfig
+
+	applyKeybindingEnvOverrides(cfg)
+
 	return cfg, nil
+}
+
+// applyKeybindingEnvOverrides walks INFER_CHAT_KEYBINDINGS_BINDINGS_*
+// environment variables and applies them directly to the in-memory
+// keybindings config. Run AFTER loading keybindings.yaml so env vars win.
+//
+// Supported forms:
+//
+//	INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_KEYS="key1,key2"
+//	INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_ENABLED="true|false"
+func applyKeybindingEnvOverrides(cfg *config.Config) {
+	const prefix = "INFER_CHAT_KEYBINDINGS_BINDINGS_"
+
+	if cfg.Chat.Keybindings.Bindings == nil {
+		cfg.Chat.Keybindings.Bindings = make(map[string]config.KeyBindingEntry)
+	}
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+
+		envKey := pair[0]
+		envValue := pair[1]
+
+		if !strings.HasPrefix(envKey, prefix) {
+			continue
+		}
+
+		suffix := strings.TrimPrefix(envKey, prefix)
+		parts := strings.Split(suffix, "_")
+		if len(parts) < 2 {
+			continue
+		}
+
+		field := parts[len(parts)-1]
+		actionID := strings.ToLower(strings.Join(parts[:len(parts)-1], "_"))
+
+		entry := cfg.Chat.Keybindings.Bindings[actionID]
+
+		switch field {
+		case "KEYS":
+			var keys []string
+			for _, key := range strings.FieldsFunc(envValue, func(c rune) bool {
+				return c == ',' || c == '\n'
+			}) {
+				if trimmed := strings.TrimSpace(key); trimmed != "" {
+					keys = append(keys, trimmed)
+				}
+			}
+			if len(keys) > 0 {
+				entry.Keys = keys
+				cfg.Chat.Keybindings.Bindings[actionID] = entry
+			}
+		case "ENABLED":
+			val := strings.ToLower(strings.TrimSpace(envValue))
+			if val == "true" || val == "false" {
+				enabled := val == "true"
+				entry.Enabled = &enabled
+				cfg.Chat.Keybindings.Bindings[actionID] = entry
+			}
+		}
+	}
 }
 
 // GetUserspaceFlag checks for --userspace flag on the current command or parent commands
