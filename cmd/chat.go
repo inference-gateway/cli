@@ -146,7 +146,6 @@ func StartChatSession(cfg *config.Config) error {
 	agentService := services.GetAgentService()
 	conversationRepo := services.GetConversationRepository()
 	modelService := services.GetModelService()
-	config := services.GetConfig()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
@@ -165,8 +164,8 @@ func StartChatSession(cfg *config.Config) error {
 
 	var screenshotServer *screenshotsvc.ScreenshotServer
 
-	if config.ComputerUse.Enabled && config.ComputerUse.Screenshot.StreamingEnabled {
-		screenshotServer = startScreenshotServer(config, imageService, toolRegistry)
+	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
+		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
 		if screenshotServer != nil {
 			defer func() {
 				if err := screenshotServer.Stop(); err != nil {
@@ -176,7 +175,7 @@ func StartChatSession(cfg *config.Config) error {
 		}
 	}
 
-	floatingWindowMgr, err := initFloatingWindow(config, stateManager, agentService)
+	floatingWindowMgr, err := initFloatingWindow(cfg, stateManager, agentService)
 	if err != nil {
 		return fmt.Errorf("failed to initialize floating window: %w", err)
 	}
@@ -197,7 +196,7 @@ func StartChatSession(cfg *config.Config) error {
 		conversationOptimizer,
 		sessionRolloverManager,
 		modelService,
-		config,
+		cfg,
 		toolService,
 		fileService,
 		imageService,

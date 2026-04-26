@@ -16,12 +16,10 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
-	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -45,7 +43,6 @@ type ServiceContainer struct {
 	conversationOptimizer  domain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
 	modelService           domain.ModelService
-	chatService            domain.ChatService
 	agent                  domain.AgentService
 	toolService            domain.ToolService
 	fileService            domain.FileService
@@ -80,13 +77,6 @@ type ServiceContainer struct {
 	// Tool registry
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
-
-	// File writing services
-	pathValidator  filewriterdomain.PathValidator
-	backupManager  filewriterdomain.BackupManager
-	fileWriter     filewriterdomain.FileWriter
-	chunkManager   filewriterdomain.ChunkManager
-	paramExtractor *tools.ParameterExtractor
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -113,7 +103,6 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	cfg.SetConfigDir(container.determineConfigDirectory())
 
 	container.initializeGatewayManager()
-	container.initializeFileWriterServices()
 	container.initializeStateManager()
 	container.initializeDomainServices()
 	container.initializeAgentManager()
@@ -168,15 +157,6 @@ func (c *ServiceContainer) initializeAgentManager() {
 	if err := c.agentManager.StartAgents(ctx); err != nil {
 		logger.Warn("Failed to start agents in background", "error", err)
 	}
-}
-
-// initializeFileWriterServices creates the new file writer architecture services
-func (c *ServiceContainer) initializeFileWriterServices() {
-	c.pathValidator = filewriterservice.NewPathValidator(c.config)
-	c.backupManager = filewriterservice.NewBackupManager(".")
-	c.fileWriter = filewriterservice.NewSafeFileWriter(c.pathValidator, c.backupManager)
-	c.chunkManager = filewriterservice.NewStreamingChunkManager("./.infer/tmp", c.fileWriter)
-	c.paramExtractor = tools.NewParameterExtractor()
 }
 
 // initializeMCPManager creates and starts MCP manager if enabled
@@ -315,8 +295,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
 	)
-
-	c.chatService = services.NewStreamingChatService(c.agent)
 }
 
 // initializeStateManager creates the state manager before domain services need it
@@ -405,10 +383,6 @@ func (c *ServiceContainer) determineConfigDirectory() string {
 	return config.ConfigDirName
 }
 
-func (c *ServiceContainer) GetConfig() *config.Config {
-	return c.config
-}
-
 // Logger returns the logger instance for this container
 func (c *ServiceContainer) Logger() *zap.Logger {
 	return c.log
@@ -428,10 +402,6 @@ func (c *ServiceContainer) GetSessionRolloverManager() *services.SessionRollover
 
 func (c *ServiceContainer) GetModelService() domain.ModelService {
 	return c.modelService
-}
-
-func (c *ServiceContainer) GetChatService() domain.ChatService {
-	return c.chatService
 }
 
 func (c *ServiceContainer) GetToolService() domain.ToolService {
@@ -461,10 +431,6 @@ func (c *ServiceContainer) PricingService() domain.PricingService {
 	return c.pricingService
 }
 
-func (c *ServiceContainer) GetTheme() domain.Theme {
-	return c.themeService.GetCurrentTheme()
-}
-
 func (c *ServiceContainer) GetThemeService() domain.ThemeService {
 	return c.themeService
 }
@@ -473,12 +439,6 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
 }
 
-// GetA2AAgentService returns the A2A agent service
-func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
-	return c.a2aAgentService
-}
-
-// New service getters
 func (c *ServiceContainer) GetStateManager() domain.StateManager {
 	return c.stateManager
 }
@@ -599,32 +559,6 @@ func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
 // RegisterCommand allows external registration of commands
 func (c *ServiceContainer) RegisterShortcut(shortcut shortcuts.Shortcut) {
 	c.shortcutRegistry.Register(shortcut)
-}
-
-// File writer service getters
-func (c *ServiceContainer) GetPathValidator() filewriterdomain.PathValidator {
-	return c.pathValidator
-}
-
-func (c *ServiceContainer) GetBackupManager() filewriterdomain.BackupManager {
-	return c.backupManager
-}
-
-func (c *ServiceContainer) GetFileWriter() filewriterdomain.FileWriter {
-	return c.fileWriter
-}
-
-func (c *ServiceContainer) GetChunkManager() filewriterdomain.ChunkManager {
-	return c.chunkManager
-}
-
-func (c *ServiceContainer) GetParameterExtractor() *tools.ParameterExtractor {
-	return c.paramExtractor
-}
-
-// GetTitleGenerator returns the conversation title generator
-func (c *ServiceContainer) GetTitleGenerator() *services.ConversationTitleGenerator {
-	return c.titleGenerator
 }
 
 // GetBackgroundJobManager returns the background job manager
