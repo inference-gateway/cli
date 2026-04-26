@@ -1,23 +1,21 @@
 name: Nix Build Verification
 
+concurrency:
+  group: nix-build-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches:
       - main
     paths:
       - 'nix/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.go'
       - '.github/workflows/nix-build.yml'
   push:
     branches:
       - main
     paths:
       - 'nix/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.go'
       - '.github/workflows/nix-build.yml'
   workflow_dispatch:
 
@@ -49,6 +47,9 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
+
+      - name: Set up Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
       - name: Build with Nix
         run: |
@@ -86,6 +87,9 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             experimental-features = nix-command flakes
+
+      - name: Set up Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
       - name: Check Nix formatting (nixfmt-rfc-style)
         run: |

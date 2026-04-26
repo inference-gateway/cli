@@ -34,6 +34,9 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
+      - name: Set up Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+
       - name: Determine version
         id: version
         run: |
@@ -96,14 +99,6 @@ jobs:
           sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"sha256-$VENDOR_HASH\";|" nix/package.nix
           echo "Updated vendorHash in nix/package.nix"
 
-      - name: Verify build
-        run: |
-          echo "Building with updated hashes to verify..."
-          nix-build nix/default.nix --show-trace
-
-          echo "Verifying binary..."
-          result/bin/infer version
-
       - name: Format Nix file
         run: |
           nix-shell -p nixfmt-rfc-style --run "nixfmt nix/package.nix"
@@ -123,8 +118,10 @@ jobs:
             - ✅ Updated `version` to `${{ steps.version.outputs.version }}`
             - ✅ Updated source `hash` to `sha256-${{ steps.source-hash.outputs.hash }}`
             - ✅ Updated `vendorHash` to `sha256-${{ steps.vendor-hash.outputs.hash }}`
-            - ✅ Verified build succeeds
             - ✅ Formatted with nixfmt-rfc-style
+
+            The `Nix Build Verification` workflow runs on this PR and is the
+            authoritative gate for verifying the updated hashes build cleanly.
 
             ### Verification
             ```bash
