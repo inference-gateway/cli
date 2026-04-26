@@ -1,3 +1,4 @@
+---
 agents:
   - name: mock-agent
     url: http://localhost:8081

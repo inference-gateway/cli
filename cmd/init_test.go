@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	cobra "github.com/spf13/cobra"
+
+	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 func TestInitializeProject(t *testing.T) {
@@ -96,7 +99,7 @@ func TestInitializeProject(t *testing.T) {
 	}
 }
 
-func TestWriteConfigAsYAMLWithIndent(t *testing.T) {
+func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "infer-config-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -105,23 +108,22 @@ func TestWriteConfigAsYAMLWithIndent(t *testing.T) {
 
 	configPath := tmpDir + "/.infer/config.yaml"
 
-	err = writeConfigAsYAMLWithIndent(configPath, 2)
-	if err != nil {
-		t.Errorf("writeConfigAsYAMLWithIndent() error = %v", err)
-		return
+	if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
+		t.Fatalf("SaveYAML() error = %v", err)
 	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Errorf("expected config file to be created")
-		return
+		t.Fatal("expected config file to be created")
 	}
 
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		t.Errorf("failed to read config file: %v", err)
-		return
+		t.Fatalf("failed to read config file: %v", err)
 	}
 
+	if !strings.HasPrefix(string(content), "---\n") {
+		t.Errorf("config file should start with `---\\n`, got %q", string(content[:min(8, len(content))]))
+	}
 	if !strings.Contains(string(content), "gateway:") {
 		t.Errorf("config file does not contain expected gateway section")
 	}

@@ -1,12 +1,7 @@
 package config
 
 import (
-	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	yaml "gopkg.in/yaml.v3"
+	utils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -46,23 +41,7 @@ func DefaultChannelsConfig() *ChannelsConfig {
 // os.ExpandEnv so `${BOT_TOKEN}`-style references resolve from the
 // environment.
 func LoadChannels(path string) (*ChannelsConfig, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return DefaultChannelsConfig(), nil
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read channels config: %w", err)
-	}
-
-	expandedData := os.ExpandEnv(string(data))
-
-	var cfg ChannelsConfig
-	if err := yaml.Unmarshal([]byte(expandedData), &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse channels config: %w", err)
-	}
-
-	return &cfg, nil
+	return utils.LoadYAML(path, "channels", DefaultChannelsConfig)
 }
 
 // SaveChannels writes the channels configuration to disk, creating any
@@ -70,27 +49,5 @@ func LoadChannels(path string) (*ChannelsConfig, error) {
 // so callers should ensure it is also listed in
 // tools.sandbox.protected_paths.
 func SaveChannels(path string, cfg *ChannelsConfig) error {
-	var buf bytes.Buffer
-	buf.WriteString("---\n")
-
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-
-	if err := encoder.Encode(cfg); err != nil {
-		return fmt.Errorf("failed to marshal channels config: %w", err)
-	}
-
-	if err := encoder.Close(); err != nil {
-		return fmt.Errorf("failed to close encoder: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write channels config: %w", err)
-	}
-
-	return nil
+	return utils.SaveYAML(path, "channels", cfg)
 }

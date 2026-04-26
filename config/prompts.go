@@ -1,12 +1,7 @@
 package config
 
 import (
-	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	yaml "gopkg.in/yaml.v3"
+	utils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -16,51 +11,17 @@ const (
 
 // LoadPrompts reads prompts.yaml from disk. When the file is missing it
 // returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing.
+// defaults" without special-casing. The file body is run through
+// os.ExpandEnv — any literal `${…}` token in a customised prompt must be
+// escaped as `$$…`.
 func LoadPrompts(path string) (*PromptsConfig, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return DefaultPromptsConfig(), nil
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read prompts config: %w", err)
-	}
-
-	var cfg PromptsConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse prompts config: %w", err)
-	}
-
-	return &cfg, nil
+	return utils.LoadYAML(path, "prompts", DefaultPromptsConfig)
 }
 
 // SavePrompts writes the prompts configuration to disk, creating any
 // missing parent directories.
 func SavePrompts(path string, cfg *PromptsConfig) error {
-	var buf bytes.Buffer
-	buf.WriteString("---\n")
-
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-
-	if err := encoder.Encode(cfg); err != nil {
-		return fmt.Errorf("failed to marshal prompts config: %w", err)
-	}
-
-	if err := encoder.Close(); err != nil {
-		return fmt.Errorf("failed to close encoder: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write prompts config: %w", err)
-	}
-
-	return nil
+	return utils.SaveYAML(path, "prompts", cfg)
 }
 
 // PromptsConfig holds every customisable LLM prompt the CLI ships with.

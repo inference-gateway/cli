@@ -13,7 +13,9 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	require.NoError(t, config.AddAgent(agentsPath, config.AgentEntry{
+	agentsCfg, err := config.LoadAgents(agentsPath)
+	require.NoError(t, err)
+	require.NoError(t, agentsCfg.CreateEntry(config.AgentEntry{
 		Name: "yaml-agent",
 		URL:  "http://yaml-agent:8080",
 		Run:  false,
