@@ -15,7 +15,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
-	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -35,10 +34,7 @@ var chatCmd = &cobra.Command{
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+		cfg := Cfg
 
 		if os.Getenv("INFER_WEB_MODE") == "true" {
 			cfg.Web.Enabled = true
@@ -79,24 +75,24 @@ and have a conversational interface with the inference gateway.`,
 				}
 			}
 
-			return StartWebChatSession(cfg, V)
+			return StartWebChatSession(cfg)
 		}
 
 		if !isInteractiveTerminal() {
-			return runNonInteractiveChat(cfg, V)
+			return runNonInteractiveChat(cfg)
 		}
 
-		return StartChatSession(cfg, V)
+		return StartChatSession(cfg)
 	},
 }
 
 // StartChatSession starts a chat session
 //
 //nolint:funlen // Chat session initialization requires multiple setup steps
-func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+func StartChatSession(cfg *config.Config) error {
 	_ = clipboard.Init()
 
-	services := container.NewServiceContainer(cfg, v)
+	services := container.NewServiceContainer(cfg)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
@@ -151,7 +147,6 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	conversationRepo := services.GetConversationRepository()
 	modelService := services.GetModelService()
 	config := services.GetConfig()
-	configService := services.GetConfigService()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
@@ -202,7 +197,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		conversationOptimizer,
 		sessionRolloverManager,
 		modelService,
-		configService,
+		config,
 		toolService,
 		fileService,
 		imageService,
@@ -244,8 +239,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 }
 
 // StartWebChatSession starts a web-based chat session with PTY and WebSocket
-func StartWebChatSession(cfg *config.Config, v *viper.Viper) error {
-	server := web.NewWebTerminalServer(cfg, v)
+func StartWebChatSession(cfg *config.Config) error {
+	server := web.NewWebTerminalServer(cfg)
 	return server.Start()
 }
 
@@ -309,8 +304,8 @@ func isInteractiveTerminal() bool {
 }
 
 // runNonInteractiveChat handles non-interactive chat mode (stdin/stdout)
-func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
-	services := container.NewServiceContainer(cfg, v)
+func runNonInteractiveChat(cfg *config.Config) error {
+	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()

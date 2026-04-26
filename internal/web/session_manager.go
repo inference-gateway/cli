@@ -5,7 +5,6 @@ import (
 	"time"
 
 	websocket "github.com/gorilla/websocket"
-	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -14,7 +13,6 @@ import (
 // SessionManager tracks and manages all active sessions
 type SessionManager struct {
 	cfg      *config.Config
-	viper    *viper.Viper
 	sessions map[string]*SessionEntry
 	mu       sync.RWMutex
 	done     chan struct{}
@@ -28,10 +26,9 @@ type SessionEntry struct {
 	mu             sync.Mutex
 }
 
-func NewSessionManager(cfg *config.Config, v *viper.Viper) *SessionManager {
+func NewSessionManager(cfg *config.Config) *SessionManager {
 	sm := &SessionManager{
 		cfg:      cfg,
-		viper:    v,
 		sessions: make(map[string]*SessionEntry),
 		done:     make(chan struct{}),
 	}
@@ -46,7 +43,7 @@ func (sm *SessionManager) CreateSession(sessionID string) Session {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	session := NewLocalPTYSession(sm.cfg, sm.viper)
+	session := NewLocalPTYSession(sm.cfg)
 	entry := &SessionEntry{
 		session:    session,
 		lastActive: time.Now(),

@@ -234,7 +234,6 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebFetchService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ModelService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConfigService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SDKClient

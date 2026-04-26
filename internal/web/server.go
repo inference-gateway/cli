@@ -16,7 +16,6 @@ import (
 
 	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
-	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -30,16 +29,14 @@ var templates embed.FS
 
 type WebTerminalServer struct {
 	cfg            *config.Config
-	viper          *viper.Viper
 	server         *http.Server
 	upgrader       websocket.Upgrader
 	sessionManager *SessionManager
 }
 
-func NewWebTerminalServer(cfg *config.Config, v *viper.Viper) *WebTerminalServer {
+func NewWebTerminalServer(cfg *config.Config) *WebTerminalServer {
 	return &WebTerminalServer{
-		cfg:   cfg,
-		viper: v,
+		cfg: cfg,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -49,7 +46,7 @@ func NewWebTerminalServer(cfg *config.Config, v *viper.Viper) *WebTerminalServer
 }
 
 func (s *WebTerminalServer) Start() error {
-	s.sessionManager = NewSessionManager(s.cfg, s.viper)
+	s.sessionManager = NewSessionManager(s.cfg)
 
 	logger.Info("Checking embedded static files...")
 	if err := fs.WalkDir(staticFiles, ".", func(path string, d fs.DirEntry, err error) error {
@@ -315,7 +312,7 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		handler, handlerErr = CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper, sessionID, s.sessionManager, progressCh)
+		handler, handlerErr = CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, sessionID, s.sessionManager, progressCh)
 		close(progressCh)
 	}()
 

@@ -13,13 +13,11 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	agentsConfigSvc := NewAgentsConfigService(agentsPath)
-	err := agentsConfigSvc.AddAgent(config.AgentEntry{
+	require.NoError(t, config.AddAgent(agentsPath, config.AgentEntry{
 		Name: "yaml-agent",
 		URL:  "http://yaml-agent:8080",
 		Run:  false,
-	})
-	require.NoError(t, err)
+	}))
 
 	t.Run("environment variable takes precedence", func(t *testing.T) {
 		cfg := config.DefaultConfig()
@@ -29,9 +27,9 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		}
 
 		svc := &A2AAgentService{
-			config:          cfg,
-			agentsConfigSvc: agentsConfigSvc,
-			cache:           make(map[string]*domain.CachedAgentCard),
+			config:     cfg,
+			agentsPath: agentsPath,
+			cache:      make(map[string]*domain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -46,9 +44,9 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg.A2A.Agents = []string{}
 
 		svc := &A2AAgentService{
-			config:          cfg,
-			agentsConfigSvc: agentsConfigSvc,
-			cache:           make(map[string]*domain.CachedAgentCard),
+			config:     cfg,
+			agentsPath: agentsPath,
+			cache:      make(map[string]*domain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -62,9 +60,9 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg.A2A.Agents = nil
 
 		svc := &A2AAgentService{
-			config:          cfg,
-			agentsConfigSvc: agentsConfigSvc,
-			cache:           make(map[string]*domain.CachedAgentCard),
+			config:     cfg,
+			agentsPath: agentsPath,
+			cache:      make(map[string]*domain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -78,15 +76,13 @@ func TestA2AAgentService_GetConfiguredAgents_NoAgentsConfigured(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	agentsConfigSvc := NewAgentsConfigService(agentsPath)
-
 	cfg := config.DefaultConfig()
 	cfg.A2A.Agents = nil
 
 	svc := &A2AAgentService{
-		config:          cfg,
-		agentsConfigSvc: agentsConfigSvc,
-		cache:           make(map[string]*domain.CachedAgentCard),
+		config:     cfg,
+		agentsPath: agentsPath,
+		cache:      make(map[string]*domain.CachedAgentCard),
 	}
 
 	agents := svc.GetConfiguredAgents()

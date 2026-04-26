@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -31,14 +32,14 @@ type ModelSelectorImpl struct {
 	cancelled      bool
 	modelService   domain.ModelService
 	pricingService domain.PricingService
-	configService  domain.ConfigService
+	config         *config.Config
 	searchQuery    string
 	searchMode     bool
 	currentView    ModelViewMode
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, pricingService domain.PricingService, configService domain.ConfigService, styleProvider *styles.Provider) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, pricingService domain.PricingService, cfg *config.Config, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),
@@ -48,7 +49,7 @@ func NewModelSelector(models []string, modelService domain.ModelService, pricing
 		styleProvider:  styleProvider,
 		modelService:   modelService,
 		pricingService: pricingService,
-		configService:  configService,
+		config:         cfg,
 		searchQuery:    "",
 		searchMode:     false,
 		currentView:    ModelViewAll,
@@ -181,13 +182,10 @@ func (m *ModelSelectorImpl) View() string {
 	accentColor := m.styleProvider.GetThemeColor("accent")
 	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
 
-	if m.configService != nil {
-		cfg := m.configService.GetConfig()
-		if cfg.ClaudeCode.Enabled {
-			successColor := m.styleProvider.GetThemeColor("success")
-			b.WriteString(" ")
-			b.WriteString(m.styleProvider.RenderWithColor("● Claude Subscription", successColor))
-		}
+	if m.config != nil && m.config.ClaudeCode.Enabled {
+		successColor := m.styleProvider.GetThemeColor("success")
+		b.WriteString(" ")
+		b.WriteString(m.styleProvider.RenderWithColor("● Claude Subscription", successColor))
 	}
 
 	b.WriteString("\n\n")

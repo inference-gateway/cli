@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -13,13 +14,13 @@ import (
 
 // ActivateAppTool switches focus to a specific application
 type ActivateAppTool struct {
-	config domain.ConfigService
+	config *config.Config
 }
 
 // NewActivateAppTool creates a new ActivateApp tool
-func NewActivateAppTool(config domain.ConfigService) *ActivateAppTool {
+func NewActivateAppTool(cfg *config.Config) *ActivateAppTool {
 	return &ActivateAppTool{
-		config: config,
+		config: cfg,
 	}
 }
 
@@ -115,7 +116,7 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 
 // IsEnabled returns whether the tool is enabled
 func (t *ActivateAppTool) IsEnabled() bool {
-	return t.config.GetConfig().ComputerUse.Enabled
+	return t.config.ComputerUse.Enabled
 }
 
 // FormatPreview formats the result for display preview

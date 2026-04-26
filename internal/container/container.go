@@ -3,11 +3,11 @@ package container
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	viper "github.com/spf13/viper"
 	zap "go.uber.org/zap"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -38,9 +38,7 @@ type ServiceContainer struct {
 	log *zap.Logger
 
 	// Configuration
-	viper         *viper.Viper
-	config        *config.Config
-	configService *services.ConfigService
+	config *config.Config
 
 	// Domain services
 	conversationRepo       domain.ConversationRepository
@@ -72,7 +70,6 @@ type ServiceContainer struct {
 	backgroundJobManager   *services.BackgroundJobManager
 	backgroundShellService *services.BackgroundShellService
 	storage                storage.ConversationStorage
-	agentsConfigService    *services.AgentsConfigService
 
 	// UI components
 	themeService domain.ThemeService
@@ -93,7 +90,7 @@ type ServiceContainer struct {
 }
 
 // NewServiceContainer creates a new service container with all dependencies
-func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
+func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	sessionID := domain.GenerateSessionID()
 
 	log := logger.GetGlobalLogger()
@@ -111,11 +108,6 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		config:           cfg,
 		containerRuntime: containerRuntime,
 		log:              log,
-	}
-
-	if len(v) > 0 && v[0] != nil {
-		container.viper = v[0]
-		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
 	cfg.SetConfigDir(container.determineConfigDirectory())
@@ -140,14 +132,12 @@ func (c *ServiceContainer) initializeGatewayManager() {
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
 func (c *ServiceContainer) initializeAgentManager() {
-	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
-	c.agentsConfigService = services.NewAgentsConfigService(agentsPath)
-
 	if !c.config.IsA2AToolsEnabled() {
 		return
 	}
 
-	agentsConfig, err := c.agentsConfigService.Load()
+	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
+	agentsConfig, err := config.LoadAgents(agentsPath)
 	if err != nil {
 		logger.Warn("Failed to load agents configuration", "error", err)
 		return
@@ -232,7 +222,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.initializeMCPManager()
 
 	c.ensureBackgroundTaskRegistry()
-	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
@@ -316,7 +306,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.agent = agent.NewAgent(
 		agentClient,
 		c.toolService,
-		c.configService,
+		c.config,
 		c.conversationRepo,
 		c.a2aAgentService,
 		c.messageQueue,
@@ -396,15 +386,23 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 }
 
-// determineConfigDirectory returns the directory where configuration and related files should be stored
+// determineConfigDirectory returns the directory where configuration and
+// related files should be stored. It searches the standard locations in
+// project / userspace order and falls back to .infer when none exist.
 func (c *ServiceContainer) determineConfigDirectory() string {
-	configDir := ".infer"
-	if c.viper != nil {
-		if configFile := c.viper.ConfigFileUsed(); configFile != "" {
-			configDir = filepath.Dir(configFile)
+	candidates := []string{config.DefaultConfigPath}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName))
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return filepath.Dir(path)
 		}
 	}
-	return configDir
+
+	return config.ConfigDirName
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {
@@ -622,16 +620,6 @@ func (c *ServiceContainer) GetChunkManager() filewriterdomain.ChunkManager {
 
 func (c *ServiceContainer) GetParameterExtractor() *tools.ParameterExtractor {
 	return c.paramExtractor
-}
-
-// GetViper returns the Viper instance
-func (c *ServiceContainer) GetViper() *viper.Viper {
-	return c.viper
-}
-
-// GetConfigService returns the config service
-func (c *ServiceContainer) GetConfigService() *services.ConfigService {
-	return c.configService
 }
 
 // GetTitleGenerator returns the conversation title generator

@@ -168,11 +168,7 @@ var configToolsValidateCmd = &cobra.Command{
 	Long:  `Check if a specific command would be allowed to execute without actually running it.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		return ValidateTool(cfg, args[0])
+		return ValidateTool(Cfg, args[0])
 	},
 }
 
@@ -203,12 +199,8 @@ Examples:
 This uses the exact same argument parsing as LLMs, ensuring consistency.`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
 		format, _ := cmd.Flags().GetString("format")
-		return ExecTool(cfg, args, format)
+		return ExecTool(Cfg, args, format)
 	},
 }
 
@@ -630,8 +622,11 @@ func getKeybindingsConfigWritePath(userspace bool) (string, error) {
 	return config.DefaultKeybindingsPath, nil
 }
 
-// getConfigFromViper creates a config object from current Viper settings
-func getConfigFromViper() (*config.Config, error) {
+// loadConfigFromViper assembles the in-memory Config by unmarshalling
+// viper, then layering on the per-file YAML overlays (mcp, keybindings,
+// prompts) and finally honouring INFER_* env overrides. It runs once at
+// startup (initConfig); commands afterwards read the cached cmd.Cfg.
+func loadConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
 	if err := V.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from Viper: %w", err)
@@ -640,29 +635,25 @@ func getConfigFromViper() (*config.Config, error) {
 	resolveViperEnvironmentVariables(cfg, "")
 
 	mcpConfigPath := getEffectiveMCPConfigPath()
-	mcpConfigService := services.NewMCPConfigService(mcpConfigPath)
-	mcpConfig, err := mcpConfigService.Load()
+	mcpConfig, err := config.LoadMCP(mcpConfigPath)
 	if err != nil {
 		logger.Warn("Failed to load MCP config, using defaults", "error", err, "path", mcpConfigPath)
 		mcpConfig = config.DefaultMCPConfig()
 	}
-
 	cfg.MCP = *mcpConfig
 
 	kbPath := getEffectiveKeybindingsConfigPath()
-	kbService := services.NewKeybindingsConfigService(kbPath)
-	kbConfig, err := kbService.Load()
+	kbConfig, err := config.LoadKeybindings(kbPath)
 	if err != nil {
 		logger.Warn("Failed to load keybindings config, using defaults", "error", err, "path", kbPath)
-		kbConfig = services.DefaultKeybindingsConfig()
+		kbConfig = config.DefaultKeybindingsConfig()
 	}
 	cfg.Chat.Keybindings = *kbConfig
 
 	applyKeybindingEnvOverrides(cfg)
 
 	promptsPath := getEffectivePromptsConfigPath()
-	promptsService := services.NewPromptsConfigService(promptsPath)
-	prompts, err := promptsService.Load()
+	prompts, err := config.LoadPrompts(promptsPath)
 	if err != nil {
 		logger.Warn("Failed to load prompts config, using defaults", "error", err, "path", promptsPath)
 		prompts = config.DefaultPromptsConfig()
@@ -1117,7 +1108,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 		return nil
 	}
 
-	services := container.NewServiceContainer(cfg, V)
+	services := container.NewServiceContainer(cfg)
 	toolService := services.GetToolService()
 	toolArgs := map[string]any{
 		"command": command,
@@ -1140,7 +1131,7 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
-	serviceContainer := container.NewServiceContainer(cfg, V)
+	serviceContainer := container.NewServiceContainer(cfg)
 	toolService := serviceContainer.GetToolService()
 	toolRegistry := serviceContainer.GetToolRegistry()
 
@@ -1352,10 +1343,7 @@ func getConfigPath() string {
 }
 
 func listSandboxDirectories(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return err
-	}
+	cfg := Cfg
 
 	if len(cfg.Tools.Sandbox.Directories) == 0 {
 		fmt.Println("No sandbox directories are currently configured.")
@@ -1445,10 +1433,7 @@ func disableFetch(cmd *cobra.Command, args []string) error {
 }
 
 func listFetchDomains(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return err
-	}
+	cfg := Cfg
 
 	format, _ := cmd.Flags().GetString("format")
 
@@ -1566,10 +1551,7 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 }
 
 func fetchCacheStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return err
-	}
+	cfg := Cfg
 
 	fmt.Printf("Cache Status: ")
 	if cfg.Tools.WebFetch.Cache.Enabled {
@@ -1701,10 +1683,7 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 }
 
 func grepStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return err
-	}
+	cfg := Cfg
 
 	fmt.Printf("Grep Tool Status: ")
 	if cfg.Tools.Grep.Enabled {

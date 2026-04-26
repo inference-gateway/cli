@@ -1049,7 +1049,6 @@ func DefaultConfig() *Config { //nolint:funlen
 
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
-// ConfigService interface implementation
 func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop
 	globalApproval := c.Tools.Safety.RequireApproval
 

@@ -1,9 +1,67 @@
 package config
 
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	yaml "gopkg.in/yaml.v3"
+)
+
 const (
 	PromptsFileName    = "prompts.yaml"
 	DefaultPromptsPath = ConfigDirName + "/" + PromptsFileName
 )
+
+// LoadPrompts reads prompts.yaml from disk. When the file is missing it
+// returns the in-code defaults so callers can treat absence as "use
+// defaults" without special-casing.
+func LoadPrompts(path string) (*PromptsConfig, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return DefaultPromptsConfig(), nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read prompts config: %w", err)
+	}
+
+	var cfg PromptsConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse prompts config: %w", err)
+	}
+
+	return &cfg, nil
+}
+
+// SavePrompts writes the prompts configuration to disk, creating any
+// missing parent directories.
+func SavePrompts(path string, cfg *PromptsConfig) error {
+	var buf bytes.Buffer
+	buf.WriteString("---\n")
+
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to marshal prompts config: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to close encoder: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write prompts config: %w", err)
+	}
+
+	return nil
+}
 
 // PromptsConfig holds every customisable LLM prompt the CLI ships with.
 // It mirrors the nested key structure those prompts had when they lived

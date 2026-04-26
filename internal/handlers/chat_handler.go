@@ -31,7 +31,6 @@ type ChatHandler struct {
 	conversationOptimizer     domain.ConversationOptimizer
 	sessionRolloverManager    *services.SessionRolloverManager
 	modelService              domain.ModelService
-	configService             domain.ConfigService
 	toolService               domain.ToolService
 	fileService               domain.FileService
 	imageService              domain.ImageService
@@ -63,7 +62,6 @@ func NewChatHandler(
 	conversationOptimizer domain.ConversationOptimizer,
 	sessionRolloverManager *services.SessionRolloverManager,
 	modelService domain.ModelService,
-	configService domain.ConfigService,
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
@@ -82,7 +80,6 @@ func NewChatHandler(
 		conversationOptimizer:  conversationOptimizer,
 		sessionRolloverManager: sessionRolloverManager,
 		modelService:           modelService,
-		configService:          configService,
 		toolService:            toolService,
 		fileService:            fileService,
 		imageService:           imageService,

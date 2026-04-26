@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	services "github.com/inference-gateway/cli/internal/services"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
 )
@@ -218,36 +217,23 @@ var agentsDisableCmd = &cobra.Command{
 	},
 }
 
-func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, error) {
-	userspace := GetUserspaceFlag(cmd)
-
-	var agentsPath string
-	if userspace {
+// agentsConfigPath returns the agents.yaml path for the current command,
+// honouring --userspace.
+func agentsConfigPath(cmd *cobra.Command) (string, error) {
+	if GetUserspaceFlag(cmd) {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
 		}
-		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
-	} else {
-		agentsPath = config.DefaultAgentsPath
+		return filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName), nil
 	}
-
-	return services.NewAgentsConfigService(agentsPath), nil
+	return config.DefaultAgentsPath, nil
 }
 
 // ExternalAgent represents an agent configured via INFER_A2A_AGENTS
 type ExternalAgent struct {
 	Name string
 	URL  string
-}
-
-// getConfig loads the configuration from viper
-func getConfig(_ *cobra.Command) (*config.Config, error) {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-	return cfg, nil
 }
 
 // extractExternalAgents extracts agent names and URLs from INFER_A2A_AGENTS
@@ -288,7 +274,7 @@ func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool,
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
@@ -303,7 +289,7 @@ func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool,
 		Environment:  environment,
 	}
 
-	if err := svc.AddAgent(agent); err != nil {
+	if err := config.AddAgent(path, agent); err != nil {
 		return err
 	}
 
@@ -329,12 +315,12 @@ func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool,
 }
 
 func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	existing, err := svc.GetAgent(name)
+	existing, err := config.GetAgent(path, name)
 	if err != nil {
 		return err
 	}
@@ -363,7 +349,7 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
-	if err := svc.UpdateAgent(agent); err != nil {
+	if err := config.UpdateAgent(path, agent); err != nil {
 		return err
 	}
 
@@ -389,12 +375,12 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 }
 
 func removeAgent(cmd *cobra.Command, name string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	if err := svc.RemoveAgent(name); err != nil {
+	if err := config.RemoveAgent(path, name); err != nil {
 		return err
 	}
 
@@ -403,22 +389,17 @@ func removeAgent(cmd *cobra.Command, name string) error {
 }
 
 func listAgents(cmd *cobra.Command, args []string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	localAgents, err := svc.ListAgents()
+	localAgents, err := config.ListAgents(path)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := getConfig(cmd)
-	if err != nil {
-		return err
-	}
-
-	externalAgents := extractExternalAgents(cfg)
+	externalAgents := extractExternalAgents(Cfg)
 
 	totalAgents := len(localAgents) + len(externalAgents)
 
@@ -504,12 +485,12 @@ func listAgents(cmd *cobra.Command, args []string) error {
 }
 
 func showAgent(cmd *cobra.Command, name string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	agent, err := svc.GetAgent(name)
+	agent, err := config.GetAgent(path, name)
 	if err != nil {
 		return err
 	}
@@ -573,13 +554,12 @@ func showAgent(cmd *cobra.Command, name string) error {
 }
 
 func initAgents(cmd *cobra.Command, args []string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	cfg := config.DefaultAgentsConfig()
-	if err := svc.Save(cfg); err != nil {
+	if err := config.SaveAgents(path, config.DefaultAgentsConfig()); err != nil {
 		return err
 	}
 
@@ -594,18 +574,18 @@ func initAgents(cmd *cobra.Command, args []string) error {
 }
 
 func enableAgent(cmd *cobra.Command, name string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	agent, err := svc.GetAgent(name)
+	agent, err := config.GetAgent(path, name)
 	if err != nil {
 		return fmt.Errorf("failed to find agent: %w", err)
 	}
 
 	agent.Enabled = true
-	if err := svc.UpdateAgent(*agent); err != nil {
+	if err := config.UpdateAgent(path, *agent); err != nil {
 		return fmt.Errorf("failed to enable agent: %w", err)
 	}
 
@@ -617,18 +597,18 @@ func enableAgent(cmd *cobra.Command, name string) error {
 }
 
 func disableAgent(cmd *cobra.Command, name string) error {
-	svc, err := getAgentsConfigService(cmd)
+	path, err := agentsConfigPath(cmd)
 	if err != nil {
 		return err
 	}
 
-	agent, err := svc.GetAgent(name)
+	agent, err := config.GetAgent(path, name)
 	if err != nil {
 		return fmt.Errorf("failed to find agent: %w", err)
 	}
 
 	agent.Enabled = false
-	if err := svc.UpdateAgent(*agent); err != nil {
+	if err := config.UpdateAgent(path, *agent); err != nil {
 		return fmt.Errorf("failed to disable agent: %w", err)
 	}
 

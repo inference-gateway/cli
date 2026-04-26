@@ -39,12 +39,7 @@ func init() {
 
 // runMigrations executes pending database migrations
 func runMigrations() error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to get config: %w", err)
-	}
-
-	serviceContainer := container.NewServiceContainer(cfg, V)
+	serviceContainer := container.NewServiceContainer(Cfg)
 
 	conversationStorage := serviceContainer.GetStorage()
 
@@ -79,12 +74,7 @@ func runMigrations() error {
 
 // showMigrationStatus displays the current migration status
 func showMigrationStatus() error {
-	cfg, err := getConfigFromViper()
-	if err != nil {
-		return fmt.Errorf("failed to get config: %w", err)
-	}
-
-	serviceContainer := container.NewServiceContainer(cfg, V)
+	serviceContainer := container.NewServiceContainer(Cfg)
 
 	conversationStorage := serviceContainer.GetStorage()
 

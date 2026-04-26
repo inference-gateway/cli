@@ -1,4 +1,4 @@
-package services
+package config_test
 
 import (
 	"os"
@@ -8,18 +8,16 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func TestKeybindingsConfigService_Load_NonExistentFile(t *testing.T) {
+func TestLoadKeybindings_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "non-existent.yaml")
 
-	service := NewKeybindingsConfigService(configPath)
-	cfg, err := service.Load()
-
+	cfg, err := config.LoadKeybindings(configPath)
 	if err != nil {
-		t.Fatalf("Load() should not error for non-existent file, got: %v", err)
+		t.Fatalf("LoadKeybindings() should not error for non-existent file, got: %v", err)
 	}
 	if cfg == nil {
-		t.Fatal("Load() returned nil config")
+		t.Fatal("LoadKeybindings() returned nil config")
 	}
 	if !cfg.Enabled {
 		t.Error("Default keybindings config should be enabled")
@@ -33,7 +31,7 @@ func TestKeybindingsConfigService_Load_NonExistentFile(t *testing.T) {
 	}
 }
 
-func TestKeybindingsConfigService_Load_ValidYAML(t *testing.T) {
+func TestLoadKeybindings_ValidYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "keybindings.yaml")
 
@@ -52,10 +50,9 @@ bindings:
 		t.Fatalf("Failed to write test config file: %v", err)
 	}
 
-	service := NewKeybindingsConfigService(configPath)
-	cfg, err := service.Load()
+	cfg, err := config.LoadKeybindings(configPath)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("LoadKeybindings() failed: %v", err)
 	}
 	if !cfg.Enabled {
 		t.Error("Expected Enabled to be true")
@@ -69,10 +66,9 @@ bindings:
 	}
 }
 
-func TestKeybindingsConfigService_Save_RoundTrip(t *testing.T) {
+func TestSaveKeybindings_RoundTrip(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "keybindings.yaml")
-	service := NewKeybindingsConfigService(configPath)
 
 	enabled := true
 	original := &config.KeybindingsConfig{
@@ -87,16 +83,16 @@ func TestKeybindingsConfigService_Save_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := service.Save(original); err != nil {
-		t.Fatalf("Save() failed: %v", err)
+	if err := config.SaveKeybindings(configPath, original); err != nil {
+		t.Fatalf("SaveKeybindings() failed: %v", err)
 	}
 	if _, err := os.Stat(configPath); err != nil {
-		t.Fatalf("Save() did not create file: %v", err)
+		t.Fatalf("SaveKeybindings() did not create file: %v", err)
 	}
 
-	loaded, err := service.Load()
+	loaded, err := config.LoadKeybindings(configPath)
 	if err != nil {
-		t.Fatalf("Load() after save failed: %v", err)
+		t.Fatalf("LoadKeybindings() after save failed: %v", err)
 	}
 	binding, ok := loaded.Bindings["global_quit"]
 	if !ok {
@@ -110,13 +106,12 @@ func TestKeybindingsConfigService_Save_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestKeybindingsConfigService_Save_CreatesParentDirectory(t *testing.T) {
+func TestSaveKeybindings_CreatesParentDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "nested", "deep", "keybindings.yaml")
-	service := NewKeybindingsConfigService(configPath)
 
-	if err := service.Save(DefaultKeybindingsConfig()); err != nil {
-		t.Fatalf("Save() failed to create nested dirs: %v", err)
+	if err := config.SaveKeybindings(configPath, config.DefaultKeybindingsConfig()); err != nil {
+		t.Fatalf("SaveKeybindings() failed to create nested dirs: %v", err)
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("File not created at nested path: %v", err)
@@ -124,7 +119,7 @@ func TestKeybindingsConfigService_Save_CreatesParentDirectory(t *testing.T) {
 }
 
 func TestDefaultKeybindingsConfig(t *testing.T) {
-	cfg := DefaultKeybindingsConfig()
+	cfg := config.DefaultKeybindingsConfig()
 	if cfg == nil {
 		t.Fatal("DefaultKeybindingsConfig returned nil")
 	}

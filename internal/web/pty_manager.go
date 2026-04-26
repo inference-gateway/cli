@@ -12,7 +12,6 @@ import (
 
 	pty "github.com/creack/pty"
 	websocket "github.com/gorilla/websocket"
-	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -30,13 +29,13 @@ type SessionHandler interface {
 type Session = SessionHandler
 
 // CreateSessionHandler creates either a local PTY session or remote SSH session
-func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
 	if serverCfg != nil {
 		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager, progressCh)
 	}
 
 	logger.Info("Creating local PTY session")
-	return NewLocalPTYSession(cfg, v), nil
+	return NewLocalPTYSession(cfg), nil
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
@@ -156,17 +155,15 @@ func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ 
 
 // LocalPTYSession represents a single local terminal session
 type LocalPTYSession struct {
-	cfg   *config.Config
-	viper *viper.Viper
-	pty   *os.File
-	cmd   *exec.Cmd
-	mu    sync.Mutex
+	cfg *config.Config
+	pty *os.File
+	cmd *exec.Cmd
+	mu  sync.Mutex
 }
 
-func NewLocalPTYSession(cfg *config.Config, v *viper.Viper) *LocalPTYSession {
+func NewLocalPTYSession(cfg *config.Config) *LocalPTYSession {
 	return &LocalPTYSession{
-		cfg:   cfg,
-		viper: v,
+		cfg: cfg,
 	}
 }
 

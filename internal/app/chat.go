@@ -31,7 +31,7 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService          domain.ConfigService
+	config                 *config.Config
 	agentService           domain.AgentService
 	conversationRepo       domain.ConversationRepository
 	conversationOptimizer  domain.ConversationOptimizer
@@ -105,7 +105,7 @@ func NewChatApplication(
 	conversationOptimizer domain.ConversationOptimizer,
 	sessionRolloverManager *services.SessionRolloverManager,
 	modelService domain.ModelService,
-	configService domain.ConfigService,
+	cfg *config.Config,
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
@@ -133,7 +133,7 @@ func NewChatApplication(
 		conversationOptimizer:  conversationOptimizer,
 		sessionRolloverManager: sessionRolloverManager,
 		modelService:           modelService,
-		configService:          configService,
+		config:                 cfg,
 		toolService:            toolService,
 		fileService:            fileService,
 		imageService:           imageService,
@@ -179,7 +179,7 @@ func NewChatApplication(
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
 		iv.SetImageService(app.imageService)
-		iv.SetConfigService(app.configService.GetConfig())
+		iv.SetConfig(app.config)
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
@@ -193,7 +193,7 @@ func NewChatApplication(
 		isb.SetModelService(app.modelService)
 		isb.SetThemeService(app.themeService)
 		isb.SetStateManager(app.stateManager)
-		isb.SetConfigService(app.configService.GetConfig())
+		isb.SetConfig(app.config)
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
@@ -214,7 +214,7 @@ func NewChatApplication(
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService.GetConfig())
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.config)
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
@@ -226,7 +226,7 @@ func NewChatApplication(
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.configService, styleProvider)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
@@ -267,7 +267,6 @@ func NewChatApplication(
 		app.conversationOptimizer,
 		app.sessionRolloverManager,
 		app.modelService,
-		app.configService,
 		app.toolService,
 		app.fileService,
 		app.imageService,
@@ -278,7 +277,7 @@ func NewChatApplication(
 		app.backgroundTaskService,
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
-		app.configService.GetConfig(),
+		app.config,
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
@@ -1068,7 +1067,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		if !app.configService.GetConfig().A2A.Enabled {
+		if !app.config.A2A.Enabled {
 			cmds = append(cmds, func() tea.Msg {
 				return domain.ShowErrorEvent{
 					Error:  "Task management requires A2A to be enabled in configuration.",
@@ -1197,7 +1196,7 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, app.configService, styleProvider)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, app.config, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
@@ -1618,7 +1617,7 @@ func (app *ChatApplication) GetImageService() domain.ImageService {
 
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
-	return app.configService.GetConfig()
+	return app.config
 }
 
 // GetConfigDir returns the configuration directory path

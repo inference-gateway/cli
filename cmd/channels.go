@@ -40,11 +40,7 @@ Examples:
   INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789" \
   infer channels-manager`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		return RunChannelsCommand(cfg)
+		return RunChannelsCommand(Cfg)
 	},
 }
 

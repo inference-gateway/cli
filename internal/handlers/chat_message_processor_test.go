@@ -84,7 +84,6 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			mockFile := &mocks.FakeFileService{}
 			mockAgent := &mocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
-			mockConfig := &mocks.FakeConfigService{}
 			mockTool := &mocks.FakeToolService{}
 
 			if tt.setupMocks != nil {
@@ -102,7 +101,6 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil, // conversationOptimizer
 				nil, // sessionRolloverManager
 				mockModel,
-				mockConfig,
 				mockTool,
 				mockFile,
 				nil,

@@ -26,12 +26,7 @@ var generateTitlesCmd = &cobra.Command{
 	Long: `Generate AI-powered titles for conversations that either don't have generated titles
 or have invalidated titles due to being resumed or modified.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		services := container.NewServiceContainer(cfg, V)
+		services := container.NewServiceContainer(Cfg)
 		backgroundJobManager := services.GetBackgroundJobManager()
 
 		if backgroundJobManager == nil {
@@ -60,12 +55,7 @@ var statusTitlesCmd = &cobra.Command{
 	Short: "Show conversation title generation status",
 	Long:  `Show the status of conversation title generation including configuration and pending conversations.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		services := container.NewServiceContainer(cfg, V)
+		services := container.NewServiceContainer(Cfg)
 		storage := services.GetStorage()
 		backgroundJobManager := services.GetBackgroundJobManager()
 
@@ -75,9 +65,9 @@ var statusTitlesCmd = &cobra.Command{
 		fmt.Printf("📝 Conversation Title Generation Status\n\n")
 
 		fmt.Printf("Configuration:\n")
-		fmt.Printf("  Enabled: %v\n", cfg.Conversation.TitleGeneration.Enabled)
-		fmt.Printf("  Model: %s\n", cfg.Conversation.TitleGeneration.Model)
-		fmt.Printf("  Batch Size: %d\n", cfg.Conversation.TitleGeneration.BatchSize)
+		fmt.Printf("  Enabled: %v\n", Cfg.Conversation.TitleGeneration.Enabled)
+		fmt.Printf("  Model: %s\n", Cfg.Conversation.TitleGeneration.Model)
+		fmt.Printf("  Batch Size: %d\n", Cfg.Conversation.TitleGeneration.BatchSize)
 		fmt.Printf("  Background Jobs Running: %v\n", backgroundJobManager != nil && backgroundJobManager.IsRunning())
 
 		if storage != nil {
@@ -114,12 +104,7 @@ var daemonCmd = &cobra.Command{
 	Short: "Run conversation title generation daemon",
 	Long:  `Run the background job manager as a daemon to continuously generate titles for conversations.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := getConfigFromViper()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		services := container.NewServiceContainer(cfg, V)
+		services := container.NewServiceContainer(Cfg)
 		backgroundJobManager := services.GetBackgroundJobManager()
 
 		if backgroundJobManager == nil {
