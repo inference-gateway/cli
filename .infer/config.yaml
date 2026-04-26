@@ -56,6 +56,7 @@ tools:
       - .infer/shortcuts/
       - .infer/agents.yaml
       - .infer/mcp.yaml
+      - .infer/keybindings.yaml
       - .git/
       - '*.env'
   bash:
