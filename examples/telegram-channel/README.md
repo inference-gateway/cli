@@ -161,14 +161,14 @@ Add multiple chat IDs to allow more users:
 INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789,987654321"
 ```
 
-Or in `config.yaml`:
+Or in `.infer/channels.yaml`:
 
 ```yaml
-channels:
-  telegram:
-    allowed_users:
-      - "123456789"
-      - "987654321"
+---
+telegram:
+  allowed_users:
+    - "123456789"
+    - "987654321"
 ```
 
 ## Troubleshooting

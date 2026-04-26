@@ -588,6 +588,27 @@ func getEffectiveKeybindingsConfigPath() string {
 	return config.DefaultKeybindingsPath
 }
 
+// getEffectiveChannelsConfigPath returns the path to the channels config file
+// Searches in this order: 1) project .infer/channels.yaml, 2) user home ~/.infer/channels.yaml
+func getEffectiveChannelsConfigPath() string {
+	searchPaths := []string{
+		config.DefaultChannelsPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultChannelsPath
+}
+
 // getEffectivePromptsConfigPath returns the path to the prompts config file
 // Searches in this order: 1) project .infer/prompts.yaml, 2) user home ~/.infer/prompts.yaml
 func getEffectivePromptsConfigPath() string {
@@ -660,6 +681,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	applyPromptsOverlay(cfg, prompts)
 	applyPromptsEnvOverrides(cfg)
+
+	channelsPath := getEffectiveChannelsConfigPath()
+	channelsCfg, err := config.LoadChannels(channelsPath)
+	if err != nil {
+		logger.Warn("Failed to load channels config, using defaults", "error", err, "path", channelsPath)
+		channelsCfg = config.DefaultChannelsConfig()
+	}
+	cfg.Channels = *channelsCfg
+	applyChannelsEnvOverrides(cfg)
 
 	return cfg, nil
 }
@@ -773,6 +803,71 @@ func applyKeybindingEnvOverrides(cfg *config.Config) {
 			}
 		}
 	}
+}
+
+// applyChannelsEnvOverrides applies INFER_CHANNELS_* env vars onto the
+// in-memory channels config. Run AFTER LoadChannels so envs win over
+// channels.yaml. The channels config now lives in its own file
+// (yaml:"-" mapstructure:"-" on Config.Channels), so viper does not bind
+// these env vars itself — this function is the single source of env-var
+// support. Mirrors applyKeybindingEnvOverrides / applyPromptsEnvOverrides.
+func applyChannelsEnvOverrides(cfg *config.Config) {
+	setBool := func(env string, target *bool) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
+			*target = b
+		}
+	}
+	setInt := func(env string, target *int) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
+			*target = n
+		}
+	}
+	setString := func(env string, target *string) {
+		if val, ok := os.LookupEnv(env); ok {
+			*target = val
+		}
+	}
+	setStringSlice := func(env string, target *[]string) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		var out []string
+		for item := range strings.SplitSeq(val, ",") {
+			if trimmed := strings.TrimSpace(item); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		if out == nil {
+			out = []string{}
+		}
+		*target = out
+	}
+
+	setBool("INFER_CHANNELS_ENABLED", &cfg.Channels.Enabled)
+	setBool("INFER_CHANNELS_REQUIRE_APPROVAL", &cfg.Channels.RequireApproval)
+	setInt("INFER_CHANNELS_MAX_WORKERS", &cfg.Channels.MaxWorkers)
+	setInt("INFER_CHANNELS_IMAGE_RETENTION", &cfg.Channels.ImageRetention)
+
+	setBool("INFER_CHANNELS_TELEGRAM_ENABLED", &cfg.Channels.Telegram.Enabled)
+	setString("INFER_CHANNELS_TELEGRAM_BOT_TOKEN", &cfg.Channels.Telegram.BotToken)
+	setStringSlice("INFER_CHANNELS_TELEGRAM_ALLOWED_USERS", &cfg.Channels.Telegram.AllowedUsers)
+	setInt("INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT", &cfg.Channels.Telegram.PollTimeout)
+
+	setBool("INFER_CHANNELS_WHATSAPP_ENABLED", &cfg.Channels.WhatsApp.Enabled)
+	setString("INFER_CHANNELS_WHATSAPP_PHONE_NUMBER_ID", &cfg.Channels.WhatsApp.PhoneNumberID)
+	setString("INFER_CHANNELS_WHATSAPP_ACCESS_TOKEN", &cfg.Channels.WhatsApp.AccessToken)
+	setString("INFER_CHANNELS_WHATSAPP_VERIFY_TOKEN", &cfg.Channels.WhatsApp.VerifyToken)
+	setInt("INFER_CHANNELS_WHATSAPP_WEBHOOK_PORT", &cfg.Channels.WhatsApp.WebhookPort)
+	setStringSlice("INFER_CHANNELS_WHATSAPP_ALLOWED_USERS", &cfg.Channels.WhatsApp.AllowedUsers)
 }
 
 // GetUserspaceFlag checks for --userspace flag on the current command or parent commands

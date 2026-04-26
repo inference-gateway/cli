@@ -43,7 +43,7 @@ type Config struct {
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
-	Channels         ChannelsConfig         `yaml:"channels" mapstructure:"channels"`
+	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -742,6 +742,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					ConfigDirName + "/mcp.yaml",
 					ConfigDirName + "/keybindings.yaml",
 					ConfigDirName + "/prompts.yaml",
+					ConfigDirName + "/channels.yaml",
 					".git/",
 					"*.env",
 				},
@@ -1022,26 +1023,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				ActivateApp: ActivateAppToolConfig{
 					Enabled: true,
 				},
-			},
-		},
-		Channels: ChannelsConfig{
-			Enabled:         false,
-			MaxWorkers:      5,
-			ImageRetention:  5,
-			RequireApproval: true,
-			Telegram: TelegramChannelConfig{
-				Enabled:      false,
-				BotToken:     "",
-				AllowedUsers: []string{},
-				PollTimeout:  30,
-			},
-			WhatsApp: WhatsAppChannelConfig{
-				Enabled:       false,
-				PhoneNumberID: "",
-				AccessToken:   "",
-				VerifyToken:   "",
-				WebhookPort:   8443,
-				AllowedUsers:  []string{},
 			},
 		},
 	}

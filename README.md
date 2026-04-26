@@ -914,18 +914,18 @@ https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
 
 Find `"chat":{"id":123456789}` in the response.
 
-**3. Configure** in `.infer/config.yaml`:
+**3. Configure** in `.infer/channels.yaml` (seeded by `infer init`):
 
 ```yaml
-channels:
-  enabled: true
+---
+enabled: true
 
-  telegram:
-    enabled: true
-    bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
-    allowed_users:
-      - "123456789"
-    poll_timeout: 30
+telegram:
+  enabled: true
+  bot_token: "${INFER_CHANNELS_TELEGRAM_BOT_TOKEN}"
+  allowed_users:
+    - "123456789"
+  poll_timeout: 30
 ```
 
 Or via environment variables:
@@ -955,11 +955,10 @@ before executing. The agent sends an approval prompt to the channel and waits
 for the user to reply "yes" or "no". Read-only tools (Read, Grep, Tree) execute
 without approval.
 
-This reuses the existing `tools.*.require_approval` configuration. To disable:
+This reuses the existing `tools.*.require_approval` configuration. To disable, set in `.infer/channels.yaml`:
 
 ```yaml
-channels:
-  require_approval: false  # default: true
+require_approval: false  # default: true
 ```
 
 Or: `INFER_CHANNELS_REQUIRE_APPROVAL=false`
