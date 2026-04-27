@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.104.1](https://github.com/inference-gateway/cli/compare/v0.104.0...v0.104.1) (2026-04-27)
+
+### 🐛 Bug Fixes
+
+* **ui:** Restore typing while agent is busy ([#455](https://github.com/inference-gateway/cli/issues/455)) ([92840d6](https://github.com/inference-gateway/cli/commit/92840d603d45be7111aa4e81bb58a2fe550c29f1)), closes [#410](https://github.com/inference-gateway/cli/issues/410)
+* **services:** Trigger auto-compact from gateway-reported tokens ([#454](https://github.com/inference-gateway/cli/issues/454)) ([1fc19dd](https://github.com/inference-gateway/cli/commit/1fc19dde2b691a7d232216ed45a88fdf3c175139))
+* **config:** Update model context windows and pricing for current model lineup ([#452](https://github.com/inference-gateway/cli/issues/452)) ([655f9f8](https://github.com/inference-gateway/cli/commit/655f9f8834fc877255e777a54e6a9775fa0653b6))
+
+### ♻️ Code Refactoring
+
+* **config:** Centralize config loading and remove service indirection ([#443](https://github.com/inference-gateway/cli/issues/443)) ([babf173](https://github.com/inference-gateway/cli/commit/babf173ec88a541c67817e5c79bac627b1f0d759))
+* **config:** Centralize sub-config definitions and consolidate prompts ([#448](https://github.com/inference-gateway/cli/issues/448)) ([9979ac7](https://github.com/inference-gateway/cli/commit/9979ac7535efb530804b7ffb488d0e752bdc850e))
+* Extract keybindings configuration to separate file ([#438](https://github.com/inference-gateway/cli/issues/438)) ([6d04195](https://github.com/inference-gateway/cli/commit/6d04195100ef6c299266f811b429c19c3817ad62))
+* **config:** Generate viper defaults via reflection over DefaultConfig() ([#436](https://github.com/inference-gateway/cli/issues/436)) ([85c6e0a](https://github.com/inference-gateway/cli/commit/85c6e0a4697aa167c95e01a5d90f481fea44d7e4))
+* **config:** Make tool prompts configurable via prompts.yaml ([#450](https://github.com/inference-gateway/cli/issues/450)) ([9fc1bb5](https://github.com/inference-gateway/cli/commit/9fc1bb51a1a552bfacbe1afe832a65522ad8406e)), closes [#446](https://github.com/inference-gateway/cli/issues/446)
+* Move channels to separate channels.yaml config ([#444](https://github.com/inference-gateway/cli/issues/444)) ([aa43e0e](https://github.com/inference-gateway/cli/commit/aa43e0e56a4317b07ac1298e6b54f315c60672f8)), closes [#441](https://github.com/inference-gateway/cli/issues/441)
+* Move computer_use to a separate config ([#447](https://github.com/inference-gateway/cli/issues/447)) ([a762c64](https://github.com/inference-gateway/cli/commit/a762c6404c4af1d77b95294f75a92da6961557ff)), closes [#444](https://github.com/inference-gateway/cli/issues/444)
+* Move prompts to separate prompts.yaml config ([#442](https://github.com/inference-gateway/cli/issues/442)) ([45e4fb6](https://github.com/inference-gateway/cli/commit/45e4fb636f6a868bc9fa38d2797fd1f0c2b04aa5))
+* **config:** Unify sub-configs behind CollectionConfig + utils.{Load,Save}YAML ([#445](https://github.com/inference-gateway/cli/issues/445)) ([aab481c](https://github.com/inference-gateway/cli/commit/aab481cb3fa7a205e1dc7d010eb97abb8f7734d3))
+
+### 📚 Documentation
+
+* Add directory-structure reference ([#451](https://github.com/inference-gateway/cli/issues/451)) ([95d26f8](https://github.com/inference-gateway/cli/commit/95d26f8e205ca7ee5fc796ecf60b34503bb58fc3))
+
+### 👷 CI/CD
+
+* Reduce runs of nix ([acac364](https://github.com/inference-gateway/cli/commit/acac3641c49e22501569869f751956a9bcf326e7))
+
+### 🧹 Maintenance
+
+* **deps:** Bump modernc.org/sqlite from 1.49.1 to 1.50.0 ([#449](https://github.com/inference-gateway/cli/issues/449)) ([06a535d](https://github.com/inference-gateway/cli/commit/06a535d87d4601c8d178c411294e57f641ead087))
+* **nix:** Update package to v0.104.0 ([#432](https://github.com/inference-gateway/cli/issues/432)) ([5564697](https://github.com/inference-gateway/cli/commit/55646976651fbe76592faa94d7cead9461d03b17))
+
 ## [0.104.0](https://github.com/inference-gateway/cli/compare/v0.103.7...v0.104.0) (2026-04-25)
 
 ### 🚀 Features
