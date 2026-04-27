@@ -44,6 +44,31 @@ func TestProviderPrefixStripping(t *testing.T) {
 	}
 }
 
+func TestClaudeContextWindow(t *testing.T) {
+	testModels := []struct {
+		model    string
+		expected int
+	}{
+		{"anthropic/claude-opus-4-7", 1000000},
+		{"anthropic/claude-sonnet-4-6", 200000},
+		{"anthropic/claude-opus-4-6", 200000},
+		{"anthropic/claude-opus-4-5-20251101", 200000},
+		{"anthropic/claude-haiku-4-5-20251001", 200000},
+		{"anthropic/claude-sonnet-4-5-20250929", 200000},
+		{"anthropic/claude-opus-4-1-20250805", 200000},
+		{"anthropic/claude-opus-4-20250514", 200000},
+		{"anthropic/claude-sonnet-4-20250514", 200000},
+	}
+
+	for _, tc := range testModels {
+		result := EstimateContextWindow(tc.model)
+		t.Logf("Model: %-45s -> Context Window: %d (expected: %d)", tc.model, result, tc.expected)
+		if result != tc.expected {
+			t.Errorf("Model %s: got %d, expected %d", tc.model, result, tc.expected)
+		}
+	}
+}
+
 func TestMoonshotContextWindow(t *testing.T) {
 	testModels := []struct {
 		model    string

@@ -58,11 +58,11 @@ func TestPricingService_FormatModelPricing(t *testing.T) {
 			expectedOutput: "$0.14/$0.28 per MTok",
 		},
 		{
-			name:           "unknown model returns free",
+			name:           "unknown model returns empty string",
 			enabled:        true,
 			model:          "unknown-model",
 			customPrices:   map[string]config.CustomPricing{},
-			expectedOutput: "free",
+			expectedOutput: "",
 		},
 	}
 
@@ -76,6 +76,41 @@ func TestPricingService_FormatModelPricing(t *testing.T) {
 			service := NewPricingService(cfg)
 			result := service.FormatModelPricing(tt.model)
 
+			assert.Equal(t, tt.expectedOutput, result)
+		})
+	}
+}
+
+func TestPricingService_GoogleModelDefaults(t *testing.T) {
+	tests := []struct {
+		model          string
+		expectedOutput string
+	}{
+		{"google/models/gemini-2.5-pro", "$1.25/$10.00 per MTok"},
+		{"google/models/gemini-2.5-flash", "$0.30/$2.50 per MTok"},
+		{"google/models/gemini-2.5-flash-lite", "$0.10/$0.40 per MTok"},
+		{"google/models/gemini-2.0-flash", "$0.10/$0.40 per MTok"},
+		{"google/models/gemini-2.0-flash-001", "$0.10/$0.40 per MTok"},
+		{"google/models/gemini-2.0-flash-lite", "$0.07/$0.30 per MTok"},
+		{"google/models/gemini-3-flash-preview", "$0.50/$3.00 per MTok"},
+		{"google/models/gemini-3.1-pro-preview", "$2.00/$12.00 per MTok"},
+		{"google/models/gemma-3-1b-it", "free"},
+		{"google/models/gemma-3-27b-it", "free"},
+		{"google/models/gemma-3n-e2b-it", "free"},
+		{"google/models/gemma-4-31b-it", "free"},
+		{"google/models/imagen-4.0-generate-001", ""},
+		{"google/models/veo-3.0-generate-001", ""},
+	}
+
+	cfg := &config.PricingConfig{
+		Enabled:      true,
+		CustomPrices: map[string]config.CustomPricing{},
+	}
+	service := NewPricingService(cfg)
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			result := service.FormatModelPricing(tt.model)
 			assert.Equal(t, tt.expectedOutput, result)
 		})
 	}

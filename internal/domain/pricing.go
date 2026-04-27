@@ -18,7 +18,7 @@ type SessionCostStats struct {
 	TotalCost       float64
 	TotalInputCost  float64
 	TotalOutputCost float64
-	PerModelStats   map[string]*ModelCostStats // keyed by model name
+	PerModelStats   map[string]*ModelCostStats
 	Currency        string
 }
 
@@ -41,8 +41,8 @@ type PricingService interface {
 	CalculateCost(model string, inputTokens, outputTokens int) (inputCost, outputCost, totalCost float64)
 
 	// FormatModelPricing returns a formatted string describing the model's pricing.
-	// Returns empty string if pricing is disabled.
-	// Returns "free" if both input and output prices are 0.0.
+	// Returns empty string if pricing is disabled or the model has no pricing entry.
+	// Returns "free" only when an explicit pricing entry sets both prices to 0.0.
 	// Returns "$X.XX/$Y.YY per MTok" for paid models.
 	FormatModelPricing(model string) string
 }
