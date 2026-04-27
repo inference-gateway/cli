@@ -39,7 +39,7 @@ func NewGetLatestScreenshotTool(cfg *config.Config, provider domain.ScreenshotPr
 
 // Definition returns the tool definition for the LLM
 func (t *GetLatestScreenshotTool) Definition() sdk.ChatCompletionTool {
-	description := "Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled."
+	description := t.config.Prompts.Tools.GetLatestScreenshot.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

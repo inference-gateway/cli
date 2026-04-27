@@ -15,6 +15,7 @@ func TestBashTool_Definition(t *testing.T) {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewBashTool(cfg, nil)

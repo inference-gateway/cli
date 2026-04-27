@@ -277,6 +277,18 @@ The CLI uses a 2-layer configuration system:
 Environment variable format: `INFER_<PATH>` (dots become underscores)
 Example: `agent.model` → `INFER_AGENT_MODEL`
 
+**Customisable LLM prompts** live in `.infer/prompts.yaml` (loaded
+separately from `config.yaml`). Top-level keys: `agent`, `git`,
+`conversation`, `init`, `tools`. Tool descriptions surfaced to the LLM
+are configurable under `tools.<ToolName>.description` — e.g.
+`tools.Bash.description`, `tools.Read.description`. MCP tool
+descriptions are not configurable here (they come from the MCP server
+at runtime). Any field left empty falls back to the in-code default in
+`config.DefaultPromptsConfig`. Env-var overrides use the form
+`INFER_PROMPTS_TOOLS_<UPPER_SNAKE_NAME>_DESCRIPTION` (e.g.
+`INFER_PROMPTS_TOOLS_BASH_DESCRIPTION`,
+`INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION`).
+
 ## Model Context System
 
 The CLI automatically enhances the model's context with project awareness to reduce confusion and improve accuracy.

@@ -31,7 +31,7 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 
 // Definition returns the tool definition for the LLM
 func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
-	description := "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security."
+	description := t.config.Prompts.Tools.Delete.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

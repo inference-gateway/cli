@@ -7,6 +7,7 @@ is enabled in the Inference Gateway CLI.
 
 ## Table of Contents
 
+- [Customising Tool Descriptions](#customising-tool-descriptions)
 - [File System Tools](#file-system-tools)
   - [Tree Tool](#tree-tool)
   - [Read Tool](#read-tool)
@@ -28,6 +29,45 @@ is enabled in the Inference Gateway CLI.
   - [A2A_SubmitTask Tool](#a2a_submittask-tool)
   - [A2A_QueryAgent Tool](#a2a_queryagent-tool)
   - [A2A_QueryTask Tool](#a2a_querytask-tool)
+
+---
+
+## Customising Tool Descriptions
+
+The description string each tool exposes to the LLM (the prose that
+explains what the tool does) is configurable in `.infer/prompts.yaml`
+under the `tools` key. This lets you tune phrasing for your model
+without recompiling — useful when a model misinterprets a default
+description, or when you want to discourage/encourage particular
+usage patterns.
+
+```yaml
+# .infer/prompts.yaml
+tools:
+  Bash:
+    description: |-
+      Execute whitelisted bash commands securely. Only pre-approved
+      commands from the whitelist can be executed.
+  Read:
+    description: |-
+      Reads a file from the local filesystem. Always prefer reading
+      whole files over chunked reads unless the file is very large.
+```
+
+**Rules:**
+
+- Keys use the LLM-visible tool name (e.g. `Bash`, `MultiEdit`,
+  `A2A_SubmitTask`, `GetLatestScreenshot`). MCP tools are **not**
+  customisable here — their descriptions come from the MCP server.
+- Any tool you omit (or any field left empty) falls back to the
+  in-code default in `config.DefaultPromptsConfig`. You can override
+  one tool without losing the defaults for the rest.
+- Environment variable overrides take precedence over the file:
+  `INFER_PROMPTS_TOOLS_<UPPER_SNAKE_NAME>_DESCRIPTION` —
+  e.g. `INFER_PROMPTS_TOOLS_BASH_DESCRIPTION`,
+  `INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION`.
+- Parameter descriptions (the per-argument explanations inside the
+  tool schema) are not currently configurable.
 
 ---
 

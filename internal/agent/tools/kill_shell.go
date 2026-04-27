@@ -27,7 +27,7 @@ func NewKillShellTool(cfg *config.Config, shellService domain.BackgroundShellSer
 
 // Definition returns the tool definition for the SDK
 func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
-	description := "Kills a running background bash shell by its ID. Sends SIGTERM first, then SIGKILL if needed after 5 seconds."
+	description := t.config.Prompts.Tools.KillShell.Description
 
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,

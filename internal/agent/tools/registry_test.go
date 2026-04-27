@@ -354,6 +354,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)

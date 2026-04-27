@@ -37,7 +37,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
-	description := "Fetch content from whitelisted URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files."
+	description := t.config.Prompts.Tools.WebFetch.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

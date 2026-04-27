@@ -12,6 +12,7 @@ import (
 
 func TestDeleteTool_Definition(t *testing.T) {
 	cfg := config.DefaultConfig()
+	cfg.Prompts = *config.DefaultPromptsConfig()
 	tool := NewDeleteTool(cfg)
 
 	def := tool.Definition()

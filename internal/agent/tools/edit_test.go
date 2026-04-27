@@ -36,6 +36,7 @@ func TestEditTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewEditTool(cfg)

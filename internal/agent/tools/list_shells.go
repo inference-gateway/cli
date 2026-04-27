@@ -11,6 +11,7 @@ import (
 
 // ListShellsTool implements listing of background shells
 type ListShellsTool struct {
+	config                 *config.Config
 	enabled                bool
 	backgroundShellService domain.BackgroundShellService
 }
@@ -18,6 +19,7 @@ type ListShellsTool struct {
 // NewListShellsTool creates a new ListShells tool
 func NewListShellsTool(cfg *config.Config, shellService domain.BackgroundShellService) *ListShellsTool {
 	return &ListShellsTool{
+		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.BackgroundShells.Enabled,
 		backgroundShellService: shellService,
 	}
@@ -25,7 +27,7 @@ func NewListShellsTool(cfg *config.Config, shellService domain.BackgroundShellSe
 
 // Definition returns the tool definition for the LLM
 func (t *ListShellsTool) Definition() sdk.ChatCompletionTool {
-	description := "Lists all background shell processes currently running or recently completed. Shows shell ID, command, state, elapsed time, and output size for each shell. Use this to monitor background processes started with the Bash tool."
+	description := t.config.Prompts.Tools.ListShells.Description
 
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,

@@ -31,6 +31,7 @@ func newScheduleCfg(t *testing.T, telegramEnabled bool) *config.Config {
 		Channels: config.ChannelsConfig{
 			Telegram: config.TelegramChannelConfig{Enabled: telegramEnabled},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 }
 

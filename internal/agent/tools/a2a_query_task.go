@@ -42,7 +42,7 @@ func NewA2AQueryTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker) 
 }
 
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification."
+	description := t.config.Prompts.Tools.A2AQueryTask.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

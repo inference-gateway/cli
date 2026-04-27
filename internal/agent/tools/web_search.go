@@ -47,7 +47,7 @@ func (t *WebSearchTool) engines() []string {
 
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
-	description := "Search the web using Google or DuckDuckGo search engines"
+	description := t.config.Prompts.Tools.WebSearch.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

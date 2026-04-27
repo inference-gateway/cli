@@ -13,6 +13,7 @@ import (
 
 func TestWriteTool_Definition(t *testing.T) {
 	cfg := config.DefaultConfig()
+	cfg.Prompts = *config.DefaultPromptsConfig()
 	tool := NewWriteTool(cfg)
 
 	def := tool.Definition()

@@ -22,6 +22,7 @@ func TestGithubTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewGithubTool(cfg, nil)

@@ -75,3 +75,42 @@ func TestLoadConfigFromViper_PromptsEnvOverridesFile(t *testing.T) {
 
 	require.Equal(t, "from-env", cfg.Prompts.Agent.SystemPrompt)
 }
+
+// TestLoadConfigFromViper_ToolDescriptionEnvOverride mirrors the
+// agent-prompt env-override guarantee for the new tool description
+// slots — confirms a single tool can be retuned at deploy time
+// without editing prompts.yaml.
+func TestLoadConfigFromViper_ToolDescriptionEnvOverride(t *testing.T) {
+	withHermeticEnv(t)
+
+	t.Setenv("INFER_PROMPTS_TOOLS_BASH_DESCRIPTION", "bash from env")
+	t.Setenv("INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION", "a2a from env")
+
+	initConfig()
+	cfg := Cfg
+
+	require.Equal(t, "bash from env", cfg.Prompts.Tools.Bash.Description)
+	require.Equal(t, "a2a from env", cfg.Prompts.Tools.A2ASubmitTask.Description)
+
+	defaults := config.DefaultPromptsConfig()
+	require.Equal(t, defaults.Tools.Read.Description, cfg.Prompts.Tools.Read.Description,
+		"untouched tool descriptions must still resolve to defaults")
+}
+
+// TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent
+// guards the load-side contract: cfg.Prompts.Tools is fully populated
+// even when the user has no prompts.yaml at all. Without this, every
+// tool's Definition() would emit an empty description on a fresh
+// install.
+func TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent(t *testing.T) {
+	withHermeticEnv(t)
+	initConfig()
+
+	cfg := Cfg
+	defaults := config.DefaultPromptsConfig()
+
+	require.Equal(t, defaults.Tools.Bash.Description, cfg.Prompts.Tools.Bash.Description)
+	require.Equal(t, defaults.Tools.Read.Description, cfg.Prompts.Tools.Read.Description)
+	require.Equal(t, defaults.Tools.Edit.Description, cfg.Prompts.Tools.Edit.Description)
+	require.Equal(t, defaults.Tools.GetLatestScreenshot.Description, cfg.Prompts.Tools.GetLatestScreenshot.Description)
+}

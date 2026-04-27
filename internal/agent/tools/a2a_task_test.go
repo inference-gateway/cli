@@ -21,6 +21,7 @@ func TestA2ASubmitTaskTool_Definition(t *testing.T) {
 				},
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 	tool := NewA2ASubmitTaskTool(cfg, nil)
 

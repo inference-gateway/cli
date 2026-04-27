@@ -23,6 +23,33 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
 		"conversation.title_generation.system_prompt": cfg.Conversation.TitleGeneration.SystemPrompt,
 		"init.prompt":                                 cfg.Init.Prompt,
+		"tools.Bash.description":                      cfg.Tools.Bash.Description,
+		"tools.BashOutput.description":                cfg.Tools.BashOutput.Description,
+		"tools.KillShell.description":                 cfg.Tools.KillShell.Description,
+		"tools.ListShells.description":                cfg.Tools.ListShells.Description,
+		"tools.Read.description":                      cfg.Tools.Read.Description,
+		"tools.Write.description":                     cfg.Tools.Write.Description,
+		"tools.Edit.description":                      cfg.Tools.Edit.Description,
+		"tools.MultiEdit.description":                 cfg.Tools.MultiEdit.Description,
+		"tools.Delete.description":                    cfg.Tools.Delete.Description,
+		"tools.Grep.description":                      cfg.Tools.Grep.Description,
+		"tools.Tree.description":                      cfg.Tools.Tree.Description,
+		"tools.TodoWrite.description":                 cfg.Tools.TodoWrite.Description,
+		"tools.RequestPlanApproval.description":       cfg.Tools.RequestPlanApproval.Description,
+		"tools.WebFetch.description":                  cfg.Tools.WebFetch.Description,
+		"tools.WebSearch.description":                 cfg.Tools.WebSearch.Description,
+		"tools.Github.description":                    cfg.Tools.Github.Description,
+		"tools.Schedule.description":                  cfg.Tools.Schedule.Description,
+		"tools.A2A_QueryAgent.description":            cfg.Tools.A2AQueryAgent.Description,
+		"tools.A2A_QueryTask.description":             cfg.Tools.A2AQueryTask.Description,
+		"tools.A2A_SubmitTask.description":            cfg.Tools.A2ASubmitTask.Description,
+		"tools.MouseMove.description":                 cfg.Tools.MouseMove.Description,
+		"tools.MouseClick.description":                cfg.Tools.MouseClick.Description,
+		"tools.MouseScroll.description":               cfg.Tools.MouseScroll.Description,
+		"tools.KeyboardType.description":              cfg.Tools.KeyboardType.Description,
+		"tools.GetFocusedApp.description":             cfg.Tools.GetFocusedApp.Description,
+		"tools.ActivateApp.description":               cfg.Tools.ActivateApp.Description,
+		"tools.GetLatestScreenshot.description":       cfg.Tools.GetLatestScreenshot.Description,
 	}
 
 	for key, val := range cases {
@@ -131,6 +158,75 @@ agent:
 	}
 	if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
 		t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
+	}
+}
+
+// A user customising a single tool description must keep the defaults
+// for every other tool. Backfill happens inside LoadPrompts via
+// mergeToolDefaults, so the file alone tells us whether the contract
+// holds.
+func TestLoadPrompts_PartialToolOverride(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "prompts.yaml")
+
+	yamlContent := `---
+tools:
+  Bash:
+    description: my custom bash description
+`
+
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config file: %v", err)
+	}
+
+	cfg, err := config.LoadPrompts(configPath)
+	if err != nil {
+		t.Fatalf("LoadPrompts() failed: %v", err)
+	}
+	if cfg.Tools.Bash.Description != "my custom bash description" {
+		t.Errorf("Expected Bash override to be preserved, got %q", cfg.Tools.Bash.Description)
+	}
+
+	defaults := config.DefaultPromptsConfig()
+	if cfg.Tools.Read.Description != defaults.Tools.Read.Description {
+		t.Errorf("Expected unset Read description to be backfilled, got %q", cfg.Tools.Read.Description)
+	}
+	if cfg.Tools.Edit.Description != defaults.Tools.Edit.Description {
+		t.Errorf("Expected unset Edit description to be backfilled, got %q", cfg.Tools.Edit.Description)
+	}
+	if cfg.Tools.A2ASubmitTask.Description != defaults.Tools.A2ASubmitTask.Description {
+		t.Errorf("Expected unset A2A_SubmitTask description to be backfilled, got %q", cfg.Tools.A2ASubmitTask.Description)
+	}
+}
+
+// YAML keys for tools use the LLM-visible tool names (PascalCase or
+// snake-with-underscores like A2A_SubmitTask) — this guards both forms
+// from accidental renames during refactors.
+func TestLoadPrompts_ToolYAMLKeyContract(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "prompts.yaml")
+
+	yamlContent := `---
+tools:
+  MultiEdit:
+    description: pascal case worked
+  A2A_SubmitTask:
+    description: a2a key worked
+`
+
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config file: %v", err)
+	}
+
+	cfg, err := config.LoadPrompts(configPath)
+	if err != nil {
+		t.Fatalf("LoadPrompts() failed: %v", err)
+	}
+	if cfg.Tools.MultiEdit.Description != "pascal case worked" {
+		t.Errorf("Expected MultiEdit YAML key to map to MultiEdit field, got %q", cfg.Tools.MultiEdit.Description)
+	}
+	if cfg.Tools.A2ASubmitTask.Description != "a2a key worked" {
+		t.Errorf("Expected A2A_SubmitTask YAML key to map to A2ASubmitTask field, got %q", cfg.Tools.A2ASubmitTask.Description)
 	}
 }
 

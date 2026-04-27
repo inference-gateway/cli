@@ -99,7 +99,7 @@ func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient 
 
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit work to an A2A agent server and delegate it to run in the background. IMPORTANT: This tool returns IMMEDIATELY after submission. DO NOT poll, query, or download artifacts right after submission. The system automatically monitors the task in the background and you will be AUTOMATICALLY NOTIFIED when it completes - the result will appear in the conversation. After submission, you MUST wait for the automatic notification before taking any follow-up actions. You can tell the user the task is running and you're waiting for it to complete. Use this for ANY interaction where you need an agent to respond with answers or complete work. The A2A_QueryTask tool is ONLY for retrieving metadata/capabilities or checking status of previously submitted tasks, NOT for polling just-submitted tasks."
+	description := t.config.Prompts.Tools.A2ASubmitTask.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

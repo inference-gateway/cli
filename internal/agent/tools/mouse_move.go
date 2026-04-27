@@ -36,7 +36,7 @@ func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displa
 
 // Definition returns the tool definition for the LLM
 func (t *MouseMoveTool) Definition() sdk.ChatCompletionTool {
-	description := "Moves the mouse cursor to absolute screen coordinates. Requires user approval unless in auto-accept mode."
+	description := t.config.Prompts.Tools.MouseMove.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
