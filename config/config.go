@@ -42,7 +42,7 @@ type Config struct {
 	Init             InitConfig             `yaml:"-" mapstructure:"-"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
-	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
+	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
@@ -743,6 +743,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					ConfigDirName + "/keybindings.yaml",
 					ConfigDirName + "/prompts.yaml",
 					ConfigDirName + "/channels.yaml",
+					ConfigDirName + "/computer_use.yaml",
 					".git/",
 					"*.env",
 				},
@@ -973,57 +974,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				InstallDir:     "~/.local/bin",
 			},
 			Servers: []SSHServerConfig{},
-		},
-		ComputerUse: ComputerUseConfig{
-			Enabled: false,
-			FloatingWindow: FloatingWindowConfig{
-				Enabled:        true,
-				RespawnOnClose: true,
-				Position:       "top-right",
-				AlwaysOnTop:    true,
-			},
-			Screenshot: ScreenshotToolConfig{
-				Enabled:          true,
-				MaxWidth:         1920,
-				MaxHeight:        1080,
-				TargetWidth:      1024,
-				TargetHeight:     768,
-				Format:           "jpeg",
-				Quality:          85,
-				StreamingEnabled: true,
-				CaptureInterval:  3,
-				BufferSize:       5,
-				TempDir:          "",
-				LogCaptures:      false,
-				ShowOverlay:      true,
-			},
-			RateLimit: RateLimitConfig{
-				Enabled:             true,
-				MaxActionsPerMinute: 60,
-				WindowSeconds:       60,
-			},
-			Tools: ComputerUseToolsConfig{
-				MouseMove: MouseMoveToolConfig{
-					Enabled: true,
-				},
-				MouseClick: MouseClickToolConfig{
-					Enabled: true,
-				},
-				MouseScroll: MouseScrollToolConfig{
-					Enabled: true,
-				},
-				KeyboardType: KeyboardTypeToolConfig{
-					Enabled:       true,
-					MaxTextLength: 1000,
-					TypingDelayMs: 100,
-				},
-				GetFocusedApp: GetFocusedAppToolConfig{
-					Enabled: true,
-				},
-				ActivateApp: ActivateAppToolConfig{
-					Enabled: true,
-				},
-			},
 		},
 	}
 }
