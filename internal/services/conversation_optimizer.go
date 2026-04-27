@@ -326,7 +326,10 @@ Keep the summary brief but informative (2-3 sentences max).`),
 	provider := model[:slashIndex]
 	modelName := model[slashIndex+1:]
 
-	maxTokens := 200
+	maxTokens := 1024
+	if co.config != nil && co.config.Compact.SummaryMaxTokens > 0 {
+		maxTokens = co.config.Compact.SummaryMaxTokens
+	}
 	options := &sdk.CreateChatCompletionRequest{
 		MaxTokens: &maxTokens,
 	}
@@ -350,5 +353,12 @@ Keep the summary brief but informative (2-3 sentences max).`),
 	if err != nil {
 		return "", fmt.Errorf("failed to extract summary content: %w", err)
 	}
+
+	if response.Choices[0].FinishReason == sdk.Length {
+		logger.Warn("Summary truncated by max_tokens cap; consider raising compact.summary_max_tokens",
+			"max_tokens", maxTokens,
+			"summary_length", len(contentStr))
+	}
+
 	return strings.TrimSpace(contentStr), nil
 }
