@@ -519,7 +519,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 			inHistoryMode = cv.IsInMessageHistoryMode()
 		}
 
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode || app.stateManager.IsAgentBusy() {
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
