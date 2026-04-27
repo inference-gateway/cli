@@ -258,6 +258,7 @@ compact:
   auto_at: 80
   keep_first_messages: 2
   rollover_on_idle_minutes: 30
+  summary_max_tokens: 1024
 web:
   enabled: false
   port: 3000

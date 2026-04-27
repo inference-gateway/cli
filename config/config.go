@@ -289,6 +289,7 @@ type CompactConfig struct {
 	AutoAt                int  `yaml:"auto_at" mapstructure:"auto_at"`
 	KeepFirstMessages     int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
 	RolloverOnIdleMinutes int  `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
+	SummaryMaxTokens      int  `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
 }
 
 // WebConfig contains web terminal settings
@@ -807,6 +808,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			AutoAt:                80,
 			KeepFirstMessages:     2,
 			RolloverOnIdleMinutes: 30,
+			SummaryMaxTokens:      1024,
 		},
 		Web: WebConfig{
 			Enabled:               false,
