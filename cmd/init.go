@@ -39,7 +39,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, agentsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, computerUsePath, agentsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -58,6 +58,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
 		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
+		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
 	} else {
 		configPath = config.DefaultConfigPath
@@ -72,11 +73,12 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
 		channelsPath = config.DefaultChannelsPath
+		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -140,6 +142,11 @@ tmp/
 		return fmt.Errorf("failed to create channels config file: %w", err)
 	}
 
+	cuMigrated, err := createComputerUseConfigFile(computerUsePath)
+	if err != nil {
+		return fmt.Errorf("failed to create computer_use config file: %w", err)
+	}
+
 	if err := createAgentsConfigFile(agentsPath); err != nil {
 		return fmt.Errorf("failed to create agents config file: %w", err)
 	}
@@ -164,10 +171,15 @@ tmp/
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
 	fmt.Printf("   Created: %s\n", channelsPath)
+	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
+	}
+	if cuMigrated {
+		fmt.Printf("\n%s Migrated legacy `computer_use:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), computerUsePath)
+		fmt.Printf("   You can now remove the `computer_use:` block from %s.\n", configPath)
 	}
 	fmt.Println("")
 	if userspace {
@@ -444,6 +456,33 @@ func createChannelsConfigFile(path string) (bool, error) {
 	}
 
 	if err := config.SaveChannels(path, channelsCfg); err != nil {
+		return false, err
+	}
+	return migrated, nil
+}
+
+// createComputerUseConfigFile writes a fresh computer_use.yaml. Returns
+// true when the file was seeded from a legacy `computer_use:` block found
+// in viper (i.e. migrated from config.yaml) rather than from in-code
+// defaults. Migration only runs when no computer_use.yaml exists yet, so
+// it is safe to re-run init.
+func createComputerUseConfigFile(path string) (bool, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return false, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	cuCfg := config.DefaultComputerUseConfig()
+	migrated := false
+
+	if _, err := os.Stat(path); os.IsNotExist(err) && V != nil && V.IsSet("computer_use") {
+		legacy := config.DefaultComputerUseConfig()
+		if err := V.UnmarshalKey("computer_use", legacy); err == nil {
+			cuCfg = legacy
+			migrated = true
+		}
+	}
+
+	if err := config.SaveComputerUse(path, cuCfg); err != nil {
 		return false, err
 	}
 	return migrated, nil

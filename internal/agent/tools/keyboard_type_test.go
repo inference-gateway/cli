@@ -70,10 +70,10 @@ func TestKeyboardTypeTool_TypingDelay(t *testing.T) {
 }
 
 func TestKeyboardTypeTool_ConfigDefault(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DefaultComputerUseConfig()
 
 	expectedDelay := 100
-	actualDelay := cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs
+	actualDelay := cfg.Tools.KeyboardType.TypingDelayMs
 
 	if actualDelay != expectedDelay {
 		t.Errorf("Expected default typing delay %d ms, got %d ms", expectedDelay, actualDelay)

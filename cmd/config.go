@@ -606,6 +606,27 @@ func getEffectiveChannelsConfigPath() string {
 	return config.DefaultChannelsPath
 }
 
+// getEffectiveComputerUseConfigPath returns the path to the computer_use config file
+// Searches in this order: 1) project .infer/computer_use.yaml, 2) user home ~/.infer/computer_use.yaml
+func getEffectiveComputerUseConfigPath() string {
+	searchPaths := []string{
+		config.DefaultComputerUsePath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultComputerUsePath
+}
+
 // getEffectivePromptsConfigPath returns the path to the prompts config file
 // Searches in this order: 1) project .infer/prompts.yaml, 2) user home ~/.infer/prompts.yaml
 func getEffectivePromptsConfigPath() string {
@@ -687,6 +708,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Channels = *channelsCfg
 	applyChannelsEnvOverrides(cfg)
+
+	cuPath := getEffectiveComputerUseConfigPath()
+	cuCfg, err := config.LoadComputerUse(cuPath)
+	if err != nil {
+		logger.Warn("Failed to load computer_use config, using defaults", "error", err, "path", cuPath)
+		cuCfg = config.DefaultComputerUseConfig()
+	}
+	cfg.ComputerUse = *cuCfg
+	applyComputerUseEnvOverrides(cfg)
 
 	return cfg, nil
 }
@@ -865,6 +895,72 @@ func applyChannelsEnvOverrides(cfg *config.Config) {
 	setString("INFER_CHANNELS_WHATSAPP_VERIFY_TOKEN", &cfg.Channels.WhatsApp.VerifyToken)
 	setInt("INFER_CHANNELS_WHATSAPP_WEBHOOK_PORT", &cfg.Channels.WhatsApp.WebhookPort)
 	setStringSlice("INFER_CHANNELS_WHATSAPP_ALLOWED_USERS", &cfg.Channels.WhatsApp.AllowedUsers)
+}
+
+// applyComputerUseEnvOverrides applies INFER_COMPUTER_USE_* env vars onto
+// the in-memory computer_use config. Run AFTER LoadComputerUse so envs win
+// over computer_use.yaml. The computer_use config now lives in its own
+// file (yaml:"-" mapstructure:"-" on Config.ComputerUse), so viper does not
+// bind these env vars itself - this function is the single source of
+// env-var support. Mirrors applyChannelsEnvOverrides.
+func applyComputerUseEnvOverrides(cfg *config.Config) {
+	setBool := func(env string, target *bool) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
+			*target = b
+		}
+	}
+	setInt := func(env string, target *int) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
+			*target = n
+		}
+	}
+	setString := func(env string, target *string) {
+		if val, ok := os.LookupEnv(env); ok {
+			*target = val
+		}
+	}
+
+	setBool("INFER_COMPUTER_USE_ENABLED", &cfg.ComputerUse.Enabled)
+
+	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_ENABLED", &cfg.ComputerUse.FloatingWindow.Enabled)
+	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_RESPAWN_ON_CLOSE", &cfg.ComputerUse.FloatingWindow.RespawnOnClose)
+	setString("INFER_COMPUTER_USE_FLOATING_WINDOW_POSITION", &cfg.ComputerUse.FloatingWindow.Position)
+	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_ALWAYS_ON_TOP", &cfg.ComputerUse.FloatingWindow.AlwaysOnTop)
+
+	setBool("INFER_COMPUTER_USE_SCREENSHOT_ENABLED", &cfg.ComputerUse.Screenshot.Enabled)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_WIDTH", &cfg.ComputerUse.Screenshot.MaxWidth)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_HEIGHT", &cfg.ComputerUse.Screenshot.MaxHeight)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_WIDTH", &cfg.ComputerUse.Screenshot.TargetWidth)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_HEIGHT", &cfg.ComputerUse.Screenshot.TargetHeight)
+	setString("INFER_COMPUTER_USE_SCREENSHOT_FORMAT", &cfg.ComputerUse.Screenshot.Format)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_QUALITY", &cfg.ComputerUse.Screenshot.Quality)
+	setBool("INFER_COMPUTER_USE_SCREENSHOT_STREAMING_ENABLED", &cfg.ComputerUse.Screenshot.StreamingEnabled)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_CAPTURE_INTERVAL", &cfg.ComputerUse.Screenshot.CaptureInterval)
+	setInt("INFER_COMPUTER_USE_SCREENSHOT_BUFFER_SIZE", &cfg.ComputerUse.Screenshot.BufferSize)
+	setString("INFER_COMPUTER_USE_SCREENSHOT_TEMP_DIR", &cfg.ComputerUse.Screenshot.TempDir)
+	setBool("INFER_COMPUTER_USE_SCREENSHOT_LOG_CAPTURES", &cfg.ComputerUse.Screenshot.LogCaptures)
+	setBool("INFER_COMPUTER_USE_SCREENSHOT_SHOW_OVERLAY", &cfg.ComputerUse.Screenshot.ShowOverlay)
+
+	setBool("INFER_COMPUTER_USE_RATE_LIMIT_ENABLED", &cfg.ComputerUse.RateLimit.Enabled)
+	setInt("INFER_COMPUTER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.ComputerUse.RateLimit.MaxActionsPerMinute)
+	setInt("INFER_COMPUTER_USE_RATE_LIMIT_WINDOW_SECONDS", &cfg.ComputerUse.RateLimit.WindowSeconds)
+
+	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_MOVE_ENABLED", &cfg.ComputerUse.Tools.MouseMove.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_CLICK_ENABLED", &cfg.ComputerUse.Tools.MouseClick.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_SCROLL_ENABLED", &cfg.ComputerUse.Tools.MouseScroll.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_ENABLED", &cfg.ComputerUse.Tools.KeyboardType.Enabled)
+	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_MAX_TEXT_LENGTH", &cfg.ComputerUse.Tools.KeyboardType.MaxTextLength)
+	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_TYPING_DELAY_MS", &cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs)
+	setBool("INFER_COMPUTER_USE_TOOLS_GET_FOCUSED_APP_ENABLED", &cfg.ComputerUse.Tools.GetFocusedApp.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_ACTIVATE_APP_ENABLED", &cfg.ComputerUse.Tools.ActivateApp.Enabled)
 }
 
 // GetUserspaceFlag checks for --userspace flag on the current command or parent commands
