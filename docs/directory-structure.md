@@ -61,6 +61,7 @@ for the full precedence rules.
 ├── logs/                 # debug / error logs
 ├── tmp/                  # scratch space for tools (exports, streamed writes, ...)
 ├── bin/                  # downloaded gateway binary (binary mode)
+├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 └── history               # chat input history (one entry per line)
 
 ~/.infer/                 # userspace layer — same set of config files,
@@ -124,6 +125,9 @@ create them, and the seeded `.gitignore` already excludes them.
   binary mode (`gateway.docker: false`).
 - **`history`** *(project)* — chat input history, one command per line.
   Powers inline auto-completion.
+- **`plans/<timestamp>-<slug>.md`** *(project)* — plans persisted by the
+  `RequestPlanApproval` tool when the agent runs in [Plan Mode](plan-mode.md).
+  Both accepted and rejected plans are kept as an audit trail.
 - **`schedules/<id>.yaml`** *(userspace)* — one YAML per scheduled job.
   Written by the `Schedule` tool, hot-reloaded by the channels-manager
   daemon. See [Scheduling](scheduling.md).
