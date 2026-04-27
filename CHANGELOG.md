@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.105.0](https://github.com/inference-gateway/cli/compare/v0.104.2...v0.105.0) (2026-04-27)
+
+### 🚀 Features
+
+* **plan-mode:** Persist plans as markdown and fix approval UX ([#461](https://github.com/inference-gateway/cli/issues/461)) ([da9a47c](https://github.com/inference-gateway/cli/commit/da9a47cdad40a0eef570c1b3b4b22e52870470aa)), closes [#434](https://github.com/inference-gateway/cli/issues/434)
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.104.2 ([#460](https://github.com/inference-gateway/cli/issues/460)) ([05fe627](https://github.com/inference-gateway/cli/commit/05fe6272d62405db6b5150c11ca4b3b0007e735e))
+
 ## [0.104.2](https://github.com/inference-gateway/cli/compare/v0.104.1...v0.104.2) (2026-04-27)
 
 ### 🐛 Bug Fixes
