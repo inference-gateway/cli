@@ -356,6 +356,15 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 
 // createHistoryActions creates history navigation key actions
 func (r *Registry) createHistoryActions() []*KeyAction {
+	noApprovalPending := ContextCondition{
+		Name: "no_approval_pending",
+		Check: func(app KeyHandlerContext) bool {
+			stateManager := app.GetStateManager()
+			return stateManager.GetPlanApprovalUIState() == nil &&
+				stateManager.GetApprovalUIState() == nil
+		},
+	}
+
 	return []*KeyAction{
 		{
 			Namespace:   config.NamespaceTextEditing,
@@ -367,7 +376,8 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
+				Views:      []domain.ViewState{domain.ViewStateChat},
+				Conditions: []ContextCondition{noApprovalPending},
 			},
 		},
 		{
@@ -380,7 +390,8 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
+				Views:      []domain.ViewState{domain.ViewStateChat},
+				Conditions: []ContextCondition{noApprovalPending},
 			},
 		},
 	}
@@ -973,7 +984,9 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg {
+			return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+		}
 	}
 
 	inputView := app.GetInputView()
@@ -1009,7 +1022,9 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 			newIndex = 0
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg {
+			return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+		}
 	}
 
 	inputView := app.GetInputView()
@@ -1597,7 +1612,9 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
-	return func() tea.Msg { return nil }
+	return func() tea.Msg {
+		return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+	}
 }
 
 func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -1613,7 +1630,9 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
-	return func() tea.Msg { return nil }
+	return func() tea.Msg {
+		return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+	}
 }
 
 func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

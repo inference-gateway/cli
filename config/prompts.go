@@ -191,7 +191,7 @@ type PromptsToolsConfig struct {
 // DefaultPromptsConfig returns the in-code default prompts. This is the
 // single source of truth — `infer init` seeds prompts.yaml from this and
 // the runtime overlay falls back to it when fields are missing.
-func DefaultPromptsConfig() *PromptsConfig {
+func DefaultPromptsConfig() *PromptsConfig { //nolint:funlen
 	return &PromptsConfig{
 		Agent: PromptsAgentConfig{
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.`,
@@ -202,7 +202,7 @@ CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be ask
 CAPABILITIES IN PLAN MODE:
 - Read, Grep, and Tree tools for gathering information
 - TodoWrite for tracking planning progress
-- RequestPlanApproval tool to submit your plan for user approval
+- RequestPlanApproval tool to submit your plan for user approval (also persists the plan as a Markdown file under <configDir>/plans/)
 - Analyze code structure and dependencies
 - Break down complex tasks into concrete, executable steps
 - Identify exact files and code locations that need changes
@@ -216,28 +216,43 @@ RESTRICTIONS IN PLAN MODE:
 PLANNING WORKFLOW:
 1. Use Read/Grep/Tree to understand the codebase thoroughly
 2. Analyze the user's request and identify ALL requirements
-3. If you need clarification or more information, ASK the user - do NOT call RequestPlanApproval yet
-4. Break down into specific, numbered action steps
-5. For EACH step, specify:
-   - Exact file paths to modify
-   - Specific changes to make
-   - Tool calls that will be needed
-6. Include testing and validation steps
-7. When your plan is complete and actionable, call RequestPlanApproval tool
+3. If you need clarification or more information, ASK the user in a regular assistant turn - do NOT call RequestPlanApproval yet
+4. Iterate with the user until the plan is complete and unambiguous
+5. When the plan is final, call RequestPlanApproval with both a short title AND the Markdown plan body
 
 DECISION MAKING:
 - Need more info? ASK questions instead of requesting approval
 - Plan has gaps or uncertainties? ASK for clarification
 - Plan is complete and specific? Call RequestPlanApproval tool
 
-OUTPUT FORMAT - ACTIONABLE STEPS:
-Structure your plan with concrete actions:
-- Overview: What will be done and why
-- Steps: Numbered steps with SPECIFIC actions
-  Example: "Step 1: Edit /path/to/file.go - Add function X at line Y"
-  Example: "Step 2: Run 'task test' to verify changes"
-- Files: Exact list of files to be modified
-- Testing: Specific commands to run and expected outcomes
+OUTPUT FORMAT - MARKDOWN PLAN:
+The 'plan' argument MUST be a Markdown document using the following H2 sections, in this order. Omit any section that does not apply to the task; never invent extra top-level sections.
+
+## Context
+Why this change is being made — the problem, the trigger, the intended outcome.
+
+## Files to Modify
+Bullet list of exact file paths that will change, each with a one-line note on the kind of change.
+
+## Current Code
+Short, relevant snippets of the existing code being changed (with file:line references). Skip when not applicable (e.g. brand-new files).
+
+## Changes
+The concrete edits, grouped per file or per concern. Be specific: function names, signatures, what is added/removed/replaced.
+
+## Performance Impact
+Expected runtime, memory, I/O, or token-usage impact. Write "Negligible." if there isn't any.
+
+## Critical Files
+Files that other code depends on and that must remain backward-compatible (e.g. shared interfaces, public APIs). Skip when not applicable.
+
+## Edge Cases
+Inputs and conditions that need explicit handling, plus how the plan handles them.
+
+## Verification
+Concrete steps the user can run to confirm the change works end-to-end (commands, tests, manual checks).
+
+The 'title' argument MUST be a short human-readable phrase (≤ 60 chars, no slashes). It becomes the H1 of the saved file and the basis of the on-disk filename.
 
 REMEMBER:
 - If accepted, YOU will execute this plan. Make it specific and actionable!
@@ -505,15 +520,19 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`,
 		},
 		RequestPlanApproval: PromptsToolDescription{
-			Description: `Submit your completed plan for user approval.
+			Description: `Submit your completed plan for user approval and persist it to disk.
 
 What happens:
-- Your plan will be displayed to the user
-- User can approve or reject
+- The plan is written as a Markdown file to <configDir>/plans/<timestamp>-<slug>.md
+- The plan is displayed to the user with Accept / Reject / Accept-and-Auto-Approve options
 - If approved, you'll switch to execution mode with full tool access
-- If rejected, user will provide feedback
+- If rejected, the file remains on disk as an audit trail and the user provides feedback
 
-Include your complete plan in the 'plan' parameter.`,
+Required parameters:
+- title: A short human-readable phrase (≤ 60 chars, no slashes). Becomes the H1 heading and the filename slug.
+- plan: The full plan as Markdown using H2 sections in this order — ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.
+
+Only call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.`,
 		},
 		WebFetch: PromptsToolDescription{
 			Description: `Fetch content from whitelisted URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files.`,

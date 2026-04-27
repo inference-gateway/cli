@@ -24,6 +24,7 @@ is enabled in the Inference Gateway CLI.
   - [Github Tool](#github-tool)
 - [Workflow Tools](#workflow-tools)
   - [TodoWrite Tool](#todowrite-tool)
+  - [RequestPlanApproval Tool](#requestplanapproval-tool)
   - [Schedule Tool](#schedule-tool)
 - [Agent-to-Agent Communication](#agent-to-agent-communication)
   - [A2A_SubmitTask Tool](#a2a_submittask-tool)
@@ -562,6 +563,46 @@ tools:
     enabled: true
     require_approval: false
 ```
+
+### RequestPlanApproval Tool
+
+Submits a finalized plan for user approval and persists it as a
+Markdown file under `<configDir>/plans/`. Available only when the agent
+is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
+
+> **📖 For the full plan-mode workflow, see [Plan Mode Guide](plan-mode.md).**
+
+**How it works:**
+
+- The plan is written atomically to `<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md` (e.g. `~/.infer/plans/2026-04-27-103015-add-login-flow.md`).
+- The chat TUI shows the rendered plan with **Accept**, **Reject**, and **Accept & Auto-Approve** options.
+- On accept, the agent switches out of plan mode and executes the plan.
+- On reject, the file remains on disk as an audit trail; the user can reply with feedback and the agent re-iterates.
+- The LLM is instructed to ask clarifying questions in normal assistant turns first, and only call this tool when the plan is complete.
+
+**Parameters:**
+
+- `title` (required): A short human-readable phrase (≤ 60 chars, no
+  slashes or `..`). Becomes the H1 heading of the saved file and the
+  basis of the filename slug.
+- `plan` (required): The full plan as Markdown. Use H2 sections in this
+  order — `## Context`, `## Files to Modify`, `## Current Code`,
+  `## Changes`, `## Performance Impact`, `## Critical Files`,
+  `## Edge Cases`, `## Verification`. Omit any section that is not
+  applicable.
+
+**Example:**
+
+```json
+{
+  "title": "Add login flow",
+  "plan": "## Context\n\nUsers can't sign in...\n\n## Files to Modify\n\n- internal/auth/login.go — add handler\n\n## Verification\n\nRun `task test`."
+}
+```
+
+**Configuration:**
+
+The tool is auto-registered and always enabled in plan mode. No config knobs.
 
 ### Schedule Tool
 

@@ -283,3 +283,10 @@ type TriggerGithubActionSetupEvent struct{}
 type ApprovalSelectionChangedEvent struct {
 	NewIndex int
 }
+
+// PlanApprovalSelectionChangedEvent signals that the plan-approval button
+// selection has moved and the conversation viewport needs to re-render so
+// the highlighted button reflects the new index.
+type PlanApprovalSelectionChangedEvent struct {
+	NewIndex int
+}

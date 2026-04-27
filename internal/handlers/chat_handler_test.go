@@ -8,13 +8,108 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	assert "github.com/stretchr/testify/assert"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
+
+// The synthesized plan-mode assistant entry duplicates the args of the
+// preceding RequestPlanApproval tool call and lacks reasoning_content.
+// Sending it on the next turn breaks DeepSeek's thinking-mode contract
+// ("The reasoning_content in the thinking mode must be passed back to
+// the API.") with HTTP 400. The helper below filters those entries out.
+func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
+	planContent := "## Context\nDo X."
+	reasoning := "thought process"
+	planTitle := "Add Feature X"
+
+	entries := []domain.ConversationEntry{
+		{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("Please plan it"),
+			},
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent("Submitting plan"),
+				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+					{
+						Id:   "call_1",
+						Type: sdk.Function,
+						Function: sdk.ChatCompletionMessageToolCallFunction{
+							Name:      "RequestPlanApproval",
+							Arguments: `{"title":"` + planTitle + `","plan":"` + planContent + `"}`,
+						},
+					},
+				},
+				Reasoning:        &reasoning,
+				ReasoningContent: &reasoning,
+			},
+			ReasoningContent: reasoning,
+		},
+		{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent("Plan approval requested. Plan saved to ..."),
+				ToolCallId: new("call_1"),
+			},
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(planContent),
+			},
+			IsPlan:             true,
+			PlanApprovalStatus: domain.PlanApprovalAccepted,
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("The plan has been approved."),
+			},
+			Hidden: true,
+		},
+	}
+
+	out := buildAgentMessagesFromEntries(entries)
+
+	if len(out) != 4 {
+		t.Fatalf("expected 4 messages after filtering plan entry, got %d", len(out))
+	}
+
+	if out[1].Role != sdk.Assistant {
+		t.Errorf("expected message[1] to be the assistant tool-call turn, got role %s", out[1].Role)
+	}
+	if out[1].ReasoningContent == nil || *out[1].ReasoningContent != reasoning {
+		t.Errorf("expected reasoning_content preserved on assistant tool-call turn, got %v", out[1].ReasoningContent)
+	}
+
+	for i, msg := range out {
+		if msg.Role == sdk.Assistant && msg.ToolCalls == nil {
+			content, _ := msg.Content.AsMessageContent0()
+			if strings.Contains(content, "## Context") {
+				t.Errorf("plan-mode synthesized assistant message leaked into request at index %d", i)
+			}
+		}
+	}
+}
+
+func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
+	entries := []domain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},
+		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")}},
+	}
+	out := buildAgentMessagesFromEntries(entries)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(out))
+	}
+}
 
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
 	handler := &ChatHandler{}

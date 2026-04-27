@@ -915,10 +915,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 	}
 
 	if result.ToolName == "RequestPlanApproval" && result.Success {
-		planContent := extractPlanContent(result)
-		if planContent != "" {
-			eventPublisher.publishPlanApprovalRequest(planContent)
-		} else {
+		if extractPlanContent(result) == "" {
 			logger.Warn("RequestPlanApproval succeeded but plan content is empty")
 		}
 	}
@@ -1019,6 +1016,8 @@ func (s *AgentServiceImpl) createPlanMessage(
 	if err := s.conversationRepo.AddMessage(planEntry); err != nil {
 		logger.Error("failed to store plan message", "error", err)
 	}
+
+	eventPublisher.publishPlanApprovalRequest(planContent)
 
 	logger.Info("Plan approval requested - stopping agent loop")
 	eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))

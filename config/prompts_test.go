@@ -59,6 +59,42 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	}
 }
 
+// The plan-mode prompt advertises a fixed Markdown section template to
+// the model. This guards the template against accidental edits and makes
+// the contract with docs/plan-mode.md explicit.
+func TestDefaultPromptsConfig_PlanPromptStructure(t *testing.T) {
+	cfg := config.DefaultPromptsConfig()
+	plan := cfg.Agent.SystemPromptPlan
+
+	wantSections := []string{
+		"## Context",
+		"## Files to Modify",
+		"## Current Code",
+		"## Changes",
+		"## Performance Impact",
+		"## Critical Files",
+		"## Edge Cases",
+		"## Verification",
+	}
+	for _, section := range wantSections {
+		if !strings.Contains(plan, section) {
+			t.Errorf("plan-mode system prompt missing section heading %q", section)
+		}
+	}
+
+	if !strings.Contains(plan, "title") {
+		t.Errorf("plan-mode system prompt should mention the 'title' parameter")
+	}
+
+	desc := cfg.Tools.RequestPlanApproval.Description
+	if !strings.Contains(desc, "title") || !strings.Contains(desc, "plan") {
+		t.Errorf("RequestPlanApproval description should mention both 'title' and 'plan' parameters, got %q", desc)
+	}
+	if !strings.Contains(desc, "<configDir>/plans/") {
+		t.Errorf("RequestPlanApproval description should mention the on-disk path, got %q", desc)
+	}
+}
+
 // custom_instructions is intentionally empty - it's a user-supplied
 // opt-in. This guards it in the opposite direction so a future "fill in
 // a default" change is intentional.
