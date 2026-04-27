@@ -377,6 +377,79 @@ func TestOptimizeMessages_EdgeCases(t *testing.T) {
 	}
 }
 
+// TestOptimizeMessages_LastInputTokensTrigger verifies that OptimizeMessages
+// uses the gateway-reported LastInputTokens from the wired-in repo, so
+// auto-compaction fires when the actual prompt size (including system prompt
+// and tool definitions) crosses the threshold — even though the entries-only
+// estimate is far below it.
+func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
+	model := "fake-provider/unknown-tiny-model"
+
+	t.Run("fires when LastInputTokens above threshold", func(t *testing.T) {
+		repo := services.NewInMemoryConversationRepository(nil, nil)
+		require.NoError(t, repo.AddTokenUsage(model, 7000, 100, 7100))
+
+		mockClient := createMockSDKClient(t, "Summary text")
+		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+			Enabled:           true,
+			AutoAt:            80,
+			BufferSize:        2,
+			KeepFirstMessages: 2,
+			Client:            mockClient,
+			Config:            &config.Config{},
+			Tokenizer:         nil,
+			Repo:              repo,
+		})
+
+		messages := []sdk.Message{
+			{Role: "user", Content: sdk.NewMessageContent("hi")},
+			{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+			{Role: "user", Content: sdk.NewMessageContent("again")},
+			{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+			{Role: "user", Content: sdk.NewMessageContent("more")},
+		}
+
+		result := optimizer.OptimizeMessages(messages, model, false)
+
+		assert.Equal(t, 1, mockClient.GenerateContentCallCount(),
+			"summarizer should be invoked when LastInputTokens crosses threshold")
+		assert.Less(t, len(result), len(messages),
+			"compaction should reduce the message count")
+	})
+
+	t.Run("does not fire when LastInputTokens below threshold", func(t *testing.T) {
+		repo := services.NewInMemoryConversationRepository(nil, nil)
+		require.NoError(t, repo.AddTokenUsage(model, 1000, 100, 1100))
+
+		mockClient := createMockSDKClient(t, "Summary text")
+		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+			Enabled:           true,
+			AutoAt:            80,
+			BufferSize:        2,
+			KeepFirstMessages: 2,
+			Client:            mockClient,
+			Config:            &config.Config{},
+			Tokenizer:         nil,
+			Repo:              repo,
+		})
+
+		messages := []sdk.Message{
+			{Role: "user", Content: sdk.NewMessageContent("hi")},
+			{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+			{Role: "user", Content: sdk.NewMessageContent("again")},
+			{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+			{Role: "user", Content: sdk.NewMessageContent("more")},
+		}
+
+		result := optimizer.OptimizeMessages(messages, model, false)
+
+		assert.Equal(t, 0, mockClient.GenerateContentCallCount(),
+			"summarizer must not be invoked when LastInputTokens is below threshold")
+		assert.Equal(t, len(messages), len(result),
+			"messages should be returned unchanged when gate does not fire")
+	})
+}
+
 // Helper functions
 
 func stringPtr(s string) *string {
