@@ -23,6 +23,7 @@ type ConversationOptimizer struct {
 	client            domain.SDKClient
 	config            *config.Config
 	tokenizer         *TokenizerService
+	repo              domain.ConversationRepository
 }
 
 var _ domain.ConversationOptimizer = (*ConversationOptimizer)(nil)
@@ -36,6 +37,12 @@ type OptimizerConfig struct {
 	Client            domain.SDKClient
 	Config            *config.Config
 	Tokenizer         *TokenizerService
+	// Repo is optional. When provided, OptimizeMessages reads
+	// LastInputTokens from the repo's session stats and uses it as the
+	// trigger value (the gateway-reported count includes system prompt and
+	// tool definitions, matching what `/context` displays). When nil, the
+	// gate falls back to the entries-only estimate.
+	Repo domain.ConversationRepository
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
@@ -64,7 +71,21 @@ func NewConversationOptimizer(config OptimizerConfig) domain.ConversationOptimiz
 		client:            config.Client,
 		config:            config.Config,
 		tokenizer:         tokenizer,
+		repo:              config.Repo,
 	}
+}
+
+// estimateTriggerTokens returns the value used to gate auto-compaction. It
+// prefers the gateway-reported LastInputTokens (which includes system prompt
+// and tool definitions) and falls back to the entries-only tokenizer estimate
+// before the first round-trip or when no repo is wired in.
+func (co *ConversationOptimizer) estimateTriggerTokens(messages []sdk.Message) int {
+	if co.repo != nil {
+		if stats := co.repo.GetSessionTokens(); stats.LastInputTokens > 0 {
+			return stats.LastInputTokens
+		}
+	}
+	return co.tokenizer.EstimateMessagesTokens(messages)
 }
 
 // OptimizeMessages reduces token usage by intelligently managing conversation history with LLM summarization
@@ -77,8 +98,6 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		return messages
 	}
 
-	currentTokens := co.tokenizer.EstimateMessagesTokens(messages)
-
 	contextWindow := models.EstimateContextWindow(model)
 	if contextWindow == 0 {
 		contextWindow = 30000
@@ -86,8 +105,11 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 
 	threshold := (contextWindow * co.autoAt) / 100
 
-	if !force && currentTokens < threshold {
-		return messages
+	if !force {
+		currentTokens := co.estimateTriggerTokens(messages)
+		if currentTokens < threshold {
+			return messages
+		}
 	}
 
 	var systemMessages []sdk.Message

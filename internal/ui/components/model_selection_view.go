@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -227,28 +228,18 @@ func (m *ModelSelectorImpl) View() string {
 
 	for i := start; i < start+maxVisible && i < len(m.filteredModels); i++ {
 		model := m.filteredModels[i]
-		var pricingSuffix string
-		if m.pricingService != nil {
-			if pricing := m.pricingService.FormatModelPricing(model); pricing != "" {
-				pricingSuffix = fmt.Sprintf("(%s)", pricing)
-			}
-		}
+		suffix := m.formatModelSuffix(model)
 
 		if i == m.selected {
 			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
-			if pricingSuffix != "" {
-				b.WriteString(" ")
-				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
-			}
-			b.WriteString("\n")
 		} else {
 			fmt.Fprintf(&b, "  %s", model)
-			if pricingSuffix != "" {
-				b.WriteString(" ")
-				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
-			}
-			b.WriteString("\n")
 		}
+		if suffix != "" {
+			b.WriteString(" ")
+			b.WriteString(m.styleProvider.RenderDimText(suffix))
+		}
+		b.WriteString("\n")
 	}
 
 	if len(m.filteredModels) > maxVisible {
@@ -269,6 +260,46 @@ func (m *ModelSelectorImpl) View() string {
 	}
 
 	return b.String()
+}
+
+// formatModelSuffix builds the parenthesised metadata shown next to each
+// model row, combining the context window (compact "128K"/"1M" form, or "?"
+// when no matcher pattern hits) with the pricing string when available.
+func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
+	parts := make([]string, 0, 2)
+
+	window, ok := models.LookupContextWindow(model)
+	if ok {
+		parts = append(parts, formatContextWindow(window))
+	} else {
+		parts = append(parts, "?")
+	}
+
+	if m.pricingService != nil {
+		if pricing := m.pricingService.FormatModelPricing(model); pricing != "" {
+			parts = append(parts, pricing)
+		}
+	}
+
+	return fmt.Sprintf("(%s)", strings.Join(parts, ", "))
+}
+
+// formatContextWindow renders a token count as "1M" / "128K" / raw, picking
+// the most readable form. Boundaries are exact multiples to avoid awkward
+// numbers like "1.0M" when a matcher returns 1_000_000.
+func formatContextWindow(tokens int) string {
+	switch {
+	case tokens >= 1_000_000 && tokens%1_000_000 == 0:
+		return fmt.Sprintf("%dM", tokens/1_000_000)
+	case tokens >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(tokens)/1_000_000)
+	case tokens >= 1024 && tokens%1024 == 0:
+		return fmt.Sprintf("%dK", tokens/1024)
+	case tokens >= 1000:
+		return fmt.Sprintf("%dK", tokens/1000)
+	default:
+		return fmt.Sprintf("%d", tokens)
+	}
 }
 
 // applyFilters filters the models based on the current view and search query

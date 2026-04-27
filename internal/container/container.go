@@ -267,6 +267,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 			Client:            summaryClient,
 			Config:            c.config,
 			Tokenizer:         tokenizer,
+			Repo:              c.conversationRepo,
 		})
 
 		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {

@@ -193,27 +193,34 @@ func (m *SessionRolloverManager) idleTriggerFires(entries []domain.ConversationE
 }
 
 // tokenTriggerFires reports whether the conversation's estimated token count
-// crosses compact.auto_at percent of the model's context window. Mirrors the
-// in-place check in conversation_optimizer.go:80-91.
+// crosses compact.auto_at percent of the model's context window.
+//
+// Prefers the gateway-reported LastInputTokens from session stats: that value
+// is the authoritative count of what was actually sent (including system
+// prompt and tool definitions) and is also what `/context` displays, so the
+// trigger and the UI stay in lock-step. Falls back to the entries-only
+// estimate before the first round-trip when LastInputTokens is still zero.
 func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.ConversationEntry, model string) bool {
 	autoAt := m.cfg.Compact.AutoAt
 	if autoAt <= 0 || autoAt > 100 {
 		autoAt = 80
 	}
 
-	msgs := make([]sdk.Message, 0, len(entries))
-	for _, e := range entries {
-		msgs = append(msgs, e.Message)
-	}
-
-	currentTokens := m.tokenizer.EstimateMessagesTokens(msgs)
 	contextWindow := models.EstimateContextWindow(model)
 	if contextWindow == 0 {
 		contextWindow = 30000
 	}
-
 	threshold := (contextWindow * autoAt) / 100
-	return currentTokens >= threshold
+
+	if stats := m.repo.GetSessionTokens(); stats.LastInputTokens > 0 {
+		return stats.LastInputTokens >= threshold
+	}
+
+	msgs := make([]sdk.Message, 0, len(entries))
+	for _, e := range entries {
+		msgs = append(msgs, e.Message)
+	}
+	return m.tokenizer.EstimateMessagesTokens(msgs) >= threshold
 }
 
 // PerformRollover runs the optimizer with force=true to produce a summary,
