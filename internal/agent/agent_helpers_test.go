@@ -90,10 +90,12 @@ func TestShouldInjectSystemReminder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Agent: config.AgentConfig{
-					SystemReminders: config.SystemRemindersConfig{
-						Enabled:  tt.enabled,
-						Interval: tt.interval,
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemReminders: config.PromptsAgentRemindersConfig{
+							Enabled:  tt.enabled,
+							Interval: tt.interval,
+						},
 					},
 				},
 			}
@@ -123,9 +125,11 @@ func TestGetSystemPromptForMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Agent: config.AgentConfig{
-					SystemPrompt:     tt.systemPrompt,
-					SystemPromptPlan: tt.planPrompt,
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemPrompt:     tt.systemPrompt,
+						SystemPromptPlan: tt.planPrompt,
+					},
 				},
 			}
 

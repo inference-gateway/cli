@@ -105,14 +105,11 @@ func testChatDefaults(t *testing.T, cfg *Config) {
 	if cfg.Agent.Model != "" {
 		t.Errorf("Expected default model to be empty, got %q", cfg.Agent.Model)
 	}
-	// Prompt defaults moved to prompts.yaml as of issue #439 — DefaultConfig
-	// leaves these fields empty so the runtime overlay (or env vars) fills
-	// them. See config/prompts.go for the live defaults.
-	if cfg.Agent.SystemPrompt != "" {
-		t.Errorf("Expected system prompt to be empty in main config (now sourced from prompts.yaml), got %q", cfg.Agent.SystemPrompt)
+	if cfg.Prompts.Agent.SystemPrompt != "" {
+		t.Errorf("Expected DefaultConfig to leave cfg.Prompts empty, got %q", cfg.Prompts.Agent.SystemPrompt)
 	}
-	if cfg.Agent.CustomInstructions != "" {
-		t.Errorf("Expected custom instructions to be empty by default, got %q", cfg.Agent.CustomInstructions)
+	if cfg.Prompts.Agent.CustomInstructions != "" {
+		t.Errorf("Expected DefaultConfig to leave cfg.Prompts empty, got %q", cfg.Prompts.Agent.CustomInstructions)
 	}
 }
 
@@ -329,19 +326,15 @@ func TestSaveConfig(t *testing.T) {
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
 				cfg.Agent.Model = "anthropic/claude-4"
-				cfg.Agent.SystemPrompt = "Be helpful"
+				cfg.Prompts.Agent.SystemPrompt = "Be helpful"
 				cfg.Gateway.APIKey = "secret-key"
 			},
 			validator: func(t *testing.T, cfg *Config) {
 				if cfg.Agent.Model != "anthropic/claude-4" {
 					t.Errorf("Expected default model to be 'anthropic/claude-4', got %q", cfg.Agent.Model)
 				}
-				// SystemPrompt is now sourced from prompts.yaml (issue #439)
-				// and tagged yaml:"-" — it intentionally does NOT round-trip
-				// through config.yaml. Asserting it is empty after save+load
-				// guards against accidentally re-tagging the field.
-				if cfg.Agent.SystemPrompt != "" {
-					t.Errorf("Expected system prompt to be empty after round-trip (it lives in prompts.yaml), got %q", cfg.Agent.SystemPrompt)
+				if cfg.Prompts.Agent.SystemPrompt != "" {
+					t.Errorf("Expected system prompt to be empty after round-trip (it lives in prompts.yaml), got %q", cfg.Prompts.Agent.SystemPrompt)
 				}
 				if cfg.Gateway.APIKey != "secret-key" {
 					t.Errorf("Expected API key to be 'secret-key', got %q", cfg.Gateway.APIKey)
@@ -369,11 +362,9 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	cfg := DefaultConfig()
 	setupFunc(cfg)
 
-	// Create a new Viper instance for this test
 	v := viper.New()
 	v.SetConfigFile(configPath)
 
-	// Set all config values in Viper
 	v.Set("gateway.url", cfg.Gateway.URL)
 	v.Set("gateway.api_key", cfg.Gateway.APIKey)
 	v.Set("gateway.timeout", cfg.Gateway.Timeout)
@@ -386,13 +377,11 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	v.Set("tools.web_search.timeout", cfg.Tools.WebSearch.Timeout)
 	v.Set("tools.web_search.engines", cfg.Tools.WebSearch.Engines)
 	v.Set("agent.model", cfg.Agent.Model)
-	v.Set("agent.system_prompt", cfg.Agent.SystemPrompt)
 
 	if err := writeViperConfigForTest(v, 2); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
-	// Load the saved config back
 	loadV := viper.New()
 	loadV.SetConfigFile(configPath)
 	if err := loadV.ReadInConfig(); err != nil {
@@ -809,15 +798,10 @@ func TestParseGithubOwnerFromURL(t *testing.T) {
 }
 
 func TestDetectGithubOwner(t *testing.T) {
-	// Note: This test will only pass if the test is run in the actual git repository
-	// For CI/CD environments, this should detect the owner correctly
 	owner := DetectGithubOwner()
 
-	// We can't assert a specific value since the test might run in different contexts
-	// But we can verify it returns a string (empty or not)
 	if owner != "" {
 		t.Logf("Detected GitHub owner: %s", owner)
-		// Basic validation: owner should not contain slashes or special characters
 		if strings.Contains(owner, "/") {
 			t.Errorf("GitHub owner should not contain slashes: %s", owner)
 		}

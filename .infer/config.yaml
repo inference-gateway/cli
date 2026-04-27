@@ -164,9 +164,6 @@ export:
 agent:
   model: ""
   system_prompt_with_defaults: true
-  system_reminders:
-    enabled: true
-    interval: 4
   context:
     git_context_enabled: true
     working_dir_enabled: true

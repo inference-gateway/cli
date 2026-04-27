@@ -39,11 +39,11 @@ type Config struct {
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
-	Init             InitConfig             `yaml:"-" mapstructure:"-"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
+	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -272,89 +272,6 @@ type SandboxConfig struct {
 	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
-// ComputerUseConfig contains computer use tool settings
-type ComputerUseConfig struct {
-	Enabled        bool                   `yaml:"enabled" mapstructure:"enabled"`
-	FloatingWindow FloatingWindowConfig   `yaml:"floating_window" mapstructure:"floating_window"`
-	Screenshot     ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
-	RateLimit      RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Tools          ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
-}
-
-// ComputerUseToolsConfig contains individual computer use tool settings
-type ComputerUseToolsConfig struct {
-	MouseMove     MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
-	MouseClick    MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
-	MouseScroll   MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
-	KeyboardType  KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
-	GetFocusedApp GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
-	ActivateApp   ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
-}
-
-// ScreenshotToolConfig contains screenshot-specific tool settings
-type ScreenshotToolConfig struct {
-	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
-	MaxWidth         int    `yaml:"max_width" mapstructure:"max_width"`
-	MaxHeight        int    `yaml:"max_height" mapstructure:"max_height"`
-	TargetWidth      int    `yaml:"target_width" mapstructure:"target_width"`
-	TargetHeight     int    `yaml:"target_height" mapstructure:"target_height"`
-	Format           string `yaml:"format" mapstructure:"format"`
-	Quality          int    `yaml:"quality" mapstructure:"quality"`
-	StreamingEnabled bool   `yaml:"streaming_enabled" mapstructure:"streaming_enabled"`
-	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"`
-	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`
-	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
-	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
-	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
-}
-
-// FloatingWindowConfig contains floating progress window settings
-type FloatingWindowConfig struct {
-	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
-	RespawnOnClose bool   `yaml:"respawn_on_close" mapstructure:"respawn_on_close"`
-	Position       string `yaml:"position" mapstructure:"position"`
-	AlwaysOnTop    bool   `yaml:"always_on_top" mapstructure:"always_on_top"`
-}
-
-// MouseMoveToolConfig contains mouse move-specific tool settings
-type MouseMoveToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// MouseClickToolConfig contains mouse click-specific tool settings
-type MouseClickToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// MouseScrollToolConfig contains mouse scroll-specific tool settings
-type MouseScrollToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// KeyboardTypeToolConfig contains keyboard type-specific tool settings
-type KeyboardTypeToolConfig struct {
-	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxTextLength int  `yaml:"max_text_length" mapstructure:"max_text_length"`
-	TypingDelayMs int  `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
-}
-
-// GetFocusedAppToolConfig contains get focused app-specific tool settings
-type GetFocusedAppToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// ActivateAppToolConfig contains activate app-specific tool settings
-type ActivateAppToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// RateLimitConfig contains rate limiting settings
-type RateLimitConfig struct {
-	Enabled             bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxActionsPerMinute int  `yaml:"max_actions_per_minute" mapstructure:"max_actions_per_minute"`
-	WindowSeconds       int  `yaml:"window_seconds" mapstructure:"window_seconds"`
-}
-
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
@@ -409,15 +326,6 @@ type SSHServerConfig struct {
 	Tags        []string `yaml:"tags" mapstructure:"tags"`
 }
 
-// SystemRemindersConfig contains settings for dynamic system reminders.
-// ReminderText is sourced from prompts.yaml at runtime — it carries no
-// yaml/mapstructure tags so it never appears in config.yaml.
-type SystemRemindersConfig struct {
-	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
-	Interval     int    `yaml:"interval" mapstructure:"interval"`
-	ReminderText string `yaml:"-" mapstructure:"-"`
-}
-
 // AgentContextConfig contains settings for agent context enrichment
 type AgentContextConfig struct {
 	GitContextEnabled      bool `yaml:"git_context_enabled" mapstructure:"git_context_enabled"`
@@ -426,22 +334,16 @@ type AgentContextConfig struct {
 }
 
 // AgentConfig contains agent command-specific settings.
-// The SystemPrompt*, CustomInstructions, and SystemReminders fields are
-// sourced from prompts.yaml at runtime — they carry no yaml/mapstructure
-// tags so they never appear in config.yaml.
+// All system prompts, custom instructions, and system reminder settings
+// live in prompts.yaml and are read from cfg.Prompts.Agent.* at runtime.
 type AgentConfig struct {
-	Model                    string                `yaml:"model" mapstructure:"model"`
-	SystemPrompt             string                `yaml:"-" mapstructure:"-"`
-	SystemPromptWithDefaults bool                  `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
-	CustomInstructions       string                `yaml:"-" mapstructure:"-"`
-	SystemPromptPlan         string                `yaml:"-" mapstructure:"-"`
-	SystemPromptRemote       string                `yaml:"-" mapstructure:"-"`
-	SystemReminders          SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
-	Context                  AgentContextConfig    `yaml:"context" mapstructure:"context"`
-	VerboseTools             bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
-	MaxTurns                 int                   `yaml:"max_turns" mapstructure:"max_turns"`
-	MaxTokens                int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
-	MaxConcurrentTools       int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
+	Model                    string             `yaml:"model" mapstructure:"model"`
+	SystemPromptWithDefaults bool               `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
+	Context                  AgentContextConfig `yaml:"context" mapstructure:"context"`
+	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
+	MaxConcurrentTools       int                `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
 }
 
 // GitConfig contains git shortcut-specific settings
@@ -471,21 +373,20 @@ type ConversationConfig struct {
 }
 
 // GitCommitMessageConfig contains settings for AI-generated commit
-// messages. SystemPrompt is sourced from prompts.yaml at runtime — it
-// carries no yaml/mapstructure tags so it never appears in config.yaml.
+// messages. The system prompt lives in prompts.yaml under
+// git.commit_message.system_prompt.
 type GitCommitMessageConfig struct {
-	Model        string `yaml:"model" mapstructure:"model"`
-	SystemPrompt string `yaml:"-" mapstructure:"-"`
+	Model string `yaml:"model" mapstructure:"model"`
 }
 
 // ConversationTitleConfig contains settings for AI-generated conversation
-// titles. SystemPrompt is sourced from prompts.yaml at runtime.
+// titles. The system prompt lives in prompts.yaml under
+// conversation.title_generation.system_prompt.
 type ConversationTitleConfig struct {
-	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
-	Model        string `yaml:"model" mapstructure:"model"`
-	SystemPrompt string `yaml:"-" mapstructure:"-"`
-	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
-	Interval     int    `yaml:"interval" mapstructure:"interval"`
+	Enabled   bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model     string `yaml:"model" mapstructure:"model"`
+	BatchSize int    `yaml:"batch_size" mapstructure:"batch_size"`
+	Interval  int    `yaml:"interval" mapstructure:"interval"`
 }
 
 // ChatConfig contains chat interface settings
@@ -493,20 +394,6 @@ type ChatConfig struct {
 	Theme       string            `yaml:"theme" mapstructure:"theme"`
 	Keybindings KeybindingsConfig `yaml:"-" mapstructure:"-"`
 	StatusBar   StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
-}
-
-// KeybindingsConfig contains settings for customizing keybindings
-type KeybindingsConfig struct {
-	Enabled  bool                       `yaml:"enabled" mapstructure:"enabled"`
-	Bindings map[string]KeyBindingEntry `yaml:"bindings,omitempty" mapstructure:"bindings,omitempty"`
-}
-
-// KeyBindingEntry defines a complete keybinding with its properties
-type KeyBindingEntry struct {
-	Keys        []string `yaml:"keys" mapstructure:"keys"`
-	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
-	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
-	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
 }
 
 // StatusBarConfig contains settings for the chat status bar
@@ -531,12 +418,6 @@ type StatusBarIndicators struct {
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
 	Cost             bool `yaml:"cost" mapstructure:"cost"`
 	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
-}
-
-// InitConfig contains settings for the /init shortcut. Prompt is sourced
-// from prompts.yaml at runtime.
-type InitConfig struct {
-	Prompt string `yaml:"-" mapstructure:"-"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -600,34 +481,6 @@ type RedisStorageConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `yaml:"path" mapstructure:"path"`
-}
-
-// ChannelsConfig contains configuration for external messaging channels
-type ChannelsConfig struct {
-	Enabled         bool                  `yaml:"enabled" mapstructure:"enabled"`
-	MaxWorkers      int                   `yaml:"max_workers" mapstructure:"max_workers"`
-	ImageRetention  int                   `yaml:"image_retention" mapstructure:"image_retention"`
-	RequireApproval bool                  `yaml:"require_approval" mapstructure:"require_approval"`
-	Telegram        TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
-	WhatsApp        WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
-}
-
-// TelegramChannelConfig contains Telegram bot settings
-type TelegramChannelConfig struct {
-	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
-	BotToken     string   `yaml:"bot_token" mapstructure:"bot_token"`
-	AllowedUsers []string `yaml:"allowed_users" mapstructure:"allowed_users"`
-	PollTimeout  int      `yaml:"poll_timeout" mapstructure:"poll_timeout"`
-}
-
-// WhatsAppChannelConfig contains WhatsApp Business API settings
-type WhatsAppChannelConfig struct {
-	Enabled       bool     `yaml:"enabled" mapstructure:"enabled"`
-	PhoneNumberID string   `yaml:"phone_number_id" mapstructure:"phone_number_id"`
-	AccessToken   string   `yaml:"access_token" mapstructure:"access_token"`
-	VerifyToken   string   `yaml:"verify_token" mapstructure:"verify_token"`
-	WebhookPort   int      `yaml:"webhook_port" mapstructure:"webhook_port"`
-	AllowedUsers  []string `yaml:"allowed_users" mapstructure:"allowed_users"`
 }
 
 // A2AAgentInfo contains information about an A2A agent connection
@@ -867,14 +720,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				GitContextRefreshTurns: 10,
 			},
 			SystemPromptWithDefaults: true,
-			SystemReminders: SystemRemindersConfig{
-				Enabled:  true,
-				Interval: 4,
-			},
-			VerboseTools:       false,
-			MaxTurns:           50,
-			MaxTokens:          8192,
-			MaxConcurrentTools: 5,
+			VerboseTools:             false,
+			MaxTurns:                 50,
+			MaxTokens:                8192,
+			MaxConcurrentTools:       5,
 		},
 		Git: GitConfig{
 			CommitMessage: GitCommitMessageConfig{
@@ -953,7 +802,6 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		MCP:     *DefaultMCPConfig(),
 		Pricing: GetDefaultPricingConfig(),
-		Init:    InitConfig{},
 		Compact: CompactConfig{
 			Enabled:               true,
 			AutoAt:                80,
@@ -1084,13 +932,6 @@ func (c *Config) GetAPIKey() string {
 
 func (c *Config) GetTimeout() int {
 	return c.Gateway.Timeout
-}
-
-func (c *Config) GetSystemPrompt() string {
-	if os.Getenv("INFER_REMOTE_MANAGED") == "true" && c.Agent.SystemPromptRemote != "" {
-		return c.Agent.SystemPromptRemote
-	}
-	return c.Agent.SystemPrompt
 }
 
 func (c *Config) GetDefaultModel() string {

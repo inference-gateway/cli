@@ -105,8 +105,8 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	agentConfig := s.config.GetAgentConfig()
 	parts := []string{baseSystemPrompt}
 
-	if agentConfig.CustomInstructions != "" {
-		parts = append(parts, agentConfig.CustomInstructions)
+	if s.config.Prompts.Agent.CustomInstructions != "" {
+		parts = append(parts, s.config.Prompts.Agent.CustomInstructions)
 	}
 
 	if agentConfig.SystemPromptWithDefaults {
@@ -138,28 +138,28 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int) string {
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode
 func (s *AgentServiceImpl) getSystemPromptForMode() string {
-	agentConfig := s.config.GetAgentConfig()
+	prompts := s.config.Prompts.Agent
 
 	if s.stateManager == nil {
-		return agentConfig.SystemPrompt
+		return prompts.SystemPrompt
 	}
 
 	mode := s.stateManager.GetAgentMode()
 	switch mode {
 	case domain.AgentModePlan:
-		if agentConfig.SystemPromptPlan != "" {
-			return agentConfig.SystemPromptPlan
+		if prompts.SystemPromptPlan != "" {
+			return prompts.SystemPromptPlan
 		}
-		return agentConfig.SystemPrompt
+		return prompts.SystemPrompt
 
 	case domain.AgentModeAutoAccept:
-		return agentConfig.SystemPrompt
+		return prompts.SystemPrompt
 
 	case domain.AgentModeStandard:
-		return agentConfig.SystemPrompt
+		return prompts.SystemPrompt
 
 	default:
-		return agentConfig.SystemPrompt
+		return prompts.SystemPrompt
 	}
 }
 
@@ -418,13 +418,13 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 
 // shouldInjectSystemReminder checks if a system reminder should be injected
 func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
-	cfg := s.config.GetAgentConfig()
+	reminders := s.config.Prompts.Agent.SystemReminders
 
-	if !cfg.SystemReminders.Enabled {
+	if !reminders.Enabled {
 		return false
 	}
 
-	interval := cfg.SystemReminders.Interval
+	interval := reminders.Interval
 	if interval <= 0 {
 		interval = 4
 	}
@@ -434,9 +434,7 @@ func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 
 // getSystemReminderMessage returns the system reminder message to inject
 func (s *AgentServiceImpl) getSystemReminderMessage() sdk.Message {
-	cfg := s.config.GetAgentConfig()
-
-	reminderText := cfg.SystemReminders.ReminderText
+	reminderText := s.config.Prompts.Agent.SystemReminders.ReminderText
 	if reminderText == "" {
 		reminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.

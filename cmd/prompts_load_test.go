@@ -10,9 +10,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-// TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent confirms the
-// overlay falls back to in-code defaults when no prompts.yaml exists,
-// so freshly-cloned repos still get a working agent prompt.
+// TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent confirms cfg.Prompts
+// falls back to in-code defaults when no prompts.yaml exists, so
+// freshly-cloned repos still get a working agent prompt.
 func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 	withHermeticEnv(t)
 	initConfig()
@@ -20,18 +20,18 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 	cfg := Cfg
 
 	defaults := config.DefaultPromptsConfig()
-	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Agent.SystemPromptPlan)
-	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Agent.SystemPromptRemote)
-	require.Equal(t, defaults.Agent.SystemReminders.ReminderText, cfg.Agent.SystemReminders.ReminderText)
-	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Git.CommitMessage.SystemPrompt)
-	require.Equal(t, defaults.Conversation.TitleGeneration.SystemPrompt, cfg.Conversation.TitleGeneration.SystemPrompt)
-	require.Equal(t, defaults.Init.Prompt, cfg.Init.Prompt)
+	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Prompts.Agent.SystemPrompt)
+	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan)
+	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
+	require.Equal(t, defaults.Agent.SystemReminders.ReminderText, cfg.Prompts.Agent.SystemReminders.ReminderText)
+	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt)
+	require.Equal(t, defaults.Conversation.TitleGeneration.SystemPrompt, cfg.Prompts.Conversation.TitleGeneration.SystemPrompt)
+	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt)
 }
 
 // TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields
-// guards the partial-overlay rule: if a user blanks out (or never sets)
-// a single prompt key, the others must still resolve to defaults instead
+// guards the partial-load rule: if a user blanks out (or never sets) a
+// single prompt key, the others must still resolve to defaults instead
 // of becoming empty strings. Empty prompts at runtime would cause the
 // LLM to receive no system instructions.
 func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testing.T) {
@@ -50,10 +50,10 @@ func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testin
 	cfg := Cfg
 
 	defaults := config.DefaultPromptsConfig()
-	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Agent.SystemPromptPlan, "unset plan prompt should fall back to default")
-	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
-	require.Equal(t, defaults.Init.Prompt, cfg.Init.Prompt, "unset init prompt should fall back to default")
+	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Prompts.Agent.SystemPrompt)
+	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan, "unset plan prompt should fall back to default")
+	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
+	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt, "unset init prompt should fall back to default")
 }
 
 // TestLoadConfigFromViper_PromptsEnvOverridesFile pins the precedence
@@ -73,5 +73,5 @@ func TestLoadConfigFromViper_PromptsEnvOverridesFile(t *testing.T) {
 	initConfig()
 	cfg := Cfg
 
-	require.Equal(t, "from-env", cfg.Agent.SystemPrompt)
+	require.Equal(t, "from-env", cfg.Prompts.Agent.SystemPrompt)
 }

@@ -14,8 +14,42 @@ const (
 // defaults" without special-casing. The file body is run through
 // os.ExpandEnv — any literal `${…}` token in a customised prompt must be
 // escaped as `$$…`.
+//
+// Any field left empty in a partial prompts.yaml is backfilled from
+// DefaultPromptsConfig() so callers always get a fully populated config.
+// CustomInstructions is intentionally excluded from backfill — empty is
+// a meaningful user choice there.
 func LoadPrompts(path string) (*PromptsConfig, error) {
-	return utils.LoadYAML(path, "prompts", DefaultPromptsConfig)
+	cfg, err := utils.LoadYAML(path, "prompts", DefaultPromptsConfig)
+	if err != nil {
+		return nil, err
+	}
+	mergePromptDefaults(cfg, DefaultPromptsConfig())
+	return cfg, nil
+}
+
+func mergePromptDefaults(loaded, defaults *PromptsConfig) {
+	if loaded.Agent.SystemPrompt == "" {
+		loaded.Agent.SystemPrompt = defaults.Agent.SystemPrompt
+	}
+	if loaded.Agent.SystemPromptPlan == "" {
+		loaded.Agent.SystemPromptPlan = defaults.Agent.SystemPromptPlan
+	}
+	if loaded.Agent.SystemPromptRemote == "" {
+		loaded.Agent.SystemPromptRemote = defaults.Agent.SystemPromptRemote
+	}
+	if loaded.Agent.SystemReminders.ReminderText == "" {
+		loaded.Agent.SystemReminders.ReminderText = defaults.Agent.SystemReminders.ReminderText
+	}
+	if loaded.Git.CommitMessage.SystemPrompt == "" {
+		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
+	}
+	if loaded.Conversation.TitleGeneration.SystemPrompt == "" {
+		loaded.Conversation.TitleGeneration.SystemPrompt = defaults.Conversation.TitleGeneration.SystemPrompt
+	}
+	if loaded.Init.Prompt == "" {
+		loaded.Init.Prompt = defaults.Init.Prompt
+	}
 }
 
 // SavePrompts writes the prompts configuration to disk, creating any
@@ -43,6 +77,8 @@ type PromptsAgentConfig struct {
 }
 
 type PromptsAgentRemindersConfig struct {
+	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
+	Interval     int    `yaml:"interval" mapstructure:"interval"`
 	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
@@ -154,6 +190,8 @@ Why prefer direct tools:
 - Lower resource usage (critical for remote systems)`,
 			CustomInstructions: ``,
 			SystemReminders: PromptsAgentRemindersConfig{
+				Enabled:  true,
+				Interval: 4,
 				ReminderText: `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,

@@ -176,7 +176,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 		return "", fmt.Errorf("no model configured for conversation titles")
 	}
 
-	systemPrompt := g.config.Conversation.TitleGeneration.SystemPrompt
+	systemPrompt := g.config.Prompts.Conversation.TitleGeneration.SystemPrompt
 
 	conversationText := g.formatConversationForTitleGeneration(entries)
 	if conversationText == "" {
