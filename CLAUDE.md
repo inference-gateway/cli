@@ -595,6 +595,33 @@ images that don't ship `/usr/share/zoneinfo`.
   ...)` calls in `cmd/root.go` — without those, viper unmarshals an empty
   config and the defaults function's values are ignored.
 
+## Plan Mode
+
+Plan mode (`AgentModePlan` in `internal/domain/state.go`) is a read-only
+operating mode the user enters via Shift+Tab in the chat TUI. The model
+gets `Read`/`Grep`/`Tree`/`TodoWrite` plus the `RequestPlanApproval` tool
+and is otherwise blocked from any mutating tools (enforced in
+`internal/services/tools.go::FilterToolsForMode`).
+
+When the model calls `RequestPlanApproval`, the tool persists the plan as
+a Markdown file under `<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md`
+(atomic write: `.tmp` → `os.Rename`). The plan body must follow a fixed
+8-section H2 template (Context, Files to Modify, Current Code, Changes,
+Performance Impact, Critical Files, Edge Cases, Verification) — see
+`config/prompts.go::DefaultPromptsConfig` for the prompt that pins this
+contract.
+
+- Tool: `internal/agent/tools/request_plan_approval.go`
+- System prompt: `config/prompts.go` (`agent.system_prompt_plan`)
+- Approval event flow: `internal/agent/agent.go` →
+  `PlanApprovalRequestedEvent` → `internal/handlers/chat_handler.go`
+  `HandlePlanApprovalRequestedEvent` / `HandlePlanApprovalResponseEvent`
+- UI state: `domain.PlanApprovalUIState`, `ViewStatePlanApproval`
+
+Rejected plans stay on disk as an audit trail — by design.
+
+See `docs/plan-mode.md` for the full user-facing guide.
+
 ## Model Thinking Visualization
 
 When models use extended thinking (reasoning), their internal thought process is displayed as collapsible blocks above responses.

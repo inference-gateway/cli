@@ -976,6 +976,8 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case domain.ApprovalSelectionChangedEvent:
 		return cv.handleApprovalSelectionChanged(msg, cmd)
+	case domain.PlanApprovalSelectionChangedEvent:
+		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
 	case domain.UpdateHistoryEvent:
 		return cv.handleUpdateHistoryEvent(msg, cmd)
 	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
@@ -1020,6 +1022,15 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 
 // handleApprovalSelectionChanged processes approval selection change events
 func (cv *ConversationView) handleApprovalSelectionChanged(msg domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+// handlePlanApprovalSelectionChanged refreshes the conversation viewport so
+// the highlighted plan-approval button reflects the new selection index.
+func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ domain.PlanApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
 	}
@@ -1165,54 +1176,62 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 	return message + "\n"
 }
 
-// renderPlanEntry renders a plan entry with inline approval buttons
+// renderPlanEntry renders the plan body as a regular markdown-rendered
+// assistant message under a status-aware header, followed by inline
+// approval buttons while approval is pending.
 func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
 	var result strings.Builder
 
-	var color string
-	var role string
-	switch entry.PlanApprovalStatus {
-	case domain.PlanApprovalPending:
-		color = cv.styleProvider.GetThemeColor("accent")
-		role = "Plan (Pending Approval)"
-	case domain.PlanApprovalAccepted:
-		color = cv.styleProvider.GetThemeColor("success")
-		role = "Plan (Accepted)"
-	case domain.PlanApprovalRejected:
-		color = cv.styleProvider.GetThemeColor("dim")
-		role = "Plan (Rejected)"
-	default:
-		color = cv.getAssistantColor()
-		role = "Plan"
-	}
-
+	color, role := cv.planRoleAndColor(entry)
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
-	// Render the plan content
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 
-	var formattedContent string
+	wrapWidth := max(cv.width-2, 40)
 
-	if entry.PlanApprovalStatus == domain.PlanApprovalRejected {
-		plainContent := formatting.FormatResponsiveMessage(contentStr, cv.width)
-		formattedContent = cv.styleProvider.RenderWithColor(plainContent, color)
-	} else if cv.markdownRenderer != nil && !cv.rawFormat {
-		formattedContent = cv.markdownRenderer.Render(contentStr)
-	} else {
-		formattedContent = formatting.FormatResponsiveMessage(contentStr, cv.width)
+	var formattedContent string
+	switch entry.PlanApprovalStatus {
+	case domain.PlanApprovalRejected:
+		plain := formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+		formattedContent = cv.styleProvider.RenderWithColor(plain, color)
+	default:
+		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
 	}
 
-	result.WriteString(roleStyled + " " + formattedContent + "\n")
+	result.WriteString(roleStyled + "\n\n")
+	for line := range strings.SplitSeq(formattedContent, "\n") {
+		if line == "" {
+			result.WriteString("\n")
+			continue
+		}
+		result.WriteString("  " + line + "\n")
+	}
 
 	if entry.PlanApprovalStatus == domain.PlanApprovalPending {
 		result.WriteString("\n")
 		result.WriteString(cv.renderInlineApprovalButtons(index))
+		result.WriteString("\n")
 	}
 
 	return result.String() + "\n"
+}
+
+// planRoleAndColor returns the role label + theme color for a plan entry
+// based on its approval status.
+func (cv *ConversationView) planRoleAndColor(entry domain.ConversationEntry) (string, string) {
+	switch entry.PlanApprovalStatus {
+	case domain.PlanApprovalPending:
+		return cv.styleProvider.GetThemeColor("accent"), "Plan (Pending Approval)"
+	case domain.PlanApprovalAccepted:
+		return cv.styleProvider.GetThemeColor("success"), "Plan (Accepted)"
+	case domain.PlanApprovalRejected:
+		return cv.styleProvider.GetThemeColor("dim"), "Plan (Rejected)"
+	default:
+		return cv.getAssistantColor(), "Plan"
+	}
 }
 
 // renderInlineApprovalButtons renders inline approval buttons for a plan

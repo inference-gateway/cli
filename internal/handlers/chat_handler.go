@@ -178,6 +178,24 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 	return nil
 }
 
+// buildAgentMessagesFromEntries converts conversation entries into the
+// flat slice of SDK messages sent to the model. Plan-mode entries are
+// skipped: they are synthesized assistant messages used for UI rendering
+// only, and their content duplicates the args of the preceding
+// RequestPlanApproval tool call. Including them produces an assistant
+// turn with no `reasoning_content`, which DeepSeek (and similar
+// thinking-mode providers) reject with HTTP 400.
+func buildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
+	messages := make([]sdk.Message, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsPlan {
+			continue
+		}
+		messages = append(messages, entry.Message)
+	}
+	return messages
+}
+
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -192,11 +210,7 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 		}
 
 		entries := h.conversationRepo.GetMessages()
-		originalCount := len(entries)
-		messages := make([]sdk.Message, originalCount)
-		for i, entry := range entries {
-			messages[i] = entry.Message
-		}
+		messages := buildAgentMessagesFromEntries(entries)
 
 		requestID := generateRequestID()
 
@@ -667,17 +681,6 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 	msg domain.PlanApprovalRequestedEvent,
 ) tea.Cmd {
 	logger.Info("HandlePlanApprovalRequestedEvent called")
-
-	h.executeOnConversationRepo(
-		func(repo *services.InMemoryConversationRepository) {
-			logger.Info("Marking last message as plan (InMemory)")
-			repo.MarkLastMessageAsPlan()
-		},
-		func(repo *services.PersistentConversationRepository) {
-			logger.Info("Marking last message as plan (Persistent)")
-			repo.MarkLastMessageAsPlan()
-		},
-	)
 
 	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
 
