@@ -5,11 +5,25 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
+
+type stubTokenEstimator struct {
+	estimate int
+}
+
+func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+	return 0, 0
+}
+
+func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
+	return s.estimate
+}
 
 func TestInputStatusBar_MasterToggle(t *testing.T) {
 	tests := []struct {
@@ -335,21 +349,22 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 		nilRepo      bool
 	}{
 		{
-			name: "returns session tokens when present",
+			name: "renders last input tokens when present",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens:  500,
-				TotalOutputTokens: 300,
-				TotalTokens:       800,
-				RequestCount:      5,
+				TotalInputTokens:  2_568_948,
+				TotalOutputTokens: 32_242,
+				TotalTokens:       2_601_190,
+				RequestCount:      37,
+				LastInputTokens:   144_670,
 			},
-			expectedText: "T.800",
+			expectedText: "T.144670",
 			expectEmpty:  false,
 			nilRepo:      false,
 		},
 		{
-			name: "returns empty when total tokens is zero",
+			name: "returns empty when last input tokens is zero",
 			stats: domain.SessionTokenStats{
-				TotalTokens: 0,
+				TotalTokens: 800,
 			},
 			expectedText: "",
 			expectEmpty:  true,
@@ -385,6 +400,119 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
 			}
 		})
+	}
+}
+
+func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
+	tests := []struct {
+		name         string
+		stats        domain.SessionTokenStats
+		model        string
+		expectedText string
+		expectEmpty  bool
+		nilRepo      bool
+	}{
+		{
+			name: "renders percentage at low usage",
+			stats: domain.SessionTokenStats{
+				LastInputTokens: 144_670,
+			},
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "Context: 14.5%",
+			expectEmpty:  false,
+		},
+		{
+			name: "renders HIGH label between 75 and 90 percent",
+			stats: domain.SessionTokenStats{
+				LastInputTokens: 800_000,
+			},
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "Context: 80% HIGH",
+			expectEmpty:  false,
+		},
+		{
+			name: "renders FULL label at or above 90 percent",
+			stats: domain.SessionTokenStats{
+				LastInputTokens: 950_000,
+			},
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "Context: 95% FULL",
+			expectEmpty:  false,
+		},
+		{
+			name: "returns empty when last input tokens is zero",
+			stats: domain.SessionTokenStats{
+				LastInputTokens: 0,
+			},
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "",
+			expectEmpty:  true,
+		},
+		{
+			name:         "returns empty when repo is nil",
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "",
+			expectEmpty:  true,
+			nilRepo:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var conversationRepo domain.ConversationRepository
+			if !tt.nilRepo {
+				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(tt.stats)
+				conversationRepo = mockRepo
+			}
+
+			statusBar := &InputStatusBar{
+				conversationRepo: conversationRepo,
+			}
+
+			result := statusBar.getContextUsageIndicator(tt.model)
+
+			if tt.expectEmpty && result != "" {
+				t.Errorf("Expected empty string but got: %s", result)
+			}
+			if !tt.expectEmpty && result != tt.expectedText {
+				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
+			}
+		})
+	}
+}
+
+func TestInputStatusBar_BuildSessionTokensIndicator_FallsBackToEstimator(t *testing.T) {
+	mockRepo := &domainmocks.FakeConversationRepository{}
+	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{LastInputTokens: 0})
+	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User}},
+	})
+
+	statusBar := &InputStatusBar{
+		conversationRepo: mockRepo,
+		tokenEstimator:   &stubTokenEstimator{estimate: 6643},
+	}
+
+	if got := statusBar.buildSessionTokensIndicator(); got != "T.6643" {
+		t.Errorf("expected fallback estimate T.6643, got: %s", got)
+	}
+}
+
+func TestInputStatusBar_GetContextUsageIndicator_FallsBackToEstimator(t *testing.T) {
+	mockRepo := &domainmocks.FakeConversationRepository{}
+	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{LastInputTokens: 0})
+	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User}},
+	})
+
+	statusBar := &InputStatusBar{
+		conversationRepo: mockRepo,
+		tokenEstimator:   &stubTokenEstimator{estimate: 6643},
+	}
+
+	if got := statusBar.getContextUsageIndicator("deepseek/deepseek-v4-flash"); got != "Context: 0.7%" {
+		t.Errorf("expected fallback estimator percentage, got: %s", got)
 	}
 }
 
@@ -431,7 +559,7 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 
 	mockRepo := &domainmocks.FakeConversationRepository{}
 	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
-		TotalTokens: 1234,
+		LastInputTokens: 1234,
 	})
 
 	themeService := &domainmocks.FakeThemeService{}
