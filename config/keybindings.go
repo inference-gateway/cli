@@ -9,6 +9,20 @@ const (
 	DefaultKeybindingsPath = ConfigDirName + "/" + KeybindingsFileName
 )
 
+// KeybindingsConfig contains settings for customizing keybindings
+type KeybindingsConfig struct {
+	Enabled  bool                       `yaml:"enabled" mapstructure:"enabled"`
+	Bindings map[string]KeyBindingEntry `yaml:"bindings,omitempty" mapstructure:"bindings,omitempty"`
+}
+
+// KeyBindingEntry defines a complete keybinding with its properties
+type KeyBindingEntry struct {
+	Keys        []string `yaml:"keys" mapstructure:"keys"`
+	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
+	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
+}
+
 // DefaultKeybindingsConfig returns the default keybindings config used when
 // no file exists. Callers (init, reset) use it to seed a fresh file.
 func DefaultKeybindingsConfig() *KeybindingsConfig {

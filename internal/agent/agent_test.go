@@ -350,13 +350,13 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 	tests := []struct {
 		name            string
 		turns           int
-		remindersConfig config.SystemRemindersConfig
+		remindersConfig config.PromptsAgentRemindersConfig
 		expectedResult  bool
 	}{
 		{
 			name:  "reminders_disabled",
 			turns: 4,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  false,
 				Interval: 4,
 			},
@@ -365,7 +365,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "turn_matches_interval",
 			turns: 4,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
 			},
@@ -374,7 +374,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "turn_does_not_match_interval",
 			turns: 3,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
 			},
@@ -383,7 +383,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "turn_zero",
 			turns: 0,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
 			},
@@ -392,7 +392,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "turn_multiple_of_interval",
 			turns: 8,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
 			},
@@ -401,7 +401,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "default_interval_when_zero",
 			turns: 4,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: 0,
 			},
@@ -410,7 +410,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 		{
 			name:  "negative_interval_defaults_to_4",
 			turns: 4,
-			remindersConfig: config.SystemRemindersConfig{
+			remindersConfig: config.PromptsAgentRemindersConfig{
 				Enabled:  true,
 				Interval: -1,
 			},
@@ -421,8 +421,10 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Agent: config.AgentConfig{
-					SystemReminders: tt.remindersConfig,
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemReminders: tt.remindersConfig,
+					},
 				},
 			}
 
@@ -461,9 +463,11 @@ func TestAgentServiceImpl_GetSystemReminderMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Agent: config.AgentConfig{
-					SystemReminders: config.SystemRemindersConfig{
-						ReminderText: tt.reminderText,
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemReminders: config.PromptsAgentRemindersConfig{
+							ReminderText: tt.reminderText,
+						},
 					},
 				},
 			}
@@ -1178,9 +1182,11 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Agent: config.AgentConfig{
-					SystemPrompt:     tt.systemPrompt,
-					SystemPromptPlan: tt.planPrompt,
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemPrompt:     tt.systemPrompt,
+						SystemPromptPlan: tt.planPrompt,
+					},
 				},
 			}
 
@@ -1204,8 +1210,12 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
-			SystemPrompt:             "You are a helpful assistant.",
 			SystemPromptWithDefaults: true,
+		},
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemPrompt: "You are a helpful assistant.",
+			},
 		},
 		Tools: config.ToolsConfig{
 			Sandbox: config.SandboxConfig{
@@ -1240,8 +1250,10 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 
 func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
 	cfg := &config.Config{
-		Agent: config.AgentConfig{
-			SystemPrompt: "",
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemPrompt: "",
+			},
 		},
 	}
 

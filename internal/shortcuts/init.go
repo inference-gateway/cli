@@ -28,7 +28,7 @@ func (c *InitShortcut) CanExecute(args []string) bool {
 }
 
 func (c *InitShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	prompt := c.config.Init.Prompt
+	prompt := c.config.Prompts.Init.Prompt
 	if prompt == "" {
 		prompt = defaultInitPrompt()
 	}

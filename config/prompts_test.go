@@ -120,15 +120,17 @@ agent:
 		t.Fatalf("LoadPrompts() failed: %v", err)
 	}
 	if cfg.Agent.SystemPrompt != "only this field is set" {
-		t.Errorf("Expected partial value, got %q", cfg.Agent.SystemPrompt)
+		t.Errorf("Expected user override to be preserved, got %q", cfg.Agent.SystemPrompt)
 	}
-	// Other prompt fields stay zero — the runtime overlay (cmd applies it
-	// on top of LoadPrompts) is what fills them back in from defaults.
-	if cfg.Agent.SystemPromptPlan != "" {
-		t.Errorf("Expected unset plan prompt to be empty, got %q", cfg.Agent.SystemPromptPlan)
+	// Unset fields are backfilled from DefaultPromptsConfig() inside
+	// LoadPrompts so callers always get a fully populated config without
+	// running their own overlay.
+	defaults := config.DefaultPromptsConfig()
+	if cfg.Agent.SystemPromptPlan != defaults.Agent.SystemPromptPlan {
+		t.Errorf("Expected unset plan prompt to be backfilled with default, got %q", cfg.Agent.SystemPromptPlan)
 	}
-	if cfg.Git.CommitMessage.SystemPrompt != "" {
-		t.Errorf("Expected unset commit prompt to be empty, got %q", cfg.Git.CommitMessage.SystemPrompt)
+	if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
+		t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
 	}
 }
 
