@@ -3,8 +3,8 @@ package services
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // PricingServiceImpl implements the PricingService interface.
@@ -26,22 +26,26 @@ func (p *PricingServiceImpl) IsEnabled() bool {
 	return p.config.Enabled
 }
 
+// resolvePricing returns the input/output price for a model and whether it's known.
+// Custom prices take precedence over defaults.
+func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, ok bool) {
+	if customPrice, exists := p.config.CustomPrices[model]; exists {
+		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, true
+	}
+	if defaultPrice, exists := p.defaultPrices[model]; exists {
+		return defaultPrice.InputPricePerMToken, defaultPrice.OutputPricePerMToken, true
+	}
+	return 0.0, 0.0, false
+}
+
 // GetInputPrice retrieves the input price per million tokens for a specific model.
 // Returns 0.0 for unknown models (e.g., Ollama, custom models).
 func (p *PricingServiceImpl) GetInputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-
-	if customPrice, exists := p.config.CustomPrices[model]; exists {
-		return customPrice.InputPricePerMToken
-	}
-
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.InputPricePerMToken
-	}
-
-	return 0.0
+	input, _, _ := p.resolvePricing(model)
+	return input
 }
 
 // GetOutputPrice retrieves the output price per million tokens for a specific model.
@@ -50,16 +54,8 @@ func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-
-	if customPrice, exists := p.config.CustomPrices[model]; exists {
-		return customPrice.OutputPricePerMToken
-	}
-
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.OutputPricePerMToken
-	}
-
-	return 0.0
+	_, output, _ := p.resolvePricing(model)
+	return output
 }
 
 // CalculateCost computes the total cost for a given number of input and output tokens.
@@ -80,16 +76,19 @@ func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputToke
 }
 
 // FormatModelPricing returns a formatted string describing the model's pricing.
-// Returns empty string if pricing is disabled.
-// Returns "free" if both input and output prices are 0.0.
+// Returns empty string if pricing is disabled or the model has no pricing entry
+// (callers should not assume "no entry" means "free").
+// Returns "free" only when an explicit pricing entry sets both prices to 0.0.
 // Returns "$X.XX/$Y.YY per MTok" for paid models.
 func (p *PricingServiceImpl) FormatModelPricing(model string) string {
 	if !p.config.Enabled {
 		return ""
 	}
 
-	inputPrice := p.GetInputPrice(model)
-	outputPrice := p.GetOutputPrice(model)
+	inputPrice, outputPrice, ok := p.resolvePricing(model)
+	if !ok {
+		return ""
+	}
 
 	if inputPrice == 0.0 && outputPrice == 0.0 {
 		return "free"

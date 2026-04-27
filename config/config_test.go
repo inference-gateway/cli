@@ -325,13 +325,13 @@ func TestSaveConfig(t *testing.T) {
 		{
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
-				cfg.Agent.Model = "anthropic/claude-4"
+				cfg.Agent.Model = "anthropic/claude-sonnet-4-6"
 				cfg.Prompts.Agent.SystemPrompt = "Be helpful"
 				cfg.Gateway.APIKey = "secret-key"
 			},
 			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Agent.Model != "anthropic/claude-4" {
-					t.Errorf("Expected default model to be 'anthropic/claude-4', got %q", cfg.Agent.Model)
+				if cfg.Agent.Model != "anthropic/claude-sonnet-4-6" {
+					t.Errorf("Expected default model to be 'anthropic/claude-sonnet-4-6', got %q", cfg.Agent.Model)
 				}
 				if cfg.Prompts.Agent.SystemPrompt != "" {
 					t.Errorf("Expected system prompt to be empty after round-trip (it lives in prompts.yaml), got %q", cfg.Prompts.Agent.SystemPrompt)

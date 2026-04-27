@@ -191,7 +191,7 @@ func TestUpdateEntry_Agent(t *testing.T) {
 		URL:   "https://new-agent.example.com",
 		OCI:   "ghcr.io/org/test-agent:v2",
 		Run:   true,
-		Model: "anthropic/claude-4-5-sonnet",
+		Model: "anthropic/claude-sonnet-4-6",
 		Environment: map[string]string{
 			"DEBUG": "true",
 		},
