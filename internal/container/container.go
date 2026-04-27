@@ -67,6 +67,11 @@ type ServiceContainer struct {
 	backgroundShellService *services.BackgroundShellService
 	storage                storage.ConversationStorage
 
+	// Token polyfill — used by /context, conversation optimizer, and the
+	// session rollover manager. Created unconditionally so any surface can
+	// fall back to it when the provider does not return usage metrics.
+	tokenizer *services.TokenizerService
+
 	// UI components
 	themeService domain.ThemeService
 
@@ -256,9 +261,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService = services.NewNoOpToolService()
 	}
 
+	if c.tokenizer == nil {
+		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
+	}
+
 	if c.config.Compact.Enabled {
 		summaryClient := c.createAgentSDKClient()
-		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
 			Enabled:           c.config.Compact.Enabled,
 			AutoAt:            c.config.Compact.AutoAt,
@@ -266,7 +274,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
 			Client:            summaryClient,
 			Config:            c.config,
-			Tokenizer:         tokenizer,
+			Tokenizer:         c.tokenizer,
 			Repo:              c.conversationRepo,
 		})
 
@@ -275,7 +283,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 				c.config,
 				c.conversationOptimizer,
 				persistentRepo,
-				tokenizer,
+				c.tokenizer,
 			)
 		}
 	}
@@ -336,7 +344,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.backgroundTaskRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
-	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))

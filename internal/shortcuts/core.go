@@ -8,6 +8,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ClearShortcut clears the conversation history
@@ -84,12 +85,14 @@ func (c *CompactShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 type ContextShortcut struct {
 	repo         domain.ConversationRepository
 	modelService domain.ModelService
+	tokenizer    domain.TokenEstimator
 }
 
-func NewContextShortcut(repo domain.ConversationRepository, modelService domain.ModelService) *ContextShortcut {
+func NewContextShortcut(repo domain.ConversationRepository, modelService domain.ModelService, tokenizer domain.TokenEstimator) *ContextShortcut {
 	return &ContextShortcut{
 		repo:         repo,
 		modelService: modelService,
+		tokenizer:    tokenizer,
 	}
 }
 
@@ -105,6 +108,13 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 
 	contextWindowSize := c.estimateContextWindow(currentModel)
 
+	totalInputTokens := stats.TotalInputTokens
+	estimated := false
+	if totalInputTokens == 0 {
+		totalInputTokens = c.estimateCurrentContextSize()
+		estimated = totalInputTokens > 0
+	}
+
 	var output strings.Builder
 	output.WriteString("## Context Window Usage\n\n")
 
@@ -112,12 +122,16 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 		fmt.Fprintf(&output, "**Model:** %s\n", currentModel)
 	}
 	fmt.Fprintf(&output, "**Messages:** %d\n", messageCount)
-	fmt.Fprintf(&output, "**Current Context Size:** %d tokens\n", stats.LastInputTokens)
+	if estimated {
+		fmt.Fprintf(&output, "**Total Input Tokens:** ~%d tokens (estimated)\n", totalInputTokens)
+	} else {
+		fmt.Fprintf(&output, "**Total Input Tokens:** %d tokens\n", totalInputTokens)
+	}
 	fmt.Fprintf(&output, "**API Requests:** %d\n", stats.RequestCount)
 	fmt.Fprintf(&output, "**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens)
 
-	if contextWindowSize > 0 && stats.LastInputTokens > 0 {
-		output.WriteString(c.formatContextUsage(stats.LastInputTokens, contextWindowSize))
+	if contextWindowSize > 0 && totalInputTokens > 0 {
+		output.WriteString(c.formatContextUsage(totalInputTokens, contextWindowSize))
 	}
 
 	return ShortcutResult{
@@ -126,17 +140,36 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	}, nil
 }
 
+// estimateCurrentContextSize falls back to the tokenizer when the provider
+// did not return usage metrics so /context always reports a meaningful number.
+func (c *ContextShortcut) estimateCurrentContextSize() int {
+	if c.tokenizer == nil {
+		return 0
+	}
+
+	messages := c.repo.GetMessages()
+	if len(messages) == 0 {
+		return 0
+	}
+
+	sdkMessages := make([]sdk.Message, 0, len(messages))
+	for _, entry := range messages {
+		sdkMessages = append(sdkMessages, entry.Message)
+	}
+	return c.tokenizer.EstimateMessagesTokens(sdkMessages)
+}
+
 // estimateContextWindow returns an estimated context window size based on model name
 func (c *ContextShortcut) estimateContextWindow(model string) int {
 	return models.EstimateContextWindow(model)
 }
 
 // formatContextUsage formats the context window usage information
-func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize int) string {
+func (c *ContextShortcut) formatContextUsage(totalInputTokens, contextWindowSize int) string {
 	var output strings.Builder
 
-	usagePercent := float64(lastInputTokens) * 100 / float64(contextWindowSize)
-	remaining := contextWindowSize - lastInputTokens
+	usagePercent := float64(totalInputTokens) * 100 / float64(contextWindowSize)
+	remaining := contextWindowSize - totalInputTokens
 	if remaining < 0 {
 		remaining = 0
 	}

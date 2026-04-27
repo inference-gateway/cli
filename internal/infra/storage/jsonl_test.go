@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func setupTestJsonlStorage(t *testing.T) (*JsonlStorage, string, func()) {
@@ -535,6 +537,66 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 
 	assert.Contains(t, lines[0], `"v":2`)
 	assert.Contains(t, lines[0], `"type":"entry"`)
+}
+
+// TestJsonlStorage_MetadataOnlyUpdatePersists is a regression test for the
+// bug where a save with no new entries (e.g. AddTokenUsage updating token
+// stats after the assistant message was already persisted) silently dropped
+// the metadata write, causing /conversations to lag by one save event.
+func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
+	storage, _, cleanup := setupTestJsonlStorage(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	conversationID := "meta-only-update"
+
+	entries := []domain.ConversationEntry{
+		{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")},
+			Model:   "deepseek/deepseek-v4-flash",
+			Time:    time.Now(),
+		},
+		{
+			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Hello")},
+			Model:   "deepseek/deepseek-v4-flash",
+			Time:    time.Now(),
+		},
+	}
+
+	staleMetadata := ConversationMetadata{
+		ID:           conversationID,
+		Title:        "Hi",
+		MessageCount: 2,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		TokenStats: domain.SessionTokenStats{
+			TotalInputTokens: 0,
+			RequestCount:     0,
+			LastInputTokens:  0,
+		},
+	}
+
+	require.NoError(t, storage.SaveConversation(ctx, conversationID, entries, staleMetadata))
+
+	freshMetadata := staleMetadata
+	freshMetadata.UpdatedAt = time.Now()
+	freshMetadata.TokenStats = domain.SessionTokenStats{
+		TotalInputTokens:  6510,
+		TotalOutputTokens: 125,
+		TotalTokens:       6635,
+		RequestCount:      1,
+		LastInputTokens:   6510,
+	}
+
+	require.NoError(t, storage.SaveConversation(ctx, conversationID, entries, freshMetadata))
+
+	summaries, err := storage.ListConversations(ctx, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 6510, summaries[0].TokenStats.TotalInputTokens)
+	assert.Equal(t, 125, summaries[0].TokenStats.TotalOutputTokens)
+	assert.Equal(t, 1, summaries[0].TokenStats.RequestCount)
+	assert.Equal(t, 6510, summaries[0].TokenStats.LastInputTokens)
 }
 
 func TestJsonlStorage_V1FormatMigration(t *testing.T) {

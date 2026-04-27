@@ -70,9 +70,14 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 	return filepath.Join(s.basePath, conversationID+".jsonl")
 }
 
-// saveConversationUnlocked saves a conversation without acquiring the lock
-// Caller must hold the lock before calling this method
-// Uses append-only optimization: only new entries are appended to existing v2 files
+// saveConversationUnlocked saves a conversation without acquiring the lock.
+// Caller must hold the lock before calling this method.
+//
+// Append strategy: any new entries since the last save get appended, then a
+// fresh metadata line is appended unconditionally. The reader uses the LAST
+// metadata line in the file, so each save publishes the latest token/cost
+// stats — even when no new entries were added (e.g. AddTokenUsage updated
+// stats after the assistant message was already persisted).
 func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
 	filePath := s.conversationFilePath(conversationID)
 
@@ -101,14 +106,11 @@ func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationI
 		return nil
 	}
 
-	if len(entries) > persistedCount {
-		newEntries := entries[persistedCount:]
-		if err := s.appendEntries(filePath, newEntries, persistedCount, metadata); err != nil {
-			return err
-		}
-		s.setPersistedCount(conversationID, len(entries))
+	newEntries := entries[persistedCount:]
+	if err := s.appendEntries(filePath, newEntries, persistedCount, metadata); err != nil {
+		return err
 	}
-
+	s.setPersistedCount(conversationID, len(entries))
 	return nil
 }
 

@@ -448,31 +448,52 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 	return fmt.Sprintf("🔌 %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
 }
 
-// buildSessionTokensIndicator builds the session token usage indicator text
+// buildSessionTokensIndicator builds the cumulative input-tokens indicator.
+// Shows the total input tokens billed across the session — the same value
+// /context divides by the context window for its usage percentage. When the
+// provider did not return usage in its response, falls back to estimating
+// tokens from the message buffer via the tokenizer polyfill.
 func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	if isb.conversationRepo == nil {
 		return ""
 	}
 
-	stats := isb.conversationRepo.GetSessionTokens()
-	totalTokens := stats.TotalTokens
-
-	if totalTokens == 0 && isb.tokenEstimator != nil {
-		messages := isb.conversationRepo.GetMessages()
-		if len(messages) > 0 {
-			sdkMessages := make([]sdk.Message, 0, len(messages))
-			for _, entry := range messages {
-				sdkMessages = append(sdkMessages, entry.Message)
-			}
-			totalTokens = isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
-		}
-	}
-
+	totalTokens := isb.totalInputTokensOrEstimate()
 	if totalTokens == 0 {
 		return ""
 	}
 
 	return fmt.Sprintf("T.%d", totalTokens)
+}
+
+// totalInputTokensOrEstimate returns the cumulative TotalInputTokens reported
+// by the gateway, or — when the provider did not return usage — falls back
+// to estimating tokens from the current message buffer. Used by both the raw
+// indicator and the percentage indicator so they always agree.
+func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
+	if isb.conversationRepo == nil {
+		return 0
+	}
+
+	stats := isb.conversationRepo.GetSessionTokens()
+	if stats.TotalInputTokens > 0 {
+		return stats.TotalInputTokens
+	}
+
+	if isb.tokenEstimator == nil {
+		return 0
+	}
+
+	messages := isb.conversationRepo.GetMessages()
+	if len(messages) == 0 {
+		return 0
+	}
+
+	sdkMessages := make([]sdk.Message, 0, len(messages))
+	for _, entry := range messages {
+		sdkMessages = append(sdkMessages, entry.Message)
+	}
+	return isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
 }
 
 // buildCostIndicator builds the cost indicator text
@@ -601,15 +622,15 @@ func (isb *InputStatusBar) getA2ATaskInfo() string {
 	return fmt.Sprintf("Tasks: (%d)", activeCount)
 }
 
-// getContextUsageIndicator returns a context usage indicator string
+// getContextUsageIndicator returns a context usage indicator string.
+// Uses the same calculation as the /context shortcut (cumulative session
+// input tokens divided by the model's context window) so both surfaces
+// report the same percentage. Renders whenever there is data, with HIGH/FULL
+// warning labels at high thresholds. Falls back to the tokenizer polyfill
+// when the provider did not return usage on the latest request.
 func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
-	if isb.conversationRepo == nil {
-		return ""
-	}
-
-	stats := isb.conversationRepo.GetSessionTokens()
-	currentContextSize := stats.LastInputTokens
-	if currentContextSize == 0 {
+	totalInputTokens := isb.totalInputTokensOrEstimate()
+	if totalInputTokens == 0 {
 		return ""
 	}
 
@@ -618,22 +639,21 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 		return ""
 	}
 
-	usagePercent := float64(currentContextSize) * 100 / float64(contextWindow)
+	usagePercent := float64(totalInputTokens) * 100 / float64(contextWindow)
 
 	displayPercent := usagePercent
 	if displayPercent > 100 {
 		displayPercent = 100
 	}
 
-	if usagePercent >= 90 {
+	switch {
+	case usagePercent >= 90:
 		return fmt.Sprintf("Context: %.0f%% FULL", displayPercent)
-	} else if usagePercent >= 75 {
+	case usagePercent >= 75:
 		return fmt.Sprintf("Context: %.0f%% HIGH", displayPercent)
-	} else if usagePercent >= 50 {
-		return fmt.Sprintf("Context: %.0f%%", displayPercent)
+	default:
+		return fmt.Sprintf("Context: %.1f%%", displayPercent)
 	}
-
-	return ""
 }
 
 // estimateContextWindow returns an estimated context window size based on model name
