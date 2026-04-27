@@ -349,20 +349,20 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 		nilRepo      bool
 	}{
 		{
-			name: "renders last input tokens when present",
+			name: "renders cumulative total input tokens when present",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens:  2_568_948,
-				TotalOutputTokens: 32_242,
-				TotalTokens:       2_601_190,
-				RequestCount:      37,
-				LastInputTokens:   144_670,
+				TotalInputTokens:  20_000,
+				TotalOutputTokens: 314,
+				TotalTokens:       20_314,
+				RequestCount:      3,
+				LastInputTokens:   7_250,
 			},
-			expectedText: "T.144670",
+			expectedText: "T.20000",
 			expectEmpty:  false,
 			nilRepo:      false,
 		},
 		{
-			name: "returns empty when last input tokens is zero",
+			name: "returns empty when total input tokens is zero",
 			stats: domain.SessionTokenStats{
 				TotalTokens: 800,
 			},
@@ -415,16 +415,16 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		{
 			name: "renders percentage at low usage",
 			stats: domain.SessionTokenStats{
-				LastInputTokens: 144_670,
+				TotalInputTokens: 20_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
-			expectedText: "Context: 14.5%",
+			expectedText: "Context: 2.0%",
 			expectEmpty:  false,
 		},
 		{
 			name: "renders HIGH label between 75 and 90 percent",
 			stats: domain.SessionTokenStats{
-				LastInputTokens: 800_000,
+				TotalInputTokens: 800_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "Context: 80% HIGH",
@@ -433,16 +433,16 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		{
 			name: "renders FULL label at or above 90 percent",
 			stats: domain.SessionTokenStats{
-				LastInputTokens: 950_000,
+				TotalInputTokens: 950_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "Context: 95% FULL",
 			expectEmpty:  false,
 		},
 		{
-			name: "returns empty when last input tokens is zero",
+			name: "returns empty when total input tokens is zero",
 			stats: domain.SessionTokenStats{
-				LastInputTokens: 0,
+				TotalInputTokens: 0,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "",
@@ -484,7 +484,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 
 func TestInputStatusBar_BuildSessionTokensIndicator_FallsBackToEstimator(t *testing.T) {
 	mockRepo := &domainmocks.FakeConversationRepository{}
-	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{LastInputTokens: 0})
+	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
 	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User}},
 	})
@@ -501,7 +501,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator_FallsBackToEstimator(t *test
 
 func TestInputStatusBar_GetContextUsageIndicator_FallsBackToEstimator(t *testing.T) {
 	mockRepo := &domainmocks.FakeConversationRepository{}
-	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{LastInputTokens: 0})
+	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
 	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User}},
 	})
@@ -559,7 +559,7 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 
 	mockRepo := &domainmocks.FakeConversationRepository{}
 	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
-		LastInputTokens: 1234,
+		TotalInputTokens: 1234,
 	})
 
 	themeService := &domainmocks.FakeThemeService{}

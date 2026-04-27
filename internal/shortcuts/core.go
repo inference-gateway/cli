@@ -108,11 +108,11 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 
 	contextWindowSize := c.estimateContextWindow(currentModel)
 
-	currentContextSize := stats.LastInputTokens
+	totalInputTokens := stats.TotalInputTokens
 	estimated := false
-	if currentContextSize == 0 {
-		currentContextSize = c.estimateCurrentContextSize()
-		estimated = currentContextSize > 0
+	if totalInputTokens == 0 {
+		totalInputTokens = c.estimateCurrentContextSize()
+		estimated = totalInputTokens > 0
 	}
 
 	var output strings.Builder
@@ -123,15 +123,15 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	}
 	fmt.Fprintf(&output, "**Messages:** %d\n", messageCount)
 	if estimated {
-		fmt.Fprintf(&output, "**Current Context Size:** ~%d tokens (estimated)\n", currentContextSize)
+		fmt.Fprintf(&output, "**Total Input Tokens:** ~%d tokens (estimated)\n", totalInputTokens)
 	} else {
-		fmt.Fprintf(&output, "**Current Context Size:** %d tokens\n", currentContextSize)
+		fmt.Fprintf(&output, "**Total Input Tokens:** %d tokens\n", totalInputTokens)
 	}
 	fmt.Fprintf(&output, "**API Requests:** %d\n", stats.RequestCount)
 	fmt.Fprintf(&output, "**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens)
 
-	if contextWindowSize > 0 && currentContextSize > 0 {
-		output.WriteString(c.formatContextUsage(currentContextSize, contextWindowSize))
+	if contextWindowSize > 0 && totalInputTokens > 0 {
+		output.WriteString(c.formatContextUsage(totalInputTokens, contextWindowSize))
 	}
 
 	return ShortcutResult{
@@ -165,11 +165,11 @@ func (c *ContextShortcut) estimateContextWindow(model string) int {
 }
 
 // formatContextUsage formats the context window usage information
-func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize int) string {
+func (c *ContextShortcut) formatContextUsage(totalInputTokens, contextWindowSize int) string {
 	var output strings.Builder
 
-	usagePercent := float64(lastInputTokens) * 100 / float64(contextWindowSize)
-	remaining := contextWindowSize - lastInputTokens
+	usagePercent := float64(totalInputTokens) * 100 / float64(contextWindowSize)
+	remaining := contextWindowSize - totalInputTokens
 	if remaining < 0 {
 		remaining = 0
 	}

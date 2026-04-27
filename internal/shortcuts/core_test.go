@@ -27,13 +27,13 @@ func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
 func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetSessionTokensReturns(domain.SessionTokenStats{
-		LastInputTokens:   144_670,
-		TotalInputTokens:  2_568_948,
-		TotalOutputTokens: 32_242,
-		TotalTokens:       2_601_190,
-		RequestCount:      37,
+		LastInputTokens:   7_250,
+		TotalInputTokens:  20_000,
+		TotalOutputTokens: 314,
+		TotalTokens:       20_314,
+		RequestCount:      3,
 	})
-	repo.GetMessageCountReturns(113)
+	repo.GetMessageCountReturns(8)
 
 	model := &mockModelService{currentModel: "deepseek/deepseek-v4-flash"}
 	tokenizer := &stubTokenEstimator{estimate: 999_999}
@@ -44,21 +44,21 @@ func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	if !strings.Contains(res.Output, "**Current Context Size:** 144670 tokens") {
-		t.Errorf("expected raw provider count, got: %s", res.Output)
+	if !strings.Contains(res.Output, "**Total Input Tokens:** 20000 tokens") {
+		t.Errorf("expected cumulative provider count, got: %s", res.Output)
 	}
 	if strings.Contains(res.Output, "(estimated)") {
 		t.Errorf("did not expect (estimated) marker when provider returned usage, got: %s", res.Output)
 	}
-	if !strings.Contains(res.Output, "**Usage:** 14.5%") {
-		t.Errorf("expected 14.5%% usage, got: %s", res.Output)
+	if !strings.Contains(res.Output, "**Usage:** 2.0%") {
+		t.Errorf("expected 2.0%% usage (20000 input / 1M window), got: %s", res.Output)
 	}
 }
 
 func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetSessionTokensReturns(domain.SessionTokenStats{
-		LastInputTokens: 0,
+		TotalInputTokens: 0,
 	})
 	repo.GetMessageCountReturns(2)
 	repo.GetMessagesReturns([]domain.ConversationEntry{
@@ -75,7 +75,7 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	if !strings.Contains(res.Output, "**Current Context Size:** ~6643 tokens (estimated)") {
+	if !strings.Contains(res.Output, "**Total Input Tokens:** ~6643 tokens (estimated)") {
 		t.Errorf("expected estimated marker, got: %s", res.Output)
 	}
 	if !strings.Contains(res.Output, "**Usage:** 0.7%") {
@@ -85,7 +85,7 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 
 func TestContextShortcut_Execute_NoUsageNoEstimateOmitsPercent(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}
-	repo.GetSessionTokensReturns(domain.SessionTokenStats{LastInputTokens: 0})
+	repo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
 	repo.GetMessageCountReturns(0)
 	repo.GetMessagesReturns(nil)
 
