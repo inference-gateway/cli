@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.104.2](https://github.com/inference-gateway/cli/compare/v0.104.1...v0.104.2) (2026-04-27)
+
+### 🐛 Bug Fixes
+
+* **services:** Prevent compact summary truncation at 200-token cap ([#457](https://github.com/inference-gateway/cli/issues/457)) ([36b9612](https://github.com/inference-gateway/cli/commit/36b9612d2ba08829425097b7066563a983e668bd)), closes [#454](https://github.com/inference-gateway/cli/issues/454)
+* Reconcile token displays and persist metadata-only saves ([#459](https://github.com/inference-gateway/cli/issues/459)) ([8bc8767](https://github.com/inference-gateway/cli/commit/8bc876746865549a90275698f007790b2743ad72))
+
+### 📚 Documentation
+
+* Update agents MD ([#458](https://github.com/inference-gateway/cli/issues/458)) ([27bfaea](https://github.com/inference-gateway/cli/commit/27bfaea12892e9866de7aedc623446086b5ad2d5))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.104.1 ([#456](https://github.com/inference-gateway/cli/issues/456)) ([784e4bc](https://github.com/inference-gateway/cli/commit/784e4bcded983131ad18a0eb9abf5133e3c5cb78))
+
 ## [0.104.1](https://github.com/inference-gateway/cli/compare/v0.104.0...v0.104.1) (2026-04-27)
 
 ### 🐛 Bug Fixes
