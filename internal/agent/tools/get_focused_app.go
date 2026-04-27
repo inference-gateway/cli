@@ -25,7 +25,7 @@ func NewGetFocusedAppTool(cfg *config.Config) *GetFocusedAppTool {
 
 // Definition returns the tool definition for GetFocusedApp
 func (t *GetFocusedAppTool) Definition() sdk.ChatCompletionTool {
-	description := "Gets the currently focused (frontmost) application. Returns the application name and bundle identifier. Use this before performing computer use actions to verify the correct application is in focus."
+	description := t.config.Prompts.Tools.GetFocusedApp.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

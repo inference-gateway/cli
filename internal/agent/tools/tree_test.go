@@ -39,6 +39,7 @@ func TestTreeTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewTreeTool(cfg)

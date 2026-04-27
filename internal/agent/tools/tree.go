@@ -38,7 +38,7 @@ func NewTreeTool(cfg *config.Config) *TreeTool {
 
 // Definition returns the tool definition for the LLM
 func (t *TreeTool) Definition() sdk.ChatCompletionTool {
-	description := "Display directory structure in a tree format, similar to the Unix tree command"
+	description := t.config.Prompts.Tools.Tree.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

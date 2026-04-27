@@ -34,7 +34,7 @@ func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, dis
 
 // Definition returns the tool definition for the LLM
 func (t *KeyboardTypeTool) Definition() sdk.ChatCompletionTool {
-	description := "Types text or sends key combinations INTO GUI APPLICATIONS at the current cursor position (e.g., typing in a text editor, browser search box, or form field). DO NOT use this to run shell commands - use the Bash tool instead. To open applications on macOS, use Bash with 'open -a AppName'. Requires user approval unless in auto-accept mode. Note: Exactly one of 'text' or 'key_combo' must be provided."
+	description := t.config.Prompts.Tools.KeyboardType.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

@@ -36,7 +36,7 @@ func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displ
 
 // Definition returns the tool definition for the LLM
 func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
-	description := "Performs a mouse click. Can click at current position or move to coordinates first. Supports left, right, and middle buttons. Requires user approval unless in auto-accept mode."
+	description := t.config.Prompts.Tools.MouseClick.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

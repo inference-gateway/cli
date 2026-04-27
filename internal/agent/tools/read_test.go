@@ -23,6 +23,7 @@ func TestReadTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewReadTool(cfg)

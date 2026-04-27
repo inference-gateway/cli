@@ -24,6 +24,7 @@ func TestMultiEditTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewMultiEditTool(cfg)

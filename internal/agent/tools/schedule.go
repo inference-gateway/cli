@@ -53,31 +53,7 @@ func NewScheduleTool(cfg *config.Config) *ScheduleTool {
 
 // Definition returns the tool definition for the LLM
 func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
-	description := `Schedule a task that fires on a cron schedule and delivers its output through the same messaging channel that triggered the current session (e.g. Telegram).
-
-IMPORTANT — clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. "remind me at 6pm today to call mum") or **recurring** (e.g. "send me a quote every morning"). If their request is ambiguous, ASK them — do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.
-
-Each fire creates a brand-new agent session — no context is carried between runs. Choose narrow, specific prompts to avoid wasted compute.
-
-Operations:
-- create: Add a new scheduled job. Required: cron_expression, prompt. Optional: run_once, name, description, model.
-- list: List all scheduled jobs.
-- get: Fetch one job. Required: job_id.
-- update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, run_once, name, description, model can be updated.
-- delete: Remove a job. Required: job_id.
-
-Routing (channel + recipient) is derived automatically from the current session — you never pass it. The tool can therefore only be used from a channel-driven session (e.g. when responding to a Telegram message); it will fail with a clear error if invoked from any other context.
-
-Cron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The "@every <duration>" descriptor is also supported. Examples:
-- "0 8 * * *"       — every day at 08:00 (recurring)
-- "*/15 * * * *"    — every 15 minutes (recurring)
-- "0 9 * * 1-5"     — weekdays at 09:00 (recurring)
-- "@every 1h"       — every hour (recurring)
-- "0 18 26 4 *"     — April 26 at 18:00 (use with run_once=true for "today at 6pm")
-
-For one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.
-
-The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.`
+	description := t.config.Prompts.Tools.Schedule.Description
 
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,

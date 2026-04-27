@@ -38,7 +38,7 @@ func NewA2AQueryAgentTool(cfg *config.Config) *A2AQueryAgentTool {
 }
 
 func (t *A2AQueryAgentTool) Definition() sdk.ChatCompletionTool {
-	description := "Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Task tool instead."
+	description := t.config.Prompts.Tools.A2AQueryAgent.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

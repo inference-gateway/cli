@@ -34,7 +34,7 @@ func NewMouseScrollTool(cfg *config.Config, rateLimiter domain.RateLimiter, disp
 
 // Definition returns the tool definition for the LLM
 func (t *MouseScrollTool) Definition() sdk.ChatCompletionTool {
-	description := "Scrolls the mouse wheel up or down. Useful for navigating web pages, documents, and long content. Positive values scroll down, negative values scroll up."
+	description := t.config.Prompts.Tools.MouseScroll.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

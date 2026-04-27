@@ -65,7 +65,7 @@ func (t *BashTool) Definition() sdk.ChatCompletionTool {
 		commandDescription += " Available commands include: " + strings.Join(allowedCommands, ", ")
 	}
 
-	description := "Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed."
+	description := t.config.Prompts.Tools.Bash.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

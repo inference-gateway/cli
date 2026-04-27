@@ -27,6 +27,7 @@ func TestGrepTool_Definition(t *testing.T) {
 						Enabled: true,
 					},
 				},
+				Prompts: *config.DefaultPromptsConfig(),
 			},
 			expectedName: "Grep",
 			expectedPhrases: []string{

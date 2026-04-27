@@ -15,6 +15,7 @@ func TestFetchTool_Definition(t *testing.T) {
 				Enabled: true,
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 
 	tool := NewWebFetchTool(cfg)

@@ -26,7 +26,7 @@ func NewActivateAppTool(cfg *config.Config) *ActivateAppTool {
 
 // Definition returns the tool definition for ActivateApp
 func (t *ActivateAppTool) Definition() sdk.ChatCompletionTool {
-	description := "Activates (brings to foreground/focus) a specific application by its bundle identifier. Use GetFocusedApp first to check the current state, then use this tool to switch to the target app before performing computer use actions. After activation, wait briefly before sending keyboard/mouse commands."
+	description := t.config.Prompts.Tools.ActivateApp.Description
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{

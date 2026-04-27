@@ -27,7 +27,7 @@ func NewBashOutputTool(cfg *config.Config, shellService domain.BackgroundShellSe
 
 // Definition returns the tool definition for the SDK
 func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
-	description := "Retrieves output from a running or completed background bash shell. Returns only new output since the last read. Use this to monitor long-running commands that were moved to the background."
+	description := t.config.Prompts.Tools.BashOutput.Description
 
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,

@@ -28,15 +28,7 @@ func NewRequestPlanApprovalTool(cfg *config.Config) *RequestPlanApprovalTool {
 
 // Definition returns the tool definition for the LLM
 func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
-	description := `Submit your completed plan for user approval.
-
-What happens:
-- Your plan will be displayed to the user
-- User can approve or reject
-- If approved, you'll switch to execution mode with full tool access
-- If rejected, user will provide feedback
-
-Include your complete plan in the 'plan' parameter.`
+	description := t.config.Prompts.Tools.RequestPlanApproval.Description
 
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,

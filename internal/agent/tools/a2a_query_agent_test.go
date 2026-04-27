@@ -22,6 +22,7 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 				},
 			},
 		},
+		Prompts: *config.DefaultPromptsConfig(),
 	}
 	tool := NewA2AQueryAgentTool(cfg)
 

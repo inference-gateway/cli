@@ -61,7 +61,7 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 		repoDescription += fmt.Sprintf(" (defaults to: %s)", t.config.Tools.Github.Repo)
 	}
 
-	description := "Interact with GitHub API to fetch issues, pull requests, and other data"
+	description := t.config.Prompts.Tools.Github.Description
 	if t.config.Tools.Github.Owner != "" {
 		description += fmt.Sprintf(" (configured for owner: %s)", t.config.Tools.Github.Owner)
 	}
