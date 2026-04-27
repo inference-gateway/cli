@@ -185,6 +185,7 @@ Now that you're up and running, explore these guides:
 - **[Commands Reference](docs/commands-reference.md)** - Complete command documentation
 - **[Tools Reference](docs/tools-reference.md)** - Available tools for LLMs
 - **[Configuration Guide](docs/configuration-reference.md)** - Full configuration options
+- **[Directory Structure](docs/directory-structure.md)** - Map of every file and subdirectory the CLI creates under `.infer/` and `~/.infer/`
 - **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
