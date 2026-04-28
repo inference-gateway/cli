@@ -99,6 +99,8 @@ client:
     retryable_status_codes: [400, 408, 429, 500, 502, 503, 504]
 logging:
   debug: false
+  dir: "" # Override log directory (defaults to <config-dir>/logs)
+  stdout: false # Also write logs to stdout/stderr in addition to the log file
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
   sandbox:
@@ -278,6 +280,8 @@ compact:
 ### Logging Settings
 
 - **logging.debug**: Enable debug logging for verbose output
+- **logging.dir**: Override the log directory (defaults to `<config-dir>/logs`)
+- **logging.stdout**: Also write logs to stdout/stderr in addition to the log file (default: `false`)
 
 ### Tool Settings
 
@@ -523,6 +527,7 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 - `INFER_LOGGING_DEBUG`: Enable debug logging (default: `false`)
 - `INFER_LOGGING_DIR`: Log directory path (default: `.infer/logs`)
+- `INFER_LOGGING_STDOUT`: Also write logs to stdout/stderr (default: `false`)
 
 ### Agent Configuration
 
