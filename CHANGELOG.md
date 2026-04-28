@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.106.1](https://github.com/inference-gateway/cli/compare/v0.106.0...v0.106.1) (2026-04-28)
+
+### 🐛 Bug Fixes
+
+* **channels:** Remove redundant stdin pipe close in runAgent ([#468](https://github.com/inference-gateway/cli/issues/468)) ([c398286](https://github.com/inference-gateway/cli/commit/c398286d040f22d3aa125a5e6ee42333c246e937))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.106.0 ([#467](https://github.com/inference-gateway/cli/issues/467)) ([77404bc](https://github.com/inference-gateway/cli/commit/77404bc169e1c167ffe828eb9fcb67893b9f42f2))
+
 ## [0.106.0](https://github.com/inference-gateway/cli/compare/v0.105.1...v0.106.0) (2026-04-28)
 
 ### 🚀 Features
