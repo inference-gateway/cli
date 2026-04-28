@@ -43,6 +43,9 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 		if delta.Function.Name != "" && toolCall.Function.Name == "" {
 			toolCall.Function.Name = delta.Function.Name
 		}
+		if delta.ExtraContent != nil {
+			mergeToolCallExtraContent(toolCall, delta.ExtraContent)
+		}
 		if delta.Function.Arguments != "" {
 			if toolCall.Function.Arguments == "" {
 				toolCall.Function.Arguments = delta.Function.Arguments
@@ -54,6 +57,30 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 			}
 
 			toolCall.Function.Arguments += delta.Function.Arguments
+		}
+	}
+}
+
+// mergeToolCallExtraContent copies provider-specific extras (e.g. Google
+// Gemini's thought_signature) from a streaming chunk onto the accumulated
+// tool call. The signature must be echoed back verbatim on the next request,
+// or Google rejects it with HTTP 400 "missing thought_signature".
+func mergeToolCallExtraContent(toolCall *sdk.ChatCompletionMessageToolCall, src *sdk.ToolCallExtraContent) {
+	if toolCall.ExtraContent == nil {
+		toolCall.ExtraContent = &sdk.ToolCallExtraContent{}
+	}
+	if src.Google != nil {
+		if toolCall.ExtraContent.Google == nil {
+			toolCall.ExtraContent.Google = &sdk.ToolCallExtraContent_Google{}
+		}
+		if src.Google.ThoughtSignature != nil && *src.Google.ThoughtSignature != "" {
+			toolCall.ExtraContent.Google.ThoughtSignature = src.Google.ThoughtSignature
+		}
+		for k, v := range src.Google.AdditionalProperties {
+			if toolCall.ExtraContent.Google.AdditionalProperties == nil {
+				toolCall.ExtraContent.Google.AdditionalProperties = map[string]any{}
+			}
+			toolCall.ExtraContent.Google.AdditionalProperties[k] = v
 		}
 	}
 }

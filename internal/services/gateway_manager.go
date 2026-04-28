@@ -319,6 +319,7 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", fmt.Sprintf("SERVER_WRITE_TIMEOUT=%ds", timeout))
 		args = append(args, "-e", fmt.Sprintf("SERVER_IDLE_TIMEOUT=%ds", timeout))
 		args = append(args, "-e", fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
+		args = append(args, "-e", fmt.Sprintf("CLIENT_RESPONSE_HEADER_TIMEOUT=%ds", timeout))
 	}
 
 	if gm.config.Gateway.VisionEnabled {
@@ -492,6 +493,7 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_WRITE_TIMEOUT=%ds", timeout))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_IDLE_TIMEOUT=%ds", timeout))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CLIENT_RESPONSE_HEADER_TIMEOUT=%ds", timeout))
 	}
 
 	if gm.config.Gateway.VisionEnabled {
