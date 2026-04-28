@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.105.1](https://github.com/inference-gateway/cli/compare/v0.105.0...v0.105.1) (2026-04-28)
+
+### 🐛 Bug Fixes
+
+* **google:** Preserve thought_signature on tool calls and bump response-header timeout ([#464](https://github.com/inference-gateway/cli/issues/464)) ([57c9e0a](https://github.com/inference-gateway/cli/commit/57c9e0a32dfceab693f8315fff32ef7f36182450))
+
+### 📚 Documentation
+
+* Document .infer/plans/ in directory structure ([daf9a75](https://github.com/inference-gateway/cli/commit/daf9a75138fbf0a3b81301aca543a256c085387c))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.105.0 ([#462](https://github.com/inference-gateway/cli/issues/462)) ([de53e59](https://github.com/inference-gateway/cli/commit/de53e5999e8c12e687e9b8d3461b2e19dacf0db2))
+
 ## [0.105.0](https://github.com/inference-gateway/cli/compare/v0.104.2...v0.105.0) (2026-04-27)
 
 ### 🚀 Features
