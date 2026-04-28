@@ -239,18 +239,12 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	// Create stdin pipe for approval responses when require_approval is enabled
 	var stdinWriter io.WriteCloser
 	if cm.cfg.RequireApproval {
 		stdinWriter, err = cmd.StdinPipe()
 		if err != nil {
 			return fmt.Errorf("failed to create stdin pipe: %w", err)
 		}
-		defer func() {
-			if err := stdinWriter.Close(); err != nil {
-				logger.Error("Failed to close stdin pipe", "error", err)
-			}
-		}()
 	}
 
 	var stderrBuf bytes.Buffer
@@ -268,7 +262,6 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 			continue
 		}
 
-		// Check for approval requests when require_approval is enabled
 		if cm.cfg.RequireApproval && stdinWriter != nil {
 			if req, ok := parseApprovalRequest(line); ok {
 				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn, ch); err != nil {
