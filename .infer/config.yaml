@@ -44,6 +44,7 @@ client:
 logging:
   debug: false
   dir: ""
+  stdout: false
 tools:
   enabled: true
   sandbox:

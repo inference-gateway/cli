@@ -133,6 +133,7 @@ func initConfig() {
 	verbose := v.GetBool("verbose")
 	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")
+	stdout := v.GetBool("logging.stdout")
 
 	if logDir == "" {
 		configFile := v.ConfigFileUsed()
@@ -146,5 +147,6 @@ func initConfig() {
 		Verbose: verbose,
 		Debug:   debug,
 		LogDir:  logDir,
+		Stdout:  stdout,
 	})
 }

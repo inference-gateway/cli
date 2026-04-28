@@ -94,8 +94,9 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool   `yaml:"debug" mapstructure:"debug"`
-	Dir   string `yaml:"dir" mapstructure:"dir"`
+	Debug  bool   `yaml:"debug" mapstructure:"debug"`
+	Dir    string `yaml:"dir" mapstructure:"dir"`
+	Stdout bool   `yaml:"stdout" mapstructure:"stdout"`
 }
 
 // ImageConfig contains image service settings
@@ -581,8 +582,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Logging: LoggingConfig{
-			Debug: false,
-			Dir:   "",
+			Debug:  false,
+			Dir:    "",
+			Stdout: false,
 		},
 		Tools: ToolsConfig{
 			Enabled: true,

@@ -21,6 +21,7 @@ type Config struct {
 	Verbose bool
 	Debug   bool
 	LogDir  string
+	Stdout  bool
 }
 
 // Init initializes the global logger (for migration period)
@@ -50,6 +51,11 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 	zapCfg := zap.NewProductionConfig()
 	zapCfg.OutputPaths = []string{logFile}
 	zapCfg.ErrorOutputPaths = []string{logFile}
+
+	if cfg.Stdout {
+		zapCfg.OutputPaths = append(zapCfg.OutputPaths, "stdout")
+		zapCfg.ErrorOutputPaths = append(zapCfg.ErrorOutputPaths, "stderr")
+	}
 
 	if cfg.Verbose || cfg.Debug {
 		zapCfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
