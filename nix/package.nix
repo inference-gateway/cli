@@ -12,13 +12,13 @@ buildGoModule (finalAttrs: {
   __structuredAttrs = true;
 
   pname = "infer";
-  version = "0.105.1";
+  version = "0.106.0";
 
   src = fetchFromGitHub {
     owner = "inference-gateway";
     repo = "cli";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-f9r6gczbvv9yLip9IddpCSZ7JJJGj1KFqXE2jRB5rpc=";
+    hash = "sha256-Ce5rmMUhFiTwpDXUzRpTo2wPQLdYh7dOA9Is/ivlFzE=";
   };
 
   vendorHash = "sha256-aNk/WbOBulWj3Nc2Zl15G3Ett8MfEYp7cCd+dXlv2uc=";
