@@ -802,6 +802,28 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 				assert.Equal(t, `{"file_path": "/test.txt"}`, result["0"].Function.Arguments)
 			},
 		},
+		{
+			name: "preserves_google_thought_signature_across_chunks",
+			deltas: func() []sdk.ChatCompletionMessageToolCallChunk {
+				sig := "sig-abc-123"
+				first := makeToolCallChunk(0, "call-1", "A2A_QueryAgent", `{"agent_url":`)
+				second := makeToolCallChunk(0, "", "", `"http://localhost:8081"}`)
+				second.ExtraContent = &sdk.ToolCallExtraContent{
+					Google: &sdk.ToolCallExtraContent_Google{ThoughtSignature: &sig},
+				}
+				return []sdk.ChatCompletionMessageToolCallChunk{first, second}
+			}(),
+			expectedCalls: 1,
+			validateResult: func(t *testing.T, result map[string]*sdk.ChatCompletionMessageToolCall) {
+				tc := result["0"]
+				assert.Equal(t, "call-1", tc.Id)
+				assert.Equal(t, `{"agent_url":"http://localhost:8081"}`, tc.Function.Arguments)
+				if assert.NotNil(t, tc.ExtraContent) && assert.NotNil(t, tc.ExtraContent.Google) {
+					assert.NotNil(t, tc.ExtraContent.Google.ThoughtSignature)
+					assert.Equal(t, "sig-abc-123", *tc.ExtraContent.Google.ThoughtSignature)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
