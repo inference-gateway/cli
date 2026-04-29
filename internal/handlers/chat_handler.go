@@ -179,21 +179,61 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 }
 
 // buildAgentMessagesFromEntries converts conversation entries into the
-// flat slice of SDK messages sent to the model. Plan-mode entries are
-// skipped: they are synthesized assistant messages used for UI rendering
-// only, and their content duplicates the args of the preceding
-// RequestPlanApproval tool call. Including them produces an assistant
-// turn with no `reasoning_content`, which DeepSeek (and similar
-// thinking-mode providers) reject with HTTP 400.
+// flat slice of SDK messages sent to the model.
+//
+// Two classes of entries are filtered:
+//
+//  1. Plan-mode entries (entry.IsPlan): synthesized assistant messages used
+//     for UI rendering only; their content duplicates the args of the
+//     preceding RequestPlanApproval tool call.
+//  2. User-initiated bash entries: synthetic assistant + tool pairs created
+//     when the user types `!command` directly in chat. Their assistant
+//     side has tool_calls but no reasoning_content (the user, not the
+//     model, generated them).
+//
+// Sending either to a thinking-mode provider (DeepSeek, etc.) produces an
+// assistant turn lacking `reasoning_content`, which is rejected with HTTP
+// 400 ("The reasoning_content in the thinking mode must be passed back to
+// the API.").
 func buildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsPlan {
 			continue
 		}
-		messages = append(messages, entry.Message)
+		if isUserInitiatedBashEntry(entry) {
+			continue
+		}
+		msg := entry.Message
+		if entry.ReasoningContent != "" && msg.Reasoning == nil && msg.ReasoningContent == nil {
+			rc := entry.ReasoningContent
+			msg.Reasoning = &rc
+			msg.ReasoningContent = &rc
+		}
+		messages = append(messages, msg)
 	}
 	return messages
+}
+
+// isUserInitiatedBashEntry reports whether the entry was synthesized for a
+// user-typed `!command` shortcut. Tool-call IDs created by that path are
+// prefixed with `user-bash-` (see executeBashCommandImmediate in this file).
+func isUserInitiatedBashEntry(entry domain.ConversationEntry) bool {
+	const userBashPrefix = "user-bash-"
+
+	if entry.Message.ToolCallId != nil && strings.HasPrefix(*entry.Message.ToolCallId, userBashPrefix) {
+		return true
+	}
+
+	if entry.Message.ToolCalls != nil {
+		for _, tc := range *entry.Message.ToolCalls {
+			if strings.HasPrefix(tc.Id, userBashPrefix) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
