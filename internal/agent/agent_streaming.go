@@ -244,6 +244,38 @@ func extractReasoningForEvent(delta sdk.ChatCompletionStreamResponseDelta) strin
 	return ""
 }
 
+// buildAssistantMessage constructs the assistant sdk.Message for a finalized
+// stream turn. Reasoning is preserved whether or not tool calls are present —
+// thinking-mode providers (e.g. Deepseek) reject follow-up requests with HTTP
+// 400 if a prior assistant turn that produced reasoning is replayed without
+// reasoning_content.
+func buildAssistantMessage(
+	content sdk.MessageContent,
+	reasoning string,
+	toolCalls []*sdk.ChatCompletionMessageToolCall,
+) sdk.Message {
+	msg := sdk.Message{
+		Role:    sdk.Assistant,
+		Content: content,
+	}
+
+	if reasoning != "" {
+		r := reasoning
+		msg.Reasoning = &r
+		msg.ReasoningContent = &r
+	}
+
+	if len(toolCalls) > 0 {
+		assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
+		for _, tc := range toolCalls {
+			assistantToolCalls = append(assistantToolCalls, *tc)
+		}
+		msg.ToolCalls = &assistantToolCalls
+	}
+
+	return msg
+}
+
 // finalizeStream processes the completed stream and transitions to next state
 func (a *EventDrivenAgent) finalizeStream(
 	message sdk.Message,
@@ -266,23 +298,7 @@ func (a *EventDrivenAgent) finalizeStream(
 		reasoning = *message.ReasoningContent
 	}
 
-	assistantMessage := sdk.Message{
-		Role:    sdk.Assistant,
-		Content: assistantContent,
-	}
-
-	if len(toolCalls) > 0 {
-		assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-		for _, tc := range toolCalls {
-			assistantToolCalls = append(assistantToolCalls, *tc)
-		}
-		assistantMessage.ToolCalls = &assistantToolCalls
-
-		if reasoning != "" {
-			assistantMessage.Reasoning = &reasoning
-			assistantMessage.ReasoningContent = &reasoning
-		}
-	}
+	assistantMessage := buildAssistantMessage(assistantContent, reasoning, toolCalls)
 
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 

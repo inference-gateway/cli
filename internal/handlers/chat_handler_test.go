@@ -111,6 +111,123 @@ func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 	}
 }
 
+// Regression for issue #474: when finalizeStream stored an assistant entry
+// without populating Message.Reasoning (the pre-fix behavior for non-tool-call
+// assistant turns), the rebuilt request would lack reasoning_content and
+// thinking-mode providers (e.g. Deepseek) would 400. The helper now backfills
+// Message.Reasoning/ReasoningContent from the entry's top-level
+// ReasoningContent so legacy entries and any future writers stay safe.
+func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
+	reasoning := "I should retry with a different path."
+
+	entries := []domain.ConversationEntry{
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent("Let me try a different path."),
+			},
+			ReasoningContent: reasoning,
+		},
+	}
+
+	out := buildAgentMessagesFromEntries(entries)
+
+	if len(out) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(out))
+	}
+	if out[0].Reasoning == nil || *out[0].Reasoning != reasoning {
+		t.Errorf("expected Reasoning backfilled to %q, got %v", reasoning, out[0].Reasoning)
+	}
+	if out[0].ReasoningContent == nil || *out[0].ReasoningContent != reasoning {
+		t.Errorf("expected ReasoningContent backfilled to %q, got %v", reasoning, out[0].ReasoningContent)
+	}
+}
+
+// Regression for the second flavor of issue #474: user-typed `!command`
+// shortcuts synthesize an assistant entry (with tool_calls but no
+// reasoning_content) followed by a tool result. Tool-call IDs are prefixed
+// with `user-bash-`. Previously these were sent verbatim to the model and
+// rejected by thinking-mode providers (DeepSeek 400) on the next turn. Both
+// the assistant and the matching tool entry must be filtered.
+func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
+	userBashID := "user-bash-1234567890"
+
+	entries := []domain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("!task lint")}},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(""),
+				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+					{
+						Id:   userBashID,
+						Type: sdk.Function,
+						Function: sdk.ChatCompletionMessageToolCallFunction{
+							Name:      "Bash",
+							Arguments: `{"command":"task lint"}`,
+						},
+					},
+				},
+			},
+		},
+		{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent("0 issues."),
+				ToolCallId: &userBashID,
+			},
+		},
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("anything else?")}},
+	}
+
+	out := buildAgentMessagesFromEntries(entries)
+
+	if len(out) != 2 {
+		t.Fatalf("expected 2 messages after filtering user-bash pair, got %d", len(out))
+	}
+	for i, msg := range out {
+		if msg.ToolCalls != nil {
+			for _, tc := range *msg.ToolCalls {
+				if strings.HasPrefix(tc.Id, "user-bash-") {
+					t.Errorf("user-bash tool call leaked into request at message %d", i)
+				}
+			}
+		}
+		if msg.ToolCallId != nil && strings.HasPrefix(*msg.ToolCallId, "user-bash-") {
+			t.Errorf("user-bash tool result leaked into request at message %d", i)
+		}
+	}
+}
+
+func TestBuildAgentMessagesFromEntries_DoesNotOverwriteExistingReasoning(t *testing.T) {
+	existing := "from message"
+	other := "from entry"
+
+	entries := []domain.ConversationEntry{
+		{
+			Message: sdk.Message{
+				Role:             sdk.Assistant,
+				Content:          sdk.NewMessageContent("hello"),
+				Reasoning:        &existing,
+				ReasoningContent: &existing,
+			},
+			ReasoningContent: other,
+		},
+	}
+
+	out := buildAgentMessagesFromEntries(entries)
+
+	if len(out) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(out))
+	}
+	if out[0].Reasoning == nil || *out[0].Reasoning != existing {
+		t.Errorf("expected Reasoning preserved as %q, got %v", existing, out[0].Reasoning)
+	}
+	if out[0].ReasoningContent == nil || *out[0].ReasoningContent != existing {
+		t.Errorf("expected ReasoningContent preserved as %q, got %v", existing, out[0].ReasoningContent)
+	}
+}
+
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
 	handler := &ChatHandler{}
 
