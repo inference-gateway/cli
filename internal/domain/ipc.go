@@ -15,3 +15,11 @@ type ApprovalResponse struct {
 	ToolCallID string `json:"tool_call_id"`
 	Approved   bool   `json:"approved"`
 }
+
+// AgentErrorMessage is emitted by the agent on stdout when a fatal error occurs
+// before exiting. The channel manager forwards this to the user-facing channel
+// so users aren't left waiting in silence when the agent process fails.
+type AgentErrorMessage struct {
+	Type    string `json:"type"` // "agent_error"
+	Message string `json:"message"`
+}

@@ -330,12 +330,75 @@ func TestFormatAgentMessage(t *testing.T) {
 			line: `{"role":"assistant","content":""}`,
 			want: "",
 		},
+		{
+			name: "agent error with message",
+			line: `{"type":"agent_error","message":"context length exceeded"}`,
+			want: "❌ Error: context length exceeded",
+		},
+		{
+			name: "agent error with empty message falls back",
+			line: `{"type":"agent_error","message":""}`,
+			want: "❌ Error: agent failed",
+		},
+		{
+			name: "agent error with no message field falls back",
+			line: `{"type":"agent_error"}`,
+			want: "❌ Error: agent failed",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := formatAgentMessage([]byte(tt.line))
 			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseAgentError(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"agent error", `{"type":"agent_error","message":"boom"}`, true},
+		{"agent error no message", `{"type":"agent_error"}`, true},
+		{"info message", `{"type":"info","message":"x"}`, false},
+		{"approval request", `{"type":"approval_request","tool_name":"Bash"}`, false},
+		{"assistant message", `{"role":"assistant","content":"hi"}`, false},
+		{"malformed json", `not json`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseAgentError([]byte(tt.line)); got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTailStderr(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		n    int
+		want string
+	}{
+		{"empty falls back", "", 100, "unknown error"},
+		{"whitespace only falls back", "   \n\t  ", 100, "unknown error"},
+		{"short string returned as-is", "boom", 100, "boom"},
+		{"trims surrounding whitespace", "  hello world  \n", 100, "hello world"},
+		{"long string is tailed", strings.Repeat("a", 600), 500, strings.Repeat("a", 500)},
+		{"clean newline boundary keeps full slice", "first line\nsecond line\nthird line", 22, "second line\nthird line"},
+		{"mid-line cut advances to next newline", "first line\nsecond line\nthird line", 20, "third line"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tailStderr(tt.in, tt.n); got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
@@ -1079,5 +1142,129 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatalf("timeout waiting for messages, got %d messages", len(messages))
+	}
+}
+
+// startAgentTestManager wires a ChannelManagerService with a fake channel and
+// a custom execCommandFunc, returning the channel that receives outbound
+// messages plus a cancel func. Used by error-propagation tests.
+func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name string, args ...string) *exec.Cmd) (chan domain.OutboundMessage, context.CancelFunc) {
+	t.Helper()
+	cfg := config.ChannelsConfig{
+		Enabled: true,
+		Telegram: config.TelegramChannelConfig{
+			AllowedUsers: []string{"123"},
+		},
+	}
+	cm := NewChannelManagerService(cfg)
+	cm.execCommandFunc = exec
+
+	sent := make(chan domain.OutboundMessage, 8)
+	ch := &fakesdomain.FakeChannel{}
+	ch.NameReturns("telegram")
+	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+		inbox <- domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    "123",
+			Content:     "trigger",
+			Timestamp:   time.Now(),
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+		sent <- msg
+		return nil
+	}
+	cm.Register(ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := cm.Start(ctx); err != nil {
+		cancel()
+		t.Fatalf("unexpected start error: %v", err)
+	}
+	return sent, cancel
+}
+
+// collectMessages drains the sent channel until either deadline or noActivity passes.
+// Returns all messages observed.
+func collectMessages(sent chan domain.OutboundMessage, noActivity time.Duration, deadline time.Duration) []domain.OutboundMessage {
+	var msgs []domain.OutboundMessage
+	overall := time.After(deadline)
+	for {
+		select {
+		case m := <-sent:
+			msgs = append(msgs, m)
+		case <-time.After(noActivity):
+			return msgs
+		case <-overall:
+			return msgs
+		}
+	}
+}
+
+func TestRunAgent_ForwardsStructuredError(t *testing.T) {
+	sent, cancel := startAgentTestManager(t, func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c",
+			`printf '%s\n' '{"type":"agent_error","message":"context length exceeded"}'; exit 1`)
+	})
+	defer cancel()
+
+	msgs := collectMessages(sent, 500*time.Millisecond, 5*time.Second)
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
+	}
+	if msgs[0].Content != "❌ Error: context length exceeded" {
+		t.Errorf("got %q", msgs[0].Content)
+	}
+}
+
+func TestRunAgent_SafetyNetOnExitWithoutForward(t *testing.T) {
+	sent, cancel := startAgentTestManager(t, func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c",
+			`printf 'fatal: something broke\n' >&2; exit 1`)
+	})
+	defer cancel()
+
+	msgs := collectMessages(sent, 500*time.Millisecond, 5*time.Second)
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly 1 safety-net message, got %d: %+v", len(msgs), msgs)
+	}
+	if !strings.HasPrefix(msgs[0].Content, "❌ Agent failed: ") {
+		t.Errorf("expected safety-net prefix, got %q", msgs[0].Content)
+	}
+	if !strings.Contains(msgs[0].Content, "fatal: something broke") {
+		t.Errorf("expected stderr tail in message, got %q", msgs[0].Content)
+	}
+}
+
+func TestRunAgent_SafetyNetOnExitWithEmptyStderr(t *testing.T) {
+	sent, cancel := startAgentTestManager(t, func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c", "exit 1")
+	})
+	defer cancel()
+
+	msgs := collectMessages(sent, 500*time.Millisecond, 5*time.Second)
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
+	}
+	if msgs[0].Content != "❌ Agent failed: unknown error" {
+		t.Errorf("got %q", msgs[0].Content)
+	}
+}
+
+func TestRunAgent_NoDoubleSendOnStructuredError(t *testing.T) {
+	sent, cancel := startAgentTestManager(t, func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c",
+			`printf '%s\n' '{"type":"agent_error","message":"boom"}'; printf 'noisy stderr\n' >&2; exit 1`)
+	})
+	defer cancel()
+
+	msgs := collectMessages(sent, 500*time.Millisecond, 5*time.Second)
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly 1 message (no safety-net duplicate), got %d: %+v", len(msgs), msgs)
+	}
+	if msgs[0].Content != "❌ Error: boom" {
+		t.Errorf("got %q", msgs[0].Content)
 	}
 }

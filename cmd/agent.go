@@ -91,7 +91,18 @@ type AgentSession struct {
 	approvalCh       chan domain.ApprovalResponse
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval bool) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval bool) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			outputAgentError(fmt.Sprintf("agent panic: %v", r))
+			err = fmt.Errorf("agent panic: %v", r)
+			return
+		}
+		if err != nil {
+			outputAgentError(err.Error())
+		}
+	}()
+
 	svc := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -796,6 +807,25 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		}
 	}
 	return s.config.IsApprovalRequired(tc.Function.Name)
+}
+
+// outputAgentError emits an agent_error JSON line on stdout so the channels
+// manager can forward the failure to the user. Long messages are truncated to
+// stay within channel transport limits (Telegram caps messages at ~4096 chars).
+func outputAgentError(message string) {
+	const maxLen = 3500
+	if len(message) > maxLen {
+		message = message[:maxLen] + "…"
+	}
+	msg := domain.AgentErrorMessage{Type: "agent_error", Message: message}
+	out, err := json.Marshal(msg)
+	if err != nil {
+		logger.Error("Failed to marshal agent error", "error", err)
+		return
+	}
+	if _, werr := os.Stdout.Write(append(out, '\n')); werr != nil {
+		logger.Error("Failed to write agent error to stdout", "error", werr)
+	}
 }
 
 // outputApprovalRequest writes an approval request JSON line to stdout for the channel manager.
