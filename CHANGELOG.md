@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.106.2](https://github.com/inference-gateway/cli/compare/v0.106.1...v0.106.2) (2026-04-30)
+
+### 🐛 Bug Fixes
+
+* **storage:** Persist session groups via configured storage backend ([#476](https://github.com/inference-gateway/cli/issues/476)) ([6741419](https://github.com/inference-gateway/cli/commit/6741419dc66a27cdf9700fdef6ba3676f9a2cdc8))
+* Reasoning content preservation for thinking-mode providers ([#475](https://github.com/inference-gateway/cli/issues/475)) ([c5f2c3c](https://github.com/inference-gateway/cli/commit/c5f2c3cc4f58b804eaa2b183899240aee010b0c4)), closes [#474](https://github.com/inference-gateway/cli/issues/474)
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.106.1 ([#469](https://github.com/inference-gateway/cli/issues/469)) ([51da75c](https://github.com/inference-gateway/cli/commit/51da75c9980e39c5af465cf099f74380faddc48c))
+
 ## [0.106.1](https://github.com/inference-gateway/cli/compare/v0.106.0...v0.106.1) (2026-04-28)
 
 ### 🐛 Bug Fixes
