@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.106.3](https://github.com/inference-gateway/cli/compare/v0.106.2...v0.106.3) (2026-04-30)
+
+### 🐛 Bug Fixes
+
+* **channels:** Propagate agent errors to channel users ([#479](https://github.com/inference-gateway/cli/issues/479)) ([aa229c7](https://github.com/inference-gateway/cli/commit/aa229c77bf6427190b4ddf499f97b753afdb7e62))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.106.2 ([#477](https://github.com/inference-gateway/cli/issues/477)) ([1c821ed](https://github.com/inference-gateway/cli/commit/1c821eddad402d73b8ece31b9a2b2455896edcea))
+
 ## [0.106.2](https://github.com/inference-gateway/cli/compare/v0.106.1...v0.106.2) (2026-04-30)
 
 ### 🐛 Bug Fixes
