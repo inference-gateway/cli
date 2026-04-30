@@ -7,6 +7,32 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// SessionGroupEntry tracks the active session for a given group key plus a
+// rollover history so old conversations can still be looked up via
+// `infer conversations list`.
+type SessionGroupEntry struct {
+	CurrentSessionID string    `json:"current_session_id"`
+	History          []string  `json:"history,omitempty"`
+	LastRollover     time.Time `json:"last_rollover,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// SessionGroupStorage defines the interface for persisting the session-group
+// index that maps a stable channel/sender key (e.g. "channel-telegram-12345")
+// to the current conversation session UUID for that key.
+type SessionGroupStorage interface {
+	// GetSessionGroup returns the entry for groupKey. The bool is false when
+	// no entry exists; the error is non-nil only on storage failure.
+	GetSessionGroup(ctx context.Context, groupKey string) (SessionGroupEntry, bool, error)
+
+	// PutSessionGroup creates or replaces the entry for groupKey atomically.
+	PutSessionGroup(ctx context.Context, groupKey string, entry SessionGroupEntry) error
+
+	// ListSessionGroups returns all entries keyed by their group key. Used by
+	// administrative tooling and tests.
+	ListSessionGroups(ctx context.Context) (map[string]SessionGroupEntry, error)
+}
+
 // ConversationStorage defines the interface for persistent conversation storage
 type ConversationStorage interface {
 	// SaveConversation saves a conversation with a unique ID

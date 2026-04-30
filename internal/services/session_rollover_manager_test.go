@@ -2,9 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -47,7 +44,7 @@ func (f *fakeOptimizer) OptimizeMessages(messages []sdk.Message, model string, f
 	return out
 }
 
-func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRolloverManager, *PersistentConversationRepository, *fakeOptimizer, func()) {
+func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRolloverManager, *PersistentConversationRepository, *fakeOptimizer, storage.SessionGroupStorage, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
@@ -64,15 +61,14 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 
 	opt := &fakeOptimizer{returnCount: 2}
 
-	tmpDir := t.TempDir()
-	mgr := NewSessionRolloverManager(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()))
-	mgr.SetIndexPath(filepath.Join(tmpDir, "session_groups.json"))
+	groupStore := storage.NewMemorySessionGroupStorage()
+	mgr := NewSessionRolloverManager(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
 
 	cleanup := func() {
 		_ = repo.Close()
 		_ = storageBackend.Close()
 	}
-	return mgr, repo, opt, cleanup
+	return mgr, repo, opt, groupStore, cleanup
 }
 
 func addUserMessage(t *testing.T, repo *PersistentConversationRepository, content string, when time.Time) {
@@ -90,7 +86,7 @@ func addUserMessage(t *testing.T, repo *PersistentConversationRepository, conten
 }
 
 func TestResolveSessionID_UUIDPassthrough(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	literal := uuid.New().String()
@@ -105,13 +101,17 @@ func TestResolveSessionID_UUIDPassthrough(t *testing.T) {
 		t.Errorf("UUID input should produce empty group key, got %q", group)
 	}
 
-	if _, err := os.Stat(mgr.indexPath); err == nil {
-		t.Errorf("UUID passthrough must not create index file")
+	all, err := groupStore.ListSessionGroups(context.Background())
+	if err != nil {
+		t.Fatalf("ListSessionGroups: %v", err)
+	}
+	if len(all) != 0 {
+		t.Errorf("UUID passthrough must not register any group entries; got %d", len(all))
 	}
 }
 
 func TestResolveSessionID_GroupKeyMigration(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	got, group, err := mgr.ResolveSessionID("channel-telegram-12345")
@@ -125,15 +125,10 @@ func TestResolveSessionID_GroupKeyMigration(t *testing.T) {
 		t.Errorf("group key should be set, got %q", group)
 	}
 
-	data, err := os.ReadFile(mgr.indexPath)
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-telegram-12345")
 	if err != nil {
-		t.Fatalf("expected index file to be created: %v", err)
+		t.Fatalf("GetSessionGroup: %v", err)
 	}
-	var idx sessionGroupIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		t.Fatalf("parse index: %v", err)
-	}
-	entry, ok := idx.Groups["channel-telegram-12345"]
 	if !ok {
 		t.Fatalf("group should be registered after first lookup")
 	}
@@ -143,25 +138,19 @@ func TestResolveSessionID_GroupKeyMigration(t *testing.T) {
 }
 
 func TestResolveSessionID_GroupKeyAfterRollover(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	// Pre-populate the index as if a rollover has already happened.
 	rolledOverID := uuid.New().String()
-	mgr.indexMutex.Lock()
-	idx := &sessionGroupIndex{Groups: map[string]SessionGroupEntry{
-		"channel-telegram-12345": {
-			CurrentSessionID: rolledOverID,
-			History:          []string{"channel-telegram-12345"},
-			LastRollover:     time.Now(),
-			UpdatedAt:        time.Now(),
-		},
-	}}
-	if err := mgr.saveIndexAtomicLocked(idx); err != nil {
-		mgr.indexMutex.Unlock()
+	if err := groupStore.PutSessionGroup(context.Background(), "channel-telegram-12345", storage.SessionGroupEntry{
+		CurrentSessionID: rolledOverID,
+		History:          []string{"channel-telegram-12345"},
+		LastRollover:     time.Now(),
+		UpdatedAt:        time.Now(),
+	}); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
-	mgr.indexMutex.Unlock()
 
 	got, group, err := mgr.ResolveSessionID("channel-telegram-12345")
 	if err != nil {
@@ -176,7 +165,7 @@ func TestResolveSessionID_GroupKeyAfterRollover(t *testing.T) {
 }
 
 func TestShouldRollover_EmptyConversation(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	if mgr.ShouldRollover("openai/gpt-4") {
@@ -185,7 +174,7 @@ func TestShouldRollover_EmptyConversation(t *testing.T) {
 }
 
 func TestShouldRollover_IdleTriggerFires(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	addUserMessage(t, repo, "old message", time.Now().Add(-31*time.Minute))
@@ -196,7 +185,7 @@ func TestShouldRollover_IdleTriggerFires(t *testing.T) {
 }
 
 func TestShouldRollover_IdleTriggerDoesNotFireUnderThreshold(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	addUserMessage(t, repo, "recent", time.Now().Add(-5*time.Minute))
@@ -207,7 +196,7 @@ func TestShouldRollover_IdleTriggerDoesNotFireUnderThreshold(t *testing.T) {
 }
 
 func TestShouldRollover_IdleDisabledByZero(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
 	addUserMessage(t, repo, "old", time.Now().Add(-24*time.Hour))
@@ -218,7 +207,7 @@ func TestShouldRollover_IdleDisabledByZero(t *testing.T) {
 }
 
 func TestShouldRollover_TokenTriggerFires(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
 	// Use a model with a tiny context window so we can blow past 80% with a
@@ -235,7 +224,7 @@ func TestShouldRollover_TokenTriggerFires(t *testing.T) {
 }
 
 func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
 	// One short message — entries-only estimate is far below the threshold.
@@ -254,7 +243,7 @@ func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
 }
 
 func TestShouldRollover_TokenTriggerDoesNotFireWhenLastInputBelowThreshold(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
 	// Large entries that *would* trip the entries-only fallback…
@@ -276,7 +265,7 @@ func TestShouldRollover_TokenTriggerDoesNotFireWhenLastInputBelowThreshold(t *te
 }
 
 func TestShouldRollover_DisabledWhenCompactOff(t *testing.T) {
-	mgr, repo, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 	mgr.cfg.Compact.Enabled = false
 
@@ -288,7 +277,7 @@ func TestShouldRollover_DisabledWhenCompactOff(t *testing.T) {
 }
 
 func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
-	mgr, repo, opt, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	// Seed the group index so PerformRollover has a known initial state.
@@ -320,13 +309,13 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 	}
 
 	// Index should now reflect the rollover.
-	mgr.indexMutex.Lock()
-	idx, err := mgr.loadIndexLocked()
-	mgr.indexMutex.Unlock()
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-telegram-12345")
 	if err != nil {
-		t.Fatalf("load index: %v", err)
+		t.Fatalf("GetSessionGroup: %v", err)
 	}
-	entry := idx.Groups["channel-telegram-12345"]
+	if !ok {
+		t.Fatalf("group should still be registered after rollover")
+	}
 	if entry.CurrentSessionID != newID {
 		t.Errorf("group current_session_id should be %q, got %q", newID, entry.CurrentSessionID)
 	}
@@ -339,7 +328,7 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 }
 
 func TestPerformRollover_ErrorWhenNoMessages(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	if _, err := mgr.PerformRollover(context.Background(), "openai/gpt-4", ""); err == nil {
@@ -347,57 +336,41 @@ func TestPerformRollover_ErrorWhenNoMessages(t *testing.T) {
 	}
 }
 
-func TestSaveIndexAtomicLocked_OverwriteIsAtomic(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+func TestPutSessionGroup_OverwriteReplacesPriorEntry(t *testing.T) {
+	_, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
-	mgr.indexMutex.Lock()
-	idx1 := &sessionGroupIndex{Groups: map[string]SessionGroupEntry{
-		"a": {CurrentSessionID: "id-1", UpdatedAt: time.Now()},
-	}}
-	if err := mgr.saveIndexAtomicLocked(idx1); err != nil {
-		mgr.indexMutex.Unlock()
-		t.Fatalf("first save: %v", err)
+	ctx := context.Background()
+	if err := groupStore.PutSessionGroup(ctx, "a", storage.SessionGroupEntry{
+		CurrentSessionID: "id-1", UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("first put: %v", err)
+	}
+	if err := groupStore.PutSessionGroup(ctx, "a", storage.SessionGroupEntry{
+		CurrentSessionID: "id-2", UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("second put: %v", err)
+	}
+	if err := groupStore.PutSessionGroup(ctx, "b", storage.SessionGroupEntry{
+		CurrentSessionID: "id-3", UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("third put: %v", err)
 	}
 
-	idx2 := &sessionGroupIndex{Groups: map[string]SessionGroupEntry{
-		"a": {CurrentSessionID: "id-2", UpdatedAt: time.Now()},
-		"b": {CurrentSessionID: "id-3", UpdatedAt: time.Now()},
-	}}
-	if err := mgr.saveIndexAtomicLocked(idx2); err != nil {
-		mgr.indexMutex.Unlock()
-		t.Fatalf("second save: %v", err)
+	got, ok, err := groupStore.GetSessionGroup(ctx, "a")
+	if err != nil || !ok {
+		t.Fatalf("get a: %v ok=%v", err, ok)
 	}
-	mgr.indexMutex.Unlock()
-
-	mgr.indexMutex.Lock()
-	loaded, err := mgr.loadIndexLocked()
-	mgr.indexMutex.Unlock()
-	if err != nil {
-		t.Fatalf("load: %v", err)
+	if got.CurrentSessionID != "id-2" {
+		t.Errorf("second put should overwrite first: got %q", got.CurrentSessionID)
 	}
-	if loaded.Groups["a"].CurrentSessionID != "id-2" {
-		t.Errorf("second save should overwrite first: got %q", loaded.Groups["a"].CurrentSessionID)
-	}
-	if _, ok := loaded.Groups["b"]; !ok {
-		t.Errorf("second save should add b")
-	}
-
-	// No leftover .tmp files in the index dir.
-	dir := filepath.Dir(mgr.indexPath)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read dir: %v", err)
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), filepath.Base(mgr.indexPath)+".tmp-") {
-			t.Errorf("temp file leaked: %s", e.Name())
-		}
+	if _, ok, _ := groupStore.GetSessionGroup(ctx, "b"); !ok {
+		t.Errorf("expected b to be present")
 	}
 }
 
 func TestConcurrentRolloversForDifferentGroups(t *testing.T) {
-	mgr, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	mgr, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
 	const groupCount = 8
@@ -414,13 +387,11 @@ func TestConcurrentRolloversForDifferentGroups(t *testing.T) {
 	}
 	wg.Wait()
 
-	mgr.indexMutex.Lock()
-	idx, err := mgr.loadIndexLocked()
-	mgr.indexMutex.Unlock()
+	all, err := groupStore.ListSessionGroups(context.Background())
 	if err != nil {
-		t.Fatalf("load: %v", err)
+		t.Fatalf("list: %v", err)
 	}
-	if len(idx.Groups) != groupCount {
-		t.Errorf("expected %d groups after concurrent registration, got %d", groupCount, len(idx.Groups))
+	if len(all) != groupCount {
+		t.Errorf("expected %d groups after concurrent registration, got %d", groupCount, len(all))
 	}
 }

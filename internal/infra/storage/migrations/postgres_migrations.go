@@ -49,5 +49,21 @@ func GetPostgresMigrations() []Migration {
 				DROP TABLE IF EXISTS conversations;
 			`,
 		},
+		{
+			Version:     "002",
+			Description: "Session groups index for channel-keyed rollover",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS session_groups (
+					group_key          TEXT PRIMARY KEY,
+					current_session_id TEXT NOT NULL,
+					history            JSONB NOT NULL DEFAULT '[]'::jsonb,
+					last_rollover      TIMESTAMP WITH TIME ZONE,
+					updated_at         TIMESTAMP WITH TIME ZONE NOT NULL
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS session_groups;
+			`,
+		},
 	}
 }

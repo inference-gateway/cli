@@ -808,3 +808,50 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 		assert.Equal(t, 2, summary.MessageCount)
 	}
 }
+
+func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
+	s, basePath, cleanup := setupTestJsonlStorage(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	_, ok, err := s.GetSessionGroup(ctx, "missing")
+	require.NoError(t, err)
+	assert.False(t, ok)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	require.NoError(t, s.PutSessionGroup(ctx, "channel-test", SessionGroupEntry{
+		CurrentSessionID: "id-1",
+		History:          []string{"prev"},
+		LastRollover:     now,
+		UpdatedAt:        now,
+	}))
+	require.NoError(t, s.PutSessionGroup(ctx, "second", SessionGroupEntry{
+		CurrentSessionID: "id-2",
+		UpdatedAt:        now,
+	}))
+
+	indexPath := filepath.Join(filepath.Dir(basePath), "session_groups.json")
+	stat, err := os.Stat(indexPath)
+	require.NoError(t, err)
+	assert.Greater(t, stat.Size(), int64(0))
+
+	dir := filepath.Dir(indexPath)
+	dirEntries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	for _, e := range dirEntries {
+		if strings.HasPrefix(e.Name(), filepath.Base(indexPath)+".tmp-") {
+			t.Errorf("temp file leaked: %s", e.Name())
+		}
+	}
+
+	got, ok, err := s.GetSessionGroup(ctx, "channel-test")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "id-1", got.CurrentSessionID)
+	assert.Equal(t, []string{"prev"}, got.History)
+
+	all, err := s.ListSessionGroups(ctx)
+	require.NoError(t, err)
+	assert.Len(t, all, 2)
+}

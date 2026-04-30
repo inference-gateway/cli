@@ -416,3 +416,124 @@ func (s *PostgresStorage) Health(ctx context.Context) error {
 
 	return nil
 }
+
+// GetSessionGroup returns the entry for groupKey or (_, false, nil) if missing.
+func (s *PostgresStorage) GetSessionGroup(ctx context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	const query = `
+		SELECT current_session_id, history, last_rollover, updated_at
+		FROM session_groups
+		WHERE group_key = $1
+	`
+
+	var (
+		currentSessionID string
+		historyJSON      []byte
+		lastRollover     sql.NullTime
+		updatedAt        time.Time
+	)
+
+	err := s.db.QueryRowContext(ctx, query, groupKey).Scan(&currentSessionID, &historyJSON, &lastRollover, &updatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return SessionGroupEntry{}, false, nil
+		}
+		return SessionGroupEntry{}, false, fmt.Errorf("query session group %s: %w", groupKey, err)
+	}
+
+	var history []string
+	if len(historyJSON) > 0 {
+		if err := json.Unmarshal(historyJSON, &history); err != nil {
+			return SessionGroupEntry{}, false, fmt.Errorf("decode history for %s: %w", groupKey, err)
+		}
+	}
+
+	entry := SessionGroupEntry{
+		CurrentSessionID: currentSessionID,
+		History:          history,
+		UpdatedAt:        updatedAt,
+	}
+	if lastRollover.Valid {
+		entry.LastRollover = lastRollover.Time
+	}
+	return entry, true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey via UPSERT.
+func (s *PostgresStorage) PutSessionGroup(ctx context.Context, groupKey string, entry SessionGroupEntry) error {
+	historyJSON, err := json.Marshal(entry.History)
+	if err != nil {
+		return fmt.Errorf("encode history for %s: %w", groupKey, err)
+	}
+	if len(historyJSON) == 0 || string(historyJSON) == "null" {
+		historyJSON = []byte("[]")
+	}
+
+	var lastRollover any
+	if !entry.LastRollover.IsZero() {
+		lastRollover = entry.LastRollover
+	}
+
+	const query = `
+		INSERT INTO session_groups(group_key, current_session_id, history, last_rollover, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (group_key) DO UPDATE SET
+			current_session_id = EXCLUDED.current_session_id,
+			history            = EXCLUDED.history,
+			last_rollover      = EXCLUDED.last_rollover,
+			updated_at         = EXCLUDED.updated_at
+	`
+
+	if _, err := s.db.ExecContext(ctx, query, groupKey, entry.CurrentSessionID, historyJSON, lastRollover, entry.UpdatedAt); err != nil {
+		return fmt.Errorf("upsert session group %s: %w", groupKey, err)
+	}
+	return nil
+}
+
+// ListSessionGroups returns all session-group entries.
+func (s *PostgresStorage) ListSessionGroups(ctx context.Context) (map[string]SessionGroupEntry, error) {
+	const query = `
+		SELECT group_key, current_session_id, history, last_rollover, updated_at
+		FROM session_groups
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list session groups: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]SessionGroupEntry)
+	for rows.Next() {
+		var (
+			groupKey         string
+			currentSessionID string
+			historyJSON      []byte
+			lastRollover     sql.NullTime
+			updatedAt        time.Time
+		)
+		if err := rows.Scan(&groupKey, &currentSessionID, &historyJSON, &lastRollover, &updatedAt); err != nil {
+			return nil, fmt.Errorf("scan session group row: %w", err)
+		}
+
+		var history []string
+		if len(historyJSON) > 0 {
+			if err := json.Unmarshal(historyJSON, &history); err != nil {
+				return nil, fmt.Errorf("decode history for %s: %w", groupKey, err)
+			}
+		}
+
+		entry := SessionGroupEntry{
+			CurrentSessionID: currentSessionID,
+			History:          history,
+			UpdatedAt:        updatedAt,
+		}
+		if lastRollover.Valid {
+			entry.LastRollover = lastRollover.Time
+		}
+		out[groupKey] = entry
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate session groups: %w", err)
+	}
+	return out, nil
+}

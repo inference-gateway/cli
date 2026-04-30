@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // MemoryStorage implements ConversationStorage using in-memory storage
 // This allows conversation history features to work without persistent storage
 type MemoryStorage struct {
 	conversations map[string]conversationData
+	sessionGroups map[string]SessionGroupEntry
 	mutex         sync.RWMutex
 }
 
@@ -26,7 +27,15 @@ type conversationData struct {
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		conversations: make(map[string]conversationData),
+		sessionGroups: make(map[string]SessionGroupEntry),
 	}
+}
+
+// NewMemorySessionGroupStorage returns an in-memory SessionGroupStorage. Used
+// as a fallback when conversation storage is disabled but the rollover manager
+// still needs somewhere to keep group state for the lifetime of the process.
+func NewMemorySessionGroupStorage() SessionGroupStorage {
+	return NewMemoryStorage()
 }
 
 // SaveConversation saves a conversation with a unique ID
@@ -146,7 +155,51 @@ func (m *MemoryStorage) Close() error {
 	defer m.mutex.Unlock()
 
 	m.conversations = make(map[string]conversationData)
+	m.sessionGroups = make(map[string]SessionGroupEntry)
 	return nil
+}
+
+// GetSessionGroup returns the entry for groupKey or (_, false, nil) if missing.
+func (m *MemoryStorage) GetSessionGroup(_ context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	entry, ok := m.sessionGroups[groupKey]
+	if !ok {
+		return SessionGroupEntry{}, false, nil
+	}
+	return cloneSessionGroupEntry(entry), true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey.
+func (m *MemoryStorage) PutSessionGroup(_ context.Context, groupKey string, entry SessionGroupEntry) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	m.sessionGroups[groupKey] = cloneSessionGroupEntry(entry)
+	return nil
+}
+
+// ListSessionGroups returns a copy of all session-group entries.
+func (m *MemoryStorage) ListSessionGroups(_ context.Context) (map[string]SessionGroupEntry, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	out := make(map[string]SessionGroupEntry, len(m.sessionGroups))
+	for k, v := range m.sessionGroups {
+		out[k] = cloneSessionGroupEntry(v)
+	}
+	return out, nil
+}
+
+func cloneSessionGroupEntry(entry SessionGroupEntry) SessionGroupEntry {
+	if len(entry.History) == 0 {
+		return entry
+	}
+	historyCopy := make([]string, len(entry.History))
+	copy(historyCopy, entry.History)
+	entry.History = historyCopy
+	return entry
 }
 
 // Health checks if the storage is healthy and reachable

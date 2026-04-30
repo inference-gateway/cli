@@ -213,39 +213,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
-	if err != nil {
-		isExplicitStorage := c.config.Storage.Enabled && storageConfig.Type != "memory"
-
-		if isExplicitStorage {
-			logger.Error("Storage backend initialization failed",
-				"error", err,
-				"type", storageConfig.Type,
-				"enabled", c.config.Storage.Enabled)
-			logger.Error("Storage backend '%s' is not available. "+
-				"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
-				storageConfig.Type)
-			panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
-				"To use in-memory storage instead, set:\n"+
-				"  storage.enabled: false\n\n"+
-				"Or use an alternative storage backend:\n"+
-				"  storage.type: postgres  # or redis", storageConfig.Type, err))
-		}
-
-		logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
-		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
-	} else {
-		c.storage = storageBackend
-		persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
-		c.conversationRepo = persistentRepo
-		logger.Info("Initialized conversation storage", "type", storageConfig.Type)
-
-		titleClient := c.createRawSDKClient()
-		c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
-		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
-
-		persistentRepo.SetTitleGenerator(c.titleGenerator)
-		persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
-	}
+	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
 
 	if c.config.IsClaudeCodeMode() {
 		logger.Info("Using static Claude model list (Claude Code mode)")
@@ -284,6 +252,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 				c.conversationOptimizer,
 				persistentRepo,
 				c.tokenizer,
+				groupStore,
 			)
 		}
 	}
@@ -303,6 +272,70 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
 	)
+}
+
+// initializeStorageBackend wires the conversation repository for the configured
+// storage backend and returns the matching SessionGroupStorage. When the
+// backend fails to initialize, falls back to in-memory conversation storage
+// (or panics on an explicit, non-default backend so the user gets a clear
+// signal that the configuration is broken).
+func (c *ServiceContainer) initializeStorageBackend(
+	storageBackend storage.ConversationStorage,
+	storageConfig storage.StorageConfig,
+	toolFormatterService *services.ToolFormatterService,
+	err error,
+) storage.SessionGroupStorage {
+	if err != nil {
+		c.handleStorageInitFailure(storageConfig, toolFormatterService, err)
+		return storage.NewMemorySessionGroupStorage()
+	}
+
+	c.storage = storageBackend
+	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
+	c.conversationRepo = persistentRepo
+	logger.Info("Initialized conversation storage", "type", storageConfig.Type)
+
+	titleClient := c.createRawSDKClient()
+	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
+	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
+
+	persistentRepo.SetTitleGenerator(c.titleGenerator)
+	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
+
+	if gs, ok := storageBackend.(storage.SessionGroupStorage); ok {
+		return gs
+	}
+
+	logger.Warn("storage backend does not implement SessionGroupStorage, falling back to in-memory group store",
+		"type", storageConfig.Type)
+	return storage.NewMemorySessionGroupStorage()
+}
+
+// handleStorageInitFailure panics on explicit-backend failure (so the user
+// sees a clear configuration error) and falls back to in-memory conversation
+// storage on the implicit default path.
+func (c *ServiceContainer) handleStorageInitFailure(
+	storageConfig storage.StorageConfig,
+	toolFormatterService *services.ToolFormatterService,
+	err error,
+) {
+	if c.config.Storage.Enabled && storageConfig.Type != "memory" {
+		logger.Error("Storage backend initialization failed",
+			"error", err,
+			"type", storageConfig.Type,
+			"enabled", c.config.Storage.Enabled)
+		logger.Error("Storage backend '%s' is not available. "+
+			"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
+			storageConfig.Type)
+		panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
+			"To use in-memory storage instead, set:\n"+
+			"  storage.enabled: false\n\n"+
+			"Or use an alternative storage backend:\n"+
+			"  storage.type: postgres  # or redis", storageConfig.Type, err))
+	}
+
+	logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
+	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
 // initializeStateManager creates the state manager before domain services need it

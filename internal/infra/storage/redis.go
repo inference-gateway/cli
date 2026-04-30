@@ -9,6 +9,7 @@ import (
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -416,4 +417,64 @@ func (s *RedisStorage) Health(ctx context.Context) error {
 	s.client.Del(ctx, testKey)
 
 	return nil
+}
+
+// sessionGroupsKey is the Redis hash where session-group entries live, keyed
+// by group key with the JSON-serialized SessionGroupEntry as the value.
+const sessionGroupsKey = "session_groups"
+
+// GetSessionGroup returns the entry for groupKey or (_, false, nil) if missing.
+func (s *RedisStorage) GetSessionGroup(ctx context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	raw, err := s.client.HGet(ctx, sessionGroupsKey, groupKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return SessionGroupEntry{}, false, nil
+		}
+		return SessionGroupEntry{}, false, fmt.Errorf("redis HGET %s/%s: %w", sessionGroupsKey, groupKey, err)
+	}
+
+	var entry SessionGroupEntry
+	if err := json.Unmarshal([]byte(raw), &entry); err != nil {
+		return SessionGroupEntry{}, false, fmt.Errorf("decode session group %s: %w", groupKey, err)
+	}
+	return entry, true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey via an atomic
+// HSET. If a TTL is configured for this Redis backend, the TTL is refreshed on
+// the parent hash so the index doesn't outlive the conversation data.
+func (s *RedisStorage) PutSessionGroup(ctx context.Context, groupKey string, entry SessionGroupEntry) error {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("encode session group %s: %w", groupKey, err)
+	}
+
+	if err := s.client.HSet(ctx, sessionGroupsKey, groupKey, data).Err(); err != nil {
+		return fmt.Errorf("redis HSET %s/%s: %w", sessionGroupsKey, groupKey, err)
+	}
+
+	if s.ttl > 0 {
+		if err := s.client.Expire(ctx, sessionGroupsKey, s.ttl).Err(); err != nil {
+			return fmt.Errorf("redis EXPIRE %s: %w", sessionGroupsKey, err)
+		}
+	}
+	return nil
+}
+
+// ListSessionGroups returns all entries from the session-groups hash.
+func (s *RedisStorage) ListSessionGroups(ctx context.Context) (map[string]SessionGroupEntry, error) {
+	raw, err := s.client.HGetAll(ctx, sessionGroupsKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("redis HGETALL %s: %w", sessionGroupsKey, err)
+	}
+
+	out := make(map[string]SessionGroupEntry, len(raw))
+	for k, v := range raw {
+		var entry SessionGroupEntry
+		if err := json.Unmarshal([]byte(v), &entry); err != nil {
+			return nil, fmt.Errorf("decode session group %s: %w", k, err)
+		}
+		out[k] = entry
+	}
+	return out, nil
 }

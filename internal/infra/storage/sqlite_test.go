@@ -252,3 +252,55 @@ func createTestMetadata(id string) ConversationMetadata {
 		Tags:  []string{"test", "demo"},
 	}
 }
+
+func TestSQLiteStorage_SessionGroups(t *testing.T) {
+	s, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	_, ok, err := s.GetSessionGroup(ctx, "missing")
+	require.NoError(t, err)
+	assert.False(t, ok, "missing key must report not-found")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	entry := SessionGroupEntry{
+		CurrentSessionID: "uuid-1",
+		History:          []string{"prev-a", "prev-b"},
+		LastRollover:     now,
+		UpdatedAt:        now,
+	}
+	require.NoError(t, s.PutSessionGroup(ctx, "channel-telegram-42", entry))
+
+	got, ok, err := s.GetSessionGroup(ctx, "channel-telegram-42")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "uuid-1", got.CurrentSessionID)
+	assert.Equal(t, []string{"prev-a", "prev-b"}, got.History)
+	assert.WithinDuration(t, now, got.UpdatedAt, time.Second)
+	assert.WithinDuration(t, now, got.LastRollover, time.Second)
+
+	require.NoError(t, s.PutSessionGroup(ctx, "channel-telegram-42", SessionGroupEntry{
+		CurrentSessionID: "uuid-2",
+		History:          []string{"prev-a", "prev-b", "uuid-1"},
+		UpdatedAt:        now,
+	}))
+
+	got, ok, err = s.GetSessionGroup(ctx, "channel-telegram-42")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "uuid-2", got.CurrentSessionID)
+	assert.Equal(t, []string{"prev-a", "prev-b", "uuid-1"}, got.History)
+	assert.True(t, got.LastRollover.IsZero(), "LastRollover must be cleared when UPSERT supplies zero value")
+
+	require.NoError(t, s.PutSessionGroup(ctx, "second", SessionGroupEntry{
+		CurrentSessionID: "uuid-3",
+		UpdatedAt:        now,
+	}))
+	all, err := s.ListSessionGroups(ctx)
+	require.NoError(t, err)
+	assert.Len(t, all, 2)
+	assert.Equal(t, "uuid-2", all["channel-telegram-42"].CurrentSessionID)
+	assert.Equal(t, "uuid-3", all["second"].CurrentSessionID)
+	assert.True(t, all["second"].LastRollover.IsZero())
+}

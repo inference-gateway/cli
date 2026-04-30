@@ -251,3 +251,75 @@ func TestMemoryStorage_Close(t *testing.T) {
 		t.Error("Expected error when loading conversation after Close, but got nil")
 	}
 }
+
+func TestMemoryStorage_SessionGroups(t *testing.T) {
+	s := NewMemoryStorage()
+	ctx := context.Background()
+
+	if _, ok, err := s.GetSessionGroup(ctx, "missing"); err != nil || ok {
+		t.Fatalf("missing group should be (_, false, nil); got ok=%v err=%v", ok, err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	entry := SessionGroupEntry{
+		CurrentSessionID: "id-1",
+		History:          []string{"prev-1", "prev-2"},
+		LastRollover:     now,
+		UpdatedAt:        now,
+	}
+	if err := s.PutSessionGroup(ctx, "channel-test", entry); err != nil {
+		t.Fatalf("PutSessionGroup: %v", err)
+	}
+
+	got, ok, err := s.GetSessionGroup(ctx, "channel-test")
+	if err != nil || !ok {
+		t.Fatalf("expected entry; ok=%v err=%v", ok, err)
+	}
+	if got.CurrentSessionID != "id-1" {
+		t.Errorf("CurrentSessionID: got %q want id-1", got.CurrentSessionID)
+	}
+	if len(got.History) != 2 || got.History[0] != "prev-1" || got.History[1] != "prev-2" {
+		t.Errorf("History: got %v", got.History)
+	}
+
+	got.History[0] = "tampered"
+	again, _, _ := s.GetSessionGroup(ctx, "channel-test")
+	if again.History[0] != "prev-1" {
+		t.Errorf("entry must be cloned on read: got %q", again.History[0])
+	}
+
+	if err := s.PutSessionGroup(ctx, "channel-test", SessionGroupEntry{
+		CurrentSessionID: "id-2", UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("overwrite Put: %v", err)
+	}
+	got, _, _ = s.GetSessionGroup(ctx, "channel-test")
+	if got.CurrentSessionID != "id-2" {
+		t.Errorf("overwrite failed: got %q", got.CurrentSessionID)
+	}
+
+	if err := s.PutSessionGroup(ctx, "second", SessionGroupEntry{
+		CurrentSessionID: "id-3", UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("Put second: %v", err)
+	}
+	all, err := s.ListSessionGroups(ctx)
+	if err != nil {
+		t.Fatalf("ListSessionGroups: %v", err)
+	}
+	if len(all) != 2 {
+		t.Errorf("List should return 2, got %d", len(all))
+	}
+}
+
+func TestNewMemorySessionGroupStorage_StandaloneFallback(t *testing.T) {
+	s := NewMemorySessionGroupStorage()
+	ctx := context.Background()
+
+	if err := s.PutSessionGroup(ctx, "g", SessionGroupEntry{CurrentSessionID: "x", UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	if entry, ok, err := s.GetSessionGroup(ctx, "g"); err != nil || !ok || entry.CurrentSessionID != "x" {
+		t.Errorf("standalone constructor must return a working store; ok=%v err=%v entry=%+v", ok, err, entry)
+	}
+}
