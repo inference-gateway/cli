@@ -2,11 +2,8 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -15,80 +12,51 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
 )
-
-// sessionGroupsFileName is the on-disk index that maps a "group key" (any
-// non-UUID identifier such as "channel-telegram-6312551834") to the current
-// session UUID for that group. The file lives next to the conversations
-// directory at <project>/.infer/session_groups.json.
-const sessionGroupsFileName = "session_groups.json"
-
-// SessionGroupEntry tracks the active session for a given group key plus a
-// rollover history so old conversations can still be looked up via
-// `infer conversations list`.
-type SessionGroupEntry struct {
-	CurrentSessionID string    `json:"current_session_id"`
-	History          []string  `json:"history,omitempty"`
-	LastRollover     time.Time `json:"last_rollover,omitempty"`
-	UpdatedAt        time.Time `json:"updated_at"`
-}
-
-// sessionGroupIndex is the on-disk schema for session_groups.json.
-type sessionGroupIndex struct {
-	Groups map[string]SessionGroupEntry `json:"groups"`
-}
 
 // SessionRolloverManager decides when to roll over a long-running conversation
 // into a new file (matching the chat-mode `/compact` behavior) and exposes the
 // machinery to perform that rollover. It also resolves "group key" inputs from
 // the channel manager (e.g. `channel-telegram-XYZ`) to the current session UUID
-// via a small JSON index, so callers like the channel manager can keep using a
-// stable, deterministic identifier without worrying about which physical
-// session it points at right now.
+// via the configured SessionGroupStorage backend, so callers like the channel
+// manager can keep using a stable, deterministic identifier without worrying
+// about which physical session it points at right now.
 type SessionRolloverManager struct {
 	cfg        *config.Config
 	optimizer  domain.ConversationOptimizer
 	repo       *PersistentConversationRepository
 	tokenizer  *TokenizerService
-	indexPath  string
+	groupStore storage.SessionGroupStorage
 	indexMutex sync.Mutex
 }
 
 // NewSessionRolloverManager constructs a manager. The optimizer is required for
 // PerformRollover to work; if it's nil, ShouldRollover always returns false and
 // PerformRollover returns an error. This mirrors how the chat-mode /compact
-// shortcut behaves when the optimizer is disabled.
+// shortcut behaves when the optimizer is disabled. groupStore is required for
+// non-UUID session-id resolution; if it is nil, group-keyed lookups will fall
+// back to passing the raw id through.
 func NewSessionRolloverManager(
 	cfg *config.Config,
 	optimizer domain.ConversationOptimizer,
 	repo *PersistentConversationRepository,
 	tokenizer *TokenizerService,
+	groupStore storage.SessionGroupStorage,
 ) *SessionRolloverManager {
-	indexPath := filepath.Join(config.ConfigDirName, sessionGroupsFileName)
-	if abs, err := filepath.Abs(indexPath); err == nil {
-		indexPath = abs
-	}
-
 	if tokenizer == nil {
 		tokenizer = NewTokenizerService(DefaultTokenizerConfig())
 	}
 
 	return &SessionRolloverManager{
-		cfg:       cfg,
-		optimizer: optimizer,
-		repo:      repo,
-		tokenizer: tokenizer,
-		indexPath: indexPath,
+		cfg:        cfg,
+		optimizer:  optimizer,
+		repo:       repo,
+		tokenizer:  tokenizer,
+		groupStore: groupStore,
 	}
-}
-
-// SetIndexPath overrides the index file location. Used by tests.
-func (m *SessionRolloverManager) SetIndexPath(path string) {
-	m.indexMutex.Lock()
-	defer m.indexMutex.Unlock()
-	m.indexPath = path
 }
 
 // ResolveSessionID maps a raw --session-id value to the conversation ID that
@@ -96,14 +64,14 @@ func (m *SessionRolloverManager) SetIndexPath(path string) {
 //
 //   - If rawID parses as a UUID, it is treated as a literal session ID and
 //     returned unchanged with an empty groupKey.
-//   - Otherwise it is treated as a group key. The index file is consulted: if
-//     the group exists, its current_session_id is returned; if it does not,
-//     the group is registered with rawID as its initial current_session_id
-//     (this is the migration path for existing channel JSONL files named
-//     after the deterministic group key).
+//   - Otherwise it is treated as a group key. The configured SessionGroupStorage
+//     is consulted: if the group exists, its current_session_id is returned; if
+//     it does not, the group is registered with rawID as its initial
+//     current_session_id (this is the migration path for existing channel JSONL
+//     files named after the deterministic group key).
 //
 // Returns (sessionID, groupKey, error). On any error reading/writing the
-// index, the function logs a warning and falls back to passing rawID through
+// store, the function logs a warning and falls back to passing rawID through
 // unchanged so the agent can still run.
 func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string, error) {
 	if rawID == "" {
@@ -112,27 +80,32 @@ func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string,
 	if _, err := uuid.Parse(rawID); err == nil {
 		return rawID, "", nil
 	}
+	if m.groupStore == nil {
+		logger.Warn("session group storage is not configured, using raw id", "raw_id", rawID)
+		return rawID, rawID, nil
+	}
 
 	groupKey := rawID
+	ctx := context.Background()
 
 	m.indexMutex.Lock()
 	defer m.indexMutex.Unlock()
 
-	idx, err := m.loadIndexLocked()
+	entry, found, err := m.groupStore.GetSessionGroup(ctx, groupKey)
 	if err != nil {
-		logger.Warn("failed to load session groups index, using raw id", "error", err, "raw_id", rawID)
+		logger.Warn("failed to load session group, using raw id", "error", err, "raw_id", rawID)
 		return rawID, groupKey, nil
 	}
 
-	if entry, ok := idx.Groups[groupKey]; ok && entry.CurrentSessionID != "" {
+	if found && entry.CurrentSessionID != "" {
 		return entry.CurrentSessionID, groupKey, nil
 	}
 
-	idx.Groups[groupKey] = SessionGroupEntry{
+	newEntry := storage.SessionGroupEntry{
 		CurrentSessionID: rawID,
 		UpdatedAt:        time.Now(),
 	}
-	if err := m.saveIndexAtomicLocked(idx); err != nil {
+	if err := m.groupStore.PutSessionGroup(ctx, groupKey, newEntry); err != nil {
 		logger.Warn("failed to register session group, using raw id", "error", err, "group", groupKey)
 	}
 
@@ -225,8 +198,8 @@ func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.Conversation
 
 // PerformRollover runs the optimizer with force=true to produce a summary,
 // calls StartNewConversation on the repo to begin a fresh conversation file,
-// re-adds the summarized messages, and (if groupKey != "") updates the index
-// to point the group at the new session ID.
+// re-adds the summarized messages, and (if groupKey != "") updates the
+// configured SessionGroupStorage to point the group at the new session ID.
 //
 // This mirrors performCompactAsync in chat_shortcut_handler.go:510-615 — same
 // optimizer call, same StartNewConversation call, same AddMessage loop.
@@ -293,7 +266,7 @@ func (m *SessionRolloverManager) PerformRollover(ctx context.Context, model, gro
 	}
 
 	if groupKey != "" {
-		if err := m.updateGroupIndex(groupKey, newID, originalID); err != nil {
+		if err := m.updateGroupIndex(ctx, groupKey, newID, originalID); err != nil {
 			logger.Warn("failed to update session groups index", "error", err, "group", groupKey)
 		}
 	}
@@ -307,85 +280,26 @@ func (m *SessionRolloverManager) PerformRollover(ctx context.Context, model, gro
 }
 
 // updateGroupIndex sets the group's current_session_id to newID and appends
-// the previous ID to the history. Acquires the index mutex.
-func (m *SessionRolloverManager) updateGroupIndex(groupKey, newID, previousID string) error {
+// the previous ID to the history.
+func (m *SessionRolloverManager) updateGroupIndex(ctx context.Context, groupKey, newID, previousID string) error {
+	if m.groupStore == nil {
+		return errors.New("session group storage is not configured")
+	}
+
 	m.indexMutex.Lock()
 	defer m.indexMutex.Unlock()
 
-	idx, err := m.loadIndexLocked()
+	entry, _, err := m.groupStore.GetSessionGroup(ctx, groupKey)
 	if err != nil {
 		return err
 	}
 
-	entry := idx.Groups[groupKey]
 	if previousID != "" && previousID != newID {
 		entry.History = append(entry.History, previousID)
 	}
 	entry.CurrentSessionID = newID
 	entry.LastRollover = time.Now()
 	entry.UpdatedAt = time.Now()
-	idx.Groups[groupKey] = entry
 
-	return m.saveIndexAtomicLocked(idx)
-}
-
-// loadIndexLocked reads and parses the index file. Returns an empty index if
-// the file does not exist. Caller must hold indexMutex.
-func (m *SessionRolloverManager) loadIndexLocked() (*sessionGroupIndex, error) {
-	data, err := os.ReadFile(m.indexPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &sessionGroupIndex{Groups: make(map[string]SessionGroupEntry)}, nil
-		}
-		return nil, fmt.Errorf("read session groups index: %w", err)
-	}
-
-	var idx sessionGroupIndex
-	if len(data) == 0 {
-		return &sessionGroupIndex{Groups: make(map[string]SessionGroupEntry)}, nil
-	}
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("parse session groups index: %w", err)
-	}
-	if idx.Groups == nil {
-		idx.Groups = make(map[string]SessionGroupEntry)
-	}
-	return &idx, nil
-}
-
-// saveIndexAtomicLocked writes the index to a temp file in the same directory
-// then renames it over the target. This avoids corrupting the index if two
-// agent subprocesses race on the same file. Caller must hold indexMutex.
-func (m *SessionRolloverManager) saveIndexAtomicLocked(idx *sessionGroupIndex) error {
-	if err := os.MkdirAll(filepath.Dir(m.indexPath), 0o755); err != nil {
-		return fmt.Errorf("create session groups dir: %w", err)
-	}
-
-	data, err := json.MarshalIndent(idx, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal session groups index: %w", err)
-	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(m.indexPath), sessionGroupsFileName+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp index file: %w", err)
-	}
-	tmpName := tmp.Name()
-	cleanup := func() { _ = os.Remove(tmpName) }
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		cleanup()
-		return fmt.Errorf("write temp index file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		cleanup()
-		return fmt.Errorf("close temp index file: %w", err)
-	}
-
-	if err := os.Rename(tmpName, m.indexPath); err != nil {
-		cleanup()
-		return fmt.Errorf("replace session groups index: %w", err)
-	}
-	return nil
+	return m.groupStore.PutSessionGroup(ctx, groupKey, entry)
 }

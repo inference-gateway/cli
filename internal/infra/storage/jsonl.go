@@ -20,6 +20,18 @@ type JsonlStorage struct {
 	mu              sync.RWMutex
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
+	groupIndexMu    sync.Mutex
+}
+
+// sessionGroupsFileName is the on-disk index that maps a "group key" to the
+// current session UUID for that group. The file is kept one level above the
+// JSONL conversations directory so that legacy installs (where it previously
+// lived at <ConfigDirName>/session_groups.json) keep working without
+// migration.
+const sessionGroupsFileName = "session_groups.json"
+
+type sessionGroupIndexFile struct {
+	Groups map[string]SessionGroupEntry `json:"groups"`
 }
 
 // V2 format version constant
@@ -774,4 +786,106 @@ func (s *JsonlStorage) loadV2Format(file *os.File) ([]domain.ConversationEntry, 
 	}
 
 	return entries, metadata, nil
+}
+
+// sessionGroupsPath is the path of the on-disk session-groups index. It lives
+// one directory level above basePath so existing installs (where the file
+// previously lived at <ConfigDirName>/session_groups.json next to the
+// conversations dir) keep working without migration.
+func (s *JsonlStorage) sessionGroupsPath() string {
+	return filepath.Join(filepath.Dir(s.basePath), sessionGroupsFileName)
+}
+
+func (s *JsonlStorage) loadSessionGroupsLocked() (map[string]SessionGroupEntry, error) {
+	data, err := os.ReadFile(s.sessionGroupsPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string]SessionGroupEntry), nil
+		}
+		return nil, fmt.Errorf("read session groups index: %w", err)
+	}
+	if len(data) == 0 {
+		return make(map[string]SessionGroupEntry), nil
+	}
+	var idx sessionGroupIndexFile
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil, fmt.Errorf("parse session groups index: %w", err)
+	}
+	if idx.Groups == nil {
+		idx.Groups = make(map[string]SessionGroupEntry)
+	}
+	return idx.Groups, nil
+}
+
+func (s *JsonlStorage) saveSessionGroupsLocked(groups map[string]SessionGroupEntry) error {
+	indexPath := s.sessionGroupsPath()
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0o755); err != nil {
+		return fmt.Errorf("create session groups dir: %w", err)
+	}
+
+	data, err := json.MarshalIndent(sessionGroupIndexFile{Groups: groups}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal session groups index: %w", err)
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(indexPath), sessionGroupsFileName+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp index file: %w", err)
+	}
+	tmpName := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpName) }
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return fmt.Errorf("write temp index file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close temp index file: %w", err)
+	}
+	if err := os.Rename(tmpName, indexPath); err != nil {
+		cleanup()
+		return fmt.Errorf("replace session groups index: %w", err)
+	}
+	return nil
+}
+
+// GetSessionGroup returns the entry for groupKey, or (_, false, nil) if missing.
+func (s *JsonlStorage) GetSessionGroup(_ context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	groups, err := s.loadSessionGroupsLocked()
+	if err != nil {
+		return SessionGroupEntry{}, false, err
+	}
+	entry, ok := groups[groupKey]
+	if !ok {
+		return SessionGroupEntry{}, false, nil
+	}
+	return entry, true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey using an atomic
+// temp-file + rename so concurrent agent subprocesses don't see a partially
+// written file.
+func (s *JsonlStorage) PutSessionGroup(_ context.Context, groupKey string, entry SessionGroupEntry) error {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	groups, err := s.loadSessionGroupsLocked()
+	if err != nil {
+		return err
+	}
+	groups[groupKey] = entry
+	return s.saveSessionGroupsLocked(groups)
+}
+
+// ListSessionGroups returns all entries from the on-disk index.
+func (s *JsonlStorage) ListSessionGroups(_ context.Context) (map[string]SessionGroupEntry, error) {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	return s.loadSessionGroupsLocked()
 }

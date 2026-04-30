@@ -32,5 +32,21 @@ func GetSQLiteMigrations() []Migration {
 				DROP TABLE IF EXISTS conversations;
 			`,
 		},
+		{
+			Version:     "002",
+			Description: "Session groups index for channel-keyed rollover",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS session_groups (
+					group_key          TEXT PRIMARY KEY,
+					current_session_id TEXT NOT NULL,
+					history            TEXT NOT NULL DEFAULT '[]',
+					last_rollover      DATETIME,
+					updated_at         DATETIME NOT NULL
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS session_groups;
+			`,
+		},
 	}
 }
