@@ -30,7 +30,7 @@ type ChannelManagerService struct {
 	cfg      config.ChannelsConfig
 
 	// Per-sender mutex to serialize agent invocations for the same session
-	senderMutexes sync.Map // map[string]*sync.Mutex
+	senderMutexes sync.Map
 
 	// semaphore limits the number of concurrent agent subprocesses
 	semaphore chan struct{}
@@ -256,6 +256,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+	errorForwarded := false
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -271,15 +272,23 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 			}
 		}
 
+		isErr := parseAgentError(line)
 		content := formatAgentMessage(line)
 		if content != "" {
 			sendFn(content)
+			if isErr {
+				errorForwarded = true
+			}
 		}
 	}
 
 	if err := cmd.Wait(); err != nil {
+		stderrStr := stderrBuf.String()
 		if stderrBuf.Len() > 0 {
-			logger.Error("Agent stderr output", "stderr", stderrBuf.String())
+			logger.Error("Agent stderr output", "stderr", stderrStr)
+		}
+		if !errorForwarded {
+			sendFn("❌ Agent failed: " + tailStderr(stderrStr, 500))
 		}
 		return fmt.Errorf("agent process failed: %w", err)
 	}
@@ -343,6 +352,38 @@ func parseApprovalRequest(line []byte) (*domain.ApprovalRequest, bool) {
 	return &req, true
 }
 
+// parseAgentError reports whether the line is a structured agent_error IPC message.
+// Used to track whether a fatal error has already been forwarded to the user
+// so the channel manager doesn't double-send a generic safety-net message.
+func parseAgentError(line []byte) bool {
+	var m map[string]any
+	if err := json.Unmarshal(line, &m); err != nil {
+		return false
+	}
+	t, _ := m["type"].(string)
+	return t == "agent_error"
+}
+
+// tailStderr returns the last n bytes of stderr. If the cut lands mid-line,
+// it advances forward to the next newline so we don't start with a partial
+// line. Falls back to "unknown error" when input is empty.
+func tailStderr(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "unknown error"
+	}
+	if len(s) <= n {
+		return s
+	}
+	cut := len(s) - n
+	if cut > 0 && s[cut-1] != '\n' {
+		if i := strings.IndexByte(s[cut:], '\n'); i >= 0 {
+			cut += i + 1
+		}
+	}
+	return s[cut:]
+}
+
 // formatApprovalPrompt creates a human-readable approval prompt for the channel user.
 func formatApprovalPrompt(req *domain.ApprovalRequest) string {
 	var sb strings.Builder
@@ -380,7 +421,13 @@ func formatAgentMessage(line []byte) string {
 		return ""
 	}
 
-	// Skip status messages (type: "info", "warning", etc.)
+	if t, _ := msg["type"].(string); t == "agent_error" {
+		if errMsg, ok := msg["message"].(string); ok && errMsg != "" {
+			return "❌ Error: " + errMsg
+		}
+		return "❌ Error: agent failed"
+	}
+
 	if _, isStatus := msg["type"]; isStatus {
 		return ""
 	}

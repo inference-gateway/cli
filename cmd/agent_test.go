@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,13 +17,80 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// captureStdout redirects os.Stdout for the duration of fn and returns what was written.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+
+	done := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+
+	fn()
+
+	_ = w.Close()
+	os.Stdout = orig
+	return <-done
+}
+
+func TestOutputAgentError(t *testing.T) {
+	t.Run("emits valid agent_error JSON line", func(t *testing.T) {
+		out := captureStdout(t, func() {
+			outputAgentError("context length exceeded")
+		})
+
+		line := strings.TrimRight(out, "\n")
+		if line == "" || strings.Contains(line, "\n") {
+			t.Fatalf("expected single JSON line, got %q", out)
+		}
+		var msg domain.AgentErrorMessage
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			t.Fatalf("unmarshal: %v (raw: %q)", err, line)
+		}
+		if msg.Type != "agent_error" {
+			t.Errorf("Type = %q, want %q", msg.Type, "agent_error")
+		}
+		if msg.Message != "context length exceeded" {
+			t.Errorf("Message = %q", msg.Message)
+		}
+	})
+
+	t.Run("truncates very long messages", func(t *testing.T) {
+		long := strings.Repeat("x", 5000)
+		out := captureStdout(t, func() {
+			outputAgentError(long)
+		})
+
+		var msg domain.AgentErrorMessage
+		if err := json.Unmarshal([]byte(strings.TrimRight(out, "\n")), &msg); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		if !strings.HasSuffix(msg.Message, "…") {
+			t.Errorf("expected truncation suffix, got message ending with %q",
+				msg.Message[max(0, len(msg.Message)-10):])
+		}
+		runes := []rune(msg.Message)
+		if len(runes) > 3501 {
+			t.Errorf("expected at most 3501 runes, got %d", len(runes))
+		}
+	})
+}
+
 func TestFormatToolCallSummary(t *testing.T) {
 	cases := []struct {
 		name     string
 		tool     string
 		args     string
 		want     string
-		contains []string // alternative: substring assertions for long/truncated cases
+		contains []string
 	}{
 		{
 			name: "empty args returns bare name",
