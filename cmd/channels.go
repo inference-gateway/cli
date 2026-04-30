@@ -58,6 +58,11 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return err
 	}
 
+	logger.Info("Starting channels-manager",
+		"version", version,
+		"commit", commit,
+		"build_date", date,
+	)
 	logger.Info("Starting channel listener...")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -126,7 +131,6 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 	if err := svc.Start(ctx); err != nil {
 		return nil, err
 	}
-	logger.Info("Scheduler started", "storage_dir", dir)
 	return svc, nil
 }
 
