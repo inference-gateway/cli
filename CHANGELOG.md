@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.107.0](https://github.com/inference-gateway/cli/compare/v0.106.3...v0.107.0) (2026-04-30)
+
+### 🚀 Features
+
+* **channels:** Log CLI version on startup and dedupe scheduler log ([#481](https://github.com/inference-gateway/cli/issues/481)) ([68c9063](https://github.com/inference-gateway/cli/commit/68c90635fdebf892b8f2481cb81b7747e11c6853)), closes [#470](https://github.com/inference-gateway/cli/issues/470)
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.106.3 ([#480](https://github.com/inference-gateway/cli/issues/480)) ([3a5d7ac](https://github.com/inference-gateway/cli/commit/3a5d7acd284ee07d2d2318272f81ee5a3e103e1a))
+
 ## [0.106.3](https://github.com/inference-gateway/cli/compare/v0.106.2...v0.106.3) (2026-04-30)
 
 ### 🐛 Bug Fixes
