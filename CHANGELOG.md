@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.108.0](https://github.com/inference-gateway/cli/compare/v0.107.0...v0.108.0) (2026-05-01)
+
+### 🚀 Features
+
+* Add heartbeat periodic wake-up for autonomous agent checks ([#483](https://github.com/inference-gateway/cli/issues/483)) ([cfaf35b](https://github.com/inference-gateway/cli/commit/cfaf35b97cc4f32508555dfd623353adf244a908)), closes [#472](https://github.com/inference-gateway/cli/issues/472)
+
+### 🧹 Maintenance
+
+* **deps:** Bump dev dependency claude-code to latest ([c2cb8fa](https://github.com/inference-gateway/cli/commit/c2cb8fa7376eb2cd938ae850bb4d958df49202a7))
+* **nix:** Update package to v0.107.0 ([#482](https://github.com/inference-gateway/cli/issues/482)) ([364df47](https://github.com/inference-gateway/cli/commit/364df477019369dd8f5035bdaaced11248cd8428))
+
 ## [0.107.0](https://github.com/inference-gateway/cli/compare/v0.106.3...v0.107.0) (2026-04-30)
 
 ### 🚀 Features
