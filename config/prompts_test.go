@@ -19,6 +19,7 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"agent.system_prompt":                         cfg.Agent.SystemPrompt,
 		"agent.system_prompt_plan":                    cfg.Agent.SystemPromptPlan,
 		"agent.system_prompt_remote":                  cfg.Agent.SystemPromptRemote,
+		"agent.system_prompt_heartbeat":               cfg.Agent.SystemPromptHeartbeat,
 		"agent.system_reminders.reminder_text":        cfg.Agent.SystemReminders.ReminderText,
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
 		"conversation.title_generation.system_prompt": cfg.Conversation.TitleGeneration.SystemPrompt,

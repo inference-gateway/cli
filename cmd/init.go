@@ -39,7 +39,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, computerUsePath, agentsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -58,6 +58,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
 		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
+		heartbeatPath = filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
 	} else {
@@ -73,12 +74,13 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
 		channelsPath = config.DefaultChannelsPath
+		heartbeatPath = config.DefaultHeartbeatPath
 		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -143,6 +145,10 @@ plans/
 		return fmt.Errorf("failed to create channels config file: %w", err)
 	}
 
+	if err := createHeartbeatConfigFile(heartbeatPath); err != nil {
+		return fmt.Errorf("failed to create heartbeat config file: %w", err)
+	}
+
 	cuMigrated, err := createComputerUseConfigFile(computerUsePath)
 	if err != nil {
 		return fmt.Errorf("failed to create computer_use config file: %w", err)
@@ -172,6 +178,7 @@ plans/
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
 	fmt.Printf("   Created: %s\n", channelsPath)
+	fmt.Printf("   Created: %s\n", heartbeatPath)
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	if migrated {
@@ -460,6 +467,17 @@ func createChannelsConfigFile(path string) (bool, error) {
 		return false, err
 	}
 	return migrated, nil
+}
+
+// createHeartbeatConfigFile writes a fresh heartbeat.yaml seeded from
+// the in-code defaults (disabled, hourly interval). Heartbeat is a new
+// feature with no legacy config block to migrate, so this is the
+// simpler one-step "create from defaults" pattern.
+func createHeartbeatConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	return config.SaveHeartbeat(path, config.DefaultHeartbeatConfig())
 }
 
 // createComputerUseConfigFile writes a fresh computer_use.yaml. Returns

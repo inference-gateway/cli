@@ -23,6 +23,8 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Prompts.Agent.SystemPrompt)
 	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan)
 	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
+	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat)
+	require.NotEmpty(t, cfg.Prompts.Agent.SystemPromptHeartbeat, "heartbeat prompt must have a non-empty default")
 	require.Equal(t, defaults.Agent.SystemReminders.ReminderText, cfg.Prompts.Agent.SystemReminders.ReminderText)
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt)
 	require.Equal(t, defaults.Conversation.TitleGeneration.SystemPrompt, cfg.Prompts.Conversation.TitleGeneration.SystemPrompt)
@@ -52,6 +54,7 @@ func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testin
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Prompts.Agent.SystemPrompt)
 	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan, "unset plan prompt should fall back to default")
+	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat, "unset heartbeat prompt should fall back to default")
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
 	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt, "unset init prompt should fall back to default")
 }
