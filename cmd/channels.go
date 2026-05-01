@@ -13,6 +13,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
+	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	cobra "github.com/spf13/cobra"
 )
@@ -46,16 +47,21 @@ Examples:
 	},
 }
 
-// RunChannelsCommand starts the channel listener daemon
+// RunChannelsCommand starts the channel listener daemon. The daemon
+// hosts up to three subsystems — channels, scheduler, and heartbeat —
+// and starts whichever are enabled. At least one must be enabled or
+// the daemon refuses to boot (otherwise it would just sleep forever).
 func RunChannelsCommand(cfg *config.Config) error {
-	if !cfg.Channels.Enabled {
-		return fmt.Errorf("channels are not enabled. Set enabled: true in .infer/channels.yaml or INFER_CHANNELS_ENABLED=true")
+	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled {
+		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, or heartbeat in .infer/")
 	}
 
 	cm := services.NewChannelManagerService(cfg.Channels)
 
-	if err := registerChannels(cm, cfg); err != nil {
-		return err
+	if cfg.Channels.Enabled {
+		if err := registerChannels(cm, cfg); err != nil {
+			return err
+		}
 	}
 
 	logger.Info("Starting channels-manager",
@@ -63,7 +69,6 @@ func RunChannelsCommand(cfg *config.Config) error {
 		"commit", commit,
 		"build_date", date,
 	)
-	logger.Info("Starting channel listener...")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,8 +76,11 @@ func RunChannelsCommand(cfg *config.Config) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	if err := cm.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start channels: %w", err)
+	if cfg.Channels.Enabled {
+		logger.Info("Starting channel listener...")
+		if err := cm.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start channels: %w", err)
+		}
 	}
 
 	sched, err := startScheduler(ctx, cm, cfg)
@@ -81,11 +89,30 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 
-	logger.Info("Listening for messages. Press Ctrl+C to stop.")
+	hb, err := startHeartbeat(ctx, cfg)
+	if err != nil {
+		if sched != nil {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_ = sched.Stop(stopCtx)
+			stopCancel()
+		}
+		_ = cm.Stop()
+		return fmt.Errorf("failed to start heartbeat: %w", err)
+	}
+
+	logger.Info("Daemon ready. Press Ctrl+C to stop.")
 
 	<-sigChan
-	logger.Info("Shutting down channels...")
+	logger.Info("Shutting down...")
 	cancel()
+
+	if hb != nil {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := hb.Stop(stopCtx); err != nil {
+			logger.Error("Failed to stop heartbeat", "error", err)
+		}
+		stopCancel()
+	}
 
 	if sched != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -99,7 +126,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to stop channels: %w", err)
 	}
 
-	logger.Info("Channels stopped.")
+	logger.Info("Daemon stopped.")
 	return nil
 }
 
@@ -124,6 +151,50 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 	svc, err := scheduler.NewService(scheduler.Options{
 		Store:         store,
 		ChannelLookup: cm.GetChannel,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := svc.Start(ctx); err != nil {
+		return nil, err
+	}
+	return svc, nil
+}
+
+// startHeartbeat initialises the heartbeat service when enabled.
+// Returns nil service when disabled. Parses interval/initial_delay as
+// time.Duration strings and surfaces parse errors so the daemon fails
+// fast on bad config.
+func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service, error) {
+	if !cfg.Heartbeat.Enabled {
+		return nil, nil
+	}
+
+	interval, err := time.ParseDuration(cfg.Heartbeat.Interval)
+	if err != nil {
+		return nil, fmt.Errorf("parse heartbeat.interval %q: %w", cfg.Heartbeat.Interval, err)
+	}
+
+	var initialDelay time.Duration
+	if cfg.Heartbeat.InitialDelay != "" {
+		initialDelay, err = time.ParseDuration(cfg.Heartbeat.InitialDelay)
+		if err != nil {
+			return nil, fmt.Errorf("parse heartbeat.initial_delay %q: %w", cfg.Heartbeat.InitialDelay, err)
+		}
+	}
+
+	prompt := cfg.Heartbeat.Prompt
+	if prompt == "" {
+		prompt = config.DefaultHeartbeatConfig().Prompt
+	}
+
+	svc, err := heartbeat.NewService(heartbeat.Options{
+		Config: heartbeat.Config{
+			Interval:     interval,
+			InitialDelay: initialDelay,
+			Model:        cfg.Heartbeat.Model,
+			Prompt:       prompt,
+		},
 	})
 	if err != nil {
 		return nil, err

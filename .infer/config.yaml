@@ -61,6 +61,7 @@ tools:
       - .infer/keybindings.yaml
       - .infer/prompts.yaml
       - .infer/channels.yaml
+      - .infer/heartbeat.yaml
       - .infer/computer_use.yaml
       - .git/
       - '*.env'

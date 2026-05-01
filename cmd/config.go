@@ -606,6 +606,27 @@ func getEffectiveChannelsConfigPath() string {
 	return config.DefaultChannelsPath
 }
 
+// getEffectiveHeartbeatConfigPath returns the path to the heartbeat config file
+// Searches in this order: 1) project .infer/heartbeat.yaml, 2) user home ~/.infer/heartbeat.yaml
+func getEffectiveHeartbeatConfigPath() string {
+	searchPaths := []string{
+		config.DefaultHeartbeatPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultHeartbeatPath
+}
+
 // getEffectiveComputerUseConfigPath returns the path to the computer_use config file
 // Searches in this order: 1) project .infer/computer_use.yaml, 2) user home ~/.infer/computer_use.yaml
 func getEffectiveComputerUseConfigPath() string {
@@ -709,6 +730,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	cfg.Channels = *channelsCfg
 	applyChannelsEnvOverrides(cfg)
 
+	heartbeatPath := getEffectiveHeartbeatConfigPath()
+	heartbeatCfg, err := config.LoadHeartbeat(heartbeatPath)
+	if err != nil {
+		logger.Warn("Failed to load heartbeat config, using defaults", "error", err, "path", heartbeatPath)
+		heartbeatCfg = config.DefaultHeartbeatConfig()
+	}
+	cfg.Heartbeat = *heartbeatCfg
+	applyHeartbeatEnvOverrides(cfg)
+
 	cuPath := getEffectiveComputerUseConfigPath()
 	cuCfg, err := config.LoadComputerUse(cuPath)
 	if err != nil {
@@ -729,6 +759,7 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT":                         &cfg.Prompts.Agent.SystemPrompt,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN":                    &cfg.Prompts.Agent.SystemPromptPlan,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
+		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
 		"INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_REMINDER_TEXT":        &cfg.Prompts.Agent.SystemReminders.ReminderText,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
@@ -898,6 +929,35 @@ func applyChannelsEnvOverrides(cfg *config.Config) {
 	setString("INFER_CHANNELS_WHATSAPP_VERIFY_TOKEN", &cfg.Channels.WhatsApp.VerifyToken)
 	setInt("INFER_CHANNELS_WHATSAPP_WEBHOOK_PORT", &cfg.Channels.WhatsApp.WebhookPort)
 	setStringSlice("INFER_CHANNELS_WHATSAPP_ALLOWED_USERS", &cfg.Channels.WhatsApp.AllowedUsers)
+}
+
+// applyHeartbeatEnvOverrides applies INFER_HEARTBEAT_* env vars onto
+// the in-memory heartbeat config. Run AFTER LoadHeartbeat so envs win
+// over heartbeat.yaml. The heartbeat config lives in its own file
+// (yaml:"-" mapstructure:"-" on Config.Heartbeat), so viper does not
+// bind these env vars itself — this function is the single source of
+// env-var support. Mirrors applyChannelsEnvOverrides.
+func applyHeartbeatEnvOverrides(cfg *config.Config) {
+	setBool := func(env string, target *bool) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
+			*target = b
+		}
+	}
+	setString := func(env string, target *string) {
+		if val, ok := os.LookupEnv(env); ok {
+			*target = val
+		}
+	}
+
+	setBool("INFER_HEARTBEAT_ENABLED", &cfg.Heartbeat.Enabled)
+	setString("INFER_HEARTBEAT_INTERVAL", &cfg.Heartbeat.Interval)
+	setString("INFER_HEARTBEAT_INITIAL_DELAY", &cfg.Heartbeat.InitialDelay)
+	setString("INFER_HEARTBEAT_MODEL", &cfg.Heartbeat.Model)
+	setString("INFER_HEARTBEAT_PROMPT", &cfg.Heartbeat.Prompt)
 }
 
 // applyComputerUseEnvOverrides applies INFER_COMPUTER_USE_* env vars onto

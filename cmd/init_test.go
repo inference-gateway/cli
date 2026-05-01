@@ -27,7 +27,7 @@ func TestInitializeProject(t *testing.T) {
 				"userspace":       false,
 				"skip-migrations": true,
 			},
-			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore", ".infer/computer_use.yaml"},
+			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore", ".infer/computer_use.yaml", ".infer/heartbeat.yaml"},
 			wantNoFiles: []string{"AGENTS.md"},
 			wantErr:     false,
 		},

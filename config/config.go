@@ -43,6 +43,7 @@ type Config struct {
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
+	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
@@ -599,6 +600,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					ConfigDirName + "/keybindings.yaml",
 					ConfigDirName + "/prompts.yaml",
 					ConfigDirName + "/channels.yaml",
+					ConfigDirName + "/heartbeat.yaml",
 					ConfigDirName + "/computer_use.yaml",
 					".git/",
 					"*.env",

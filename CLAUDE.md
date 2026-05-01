@@ -595,6 +595,68 @@ images that don't ship `/usr/share/zoneinfo`.
   ...)` calls in `cmd/root.go` — without those, viper unmarshals an empty
   config and the defaults function's values are ignored.
 
+## Heartbeat (Periodic Wake-Up)
+
+The **Heartbeat** wakes the agent on a fixed interval to check for
+pending work. It is a peer of the scheduler — both run inside the
+`infer channels-manager` daemon, both spawn `infer agent`
+subprocesses, but heartbeat is a single global tick (vs. many
+user-defined cron jobs) and logs output (vs. routing to a channel).
+Disabled by default.
+
+- Config struct: `config.HeartbeatConfig` in `config/heartbeat.go`
+- Config file: `~/.infer/heartbeat.yaml` (separate file, mirrors
+  channels.yaml; `yaml:"-"` on `Config.Heartbeat`).
+- System prompt: `cfg.Prompts.Agent.SystemPromptHeartbeat` in
+  `prompts.yaml` — separate from `system_prompt`/`system_prompt_plan`.
+- Service: `internal/services/heartbeat/heartbeat.go` (`Service`
+  with `Start(ctx)` / `Stop(ctx)`, ticker-driven, no cron).
+- Daemon wiring: `cmd/channels.go` `startHeartbeat()` next to
+  `startScheduler()`.
+- Init wiring: `cmd/init.go` `createHeartbeatConfigFile()`.
+- Env vars: `INFER_HEARTBEAT_*` applied via
+  `applyHeartbeatEnvOverrides` in `cmd/config.go`.
+
+### Heartbeat architecture
+
+```text
+┌─ infer channels-manager (daemon) ─────────────────────────┐
+│  ChannelManagerService     (channels — optional)           │
+│  SchedulerService           (cron jobs — optional)         │
+│  HeartbeatService                                          │
+│   ├─ time.Ticker(interval)                                 │
+│   └─ on tick: spawn `infer agent --heartbeat               │
+│                          --session-id <uuid> <prompt>`     │
+│               log stdout                                   │
+└────────────────────────────────────────────────────────────┘
+```
+
+Key properties:
+
+- **Off by default.** `Heartbeat.Enabled = false` in
+  `DefaultHeartbeatConfig()`.
+- **Daemon gate is relaxed.** `infer channels-manager` boots if
+  *any* of channels / scheduler / heartbeat is enabled. Heartbeat
+  alone is a valid run mode.
+- **Fresh session per fire.** UUID-format session ID (not channel
+  prefixed); the Schedule tool's `resolveRouting` will refuse to
+  operate from a heartbeat run, which is intentional — heartbeat
+  should not directly create scheduled jobs without explicit
+  channel context.
+- **Overlap guard.** `atomic.Int32` flag suppresses concurrent
+  ticks when the agent run takes longer than `interval`. Logs a
+  warning when skipped.
+- **System prompt selection.** `infer agent --heartbeat` (cmd flag
+  added in `cmd/agent.go`) swaps `cfg.Prompts.Agent.SystemPrompt`
+  for `cfg.Prompts.Agent.SystemPromptHeartbeat` *before* the
+  service container is built. The agent service stays oblivious to
+  the new mode.
+- **Output.** Agent stdout is logged via the standard logger. No
+  channel routing — if the user wants a channel notification, the
+  agent itself uses its tools to send one.
+
+See `docs/heartbeat.md` for the user-facing guide.
+
 ## Plan Mode
 
 Plan mode (`AgentModePlan` in `internal/domain/state.go`) is a read-only

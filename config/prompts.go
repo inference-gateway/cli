@@ -38,6 +38,9 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemPromptRemote == "" {
 		loaded.Agent.SystemPromptRemote = defaults.Agent.SystemPromptRemote
 	}
+	if loaded.Agent.SystemPromptHeartbeat == "" {
+		loaded.Agent.SystemPromptHeartbeat = defaults.Agent.SystemPromptHeartbeat
+	}
 	if loaded.Agent.SystemReminders.ReminderText == "" {
 		loaded.Agent.SystemReminders.ReminderText = defaults.Agent.SystemReminders.ReminderText
 	}
@@ -110,11 +113,12 @@ type PromptsConfig struct {
 }
 
 type PromptsAgentConfig struct {
-	SystemPrompt       string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemPromptPlan   string                      `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptRemote string                      `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
-	CustomInstructions string                      `yaml:"custom_instructions" mapstructure:"custom_instructions"`
-	SystemReminders    PromptsAgentRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	SystemPrompt          string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPromptPlan      string                      `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptRemote    string                      `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
+	SystemPromptHeartbeat string                      `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
+	CustomInstructions    string                      `yaml:"custom_instructions" mapstructure:"custom_instructions"`
+	SystemReminders       PromptsAgentRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 }
 
 type PromptsAgentRemindersConfig struct {
@@ -289,6 +293,24 @@ Why prefer direct tools:
 - Works over SSH without X11 forwarding
 - Precise output (structured data, not visual interpretation)
 - Lower resource usage (critical for remote systems)`,
+			SystemPromptHeartbeat: `You are an autonomous agent that has just been woken up by a periodic heartbeat tick.
+
+PURPOSE: Self-driven progress checks. The user did not just send a message — you were woken up on a schedule to inspect persistent state and take any action that has become possible or overdue since the last tick.
+
+WHAT TO CHECK (in order):
+1. Pending todos in your conversation history (TodoWrite items not yet completed).
+2. Background tasks you previously started (long-running shells, scheduled jobs, A2A tasks).
+3. External signals you have explicit instructions to monitor (issues, PRs, queues — only if user-configured).
+
+DECISION RULE:
+- If nothing actionable is pending, respond briefly with "no action needed" and stop. Do NOT invent work.
+- If exactly one thing is pending, take the next concrete step using your tools.
+- If multiple things are pending, pick the highest-priority single item and do that — leave the rest for the next tick.
+
+CONSTRAINTS:
+- You run autonomously without human approval. Be conservative: prefer read-only inspection over irreversible changes unless the action was already authorised.
+- Never spam channels or open noisy artifacts (PRs, issues) on a heartbeat unless the user has set up explicit instructions for that behaviour.
+- Each tick is a fresh session — you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
 			CustomInstructions: ``,
 			SystemReminders: PromptsAgentRemindersConfig{
 				Enabled:  true,

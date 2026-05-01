@@ -32,6 +32,7 @@ An agentic command-line assistant that writes code, understands project context,
 - [Tool Approval System](#tool-approval-system)
 - [Shortcuts](#shortcuts)
 - [Channels (Remote Messaging)](#channels-remote-messaging)
+- [Heartbeat (Periodic Wake-Up)](#heartbeat-periodic-wake-up)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
 - [Development](#development)
@@ -73,6 +74,8 @@ An agentic command-line assistant that writes code, understands project context,
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
 - **Scheduled Tasks**: Ask the agent (over Telegram, etc.) to run a prompt on a cron schedule and deliver the result back through the same channel -
   recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
+- **Heartbeat (Periodic Wake-Up)**: Wake the agent on a fixed interval to check for pending todos and background work,
+  with a separate configurable system prompt - off by default - [Learn more →](docs/heartbeat.md)
 
 ## Installation
 
@@ -1039,6 +1042,54 @@ database so this works on any base image.
 
 For the full guide, including the cron syntax primer and end-to-end Telegram
 walkthroughs, see [Scheduling Documentation](docs/scheduling.md).
+
+## Heartbeat (Periodic Wake-Up)
+
+Heartbeat wakes the agent on a fixed interval — without any user input —
+so it can check for pending todos, background tasks, or anything else
+your system prompt tells it to monitor. It runs alongside the scheduler
+inside the `infer channels-manager` daemon and is **disabled by default**.
+
+Unlike the [Schedule](docs/scheduling.md) tool (which the LLM uses to
+create user-driven cron jobs that deliver to a channel), heartbeat is a
+single global tick the operator configures once. Output goes to logs;
+the agent itself decides whether to send a Telegram message, open a PR,
+or just no-op.
+
+Enable in `.infer/heartbeat.yaml` (seeded by `infer init`):
+
+```yaml
+---
+enabled: true
+interval: 1h            # Go duration: 30s, 5m, 1h, 24h
+initial_delay: 1m       # delay before first tick
+model: ""               # optional override; empty = agent.model
+prompt: "Heartbeat tick — check for any pending tasks, todos, or background work and act on them."
+```
+
+The **system prompt** for heartbeat runs lives in `.infer/prompts.yaml`
+under `agent.system_prompt_heartbeat` so you can tune the agent's
+wake-up behaviour separately from chat-mode behaviour.
+
+Then start the daemon:
+
+```bash
+infer channels-manager
+```
+
+Heartbeat alone is a valid run mode — you don't need any channel
+enabled to use it. The daemon hosts whichever of channels / scheduler /
+heartbeat are turned on.
+
+Or via env vars:
+
+```bash
+export INFER_HEARTBEAT_ENABLED=true
+export INFER_HEARTBEAT_INTERVAL=30m
+```
+
+For the full guide, including configuration reference and common
+patterns (TODO sweeps, CI watchdogs), see [Heartbeat Documentation](docs/heartbeat.md).
 
 ## Global Flags
 
