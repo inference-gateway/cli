@@ -154,13 +154,14 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
-// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git) for the system prompt
+// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, skills) for the system prompt
 func (s *AgentServiceImpl) buildContextInfo(currentTurn int) string {
 	return s.buildSandboxInfo() +
 		s.buildA2AAgentInfo() +
 		s.buildOSInfo() +
 		s.buildWorkingDirectoryInfo() +
-		s.buildGitContextInfo(currentTurn)
+		s.buildGitContextInfo(currentTurn) +
+		s.buildSkillsInfo()
 }
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode
@@ -188,6 +189,28 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 	default:
 		return prompts.SystemPrompt
 	}
+}
+
+// buildSkillsInfo lists discovered Agent Skills with their absolute SKILL.md
+// paths so the model can read each one on demand via the Read tool.
+// Empty when skills are disabled or none were discovered.
+func (s *AgentServiceImpl) buildSkillsInfo() string {
+	if s.skillsService == nil {
+		return ""
+	}
+	skills := s.skillsService.List()
+	if len(skills) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\nAVAILABLE SKILLS:\n")
+	b.WriteString("Skills are reusable instructions for specific tasks. ")
+	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions.\n\n")
+	for _, sk := range skills {
+		fmt.Fprintf(&b, "- %s (%s): %s\n  Path: %s\n", sk.Name, sk.Scope, sk.Description, sk.Path)
+	}
+	return b.String()
 }
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt

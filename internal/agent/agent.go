@@ -23,6 +23,7 @@ type AgentServiceImpl struct {
 	config           *config.Config
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
+	skillsService    domain.SkillsService
 	messageQueue     domain.MessageQueue
 	stateManager     domain.StateManager
 	timeoutSeconds   int
@@ -239,6 +240,7 @@ func NewAgent(
 	cfg *config.Config,
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
+	skillsService domain.SkillsService,
 	messageQueue domain.MessageQueue,
 	stateManager domain.StateManager,
 	timeoutSeconds int,
@@ -255,6 +257,7 @@ func NewAgent(
 		config:           cfg,
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
+		skillsService:    skillsService,
 		messageQueue:     messageQueue,
 		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,

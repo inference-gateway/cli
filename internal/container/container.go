@@ -19,6 +19,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	skills "github.com/inference-gateway/cli/internal/services/skills"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -48,6 +49,7 @@ type ServiceContainer struct {
 	imageService           domain.ImageService
 	pricingService         domain.PricingService
 	a2aAgentService        domain.A2AAgentService
+	skillsService          domain.SkillsService
 	messageQueue           domain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower domain.A2ATaskTracker
@@ -259,6 +261,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
 
+	skillsSvc := skills.New(c.config)
+	if err := skillsSvc.Load(context.Background()); err != nil {
+		logger.Warn("failed to load skills", "error", err)
+	}
+	c.skillsService = skillsSvc
+
 	agentClient := c.createAgentSDKClient()
 	c.agent = agent.NewAgent(
 		agentClient,
@@ -266,6 +274,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config,
 		c.conversationRepo,
 		c.a2aAgentService,
+		c.skillsService,
 		c.messageQueue,
 		c.stateManager,
 		c.config.Gateway.Timeout,

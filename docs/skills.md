@@ -1,0 +1,124 @@
+# Skills
+
+Skills are reusable, model-readable instruction folders that the agent loads
+on demand. The Inference Gateway CLI uses the **same on-disk format** as per standard, so a folder
+authored for any of those tools drops into `.infer/skills/` unchanged.
+
+## Format
+
+A skill is a **directory** containing a `SKILL.md` file with YAML frontmatter
+at the top:
+
+```markdown
+---
+name: pdf-helper
+description: Extract text from PDFs. Use when the user asks to read, summarise, or analyse a PDF file.
+---
+
+# PDF Helper
+
+Step-by-step instructions for the model:
+
+1. Use the Bash tool to invoke `pdftotext input.pdf -` and capture stdout.
+2. If the PDF is image-only, fall back to `tesseract` for OCR.
+3. ...
+```
+
+The directory may also ship optional helpers — `references/`, `scripts/`,
+`assets/` — that the model reads (or executes via the `Bash` tool) once it
+has activated the skill.
+
+### Frontmatter
+
+- `name` (required): ≤64 chars; lowercase letters, digits and hyphens only;
+  must equal the directory name; must not contain `infer`, `claude`,
+  `anthropic`, `gemini` or `openai`.
+- `description` (required): non-empty, ≤1024 chars.
+
+Unknown frontmatter keys are tolerated, so vendor extensions (e.g. Gemini's
+`disabled:` flag, Anthropic's `allowed-tools:`) won't cause validation
+failures even though the CLI ignores them.
+
+## Locations
+
+The CLI scans two directories:
+
+- Project-local: `.infer/skills/<name>/SKILL.md`
+- User-global: `~/.infer/skills/<name>/SKILL.md`
+
+Project skills override user-global skills with the same `name` — useful for
+overriding a personal default with a per-project variant.
+
+## Enabling
+
+Skills are **disabled by default** (zero token cost when off). Enable via
+config or environment variable:
+
+```yaml
+# .infer/config.yaml
+agent:
+  skills:
+    enabled: true
+    disabled_skills: []   # optional list of skill names to skip
+```
+
+```bash
+INFER_AGENT_SKILLS_ENABLED=true infer chat
+```
+
+When enabled, the agent's system prompt gains an `AVAILABLE SKILLS:` block
+listing each skill's `name`, `description`, scope, and the **absolute path**
+to its `SKILL.md`. The body of `SKILL.md` is **not** loaded at startup — the
+model reads it on demand using the existing `Read` tool. This is "progressive
+disclosure" and matches the behaviour of other vendors.
+
+## Discovering skills
+
+```bash
+infer skills list
+```
+
+This always works regardless of `agent.skills.enabled`, so you can verify
+discovery before turning the feature on. The output shows each skill's name,
+scope, description, absolute path, and any validation errors for skills that
+were skipped.
+
+## Authoring tips
+
+- **Make `description` actionable.** It is the routing signal. Tell the
+  model both *what* the skill does and *when* it should activate. "Extract
+  text from PDFs. Use when the user asks to read, summarise, or analyse a
+  PDF file." is a good description.
+- **Keep `SKILL.md` focused.** Use `references/` for long supporting docs;
+  link to them from `SKILL.md` so the model only reads them when needed.
+- **Use the existing tools.** The model already has `Read`, `Bash`, etc.
+  Skills are instructions on top of those, not new capabilities.
+
+## Security
+
+Skills can instruct the model to run shell commands, read files, or call
+external APIs. Treat a skill like any other piece of executable content —
+**only install skills from trusted sources**. The CLI's normal tool-approval
+system still gates each command, but a malicious skill could craft a
+plausible-looking `Bash` call.
+
+The frontmatter `name` validator rejects names containing vendor strings
+(`claude`, `anthropic`, `gemini`, `openai`, `infer`) so impersonating an
+official skill is harder.
+
+## Portability
+
+The on-disk contract is intentionally identical to:
+
+- Anthropic Claude Code — <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>
+- Google Gemini CLI — <https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md>
+- OpenAI Codex CLI — <https://simonwillison.net/2025/Dec/12/openai-skills/>
+
+Folders from `github.com/anthropics/skills` and `github.com/google/skills`
+work without modification when copied into `.infer/skills/`.
+
+## Out of scope (for now)
+
+- A dedicated `activate_skill` tool — the model uses `Read` directly.
+- A skill marketplace or remote install — skills are filesystem-only.
+- Sandboxing beyond what the existing tool-approval system already provides.

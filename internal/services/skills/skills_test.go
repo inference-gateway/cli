@@ -1,0 +1,291 @@
+package skills
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+)
+
+// writeSkill creates <baseDir>/<dirName>/SKILL.md with the given body. The
+// body is written verbatim — callers control whether the frontmatter is
+// valid. Returns the absolute path to the SKILL.md.
+func writeSkill(t *testing.T, baseDir, dirName, body string) string {
+	t.Helper()
+	skillDir := filepath.Join(baseDir, dirName)
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	path := filepath.Join(skillDir, "SKILL.md")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	return path
+}
+
+func validSkillBody(name, description string) string {
+	return "---\nname: " + name + "\ndescription: " + description + "\n---\n\n# Body\n"
+}
+
+// scope returns a single project-scope search dir pointing at root.
+func scope(root string) []scopedDir {
+	return []scopedDir{{dir: root, scope: domain.SkillScopeProject}}
+}
+
+func enabledCfg() *config.Config {
+	return &config.Config{
+		Agent: config.AgentConfig{
+			Skills: config.AgentSkillsConfig{Enabled: true},
+		},
+	}
+}
+
+func TestLoad_Disabled_NoOp(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "valid-skill", validSkillBody("valid-skill", "A real skill that should not be loaded when disabled."))
+
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			Skills: config.AgentSkillsConfig{Enabled: false},
+		},
+	}
+	s := newWithScopes(cfg, scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List(), "List() should be empty when skills are disabled")
+	require.Empty(t, s.Errors(), "Errors() should be empty when skills are disabled")
+}
+
+func TestParse_ValidFrontmatter(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "pdf-helper", validSkillBody("pdf-helper", "Extract text from PDFs."))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	got := s.List()
+	require.Len(t, got, 1)
+	require.Equal(t, "pdf-helper", got[0].Name)
+	require.Equal(t, "Extract text from PDFs.", got[0].Description)
+	require.Equal(t, domain.SkillScopeProject, got[0].Scope)
+	require.True(t, filepath.IsAbs(got[0].Path), "path must be absolute, got %q", got[0].Path)
+	require.True(t, strings.HasSuffix(got[0].Path, filepath.Join("pdf-helper", "SKILL.md")))
+	require.Empty(t, s.Errors())
+}
+
+func TestParse_MissingName(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "no-name", "---\ndescription: No name field at all.\n---\n")
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "name")
+}
+
+func TestParse_MissingDescription(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "no-desc", "---\nname: no-desc\n---\n")
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "description")
+}
+
+func TestParse_NameTooLong(t *testing.T) {
+	tmp := t.TempDir()
+	longName := strings.Repeat("a", 65)
+	writeSkill(t, tmp, longName, validSkillBody(longName, "Too long."))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "max")
+}
+
+func TestParse_NameInvalidChars(t *testing.T) {
+	tmp := t.TempDir()
+	for _, badName := range []string{"With_Underscore", "UPPERCASE", "with space"} {
+		sub := filepath.Join(tmp, "case-"+strings.ReplaceAll(badName, " ", "_"))
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		writeSkill(t, sub, badName, validSkillBody(badName, "Invalid charset."))
+
+		s := newWithScopes(enabledCfg(), scope(sub))
+		require.NoError(t, s.Load(context.Background()))
+		require.Empty(t, s.List(), "expected no skills loaded for name %q", badName)
+		require.Len(t, s.Errors(), 1)
+	}
+}
+
+func TestParse_NameDoesNotMatchDir(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "foo", validSkillBody("bar", "Mismatched name."))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "directory")
+}
+
+func TestParse_DescriptionTooLong(t *testing.T) {
+	tmp := t.TempDir()
+	longDesc := strings.Repeat("x", 1025)
+	writeSkill(t, tmp, "long-desc", validSkillBody("long-desc", longDesc))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "max")
+}
+
+func TestParse_UnknownKeysTolerated(t *testing.T) {
+	tmp := t.TempDir()
+	body := "---\nname: extras\ndescription: Has extra keys.\ndisabled: false\nallowed-tools:\n  - Bash\n---\n\n# Body\n"
+	writeSkill(t, tmp, "extras", body)
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Len(t, s.List(), 1)
+	require.Equal(t, "extras", s.List()[0].Name)
+	require.Empty(t, s.Errors())
+}
+
+func TestPrecedence_ProjectOverridesUser(t *testing.T) {
+	projDir := t.TempDir()
+	userDir := t.TempDir()
+
+	writeSkill(t, projDir, "shared", validSkillBody("shared", "Project version."))
+	writeSkill(t, userDir, "shared", validSkillBody("shared", "User version."))
+	writeSkill(t, userDir, "user-only", validSkillBody("user-only", "Only in user scope."))
+
+	s := newWithScopes(enabledCfg(), []scopedDir{
+		{dir: projDir, scope: domain.SkillScopeProject},
+		{dir: userDir, scope: domain.SkillScopeUser},
+	})
+	require.NoError(t, s.Load(context.Background()))
+
+	got := s.List()
+	require.Len(t, got, 2)
+
+	byName := map[string]domain.Skill{}
+	for _, sk := range got {
+		byName[sk.Name] = sk
+	}
+	require.Equal(t, "Project version.", byName["shared"].Description)
+	require.Equal(t, domain.SkillScopeProject, byName["shared"].Scope)
+	require.Equal(t, domain.SkillScopeUser, byName["user-only"].Scope)
+}
+
+func TestDisabledFilter(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "alpha", validSkillBody("alpha", "First."))
+	writeSkill(t, tmp, "beta", validSkillBody("beta", "Second."))
+	writeSkill(t, tmp, "gamma", validSkillBody("gamma", "Third."))
+
+	cfg := enabledCfg()
+	cfg.Agent.Skills.DisabledSkills = []string{"beta"}
+
+	s := newWithScopes(cfg, scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	got := s.List()
+	require.Len(t, got, 2)
+
+	names := []string{got[0].Name, got[1].Name}
+	require.NotContains(t, names, "beta")
+	require.Contains(t, names, "alpha")
+	require.Contains(t, names, "gamma")
+}
+
+func TestPortability_AnthropicSkillFolder(t *testing.T) {
+	tmp := t.TempDir()
+	skillDir := filepath.Join(tmp, "skill-creator")
+	require.NoError(t, os.MkdirAll(filepath.Join(skillDir, "references"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(skillDir, "scripts"), 0o755))
+
+	skillBody := `---
+name: skill-creator
+description: Create a new agent skill following the cross-vendor contract. Use when the user asks to author a skill.
+license: MIT
+---
+
+# Skill Creator
+
+See references/format.md for the spec.
+
+## Scripts
+
+` + "`scripts/init.sh`" + ` scaffolds a new skill directory.
+`
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skillBody), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "references", "format.md"), []byte("# Format\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "scripts", "init.sh"), []byte("#!/bin/bash\n"), 0o755))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	got := s.List()
+	require.Len(t, got, 1, "expected 1 skill loaded, errors: %+v", s.Errors())
+	require.Equal(t, "skill-creator", got[0].Name)
+	require.Empty(t, s.Errors())
+}
+
+func TestLoad_NonexistentScopesIgnored(t *testing.T) {
+	s := newWithScopes(enabledCfg(), []scopedDir{
+		{dir: "/nonexistent/path/that/should/not/exist", scope: domain.SkillScopeProject},
+	})
+	require.NoError(t, s.Load(context.Background()))
+	require.Empty(t, s.List())
+	require.Empty(t, s.Errors())
+}
+
+func TestLoad_SkipsDirsWithoutSkillMD(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "not-a-skill"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "not-a-skill", "README.md"), []byte("hi"), 0o644))
+
+	writeSkill(t, tmp, "real-skill", validSkillBody("real-skill", "Real."))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Len(t, s.List(), 1)
+	require.Empty(t, s.Errors())
+}
+
+func TestParse_MalformedFrontmatter(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "broken", "---\nname: broken\ndescription: oops\n\n# Body without closing delim\n")
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+}
+
+func TestParse_NoFrontmatter(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "plain", "# Just a markdown file with no frontmatter at all\n")
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	require.Empty(t, s.List())
+	require.Len(t, s.Errors(), 1)
+	require.Contains(t, s.Errors()[0].Reason, "frontmatter")
+}

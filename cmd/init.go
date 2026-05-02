@@ -34,12 +34,15 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func initializeProject(cmd *cobra.Command) error { //nolint:funlen
+func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
+		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
+		a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath,
+		channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -61,6 +64,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		heartbeatPath = filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
+		skillsDirPath = filepath.Join(homeDir, config.ConfigDirName, "skills")
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -77,6 +81,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		heartbeatPath = config.DefaultHeartbeatPath
 		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
+		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
 	}
 
 	if !overwrite {
@@ -158,6 +163,10 @@ plans/
 		return fmt.Errorf("failed to create agents config file: %w", err)
 	}
 
+	if err := createSkillsDir(skillsDirPath); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -181,6 +190,7 @@ plans/
 	fmt.Printf("   Created: %s\n", heartbeatPath)
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
+	fmt.Printf("   Created: %s/\n", skillsDirPath)
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
@@ -515,6 +525,15 @@ func createAgentsConfigFile(path string) error {
 	}
 
 	return config.SaveAgents(path, config.DefaultAgentsConfig())
+}
+
+// createSkillsDir creates an empty skills directory. Skills are authored by
+// dropping a folder containing SKILL.md into this directory; see docs/skills.md for the format.
+func createSkillsDir(dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+	return nil
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file
