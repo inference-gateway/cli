@@ -41,7 +41,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-		a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath,
+		a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
 		channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
@@ -57,6 +57,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
+		skillsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
@@ -74,6 +75,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
+		skillsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
@@ -85,7 +87,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -131,6 +133,10 @@ plans/
 
 	if err := createA2AShortcutsFile(a2aShortcutsPath); err != nil {
 		return fmt.Errorf("failed to create A2A shortcuts file: %w", err)
+	}
+
+	if err := createSkillsShortcutsFile(skillsShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Skills shortcuts file: %w", err)
 	}
 
 	if err := createMCPConfigFile(mcpPath); err != nil {
@@ -183,6 +189,7 @@ plans/
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
+	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
@@ -684,6 +691,39 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
+}
+
+// createSkillsShortcutsFile creates the Agent Skills shortcuts YAML file
+func createSkillsShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	skillsShortcutsContent := `---
+# Agent Skills Shortcuts
+# Manage Agent Skills from within chat
+#
+# Usage:
+# - /skills list - List discovered skills
+# - /skills install <github-url> - Install a skill from a public GitHub repo
+# - /skills uninstall <name> - Uninstall a skill by name
+
+shortcuts:
+  - name: skills
+    description: "Manage Agent Skills"
+    command: infer
+    args:
+      - skills
+    subcommands:
+      - name: list
+        description: "List discovered skills"
+      - name: install
+        description: "Install a skill from a public GitHub repo (usage: <github-url> [--user] [--overwrite])"
+      - name: uninstall
+        description: "Uninstall a skill by name (usage: <name> [--user])"
+`
+
+	return os.WriteFile(path, []byte(skillsShortcutsContent), 0644)
 }
 
 // handleMigrations handles the migration logic for the init command

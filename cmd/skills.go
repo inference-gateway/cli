@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -110,8 +112,107 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+var skillsInstallCmd = &cobra.Command{
+	Use:   "install <github-url>",
+	Short: "Install a skill from a public GitHub repository",
+	Long: `Install a skill folder directly from a public GitHub repository.
+
+The URL must point at a directory inside a repo, formatted as:
+  https://github.com/<owner>/<repo>/tree/<ref>/<path-to-skill-folder>
+
+Example:
+  infer skills install https://github.com/anthropics/skills/tree/main/skills/pdf
+
+By default the skill is written to .infer/skills/<dirname>/. Pass --user
+to install to ~/.infer/skills/ instead. Pass --overwrite to replace an
+existing skill folder of the same name.
+
+After download, the same frontmatter validator that runs at startup runs
+against the downloaded folder. If validation fails the folder is removed
+and the reason is printed.
+
+Public repositories only. GitHub's unauthenticated API rate limit is 60
+requests per hour per IP.`,
+	Args: cobra.ExactArgs(1),
+	RunE: installSkill,
+}
+
+func installSkill(cmd *cobra.Command, args []string) error {
+	rawURL := args[0]
+	userScope, _ := cmd.Flags().GetBool("user")
+	overwrite, _ := cmd.Flags().GetBool("overwrite")
+
+	destBase, err := resolveSkillsDest(userScope)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(destBase, 0755); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+
+	dest, err := skills.NewInstaller().InstallFromGitHub(cmd.Context(), rawURL, destBase, overwrite)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Installed skill to %s\n", dest)
+	return nil
+}
+
+func resolveSkillsDest(userScope bool) (string, error) {
+	if userScope {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve home directory: %w", err)
+		}
+		return filepath.Join(home, config.ConfigDirName, "skills"), nil
+	}
+	if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
+		return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
+	}
+	return filepath.Join(config.ConfigDirName, "skills"), nil
+}
+
+var skillsUninstallCmd = &cobra.Command{
+	Use:   "uninstall <name>",
+	Short: "Uninstall a skill by name",
+	Long: `Uninstall a skill by removing its folder from the local skills directory.
+
+The name must be the on-disk skill directory name (matching the skill's
+frontmatter name), e.g. "pdf" for a skill at .infer/skills/pdf/. Pass --user
+to look in ~/.infer/skills/ instead. There is no confirmation prompt.
+
+Example:
+  infer skills uninstall pdf
+  infer skills uninstall --user internal-comms`,
+	Args: cobra.ExactArgs(1),
+	RunE: uninstallSkill,
+}
+
+func uninstallSkill(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	userScope, _ := cmd.Flags().GetBool("user")
+
+	destBase, err := resolveSkillsDest(userScope)
+	if err != nil {
+		return err
+	}
+
+	removed, err := skills.Uninstall(name, destBase)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Uninstalled skill %s (%s)\n", name, removed)
+	return nil
+}
+
 func init() {
 	skillsCmd.AddCommand(skillsListCmd)
+	skillsCmd.AddCommand(skillsInstallCmd)
+	skillsCmd.AddCommand(skillsUninstallCmd)
 	skillsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	skillsInstallCmd.Flags().Bool("user", false, "Install to ~/.infer/skills instead of project-local")
+	skillsInstallCmd.Flags().Bool("overwrite", false, "Replace an existing skill folder of the same name")
+	skillsUninstallCmd.Flags().Bool("user", false, "Look up the skill under ~/.infer/skills instead of project-local")
 	rootCmd.AddCommand(skillsCmd)
 }

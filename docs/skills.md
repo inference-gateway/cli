@@ -83,6 +83,59 @@ discovery before turning the feature on. The output shows each skill's name,
 scope, description, absolute path, and any validation errors for skills that
 were skipped.
 
+## Installing skills from GitHub
+
+You can install a skill folder directly from a public GitHub repository:
+
+```bash
+infer skills install https://github.com/anthropics/skills/tree/main/skills/pdf
+```
+
+The URL must point at a **directory** inside the repo, formatted as
+`https://github.com/<owner>/<repo>/tree/<ref>/<path-to-skill-folder>`.
+URLs that point at a file (`/blob/`) or at the repo root are rejected
+with a clear error.
+
+Flags:
+
+- `--user` — install to `~/.infer/skills/` instead of the project-local
+  `.infer/skills/`.
+- `--overwrite` — replace an existing skill folder of the same name.
+  Without this flag, an existing folder is left untouched and the install
+  fails fast.
+
+After download, the same frontmatter validator that runs at startup runs
+against the downloaded folder — so what installs is what loads. If
+validation fails (missing `name`, name doesn't match the directory name,
+etc.) the folder is removed and the reason is printed. There is never a
+half-installed state.
+
+**Limitations:**
+
+- Public repositories only. Private repos and `GITHUB_TOKEN`
+  authentication are not supported in this version.
+- GitHub's unauthenticated API rate limit is 60 requests per hour per
+  IP. Each install is one API call (the tree enumeration) plus one raw
+  download per file in the skill folder.
+- Refs containing a literal `/` (e.g. `feature/foo` branches) are not
+  supported. Use a tag, the default branch, or a single-segment branch.
+
+## Uninstalling skills
+
+```bash
+infer skills uninstall pdf
+infer skills uninstall --user internal-comms
+```
+
+The argument is the on-disk skill directory name (matching the skill's
+`name` frontmatter). By default the project-local `.infer/skills/<name>/`
+is removed; pass `--user` to remove from `~/.infer/skills/<name>/`.
+
+There is no confirmation prompt — matches `npm uninstall`,
+`brew uninstall`, etc. The skill name is regex-validated before any
+filesystem operation, so it cannot be used to traverse outside the
+configured skills directory.
+
 ## Authoring tips
 
 - **Make `description` actionable.** It is the routing signal. Tell the
@@ -120,5 +173,8 @@ work without modification when copied into `.infer/skills/`.
 ## Out of scope (for now)
 
 - A dedicated `activate_skill` tool — the model uses `Read` directly.
-- A skill marketplace or remote install — skills are filesystem-only.
+- A skill marketplace or curated index — discovery is up to the user; see
+  [Installing skills from GitHub](#installing-skills-from-github) for the
+  install flow.
+- Authenticated installs from private repositories.
 - Sandboxing beyond what the existing tool-approval system already provides.

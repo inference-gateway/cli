@@ -68,6 +68,9 @@
       "NODE_PATH": "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules",
       "NPM_CONFIG_PREFIX": "$FLOX_ENV_PROJECT/.flox/npm"
     },
+    "hook": {
+      "on-activate": "  export PATH=\"$HOME/go/bin:$PATH\"\n"
+    },
     "options": {}
   },
   "packages": [
