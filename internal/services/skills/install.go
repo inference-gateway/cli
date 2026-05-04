@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,7 +23,45 @@ const (
 	installerTimeout  = 30 * time.Second
 	installerUA       = "inference-gateway-cli"
 	treePartsExpected = 5
+
+	defaultSkillsOrg    = "inference-gateway"
+	defaultSkillsRepo   = "skills"
+	defaultSkillsRef    = "main"
+	defaultSkillsSubdir = "skills"
 )
+
+// ExpandShorthand turns shorthand install targets into full GitHub
+// tree URLs. Accepted forms:
+//
+//   - "<skill>"          → https://github.com/inference-gateway/skills/tree/main/skills/<skill>
+//   - "<org>/<skill>"    → https://github.com/<org>/skills/tree/main/skills/<skill>
+//   - any http(s):// URL → returned unchanged
+//
+// Anything else (3+ slash-separated segments, empty segments, etc.) is
+// returned unchanged so ParseGitHubTreeURL produces its existing error.
+func ExpandShorthand(input string) string {
+	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
+		return input
+	}
+	trimmed := strings.Trim(input, "/")
+	if trimmed == "" {
+		return input
+	}
+	parts := strings.Split(trimmed, "/")
+	if slices.Contains(parts, "") {
+		return input
+	}
+	switch len(parts) {
+	case 1:
+		return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
+			defaultSkillsOrg, defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, parts[0])
+	case 2:
+		return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
+			parts[0], defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, parts[1])
+	default:
+		return input
+	}
+}
 
 // GitHubLocation identifies a directory inside a public GitHub repository,
 // parsed out of a /tree/<ref>/<path> URL.
@@ -105,6 +144,7 @@ func NewInstaller() *Installer {
 //
 // Returns the absolute path of the installed skill on success.
 func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase string, overwrite bool) (string, error) {
+	rawURL = ExpandShorthand(rawURL)
 	loc, err := ParseGitHubTreeURL(rawURL)
 	if err != nil {
 		return "", err

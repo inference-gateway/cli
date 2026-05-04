@@ -13,6 +13,66 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
+func TestExpandShorthand(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "single segment uses default org and skills repo",
+			input: "skill-creator",
+			want:  "https://github.com/inference-gateway/skills/tree/main/skills/skill-creator",
+		},
+		{
+			name:  "two segments use given org and skills repo",
+			input: "acme/foo",
+			want:  "https://github.com/acme/skills/tree/main/skills/foo",
+		},
+		{
+			name:  "https URL is returned unchanged",
+			input: "https://github.com/anthropics/skills/tree/main/skills/pdf",
+			want:  "https://github.com/anthropics/skills/tree/main/skills/pdf",
+		},
+		{
+			name:  "http URL is returned unchanged",
+			input: "http://example.com/x",
+			want:  "http://example.com/x",
+		},
+		{
+			name:  "empty input is returned unchanged",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "three segments fall through unchanged",
+			input: "a/b/c",
+			want:  "a/b/c",
+		},
+		{
+			name:  "leading and trailing slashes are trimmed",
+			input: "/skill/",
+			want:  "https://github.com/inference-gateway/skills/tree/main/skills/skill",
+		},
+		{
+			name:  "empty middle segment falls through unchanged",
+			input: "a//b",
+			want:  "a//b",
+		},
+		{
+			name:  "single slash falls through unchanged",
+			input: "/",
+			want:  "/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ExpandShorthand(tt.input))
+		})
+	}
+}
+
 func TestParseGitHubTreeURL(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -166,6 +226,30 @@ func TestInstallFromGitHub_HappyPath(t *testing.T) {
 	// Sibling skill must not be downloaded.
 	_, err = os.Stat(filepath.Join(dest, "other"))
 	require.True(t, os.IsNotExist(err))
+}
+
+func TestInstallFromGitHub_ShorthandResolves(t *testing.T) {
+	// Shorthand "acme/skill-creator" should resolve to the "skills" repo
+	// under the acme org with path "skills/skill-creator". The mock server
+	// doesn't care about owner/repo/ref segments — it just looks at the
+	// repo path prefix — so we need a SKILL.md at
+	// skills/skill-creator/SKILL.md to match the resolved tree path.
+	repo := fakeRepo{
+		Files: map[string]string{
+			"skills/skill-creator/SKILL.md": validSkillBody("skill-creator", "Test skill."),
+		},
+	}
+	srv := newMockServer(t, repo)
+	defer srv.Close()
+
+	dest := t.TempDir()
+	got, err := newTestInstaller(srv.URL).InstallFromGitHub(context.Background(),
+		"acme/skill-creator", dest, false)
+	require.NoError(t, err)
+
+	abs, _ := filepath.Abs(filepath.Join(dest, "skill-creator"))
+	require.Equal(t, abs, got)
+	require.FileExists(t, filepath.Join(dest, "skill-creator", "SKILL.md"))
 }
 
 func TestInstallFromGitHub_RepoNotFound(t *testing.T) {

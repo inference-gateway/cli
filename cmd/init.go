@@ -705,7 +705,7 @@ func createSkillsShortcutsFile(path string) error {
 #
 # Usage:
 # - /skills list - List discovered skills
-# - /skills install <github-url> - Install a skill from a public GitHub repo
+# - /skills install <skill | org/skill | github-url> - Install a skill
 # - /skills uninstall <name> - Uninstall a skill by name
 
 shortcuts:
@@ -718,7 +718,7 @@ shortcuts:
       - name: list
         description: "List discovered skills"
       - name: install
-        description: "Install a skill from a public GitHub repo (usage: <github-url> [--user] [--overwrite])"
+        description: "Install a skill (usage: <skill> | <org>/<skill> | <github-url>) [--user] [--overwrite]"
       - name: uninstall
         description: "Uninstall a skill by name (usage: <name> [--user])"
 `

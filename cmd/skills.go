@@ -113,14 +113,25 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 }
 
 var skillsInstallCmd = &cobra.Command{
-	Use:   "install <github-url>",
+	Use:   "install <skill | org/skill | github-url>",
 	Short: "Install a skill from a public GitHub repository",
-	Long: `Install a skill folder directly from a public GitHub repository.
+	Long: `Install a skill folder from a public GitHub repository.
 
-The URL must point at a directory inside a repo, formatted as:
-  https://github.com/<owner>/<repo>/tree/<ref>/<path-to-skill-folder>
+You can pass any of the following:
 
-Example:
+  - A skill name:           skill-creator
+      → https://github.com/inference-gateway/skills/tree/main/skills/skill-creator
+  - An <org>/<skill> pair:  acme/skill-creator
+      → https://github.com/acme/skills/tree/main/skills/skill-creator
+  - A full GitHub tree URL: https://github.com/<owner>/<repo>/tree/<ref>/<path>
+
+Shorthand forms assume the skill lives under skills/<name>/ inside a repo
+named "skills" on the given org, and resolve against the "main" branch.
+For any other layout, branch, or tag, use the full URL form.
+
+Examples:
+  infer skills install skill-creator
+  infer skills install acme/internal-comms
   infer skills install https://github.com/anthropics/skills/tree/main/skills/pdf
 
 By default the skill is written to .infer/skills/<dirname>/. Pass --user
