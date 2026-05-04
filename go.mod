@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/creack/pty v1.1.24
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-telegram/bot v1.20.0
 	github.com/go-vgo/robotgo v1.0.2
@@ -30,7 +30,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/subosito/gotenv v1.6.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.design/x/clipboard v0.7.1
 	golang.org/x/crypto v0.50.0
