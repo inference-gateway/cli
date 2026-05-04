@@ -1,6 +1,6 @@
 module github.com/inference-gateway/cli/examples/mcp-server
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/metoro-io/mcp-golang v0.16.0
