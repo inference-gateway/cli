@@ -262,6 +262,7 @@ func TestNewAgentService(t *testing.T) {
 		fakeConversationRepo,
 		nil,
 		nil,
+		nil,
 		fakeStateManager,
 		120,
 		nil,

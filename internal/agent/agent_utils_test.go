@@ -1,8 +1,25 @@
 package agent
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	require "github.com/stretchr/testify/require"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
+
+// stubSkillsService implements domain.SkillsService for testing the
+// system-prompt injection without depending on the real package's filesystem
+// scan.
+type stubSkillsService struct {
+	skills []domain.Skill
+}
+
+func (s *stubSkillsService) Load(_ context.Context) error    { return nil }
+func (s *stubSkillsService) List() []domain.Skill            { return s.skills }
+func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
 
 func TestIsCompleteJSON(t *testing.T) {
 	tests := []struct {
@@ -300,4 +317,53 @@ func TestGetRecentCommits(t *testing.T) {
 	for i, commit := range commits {
 		t.Logf("Commit %d: %s", i+1, commit)
 	}
+}
+
+func TestBuildSkillsInfo_NilService(t *testing.T) {
+	s := &AgentServiceImpl{}
+	require.Empty(t, s.buildSkillsInfo())
+}
+
+func TestBuildSkillsInfo_EmptyList(t *testing.T) {
+	s := &AgentServiceImpl{skillsService: &stubSkillsService{}}
+	require.Empty(t, s.buildSkillsInfo())
+}
+
+func TestBuildSkillsInfo_FormatsSkills(t *testing.T) {
+	s := &AgentServiceImpl{
+		skillsService: &stubSkillsService{
+			skills: []domain.Skill{
+				{
+					Name:        "pdf-helper",
+					Description: "Extract text from PDFs.",
+					Path:        "/abs/path/.infer/skills/pdf-helper/SKILL.md",
+					Scope:       domain.SkillScopeProject,
+				},
+				{
+					Name:        "diagrams",
+					Description: "Render mermaid diagrams.",
+					Path:        "/home/me/.infer/skills/diagrams/SKILL.md",
+					Scope:       domain.SkillScopeUser,
+				},
+			},
+		},
+	}
+
+	got := s.buildSkillsInfo()
+
+	require.Contains(t, got, "AVAILABLE SKILLS:")
+	require.Contains(t, got, "Read tool")
+	for _, want := range []string{
+		"pdf-helper",
+		"Extract text from PDFs.",
+		"/abs/path/.infer/skills/pdf-helper/SKILL.md",
+		"diagrams",
+		"Render mermaid diagrams.",
+		"/home/me/.infer/skills/diagrams/SKILL.md",
+		"project",
+		"user",
+	} {
+		require.Contains(t, got, want)
+	}
+	require.GreaterOrEqual(t, strings.Count(got, "Path: "), 2)
 }

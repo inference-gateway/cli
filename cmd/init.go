@@ -34,12 +34,15 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func initializeProject(cmd *cobra.Command) error { //nolint:funlen
+func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
+		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
+		a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
+		channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -54,6 +57,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
+		skillsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
@@ -61,6 +65,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		heartbeatPath = filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
+		skillsDirPath = filepath.Join(homeDir, config.ConfigDirName, "skills")
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -70,6 +75,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
 		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
+		skillsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
@@ -77,10 +83,11 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen
 		heartbeatPath = config.DefaultHeartbeatPath
 		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
+		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -128,6 +135,10 @@ plans/
 		return fmt.Errorf("failed to create A2A shortcuts file: %w", err)
 	}
 
+	if err := createSkillsShortcutsFile(skillsShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Skills shortcuts file: %w", err)
+	}
+
 	if err := createMCPConfigFile(mcpPath); err != nil {
 		return fmt.Errorf("failed to create MCP config file: %w", err)
 	}
@@ -158,6 +169,10 @@ plans/
 		return fmt.Errorf("failed to create agents config file: %w", err)
 	}
 
+	if err := createSkillsDir(skillsDirPath); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -174,6 +189,7 @@ plans/
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
+	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
@@ -181,6 +197,7 @@ plans/
 	fmt.Printf("   Created: %s\n", heartbeatPath)
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
+	fmt.Printf("   Created: %s/\n", skillsDirPath)
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
@@ -517,6 +534,15 @@ func createAgentsConfigFile(path string) error {
 	return config.SaveAgents(path, config.DefaultAgentsConfig())
 }
 
+// createSkillsDir creates an empty skills directory. Skills are authored by
+// dropping a folder containing SKILL.md into this directory; see docs/skills.md for the format.
+func createSkillsDir(dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+	return nil
+}
+
 // createMCPConfigFile creates the MCP configuration YAML file
 func createMCPConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -665,6 +691,39 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
+}
+
+// createSkillsShortcutsFile creates the Agent Skills shortcuts YAML file
+func createSkillsShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	skillsShortcutsContent := `---
+# Agent Skills Shortcuts
+# Manage Agent Skills from within chat
+#
+# Usage:
+# - /skills list - List discovered skills
+# - /skills install <github-url> - Install a skill from a public GitHub repo
+# - /skills uninstall <name> - Uninstall a skill by name
+
+shortcuts:
+  - name: skills
+    description: "Manage Agent Skills"
+    command: infer
+    args:
+      - skills
+    subcommands:
+      - name: list
+        description: "List discovered skills"
+      - name: install
+        description: "Install a skill from a public GitHub repo (usage: <github-url> [--user] [--overwrite])"
+      - name: uninstall
+        description: "Uninstall a skill by name (usage: <name> [--user])"
+`
+
+	return os.WriteFile(path, []byte(skillsShortcutsContent), 0644)
 }
 
 // handleMigrations handles the migration logic for the init command

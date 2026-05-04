@@ -336,6 +336,15 @@ type AgentContextConfig struct {
 	GitContextRefreshTurns int  `yaml:"git_context_refresh_turns" mapstructure:"git_context_refresh_turns"`
 }
 
+// AgentSkillsConfig controls Agent Skills loading. Skills follow the
+// SKILL.md / YAML-frontmatter contract shared by the official spec, so existing skill folders drop
+// into .infer/skills/ unchanged. Disabled by default — when off, no
+// scan runs and nothing is injected into the system prompt.
+type AgentSkillsConfig struct {
+	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
+	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+}
+
 // AgentConfig contains agent command-specific settings.
 // All system prompts, custom instructions, and system reminder settings
 // live in prompts.yaml and are read from cfg.Prompts.Agent.* at runtime.
@@ -343,6 +352,7 @@ type AgentConfig struct {
 	Model                    string             `yaml:"model" mapstructure:"model"`
 	SystemPromptWithDefaults bool               `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
 	Context                  AgentContextConfig `yaml:"context" mapstructure:"context"`
+	Skills                   AgentSkillsConfig  `yaml:"skills" mapstructure:"skills"`
 	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
@@ -723,6 +733,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				GitContextEnabled:      true,
 				WorkingDirEnabled:      true,
 				GitContextRefreshTurns: 10,
+			},
+			Skills: AgentSkillsConfig{
+				Enabled:        false,
+				DisabledSkills: nil,
 			},
 			SystemPromptWithDefaults: true,
 			VerboseTools:             false,
