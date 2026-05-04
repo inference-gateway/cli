@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.0](https://github.com/inference-gateway/cli/compare/v0.108.0...v0.109.0) (2026-05-04)
+
+### 🚀 Features
+
+* **skills:** Add Agent Skills discovery ([#487](https://github.com/inference-gateway/cli/issues/487)) ([42dcfbd](https://github.com/inference-gateway/cli/commit/42dcfbd532e5f7f7ba5df4163ad979882646dc58))
+
+### 🧹 Maintenance
+
+* **deps:** Bump dev dependecies to their latest ([1d873dc](https://github.com/inference-gateway/cli/commit/1d873dca36d784004aad2b99c040aad401dbe77c))
+* **deps:** Bump github.com/fsnotify/fsnotify from 1.9.0 to 1.10.0 ([#489](https://github.com/inference-gateway/cli/issues/489)) ([f2f5056](https://github.com/inference-gateway/cli/commit/f2f50561bb827989366f9839594e14ad9b96bb16))
+* **deps:** Bump go version from 1.26.1 to 1.26.2 ([952f941](https://github.com/inference-gateway/cli/commit/952f9417cd13d08e6931c6acb6c4524f027c4ea6))
+* **deps:** Bump go.uber.org/zap from 1.27.1 to 1.28.0 ([#488](https://github.com/inference-gateway/cli/issues/488)) ([29787ab](https://github.com/inference-gateway/cli/commit/29787abfa89804c2f0ff941173f48d8125ff296a))
+* **nix:** Update package to v0.108.0 ([#484](https://github.com/inference-gateway/cli/issues/484)) ([a76cb90](https://github.com/inference-gateway/cli/commit/a76cb90ebb9b4e06accf3e69c61f5972d4f82df0))
+
 ## [0.108.0](https://github.com/inference-gateway/cli/compare/v0.107.0...v0.108.0) (2026-05-01)
 
 ### 🚀 Features
