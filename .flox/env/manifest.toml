@@ -11,7 +11,7 @@ NODE_PATH = "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules"
 
 [install]
 go.pkg-path = "go"
-go.version = "^1.26.1"
+go.version = "^1.26.2"
 nodejs.pkg-path = "nodejs_24"
 nodejs.version = "^24.14.0"
 git.pkg-path = "git"

@@ -26,7 +26,7 @@
       },
       "go": {
         "pkg-path": "go",
-        "version": "^1.26.1"
+        "version": "^1.26.2"
       },
       "go-task": {
         "pkg-path": "go-task",
