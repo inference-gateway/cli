@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.2](https://github.com/inference-gateway/cli/compare/v0.109.1...v0.109.2) (2026-05-07)
+
+### 👷 CI/CD
+
+* **deps:** Bump golangci-lint to latest ([e5cb351](https://github.com/inference-gateway/cli/commit/e5cb351b6fa2180612689cbbf0984d4e813aac07))
+* Update Claude Code Action to v1.0.114 and refine system prompt ([ee2478e](https://github.com/inference-gateway/cli/commit/ee2478e2c8eab8ab1c0a4af2c84961bc7608e0f0))
+* Update golangci-lint installation script to use the latest version ([32deea7](https://github.com/inference-gateway/cli/commit/32deea70c0e84f1e47df514d1d1aae1eed1c6375))
+
+### 🧹 Maintenance
+
+* **nix:** Update package to v0.109.1 ([#492](https://github.com/inference-gateway/cli/issues/492)) ([7cae9a2](https://github.com/inference-gateway/cli/commit/7cae9a28e7e45f51d3ee767b73266ae7f092916a))
+
 ## [0.109.1](https://github.com/inference-gateway/cli/compare/v0.109.0...v0.109.1) (2026-05-04)
 
 ### ♻️ Code Refactoring
