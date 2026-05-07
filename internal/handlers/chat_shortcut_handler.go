@@ -399,9 +399,18 @@ func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
 		}
 	}
 
-	return domain.SetInputEvent{
-		Text: text,
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+		func() tea.Msg {
+			return domain.SetInputEvent{Text: text}
+		},
+	)()
 }
 
 func (s *ChatShortcutHandler) handleGenerateSnippetSideEffect(data any) tea.Msg {
