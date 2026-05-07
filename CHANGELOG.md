@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.3](https://github.com/inference-gateway/cli/compare/v0.109.2...v0.109.3) (2026-05-07)
+
+### 🐛 Bug Fixes
+
+* Reset status when setting input via shortcut ([#495](https://github.com/inference-gateway/cli/issues/495)) ([24fd0cb](https://github.com/inference-gateway/cli/commit/24fd0cbd158e6a35e7dcd5734e74da43d6d65f8b)), closes [#494](https://github.com/inference-gateway/cli/issues/494)
+
+### 🧹 Maintenance
+
+* Remove outdated issue templates for bug reports, feature requests, and refactor requests ([61068d7](https://github.com/inference-gateway/cli/commit/61068d7f11ec65bdd60b4f0286afd11810dff6c9))
+* **nix:** Update package to v0.109.2 ([#493](https://github.com/inference-gateway/cli/issues/493)) ([49e3c14](https://github.com/inference-gateway/cli/commit/49e3c1443f00e6d519c0c284b9a134da00ae3a1d))
+
 ## [0.109.2](https://github.com/inference-gateway/cli/compare/v0.109.1...v0.109.2) (2026-05-07)
 
 ### 👷 CI/CD
