@@ -17,10 +17,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Create GitHub App Token
-        uses: actions/create-github-app-token@v3.0.0
+        uses: actions/create-github-app-token@v3.2.0
         id: app_token
         with:
-          app-id: ${{ secrets.BOT_GH_APP_ID }}
+          client-id: ${{ secrets.BOT_GH_APP_ID }}
           private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
