@@ -95,6 +95,9 @@ func (m *MockA2AClient) GetTask(ctx context.Context, params adk.TaskQueryParams)
 }
 
 func (m *MockA2AClient) GetAgentCard(ctx context.Context) (*adk.AgentCard, error) { return nil, nil }
+func (m *MockA2AClient) GetAuthenticatedExtendedCard(ctx context.Context, params adk.GetAuthenticatedExtendedCardParams) (*adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
 func (m *MockA2AClient) GetHealth(ctx context.Context) (*client.HealthResponse, error) {
 	return nil, nil
 }
@@ -105,6 +108,21 @@ func (m *MockA2AClient) ListTasks(ctx context.Context, params adk.TaskListParams
 	return nil, nil
 }
 func (m *MockA2AClient) CancelTask(ctx context.Context, params adk.TaskIdParams) (*adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
+func (m *MockA2AClient) ResubscribeTask(ctx context.Context, params adk.TaskResubscriptionParams) (<-chan adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
+func (m *MockA2AClient) SetTaskPushNotificationConfig(ctx context.Context, params adk.TaskPushNotificationConfig) (*adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
+func (m *MockA2AClient) GetTaskPushNotificationConfig(ctx context.Context, params adk.GetTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
+func (m *MockA2AClient) ListTaskPushNotificationConfig(ctx context.Context, params adk.ListTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
+	return nil, nil
+}
+func (m *MockA2AClient) DeleteTaskPushNotificationConfig(ctx context.Context, params adk.DeleteTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
 	return nil, nil
 }
 func (m *MockA2AClient) SetTimeout(timeout time.Duration)          {}
