@@ -274,6 +274,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/history internal/ui/history ShellHistoryProvider
       - mkdir -p tests/mocks/keybinding
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/keybinding internal/ui/keybinding KeyHandlerContext
+      - mkdir -p tests/mocks/adk
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/adk github.com/inference-gateway/adk/client.A2AClient
     sources:
       - "internal/domain/interfaces.go"
       - "internal/domain/agent.go"
@@ -304,6 +306,7 @@ tasks:
       - "tests/mocks/ui/fake_selection_component.go"
       - "tests/mocks/ui/fake_theme.go"
       - "tests/mocks/ui/fake_autocomplete_interface.go"
+      - "tests/mocks/adk/fake_a2aclient.go"
 
   mocks:clean:
     desc: Clean generated mock files
