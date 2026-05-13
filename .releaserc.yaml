@@ -90,6 +90,7 @@ plugins:
   - - "@semantic-release/exec"
     - prepareCmd: |
         sed -i.bak 's|version = "[^"]*";|version = "${nextRelease.version}";|' flake.nix && rm flake.nix.bak
+        determinate-nixd fix hashes --auto-apply flake.nix
 
   - - "@semantic-release/git"
     - assets:
