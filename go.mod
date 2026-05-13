@@ -18,11 +18,7 @@ require (
 	github.com/go-vgo/robotgo v1.0.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-<<<<<<< dependabot/go_modules/github.com/inference-gateway/adk-0.18.1
 	github.com/inference-gateway/adk v0.18.1
-=======
-	github.com/inference-gateway/adk v0.17.3
->>>>>>> main
 	github.com/inference-gateway/sdk v1.16.3
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
