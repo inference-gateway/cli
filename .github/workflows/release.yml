@@ -68,8 +68,7 @@ jobs:
             @semantic-release/exec@7.1.0 \
             @semantic-release/git@10.0.1 \
             @semantic-release/github@1.0.0 \
-            conventional-changelog-conventionalcommits@9.1.0 \
-            conventional-changelog-cli@5.0.0
+            conventional-changelog-conventionalcommits@9.1.0
 
       - name: Install Determinate Nix
         uses: DeterminateSystems/determinate-nix-action@v3
