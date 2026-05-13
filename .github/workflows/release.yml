@@ -15,7 +15,6 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      id-token: write
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v3.2.0
@@ -47,7 +46,10 @@ jobs:
           git config --global commit.signoff true
 
       - name: Install Determinate Nix
-        uses: DeterminateSystems/determinate-nix-action@v3
+        uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          determinate: true
+          flakehub: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v6.4.0
