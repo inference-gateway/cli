@@ -43,7 +43,7 @@ func (m *mockApprovalPolicy) ShouldRequireApproval(ctx context.Context, toolCall
 // Helper to create a tool call
 func createToolCall(id, name, args string) *sdk.ChatCompletionMessageToolCall {
 	return &sdk.ChatCompletionMessageToolCall{
-		Id:   id,
+		ID:   id,
 		Type: sdk.Function,
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      name,

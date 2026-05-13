@@ -29,7 +29,7 @@ func createTestConfig() *config.Config {
 
 func createToolCall(toolName string, args string) *sdk.ChatCompletionMessageToolCall {
 	return &sdk.ChatCompletionMessageToolCall{
-		Id:   "test-call-id",
+		ID:   "test-call-id",
 		Type: sdk.Function,
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      toolName,

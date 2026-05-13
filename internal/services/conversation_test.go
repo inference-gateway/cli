@@ -20,7 +20,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			name: "remove_existing_tool_call",
 			setupToolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "tool-call-1",
+					ID: "tool-call-1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "test_function",
 						Arguments: `{"arg": "value"}`,
@@ -35,7 +35,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			name: "remove_non_existent_tool_call",
 			setupToolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "tool-call-1",
+					ID: "tool-call-1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "test_function",
 						Arguments: `{"arg": "value"}`,
@@ -50,21 +50,21 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			name: "remove_from_multiple_tool_calls",
 			setupToolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "tool-call-1",
+					ID: "tool-call-1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "function_1",
 						Arguments: `{"arg1": "value1"}`,
 					},
 				},
 				{
-					Id: "tool-call-2",
+					ID: "tool-call-2",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "function_2",
 						Arguments: `{"arg2": "value2"}`,
 					},
 				},
 				{
-					Id: "tool-call-3",
+					ID: "tool-call-3",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "function_3",
 						Arguments: `{"arg3": "value3"}`,
@@ -104,7 +104,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			for _, removedID := range tt.expectedRemovedIDs {
 				found := false
 				for _, msg := range finalMessages {
-					if msg.PendingToolCall != nil && msg.PendingToolCall.Id == removedID {
+					if msg.PendingToolCall != nil && msg.PendingToolCall.ID == removedID {
 						found = true
 						break
 					}
@@ -115,7 +115,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			remainingIDs := make(map[string]bool)
 			for _, msg := range finalMessages {
 				if msg.PendingToolCall != nil {
-					remainingIDs[msg.PendingToolCall.Id] = true
+					remainingIDs[msg.PendingToolCall.ID] = true
 				}
 			}
 
@@ -123,12 +123,12 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 				if msg.PendingToolCall != nil {
 					originalFound := false
 					for _, originalToolCall := range tt.setupToolCalls {
-						if originalToolCall.Id == msg.PendingToolCall.Id {
+						if originalToolCall.ID == msg.PendingToolCall.ID {
 							originalFound = true
 							break
 						}
 					}
-					assert.True(t, originalFound, "Tool call with ID %s should be from original setup", msg.PendingToolCall.Id)
+					assert.True(t, originalFound, "Tool call with ID %s should be from original setup", msg.PendingToolCall.ID)
 				}
 			}
 		})

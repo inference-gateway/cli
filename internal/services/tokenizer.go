@@ -99,8 +99,8 @@ func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 		}
 	}
 
-	if msg.ToolCallId != nil {
-		tokens += t.EstimateTokenCount(*msg.ToolCallId)
+	if msg.ToolCallID != nil {
+		tokens += t.EstimateTokenCount(*msg.ToolCallID)
 	}
 
 	if msg.Reasoning != nil {

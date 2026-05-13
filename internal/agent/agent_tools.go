@@ -17,7 +17,7 @@ func (a *EventDrivenAgent) executeTools() {
 	toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(a.currentToolCalls))
 	for _, tc := range a.currentToolCalls {
 		toolCallsSlice = append(toolCallsSlice, tc)
-		logger.Debug("executing tool", "tool", tc.Function.Name, "id", tc.Id)
+		logger.Debug("executing tool", "tool", tc.Function.Name, "id", tc.ID)
 	}
 
 	logger.Debug("Running tools in parallel...")

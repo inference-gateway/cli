@@ -710,7 +710,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 
 func TestAgentServiceImpl_CreateErrorEntry(t *testing.T) {
 	toolCall := sdk.ChatCompletionMessageToolCall{
-		Id: "call-123",
+		ID: "call-123",
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Write",
 			Arguments: `{"file_path": "/test.txt", "content": "test"}`,
@@ -724,8 +724,8 @@ func TestAgentServiceImpl_CreateErrorEntry(t *testing.T) {
 	entry := agentService.createErrorEntry(toolCall, testError, startTime)
 
 	assert.Equal(t, sdk.Tool, entry.Message.Role)
-	assert.NotNil(t, entry.Message.ToolCallId)
-	assert.Equal(t, "call-123", *entry.Message.ToolCallId)
+	assert.NotNil(t, entry.Message.ToolCallID)
+	assert.Equal(t, "call-123", *entry.Message.ToolCallID)
 
 	content, err := entry.Message.Content.AsMessageContent0()
 	assert.NoError(t, err)
@@ -747,7 +747,7 @@ func makeToolCallChunk(index int, id, name, args string) sdk.ChatCompletionMessa
 		Function: &sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
 	}
 	if id != "" {
-		chunk.Id = &id
+		chunk.ID = &id
 	}
 	return chunk
 }
@@ -768,7 +768,7 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 			expectedCalls: 1,
 			validateResult: func(t *testing.T, result map[string]*sdk.ChatCompletionMessageToolCall) {
 				assert.Contains(t, result, "0")
-				assert.Equal(t, "call-1", result["0"].Id)
+				assert.Equal(t, "call-1", result["0"].ID)
 				assert.Equal(t, "Read", result["0"].Function.Name)
 				assert.Equal(t, `{"file_path":"/test.txt"}`, result["0"].Function.Arguments)
 			},
@@ -783,8 +783,8 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 			validateResult: func(t *testing.T, result map[string]*sdk.ChatCompletionMessageToolCall) {
 				assert.Contains(t, result, "0")
 				assert.Contains(t, result, "1")
-				assert.Equal(t, "call-1", result["0"].Id)
-				assert.Equal(t, "call-2", result["1"].Id)
+				assert.Equal(t, "call-1", result["0"].ID)
+				assert.Equal(t, "call-2", result["1"].ID)
 			},
 		},
 		{
@@ -818,7 +818,7 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 			expectedCalls: 1,
 			validateResult: func(t *testing.T, result map[string]*sdk.ChatCompletionMessageToolCall) {
 				tc := result["0"]
-				assert.Equal(t, "call-1", tc.Id)
+				assert.Equal(t, "call-1", tc.ID)
 				assert.Equal(t, `{"agent_url":"http://localhost:8081"}`, tc.Function.Arguments)
 				if assert.NotNil(t, tc.ExtraContent) && assert.NotNil(t, tc.ExtraContent.Google) {
 					assert.NotNil(t, tc.ExtraContent.Google.ThoughtSignature)
@@ -847,17 +847,17 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 func TestAgentServiceImpl_GetAccumulatedToolCalls(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
-			"1": {Id: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
+			"0": {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+			"1": {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
 		},
 	}
 
 	result := agentService.getAccumulatedToolCalls()
 
 	assert.Len(t, result, 2)
-	assert.Equal(t, "call-1", result[0].Id)
+	assert.Equal(t, "call-1", result[0].ID)
 	assert.Equal(t, "Read", result[0].Function.Name)
-	assert.Equal(t, "call-2", result[1].Id)
+	assert.Equal(t, "call-2", result[1].ID)
 	assert.Equal(t, "Write", result[1].Function.Name)
 
 	assert.Empty(t, agentService.toolCallsMap)
@@ -866,8 +866,8 @@ func TestAgentServiceImpl_GetAccumulatedToolCalls(t *testing.T) {
 func TestAgentServiceImpl_ClearToolCallsMap(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {Id: "call-1"},
-			"1": {Id: "call-2"},
+			"0": {ID: "call-1"},
+			"1": {ID: "call-2"},
 		},
 	}
 
@@ -1001,7 +1001,7 @@ func TestEventPublisher_PublishChatComplete(t *testing.T) {
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
-		{Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
 	}
 	metrics := &domain.ChatMetrics{
 		Duration: 2 * time.Second,
@@ -1028,7 +1028,7 @@ func TestEventPublisher_PublishChatChunk(t *testing.T) {
 
 	callID := "call-1"
 	toolCalls := []sdk.ChatCompletionMessageToolCallChunk{
-		{Index: 0, Id: &callID},
+		{Index: 0, ID: &callID},
 	}
 
 	publisher.publishChatChunk("Hello", "thinking...", toolCalls)
@@ -1072,8 +1072,8 @@ func TestEventPublisher_PublishToolsQueued(t *testing.T) {
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
-		{Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
-		{Id: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"}},
+		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
+		{ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"}},
 	}
 
 	publisher.publishToolsQueued(toolCalls)
@@ -1085,7 +1085,7 @@ func TestEventPublisher_PublishToolsQueued(t *testing.T) {
 			progressEvent, ok := event.(domain.ToolExecutionProgressEvent)
 			assert.True(t, ok, "expected ToolExecutionProgressEvent for tool %d", i)
 			assert.Equal(t, "request-123", progressEvent.RequestID)
-			assert.Equal(t, tc.Id, progressEvent.ToolCallID)
+			assert.Equal(t, tc.ID, progressEvent.ToolCallID)
 			assert.Equal(t, tc.Function.Name, progressEvent.ToolName)
 			assert.Equal(t, "queued", progressEvent.Status)
 		default:

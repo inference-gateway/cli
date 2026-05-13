@@ -19,7 +19,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/inference-gateway/adk v0.17.3
-	github.com/inference-gateway/sdk v1.16.2
+	github.com/inference-gateway/sdk v1.16.3
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
 	github.com/metoro-io/mcp-golang v0.16.1
@@ -68,7 +68,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gen2brain/shm v0.2.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-resty/resty/v2 v2.16.5 // indirect
+	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
@@ -91,7 +91,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/oapi-codegen/runtime v1.1.2 // indirect
+	github.com/oapi-codegen/runtime v1.4.0 // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

@@ -120,7 +120,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 	t.Run("assistant message with tool calls", func(t *testing.T) {
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
-				Id:   "call_123",
+				ID:   "call_123",
 				Type: sdk.Function,
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "read_file",
@@ -146,7 +146,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 		msg := sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent("File contents: test data"),
-			ToolCallId: &toolCallId,
+			ToolCallID: &toolCallId,
 		}
 
 		result := tokenizer.EstimateMessageTokens(msg)
@@ -232,7 +232,7 @@ func TestCalculateUsagePolyfill(t *testing.T) {
 
 		outputToolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
-				Id:   "call_123",
+				ID:   "call_123",
 				Type: sdk.Function,
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "read_file",

@@ -255,7 +255,7 @@ func TestHandleStreamingState(t *testing.T) {
 				},
 				ToolCalls: []*sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call-1",
+						ID: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
 							Arguments: `{"file":"test.txt"}`,
@@ -378,7 +378,7 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 
 		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
-				Id: "call-1",
+				ID: "call-1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Write",
 					Arguments: `{"file":"test.txt"}`,
@@ -415,7 +415,7 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 
 		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
-				Id: "call-1",
+				ID: "call-1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Read",
 					Arguments: `{"file":"test.txt"}`,
@@ -614,7 +614,7 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		toolCall1 := &sdk.ChatCompletionMessageToolCall{
-			Id:   "call-1",
+			ID:   "call-1",
 			Type: sdk.Function,
 			Function: sdk.ChatCompletionMessageToolCallFunction{
 				Name:      "test_tool",

@@ -494,7 +494,7 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 		}
 
 		if msg.ToolCallID != "" {
-			sdkMsg.ToolCallId = &msg.ToolCallID
+			sdkMsg.ToolCallID = &msg.ToolCallID
 		}
 
 		messages = append(messages, sdkMsg)
@@ -635,7 +635,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 				results[index] = ConversationMessage{
 					Role:          "tool",
 					Content:       fmt.Sprintf("Tool execution failed: %s", err.Error()),
-					ToolCallID:    tc.Id,
+					ToolCallID:    tc.ID,
 					ToolExecution: errorResult,
 					Timestamp:     time.Now(),
 				}
@@ -645,7 +645,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			results[index] = ConversationMessage{
 				Role:          "tool",
 				Content:       s.formatToolResult(result),
-				ToolCallID:    tc.Id,
+				ToolCallID:    tc.ID,
 				ToolExecution: result,
 				Timestamp:     time.Now(),
 			}
@@ -718,7 +718,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 					results[idx] = ConversationMessage{
 						Role:       "tool",
 						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-						ToolCallID: tc.Id,
+						ToolCallID: tc.ID,
 						ToolExecution: &domain.ToolExecutionResult{
 							ToolName: tc.Function.Name,
 							Success:  false,
@@ -731,7 +731,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 				results[idx] = ConversationMessage{
 					Role:          "tool",
 					Content:       s.formatToolResult(result),
-					ToolCallID:    tc.Id,
+					ToolCallID:    tc.ID,
 					ToolExecution: result,
 					Timestamp:     time.Now(),
 				}
@@ -757,7 +757,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 			results[ic.index] = ConversationMessage{
 				Role:       "tool",
 				Content:    fmt.Sprintf("Tool '%s' was rejected by the user.", tc.Function.Name),
-				ToolCallID: tc.Id,
+				ToolCallID: tc.ID,
 				ToolExecution: &domain.ToolExecutionResult{
 					ToolName: tc.Function.Name,
 					Success:  false,
@@ -774,7 +774,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 			results[ic.index] = ConversationMessage{
 				Role:       "tool",
 				Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-				ToolCallID: tc.Id,
+				ToolCallID: tc.ID,
 				ToolExecution: &domain.ToolExecutionResult{
 					ToolName: tc.Function.Name,
 					Success:  false,
@@ -787,7 +787,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 		results[ic.index] = ConversationMessage{
 			Role:          "tool",
 			Content:       s.formatToolResult(result),
-			ToolCallID:    tc.Id,
+			ToolCallID:    tc.ID,
 			ToolExecution: result,
 			Timestamp:     time.Now(),
 		}
@@ -839,7 +839,7 @@ func (s *AgentSession) outputApprovalRequest(tc sdk.ChatCompletionMessageToolCal
 		Type:       "approval_request",
 		ToolName:   tc.Function.Name,
 		ToolArgs:   tc.Function.Arguments,
-		ToolCallID: tc.Id,
+		ToolCallID: tc.ID,
 	}
 	output, err := json.Marshal(req)
 	if err != nil {
@@ -883,7 +883,7 @@ func (s *AgentSession) convertToConversationEntry(msg ConversationMessage) domai
 	}
 
 	if msg.ToolCallID != "" {
-		sdkMsg.ToolCallId = &msg.ToolCallID
+		sdkMsg.ToolCallID = &msg.ToolCallID
 	}
 
 	entry := domain.ConversationEntry{
@@ -926,8 +926,8 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 		msg.ToolCalls = entry.Message.ToolCalls
 	}
 
-	if entry.Message.ToolCallId != nil {
-		msg.ToolCallID = *entry.Message.ToolCallId
+	if entry.Message.ToolCallID != nil {
+		msg.ToolCallID = *entry.Message.ToolCallID
 	}
 
 	if entry.ToolExecution != nil {

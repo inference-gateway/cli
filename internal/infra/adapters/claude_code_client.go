@@ -569,7 +569,7 @@ func (c *ClaudeCodeClient) processToolCalls(toolCallsRaw []any, toolCallsMap map
 		toolCall, exists := toolCallsMap[id]
 		if !exists {
 			toolCall = &sdk.ChatCompletionMessageToolCall{
-				Id:   id,
+				ID:   id,
 				Type: "function",
 			}
 			toolCallsMap[id] = toolCall

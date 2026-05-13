@@ -216,17 +216,17 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 
 	toolCallIDs := make(map[string]bool)
 	for _, tc := range *lastKeptMsg.ToolCalls {
-		if tc.Id != "" {
-			toolCallIDs[tc.Id] = true
+		if tc.ID != "" {
+			toolCallIDs[tc.ID] = true
 		}
 	}
 
 	adjustedBoundary := boundaryIndex
 	for i := boundaryIndex; i < len(messages); i++ {
-		if messages[i].Role == "tool" && messages[i].ToolCallId != nil {
-			if toolCallIDs[*messages[i].ToolCallId] {
+		if messages[i].Role == "tool" && messages[i].ToolCallID != nil {
+			if toolCallIDs[*messages[i].ToolCallID] {
 				adjustedBoundary = i + 1
-				delete(toolCallIDs, *messages[i].ToolCallId)
+				delete(toolCallIDs, *messages[i].ToolCallID)
 			}
 		} else if messages[i].Role == "assistant" || messages[i].Role == "user" {
 			break
