@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.4](https://github.com/inference-gateway/cli/compare/v0.109.3...v0.109.4) (2026-05-13)
+
+### 🐛 Bug Fixes
+
+* Adapt to sdk v1.16.2 nullable tool call chunk fields ([2a049a7](https://github.com/inference-gateway/cli/commit/2a049a75fd3aa7e44cf22a9b1013ecbcea26925f))
+
+### ♻️ Code Refactoring
+
+* Remove nix ([aabde54](https://github.com/inference-gateway/cli/commit/aabde54223b634251757b2b66d8e0e5747a082ee))
+
+### 👷 CI/CD
+
+* Enable display report for Claude Code action ([ee2f92f](https://github.com/inference-gateway/cli/commit/ee2f92fa4055f43b0d383e32ec26c26341cbce35))
+* Fix deprecation warning ([597ab8e](https://github.com/inference-gateway/cli/commit/597ab8ed8dcbf493e9763ca3cc768e29517cbc20))
+* **nix:** Fix release workflow ([03e0c52](https://github.com/inference-gateway/cli/commit/03e0c52d01aaba4bc21c92cfdad9a8dac594e22a))
+* **nix:** Replace standalone package.nix with flake.nix ([#508](https://github.com/inference-gateway/cli/issues/508)) ([bd4920f](https://github.com/inference-gateway/cli/commit/bd4920fbd5a9603f2430523c11e100b16babdb59))
+
+### 🧹 Maintenance
+
+* Add codeowners ([319754d](https://github.com/inference-gateway/cli/commit/319754d107c2416fa8f15b0c137268938c4430e3))
+* Add dependabot for weekly dependecies checks ([fcc6880](https://github.com/inference-gateway/cli/commit/fcc6880ce55fe549a53c71c9a2035cdac90b02c4))
+* **deps:** Bump actions/create-github-app-token from 3.0.0 to 3.2.0 ([#506](https://github.com/inference-gateway/cli/issues/506)) ([be15d7f](https://github.com/inference-gateway/cli/commit/be15d7fcf56c6c3fd0bc7c136d0780c9a5f7ada7))
+* **deps:** Bump actions/setup-node from 6.3.0 to 6.4.0 ([#505](https://github.com/inference-gateway/cli/issues/505)) ([6b0c406](https://github.com/inference-gateway/cli/commit/6b0c406450611b5995e45138ecc66e5dc0505495))
+* **deps:** Bump anthropics/claude-code-action from 1.0.114 to 1.0.121 ([#503](https://github.com/inference-gateway/cli/issues/503)) ([a0ec1b7](https://github.com/inference-gateway/cli/commit/a0ec1b72ae9c442586e1ea0b23d76e91b1047415))
+* **deps:** Bump github.com/fsnotify/fsnotify from 1.10.0 to 1.10.1 ([#499](https://github.com/inference-gateway/cli/issues/499)) ([e3d2074](https://github.com/inference-gateway/cli/commit/e3d2074586c3d2094bd60af323c9f3e9c3d2e34e))
+* **deps:** Bump github.com/inference-gateway/adk from 0.17.1 to 0.17.3 ([#497](https://github.com/inference-gateway/cli/issues/497)) ([f1cd5a1](https://github.com/inference-gateway/cli/commit/f1cd5a11210f8690fa4fe0cfa532716770cce291))
+* **deps:** Bump github.com/inference-gateway/sdk from 1.16.0 to 1.16.2 ([#501](https://github.com/inference-gateway/cli/issues/501)) ([6eecc6e](https://github.com/inference-gateway/cli/commit/6eecc6ed12b274d1d48c10b05315d98531ce256e))
+* **deps:** Bump golang.org/x/crypto from 0.50.0 to 0.51.0 ([#498](https://github.com/inference-gateway/cli/issues/498)) ([6d9067f](https://github.com/inference-gateway/cli/commit/6d9067feb203e4d8f1616860ac6bd15abda20255))
+* **deps:** Bump golang.org/x/image from 0.39.0 to 0.40.0 ([#500](https://github.com/inference-gateway/cli/issues/500)) ([672e213](https://github.com/inference-gateway/cli/commit/672e213dcc2b5b257fe075cde8ebbe04b83a6051))
+* **deps:** Bump golangci-lint to latest ([ffc9694](https://github.com/inference-gateway/cli/commit/ffc969440083165d05d747aa3b7729046be3fa6d))
+* **deps:** Bump modernc.org/sqlite from 1.50.0 to 1.50.1 ([#504](https://github.com/inference-gateway/cli/issues/504)) ([6407369](https://github.com/inference-gateway/cli/commit/64073692e4f9b821cc1c38562568cbd577aff8b5))
+* **deps:** Bump peter-evans/create-pull-request from 7 to 8 ([#502](https://github.com/inference-gateway/cli/issues/502)) ([07d0d86](https://github.com/inference-gateway/cli/commit/07d0d8650d5488267ab2c91fcd4aa72b7abdafd9))
+* **deps:** Bump sigstore/cosign-installer from 4.1.1 to 4.1.2 ([#507](https://github.com/inference-gateway/cli/issues/507)) ([ad31edf](https://github.com/inference-gateway/cli/commit/ad31edfa94e4186ae407fa77b4425576ea75fd06))
+* **nix:** Update package to v0.109.3 ([#496](https://github.com/inference-gateway/cli/issues/496)) ([8b0658f](https://github.com/inference-gateway/cli/commit/8b0658fdd25b873d129936c004ef44c53d375780))
+
 ## [0.109.3](https://github.com/inference-gateway/cli/compare/v0.109.2...v0.109.3) (2026-05-07)
 
 ### 🐛 Bug Fixes
