@@ -49,6 +49,8 @@
 
           vendorHash = "sha256-+ntde+NYik4gEicMlyonBAE+gkHoYYiw3G0dbQ/gX2I=";
 
+          goSum = ./go.sum;
+
           proxyVendor = true;
 
           env.CGO_ENABLED = if stdenv.hostPlatform.isDarwin then "1" else "0";

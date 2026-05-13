@@ -87,9 +87,14 @@ plugins:
         The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
         and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+  - - "@semantic-release/exec"
+    - prepareCmd: |
+        sed -i.bak 's|version = "[^"]*";|version = "${nextRelease.version}";|' flake.nix && rm flake.nix.bak
+
   - - "@semantic-release/git"
     - assets:
         - CHANGELOG.md
+        - flake.nix
       message: |
         chore(release): ${nextRelease.version} [skip ci]
 

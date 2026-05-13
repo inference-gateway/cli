@@ -11,6 +11,8 @@ on:
     paths:
       - 'flake.nix'
       - 'flake.lock'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/nix-build.yml'
   push:
     branches:
@@ -18,6 +20,8 @@ on:
     paths:
       - 'flake.nix'
       - 'flake.lock'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/nix-build.yml'
   workflow_dispatch:
 
