@@ -186,7 +186,7 @@ func TestGuardConditions(t *testing.T) {
 
 		ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
-				Id: "test",
+				ID: "test",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "test",
 					Arguments: "{}",
@@ -380,7 +380,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 				ctx.ApprovalPolicy = nil
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call-1",
+						ID: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Write",
 							Arguments: `{}`,
@@ -398,7 +398,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 				ctx.ApprovalPolicy = fakePolicy
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call-1",
+						ID: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Write",
 							Arguments: `{}`,
@@ -416,7 +416,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 				ctx.ApprovalPolicy = fakePolicy
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call-1",
+						ID: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
 							Arguments: `{}`,

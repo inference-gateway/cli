@@ -244,7 +244,7 @@ func TestExecuteToolCallsParallel(t *testing.T) {
 			name: "single tool call",
 			toolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "call_1",
+					ID: "call_1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Read",
 						Arguments: `{"file_path": "test.txt"}`,
@@ -267,21 +267,21 @@ func TestExecuteToolCallsParallel(t *testing.T) {
 			name: "multiple tool calls",
 			toolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "call_1",
+					ID: "call_1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Read",
 						Arguments: `{"file_path": "test1.txt"}`,
 					},
 				},
 				{
-					Id: "call_2",
+					ID: "call_2",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Grep",
 						Arguments: `{"pattern": "func"}`,
 					},
 				},
 				{
-					Id: "call_3",
+					ID: "call_3",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Write",
 						Arguments: `{"file_path": "output.txt", "content": "hello"}`,
@@ -302,7 +302,7 @@ func TestExecuteToolCallsParallel(t *testing.T) {
 			name: "tool call with error",
 			toolCalls: []sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "call_1",
+					ID: "call_1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Read",
 						Arguments: `{"file_path": "nonexistent.txt"}`,
@@ -388,14 +388,14 @@ func TestProcessSyncResponseParallel(t *testing.T) {
 				Content:   "I'll help you with that.",
 				ToolCalls: []sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call_1",
+						ID: "call_1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
 							Arguments: `{"file_path": "test.txt"}`,
 						},
 					},
 					{
-						Id: "call_2",
+						ID: "call_2",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Grep",
 							Arguments: `{"pattern": "test"}`,
@@ -581,7 +581,7 @@ func getAssistantMessageWithToolCallsTestCase() struct {
 				Content: sdk.NewMessageContent(""),
 				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 					{
-						Id: "call_1",
+						ID: "call_1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
 							Arguments: `{"file_path":"test.txt"}`,
@@ -598,7 +598,7 @@ func getAssistantMessageWithToolCallsTestCase() struct {
 			Timestamp: mockTime(),
 			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{
-					Id: "call_1",
+					ID: "call_1",
 					Function: sdk.ChatCompletionMessageToolCallFunction{
 						Name:      "Read",
 						Arguments: `{"file_path":"test.txt"}`,
@@ -624,7 +624,7 @@ func getToolResponseWithToolCallIDTestCase() struct {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("File content here"),
-				ToolCallId: stringPtr("call_1"),
+				ToolCallID: stringPtr("call_1"),
 			},
 			Model: "openai/gpt-4",
 			Time:  mockTime(),
@@ -723,7 +723,7 @@ func getMessageWithToolExecutionMetadataTestCase() struct {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("Result data"),
-				ToolCallId: stringPtr("call_2"),
+				ToolCallID: stringPtr("call_2"),
 			},
 			Model: "openai/gpt-4",
 			Time:  mockTime(),
@@ -793,7 +793,7 @@ func TestReasoningContentRoundTripSyncPath(t *testing.T) {
 			Content:          "",
 			ReasoningContent: reasoning,
 			ToolCalls: []sdk.ChatCompletionMessageToolCall{{
-				Id: "call_1",
+				ID: "call_1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Bash",
 					Arguments: `{"command":"echo hi"}`,
@@ -826,7 +826,7 @@ func TestReasoningContentRoundTripSyncPath(t *testing.T) {
 					Content:          "",
 					ReasoningContent: reasoning,
 					ToolCalls: &[]sdk.ChatCompletionMessageToolCall{{
-						Id: "call_1",
+						ID: "call_1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name: "Bash", Arguments: `{"command":"echo hi"}`,
 						},

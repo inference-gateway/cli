@@ -10,7 +10,7 @@ import (
 
 func TestBuildAssistantMessage(t *testing.T) {
 	toolCall := &sdk.ChatCompletionMessageToolCall{
-		Id:   "call_1",
+		ID:   "call_1",
 		Type: sdk.Function,
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",

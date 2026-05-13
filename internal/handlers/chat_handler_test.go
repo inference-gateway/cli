@@ -40,7 +40,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 				Content: sdk.NewMessageContent("Submitting plan"),
 				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 					{
-						Id:   "call_1",
+						ID:   "call_1",
 						Type: sdk.Function,
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "RequestPlanApproval",
@@ -57,7 +57,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("Plan approval requested. Plan saved to ..."),
-				ToolCallId: new("call_1"),
+				ToolCallID: new("call_1"),
 			},
 		},
 		{
@@ -160,7 +160,7 @@ func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 				Content: sdk.NewMessageContent(""),
 				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 					{
-						Id:   userBashID,
+						ID:   userBashID,
 						Type: sdk.Function,
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Bash",
@@ -174,7 +174,7 @@ func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("0 issues."),
-				ToolCallId: &userBashID,
+				ToolCallID: &userBashID,
 			},
 		},
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("anything else?")}},
@@ -188,12 +188,12 @@ func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 	for i, msg := range out {
 		if msg.ToolCalls != nil {
 			for _, tc := range *msg.ToolCalls {
-				if strings.HasPrefix(tc.Id, "user-bash-") {
+				if strings.HasPrefix(tc.ID, "user-bash-") {
 					t.Errorf("user-bash tool call leaked into request at message %d", i)
 				}
 			}
 		}
-		if msg.ToolCallId != nil && strings.HasPrefix(*msg.ToolCallId, "user-bash-") {
+		if msg.ToolCallID != nil && strings.HasPrefix(*msg.ToolCallID, "user-bash-") {
 			t.Errorf("user-bash tool result leaked into request at message %d", i)
 		}
 	}
@@ -1170,7 +1170,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				Timestamp: time.Now(),
 				ToolCalls: []sdk.ChatCompletionMessageToolCall{
 					{
-						Id:   "tool-1",
+						ID:   "tool-1",
 						Type: sdk.Function,
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",

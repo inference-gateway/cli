@@ -150,7 +150,7 @@ func (r *InMemoryConversationRepository) RemovePendingToolCallByID(toolCallID st
 	defer r.mutex.Unlock()
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
-		if r.messages[i].PendingToolCall != nil && r.messages[i].PendingToolCall.Id == toolCallID {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].PendingToolCall.ID == toolCallID {
 			r.messages = append(r.messages[:i], r.messages[i+1:]...)
 			return
 		}
@@ -344,8 +344,8 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 			}
 		}
 
-		if entry.Message.ToolCallId != nil {
-			fmt.Fprintf(&content, "*Tool Call ID: %s*\n\n", *entry.Message.ToolCallId)
+		if entry.Message.ToolCallID != nil {
+			fmt.Fprintf(&content, "*Tool Call ID: %s*\n\n", *entry.Message.ToolCallID)
 		}
 
 		content.WriteString("---\n\n")
