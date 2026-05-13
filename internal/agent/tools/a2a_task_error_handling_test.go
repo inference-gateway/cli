@@ -3,16 +3,13 @@ package tools
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
-	"time"
 
-	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
+	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	assert "github.com/stretchr/testify/assert"
-	zap "go.uber.org/zap"
 )
 
 func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {
@@ -78,60 +75,6 @@ func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {
 	}
 }
 
-// MockA2AClient implements the A2AClient interface for testing
-type MockA2AClient struct {
-	sendTaskResponse *adk.JSONRPCSuccessResponse
-	sendTaskError    error
-	getTaskResponse  *adk.JSONRPCSuccessResponse
-	getTaskError     error
-}
-
-func (m *MockA2AClient) SendTask(ctx context.Context, params adk.MessageSendParams) (*adk.JSONRPCSuccessResponse, error) {
-	return m.sendTaskResponse, m.sendTaskError
-}
-
-func (m *MockA2AClient) GetTask(ctx context.Context, params adk.TaskQueryParams) (*adk.JSONRPCSuccessResponse, error) {
-	return m.getTaskResponse, m.getTaskError
-}
-
-func (m *MockA2AClient) GetAgentCard(ctx context.Context) (*adk.AgentCard, error) { return nil, nil }
-func (m *MockA2AClient) GetAuthenticatedExtendedCard(ctx context.Context, params adk.GetAuthenticatedExtendedCardParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) GetHealth(ctx context.Context) (*client.HealthResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) SendTaskStreaming(ctx context.Context, params adk.MessageSendParams) (<-chan adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) ListTasks(ctx context.Context, params adk.TaskListParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) CancelTask(ctx context.Context, params adk.TaskIdParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) ResubscribeTask(ctx context.Context, params adk.TaskResubscriptionParams) (<-chan adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) SetTaskPushNotificationConfig(ctx context.Context, params adk.TaskPushNotificationConfig) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) GetTaskPushNotificationConfig(ctx context.Context, params adk.GetTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) ListTaskPushNotificationConfig(ctx context.Context, params adk.ListTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) DeleteTaskPushNotificationConfig(ctx context.Context, params adk.DeleteTaskPushNotificationConfigParams) (*adk.JSONRPCSuccessResponse, error) {
-	return nil, nil
-}
-func (m *MockA2AClient) SetTimeout(timeout time.Duration)          {}
-func (m *MockA2AClient) SetHTTPClient(client *http.Client)         {}
-func (m *MockA2AClient) GetBaseURL() string                        { return "http://mock" }
-func (m *MockA2AClient) SetLogger(logger *zap.Logger)              {}
-func (m *MockA2AClient) GetLogger() *zap.Logger                    { return nil }
-func (m *MockA2AClient) GetArtifactHelper() *client.ArtifactHelper { return nil }
-
 func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
@@ -156,9 +99,8 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		tracker.GetLatestContextForAgentReturns(contextID)
 		tracker.GetLatestTaskForContextReturns(taskID)
 
-		mockClient := &MockA2AClient{
-			sendTaskError: errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"),
-		}
+		mockClient := &adkmocks.FakeA2AClient{}
+		mockClient.SendTaskReturns(nil, errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"))
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
@@ -195,11 +137,8 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 			},
 		}
 
-		mockClient := &MockA2AClient{
-			sendTaskResponse: &adk.JSONRPCSuccessResponse{
-				Result: completedTask,
-			},
-		}
+		mockClient := &adkmocks.FakeA2AClient{}
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: completedTask}, nil)
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
@@ -320,15 +259,9 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 				},
 			}
 
-			mockClient := &MockA2AClient{
-				getTaskResponse: &adk.JSONRPCSuccessResponse{
-					Result: existingTask,
-				},
-				getTaskError: tt.getTaskError,
-				sendTaskResponse: &adk.JSONRPCSuccessResponse{
-					Result: newTask,
-				},
-			}
+			mockClient := &adkmocks.FakeA2AClient{}
+			mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: existingTask}, tt.getTaskError)
+			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
 			tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
@@ -399,15 +332,9 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 			},
 		}
 
-		mockClient := &MockA2AClient{
-			getTaskResponse: &adk.JSONRPCSuccessResponse{
-				Result: workingTaskAgent1,
-			},
-			sendTaskResponse: &adk.JSONRPCSuccessResponse{
-				Result: newTaskAgent2,
-			},
-			getTaskError: nil,
-		}
+		mockClient := &adkmocks.FakeA2AClient{}
+		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: workingTaskAgent1}, nil)
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTaskAgent2}, nil)
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
@@ -467,14 +394,9 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 			},
 		}
 
-		mockClient := &MockA2AClient{
-			sendTaskResponse: &adk.JSONRPCSuccessResponse{
-				Result: newTask,
-			},
-			getTaskResponse: &adk.JSONRPCSuccessResponse{
-				Result: newTask,
-			},
-		}
+		mockClient := &adkmocks.FakeA2AClient{}
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
+		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
