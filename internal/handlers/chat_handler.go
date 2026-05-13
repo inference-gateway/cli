@@ -221,13 +221,13 @@ func buildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Mes
 func isUserInitiatedBashEntry(entry domain.ConversationEntry) bool {
 	const userBashPrefix = "user-bash-"
 
-	if entry.Message.ToolCallId != nil && strings.HasPrefix(*entry.Message.ToolCallId, userBashPrefix) {
+	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {
 		return true
 	}
 
 	if entry.Message.ToolCalls != nil {
 		for _, tc := range *entry.Message.ToolCalls {
-			if strings.HasPrefix(tc.Id, userBashPrefix) {
+			if strings.HasPrefix(tc.ID, userBashPrefix) {
 				return true
 			}
 		}
@@ -1125,7 +1125,7 @@ func (h *ChatHandler) handleChatComplete(
 			return domain.ToolCallPreviewEvent{
 				RequestID:  msg.RequestID,
 				Timestamp:  msg.Timestamp,
-				ToolCallID: tc.Id,
+				ToolCallID: tc.ID,
 				ToolName:   tc.Function.Name,
 				Arguments:  tc.Function.Arguments,
 				Status:     domain.ToolCallStreamStatusReady,
@@ -1907,7 +1907,7 @@ func (h *ChatHandler) executeBashCommand(commandText, command string) tea.Cmd {
 	_ = h.conversationRepo.AddMessage(userEntry)
 
 	if err := h.stateManager.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{
-		Id:       toolCallID,
+		ID:       toolCallID,
 		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: fmt.Sprintf(`{"command":"%s"}`, command)},
 	}}); err != nil {
 		return func() tea.Msg {
@@ -2023,7 +2023,7 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
-				Id:       toolCallID,
+				ID:       toolCallID,
 				Type:     "function",
 				Function: toolCallFunc,
 			},
@@ -2048,7 +2048,7 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent(formattedContent),
-				ToolCallId: &toolCallID,
+				ToolCallID: &toolCallID,
 			},
 			ToolExecution: result,
 			Time:          time.Now(),
@@ -2290,7 +2290,7 @@ func (h *ChatHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID str
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
-				Id:       toolCallID,
+				ID:       toolCallID,
 				Type:     "function",
 				Function: toolCallFunc,
 			},
@@ -2309,7 +2309,7 @@ func (h *ChatHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID str
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent(""),
-				ToolCallId: &toolCallID,
+				ToolCallID: &toolCallID,
 			},
 			ToolExecution: result,
 			Time:          time.Now(),

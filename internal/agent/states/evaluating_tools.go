@@ -37,7 +37,7 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 		completeToolCalls = make([]sdk.ChatCompletionMessageToolCall, 0, len(*s.ctx.CurrentToolCalls))
 		for _, tc := range *s.ctx.CurrentToolCalls {
 			completeToolCalls = append(completeToolCalls, *tc)
-			logger.Debug("Tool call", "tool", tc.Function.Name, "id", tc.Id)
+			logger.Debug("Tool call", "tool", tc.Function.Name, "id", tc.ID)
 		}
 	}
 	s.ctx.PublishChatComplete(*s.ctx.CurrentReasoning, completeToolCalls, s.ctx.GetMetrics(s.ctx.Request.RequestID))

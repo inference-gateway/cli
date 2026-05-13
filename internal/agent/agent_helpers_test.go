@@ -19,7 +19,7 @@ func TestAccumulateToolCalls(t *testing.T) {
 
 	callID := "call-1"
 	deltas := []sdk.ChatCompletionMessageToolCallChunk{
-		{Index: 0, Id: &callID, Function: &sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file":`}},
+		{Index: 0, ID: &callID, Function: &sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file":`}},
 		{Index: 0, Function: &sdk.ChatCompletionMessageToolCallFunction{Arguments: `"test.txt"}`}},
 	}
 
@@ -27,7 +27,7 @@ func TestAccumulateToolCalls(t *testing.T) {
 
 	assert.Equal(t, 1, len(agentService.toolCallsMap))
 	assert.Contains(t, agentService.toolCallsMap, "0")
-	assert.Equal(t, "call-1", agentService.toolCallsMap["0"].Id)
+	assert.Equal(t, "call-1", agentService.toolCallsMap["0"].ID)
 	assert.Equal(t, "Read", agentService.toolCallsMap["0"].Function.Name)
 	assert.Equal(t, `{"file":"test.txt"}`, agentService.toolCallsMap["0"].Function.Arguments)
 }
@@ -36,17 +36,17 @@ func TestAccumulateToolCalls(t *testing.T) {
 func TestGetAccumulatedToolCalls(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
-			"1": {Id: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
+			"0": {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+			"1": {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
 		},
 	}
 
 	result := agentService.getAccumulatedToolCalls()
 
 	assert.Equal(t, 2, len(result))
-	assert.Equal(t, "call-1", result[0].Id)
+	assert.Equal(t, "call-1", result[0].ID)
 	assert.Equal(t, "Read", result[0].Function.Name)
-	assert.Equal(t, "call-2", result[1].Id)
+	assert.Equal(t, "call-2", result[1].ID)
 	assert.Equal(t, "Write", result[1].Function.Name)
 
 	// Verify map was cleared
@@ -57,7 +57,7 @@ func TestGetAccumulatedToolCalls(t *testing.T) {
 func TestClearToolCallsMap(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {Id: "call-1"},
+			"0": {ID: "call-1"},
 		},
 	}
 
@@ -234,7 +234,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("result1"),
-				ToolCallId: &call1,
+				ToolCallID: &call1,
 			},
 			ToolExecution: &domain.ToolExecutionResult{
 				ToolName: "Read",
@@ -245,7 +245,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent("result2"),
-				ToolCallId: &call2,
+				ToolCallID: &call2,
 			},
 			ToolExecution: &domain.ToolExecutionResult{
 				ToolName: "Write",
@@ -262,11 +262,11 @@ func TestAddToolResultsToConversation(t *testing.T) {
 
 	assert.Equal(t, 3, len(conversation))
 	assert.Equal(t, sdk.Tool, conversation[1].Role)
-	assert.NotNil(t, conversation[1].ToolCallId)
-	assert.Equal(t, "call-1", *conversation[1].ToolCallId)
+	assert.NotNil(t, conversation[1].ToolCallID)
+	assert.Equal(t, "call-1", *conversation[1].ToolCallID)
 	assert.Equal(t, sdk.Tool, conversation[2].Role)
-	assert.NotNil(t, conversation[2].ToolCallId)
-	assert.Equal(t, "call-2", *conversation[2].ToolCallId)
+	assert.NotNil(t, conversation[2].ToolCallID)
+	assert.Equal(t, "call-2", *conversation[2].ToolCallID)
 }
 
 // TestBatchDrainQueue tests draining queued messages into conversation

@@ -82,7 +82,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 
 	models := make([]string, len(resp.Data))
 	for i, model := range resp.Data {
-		models[i] = model.Id
+		models[i] = model.ID
 	}
 
 	s.modelsMux.Lock()

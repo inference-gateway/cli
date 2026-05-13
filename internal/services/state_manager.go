@@ -326,7 +326,7 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 		}
 
 		tools[i] = domain.ToolCall{
-			ID:        tc.Id,
+			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: args,
 			Status:    domain.ToolCallStatusPending,

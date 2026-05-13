@@ -132,7 +132,7 @@ func (s *ApprovingToolsState) handleToolRejection(tc sdk.ChatCompletionMessageTo
 	rejectionMessage := sdk.Message{
 		Role:       sdk.Tool,
 		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
-		ToolCallId: &tc.Id,
+		ToolCallID: &tc.ID,
 	}
 
 	*s.ctx.AgentCtx.Conversation = append(*s.ctx.AgentCtx.Conversation, rejectionMessage)

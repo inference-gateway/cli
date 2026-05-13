@@ -120,7 +120,7 @@ func (p *eventPublisher) publishToolsQueued(toolCalls []sdk.ChatCompletionMessag
 				RequestID: p.requestID,
 				Timestamp: time.Now(),
 			},
-			ToolCallID: tc.Id,
+			ToolCallID: tc.ID,
 			ToolName:   tc.Function.Name,
 			Arguments:  tc.Function.Arguments,
 			Status:     "queued",
@@ -690,7 +690,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 			}
 		}
 
-		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message, images)
+		eventPublisher.publishToolStatusChange(at.tool.ID, at.tool.Function.Name, status, message, images)
 		results[at.index] = result
 	}
 
@@ -712,7 +712,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 				}()
 
 				eventPublisher.publishToolStatusChange(
-					toolCall.Id,
+					toolCall.ID,
 					toolCall.Function.Name, "starting",
 					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
 					nil,
@@ -733,7 +733,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 					images = result.ToolExecution.Images
 				}
 
-				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message, images)
+				eventPublisher.publishToolStatusChange(toolCall.ID, toolCall.Function.Name, status, message, images)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -779,11 +779,11 @@ func (s *AgentServiceImpl) executeTool(
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
 			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
-			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
+			s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
-			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
+			s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true
@@ -803,7 +803,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 	wasApproved bool,
 	startTime time.Time,
 ) domain.ConversationEntry {
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...", nil)
+	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -840,7 +840,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {
-			eventPublisher.publishBashOutputChunk(tc.Id, line, false)
+			eventPublisher.publishBashOutputChunk(tc.ID, line, false)
 		}
 		execCtx = domain.WithBashOutputCallback(execCtx, bashCallback)
 
@@ -883,7 +883,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 			ticker.Stop()
 			resultReceived = true
 		case <-ticker.C:
-			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...", nil)
+			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Processing...", nil)
 		case <-ctx.Done():
 			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
 			return s.createErrorEntry(tc, ctx.Err(), startTime)
@@ -895,7 +895,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...", nil)
+	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "saving", "Saving results...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -929,14 +929,14 @@ func (s *AgentServiceImpl) executeToolInternal(
 		Message: domain.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(formattedContent),
-			ToolCallId: &tc.Id,
+			ToolCallID: &tc.ID,
 		},
 		Time:          time.Now(),
 		ToolExecution: toolExecutionResult,
 	}
 
 	if wasApproved {
-		s.conversationRepo.RemovePendingToolCallByID(tc.Id)
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 	}
 
 	return entry
@@ -989,7 +989,7 @@ func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.Con
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
 			Content:    entry.Message.Content,
-			ToolCallId: entry.Message.ToolCallId,
+			ToolCallID: entry.Message.ToolCallID,
 		}
 		*conversation = append(*conversation, toolResult)
 	}
@@ -1146,7 +1146,7 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 		Message: domain.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error())),
-			ToolCallId: &tc.Id,
+			ToolCallID: &tc.ID,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
@@ -1174,7 +1174,7 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 		Message: domain.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(rejectionMessage),
-			ToolCallId: &tc.Id,
+			ToolCallID: &tc.ID,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
