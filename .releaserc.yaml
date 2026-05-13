@@ -87,9 +87,15 @@ plugins:
         The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
         and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+  - - "@semantic-release/exec"
+    - prepareCmd: |
+        sed -i.bak 's|version = "[^"]*";|version = "${nextRelease.version}";|' flake.nix && rm flake.nix.bak
+        determinate-nixd fix hashes --auto-apply flake.nix
+
   - - "@semantic-release/git"
     - assets:
         - CHANGELOG.md
+        - flake.nix
       message: |
         chore(release): ${nextRelease.version} [skip ci]
 
@@ -122,6 +128,21 @@ plugins:
 
         ```bash
         curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+        ```
+
+        ### Nix Flake
+
+        Run directly without installing:
+
+        ```bash
+        nix run github:inference-gateway/cli/<%= nextRelease.gitTag %>
+        ```
+
+        Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+        ```toml
+        [install]
+        infer.flake = "github:inference-gateway/cli/<%= nextRelease.gitTag %>"
         ```
 
         ### Binary Download
