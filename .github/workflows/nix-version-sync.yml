@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   update-nix-version:
-    name: Update Nix package version
+    name: Update Nix flake version
     runs-on: ubuntu-24.04
 
     steps:
@@ -49,37 +49,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version to sync: $VERSION"
 
-      - name: Calculate source hash
-        id: source-hash
+      - name: Update version in flake.nix
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          URL="https://github.com/inference-gateway/cli/archive/refs/tags/v${VERSION}.tar.gz"
-
-          echo "Downloading source from: $URL"
-          # nix-prefetch-url emits a nix-base32 hash; convert to SRI (base64)
-          # because that's what fetchFromGitHub's `hash` attribute expects.
-          NIX32_HASH=$(nix-prefetch-url --unpack "$URL")
-          SRI_HASH=$(nix-hash --to-sri --type sha256 "$NIX32_HASH")
-          # Strip the "sha256-" prefix so the consumer can prepend it consistently.
-          HASH="${SRI_HASH#sha256-}"
-          echo "Source hash: sha256-$HASH"
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Update version in Nix expression
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          HASH="${{ steps.source-hash.outputs.hash }}"
-          sed -i "s/version = \"[0-9.]*\";/version = \"$VERSION\";/" nix/package.nix
-          sed -i "s|hash = \"sha256-[A-Za-z0-9+/=]*\";|hash = \"sha256-$HASH\";|" nix/package.nix
-          echo "Updated nix/package.nix with version $VERSION"
-          cat nix/package.nix | grep -A2 "version ="
+          sed -i "s/version = \"[0-9.]*\";/version = \"$VERSION\";/" flake.nix
+          echo "Updated flake.nix with version $VERSION"
+          grep -n 'version = "' flake.nix | head -1
 
       - name: Calculate vendor hash
         id: vendor-hash
         run: |
           echo "Attempting build to calculate vendorHash..."
-          sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = "";|' nix/package.nix
-          BUILD_OUTPUT=$(nix-build nix/default.nix 2>&1 || true)
+          # Use a fake hash to force Nix to report the real one in the error.
+          sed -i 's|vendorHash = "sha256-[A-Za-z0-9+/=]*";|vendorHash = lib.fakeHash;|' flake.nix
+          BUILD_OUTPUT=$(nix build .#infer --show-trace 2>&1 || true)
           # `got: sha256-<base64>=` is already SRI-formatted in the build error,
           # so we just capture it verbatim.
           VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+sha256-\K[A-Za-z0-9+/=]+" | head -1)
@@ -93,39 +76,38 @@ jobs:
           echo "Vendor hash: sha256-$VENDOR_HASH"
           echo "hash=$VENDOR_HASH" >> $GITHUB_OUTPUT
 
-      - name: Update vendor hash in Nix expression
+      - name: Update vendor hash in flake.nix
         run: |
           VENDOR_HASH="${{ steps.vendor-hash.outputs.hash }}"
-          sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"sha256-$VENDOR_HASH\";|" nix/package.nix
-          echo "Updated vendorHash in nix/package.nix"
+          sed -i "s|vendorHash = lib.fakeHash;|vendorHash = \"sha256-$VENDOR_HASH\";|" flake.nix
+          echo "Updated vendorHash in flake.nix"
 
       - name: Format Nix file
         run: |
-          nix-shell -p nixfmt-rfc-style --run "nixfmt nix/package.nix"
+          nix-shell -p nixfmt-rfc-style --run "nixfmt flake.nix"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'chore(nix): Update package to v${{ steps.version.outputs.version }}'
-          title: 'chore(nix): Update package to v${{ steps.version.outputs.version }}'
+          commit-message: 'chore(nix): Update flake to v${{ steps.version.outputs.version }}'
+          title: 'chore(nix): Update flake to v${{ steps.version.outputs.version }}'
           body: |
-            ## Automated Nix Package Update
+            ## Automated Nix Flake Update
 
-            This PR updates the Nix package expression to version **${{ steps.version.outputs.version }}**.
+            This PR updates the Nix flake to version **${{ steps.version.outputs.version }}**.
 
             ### Changes
-            - ✅ Updated `version` to `${{ steps.version.outputs.version }}`
-            - ✅ Updated source `hash` to `sha256-${{ steps.source-hash.outputs.hash }}`
-            - ✅ Updated `vendorHash` to `sha256-${{ steps.vendor-hash.outputs.hash }}`
-            - ✅ Formatted with nixfmt-rfc-style
+            - Updated `version` to `${{ steps.version.outputs.version }}`
+            - Updated `vendorHash` to `sha256-${{ steps.vendor-hash.outputs.hash }}`
+            - Formatted with nixfmt-rfc-style
 
             The `Nix Build Verification` workflow runs on this PR and is the
             authoritative gate for verifying the updated hashes build cleanly.
 
             ### Verification
             ```bash
-            nix-build nix/default.nix
+            nix build .#infer
             result/bin/infer version
             ```
 
@@ -133,7 +115,7 @@ jobs:
             - Release: ${{ github.event.release.html_url || 'Manual trigger' }}
 
             ---
-            🤖 Auto-generated by `.github/workflows/nix-version-sync.yml`
+            Auto-generated by `.github/workflows/nix-version-sync.yml`
           branch: chore/nix-update-v${{ steps.version.outputs.version }}
           delete-branch: true
           labels: |
@@ -143,10 +125,9 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## ✅ Nix Package Updated" >> $GITHUB_STEP_SUMMARY
+          echo "## Nix Flake Updated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Source Hash**: sha256-${{ steps.source-hash.outputs.hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Vendor Hash**: sha256-${{ steps.vendor-hash.outputs.hash }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "A pull request has been created to merge these changes." >> $GITHUB_STEP_SUMMARY

@@ -9,13 +9,15 @@ on:
     branches:
       - main
     paths:
-      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
       - '.github/workflows/nix-build.yml'
   push:
     branches:
       - main
     paths:
-      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
       - '.github/workflows/nix-build.yml'
   workflow_dispatch:
 
@@ -53,7 +55,7 @@ jobs:
 
       - name: Build with Nix
         run: |
-          nix-build nix/default.nix --show-trace
+          nix build .#infer --show-trace --print-build-logs
 
       - name: Verify binary
         run: |
@@ -93,15 +95,15 @@ jobs:
 
       - name: Check Nix formatting (nixfmt-rfc-style)
         run: |
-          nix-shell -p nixfmt-rfc-style --run "nixfmt --check nix/package.nix nix/default.nix"
+          nix-shell -p nixfmt-rfc-style --run "nixfmt --check flake.nix"
 
       - name: Lint with statix
         run: |
-          nix-shell -p statix --run "statix check nix/"
+          nix-shell -p statix --run "statix check flake.nix"
 
-      - name: Evaluate Nix expression
+      - name: Check flake evaluates on all systems
         run: |
-          nix-instantiate --eval --strict nix/default.nix --show-trace
+          nix flake check --all-systems --no-build --show-trace
 
   summary:
     name: Build Summary
@@ -124,4 +126,4 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All Nix build checks passed!"
+          echo "All Nix build checks passed!"
