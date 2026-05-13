@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.5](https://github.com/inference-gateway/cli/compare/v0.109.4...v0.109.5) (2026-05-13)
+
+### ♻️ Code Refactoring
+
+* **ci:** Drop id-token write permissions ([06872a5](https://github.com/inference-gateway/cli/commit/06872a50a49248617623773490dae726619efae5))
+
 ## [0.109.4](https://github.com/inference-gateway/cli/compare/v0.109.3...v0.109.4) (2026-05-13)
 
 ### 🐛 Bug Fixes
