@@ -740,14 +740,15 @@ func TestAgentServiceImpl_CreateErrorEntry(t *testing.T) {
 	assert.True(t, entry.ToolExecution.Duration >= 2*time.Second)
 }
 
-// makeToolCallChunk creates a tool call chunk with the anonymous Function struct
+// makeToolCallChunk creates a tool call chunk for tests
 func makeToolCallChunk(index int, id, name, args string) sdk.ChatCompletionMessageToolCallChunk {
 	chunk := sdk.ChatCompletionMessageToolCallChunk{
-		Index: index,
-		ID:    id,
+		Index:    index,
+		Function: &sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
 	}
-	chunk.Function.Name = name
-	chunk.Function.Arguments = args
+	if id != "" {
+		chunk.Id = &id
+	}
 	return chunk
 }
 
@@ -1025,8 +1026,9 @@ func TestEventPublisher_PublishChatChunk(t *testing.T) {
 	chatEvents := make(chan domain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
+	callID := "call-1"
 	toolCalls := []sdk.ChatCompletionMessageToolCallChunk{
-		{Index: 0, ID: "call-1"},
+		{Index: 0, Id: &callID},
 	}
 
 	publisher.publishChatChunk("Hello", "thinking...", toolCalls)

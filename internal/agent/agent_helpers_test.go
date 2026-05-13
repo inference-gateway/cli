@@ -17,15 +17,10 @@ func TestAccumulateToolCalls(t *testing.T) {
 		toolCallsMap: make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 
+	callID := "call-1"
 	deltas := []sdk.ChatCompletionMessageToolCallChunk{
-		{Index: 0, ID: "call-1", Function: struct {
-			Name      string `json:"name,omitempty"`
-			Arguments string `json:"arguments,omitempty"`
-		}{Name: "Read", Arguments: `{"file":`}},
-		{Index: 0, Function: struct {
-			Name      string `json:"name,omitempty"`
-			Arguments string `json:"arguments,omitempty"`
-		}{Arguments: `"test.txt"}`}},
+		{Index: 0, Id: &callID, Function: &sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file":`}},
+		{Index: 0, Function: &sdk.ChatCompletionMessageToolCallFunction{Arguments: `"test.txt"}`}},
 	}
 
 	agentService.accumulateToolCalls(deltas)

@@ -188,12 +188,17 @@ func (a *EventDrivenAgent) processChoiceDelta(
 	deltaContent := a.accumulateContent(choice.Delta, message)
 	reasoning := extractReasoningForEvent(choice.Delta)
 
-	if len(choice.Delta.ToolCalls) > 0 {
-		*allToolCallDeltas = append(*allToolCallDeltas, choice.Delta.ToolCalls...)
+	var toolCalls []sdk.ChatCompletionMessageToolCallChunk
+	if choice.Delta.ToolCalls != nil {
+		toolCalls = *choice.Delta.ToolCalls
 	}
 
-	if deltaContent != "" || reasoning != "" || len(choice.Delta.ToolCalls) > 0 {
-		a.eventPublisher.publishChatChunk(deltaContent, reasoning, choice.Delta.ToolCalls)
+	if len(toolCalls) > 0 {
+		*allToolCallDeltas = append(*allToolCallDeltas, toolCalls...)
+	}
+
+	if deltaContent != "" || reasoning != "" || len(toolCalls) > 0 {
+		a.eventPublisher.publishChatChunk(deltaContent, reasoning, toolCalls)
 	}
 }
 

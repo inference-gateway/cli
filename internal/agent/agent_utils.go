@@ -25,9 +25,14 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 	for _, delta := range deltas {
 		key := fmt.Sprintf("%d", delta.Index)
 
+		deltaID := ""
+		if delta.Id != nil {
+			deltaID = *delta.Id
+		}
+
 		if s.toolCallsMap[key] == nil {
 			s.toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
-				Id:   delta.ID,
+				Id:   deltaID,
 				Type: sdk.Function,
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "",
@@ -37,16 +42,16 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 		}
 
 		toolCall := s.toolCallsMap[key]
-		if delta.ID != "" {
-			toolCall.Id = delta.ID
+		if deltaID != "" {
+			toolCall.Id = deltaID
 		}
-		if delta.Function.Name != "" && toolCall.Function.Name == "" {
+		if delta.Function != nil && delta.Function.Name != "" && toolCall.Function.Name == "" {
 			toolCall.Function.Name = delta.Function.Name
 		}
 		if delta.ExtraContent != nil {
 			mergeToolCallExtraContent(toolCall, delta.ExtraContent)
 		}
-		if delta.Function.Arguments != "" {
+		if delta.Function != nil && delta.Function.Arguments != "" {
 			if toolCall.Function.Arguments == "" {
 				toolCall.Function.Arguments = delta.Function.Arguments
 				continue
