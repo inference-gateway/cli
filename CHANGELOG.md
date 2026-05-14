@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.7](https://github.com/inference-gateway/cli/compare/v0.109.6...v0.109.7) (2026-05-14)
+
+### 👷 CI/CD
+
+* **deps:** Bump anthropics/claude-code-action from 1.0.121 to 1.0.122 ([#517](https://github.com/inference-gateway/cli/issues/517)) ([bce22cf](https://github.com/inference-gateway/cli/commit/bce22cf16e6256aa906f8b242f64efdfd258339c))
+
+### 🧹 Maintenance
+
+* **dev-deps:** Add infer cli to flox env ([a023156](https://github.com/inference-gateway/cli/commit/a02315618c0781003dce5c4cf4c5687345540ccd))
+* **deps:** Bump github.com/buger/jsonparser from 1.1.1 to 1.1.2 ([#512](https://github.com/inference-gateway/cli/issues/512)) ([7985d92](https://github.com/inference-gateway/cli/commit/7985d92511c452d5b0658566a9a80bcc13368d32))
+* **deps:** Bump github.com/buger/jsonparser from 1.1.1 to 1.1.2 in /examples/mcp/mcp-server ([#514](https://github.com/inference-gateway/cli/issues/514)) ([f3ad8d1](https://github.com/inference-gateway/cli/commit/f3ad8d1a877cdbb6a7eeff948d549d18c7482a66))
+* **deps:** Bump github.com/gin-gonic/gin from 1.8.1 to 1.9.1 in /examples/mcp/mcp-server ([#515](https://github.com/inference-gateway/cli/issues/515)) ([08a9132](https://github.com/inference-gateway/cli/commit/08a91321908e15bd74dbdbe5a76622cd9d788d53))
+* **deps:** Bump github.com/inference-gateway/adk from 0.17.3 to 0.18.1 ([#510](https://github.com/inference-gateway/cli/issues/510)) ([0ff9118](https://github.com/inference-gateway/cli/commit/0ff91186527a8acd1c71390a93ff95442d015bca))
+* **deps:** Bump github.com/inference-gateway/sdk from 1.16.2 to 1.16.3 ([#509](https://github.com/inference-gateway/cli/issues/509)) ([491fda8](https://github.com/inference-gateway/cli/commit/491fda838e5e36a48d4403b5f6f592bf16f0afed))
+* **deps:** Bump golang.org/x/crypto from 0.36.0 to 0.45.0 in /examples/mcp/mcp-server ([#516](https://github.com/inference-gateway/cli/issues/516)) ([bc9dedf](https://github.com/inference-gateway/cli/commit/bc9dedf816e792ac469fd804d91dd5ae14af28cb))
+* **deps:** Bump golang.org/x/net from 0.0.0-20210226172049-e18ecbb05110 to 0.38.0 in /examples/mcp/mcp-server ([#511](https://github.com/inference-gateway/cli/issues/511)) ([f879f27](https://github.com/inference-gateway/cli/commit/f879f270cae04d68bdcfbd877cb74861cefbfb7b))
+* **deps:** Bump google.golang.org/protobuf from 1.28.0 to 1.33.0 in /examples/mcp/mcp-server ([#513](https://github.com/inference-gateway/cli/issues/513)) ([f91524e](https://github.com/inference-gateway/cli/commit/f91524ef334290d8022a1629897ab94b1c9ac1e9))
+
 ## [0.109.6](https://github.com/inference-gateway/cli/compare/v0.109.5...v0.109.6) (2026-05-13)
 
 ### 👷 CI/CD
