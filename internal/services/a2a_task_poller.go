@@ -28,6 +28,7 @@ type A2ATaskPoller struct {
 	activeMonitors   map[string]context.CancelFunc
 	stopChan         chan struct{}
 	stopped          bool
+	agentEventChan   chan<- domain.AgentEvent
 }
 
 func NewA2ATaskPoller(
@@ -47,6 +48,15 @@ func NewA2ATaskPoller(
 		stopChan:         make(chan struct{}),
 		stopped:          false,
 	}
+}
+
+// SetAgentEventChannel registers the agent's event channel so the poller
+// can wake the agent loop when an A2A task terminates. Safe to call before
+// or after Start; nil is allowed and disables the wake-up.
+func (m *A2ATaskPoller) SetAgentEventChannel(ch chan<- domain.AgentEvent) {
+	m.mu.Lock()
+	m.agentEventChan = ch
+	m.mu.Unlock()
 }
 
 func (m *A2ATaskPoller) Start(ctx context.Context) {
@@ -321,6 +331,20 @@ func (m *A2ATaskPoller) addResultToMessageQueue(taskID string, result *domain.To
 		case m.eventChan <- event:
 		default:
 			logger.Warn("Failed to emit MessageQueued event - channel full",
+				"task_id", taskID)
+		}
+	}
+
+	m.mu.RLock()
+	agentCh := m.agentEventChan
+	m.mu.RUnlock()
+	if agentCh != nil {
+		select {
+		case agentCh <- domain.MessageReceivedEvent{}:
+			logger.Debug("woke agent event loop after A2A completion",
+				"task_id", taskID)
+		default:
+			logger.Warn("agent event channel full - wake-up dropped",
 				"task_id", taskID)
 		}
 	}

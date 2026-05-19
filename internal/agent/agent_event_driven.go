@@ -173,6 +173,13 @@ func (a *EventDrivenAgent) registerHandler(handler domain.StateHandler) {
 	a.stateHandlers[handler.Name()] = handler
 }
 
+// Events returns a send-only handle on the agent's internal event channel
+// so external producers (e.g. the A2A task poller) can wake the loop when
+// background work completes while the agent is idling.
+func (a *EventDrivenAgent) Events() chan<- domain.AgentEvent {
+	return a.events
+}
+
 // Start begins the event-driven agent execution
 func (a *EventDrivenAgent) Start() {
 	_ = a.stateMachine.Transition(a.agentCtx, domain.StateIdle)

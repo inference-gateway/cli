@@ -483,6 +483,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.bgRegistry,
 		)
 
+		if poller != nil {
+			poller.SetAgentEventChannel(agent.Events())
+		}
+
 		agent.Start()
 		agent.Wait()
 	}()
