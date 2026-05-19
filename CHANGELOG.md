@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.8](https://github.com/inference-gateway/cli/compare/v0.109.7...v0.109.8) (2026-05-19)
+
+### 🐛 Bug Fixes
+
+* Wake agent event loop after A2A task completion ([eecf992](https://github.com/inference-gateway/cli/commit/eecf9929ddfe13071b8fc4c27536e9afc69211c6))
+
+### 👷 CI/CD
+
+* **dependabot:** Add dependabot to help with dependecies upgrades ([6c35b23](https://github.com/inference-gateway/cli/commit/6c35b23d2ee763a4f9df850c848fa4a9d780e317))
+* **deps:** Bump alpine from 3.23.3 to 3.23.4 in the docker group ([#520](https://github.com/inference-gateway/cli/issues/520)) ([d682826](https://github.com/inference-gateway/cli/commit/d682826a7cb3eddf005072e0e596b69f15e49a89))
+
+### 🧹 Maintenance
+
+* **dev-deps:** Bump claude-code to 2.1.137 ([0c2733c](https://github.com/inference-gateway/cli/commit/0c2733c606c718f6456acd3cf33ccf5650ce606f))
+* **deps:** Bump dev dependecies in flox env ([f74d4b7](https://github.com/inference-gateway/cli/commit/f74d4b772843118a272fe09310c2d415d9aaa64a))
+
 ## [0.109.7](https://github.com/inference-gateway/cli/compare/v0.109.6...v0.109.7) (2026-05-14)
 
 ### 👷 CI/CD
