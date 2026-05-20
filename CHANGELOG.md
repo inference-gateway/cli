@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.9](https://github.com/inference-gateway/cli/compare/v0.109.8...v0.109.9) (2026-05-20)
+
+### ♻️ Code Refactoring
+
+* **ci:** Replace inline installation scripts with action usage for golangci-lint and task ([f8aa170](https://github.com/inference-gateway/cli/commit/f8aa170b6204024f012a7a477e6ae6834ddb7c66))
+
+### 👷 CI/CD
+
+* **deps:** Bump anthropics/claude-code-action from 1.0.122 to 1.0.127 in the github-actions group ([#522](https://github.com/inference-gateway/cli/issues/522)) ([b2592f4](https://github.com/inference-gateway/cli/commit/b2592f4f51a4fdeff2c68899f38302e2fae7d1d4))
+* **deps:** Bump the gomod group with 2 updates ([#521](https://github.com/inference-gateway/cli/issues/521)) ([394f54f](https://github.com/inference-gateway/cli/commit/394f54f0943d152222e612f7f521e92e2a48c56c))
+* **deps:** Use golangci-lint version 2.12.2 ([c919043](https://github.com/inference-gateway/cli/commit/c9190435bbc52da8d31d6da078510246f3916362))
+
 ## [0.109.8](https://github.com/inference-gateway/cli/compare/v0.109.7...v0.109.8) (2026-05-19)
 
 ### 🐛 Bug Fixes
