@@ -139,10 +139,10 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/inference-gateway/adk v0.18.1 h1:6ualML/JtF3Mdkpy529anQjNH2fK/r/EQwziY9fUmVE=
-github.com/inference-gateway/adk v0.18.1/go.mod h1:rklmgQCGIneBUgty0bjorfhhezOvi6Osj5/4bj+/lWM=
-github.com/inference-gateway/sdk v1.16.3 h1:qIiqYePG4GQyWE92iEPmxQsR0jBJDAG0u9h50CbspcU=
-github.com/inference-gateway/sdk v1.16.3/go.mod h1:Qcm7duXS/Hz/xvs8yQhxLUbCUTWN/x88+npRWyeRst4=
+github.com/inference-gateway/adk v0.18.3 h1:LBk5BDv626VLsPxTzLht6LOZ+P0YyYe57tPkbUqQaWA=
+github.com/inference-gateway/adk v0.18.3/go.mod h1:0aWSOC2iLSYeSVSu7KC5GWNX+vhdo6/i01K14q46OHc=
+github.com/inference-gateway/sdk v1.16.4 h1:2iB++slMI2EKq9MMcvQDBrqNsDFvYVAn2mXVi6O/clE=
+github.com/inference-gateway/sdk v1.16.4/go.mod h1:Qcm7duXS/Hz/xvs8yQhxLUbCUTWN/x88+npRWyeRst4=
 github.com/invopop/jsonschema v0.12.0 h1:6ovsNSuvn9wEQVOyc72aycBMVQFKz7cPdMJn10CvzRI=
 github.com/invopop/jsonschema v0.12.0/go.mod h1:ffZ5Km5SWWRAIN6wbDXItl95euhFz2uON45H2qjYt+0=
 github.com/jezek/xgb v1.3.0 h1:Wa1pn4GVtcmNVAVB6/pnQVJ7xPFZVZ/W1Tc27msDhgI=
