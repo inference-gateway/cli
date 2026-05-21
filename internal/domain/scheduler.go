@@ -10,7 +10,7 @@ import (
 // the SchedulerService running inside the channels-manager daemon.
 //
 // Each fire spawns a fresh `infer agent` subprocess with a brand-new session
-// ID — no context is carried between fires, matching the issue's requirement.
+// ID - no context is carried between fires, matching the issue's requirement.
 type ScheduledJob struct {
 	ID             string     `yaml:"id" json:"id"`
 	Name           string     `yaml:"name,omitempty" json:"name,omitempty"`

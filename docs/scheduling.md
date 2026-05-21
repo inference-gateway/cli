@@ -5,7 +5,7 @@
 The `Schedule` tool lets the LLM create recurring tasks that run on a cron schedule
 and deliver their output back to the user through a configured messaging channel
 (e.g. Telegram). It is designed for use cases like *"every morning at 8 AM, send me
-an inspiring quote"* — initiated from a chat with the bot rather than from the CLI.
+an inspiring quote"* - initiated from a chat with the bot rather than from the CLI.
 
 ## How it works
 
@@ -31,7 +31,7 @@ an inspiring quote"* — initiated from a chat with the bot rather than from the
 
 Key properties:
 
-- **Tool-only file I/O.** The `Schedule` tool only reads/writes YAML files — it never directly talks to the daemon.
+- **Tool-only file I/O.** The `Schedule` tool only reads/writes YAML files - it never directly talks to the daemon.
 - **Hot reload.** The daemon's `fsnotify` watcher picks up new/changed/deleted job files within ~150ms and registers them with the cron scheduler.
 - **Fresh session per fire.** Each scheduled run gets a brand-new agent session ID. Nothing carries between fires; design prompts to be self-contained.
 - **Daemon-bound execution.** Jobs only fire while `infer channels-manager` is running.
@@ -90,7 +90,7 @@ The full grammar (including `@every`, `@daily`, `@hourly` descriptors) is docume
 
 The `Schedule` tool is a single tool with an `operation` parameter. The LLM picks the operation at call time.
 
-### create — recurring
+### create - recurring
 
 Required: `cron_expression`, `prompt`. Optional: `run_once`, `name`, `description`, `model`.
 
@@ -108,7 +108,7 @@ errors out when invoked outside a channel-driven session.
 }
 ```
 
-### create — one-off
+### create - one-off
 
 Set `run_once: true` to make the scheduler delete the job after its first
 fire. The LLM is instructed to **always confirm with the user whether they
@@ -178,28 +178,28 @@ last_run: 2026-04-26T08:00:01Z
 last_error: ""
 ```
 
-The daemon updates `last_run` and `last_error` after each fire (recurring jobs only — one-off jobs are deleted instead).
+The daemon updates `last_run` and `last_error` after each fire (recurring jobs only - one-off jobs are deleted instead).
 
-## End-to-end Telegram example — recurring
+## End-to-end Telegram example - recurring
 
 1. **User (Telegram):** *"Can you send me an inspiring quote every day at 8 AM?"*
-2. **Bot:** *"Sure — should this run every day from now on, or just once tomorrow?"*
+2. **Bot:** *"Sure - should this run every day from now on, or just once tomorrow?"*
 3. **User:** *"Every day."*
 4. **Bot calls `Schedule` tool** with:
    - `operation=create`
    - `cron_expression="0 8 * * *"`
    - `prompt="Find one inspiring quote and respond with quote + author, max 3 sentences."`
-   - (channel + recipient are derived from the session ID — not passed)
+   - (channel + recipient are derived from the session ID - not passed)
 5. **User approves** (because `require_approval: true`).
-6. **Bot:** *"Done — job 01HG... scheduled. I'll message you tomorrow at 8 AM UTC."*
+6. **Bot:** *"Done - job 01HG... scheduled. I'll message you tomorrow at 8 AM UTC."*
 7. **At 08:00 UTC the next day**, the daemon fires the job: spawns a fresh
    `infer agent` session with the saved prompt, captures the assistant's response,
    and sends it to the user via Telegram.
 
-## End-to-end Telegram example — one-off
+## End-to-end Telegram example - one-off
 
 1. **User (Telegram):** *"Remind me at 6pm today to call mum."*
-2. **Bot:** *"Got it — should this be a one-off reminder for today, or recurring every day at 6pm?"*
+2. **Bot:** *"Got it - should this be a one-off reminder for today, or recurring every day at 6pm?"*
 3. **User:** *"Just once, today."*
 4. **Bot calls `Schedule` tool** with:
    - `operation=create`
@@ -207,7 +207,7 @@ The daemon updates `last_run` and `last_error` after each fire (recurring jobs o
    - `prompt="Remind me to call mum."`
    - `run_once=true`
 5. **User approves**.
-6. **Bot:** *"Done — I'll ping you at 6pm today."*
+6. **Bot:** *"Done - I'll ping you at 6pm today."*
 7. **At 18:00**, the daemon fires the job, sends the reminder, and deletes the
    YAML file (because `run_once=true`). Next April 26 it will not fire again.
 
@@ -234,7 +234,7 @@ The daemon updates `last_run` and `last_error` after each fire (recurring jobs o
 - **Approval required by default.** The LLM cannot create/modify/delete jobs
   without explicit user confirmation. Keep `tools.schedule.require_approval: true`
   unless you fully trust the channel.
-- **Full agent capabilities at fire time.** Each fire is a real agent session —
+- **Full agent capabilities at fire time.** Each fire is a real agent session -
   it can read files, call other tools, etc. Do not schedule prompts that would
   do anything sensitive without explicit narrow framing.
 - **Per-channel allowlists still apply.** The schedule tool only lets the LLM

@@ -44,7 +44,7 @@ type frontmatter struct {
 }
 
 // Service discovers SKILL.md files and exposes the parsed metadata. Loading
-// is gated by config.AgentSkillsConfig — when disabled the scan is skipped
+// is gated by config.AgentSkillsConfig - when disabled the scan is skipped
 // entirely so there is zero token / IO cost.
 type Service struct {
 	cfg    *config.Config
@@ -169,7 +169,7 @@ func searchScopes() []scopedDir {
 
 // loadSkill reads <skillDir>/SKILL.md, parses frontmatter, validates the
 // fields, and returns the populated domain.Skill. Returns (nil, nil) when
-// the directory has no SKILL.md (silently skipped — not an error). Returns
+// the directory has no SKILL.md (silently skipped - not an error). Returns
 // (nil, err) when SKILL.md is present but invalid.
 func loadSkill(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill, *domain.SkillLoadError) {
 	entryPath := filepath.Join(skillDir, skillEntryFile)
@@ -204,7 +204,7 @@ func loadSkill(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill
 }
 
 // parseFrontmatter extracts the YAML block delimited by `---` lines at the
-// top of the file. The body after the second delimiter is discarded — we
+// top of the file. The body after the second delimiter is discarded - we
 // only care about metadata at startup.
 func parseFrontmatter(data []byte) (frontmatter, error) {
 	var fm frontmatter

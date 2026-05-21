@@ -1018,8 +1018,8 @@ When the channels-manager daemon is running, you can ask the bot to schedule
 prompts on a cron schedule. The agent's response is delivered back through
 the originating channel (e.g. the Telegram chat where you set it up).
 
-> *"Send me an inspiring quote every day at 8 AM"* — recurring
-> *"Remind me at 6pm today to call mum"* — one-off (deletes itself after firing)
+> *"Send me an inspiring quote every day at 8 AM"* - recurring
+> *"Remind me at 6pm today to call mum"* - one-off (deletes itself after firing)
 
 Enable in `.infer/config.yaml`:
 
@@ -1034,7 +1034,7 @@ Or via env var: `INFER_TOOLS_SCHEDULE_ENABLED=true`.
 
 Jobs are persisted as YAML in `~/.infer/schedules/<id>.yaml` and hot-reloaded
 by the daemon (no restart needed). Channel + recipient are derived
-automatically from the session — the LLM never has to guess them.
+automatically from the session - the LLM never has to guess them.
 
 Container deployments must set `TZ=Europe/Berlin` (or your zone) so cron
 expressions are interpreted in local time. The binary embeds the IANA zone
@@ -1045,7 +1045,7 @@ walkthroughs, see [Scheduling Documentation](docs/scheduling.md).
 
 ## Heartbeat (Periodic Wake-Up)
 
-Heartbeat wakes the agent on a fixed interval — without any user input —
+Heartbeat wakes the agent on a fixed interval - without any user input -
 so it can check for pending todos, background tasks, or anything else
 your system prompt tells it to monitor. It runs alongside the scheduler
 inside the `infer channels-manager` daemon and is **disabled by default**.
@@ -1064,7 +1064,7 @@ enabled: true
 interval: 1h            # Go duration: 30s, 5m, 1h, 24h
 initial_delay: 1m       # delay before first tick
 model: ""               # optional override; empty = agent.model
-prompt: "Heartbeat tick — check for any pending tasks, todos, or background work and act on them."
+prompt: "Heartbeat tick - check for any pending tasks, todos, or background work and act on them."
 ```
 
 The **system prompt** for heartbeat runs lives in `.infer/prompts.yaml`
@@ -1077,7 +1077,7 @@ Then start the daemon:
 infer channels-manager
 ```
 
-Heartbeat alone is a valid run mode — you don't need any channel
+Heartbeat alone is a valid run mode - you don't need any channel
 enabled to use it. The daemon hosts whichever of channels / scheduler /
 heartbeat are turned on.
 

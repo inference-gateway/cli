@@ -37,8 +37,8 @@ class ScreenshotOverlay {
                 <div class="screenshot-skeleton"></div>
                 <img class="screenshot-image hidden" alt="Remote preview" />
                 <div class="screenshot-info">
-                    <div class="screenshot-timestamp">—</div>
-                    <div class="screenshot-dimensions">—</div>
+                    <div class="screenshot-timestamp">-</div>
+                    <div class="screenshot-dimensions">-</div>
                 </div>
             </div>
         `;

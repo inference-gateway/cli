@@ -231,8 +231,8 @@ func TestInstallFromGitHub_HappyPath(t *testing.T) {
 func TestInstallFromGitHub_ShorthandResolves(t *testing.T) {
 	// Shorthand "acme/skill-creator" should resolve to the "skills" repo
 	// under the acme org with path "skills/skill-creator". The mock server
-	// doesn't care about owner/repo/ref segments — it just looks at the
-	// repo path prefix — so we need a SKILL.md at
+	// doesn't care about owner/repo/ref segments - it just looks at the
+	// repo path prefix - so we need a SKILL.md at
 	// skills/skill-creator/SKILL.md to match the resolved tree path.
 	repo := fakeRepo{
 		Files: map[string]string{
@@ -306,7 +306,7 @@ func TestInstallFromGitHub_NoFilesUnderPath(t *testing.T) {
 }
 
 func TestInstallFromGitHub_InvalidFrontmatterRollsBack(t *testing.T) {
-	// SKILL.md exists but `name` doesn't match dirname — validator rejects.
+	// SKILL.md exists but `name` doesn't match dirname - validator rejects.
 	repo := fakeRepo{
 		Files: map[string]string{
 			"skills/pdf/SKILL.md": validSkillBody("not-pdf", "wrong name"),

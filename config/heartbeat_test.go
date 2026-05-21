@@ -24,7 +24,7 @@ func TestDefaultHeartbeatConfig(t *testing.T) {
 		t.Fatal("DefaultHeartbeatConfig() returned nil")
 	}
 	if cfg.Enabled {
-		t.Error("Expected Enabled to be false by default — heartbeat is opt-in")
+		t.Error("Expected Enabled to be false by default - heartbeat is opt-in")
 	}
 	if cfg.Interval != "1h" {
 		t.Errorf("Expected Interval='1h', got %q", cfg.Interval)

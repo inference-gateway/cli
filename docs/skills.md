@@ -24,8 +24,8 @@ Step-by-step instructions for the model:
 3. ...
 ```
 
-The directory may also ship optional helpers — `references/`, `scripts/`,
-`assets/` — that the model reads (or executes via the `Bash` tool) once it
+The directory may also ship optional helpers - `references/`, `scripts/`,
+`assets/` - that the model reads (or executes via the `Bash` tool) once it
 has activated the skill.
 
 ### Frontmatter
@@ -46,7 +46,7 @@ The CLI scans two directories:
 - Project-local: `.infer/skills/<name>/SKILL.md`
 - User-global: `~/.infer/skills/<name>/SKILL.md`
 
-Project skills override user-global skills with the same `name` — useful for
+Project skills override user-global skills with the same `name` - useful for
 overriding a personal default with a per-project variant.
 
 ## Enabling
@@ -68,7 +68,7 @@ INFER_AGENT_SKILLS_ENABLED=true infer chat
 
 When enabled, the agent's system prompt gains an `AVAILABLE SKILLS:` block
 listing each skill's `name`, `description`, scope, and the **absolute path**
-to its `SKILL.md`. The body of `SKILL.md` is **not** loaded at startup — the
+to its `SKILL.md`. The body of `SKILL.md` is **not** loaded at startup - the
 model reads it on demand using the existing `Read` tool. This is "progressive
 disclosure" and matches the behaviour of other vendors.
 
@@ -98,14 +98,14 @@ with a clear error.
 
 Flags:
 
-- `--user` — install to `~/.infer/skills/` instead of the project-local
+- `--user` - install to `~/.infer/skills/` instead of the project-local
   `.infer/skills/`.
-- `--overwrite` — replace an existing skill folder of the same name.
+- `--overwrite` - replace an existing skill folder of the same name.
   Without this flag, an existing folder is left untouched and the install
   fails fast.
 
 After download, the same frontmatter validator that runs at startup runs
-against the downloaded folder — so what installs is what loads. If
+against the downloaded folder - so what installs is what loads. If
 validation fails (missing `name`, name doesn't match the directory name,
 etc.) the folder is removed and the reason is printed. There is never a
 half-installed state.
@@ -131,7 +131,7 @@ The argument is the on-disk skill directory name (matching the skill's
 `name` frontmatter). By default the project-local `.infer/skills/<name>/`
 is removed; pass `--user` to remove from `~/.infer/skills/<name>/`.
 
-There is no confirmation prompt — matches `npm uninstall`,
+There is no confirmation prompt - matches `npm uninstall`,
 `brew uninstall`, etc. The skill name is regex-validated before any
 filesystem operation, so it cannot be used to traverse outside the
 configured skills directory.
@@ -150,7 +150,7 @@ configured skills directory.
 ## Security
 
 Skills can instruct the model to run shell commands, read files, or call
-external APIs. Treat a skill like any other piece of executable content —
+external APIs. Treat a skill like any other piece of executable content -
 **only install skills from trusted sources**. The CLI's normal tool-approval
 system still gates each command, but a malicious skill could craft a
 plausible-looking `Bash` call.
@@ -163,17 +163,17 @@ official skill is harder.
 
 The on-disk contract is intentionally identical to:
 
-- Anthropic Claude Code — <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>
-- Google Gemini CLI — <https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md>
-- OpenAI Codex CLI — <https://simonwillison.net/2025/Dec/12/openai-skills/>
+- Anthropic Claude Code - <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>
+- Google Gemini CLI - <https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md>
+- OpenAI Codex CLI - <https://simonwillison.net/2025/Dec/12/openai-skills/>
 
 Folders from `github.com/anthropics/skills` and `github.com/google/skills`
 work without modification when copied into `.infer/skills/`.
 
 ## Out of scope (for now)
 
-- A dedicated `activate_skill` tool — the model uses `Read` directly.
-- A skill marketplace or curated index — discovery is up to the user; see
+- A dedicated `activate_skill` tool - the model uses `Read` directly.
+- A skill marketplace or curated index - discovery is up to the user; see
   [Installing skills from GitHub](#installing-skills-from-github) for the
   install flow.
 - Authenticated installs from private repositories.

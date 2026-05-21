@@ -19,7 +19,7 @@ Plan mode exists for tasks where you want a human gate between
 - Multi-file features where you want a written record before execution.
 - Pair-programming flows: review the plan, push back, iterate.
 
-Every plan — accepted **or** rejected — is left on disk in
+Every plan - accepted **or** rejected - is left on disk in
 `<configDir>/plans/` as an audit trail. You can grep, share, or revisit
 them later.
 
@@ -46,7 +46,7 @@ The default plan-mode system prompt (defined in
 instructs the model to:
 
 1. Use `Read`, `Grep`, `Tree` to investigate.
-2. Ask clarifying questions in regular assistant turns first — **not**
+2. Ask clarifying questions in regular assistant turns first - **not**
    call `RequestPlanApproval` while gaps remain.
 3. Only call `RequestPlanApproval` when the plan is complete.
 4. Pass two arguments to that tool:
@@ -59,21 +59,21 @@ The plan body is a Markdown document using these H2 sections, in this
 order. Sections that don't apply to the task are omitted; no extra
 top-level sections are introduced.
 
-- `## Context` — why this change is being made: problem, trigger,
+- `## Context` - why this change is being made: problem, trigger,
   intended outcome.
-- `## Files to Modify` — bullet list of paths plus a one-line note per
+- `## Files to Modify` - bullet list of paths plus a one-line note per
   file.
-- `## Current Code` — short snippets of the existing code being changed
+- `## Current Code` - short snippets of the existing code being changed
   (skip for new files).
-- `## Changes` — concrete edits: function names, signatures, what's
+- `## Changes` - concrete edits: function names, signatures, what's
   added / removed / replaced.
-- `## Performance Impact` — expected runtime / memory / I/O impact.
+- `## Performance Impact` - expected runtime / memory / I/O impact.
   "Negligible." is a valid answer.
-- `## Critical Files` — files other code depends on and that must remain
+- `## Critical Files` - files other code depends on and that must remain
   backward-compatible.
-- `## Edge Cases` — inputs and conditions needing explicit handling,
+- `## Edge Cases` - inputs and conditions needing explicit handling,
   plus the handling.
-- `## Verification` — concrete steps you can run to confirm the change
+- `## Verification` - concrete steps you can run to confirm the change
   works end-to-end.
 
 The H1 of the saved file is derived from the `title` argument, e.g.:
@@ -92,7 +92,7 @@ The H1 of the saved file is derived from the `title` argument, e.g.:
 ```
 
 `<configDir>` is whatever
-`config.Config.GetConfigDir()` resolves to — usually `./.infer/` in a
+`config.Config.GetConfigDir()` resolves to - usually `./.infer/` in a
 project, or `~/.infer/` for the userspace config. The `plans/`
 subdirectory is created on first use.
 
@@ -118,14 +118,14 @@ $ ls ~/.infer/plans/
 When the model calls `RequestPlanApproval`, the chat TUI:
 
 1. Renders the saved plan in a dedicated panel.
-2. Shows a status line: `Plan ready — use arrow keys to select and Enter
+2. Shows a status line: `Plan ready - use arrow keys to select and Enter
    to confirm`.
 3. Offers three options:
 
-   - **Accept** — agent flips to Standard mode and executes the plan.
-   - **Accept & Auto-Approve** — agent flips to Auto-Accept (no per-tool
+   - **Accept** - agent flips to Standard mode and executes the plan.
+   - **Accept & Auto-Approve** - agent flips to Auto-Accept (no per-tool
      approval prompts) and executes the plan.
-   - **Reject** — chat session ends; you can write a follow-up message
+   - **Reject** - chat session ends; you can write a follow-up message
      with feedback and the agent re-iterates the plan.
 
 In all three cases the plan file remains on disk. Rejecting a plan does
@@ -141,17 +141,17 @@ flow:
 2. Model: *"Before I draft this, three questions: …"* (regular assistant
    turn, no tool call yet).
 3. You answer.
-4. Model: *(maybe more questions)* — repeat until aligned.
+4. Model: *(maybe more questions)* - repeat until aligned.
 5. Model calls `RequestPlanApproval` with the final plan.
-6. You **Reject** with a comment ("the split is too granular — keep
+6. You **Reject** with a comment ("the split is too granular - keep
    shortcut handling in the same file").
 7. Model adjusts and re-submits a new plan (a new file lands in
    `plans/`).
-8. You **Accept** — the agent executes.
+8. You **Accept** - the agent executes.
 
 ## Configuration
 
-Plan mode itself has no separate config — it ships with the CLI. You can
+Plan mode itself has no separate config - it ships with the CLI. You can
 customise the system prompt and the tool description in
 `.infer/prompts.yaml`:
 
@@ -174,5 +174,5 @@ overrides:
 
 ## Related
 
-- [Tools Reference — RequestPlanApproval](tools-reference.md#requestplanapproval-tool)
+- [Tools Reference - RequestPlanApproval](tools-reference.md#requestplanapproval-tool)
 - [Configuration Reference](configuration-reference.md)

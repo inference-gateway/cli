@@ -14,7 +14,7 @@ const (
 // for pending work without waiting for user input. Disabled by default.
 //
 // The companion system prompt lives at
-// PromptsConfig.Agent.SystemPromptHeartbeat in prompts.yaml — keeping
+// PromptsConfig.Agent.SystemPromptHeartbeat in prompts.yaml - keeping
 // runtime knobs (interval, model) here separate from prompt text.
 type HeartbeatConfig struct {
 	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
@@ -34,7 +34,7 @@ func DefaultHeartbeatConfig() *HeartbeatConfig {
 		Interval:     "1h",
 		InitialDelay: "1m",
 		Model:        "",
-		Prompt:       "Heartbeat tick — check for any pending tasks, todos, or background work and act on them.",
+		Prompt:       "Heartbeat tick - check for any pending tasks, todos, or background work and act on them.",
 	}
 }
 

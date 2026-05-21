@@ -322,7 +322,7 @@ func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, send
 		resp.Approved = reply.Approved
 	case <-time.After(5 * time.Minute):
 		resp.Approved = false
-		sendFn("⏱ Approval timed out — tool execution was automatically rejected.")
+		sendFn("⏱ Approval timed out - tool execution was automatically rejected.")
 		logger.Warn("Approval timeout", "tool", req.ToolName, "sender", senderKey)
 	case <-ctx.Done():
 		resp.Approved = false

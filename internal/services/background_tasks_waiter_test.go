@@ -150,7 +150,7 @@ func TestBackgroundTasksWaiter_StopsWhenAllTasksTerminate(t *testing.T) {
 
 func TestBackgroundTasksWaiter_HasPendingAcrossTaskTypes(t *testing.T) {
 	// Verify the waiter consults HasPending() and treats both A2A tasks and
-	// running shells as "pending" via the unified registry — proving the
+	// running shells as "pending" via the unified registry - proving the
 	// unification across the two task types works at the waiter boundary.
 	registry := &domainmocks.FakeBackgroundTaskRegistry{}
 

@@ -4,8 +4,8 @@
 
 The **Heartbeat** wakes the agent on a fixed interval to check for
 pending work without waiting for user input. Unlike the
-[Schedule](./scheduling.md) tool — which lets the LLM create
-user-driven cron jobs that deliver output to a channel — the
+[Schedule](./scheduling.md) tool - which lets the LLM create
+user-driven cron jobs that deliver output to a channel - the
 heartbeat is a global self-driven tick the operator configures once.
 
 It exists for autonomy use cases: "every hour, look at my todos and
@@ -18,8 +18,8 @@ each tick using a tailored system prompt.
 ┌───────────────────────────────────────────────────────────────┐
 │  infer channels-manager (long-running daemon)                 │
 │                                                               │
-│   ├─ ChannelManagerService    (channels — optional)           │
-│   ├─ SchedulerService         (cron jobs — optional)          │
+│   ├─ ChannelManagerService    (channels - optional)           │
+│   ├─ SchedulerService         (cron jobs - optional)          │
 │   └─ HeartbeatService                                         │
 │        ├─ time.Ticker(interval)                               │
 │        └─ on tick: spawn `infer agent --heartbeat             │
@@ -39,7 +39,7 @@ Key properties:
 
 - **Off by default.** Heartbeat is opt-in via the `enabled` flag in
   `heartbeat.yaml`.
-- **Single global instance.** One interval, one prompt — for
+- **Single global instance.** One interval, one prompt - for
   multi-job use cases use the [Schedule tool](./scheduling.md)
   instead.
 - **Daemon-bound.** Heartbeat only fires while `infer
@@ -53,7 +53,7 @@ Key properties:
   next tick is skipped rather than running concurrently.
 - **Output to logs.** The agent's stdout is logged. Whatever
   externally-visible action you want the agent to take (post to
-  Telegram, open a PR, run a job) it does via its own tools — the
+  Telegram, open a PR, run a job) it does via its own tools - the
   heartbeat is just the trigger.
 
 ## Setup
@@ -77,7 +77,7 @@ enabled: true
 interval: 1h            # how often to wake (Go duration: 30s, 5m, 1h, 24h)
 initial_delay: 1m       # delay before first tick (avoids fire-on-start)
 model: ""               # optional override; empty = agent.model from config.yaml
-prompt: "Heartbeat tick — check for any pending tasks, todos, or background work and act on them."
+prompt: "Heartbeat tick - check for any pending tasks, todos, or background work and act on them."
 ```
 
 The `prompt` field is the **user message** sent to the agent each
@@ -92,7 +92,7 @@ agent:
     ...
 ```
 
-The default heartbeat system prompt is conservative — it tells the
+The default heartbeat system prompt is conservative - it tells the
 agent to check pending todos and background tasks, take at most one
 concrete step per tick, and exit. Override it to fit your workflow.
 
@@ -102,8 +102,8 @@ concrete step per tick, and exit. Override it to fit your workflow.
 infer channels-manager
 ```
 
-The daemon hosts up to three subsystems — channels, scheduler, and
-heartbeat — and starts whichever are enabled. You can run with
+The daemon hosts up to three subsystems - channels, scheduler, and
+heartbeat - and starts whichever are enabled. You can run with
 heartbeat alone (no channels, no scheduler) if that is all you need.
 
 ```text
@@ -115,7 +115,7 @@ INFO Daemon ready. Press Ctrl+C to stop.
 When a tick fires:
 
 ```text
-INFO Heartbeat tick — spawning agent  session_id=…  model=
+INFO Heartbeat tick - spawning agent  session_id=…  model=
 INFO Heartbeat agent output  session_id=…  line={"role":"assistant","content":"…"}
 INFO Heartbeat tick complete  session_id=…
 ```
@@ -170,19 +170,19 @@ tool but warn against opening issues automatically.
 
 ## Troubleshooting
 
-**Heartbeat never fires** — confirm `enabled: true` and that
+**Heartbeat never fires** - confirm `enabled: true` and that
 `infer channels-manager` is running. The daemon logs `Heartbeat
 service started` on boot when it picks up the config.
 
-**Heartbeat fires too often / not enough** — check `interval`
+**Heartbeat fires too often / not enough** - check `interval`
 parses correctly. Bad durations (`1H`, `30 minutes`) cause the
 daemon to fail-fast on startup with a clear error.
 
-**Agent does nothing** — heartbeat works; the agent decided no
-action was needed. Check the system prompt — the default explicitly
+**Agent does nothing** - heartbeat works; the agent decided no
+action was needed. Check the system prompt - the default explicitly
 tells it to no-op when nothing is pending.
 
-**"Heartbeat tick skipped — previous run still in flight"** — your
+**"Heartbeat tick skipped - previous run still in flight"** - your
 agent is taking longer than `interval` to complete. Either increase
 the interval, simplify the prompt, or set a tighter `agent.max_turns`
 in `config.yaml`.

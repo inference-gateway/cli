@@ -449,7 +449,7 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 }
 
 // buildSessionTokensIndicator builds the cumulative input-tokens indicator.
-// Shows the total input tokens billed across the session — the same value
+// Shows the total input tokens billed across the session - the same value
 // /context divides by the context window for its usage percentage. When the
 // provider did not return usage in its response, falls back to estimating
 // tokens from the message buffer via the tokenizer polyfill.
@@ -467,7 +467,7 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 }
 
 // totalInputTokensOrEstimate returns the cumulative TotalInputTokens reported
-// by the gateway, or — when the provider did not return usage — falls back
+// by the gateway, or - when the provider did not return usage - falls back
 // to estimating tokens from the current message buffer. Used by both the raw
 // indicator and the percentage indicator so they always agree.
 func (isb *InputStatusBar) totalInputTokensOrEstimate() int {

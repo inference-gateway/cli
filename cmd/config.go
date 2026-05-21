@@ -870,7 +870,7 @@ func applyKeybindingEnvOverrides(cfg *config.Config) {
 // in-memory channels config. Run AFTER LoadChannels so envs win over
 // channels.yaml. The channels config now lives in its own file
 // (yaml:"-" mapstructure:"-" on Config.Channels), so viper does not bind
-// these env vars itself — this function is the single source of env-var
+// these env vars itself - this function is the single source of env-var
 // support. Mirrors applyKeybindingEnvOverrides / applyPromptsEnvOverrides.
 func applyChannelsEnvOverrides(cfg *config.Config) {
 	setBool := func(env string, target *bool) {
@@ -935,7 +935,7 @@ func applyChannelsEnvOverrides(cfg *config.Config) {
 // the in-memory heartbeat config. Run AFTER LoadHeartbeat so envs win
 // over heartbeat.yaml. The heartbeat config lives in its own file
 // (yaml:"-" mapstructure:"-" on Config.Heartbeat), so viper does not
-// bind these env vars itself — this function is the single source of
+// bind these env vars itself - this function is the single source of
 // env-var support. Mirrors applyChannelsEnvOverrides.
 func applyHeartbeatEnvOverrides(cfg *config.Config) {
 	setBool := func(env string, target *bool) {

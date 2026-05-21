@@ -35,7 +35,7 @@ func DefaultKeybindingsConfig() *KeybindingsConfig {
 // LoadKeybindings reads keybindings.yaml from disk. When the file is
 // missing it returns the in-code defaults so callers can treat absence
 // as "use defaults" without special-casing. The file body is run through
-// os.ExpandEnv — any literal `${…}` token in a customised binding must be
+// os.ExpandEnv - any literal `${…}` token in a customised binding must be
 // escaped as `$$…`.
 func LoadKeybindings(path string) (*KeybindingsConfig, error) {
 	return utils.LoadYAML(path, "keybindings", DefaultKeybindingsConfig)

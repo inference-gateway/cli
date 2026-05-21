@@ -237,7 +237,7 @@ tools:
 }
 
 // YAML keys for tools use the LLM-visible tool names (PascalCase or
-// snake-with-underscores like A2A_SubmitTask) — this guards both forms
+// snake-with-underscores like A2A_SubmitTask) - this guards both forms
 // from accidental renames during refactors.
 func TestLoadPrompts_ToolYAMLKeyContract(t *testing.T) {
 	tempDir := t.TempDir()
