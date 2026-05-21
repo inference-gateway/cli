@@ -227,7 +227,7 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 	}
 
 	task := queryResult.Task
-	output.WriteString("Task Status: " + string(task.Status.State) + "\n")
+	fmt.Fprintf(&output, "Task Status: %s\n", task.Status.State)
 
 	hasArtifacts := len(task.Artifacts) > 0
 	if !hasArtifacts {

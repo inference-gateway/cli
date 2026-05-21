@@ -1,10 +1,8 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
@@ -17,6 +15,18 @@ import (
 	_ "github.com/inference-gateway/cli/internal/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
+
+// Note: this file deliberately does NOT call DiscoverTools synchronously at
+// construction time. MCP tool discovery is handled asynchronously by the
+// liveness probe loop in MCPManager.StartMonitoring (see
+// internal/services/mcp_manager.go) which emits MCPServerStatusUpdateEvent
+// once a server is reachable, and ChatApplication.handleMCPStatusUpdate
+// (internal/app/chat.go) then invokes RegisterMCPServerTools below to
+// install the discovered tools.
+//
+// Calling DiscoverTools here would block container construction (and
+// therefore the bubbletea TUI startup) on sequential HTTP round trips to
+// every configured MCP server - see issue #523.
 
 // Registry manages all available tools
 type Registry struct {
@@ -127,37 +137,6 @@ func (r *Registry) registerTools() {
 			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 		}
 	}
-
-	if cfg.MCP.Enabled && r.mcpManager != nil {
-		r.registerMCPTools()
-	}
-}
-
-// registerMCPTools discovers and registers tools from enabled MCP servers
-func (r *Registry) registerMCPTools() {
-	cfg := r.config
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.MCP.DiscoveryTimeout)*time.Second)
-	defer cancel()
-
-	toolCount := 0
-	clients := r.mcpManager.GetClients()
-
-	for _, client := range clients {
-		discoveredTools, err := client.DiscoverTools(ctx)
-		if err != nil {
-			logger.Debug("MCP server not ready yet, will retry via liveness probe", "error", err)
-			continue
-		}
-
-		for serverName, tools := range discoveredTools {
-			count := r.RegisterMCPServerTools(serverName, tools)
-			toolCount += count
-		}
-	}
-
-	if toolCount > 0 {
-		logger.Debug("Successfully registered MCP tools", "count", toolCount)
-	}
 }
 
 // GetTool retrieves a tool by name
@@ -200,31 +179,15 @@ func (r *Registry) IsToolEnabled(name string) bool {
 	return tool.IsEnabled()
 }
 
-// RegisterMCPServerTools dynamically registers tools from an MCP server
+// RegisterMCPServerTools dynamically registers tools from an MCP server.
+// The serverName must match a client registered with the MCPManager - the
+// lookup is O(1) via MCPManager.GetClient and performs no network I/O.
 func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
 	if r.mcpManager == nil {
 		return 0
 	}
 
-	var targetClient domain.MCPClient
-	for _, client := range r.mcpManager.GetClients() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		discovered, err := client.DiscoverTools(ctx)
-		cancel()
-
-		if err == nil {
-			for sname := range discovered {
-				if sname == serverName {
-					targetClient = client
-					break
-				}
-			}
-		}
-		if targetClient != nil {
-			break
-		}
-	}
-
+	targetClient := r.mcpManager.GetClient(serverName)
 	if targetClient == nil {
 		logger.Warn("Could not find MCP client for server", "server", serverName)
 		return 0

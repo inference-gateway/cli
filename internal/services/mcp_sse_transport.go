@@ -14,6 +14,12 @@ import (
 	transport "github.com/metoro-io/mcp-golang/transport"
 )
 
+// mcpSessionIDHeader is the response/request header used by MCP Streamable HTTP
+// servers (per the 2025-03-26 spec) to bind subsequent requests to the session
+// created by the initial `initialize` call. Servers that do not implement
+// sessions simply omit it.
+const mcpSessionIDHeader = "Mcp-Session-Id"
+
 // SSEHTTPClientTransport implements an SSE-aware HTTP client transport for MCP
 // This handles servers that respond with Server-Sent Events format
 type SSEHTTPClientTransport struct {
@@ -24,6 +30,7 @@ type SSEHTTPClientTransport struct {
 	mu             sync.RWMutex
 	client         *http.Client
 	headers        map[string]string
+	sessionID      string
 }
 
 // NewSSEHTTPClientTransport creates a new SSE-aware HTTP client transport
@@ -66,6 +73,13 @@ func (t *SSEHTTPClientTransport) Send(ctx context.Context, message *transport.Ba
 		req.Header.Set(key, value)
 	}
 
+	t.mu.RLock()
+	sessionID := t.sessionID
+	t.mu.RUnlock()
+	if sessionID != "" {
+		req.Header.Set(mcpSessionIDHeader, sessionID)
+	}
+
 	resp, err := t.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -73,6 +87,12 @@ func (t *SSEHTTPClientTransport) Send(ctx context.Context, message *transport.Ba
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+
+	if newSessionID := resp.Header.Get(mcpSessionIDHeader); newSessionID != "" && newSessionID != sessionID {
+		t.mu.Lock()
+		t.sessionID = newSessionID
+		t.mu.Unlock()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

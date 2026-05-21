@@ -697,6 +697,13 @@ type MCPManager interface {
 	// Returns a list of clients
 	GetClients() []MCPClient
 
+	// GetClient returns the client for a specific server by name, or nil if
+	// no client is registered for that name. This is the O(1) lookup variant
+	// of GetClients and should be preferred when the server name is known -
+	// it avoids re-running DiscoverTools across every client just to find
+	// the owning one.
+	GetClient(serverName string) MCPClient
+
 	// GetTotalServers returns the total number of configured MCP servers
 	GetTotalServers() int
 

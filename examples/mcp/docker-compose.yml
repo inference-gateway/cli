@@ -40,7 +40,7 @@ services:
       - mcp-demo
 
   context7:
-    image: mekayelanik/context7-mcp:stable
+    image: mekayelanik/context7-mcp:latest
     container_name: context7
     environment:
       PORT: "8010"
@@ -52,7 +52,7 @@ services:
         - CMD
         - sh
         - -c
-        - 'wget --spider -q http://localhost:8010/healthz || exit 1'
+        - 'wget --spider -q http://127.0.0.1:8010/healthz || exit 1'
       interval: 10s
       timeout: 5s
       retries: 3
@@ -65,14 +65,11 @@ services:
       - cli
     image: ghcr.io/inference-gateway/cli:latest
     environment:
-      # MCP configuration
       INFER_MCP_ENABLED: true
       INFER_MCP_CONNECTION_TIMEOUT: "30"
       INFER_MCP_DISCOVERY_TIMEOUT: "30"
     volumes:
-      # Mount MCP config
       - ./mcp-config.yaml:/home/infer/.infer/mcp.yaml:ro
-      # Persist conversation data
       - infer-data:/home/infer/.infer/data
     command:
       - chat
