@@ -52,7 +52,7 @@ services:
         - CMD
         - sh
         - -c
-        - 'wget --spider -q http://localhost:8010/healthz || exit 1'
+        - 'wget --spider -q http://127.0.0.1:8010/healthz || exit 1'
       interval: 10s
       timeout: 5s
       retries: 3
