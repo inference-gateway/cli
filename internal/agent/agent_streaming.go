@@ -250,7 +250,7 @@ func extractReasoningForEvent(delta sdk.ChatCompletionStreamResponseDelta) strin
 }
 
 // buildAssistantMessage constructs the assistant sdk.Message for a finalized
-// stream turn. Reasoning is preserved whether or not tool calls are present —
+// stream turn. Reasoning is preserved whether or not tool calls are present -
 // thinking-mode providers (e.g. Deepseek) reject follow-up requests with HTTP
 // 400 if a prior assistant turn that produced reasoning is replayed without
 // reasoning_content.

@@ -226,14 +226,14 @@ func (p *ChatMessageProcessor) processChatMessage(
 		}
 	}
 
-	// Auto-rollover BEFORE appending the new user message — otherwise the new
+	// Auto-rollover BEFORE appending the new user message - otherwise the new
 	// message resets the idle clock and never triggers. Mirrors what /compact
 	// does manually: produces a summary, starts a new conversation file, and
 	// the new user message lands in the new file via AddMessage below.
 	//
 	// TODO: this synchronously blocks the Bubble Tea Update loop while the
 	// summary LLM call runs (~few seconds). Acceptable because rollover only
-	// fires on a 30-min idle gap or 80% context fill — both rare edge cases.
+	// fires on a 30-min idle gap or 80% context fill - both rare edge cases.
 	// If this becomes noticeable we can move it into an async tea.Cmd that
 	// dispatches a synthetic continuation event.
 	if p.handler.sessionRolloverManager != nil &&

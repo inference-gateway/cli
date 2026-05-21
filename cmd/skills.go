@@ -27,7 +27,7 @@ Locations scanned (project precedes user-global on name collision):
   - .infer/skills/<name>/SKILL.md       (project)
   - ~/.infer/skills/<name>/SKILL.md     (user-global)
 
-Skills are disabled by default — enable via agent.skills.enabled in config or
+Skills are disabled by default - enable via agent.skills.enabled in config or
 INFER_AGENT_SKILLS_ENABLED=true. The list command always works regardless of
 the enable flag so you can verify discovery.`,
 }

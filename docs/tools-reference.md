@@ -38,7 +38,7 @@ is enabled in the Inference Gateway CLI.
 The description string each tool exposes to the LLM (the prose that
 explains what the tool does) is configurable in `.infer/prompts.yaml`
 under the `tools` key. This lets you tune phrasing for your model
-without recompiling — useful when a model misinterprets a default
+without recompiling - useful when a model misinterprets a default
 description, or when you want to discourage/encourage particular
 usage patterns.
 
@@ -59,12 +59,12 @@ tools:
 
 - Keys use the LLM-visible tool name (e.g. `Bash`, `MultiEdit`,
   `A2A_SubmitTask`, `GetLatestScreenshot`). MCP tools are **not**
-  customisable here — their descriptions come from the MCP server.
+  customisable here - their descriptions come from the MCP server.
 - Any tool you omit (or any field left empty) falls back to the
   in-code default in `config.DefaultPromptsConfig`. You can override
   one tool without losing the defaults for the rest.
 - Environment variable overrides take precedence over the file:
-  `INFER_PROMPTS_TOOLS_<UPPER_SNAKE_NAME>_DESCRIPTION` —
+  `INFER_PROMPTS_TOOLS_<UPPER_SNAKE_NAME>_DESCRIPTION` -
   e.g. `INFER_PROMPTS_TOOLS_BASH_DESCRIPTION`,
   `INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION`.
 - Parameter descriptions (the per-argument explanations inside the
@@ -586,7 +586,7 @@ is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
   slashes or `..`). Becomes the H1 heading of the saved file and the
   basis of the filename slug.
 - `plan` (required): The full plan as Markdown. Use H2 sections in this
-  order — `## Context`, `## Files to Modify`, `## Current Code`,
+  order - `## Context`, `## Files to Modify`, `## Current Code`,
   `## Changes`, `## Performance Impact`, `## Critical Files`,
   `## Edge Cases`, `## Verification`. Omit any section that is not
   applicable.
@@ -596,7 +596,7 @@ is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
 ```json
 {
   "title": "Add login flow",
-  "plan": "## Context\n\nUsers can't sign in...\n\n## Files to Modify\n\n- internal/auth/login.go — add handler\n\n## Verification\n\nRun `task test`."
+  "plan": "## Context\n\nUsers can't sign in...\n\n## Files to Modify\n\n- internal/auth/login.go - add handler\n\n## Verification\n\nRun `task test`."
 }
 ```
 
@@ -609,7 +609,7 @@ The tool is auto-registered and always enabled in plan mode. No config knobs.
 Create recurring or one-off tasks that the agent runs on a cron schedule and
 delivers back through the messaging channel that triggered the current session
 (e.g. Telegram). Useful for "send me X every morning" or "remind me at 6pm
-today to call mum" — initiated from a chat with the bot.
+today to call mum" - initiated from a chat with the bot.
 
 > **📖 For an end-to-end walkthrough, see [Scheduling Guide](scheduling.md).**
 
@@ -617,7 +617,7 @@ today to call mum" — initiated from a chat with the bot.
 
 - Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
 - The `infer channels-manager` daemon hosts the scheduler and watches that directory via fsnotify, so newly created jobs fire without a restart.
-- Each fire spawns a brand-new `infer agent` session — no context carries between runs. Make prompts specific and self-contained.
+- Each fire spawns a brand-new `infer agent` session - no context carries between runs. Make prompts specific and self-contained.
 - Channel + recipient are derived automatically from the current session ID -
   the LLM never passes them. The tool can therefore only be used from a
   channel-driven session.
@@ -638,7 +638,7 @@ The LLM is instructed to **always confirm with the user whether they want a
 one-off or recurring job** before creating one - there is no safe default
 for that decision.
 
-**Example — recurring:**
+**Example - recurring:**
 
 ```json
 {
@@ -649,7 +649,7 @@ for that decision.
 }
 ```
 
-**Example — one-off reminder:**
+**Example - one-off reminder:**
 
 ```json
 {
@@ -661,13 +661,13 @@ for that decision.
 }
 ```
 
-**Example — list:**
+**Example - list:**
 
 ```json
 { "operation": "list" }
 ```
 
-**Example — delete:**
+**Example - delete:**
 
 ```json
 { "operation": "delete", "job_id": "0a1b2c3d-..." }

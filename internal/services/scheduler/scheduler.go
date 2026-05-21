@@ -33,7 +33,7 @@ type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.
 // loaded from the on-disk Store, registered with a robfig/cron scheduler, and
 // hot-reloaded when the storage directory changes (via fsnotify).
 //
-// On fire, a fresh `infer agent --session-id <uuid>` subprocess is spawned —
+// On fire, a fresh `infer agent --session-id <uuid>` subprocess is spawned -
 // every fire gets a brand-new session, so no context carries between runs.
 // Each assistant line emitted by the agent is forwarded to the configured
 // channel/recipient via the in-process channel lookup.
@@ -300,7 +300,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 }
 
 // persistRun writes the updated LastRun/LastError back to disk. Errors are
-// only logged — a failed metadata write should not crash the daemon.
+// only logged - a failed metadata write should not crash the daemon.
 func (s *Service) persistRun(job *domain.ScheduledJob) {
 	current, err := s.store.Load(job.ID)
 	if err != nil {

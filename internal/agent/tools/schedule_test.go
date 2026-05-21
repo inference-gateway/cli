@@ -149,7 +149,7 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 	tool := NewScheduleTool(cfg)
 	ctx := channelCtx("telegram", "12345")
 
-	// Create — channel + recipient are derived from session ID, never passed by caller.
+	// Create - channel + recipient are derived from session ID, never passed by caller.
 	createArgs := map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",
@@ -243,7 +243,7 @@ func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
 
 func TestScheduleTool_Execute_RejectsNonChannelSession(t *testing.T) {
 	tool := NewScheduleTool(newScheduleCfg(t, true))
-	// Plain context — no session ID at all.
+	// Plain context - no session ID at all.
 	r, err := tool.Execute(context.Background(), map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",

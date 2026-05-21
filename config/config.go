@@ -338,7 +338,7 @@ type AgentContextConfig struct {
 
 // AgentSkillsConfig controls Agent Skills loading. Skills follow the
 // SKILL.md / YAML-frontmatter contract shared by the official spec, so existing skill folders drop
-// into .infer/skills/ unchanged. Disabled by default — when off, no
+// into .infer/skills/ unchanged. Disabled by default - when off, no
 // scan runs and nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`

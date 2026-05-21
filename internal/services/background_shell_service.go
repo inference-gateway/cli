@@ -412,7 +412,7 @@ func (s *BackgroundShellService) terminateShell(shell *domain.BackgroundShell) {
 
 // enqueueShellNotification pushes a short completion/failure notification onto
 // the shared message queue so the agent learns a background shell finished.
-// Only the shell ID, command, exit code, and duration are included — NOT the
+// Only the shell ID, command, exit code, and duration are included - NOT the
 // full output. The LLM can call BashOutput to retrieve the output if needed.
 func (s *BackgroundShellService) enqueueShellNotification(shellID, command string, exitCode int, duration time.Duration, errMsg string) {
 	if s.messageQueue == nil {

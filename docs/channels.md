@@ -79,7 +79,7 @@ Key features:
 ### 3. Configure the CLI
 
 Channel settings live in their own file at `.infer/channels.yaml` (separate
-from the main `config.yaml` so bot tokens stay out of the agent's reach —
+from the main `config.yaml` so bot tokens stay out of the agent's reach -
 the file is in `tools.sandbox.protected_paths` by default). `infer init`
 seeds it from the in-code defaults; edit it like so:
 
@@ -136,10 +136,10 @@ Open Telegram, message your bot, and the agent will respond.
 
 Channel settings live in their own file:
 
-- **`.infer/channels.yaml`** — all channel settings (Telegram, WhatsApp,
+- **`.infer/channels.yaml`** - all channel settings (Telegram, WhatsApp,
   max workers, approval flag). Holds bot tokens, so it's listed in
   `tools.sandbox.protected_paths` and the agent cannot read or rewrite it.
-- **`.infer/config.yaml`** — agent settings (model, system prompt, etc.).
+- **`.infer/config.yaml`** - agent settings (model, system prompt, etc.).
   Any legacy `channels:` block here is **ignored** at runtime; only
   `channels.yaml` is read. Run `infer init` to migrate an existing block:
   it seeds `channels.yaml` from the loaded values when no
@@ -186,7 +186,7 @@ whatsapp:
 ```
 
 ```yaml
-# .infer/config.yaml — recommended agent settings for channel use
+# .infer/config.yaml - recommended agent settings for channel use
 agent:
   model: "deepseek/deepseek-v4-pro"              # Model to use
   system_prompt: "You are a helpful assistant"  # Base identity

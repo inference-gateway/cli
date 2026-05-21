@@ -380,7 +380,7 @@ func TestOptimizeMessages_EdgeCases(t *testing.T) {
 // TestOptimizeMessages_LastInputTokensTrigger verifies that OptimizeMessages
 // uses the gateway-reported LastInputTokens from the wired-in repo, so
 // auto-compaction fires when the actual prompt size (including system prompt
-// and tool definitions) crosses the threshold — even though the entries-only
+// and tool definitions) crosses the threshold - even though the entries-only
 // estimate is far below it.
 func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 	model := "fake-provider/unknown-tiny-model"

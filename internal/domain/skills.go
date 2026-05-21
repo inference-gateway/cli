@@ -14,7 +14,7 @@ const (
 )
 
 // Skill is the in-memory metadata for a discovered SKILL.md. The body of the
-// file is intentionally not loaded at startup — only frontmatter — so the
+// file is intentionally not loaded at startup - only frontmatter - so the
 // model reads it on demand via the existing Read tool (progressive
 // disclosure, matching the contract).
 type Skill struct {
@@ -39,7 +39,7 @@ type SkillsService interface {
 	// Returns nil and does nothing when skills are disabled in config.
 	Load(ctx context.Context) error
 	// List returns the currently loaded skills. The slice is a defensive
-	// copy — callers may retain or mutate it freely.
+	// copy - callers may retain or mutate it freely.
 	List() []Skill
 	// Errors returns validation failures encountered during the most recent
 	// Load. Cleared on each Load call.

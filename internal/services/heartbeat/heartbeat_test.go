@@ -127,7 +127,7 @@ func TestService_SkipsOverlappingTicks(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Run for 500ms — without guard we'd see ~10 fires; with the guard
+	// Run for 500ms - without guard we'd see ~10 fires; with the guard
 	// we expect at most ~3 (one every 200ms).
 	time.Sleep(500 * time.Millisecond)
 

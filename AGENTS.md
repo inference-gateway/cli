@@ -1,4 +1,4 @@
-# AGENTS.md — Inference Gateway CLI
+# AGENTS.md - Inference Gateway CLI
 
 *Comprehensive guidance for AI agents working with this project.*
 
@@ -30,11 +30,11 @@ agent capabilities, and extensive tool execution for LLMs.
 
 ### Storage Backends
 
-- **JSONL** (default) — file-based, human-readable, zero-config
-- **SQLite** — embedded, structured queries
-- **PostgreSQL** — production-grade, concurrent access
-- **Redis** — fast, in-memory, distributed
-- **Memory** — testing and ephemeral sessions
+- **JSONL** (default) - file-based, human-readable, zero-config
+- **SQLite** - embedded, structured queries
+- **PostgreSQL** - production-grade, concurrent access
+- **Redis** - fast, in-memory, distributed
+- **Memory** - testing and ephemeral sessions
 
 ---
 
@@ -171,18 +171,18 @@ Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools
 
 **States:**
 
-- `Idle` — Agent is waiting for work
-- `CheckingQueue` — Checking for queued messages or completion criteria
-- `StreamingLLM` — Streaming responses from the LLM
-- `PostStream` — Processing LLM response, checking for tool calls
-- `EvaluatingTools` — Determining if tool calls need approval
-- `ApprovingTools` — Waiting for user approval (chat mode only)
-- `ExecutingTools` — Executing approved tool calls
-- `PostToolExecution` — Processing tool results, checking for completion
-- `Completing` — Finalizing execution
-- `Error` — Error occurred
-- `Cancelled` — User cancelled
-- `Stopped` — Tool execution indicated stop
+- `Idle` - Agent is waiting for work
+- `CheckingQueue` - Checking for queued messages or completion criteria
+- `StreamingLLM` - Streaming responses from the LLM
+- `PostStream` - Processing LLM response, checking for tool calls
+- `EvaluatingTools` - Determining if tool calls need approval
+- `ApprovingTools` - Waiting for user approval (chat mode only)
+- `ExecutingTools` - Executing approved tool calls
+- `PostToolExecution` - Processing tool results, checking for completion
+- `Completing` - Finalizing execution
+- `Error` - Error occurred
+- `Cancelled` - User cancelled
+- `Stopped` - Tool execution indicated stop
 
 ### Core Architectural Patterns
 
@@ -217,9 +217,9 @@ Factory pattern with pluggable backends. Backend selection via config or env var
 ### Prerequisites
 
 - **Go 1.26+** (from `go.mod`)
-- **Flox** (recommended) — consistent dev environment
-- **Task** (`go-task`) — build automation
-- **Docker** — for container builds and some release targets
+- **Flox** (recommended) - consistent dev environment
+- **Task** (`go-task`) - build automation
+- **Docker** - for container builds and some release targets
 
 ### Quick Start (Recommended)
 
@@ -361,7 +361,7 @@ INFER_LOGGING_LEVEL=debug ./infer chat   # Verbose logging
 4. **Userspace config:** `~/.infer/config.yaml`
 5. **Built-in defaults** (lowest priority)
 
-The defaults are registered automatically via reflection in `cmd/defaults.go` — the
+The defaults are registered automatically via reflection in `cmd/defaults.go` - the
 `registerConfigDefaults()` function walks the `config.Config` struct using `mapstructure`
 tags and calls `v.SetDefault()` for every non-zero leaf field.
 
@@ -411,11 +411,11 @@ underscores. Example: `agent.model` → `INFER_AGENT_MODEL`.
 
 `.infer/prompts.yaml` has these top-level keys:
 
-- `agent` — Agent system prompt
-- `git` — Git context prompt template
-- `conversation` — Conversation system prompt
-- `init` — Init command prompts
-- `tools.<ToolName>.description` — Override individual tool descriptions
+- `agent` - Agent system prompt
+- `git` - Git context prompt template
+- `conversation` - Conversation system prompt
+- `init` - Init command prompts
+- `tools.<ToolName>.description` - Override individual tool descriptions
 
 Env var override: `INFER_PROMPTS_TOOLS_BASH_DESCRIPTION="Custom bash description"`
 
@@ -426,7 +426,7 @@ Env var override: `INFER_PROMPTS_TOOLS_BASH_DESCRIPTION="Custom bash description
 ### Test Organization
 
 - **Unit tests:** `*_test.go` files alongside implementation code
-- **Mocks:** `tests/mocks/` — generated via **counterfeiter** (`task mocks:generate`)
+- **Mocks:** `tests/mocks/` - generated via **counterfeiter** (`task mocks:generate`)
 - **Integration tests:** Files with `_integration_test.go` suffix
 
 ### Running Tests
@@ -546,7 +546,7 @@ Configured in `.pre-commit-config.yaml`, runs automatically on `git commit`:
 
 ### Dependency Management
 
-- **No CGO** — project uses pure Go dependencies for maximum portability
+- **No CGO** - project uses pure Go dependencies for maximum portability
 - Go 1.26 toolchain with `tool` directive for counterfeiter
 - Dependencies verified via `go mod verify`
 - Module cache handled by Flox environment
@@ -613,10 +613,10 @@ Build-time ldflags inject version metadata:
 
 Located in `nix/` directory:
 
-- `default.nix` — entry point for `nix-build`
-- `package.nix` — Go build expression with vendor hash
-- `README.md` — detailed Nix build instructions
-- `update-hashes.sh` — hash update script
+- `default.nix` - entry point for `nix-build`
+- `package.nix` - Go build expression with vendor hash
+- `README.md` - detailed Nix build instructions
+- `update-hashes.sh` - hash update script
 
 Nix builds support Linux (x86_64, aarch64) and macOS (x86_64, aarch64 with CGO for clipboard).
 
@@ -651,7 +651,7 @@ Nix builds support Linux (x86_64, aarch64) and macOS (x86_64, aarch64 with CGO f
 | `install.sh` | One-line install script |
 | `CLAUDE.md` | Agent development guide for Claude Code |
 | `CONTRIBUTING.md` | Contribution guidelines |
-| `AGENTS.md` | This file — AI agent guidance |
+| `AGENTS.md` | This file - AI agent guidance |
 
 ### `.infer/` Runtime Directory
 
@@ -837,7 +837,7 @@ Navigate back to previous conversation points (double ESC):
 
 ### Configuration Management Rules
 
-1. **Never commit `.env` files** — use `%ENV_VAR%` substitution in YAML
+1. **Never commit `.env` files** - use `%ENV_VAR%` substitution in YAML
 2. **Respect precedence:** Env vars > CLI flags > Config files > Defaults
 3. **Use `INFER_` prefix** for all environment variables
 4. **Document new config options** in both `docs/` and CLI help text
@@ -845,7 +845,7 @@ Navigate back to previous conversation points (double ESC):
 ### Common Pitfalls
 
 - **Mock regeneration:** Always run `task mocks:generate` after changing interfaces
-- **Config defaults:** Don't manually call `v.SetDefault()` — use `registerConfigDefaults()` in `cmd/defaults.go`
+- **Config defaults:** Don't manually call `v.SetDefault()` - use `registerConfigDefaults()` in `cmd/defaults.go`
 - **CGO:** Project must remain CGO-free for portability (exception: macOS clipboard)
 - **Storage migrations:** SQLite and PostgreSQL use automatic schema migrations via `cmd/migrate.go`
 - **Concurrent access:** Agent state machine is protected by `sync.RWMutex`

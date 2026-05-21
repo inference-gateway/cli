@@ -545,8 +545,8 @@ type A2ATaskTracker interface {
 // background work an agent session can produce: A2A tasks (long-running
 // work delegated to remote agents) and background bash shells (long-running
 // commands the agent has detached from the foreground). Both are
-// conceptually the same thing — async producers of results that need to
-// land back on the conversation when they finish — so they live behind one
+// conceptually the same thing - async producers of results that need to
+// land back on the conversation when they finish - so they live behind one
 // type here.
 //
 // The interface unifies what used to be two separate trackers

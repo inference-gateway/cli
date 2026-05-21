@@ -81,7 +81,7 @@ func TestLoadConfigFromViper_PromptsEnvOverridesFile(t *testing.T) {
 
 // TestLoadConfigFromViper_ToolDescriptionEnvOverride mirrors the
 // agent-prompt env-override guarantee for the new tool description
-// slots — confirms a single tool can be retuned at deploy time
+// slots - confirms a single tool can be retuned at deploy time
 // without editing prompts.yaml.
 func TestLoadConfigFromViper_ToolDescriptionEnvOverride(t *testing.T) {
 	withHermeticEnv(t)

@@ -69,7 +69,7 @@ type ServiceContainer struct {
 	backgroundShellService *services.BackgroundShellService
 	storage                storage.ConversationStorage
 
-	// Token polyfill — used by /context, conversation optimizer, and the
+	// Token polyfill - used by /context, conversation optimizer, and the
 	// session rollover manager. Created unconditionally so any surface can
 	// fall back to it when the provider does not return usage metrics.
 	tokenizer *services.TokenizerService

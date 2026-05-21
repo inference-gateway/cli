@@ -14,7 +14,7 @@ import (
 )
 
 // writeSkill creates <baseDir>/<dirName>/SKILL.md with the given body. The
-// body is written verbatim — callers control whether the frontmatter is
+// body is written verbatim - callers control whether the frontmatter is
 // valid. Returns the absolute path to the SKILL.md.
 func writeSkill(t *testing.T, baseDir, dirName, body string) string {
 	t.Helper()

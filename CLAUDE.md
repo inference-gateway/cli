@@ -280,7 +280,7 @@ Example: `agent.model` → `INFER_AGENT_MODEL`
 **Customisable LLM prompts** live in `.infer/prompts.yaml` (loaded
 separately from `config.yaml`). Top-level keys: `agent`, `git`,
 `conversation`, `init`, `tools`. Tool descriptions surfaced to the LLM
-are configurable under `tools.<ToolName>.description` — e.g.
+are configurable under `tools.<ToolName>.description` - e.g.
 `tools.Bash.description`, `tools.Read.description`. MCP tool
 descriptions are not configurable here (they come from the MCP server
 at runtime). Any field left empty falls back to the in-code default in
@@ -437,7 +437,7 @@ Each channel has its own allowlist for security.
 See `docs/channels.md` for full documentation.
 
 The channels-manager daemon also hosts the **scheduler service** when
-`tools.schedule.enabled: true` — see [Scheduling (Cron-driven Tasks)](#scheduling-cron-driven-tasks)
+`tools.schedule.enabled: true` - see [Scheduling (Cron-driven Tasks)](#scheduling-cron-driven-tasks)
 below for the full design.
 
 ### Tool Approval Flow
@@ -471,7 +471,7 @@ enables interactive tool approval via stdin/stdout IPC with the agent subprocess
 The `Schedule` tool lets the LLM create recurring or one-off jobs that fire
 on a cron schedule and deliver their output back through the messaging
 channel that triggered the current session (e.g. Telegram). The scheduler
-runs **inside the channels-manager daemon** — there is no separate process —
+runs **inside the channels-manager daemon** - there is no separate process -
 and is cross-platform (uses `robfig/cron/v3`, not system crontab).
 
 - Schedule tool: `internal/agent/tools/schedule.go`
@@ -508,7 +508,7 @@ See `docs/scheduling.md` for the user-facing guide.
 Key properties:
 
 - **Tool-only file I/O.** The `Schedule` tool never talks directly to the
-  daemon — it just writes YAML. The daemon's fsnotify watcher
+  daemon - it just writes YAML. The daemon's fsnotify watcher
   (`scheduler.startWatcher`) picks up changes within ~150ms (debounced) and
   registers/unregisters cron entries.
 - **Fresh session per fire.** Each scheduled run gets a new UUID session ID;
@@ -535,7 +535,7 @@ Wiring chain:
 2. `Schedule.execCreate` calls `resolveRouting(ctx)` which reads the session
    ID with `domain.GetSessionID(ctx)` and parses it.
 3. If the session is not channel-formatted (e.g. chat-mode or a generic
-   agent run), the tool returns a clear error — it cannot guess where to
+   agent run), the tool returns a clear error - it cannot guess where to
    deliver.
 
 This means the LLM literally cannot route to the wrong recipient.
@@ -592,13 +592,13 @@ images that don't ship `/usr/share/zoneinfo`.
   ptr(true)`); the `IsApprovalRequired("Schedule")` switch case in
   `config/config.go` honours this.
 - Defaults are registered with viper via four `v.SetDefault("tools.schedule.*",
-  ...)` calls in `cmd/root.go` — without those, viper unmarshals an empty
+  ...)` calls in `cmd/root.go` - without those, viper unmarshals an empty
   config and the defaults function's values are ignored.
 
 ## Heartbeat (Periodic Wake-Up)
 
 The **Heartbeat** wakes the agent on a fixed interval to check for
-pending work. It is a peer of the scheduler — both run inside the
+pending work. It is a peer of the scheduler - both run inside the
 `infer channels-manager` daemon, both spawn `infer agent`
 subprocesses, but heartbeat is a single global tick (vs. many
 user-defined cron jobs) and logs output (vs. routing to a channel).
@@ -608,7 +608,7 @@ Disabled by default.
 - Config file: `~/.infer/heartbeat.yaml` (separate file, mirrors
   channels.yaml; `yaml:"-"` on `Config.Heartbeat`).
 - System prompt: `cfg.Prompts.Agent.SystemPromptHeartbeat` in
-  `prompts.yaml` — separate from `system_prompt`/`system_prompt_plan`.
+  `prompts.yaml` - separate from `system_prompt`/`system_prompt_plan`.
 - Service: `internal/services/heartbeat/heartbeat.go` (`Service`
   with `Start(ctx)` / `Stop(ctx)`, ticker-driven, no cron).
 - Daemon wiring: `cmd/channels.go` `startHeartbeat()` next to
@@ -621,8 +621,8 @@ Disabled by default.
 
 ```text
 ┌─ infer channels-manager (daemon) ─────────────────────────┐
-│  ChannelManagerService     (channels — optional)           │
-│  SchedulerService           (cron jobs — optional)         │
+│  ChannelManagerService     (channels - optional)           │
+│  SchedulerService           (cron jobs - optional)         │
 │  HeartbeatService                                          │
 │   ├─ time.Ticker(interval)                                 │
 │   └─ on tick: spawn `infer agent --heartbeat               │
@@ -640,7 +640,7 @@ Key properties:
   alone is a valid run mode.
 - **Fresh session per fire.** UUID-format session ID (not channel
   prefixed); the Schedule tool's `resolveRouting` will refuse to
-  operate from a heartbeat run, which is intentional — heartbeat
+  operate from a heartbeat run, which is intentional - heartbeat
   should not directly create scheduled jobs without explicit
   channel context.
 - **Overlap guard.** `atomic.Int32` flag suppresses concurrent
@@ -652,7 +652,7 @@ Key properties:
   service container is built. The agent service stays oblivious to
   the new mode.
 - **Output.** Agent stdout is logged via the standard logger. No
-  channel routing — if the user wants a channel notification, the
+  channel routing - if the user wants a channel notification, the
   agent itself uses its tools to send one.
 
 See `docs/heartbeat.md` for the user-facing guide.
@@ -669,7 +669,7 @@ When the model calls `RequestPlanApproval`, the tool persists the plan as
 a Markdown file under `<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md`
 (atomic write: `.tmp` → `os.Rename`). The plan body must follow a fixed
 8-section H2 template (Context, Files to Modify, Current Code, Changes,
-Performance Impact, Critical Files, Edge Cases, Verification) — see
+Performance Impact, Critical Files, Edge Cases, Verification) - see
 `config/prompts.go::DefaultPromptsConfig` for the prompt that pins this
 contract.
 
@@ -680,7 +680,7 @@ contract.
   `HandlePlanApprovalRequestedEvent` / `HandlePlanApprovalResponseEvent`
 - UI state: `domain.PlanApprovalUIState`, `ViewStatePlanApproval`
 
-Rejected plans stay on disk as an audit trail — by design.
+Rejected plans stay on disk as an audit trail - by design.
 
 See `docs/plan-mode.md` for the full user-facing guide.
 

@@ -15,7 +15,7 @@ import (
 // LoadYAML reads path. If the file does not exist, defaults() is returned so
 // callers can treat absence as "use defaults" without special-casing. The
 // file body is run through os.ExpandEnv so ${VAR} references resolve from
-// the environment before unmarshalling — any future content that needs a
+// the environment before unmarshalling - any future content that needs a
 // literal `${…}` token must escape it as `$$…`.
 //
 // label scopes error messages, e.g. "channels" produces

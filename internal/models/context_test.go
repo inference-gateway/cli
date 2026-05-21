@@ -220,7 +220,7 @@ func TestMistralFamilyContextWindow(t *testing.T) {
 }
 
 // TestMiscOpenWeightContextWindow covers GPT-OSS, MiniMax M2, GLM 4/5, and
-// Nemotron 3 — all served via ollama_cloud.
+// Nemotron 3 - all served via ollama_cloud.
 func TestMiscOpenWeightContextWindow(t *testing.T) {
 	testModels := []struct {
 		model    string
@@ -248,7 +248,7 @@ func TestMiscOpenWeightContextWindow(t *testing.T) {
 }
 
 // TestQwenServedVariants covers the Qwen3 sub-families served via
-// ollama_cloud — VL, Coder, Next, and the qwen3.5 alias all match the
+// ollama_cloud - VL, Coder, Next, and the qwen3.5 alias all match the
 // "qwen3" matcher (262K).
 func TestQwenServedVariants(t *testing.T) {
 	testModels := []struct {

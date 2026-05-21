@@ -201,7 +201,7 @@ func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.Conversation
 // re-adds the summarized messages, and (if groupKey != "") updates the
 // configured SessionGroupStorage to point the group at the new session ID.
 //
-// This mirrors performCompactAsync in chat_shortcut_handler.go:510-615 — same
+// This mirrors performCompactAsync in chat_shortcut_handler.go:510-615 - same
 // optimizer call, same StartNewConversation call, same AddMessage loop.
 //
 // Returns the new session UUID on success.

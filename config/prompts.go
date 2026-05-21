@@ -12,12 +12,12 @@ const (
 // LoadPrompts reads prompts.yaml from disk. When the file is missing it
 // returns the in-code defaults so callers can treat absence as "use
 // defaults" without special-casing. The file body is run through
-// os.ExpandEnv — any literal `${…}` token in a customised prompt must be
+// os.ExpandEnv - any literal `${…}` token in a customised prompt must be
 // escaped as `$$…`.
 //
 // Any field left empty in a partial prompts.yaml is backfilled from
 // DefaultPromptsConfig() so callers always get a fully populated config.
-// CustomInstructions is intentionally excluded from backfill — empty is
+// CustomInstructions is intentionally excluded from backfill - empty is
 // a meaningful user choice there.
 func LoadPrompts(path string) (*PromptsConfig, error) {
 	cfg, err := utils.LoadYAML(path, "prompts", DefaultPromptsConfig)
@@ -149,14 +149,14 @@ type PromptsInitConfig struct {
 
 // PromptsToolDescription holds a single tool's LLM-visible description.
 // It is wrapped in a struct (rather than being a bare string) so future
-// fields — e.g. per-parameter description overrides — can be added
+// fields - e.g. per-parameter description overrides - can be added
 // without breaking existing prompts.yaml files.
 type PromptsToolDescription struct {
 	Description string `yaml:"description" mapstructure:"description"`
 }
 
 // PromptsToolsConfig groups every tool whose description is exposed to
-// the LLM. MCP tools are intentionally excluded — their descriptions
+// the LLM. MCP tools are intentionally excluded - their descriptions
 // come from the MCP server at runtime and overriding them here would
 // drift from whatever the server reports. Tools that ship with the
 // binary but only register conditionally (e.g. background-shell tools,
@@ -193,7 +193,7 @@ type PromptsToolsConfig struct {
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
-// single source of truth — `infer init` seeds prompts.yaml from this and
+// single source of truth - `infer init` seeds prompts.yaml from this and
 // the runtime overlay falls back to it when fields are missing.
 func DefaultPromptsConfig() *PromptsConfig { //nolint:funlen
 	return &PromptsConfig{
@@ -233,7 +233,7 @@ OUTPUT FORMAT - MARKDOWN PLAN:
 The 'plan' argument MUST be a Markdown document using the following H2 sections, in this order. Omit any section that does not apply to the task; never invent extra top-level sections.
 
 ## Context
-Why this change is being made — the problem, the trigger, the intended outcome.
+Why this change is being made - the problem, the trigger, the intended outcome.
 
 ## Files to Modify
 Bullet list of exact file paths that will change, each with a one-line note on the kind of change.
@@ -295,22 +295,22 @@ Why prefer direct tools:
 - Lower resource usage (critical for remote systems)`,
 			SystemPromptHeartbeat: `You are an autonomous agent that has just been woken up by a periodic heartbeat tick.
 
-PURPOSE: Self-driven progress checks. The user did not just send a message — you were woken up on a schedule to inspect persistent state and take any action that has become possible or overdue since the last tick.
+PURPOSE: Self-driven progress checks. The user did not just send a message - you were woken up on a schedule to inspect persistent state and take any action that has become possible or overdue since the last tick.
 
 WHAT TO CHECK (in order):
 1. Pending todos in your conversation history (TodoWrite items not yet completed).
 2. Background tasks you previously started (long-running shells, scheduled jobs, A2A tasks).
-3. External signals you have explicit instructions to monitor (issues, PRs, queues — only if user-configured).
+3. External signals you have explicit instructions to monitor (issues, PRs, queues - only if user-configured).
 
 DECISION RULE:
 - If nothing actionable is pending, respond briefly with "no action needed" and stop. Do NOT invent work.
 - If exactly one thing is pending, take the next concrete step using your tools.
-- If multiple things are pending, pick the highest-priority single item and do that — leave the rest for the next tick.
+- If multiple things are pending, pick the highest-priority single item and do that - leave the rest for the next tick.
 
 CONSTRAINTS:
 - You run autonomously without human approval. Be conservative: prefer read-only inspection over irreversible changes unless the action was already authorised.
 - Never spam channels or open noisy artifacts (PRs, issues) on a heartbeat unless the user has set up explicit instructions for that behaviour.
-- Each tick is a fresh session — you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
+- Each tick is a fresh session - you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
 			CustomInstructions: ``,
 			SystemReminders: PromptsAgentRemindersConfig{
 				Enabled:  true,
@@ -381,7 +381,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 
 // defaultPromptsToolsConfig returns the in-code tool descriptions. Each
 // string is the verbatim description previously hardcoded in the
-// corresponding tool's Definition() method — moving it here is an
+// corresponding tool's Definition() method - moving it here is an
 // override hook, not a content change.
 func defaultPromptsToolsConfig() PromptsToolsConfig { //nolint:funlen
 	return PromptsToolsConfig{
@@ -552,7 +552,7 @@ What happens:
 
 Required parameters:
 - title: A short human-readable phrase (≤ 60 chars, no slashes). Becomes the H1 heading and the filename slug.
-- plan: The full plan as Markdown using H2 sections in this order — ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.
+- plan: The full plan as Markdown using H2 sections in this order - ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.
 
 Only call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.`,
 		},
@@ -568,9 +568,9 @@ Only call this tool when the plan is final. If you need clarification, ask the u
 		Schedule: PromptsToolDescription{
 			Description: `Schedule a task that fires on a cron schedule and delivers its output through the same messaging channel that triggered the current session (e.g. Telegram).
 
-IMPORTANT — clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. "remind me at 6pm today to call mum") or **recurring** (e.g. "send me a quote every morning"). If their request is ambiguous, ASK them — do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.
+IMPORTANT - clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. "remind me at 6pm today to call mum") or **recurring** (e.g. "send me a quote every morning"). If their request is ambiguous, ASK them - do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.
 
-Each fire creates a brand-new agent session — no context is carried between runs. Choose narrow, specific prompts to avoid wasted compute.
+Each fire creates a brand-new agent session - no context is carried between runs. Choose narrow, specific prompts to avoid wasted compute.
 
 Operations:
 - create: Add a new scheduled job. Required: cron_expression, prompt. Optional: run_once, name, description, model.
@@ -579,14 +579,14 @@ Operations:
 - update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, run_once, name, description, model can be updated.
 - delete: Remove a job. Required: job_id.
 
-Routing (channel + recipient) is derived automatically from the current session — you never pass it. The tool can therefore only be used from a channel-driven session (e.g. when responding to a Telegram message); it will fail with a clear error if invoked from any other context.
+Routing (channel + recipient) is derived automatically from the current session - you never pass it. The tool can therefore only be used from a channel-driven session (e.g. when responding to a Telegram message); it will fail with a clear error if invoked from any other context.
 
 Cron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The "@every <duration>" descriptor is also supported. Examples:
-- "0 8 * * *"       — every day at 08:00 (recurring)
-- "*/15 * * * *"    — every 15 minutes (recurring)
-- "0 9 * * 1-5"     — weekdays at 09:00 (recurring)
-- "@every 1h"       — every hour (recurring)
-- "0 18 26 4 *"     — April 26 at 18:00 (use with run_once=true for "today at 6pm")
+- "0 8 * * *"       - every day at 08:00 (recurring)
+- "*/15 * * * *"    - every 15 minutes (recurring)
+- "0 9 * * 1-5"     - weekdays at 09:00 (recurring)
+- "@every 1h"       - every hour (recurring)
+- "0 18 26 4 *"     - April 26 at 18:00 (use with run_once=true for "today at 6pm")
 
 For one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.
 

@@ -166,11 +166,11 @@ func (s *Service) run() {
 }
 
 // fireGuarded suppresses overlapping ticks. If a previous heartbeat
-// run is still alive, the current tick is skipped — the next one will
+// run is still alive, the current tick is skipped - the next one will
 // pick it up.
 func (s *Service) fireGuarded() {
 	if !s.running.CompareAndSwap(0, 1) {
-		logger.Warn("Heartbeat tick skipped — previous run still in flight")
+		logger.Warn("Heartbeat tick skipped - previous run still in flight")
 		return
 	}
 	defer s.running.Store(0)
@@ -194,7 +194,7 @@ func (s *Service) fire(ctx context.Context) error {
 	}
 	args = append(args, s.cfg.Prompt)
 
-	logger.Info("Heartbeat tick — spawning agent",
+	logger.Info("Heartbeat tick - spawning agent",
 		"session_id", sessionID,
 		"model", s.cfg.Model,
 	)

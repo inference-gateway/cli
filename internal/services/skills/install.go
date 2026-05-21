@@ -92,7 +92,7 @@ func ParseGitHubTreeURL(rawURL string) (*GitHubLocation, error) {
 
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 	if len(parts) >= 3 && parts[2] == "blob" {
-		return nil, fmt.Errorf("URL points to a file (/blob/) — pass the directory URL (/tree/) instead: %s", rawURL)
+		return nil, fmt.Errorf("URL points to a file (/blob/) - pass the directory URL (/tree/) instead: %s", rawURL)
 	}
 	if len(parts) < treePartsExpected || parts[2] != "tree" {
 		return nil, fmt.Errorf("URL must be of the form https://github.com/<owner>/<repo>/tree/<ref>/<path>: got %s", rawURL)
@@ -138,7 +138,7 @@ func NewInstaller() *Installer {
 // <destBase>/<dirname>/, where dirname is the last path segment of the
 // repo URL. Existing folders are rejected unless overwrite is true.
 //
-// The downloaded folder is post-validated with loadSkill — if frontmatter
+// The downloaded folder is post-validated with loadSkill - if frontmatter
 // fails the spec checks, the folder is removed and the validation error is
 // returned. There is never a half-installed state.
 //
@@ -182,7 +182,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		files = append(files, e)
 	}
 	if len(files) == 0 {
-		return "", fmt.Errorf("no files found under %s/%s/%s @ %s — check the URL", loc.Owner, loc.Repo, loc.Path, loc.Ref)
+		return "", fmt.Errorf("no files found under %s/%s/%s @ %s - check the URL", loc.Owner, loc.Repo, loc.Path, loc.Ref)
 	}
 
 	if err := os.MkdirAll(destDir, 0755); err != nil {
@@ -250,7 +250,7 @@ func (i *Installer) fetchTree(ctx context.Context, loc *GitHubLocation) (*treeRe
 		return nil, fmt.Errorf("failed to parse tree response: %w", err)
 	}
 	if tree.Truncated {
-		return nil, fmt.Errorf("repository tree was truncated by GitHub (repo too large) — cannot reliably install")
+		return nil, fmt.Errorf("repository tree was truncated by GitHub (repo too large) - cannot reliably install")
 	}
 	return &tree, nil
 }

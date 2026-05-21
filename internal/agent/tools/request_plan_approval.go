@@ -30,7 +30,7 @@ var titleSlugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 // RequestPlanApprovalTool handles requesting plan approval from the user.
 // On execute it persists the plan as a markdown file under
 // "<configDir>/plans/" so users have an auditable record of every plan the
-// agent produced — even when they reject it.
+// agent produced - even when they reject it.
 type RequestPlanApprovalTool struct {
 	config    *config.Config
 	enabled   bool
@@ -69,7 +69,7 @@ func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
 					},
 					"plan": map[string]any{
 						"type":        "string",
-						"description": "The complete plan as Markdown. Use H2 sections (## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification) — include only sections that apply.",
+						"description": "The complete plan as Markdown. Use H2 sections (## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification) - include only sections that apply.",
 					},
 				},
 			},

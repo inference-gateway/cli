@@ -79,7 +79,7 @@ func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
 					},
 					"prompt": map[string]any{
 						"type":        "string",
-						"description": "The task to give the agent on each fire. Should be specific and self-contained — no prior context is available.",
+						"description": "The task to give the agent on each fire. Should be specific and self-contained - no prior context is available.",
 					},
 					"run_once": map[string]any{
 						"type":        "boolean",
@@ -136,7 +136,7 @@ func (t *ScheduleTool) Execute(ctx context.Context, args map[string]any) (*domai
 }
 
 // Validate checks if the schedule tool arguments are well-formed before
-// execution. It only validates structure — semantic checks (channel exists,
+// execution. It only validates structure - semantic checks (channel exists,
 // job exists) happen in Execute.
 func (t *ScheduleTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled || !t.config.Tools.Schedule.Enabled {
@@ -224,7 +224,7 @@ func (t *ScheduleTool) openStore() (*scheduler.Store, error) {
 }
 
 // channelConfigured reports whether the named channel is enabled in config.
-// We only check the channel's *enabled* flag — runtime registration is the
+// We only check the channel's *enabled* flag - runtime registration is the
 // daemon's job.
 func (t *ScheduleTool) channelConfigured(name string) bool {
 	switch strings.ToLower(name) {

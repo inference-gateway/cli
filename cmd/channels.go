@@ -30,7 +30,7 @@ is sent back through the originating channel.
 
 Configuration is done via .infer/channels.yaml (seeded by 'infer init') or
 INFER_CHANNELS_* environment variables. The legacy 'channels:' block in
-config.yaml is no longer read — re-run 'infer init' to migrate it.
+config.yaml is no longer read - re-run 'infer init' to migrate it.
 
 Examples:
   # Start listening for Telegram messages
@@ -48,7 +48,7 @@ Examples:
 }
 
 // RunChannelsCommand starts the channel listener daemon. The daemon
-// hosts up to three subsystems — channels, scheduler, and heartbeat —
+// hosts up to three subsystems - channels, scheduler, and heartbeat -
 // and starts whichever are enabled. At least one must be enabled or
 // the daemon refuses to boot (otherwise it would just sleep forever).
 func RunChannelsCommand(cfg *config.Config) error {

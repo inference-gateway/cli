@@ -227,7 +227,7 @@ func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
 	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
-	// One short message — entries-only estimate is far below the threshold.
+	// One short message - entries-only estimate is far below the threshold.
 	addUserMessage(t, repo, "hi", time.Now())
 
 	// Simulate the gateway reporting a large prompt_tokens value (system
@@ -253,7 +253,7 @@ func TestShouldRollover_TokenTriggerDoesNotFireWhenLastInputBelowThreshold(t *te
 	}
 
 	// …but the gateway-reported count is well below the threshold. The
-	// gateway count must win — its number includes provider-specific
+	// gateway count must win - its number includes provider-specific
 	// reformatting and is what `/context` shows.
 	if err := repo.AddTokenUsage("unknown-tiny-model", 1000, 100, 1100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
