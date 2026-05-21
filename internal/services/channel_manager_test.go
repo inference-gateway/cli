@@ -463,6 +463,17 @@ func TestChannelManagerService_SessionID(t *testing.T) {
 	if !found {
 		t.Errorf("expected session ID %q in args, got %v", expectedSessionID, capturedArgs)
 	}
+
+	remoteFound := false
+	for _, arg := range capturedArgs {
+		if arg == "--remote" {
+			remoteFound = true
+			break
+		}
+	}
+	if !remoteFound {
+		t.Errorf("expected --remote flag in args (channel sessions must use the remote-control system prompt), got %v", capturedArgs)
+	}
 }
 
 func TestWriteSessionImage(t *testing.T) {

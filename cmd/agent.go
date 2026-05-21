@@ -53,7 +53,8 @@ Examples:
 		sessionID, _ := cmd.Flags().GetString("session-id")
 		requireApproval, _ := cmd.Flags().GetBool("require-approval")
 		heartbeat, _ := cmd.Flags().GetBool("heartbeat")
-		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat)
+		remote, _ := cmd.Flags().GetBool("remote")
+		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat, remote)
 	},
 }
 
@@ -92,7 +93,7 @@ type AgentSession struct {
 	approvalCh       chan domain.ApprovalResponse
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat bool) (err error) {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			outputAgentError(fmt.Sprintf("agent panic: %v", r))
@@ -106,6 +107,10 @@ func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, file
 
 	if heartbeat && cfg.Prompts.Agent.SystemPromptHeartbeat != "" {
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptHeartbeat
+	}
+
+	if remote && cfg.Prompts.Agent.SystemPromptRemote != "" {
+		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptRemote
 	}
 
 	svc := container.NewServiceContainer(cfg)
@@ -1122,5 +1127,6 @@ func init() {
 	agentCmd.Flags().String("session-id", "", "Resume an existing agent session by conversation ID")
 	agentCmd.Flags().Bool("require-approval", false, "Enable IPC-based tool approval via stdin/stdout (used by channel manager)")
 	agentCmd.Flags().Bool("heartbeat", false, "Run with the heartbeat system prompt (used by the heartbeat service)")
+	agentCmd.Flags().Bool("remote", false, "Run with the remote-control system prompt (used by the channels-manager daemon)")
 	rootCmd.AddCommand(agentCmd)
 }

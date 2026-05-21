@@ -800,6 +800,17 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 			*target = val
 		}
 	}
+
+	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Prompts.Agent.SystemReminders.Enabled = b
+		}
+	}
+	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Prompts.Agent.SystemReminders.Interval = n
+		}
+	}
 }
 
 // applyKeybindingEnvOverrides walks INFER_CHAT_KEYBINDINGS_BINDINGS_*
