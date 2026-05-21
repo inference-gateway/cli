@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.10](https://github.com/inference-gateway/cli/compare/v0.109.9...v0.109.10) (2026-05-21)
+
+### 🐛 Bug Fixes
+
+* **mcp:** Decouple MCP tool discovery from container construction ([#524](https://github.com/inference-gateway/cli/issues/524)) ([4f30217](https://github.com/inference-gateway/cli/commit/4f30217af568e3591e59ed4a89a17a280d0da340))
+
+### 🧹 Maintenance
+
+* Cleanup all em dashes ([dc276f5](https://github.com/inference-gateway/cli/commit/dc276f5dcc5762976c5131c47ac46ab7dc430106))
+
 ## [0.109.9](https://github.com/inference-gateway/cli/compare/v0.109.8...v0.109.9) (2026-05-20)
 
 ### ♻️ Code Refactoring
