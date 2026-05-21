@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.109.11](https://github.com/inference-gateway/cli/compare/v0.109.10...v0.109.11) (2026-05-21)
+
+### 🐛 Bug Fixes
+
+* **dependabot:** Ignore golang updates for versions >=1.26.3 ([2dba01c](https://github.com/inference-gateway/cli/commit/2dba01c41949d598ed01f40419dd44add48633a2))
+* **a2a:** Surface swallowed failure errors from A2A tasks ([cda339e](https://github.com/inference-gateway/cli/commit/cda339e46d38ca0023268be1ad195094e87543dd))
+
+### ♻️ Code Refactoring
+
+* **channels:** Slim remote-control prompt and disable system reminders ([#526](https://github.com/inference-gateway/cli/issues/526)) ([165a9ca](https://github.com/inference-gateway/cli/commit/165a9cabd2531825c8456d4ebcb1bfff17ab1d59))
+
+### 🔧 Build System
+
+* **deps:** Bump golang.org/x/image from 0.40.0 to 0.41.0 in the gomod group ([#527](https://github.com/inference-gateway/cli/issues/527)) ([f218c07](https://github.com/inference-gateway/cli/commit/f218c07e987cd100b554ffb2cddc3da75daade09))
+
+### 👷 CI/CD
+
+* **deps:** Bump anthropics/claude-code-action from 1.0.127 to 1.0.129 in the github-actions group ([#528](https://github.com/inference-gateway/cli/issues/528)) ([42b6d61](https://github.com/inference-gateway/cli/commit/42b6d61804b03513213e25b2b6998a0323dc857a))
+
+### 🧹 Maintenance
+
+* **dependabot:** Update golang and ubuntu version ignore criteria ([4f34d5e](https://github.com/inference-gateway/cli/commit/4f34d5eedc0ed5553925d8fc963fe65e9ed542af))
+
 ## [0.109.10](https://github.com/inference-gateway/cli/compare/v0.109.9...v0.109.10) (2026-05-21)
 
 ### 🐛 Bug Fixes
