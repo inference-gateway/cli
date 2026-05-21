@@ -40,7 +40,7 @@ services:
       - mcp-demo
 
   context7:
-    image: mekayelanik/context7-mcp:stable
+    image: mekayelanik/context7-mcp:latest
     container_name: context7
     environment:
       PORT: "8010"
