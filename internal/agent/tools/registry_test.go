@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -547,4 +548,75 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	if actualArgs["test"] != "value" {
 		t.Error("Expected arguments to be passed correctly")
 	}
+}
+
+// blockingMCPManager is a domain.MCPManager double whose GetClients() blocks
+// indefinitely (simulating a stalled discovery call). NewRegistry must never
+// reach this — see issue #523. The test uses a select-on-timeout to assert
+// that construction returns promptly even when MCP I/O would block.
+type blockingMCPManager struct {
+	getClientsCalled chan struct{}
+}
+
+func (m *blockingMCPManager) GetClients() []domain.MCPClient {
+	close(m.getClientsCalled)
+	select {} // block forever
+}
+func (m *blockingMCPManager) GetClient(string) domain.MCPClient            { return nil }
+func (m *blockingMCPManager) GetTotalServers() int                         { return 0 }
+func (m *blockingMCPManager) UpdateToolCount(string, int)                  {}
+func (m *blockingMCPManager) ClearToolCount(string)                        {}
+func (m *blockingMCPManager) StartServers(context.Context) error           { return nil }
+func (m *blockingMCPManager) StopServers(context.Context) error            { return nil }
+func (m *blockingMCPManager) Close() error                                 { return nil }
+func (m *blockingMCPManager) StartMonitoring(context.Context) <-chan domain.MCPServerStatusUpdateEvent {
+	return nil
+}
+
+// TestRegistry_NewRegistry_DoesNotBlockOnMCP is a regression test for
+// issue #523: NewRegistry must not synchronously call DiscoverTools (or any
+// other MCP RPC) during construction, because that blocks bubbletea TUI
+// startup. We verify this by handing in an MCPManager whose GetClients()
+// blocks forever — construction must still return promptly.
+func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo"},
+				},
+			},
+		},
+		MCP: config.MCPConfig{
+			Enabled: true,
+			Servers: []config.MCPServerEntry{
+				{Name: "stalled-server", Enabled: true},
+			},
+			DiscoveryTimeout: 30,
+		},
+	}
+
+	blocker := &blockingMCPManager{getClientsCalled: make(chan struct{})}
+
+	done := make(chan *Registry, 1)
+	go func() {
+		done <- NewRegistry(cfg, nil, blocker, nil, nil, nil, nil)
+	}()
+
+	select {
+	case r := <-done:
+		if r == nil {
+			t.Fatal("expected non-nil registry")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("NewRegistry blocked on MCP I/O (regression of issue #523)")
+	}
+
+	// Sanity check: ensure no goroutine ever called GetClients(). If
+	// construction kicks off async discovery in a goroutine, that is fine —
+	// but it must not block the constructor return. We do NOT assert
+	// !blocker.getClientsCalled here because background discovery is
+	// permissible; we only assert the constructor returned in time above.
 }

@@ -290,6 +290,21 @@ func (m *MCPManager) GetClients() []domain.MCPClient {
 	return clients
 }
 
+// GetClient returns the client for a specific server by name, or nil if no
+// such client exists. Direct map lookup — does not perform any network I/O,
+// in contrast to iterating GetClients() and calling DiscoverTools to identify
+// the owning client.
+func (m *MCPManager) GetClient(serverName string) domain.MCPClient {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	client, ok := m.clients[serverName]
+	if !ok {
+		return nil
+	}
+	return client
+}
+
 // GetTotalServers returns the total number of configured MCP servers from config
 func (m *MCPManager) GetTotalServers() int {
 	return len(m.config.Servers)
