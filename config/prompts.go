@@ -44,6 +44,9 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemReminders.ReminderText == "" {
 		loaded.Agent.SystemReminders.ReminderText = defaults.Agent.SystemReminders.ReminderText
 	}
+	if loaded.Agent.SystemReminders.Interval == 0 {
+		loaded.Agent.SystemReminders.Interval = defaults.Agent.SystemReminders.Interval
+	}
 	if loaded.Git.CommitMessage.SystemPrompt == "" {
 		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
 	}
@@ -262,37 +265,21 @@ REMEMBER:
 - If accepted, YOU will execute this plan. Make it specific and actionable!
 - Call RequestPlanApproval ONLY when your plan is complete and ready
 - If you need clarification, ASK - don't guess!`,
-			SystemPromptRemote: `Remote system administration agent. You are operating on a remote machine via SSH.
+			SystemPromptRemote: `Remote-control assistant. You are responding through a messaging channel (e.g. Telegram).
 
-FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
+STYLE:
+- Reply concisely. Match the user's tone and length.
+- For casual messages ("hi", "thanks"), respond in one short line.
+- Skip preamble, recaps, and tool-availability lists.
 
-CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.
+CAPABILITIES:
+- You have full agent tools (Bash, Read, Write, Edit, etc.) plus any configured MCP/A2A tools.
+- Use them only when the user asks for work that requires them.
+- For greetings or open-ended questions, just chat - do not run tools.
 
-COMPUTER USE TOOLS:
-You have TWO ways to interact with the system:
-1. Direct terminal tools (PRIMARY): Bash, Read, Write, Edit, Grep, etc.
-2. GUI automation tools (FALLBACK): MouseMove, KeyboardType, MouseClick, GetLatestScreenshot
-
-CRITICAL: ALWAYS prefer direct terminal tools over GUI automation when possible.
-
-When to use DIRECT tools (preferred):
-- Reading files: Use Read tool, NOT KeyboardType to open an editor
-- Writing files: Use Write/Edit tools, NOT GUI text editor
-- Running commands: Use Bash tool, NOT KeyboardType in a terminal window
-- Searching code: Use Grep tool, NOT opening files via GUI
-- System operations: Use Bash for systemctl, journalctl, docker, etc.
-
-When to use GUI tools (only when necessary):
-- Interacting with graphical applications that have no CLI equivalent
-- Testing UI behavior or visual elements
-- Remote desktop administration tasks that MUST be done through a GUI
-
-Why prefer direct tools:
-- 10-100x faster execution (no GUI rendering delays)
-- More reliable (no window focus issues, no timing problems)
-- Works over SSH without X11 forwarding
-- Precise output (structured data, not visual interpretation)
-- Lower resource usage (critical for remote systems)`,
+CONSTRAINTS:
+- Each message starts a fresh session; do not assume prior context unless it appears in the conversation history.
+- Tool approval may be enforced by the channel manager - long approval chains are noisy in a chat UI, so prefer single, well-scoped tool calls.`,
 			SystemPromptHeartbeat: `You are an autonomous agent that has just been woken up by a periodic heartbeat tick.
 
 PURPOSE: Self-driven progress checks. The user did not just send a message - you were woken up on a schedule to inspect persistent state and take any action that has become possible or overdue since the last tick.
@@ -313,7 +300,7 @@ CONSTRAINTS:
 - Each tick is a fresh session - you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
 			CustomInstructions: ``,
 			SystemReminders: PromptsAgentRemindersConfig{
-				Enabled:  true,
+				Enabled:  false,
 				Interval: 4,
 				ReminderText: `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.

@@ -107,6 +107,22 @@ func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	}
 }
 
+// System reminders ship disabled by default (issue #525) - the
+// `<system-reminder>` nudge is no longer useful with modern LLMs and was
+// burning tokens in channel-driven sessions. Interval must still default
+// to a positive number so a user who flips Enabled=true gets sensible
+// cadence without also having to set Interval.
+func TestDefaultPromptsConfig_SystemRemindersDisabled(t *testing.T) {
+	cfg := config.DefaultPromptsConfig()
+
+	if cfg.Agent.SystemReminders.Enabled {
+		t.Error("agent.system_reminders.enabled should default to false")
+	}
+	if cfg.Agent.SystemReminders.Interval <= 0 {
+		t.Errorf("agent.system_reminders.interval should default to a positive value, got %d", cfg.Agent.SystemReminders.Interval)
+	}
+}
+
 func TestLoadPrompts_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "non-existent.yaml")

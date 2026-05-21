@@ -209,7 +209,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 // If images are present, they are written to session-scoped files and passed via --files flags.
 // When require_approval is enabled, it also creates a stdin pipe for approval IPC.
 func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
-	args := []string{"agent", "--session-id", sessionID}
+	args := []string{"agent", "--session-id", sessionID, "--remote"}
 
 	if cm.cfg.RequireApproval {
 		args = append(args, "--require-approval")

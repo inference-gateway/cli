@@ -10,6 +10,7 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 - [Quick Start (Telegram)](#quick-start-telegram)
 - [Configuration](#configuration)
 - [Security](#security)
+- [Remote-Control Prompt and System Reminders](#remote-control-prompt-and-system-reminders)
 - [Adding a Custom Channel](#adding-a-custom-channel)
 - [Supported Channels](#supported-channels)
 - [Troubleshooting](#troubleshooting)
@@ -302,6 +303,50 @@ conversations, which means:
   SQLite, PostgreSQL), conversations survive restarts.
 - **No extra configuration needed**: Conversation memory works out of the box
   using the same settings as regular agent sessions.
+
+## Remote-Control Prompt and System Reminders
+
+Messages routed through the channels-manager invoke `infer agent --remote`,
+which swaps the default agent system prompt for
+`prompts.agent.system_prompt_remote`. That prompt is tuned for short,
+chat-style replies so that a casual "Hi" does not trigger a paragraph-long
+response or unnecessary tool calls.
+
+Customise it in `~/.infer/prompts.yaml`:
+
+```yaml
+agent:
+  system_prompt_remote: |-
+    Remote-control assistant. You are responding through a messaging channel.
+    Reply concisely and only use tools when the user asks for work.
+```
+
+Or override via environment:
+
+```bash
+export INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE="Pirate-themed assistant."
+```
+
+### System Reminders
+
+The CLI can periodically inject a `<system-reminder>` user message into the
+conversation to nudge the agent about empty todo lists. Modern LLMs no longer
+need this nudge, so it ships **disabled by default**. Re-enable it via
+`prompts.yaml`:
+
+```yaml
+agent:
+  system_reminders:
+    enabled: true
+    interval: 4  # inject every N turns
+```
+
+Or via environment:
+
+```bash
+export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED=true
+export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL=4
+```
 
 ## Adding a Custom Channel
 
