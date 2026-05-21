@@ -291,7 +291,7 @@ func (m *MCPManager) GetClients() []domain.MCPClient {
 }
 
 // GetClient returns the client for a specific server by name, or nil if no
-// such client exists. Direct map lookup — does not perform any network I/O,
+// such client exists. Direct map lookup - does not perform any network I/O,
 // in contrast to iterating GetClients() and calling DiscoverTools to identify
 // the owning client.
 func (m *MCPManager) GetClient(serverName string) domain.MCPClient {

@@ -552,7 +552,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 
 // blockingMCPManager is a domain.MCPManager double whose GetClients() blocks
 // indefinitely (simulating a stalled discovery call). NewRegistry must never
-// reach this — see issue #523. The test uses a select-on-timeout to assert
+// reach this - see issue #523. The test uses a select-on-timeout to assert
 // that construction returns promptly even when MCP I/O would block.
 type blockingMCPManager struct {
 	getClientsCalled chan struct{}
@@ -562,13 +562,13 @@ func (m *blockingMCPManager) GetClients() []domain.MCPClient {
 	close(m.getClientsCalled)
 	select {} // block forever
 }
-func (m *blockingMCPManager) GetClient(string) domain.MCPClient            { return nil }
-func (m *blockingMCPManager) GetTotalServers() int                         { return 0 }
-func (m *blockingMCPManager) UpdateToolCount(string, int)                  {}
-func (m *blockingMCPManager) ClearToolCount(string)                        {}
-func (m *blockingMCPManager) StartServers(context.Context) error           { return nil }
-func (m *blockingMCPManager) StopServers(context.Context) error            { return nil }
-func (m *blockingMCPManager) Close() error                                 { return nil }
+func (m *blockingMCPManager) GetClient(string) domain.MCPClient  { return nil }
+func (m *blockingMCPManager) GetTotalServers() int               { return 0 }
+func (m *blockingMCPManager) UpdateToolCount(string, int)        {}
+func (m *blockingMCPManager) ClearToolCount(string)              {}
+func (m *blockingMCPManager) StartServers(context.Context) error { return nil }
+func (m *blockingMCPManager) StopServers(context.Context) error  { return nil }
+func (m *blockingMCPManager) Close() error                       { return nil }
 func (m *blockingMCPManager) StartMonitoring(context.Context) <-chan domain.MCPServerStatusUpdateEvent {
 	return nil
 }
@@ -577,7 +577,7 @@ func (m *blockingMCPManager) StartMonitoring(context.Context) <-chan domain.MCPS
 // issue #523: NewRegistry must not synchronously call DiscoverTools (or any
 // other MCP RPC) during construction, because that blocks bubbletea TUI
 // startup. We verify this by handing in an MCPManager whose GetClients()
-// blocks forever — construction must still return promptly.
+// blocks forever - construction must still return promptly.
 func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -615,7 +615,7 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	}
 
 	// Sanity check: ensure no goroutine ever called GetClients(). If
-	// construction kicks off async discovery in a goroutine, that is fine —
+	// construction kicks off async discovery in a goroutine, that is fine -
 	// but it must not block the constructor return. We do NOT assert
 	// !blocker.getClientsCalled here because background discovery is
 	// permissible; we only assert the constructor returned in time above.

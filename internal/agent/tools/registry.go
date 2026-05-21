@@ -26,7 +26,7 @@ import (
 //
 // Calling DiscoverTools here would block container construction (and
 // therefore the bubbletea TUI startup) on sequential HTTP round trips to
-// every configured MCP server — see issue #523.
+// every configured MCP server - see issue #523.
 
 // Registry manages all available tools
 type Registry struct {
@@ -137,10 +137,6 @@ func (r *Registry) registerTools() {
 			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 		}
 	}
-
-	// MCP tools are registered asynchronously by the liveness probe loop
-	// (see file-level comment at the top of this file). Deliberately no
-	// synchronous DiscoverTools call here — that would block TUI startup.
 }
 
 // GetTool retrieves a tool by name
@@ -184,7 +180,7 @@ func (r *Registry) IsToolEnabled(name string) bool {
 }
 
 // RegisterMCPServerTools dynamically registers tools from an MCP server.
-// The serverName must match a client registered with the MCPManager — the
+// The serverName must match a client registered with the MCPManager - the
 // lookup is O(1) via MCPManager.GetClient and performs no network I/O.
 func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
 	if r.mcpManager == nil {
