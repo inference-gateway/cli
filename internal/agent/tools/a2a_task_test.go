@@ -219,6 +219,138 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 	}
 }
 
+func TestA2ASubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
+	cfg := &config.Config{}
+	tool := NewA2ASubmitTaskTool(cfg, nil)
+
+	errorText := "The `reasoning_content` in the thinking mode must be passed back to the API."
+
+	tests := []struct {
+		name string
+		task adk.Task
+	}{
+		{
+			name: "error in Status.Message text part",
+			task: adk.Task{
+				ID:        "task-failed-1",
+				ContextID: "ctx-1",
+				Status: adk.TaskStatus{
+					State: adk.TaskStateFailed,
+					Message: &adk.Message{
+						MessageID: "err-1",
+						Role:      adk.RoleAgent,
+						Parts:     []adk.Part{{Text: ptrString(errorText)}},
+					},
+				},
+			},
+		},
+		{
+			name: "error only in Status.Message data part",
+			task: adk.Task{
+				ID:        "task-failed-2",
+				ContextID: "ctx-2",
+				Status: adk.TaskStatus{
+					State: adk.TaskStateFailed,
+					Message: &adk.Message{
+						MessageID: "err-2",
+						Role:      adk.RoleAgent,
+						Parts: []adk.Part{{
+							Data: &adk.DataPart{Data: adk.Struct{
+								"status": "TASK_STATE_FAILED",
+								"error":  errorText,
+							}},
+						}},
+					},
+				},
+			},
+		},
+		{
+			name: "error only in History (Status.Message nil)",
+			task: adk.Task{
+				ID:        "task-failed-3",
+				ContextID: "ctx-3",
+				Status:    adk.TaskStatus{State: adk.TaskStateFailed},
+				History: []adk.Message{
+					{
+						MessageID: "u-1",
+						Role:      adk.RoleUser,
+						Parts:     []adk.Part{{Text: ptrString("do thing")}},
+					},
+					{
+						MessageID: "a-1",
+						Role:      adk.RoleAgent,
+						Parts:     []adk.Part{{Text: ptrString(errorText)}},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			taskCopy := tc.task
+			data := A2ASubmitTaskResult{
+				TaskID:     taskCopy.ID,
+				ContextID:  taskCopy.ContextID,
+				AgentURL:   "http://browser-agent:8083",
+				State:      string(taskCopy.Status.State),
+				Success:    false,
+				Message:    "Task TASK_STATE_FAILED: " + errorText,
+				TaskResult: errorText,
+				Task:       &taskCopy,
+			}
+			result := &domain.ToolExecutionResult{
+				ToolName: "A2A_SubmitTask",
+				Success:  false,
+				Error:    errorText,
+				Data:     data,
+			}
+
+			formatted := tool.FormatResult(result, domain.FormatterLLM)
+			assert.Contains(t, formatted, "Failure reason:", "Failed task formatter must label the error")
+			assert.Contains(t, formatted, errorText, "Failed task formatter must include the underlying error text")
+		})
+	}
+}
+
+func TestA2ASubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
+	cfg := &config.Config{}
+	tool := NewA2ASubmitTaskTool(cfg, nil)
+
+	errorText := "DeepSeek returned 400: invalid_api_key"
+
+	taskCopy := adk.Task{
+		ID:        "task-failed-history",
+		ContextID: "ctx",
+		Status:    adk.TaskStatus{State: adk.TaskStateFailed},
+		History: []adk.Message{
+			{Role: adk.RoleUser, Parts: []adk.Part{{Text: ptrString("hi")}}},
+			{Role: adk.RoleAgent, Parts: []adk.Part{{Text: ptrString(errorText)}}},
+		},
+	}
+
+	data := A2ASubmitTaskResult{
+		TaskID:    taskCopy.ID,
+		ContextID: taskCopy.ContextID,
+		AgentURL:  "http://browser-agent:8083",
+		State:     string(taskCopy.Status.State),
+		Success:   false,
+		Message:   "Task TASK_STATE_FAILED",
+		Task:      &taskCopy,
+	}
+	result := &domain.ToolExecutionResult{
+		ToolName: "A2A_SubmitTask",
+		Success:  false,
+		Data:     data,
+	}
+
+	formatted := tool.FormatResult(result, domain.FormatterLLM)
+	assert.Contains(t, formatted, "Failure reason:")
+	assert.Contains(t, formatted, errorText)
+}
+
+func ptrString(s string) *string { return &s }
+
 func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
 	tool := NewA2ASubmitTaskTool(cfg, nil)

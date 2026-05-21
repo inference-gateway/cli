@@ -393,13 +393,7 @@ func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ st
 
 // extractTextFromParts extracts text content from ADK message parts
 func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
-	var text string
-	for _, part := range parts {
-		if part.Text != nil {
-			text += *part.Text
-		}
-	}
-	return text
+	return textFromParts(parts)
 }
 
 func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task) {
@@ -454,23 +448,27 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		return true, result
 
 	case normalizedState == strings.ToLower(string(adk.TaskStateFailed)) || normalizedState == "failed":
-		finalResult := ""
-		if currentTask.Status.Message != nil {
-			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
+		finalResult := failureReasonFromTask(currentTask)
+
+		msg := fmt.Sprintf("Task %s", currentTask.Status.State)
+		if finalResult != "" {
+			msg = fmt.Sprintf("Task %s: %s", currentTask.Status.State, finalResult)
 		}
 
 		result := &domain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
+			Error:    finalResult,
 			Data: A2ASubmitTaskResult{
 				TaskID:     currentTask.ID,
 				ContextID:  currentTask.ContextID,
 				AgentURL:   agentURL,
 				State:      string(currentTask.Status.State),
 				Success:    false,
-				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
+				Message:    msg,
 				TaskResult: finalResult,
+				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -607,7 +605,16 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 		fmt.Fprintf(&dataContent, "Context ID: %s\n", taskData.ContextID)
 	}
 	fmt.Fprintf(&dataContent, "State: %s\n", taskData.State)
-	if taskData.TaskResult != "" {
+
+	if isFailedTaskState(adk.TaskState(taskData.State)) {
+		reason := taskData.TaskResult
+		if reason == "" && taskData.Task != nil {
+			reason = failureReasonFromTask(*taskData.Task)
+		}
+		if reason != "" {
+			fmt.Fprintf(&dataContent, "\nFailure reason: %s\n", reason)
+		}
+	} else if taskData.TaskResult != "" {
 		fmt.Fprintf(&dataContent, "\n%s", taskData.TaskResult)
 	}
 

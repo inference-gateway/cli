@@ -330,6 +330,101 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 	}
 }
 
+func TestA2AQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{Enabled: true},
+			},
+		},
+	}
+	tool := NewA2AQueryTaskTool(cfg, nil)
+
+	errorText := "DeepSeek: The `reasoning_content` in the thinking mode must be passed back to the API."
+	errorTextPtr := errorText
+
+	tests := []struct {
+		name string
+		task *adk.Task
+	}{
+		{
+			name: "Status.Message TextPart",
+			task: &adk.Task{
+				ID: "t1",
+				Status: adk.TaskStatus{
+					State: adk.TaskStateFailed,
+					Message: &adk.Message{
+						MessageID: "m1",
+						Role:      adk.RoleAgent,
+						Parts:     []adk.Part{{Text: &errorTextPtr}},
+					},
+				},
+			},
+		},
+		{
+			name: "Status.Message DataPart with error key",
+			task: &adk.Task{
+				ID: "t2",
+				Status: adk.TaskStatus{
+					State: adk.TaskStateFailed,
+					Message: &adk.Message{
+						MessageID: "m2",
+						Role:      adk.RoleAgent,
+						Parts: []adk.Part{{
+							Data: &adk.DataPart{Data: adk.Struct{
+								"status": "TASK_STATE_FAILED",
+								"error":  errorText,
+							}},
+						}},
+					},
+				},
+			},
+		},
+		{
+			name: "fallback to last agent History entry",
+			task: &adk.Task{
+				ID:     "t3",
+				Status: adk.TaskStatus{State: adk.TaskStateFailed},
+				History: []adk.Message{
+					{Role: adk.RoleUser, Parts: []adk.Part{{Text: stringPtr("research")}}},
+					{Role: adk.RoleAgent, Parts: []adk.Part{{Text: &errorTextPtr}}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := &domain.ToolExecutionResult{
+				ToolName: "A2A_QueryTask",
+				Success:  false,
+				Data: A2AQueryTaskResult{
+					AgentName: "http://browser-agent:8083",
+					ContextID: "ctx",
+					TaskID:    tc.task.ID,
+					Task:      tc.task,
+					Success:   false,
+					Message:   "Task " + tc.task.ID + " is failed",
+				},
+			}
+
+			out := tool.FormatForLLM(result)
+			if !strings.Contains(out, "Failure reason:") {
+				t.Errorf("expected output to contain 'Failure reason:', got: %s", out)
+			}
+			if !strings.Contains(out, errorText) {
+				t.Errorf("expected output to contain underlying error text, got: %s", out)
+			}
+			if !strings.Contains(out, "No artifacts available") {
+				t.Errorf("expected output to still mention no artifacts available, got: %s", out)
+			}
+		})
+	}
+}
+
+func stringPtr(s string) *string { return &s }
+
 func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{

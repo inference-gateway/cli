@@ -229,6 +229,12 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 	task := queryResult.Task
 	fmt.Fprintf(&output, "Task Status: %s\n", task.Status.State)
 
+	if isFailedTaskState(task.Status.State) {
+		if reason := failureReasonFromTask(*task); reason != "" {
+			fmt.Fprintf(&output, "\nFailure reason: %s\n", reason)
+		}
+	}
+
 	hasArtifacts := len(task.Artifacts) > 0
 	if !hasArtifacts {
 		output.WriteString("\nNo artifacts available for this task.\n")
