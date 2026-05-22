@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.110.0](https://github.com/inference-gateway/cli/compare/v0.109.11...v0.110.0) (2026-05-22)
+
+### 🚀 Features
+
+* Add new session keybinding ([389be2f](https://github.com/inference-gateway/cli/commit/389be2f3bd1998e0caedcd7a6d872e6966f7db3c))
+* Add word-wise cursor movement and deletion ([13fedb9](https://github.com/inference-gateway/cli/commit/13fedb9d227c49132f7530d664c0d664805ca8e8))
+
+### 🐛 Bug Fixes
+
+* **chat:** Use last-request tokens for context window indicator ([a2fbf8d](https://github.com/inference-gateway/cli/commit/a2fbf8d736e845f841c9a4217f09b78aafa8096f))
+
+### 👷 CI/CD
+
+* **claude:** Add maintainer skill ([6d743e4](https://github.com/inference-gateway/cli/commit/6d743e4b4f2c71d68cca69b3fa19d8a819c801c6))
+* **claude:** Simplify conditions for triggering Claude Code actions ([c9771fb](https://github.com/inference-gateway/cli/commit/c9771fbd6e045853e2c35b3a753bb9899ac203a7))
+* **deps:** Update Claude Code Action to version 1.0.131 ([1130342](https://github.com/inference-gateway/cli/commit/1130342f489f4d2c3cd7f34643d87305be8736cf))
+* **deps:** Update claude-code-action to version 1.0.130 ([5c203e9](https://github.com/inference-gateway/cli/commit/5c203e979abd019f032e1dd931f7e96ac91887af))
+
+### 🧹 Maintenance
+
+* **deps:** Update infer.flake to v0.109.11 ([50e883a](https://github.com/inference-gateway/cli/commit/50e883a443a964451b14878c3214c009511c4333))
+
 ## [0.109.11](https://github.com/inference-gateway/cli/compare/v0.109.10...v0.109.11) (2026-05-21)
 
 ### 🐛 Bug Fixes
