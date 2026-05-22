@@ -413,9 +413,9 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		nilRepo      bool
 	}{
 		{
-			name: "renders percentage at low usage",
+			name: "renders percentage at low usage from LastInputTokens",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens: 20_000,
+				LastInputTokens: 20_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "Context: 2.0%",
@@ -424,7 +424,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		{
 			name: "renders HIGH label between 75 and 90 percent",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens: 800_000,
+				LastInputTokens: 800_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "Context: 80% HIGH",
@@ -433,16 +433,26 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		{
 			name: "renders FULL label at or above 90 percent",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens: 950_000,
+				LastInputTokens: 950_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "Context: 95% FULL",
 			expectEmpty:  false,
 		},
 		{
-			name: "returns empty when total input tokens is zero",
+			name: "uses last request size, ignores cumulative total",
 			stats: domain.SessionTokenStats{
-				TotalInputTokens: 0,
+				TotalInputTokens: 3_163_117,
+				LastInputTokens:  50_000,
+			},
+			model:        "deepseek/deepseek-v4-flash",
+			expectedText: "Context: 5.0%",
+			expectEmpty:  false,
+		},
+		{
+			name: "returns empty when no usage and no estimator",
+			stats: domain.SessionTokenStats{
+				LastInputTokens: 0,
 			},
 			model:        "deepseek/deepseek-v4-flash",
 			expectedText: "",

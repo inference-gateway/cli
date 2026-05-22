@@ -449,10 +449,11 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 }
 
 // buildSessionTokensIndicator builds the cumulative input-tokens indicator.
-// Shows the total input tokens billed across the session - the same value
-// /context divides by the context window for its usage percentage. When the
-// provider did not return usage in its response, falls back to estimating
-// tokens from the message buffer via the tokenizer polyfill.
+// Shows the total input tokens billed across the entire session (the same
+// number that drives the cost calculation). This is a cumulative running
+// total, not the size of the current context window - the Context indicator
+// uses LastInputTokens for that. Falls back to a tokenizer estimate of the
+// current message buffer when the provider has not returned usage yet.
 func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	if isb.conversationRepo == nil {
 		return ""
@@ -468,8 +469,8 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 
 // totalInputTokensOrEstimate returns the cumulative TotalInputTokens reported
 // by the gateway, or - when the provider did not return usage - falls back
-// to estimating tokens from the current message buffer. Used by both the raw
-// indicator and the percentage indicator so they always agree.
+// to estimating tokens from the current message buffer. Drives the cumulative
+// T.XXX indicator.
 func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
 	if isb.conversationRepo == nil {
 		return 0
@@ -478,6 +479,38 @@ func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
 	stats := isb.conversationRepo.GetSessionTokens()
 	if stats.TotalInputTokens > 0 {
 		return stats.TotalInputTokens
+	}
+
+	if isb.tokenEstimator == nil {
+		return 0
+	}
+
+	messages := isb.conversationRepo.GetMessages()
+	if len(messages) == 0 {
+		return 0
+	}
+
+	sdkMessages := make([]sdk.Message, 0, len(messages))
+	for _, entry := range messages {
+		sdkMessages = append(sdkMessages, entry.Message)
+	}
+	return isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
+}
+
+// currentContextTokensOrEstimate returns an approximation of the tokens that
+// would be sent in the next request - i.e. how full the model's context window
+// is right now. Prefers the gateway-reported LastInputTokens (which includes
+// the system prompt and tool definitions, matching what the optimizer and
+// session-rollover manager use); falls back to a tokenizer estimate of the
+// current message buffer before the first round-trip.
+func (isb *InputStatusBar) currentContextTokensOrEstimate() int {
+	if isb.conversationRepo == nil {
+		return 0
+	}
+
+	stats := isb.conversationRepo.GetSessionTokens()
+	if stats.LastInputTokens > 0 {
+		return stats.LastInputTokens
 	}
 
 	if isb.tokenEstimator == nil {
@@ -623,14 +656,15 @@ func (isb *InputStatusBar) getA2ATaskInfo() string {
 }
 
 // getContextUsageIndicator returns a context usage indicator string.
-// Uses the same calculation as the /context shortcut (cumulative session
-// input tokens divided by the model's context window) so both surfaces
-// report the same percentage. Renders whenever there is data, with HIGH/FULL
-// warning labels at high thresholds. Falls back to the tokenizer polyfill
-// when the provider did not return usage on the latest request.
+// Measures how full the model's context window is for the *next* request:
+// the gateway-reported LastInputTokens from the most recent call (which
+// includes system prompt and tool definitions) divided by the model's
+// context window. Falls back to the tokenizer polyfill before the first
+// round-trip. Renders HIGH/FULL warning labels at high thresholds.
+// This is NOT the cumulative session token count - that's shown by T.XXX.
 func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
-	totalInputTokens := isb.totalInputTokensOrEstimate()
-	if totalInputTokens == 0 {
+	contextTokens := isb.currentContextTokensOrEstimate()
+	if contextTokens == 0 {
 		return ""
 	}
 
@@ -639,7 +673,7 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 		return ""
 	}
 
-	usagePercent := float64(totalInputTokens) * 100 / float64(contextWindow)
+	usagePercent := float64(contextTokens) * 100 / float64(contextWindow)
 
 	displayPercent := usagePercent
 	if displayPercent > 100 {

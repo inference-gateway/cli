@@ -44,14 +44,17 @@ func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	if !strings.Contains(res.Output, "**Total Input Tokens:** 20000 tokens") {
-		t.Errorf("expected cumulative provider count, got: %s", res.Output)
+	if !strings.Contains(res.Output, "**Current Context:** 7250 tokens") {
+		t.Errorf("expected current context from LastInputTokens, got: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "**Session Totals:** 20000 input, 314 output") {
+		t.Errorf("expected cumulative session totals line, got: %s", res.Output)
 	}
 	if strings.Contains(res.Output, "(estimated)") {
 		t.Errorf("did not expect (estimated) marker when provider returned usage, got: %s", res.Output)
 	}
-	if !strings.Contains(res.Output, "**Usage:** 2.0%") {
-		t.Errorf("expected 2.0%% usage (20000 input / 1M window), got: %s", res.Output)
+	if !strings.Contains(res.Output, "**Usage:** 0.7%") {
+		t.Errorf("expected 0.7%% usage (7250 last input / 1M window), got: %s", res.Output)
 	}
 }
 
@@ -75,7 +78,7 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	if !strings.Contains(res.Output, "**Total Input Tokens:** ~6643 tokens (estimated)") {
+	if !strings.Contains(res.Output, "**Current Context:** ~6643 tokens (estimated)") {
 		t.Errorf("expected estimated marker, got: %s", res.Output)
 	}
 	if !strings.Contains(res.Output, "**Usage:** 0.7%") {
