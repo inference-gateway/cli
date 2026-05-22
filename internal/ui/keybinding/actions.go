@@ -194,6 +194,7 @@ func (r *Registry) createChatActions() []*KeyAction {
 
 	actions = append(actions, r.createClipboardActions()...)
 	actions = append(actions, r.createTextEditingActions()...)
+	actions = append(actions, r.createWordEditingActions()...)
 	actions = append(actions, r.createHistoryActions()...)
 
 	return actions
@@ -345,6 +346,51 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			Description: "move cursor to end",
 			Category:    "text_editing",
 			Handler:     handleMoveToEnd,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+	}
+}
+
+// createWordEditingActions creates word-wise cursor movement and deletion actions
+func (r *Registry) createWordEditingActions() []*KeyAction {
+	return []*KeyAction{
+		{
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_word_left"),
+			Keys:        []string{"alt+left", "ctrl+left", "alt+b"},
+			Description: "move cursor one word left",
+			Category:    "text_editing",
+			Handler:     handleMoveCursorWordLeft,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_word_right"),
+			Keys:        []string{"alt+right", "ctrl+right", "alt+f"},
+			Description: "move cursor one word right",
+			Category:    "text_editing",
+			Handler:     handleMoveCursorWordRight,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "delete_word_forward"),
+			Keys:        []string{"alt+d"},
+			Description: "delete word forward",
+			Category:    "text_editing",
+			Handler:     handleDeleteWordForward,
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
@@ -1136,6 +1182,70 @@ func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 			inputView.SetCursor(start)
 		}
 	}
+	return nil
+}
+
+func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView == nil {
+		return nil
+	}
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+	if cursor >= len(text) {
+		return nil
+	}
+
+	end := cursor
+	for end < len(text) && (text[end] == ' ' || text[end] == '\t') {
+		end++
+	}
+	for end < len(text) && text[end] != ' ' && text[end] != '\t' {
+		end++
+	}
+
+	inputView.SetText(text[:cursor] + text[end:])
+	inputView.SetCursor(cursor)
+	return nil
+}
+
+func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView == nil {
+		return nil
+	}
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+
+	start := cursor
+	for start > 0 && (text[start-1] == ' ' || text[start-1] == '\t') {
+		start--
+	}
+	for start > 0 && text[start-1] != ' ' && text[start-1] != '\t' {
+		start--
+	}
+
+	inputView.SetCursor(start)
+	return nil
+}
+
+func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView == nil {
+		return nil
+	}
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+
+	end := cursor
+	for end < len(text) && (text[end] == ' ' || text[end] == '\t') {
+		end++
+	}
+	for end < len(text) && text[end] != ' ' && text[end] != '\t' {
+		end++
+	}
+
+	inputView.SetCursor(end)
 	return nil
 }
 

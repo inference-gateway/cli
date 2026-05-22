@@ -19,6 +19,7 @@ var AllKnownKeys = []string{
 	// Basic navigation and editing
 	"up", "down", "left", "right",
 	"shift+up", "shift+down", "shift+left", "shift+right",
+	"alt+left", "alt+right", "ctrl+left", "ctrl+right",
 	"enter", "shift+enter", "backspace", "delete", "tab", "shift+tab", "space",
 	"home", "end", "pgup", "pgdn", "page_up", "page_down",
 	"esc", "escape",

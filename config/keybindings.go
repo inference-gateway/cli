@@ -206,6 +206,24 @@ func addTextEditingBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "text_editing",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceTextEditing, "delete_word_forward")] = KeyBindingEntry{
+		Keys:        []string{"alt+d"},
+		Description: "delete word forward",
+		Category:    "text_editing",
+		Enabled:     &enabled,
+	}
+	bindings[ActionID(NamespaceTextEditing, "move_cursor_word_left")] = KeyBindingEntry{
+		Keys:        []string{"alt+left", "ctrl+left", "alt+b"},
+		Description: "move cursor one word left",
+		Category:    "text_editing",
+		Enabled:     &enabled,
+	}
+	bindings[ActionID(NamespaceTextEditing, "move_cursor_word_right")] = KeyBindingEntry{
+		Keys:        []string{"alt+right", "ctrl+right", "alt+f"},
+		Description: "move cursor one word right",
+		Category:    "text_editing",
+		Enabled:     &enabled,
+	}
 	bindings[ActionID(NamespaceTextEditing, "move_to_beginning")] = KeyBindingEntry{
 		Keys:        []string{"ctrl+a"},
 		Description: "move cursor to beginning",

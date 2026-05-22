@@ -162,6 +162,12 @@ bindings:
     description: delete word backward
     category: text_editing
     enabled: true
+  text_editing_delete_word_forward:
+    keys:
+      - alt+d
+    description: delete word forward
+    category: text_editing
+    enabled: true
   text_editing_history_down:
     keys:
       - down
@@ -196,6 +202,22 @@ bindings:
     keys:
       - right
     description: move cursor right
+    category: text_editing
+    enabled: true
+  text_editing_move_cursor_word_left:
+    keys:
+      - alt+left
+      - ctrl+left
+      - alt+b
+    description: move cursor one word left
+    category: text_editing
+    enabled: true
+  text_editing_move_cursor_word_right:
+    keys:
+      - alt+right
+      - ctrl+right
+      - alt+f
+    description: move cursor one word right
     category: text_editing
     enabled: true
   text_editing_move_to_beginning:
