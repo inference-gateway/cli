@@ -530,11 +530,13 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	dimColor := t.styleProvider.GetThemeColor("dim")
 
 	header := t.styleProvider.RenderWithColorAndBold("Task Details", accentColor)
-	content.WriteString(header + "\n")
+	content.WriteString(header)
+	content.WriteString("\n")
 
 	separatorWidth := t.getSeparatorWidth()
 	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
-	content.WriteString(separator + "\n\n")
+	content.WriteString(separator)
+	content.WriteString("\n\n")
 
 	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID)
 	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL)
@@ -556,7 +558,8 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	view.WriteString("\n")
 
 	footerSeparator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.width), dimColor)
-	view.WriteString(footerSeparator + "\n")
+	view.WriteString(footerSeparator)
+	view.WriteString("\n")
 
 	helpText := t.styleProvider.RenderDimText("Press ↑↓/j/k to scroll • g/G for top/bottom • PgUp/PgDn to page • 'i' or 'esc' to close")
 	view.WriteString(helpText)
@@ -573,17 +576,17 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 
 	separatorWidth := t.getSeparatorWidth()
 	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
-	content.WriteString(separator + "\n")
+	content.WriteString(separator)
+	content.WriteString("\n")
 
 	historyHeader := t.styleProvider.RenderWithColorAndBold("Task History", accentColor)
-	content.WriteString(historyHeader + "\n")
+	content.WriteString(historyHeader)
+	content.WriteString("\n")
 
-	content.WriteString(separator + "\n\n")
+	content.WriteString(separator)
+	content.WriteString("\n\n")
 
-	textWidth := t.infoViewport.Width - 4
-	if textWidth < 40 {
-		textWidth = 40
-	}
+	textWidth := max(t.infoViewport.Width-4, 40)
 
 	for i, historyItem := range task.TaskRef.Task.History {
 		if i > 0 {
@@ -595,8 +598,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 		for _, part := range historyItem.Parts {
 			if part.Text != nil && *part.Text != "" {
 				wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
-				lines := strings.Split(wrappedText, "\n")
-				for _, line := range lines {
+				for line := range strings.SplitSeq(wrappedText, "\n") {
 					fmt.Fprintf(content, "  %s\n", line)
 				}
 			}
@@ -630,10 +632,7 @@ func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role s
 
 // renderFinalResult renders the final result message
 func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
-	textWidth := t.infoViewport.Width - 4
-	if textWidth < 40 {
-		textWidth = 40
-	}
+	textWidth := max(t.infoViewport.Width-4, 40)
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")
@@ -649,8 +648,7 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {
 		if part.Text != nil && *part.Text != "" {
 			wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
-			lines := strings.Split(wrappedText, "\n")
-			for _, line := range lines {
+			for line := range strings.SplitSeq(wrappedText, "\n") {
 				fmt.Fprintf(content, "  %s\n", line)
 			}
 		}

@@ -352,10 +352,7 @@ func (cv *ConversationView) renderStreamingContent() string {
 		rolePrefixLength += len(fmt.Sprintf(" (%s)", model))
 	}
 
-	wrapWidth := cv.width - rolePrefixLength
-	if wrapWidth < 40 {
-		wrapWidth = 40
-	}
+	wrapWidth := max(cv.width-rolePrefixLength, 40)
 
 	streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
 
@@ -370,7 +367,10 @@ func (cv *ConversationView) renderStreamingContent() string {
 		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
 	}
 
-	result.WriteString(roleStyled + " " + streamingContent + "\n")
+	result.WriteString(roleStyled)
+	result.WriteString(" ")
+	result.WriteString(streamingContent)
+	result.WriteString("\n")
 	return result.String()
 }
 
@@ -588,10 +588,7 @@ func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, 
 		rolePrefixLength += len(modelLabelText)
 	}
 
-	wrapWidth := cv.width - rolePrefixLength
-	if wrapWidth < 40 {
-		wrapWidth = 40
-	}
+	wrapWidth := max(cv.width-rolePrefixLength, 40)
 
 	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
 
@@ -618,11 +615,13 @@ func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText stri
 
 // renderShortcutOutput renders shortcut output on a new line with markdown support
 func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleStyled, contentStr string, wrapWidth int) {
-	result.WriteString(roleStyled + "\n\n")
+	result.WriteString(roleStyled)
+	result.WriteString("\n\n")
 	formattedContent := cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
-	lines := strings.Split(formattedContent, "\n")
-	for _, line := range lines {
-		result.WriteString("  " + line + "\n")
+	for line := range strings.SplitSeq(formattedContent, "\n") {
+		result.WriteString("  ")
+		result.WriteString(line)
+		result.WriteString("\n")
 	}
 }
 
@@ -634,7 +633,10 @@ func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleSty
 	} else {
 		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 	}
-	result.WriteString(roleStyled + " " + formattedContent + "\n")
+	result.WriteString(roleStyled)
+	result.WriteString(" ")
+	result.WriteString(formattedContent)
+	result.WriteString("\n")
 }
 
 // applyMarkdownIfEnabled applies markdown rendering if enabled, otherwise formats as plain text
@@ -675,18 +677,24 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 
 	if contentStr != "" {
 		if entry.Model == "" {
-			result.WriteString(roleStyled + "\n")
-			lines := strings.Split(contentStr, "\n")
-			for _, line := range lines {
-				result.WriteString("  " + line + "\n")
+			result.WriteString(roleStyled)
+			result.WriteString("\n")
+			for line := range strings.SplitSeq(contentStr, "\n") {
+				result.WriteString("  ")
+				result.WriteString(line)
+				result.WriteString("\n")
 			}
 		} else {
 			modelLabelLen := len(fmt.Sprintf(" (%s)", entry.Model))
 			formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
-			result.WriteString(roleStyled + " " + formattedContent + "\n")
+			result.WriteString(roleStyled)
+			result.WriteString(" ")
+			result.WriteString(formattedContent)
+			result.WriteString("\n")
 		}
 	} else {
-		result.WriteString(roleStyled + "\n")
+		result.WriteString(roleStyled)
+		result.WriteString("\n")
 	}
 
 	return result.String()
@@ -695,10 +703,7 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 // formatAssistantContent formats assistant message content with proper wrapping
 func (cv *ConversationView) formatAssistantContent(contentStr, role string, modelLabelLen int) string {
 	rolePrefixLength := len(role) + 2 + modelLabelLen
-	wrapWidth := cv.width - rolePrefixLength
-	if wrapWidth < 40 {
-		wrapWidth = 40
-	}
+	wrapWidth := max(cv.width-rolePrefixLength, 40)
 
 	if cv.markdownRenderer != nil && !cv.rawFormat {
 		originalWidth := cv.width
@@ -837,7 +842,7 @@ func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
 }
 
 // renderThinkingBlock renders a thinking/reasoning block for assistant messages
-func (cv *ConversationView) renderThinkingBlock(thinking string, index int, expanded bool) string {
+func (cv *ConversationView) renderThinkingBlock(thinking string, _ int, expanded bool) string {
 	if thinking == "" {
 		return ""
 	}
@@ -1021,7 +1026,7 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 }
 
 // handleApprovalSelectionChanged processes approval selection change events
-func (cv *ConversationView) handleApprovalSelectionChanged(msg domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleApprovalSelectionChanged(_ domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
 	}
@@ -1201,13 +1206,16 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
 	}
 
-	result.WriteString(roleStyled + "\n\n")
+	result.WriteString(roleStyled)
+	result.WriteString("\n\n")
 	for line := range strings.SplitSeq(formattedContent, "\n") {
 		if line == "" {
 			result.WriteString("\n")
 			continue
 		}
-		result.WriteString("  " + line + "\n")
+		result.WriteString("  ")
+		result.WriteString(line)
+		result.WriteString("\n")
 	}
 
 	if entry.PlanApprovalStatus == domain.PlanApprovalPending {
@@ -1351,10 +1359,11 @@ func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, c
 		rendered = formatting.FormatResponsiveMessage(content, cv.width)
 	}
 
-	lines := strings.Split(rendered, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(rendered, "\n") {
 		if line != "" {
-			result.WriteString("    " + line + "\n")
+			result.WriteString("    ")
+			result.WriteString(line)
+			result.WriteString("\n")
 		} else {
 			result.WriteString("\n")
 		}
@@ -1389,7 +1398,8 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 	}
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	result.WriteString(roleStyled + "\n")
+	result.WriteString(roleStyled)
+	result.WriteString("\n")
 
 	toolCall := entry.PendingToolCall
 	toolName := toolCall.Function.Name
@@ -1599,10 +1609,7 @@ func (cv *ConversationView) renderMessageHistorySelector() string {
 		return b.String()
 	}
 
-	maxVisible := cv.height - 10
-	if maxVisible < 5 {
-		maxVisible = 5
-	}
+	maxVisible := max(cv.height-10, 5)
 
 	start, end := cv.calculatePaginationBounds(maxVisible)
 
@@ -1619,10 +1626,7 @@ func (cv *ConversationView) renderMessageHistorySelector() string {
 		}
 
 		prefixWidth := 25
-		availableWidth := cv.width - prefixWidth
-		if availableWidth < 20 {
-			availableWidth = 20
-		}
+		availableWidth := max(cv.width-prefixWidth, 20)
 
 		truncatedMsg := strings.ReplaceAll(msg.Content, "\n", " ")
 		truncatedMsg = strings.ReplaceAll(truncatedMsg, "\r", " ")
@@ -1669,17 +1673,11 @@ func (cv *ConversationView) calculatePaginationBounds(maxVisible int) (int, int)
 		return 0, totalMessages
 	}
 
-	start := cv.historySelectedIndex - maxVisible/2
-	if start < 0 {
-		start = 0
-	}
+	start := max(cv.historySelectedIndex-maxVisible/2, 0)
 	end := start + maxVisible
 	if end > totalMessages {
 		end = totalMessages
-		start = end - maxVisible
-		if start < 0 {
-			start = 0
-		}
+		start = max(end-maxVisible, 0)
 	}
 
 	return start, end

@@ -178,13 +178,13 @@ func (v *InitGithubActionView) sanitizeInput(input string) string {
 	input = strings.ReplaceAll(input, "]", "")
 
 	if v.step == 2 {
-		filtered := ""
+		var filtered strings.Builder
 		for _, r := range input {
 			if r >= '0' && r <= '9' {
-				filtered += string(r)
+				filtered.WriteRune(r)
 			}
 		}
-		return filtered
+		return filtered.String()
 	}
 
 	return input
@@ -300,7 +300,9 @@ func (v *InitGithubActionView) renderStepManualAppID(b *strings.Builder) {
 		accentColor := v.styleProvider.GetThemeColor("accent")
 		appsURL := v.getGithubActionsURL()
 		link := v.styleProvider.RenderWithColor(appsURL, accentColor)
-		b.WriteString("  " + link + "\n\n")
+		b.WriteString("  ")
+		b.WriteString(link)
+		b.WriteString("\n\n")
 
 		b.WriteString("Click on your app name to see the App ID\n\n")
 	} else {
@@ -310,7 +312,11 @@ func (v *InitGithubActionView) renderStepManualAppID(b *strings.Builder) {
 
 	before := v.inputBuffer[:v.cursorPos]
 	after := v.inputBuffer[v.cursorPos:]
-	b.WriteString("App ID: > " + before + "_" + after + "\n\n")
+	b.WriteString("App ID: > ")
+	b.WriteString(before)
+	b.WriteString("_")
+	b.WriteString(after)
+	b.WriteString("\n\n")
 	b.WriteString("Press Enter when done")
 }
 
@@ -327,7 +333,9 @@ func (v *InitGithubActionView) renderStepPrivateKey(b *strings.Builder) {
 	accentColor := v.styleProvider.GetThemeColor("accent")
 	appsPageURL := v.getGithubActionsURL()
 	link := v.styleProvider.RenderWithColor(appsPageURL, accentColor)
-	b.WriteString("  1. Go to " + link + "\n")
+	b.WriteString("  1. Go to ")
+	b.WriteString(link)
+	b.WriteString("\n")
 	b.WriteString("  2. Click on your app name from the list\n")
 	b.WriteString("  3. Scroll to 'Private keys' section\n")
 	b.WriteString("  4. Click 'Generate a private key' (if you haven't already)\n")
@@ -338,10 +346,15 @@ func (v *InitGithubActionView) renderStepPrivateKey(b *strings.Builder) {
 
 	before := v.inputBuffer[:v.cursorPos]
 	after := v.inputBuffer[v.cursorPos:]
-	b.WriteString("> " + before + "_" + after + "\n\n")
+	b.WriteString("> ")
+	b.WriteString(before)
+	b.WriteString("_")
+	b.WriteString(after)
+	b.WriteString("\n\n")
 
 	tabHint := v.styleProvider.RenderDimText("Press Tab to browse .pem files in current directory")
-	b.WriteString(tabHint + " | Press Enter when done")
+	b.WriteString(tabHint)
+	b.WriteString(" | Press Enter when done")
 }
 
 func (v *InitGithubActionView) renderFilePicker(b *strings.Builder) {
@@ -356,13 +369,8 @@ func (v *InitGithubActionView) renderFilePicker(b *strings.Builder) {
 	accentColor := v.styleProvider.GetThemeColor("accent")
 
 	maxVisible := 10
-	start := v.filePickerIndex
-	if start > len(v.filePickerFiles)-maxVisible {
-		start = len(v.filePickerFiles) - maxVisible
-	}
-	if start < 0 {
-		start = 0
-	}
+	start := min(v.filePickerIndex, len(v.filePickerFiles)-maxVisible)
+	start = max(start, 0)
 
 	for i := start; i < len(v.filePickerFiles) && i < start+maxVisible; i++ {
 		file := v.filePickerFiles[i]
@@ -370,7 +378,9 @@ func (v *InitGithubActionView) renderFilePicker(b *strings.Builder) {
 			b.WriteString(v.styleProvider.RenderWithColor("> "+file, accentColor))
 			b.WriteString("\n")
 		} else {
-			b.WriteString("  " + file + "\n")
+			b.WriteString("  ")
+			b.WriteString(file)
+			b.WriteString("\n")
 		}
 	}
 
