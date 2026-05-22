@@ -43,6 +43,12 @@ bindings:
     description: cancel current operation
     category: global
     enabled: true
+  global_new_session:
+    keys:
+      - ctrl+l
+    description: clear chat and start a new session
+    category: global
+    enabled: true
   global_quit:
     keys:
       - ctrl+c

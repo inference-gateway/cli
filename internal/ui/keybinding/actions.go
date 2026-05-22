@@ -58,6 +58,19 @@ func (r *Registry) createGlobalActions() []*KeyAction {
 				Views: []domain.ViewState{},
 			},
 		},
+		{
+			ID:          config.ActionID(config.NamespaceGlobal, "new_session"),
+			Namespace:   config.NamespaceGlobal,
+			Keys:        []string{"ctrl+l"},
+			Description: "clear chat and start a new session",
+			Category:    "global",
+			Handler:     handleNewSession,
+			Priority:    100,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{},
+			},
+		},
 	}
 }
 
@@ -720,6 +733,51 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			Spinner: false,
 		}
 	}
+}
+
+func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+		agentService := app.GetAgentService()
+		if agentService != nil {
+			_ = agentService.CancelRequest(chatSession.RequestID)
+		}
+	}
+
+	stateManager.EndChatSession()
+	stateManager.EndToolExecution()
+	_ = stateManager.TransitionToView(domain.ViewStateChat)
+
+	conversationRepo := app.GetConversationRepository()
+	if conversationRepo != nil {
+		_ = conversationRepo.Clear()
+	}
+
+	input := app.GetInputView()
+	if input != nil {
+		input.ClearInput()
+		if iv, ok := input.(*components.InputView); ok {
+			iv.ClearCustomHint()
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: []domain.ConversationEntry{},
+			}
+		},
+		func() tea.Msg {
+			return domain.ClearInputEvent{}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message: "New session started",
+				Spinner: false,
+			}
+		},
+	)
 }
 
 func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

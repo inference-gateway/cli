@@ -82,6 +82,12 @@ func addGlobalBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "global",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceGlobal, "new_session")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+l"},
+		Description: "clear chat and start a new session",
+		Category:    "global",
+		Enabled:     &enabled,
+	}
 }
 
 func addChatBindings(bindings map[string]KeyBindingEntry) {
