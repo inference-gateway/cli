@@ -204,7 +204,7 @@ tasks:
           --annotation "index:org.opencontainers.image.url=https://github.com/inference-gateway/cli" \
           --annotation "index:org.opencontainers.image.documentation=https://github.com/inference-gateway/cli#readme" \
           --annotation "index:org.opencontainers.image.source=https://github.com/inference-gateway/cli" \
-          --annotation "index:org.opencontainers.image.licenses=MIT" \
+          --annotation "index:org.opencontainers.image.licenses=Apache-2.0" \
           --annotation "index:org.opencontainers.image.version={{.VERSION}}" \
           --annotation "index:org.opencontainers.image.revision={{.COMMIT}}" \
           --annotation "index:org.opencontainers.image.created={{.DATE}}" \

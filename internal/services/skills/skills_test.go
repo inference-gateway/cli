@@ -220,7 +220,7 @@ func TestPortability_AnthropicSkillFolder(t *testing.T) {
 	skillBody := `---
 name: skill-creator
 description: Create a new agent skill following the cross-vendor contract. Use when the user asks to author a skill.
-license: MIT
+license: Apache-2.0
 ---
 
 # Skill Creator

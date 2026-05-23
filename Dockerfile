@@ -7,7 +7,7 @@ LABEL org.opencontainers.image.authors="Inference Gateway Team"
 LABEL org.opencontainers.image.url="https://github.com/inference-gateway/cli"
 LABEL org.opencontainers.image.documentation="https://github.com/inference-gateway/cli#readme"
 LABEL org.opencontainers.image.source="https://github.com/inference-gateway/cli"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 ARG VERSION=""
 ARG REVISION=""

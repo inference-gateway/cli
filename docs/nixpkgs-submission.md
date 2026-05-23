@@ -170,7 +170,7 @@ This PR adds the Inference Gateway CLI (`infer`), a command-line tool for managi
 
 - **Package name**: `infer`
 - **Version**: `0.103.0`
-- **License**: MIT
+- **License**: Apache-2.0
 - **Platforms**: Linux (x86_64, aarch64), macOS (x86_64, aarch64)
 - **Homepage**: https://github.com/inference-gateway/cli
 
