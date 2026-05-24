@@ -6,12 +6,15 @@ import (
 	"testing"
 	"time"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
+	lipgloss "github.com/charmbracelet/lipgloss"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // stubToolFormatter is a minimal ToolFormatter for tests that need the
@@ -417,7 +420,7 @@ func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 		t.Errorf("expected ExecutionStatsJSON to contain failed_tools, got %q", display.ExecutionStatsJSON)
 	}
 
-	out := cv.renderBackgroundTaskLine(display)
+	out := cv.renderBackgroundTaskLine(display, 0)
 	if !strings.Contains(out, "Agent(browser-agent=completed)") {
 		t.Errorf("expected header line, got %q", out)
 	}
@@ -442,7 +445,7 @@ func TestBackgroundTaskDisplay_CompletedWithoutMetadataRendersBareName(t *testin
 		AgentName:  "old-agent",
 		State:      "completed",
 		IsTerminal: true,
-	})
+	}, 0)
 	if !strings.Contains(out, "Agent(old-agent=completed)") {
 		t.Errorf("expected 'Agent(old-agent=completed)' header, got %q", out)
 	}
@@ -459,7 +462,7 @@ func TestBackgroundTaskDisplay_CompletedUsesLastBranchWhenOnlyOneDetail(t *testi
 		State:      "completed",
 		UsageJSON:  `{"total_tokens":10}`,
 		IsTerminal: true,
-	})
+	}, 0)
 	if !strings.Contains(out, "└── usage=") {
 		t.Errorf("expected single detail to use └── branch, got %q", out)
 	}
@@ -578,7 +581,7 @@ func TestBackgroundTaskDisplay_RenderLine_StatesAndIcons(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			line := cv.renderBackgroundTaskLine(tc.display)
+			line := cv.renderBackgroundTaskLine(tc.display, 0)
 			for _, substr := range tc.contains {
 				if !strings.Contains(line, substr) {
 					t.Errorf("expected line to contain %q, got %q", substr, line)
@@ -705,7 +708,7 @@ func TestBackgroundTaskDisplay_NormalizesStateString(t *testing.T) {
 				TaskID:    "t1",
 				AgentName: "weather-agent",
 				State:     c.raw,
-			})
+			}, 0)
 			if !strings.Contains(line, c.contains) {
 				t.Errorf("for raw state %q expected line to contain %q, got %q", c.raw, c.contains, line)
 			}
@@ -761,7 +764,7 @@ func TestBackgroundTaskDisplay_AgentNameResolverUsed(t *testing.T) {
 		TaskID:   "t1",
 		AgentURL: "http://localhost:8081",
 		State:    "working",
-	})
+	}, 0)
 	if !strings.Contains(line, "Agent(weather-agent=working...)") {
 		t.Errorf("expected resolver-mapped name, got %q", line)
 	}
@@ -775,7 +778,7 @@ func TestBackgroundTaskDisplay_AgentNameResolverFallsBackToShortenedURL(t *testi
 		TaskID:   "t1",
 		AgentURL: "http://localhost:9090",
 		State:    "working",
-	})
+	}, 0)
 	if !strings.Contains(line, "Agent(localhost:9090=working...)") {
 		t.Errorf("expected fallback to shortened URL when resolver returns empty, got %q", line)
 	}
@@ -824,7 +827,7 @@ func TestBackgroundTaskDisplay_FallsBackToShortenedURL(t *testing.T) {
 		TaskID:   "t1",
 		AgentURL: "http://localhost:8081",
 		State:    "working",
-	})
+	}, 0)
 	if strings.Contains(line, "http://") {
 		t.Errorf("expected scheme stripped from fallback URL, got %q", line)
 	}
@@ -848,6 +851,219 @@ func TestBackgroundTaskDisplay_HasActiveBackgroundTasks(t *testing.T) {
 	cv.backgroundTasks["t1"].IsTerminal = true
 	if cv.hasActiveBackgroundTasks() {
 		t.Error("expected no active tasks when all entries are terminal")
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_IncludesModelAndElapsed(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	display := &BackgroundTaskDisplay{
+		TaskID:    "t1",
+		AgentName: "browser-agent",
+		State:     "working",
+		Model:     "deepseek/deepseek-v4-flash",
+		StartedAt: time.Now().Add(-17 * time.Second),
+	}
+	line := cv.renderBackgroundTaskLine(display, 0)
+
+	wantBody := "Agent(browser-agent=working..., model=deepseek/deepseek-v4-flash)"
+	if !strings.Contains(line, wantBody) {
+		t.Errorf("expected line to contain %q, got %q", wantBody, line)
+	}
+	if !strings.Contains(line, "17s") {
+		t.Errorf("expected elapsed 17s, got %q", line)
+	}
+	idxModel := strings.Index(line, "model=")
+	idxElapsed := strings.LastIndex(line, "17s")
+	if idxModel < 0 || idxElapsed < 0 || idxModel >= idxElapsed {
+		t.Errorf("expected 'model=' before elapsed in %q (idxModel=%d, idxElapsed=%d)", line, idxModel, idxElapsed)
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_OmitsModelWhenUnknown(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	display := &BackgroundTaskDisplay{
+		TaskID:    "t1",
+		AgentName: "browser-agent",
+		State:     "working",
+		Model:     "",
+		StartedAt: time.Now().Add(-5 * time.Second),
+	}
+	line := cv.renderBackgroundTaskLine(display, 0)
+
+	if !strings.Contains(line, "Agent(browser-agent=working...) 5s") {
+		t.Errorf("expected no-model form 'Agent(browser-agent=working...) 5s', got %q", line)
+	}
+	if strings.Contains(line, "model=") {
+		t.Errorf("expected no 'model=' segment when model is unknown, got %q", line)
+	}
+	if strings.Contains(line, ",") {
+		t.Errorf("expected no trailing comma artefact when model is unknown, got %q", line)
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_FreezesElapsedOnTerminal(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	started := time.Now().Add(-42 * time.Second)
+	completed := started.Add(42 * time.Second)
+	display := &BackgroundTaskDisplay{
+		TaskID:      "t1",
+		AgentName:   "browser-agent",
+		State:       "completed",
+		Model:       "deepseek/deepseek-v4-flash",
+		StartedAt:   started,
+		CompletedAt: completed,
+		IsTerminal:  true,
+	}
+
+	line := cv.renderBackgroundTaskLine(display, 0)
+	if !strings.Contains(line, "Agent(browser-agent=completed) 42s") {
+		t.Errorf("expected frozen elapsed 'Agent(browser-agent=completed) 42s', got %q", line)
+	}
+	if strings.Contains(line, "model=") {
+		t.Errorf("terminal form must not include 'model=', got %q", line)
+	}
+
+	time.Sleep(1100 * time.Millisecond)
+	line2 := cv.renderBackgroundTaskLine(display, 0)
+	if !strings.Contains(line2, "42s") {
+		t.Errorf("expected elapsed to stay frozen at 42s on re-render, got %q", line2)
+	}
+	if strings.Contains(line2, "43s") {
+		t.Errorf("expected elapsed to NOT tick past 42s after terminal transition, got %q", line2)
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_FormatElapsedMinutes(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	display := &BackgroundTaskDisplay{
+		TaskID:    "t1",
+		AgentName: "x",
+		State:     "working",
+		StartedAt: time.Now().Add(-83 * time.Second),
+	}
+	line := cv.renderBackgroundTaskLine(display, 0)
+	if !strings.Contains(line, "1m23s") {
+		t.Errorf("expected elapsed '1m23s' for 83s, got %q", line)
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_TruncatesLongModel(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	display := &BackgroundTaskDisplay{
+		TaskID:    "t1",
+		AgentName: "browser-agent",
+		State:     "working",
+		Model:     "extremely-long-vendor-name/very-verbose-model-identifier-v42-flash-preview-experimental",
+		StartedAt: time.Now().Add(-3 * time.Second),
+	}
+	const width = 60
+	line := cv.renderBackgroundTaskLine(display, width)
+
+	if got := lipgloss.Width(line); got > width {
+		t.Errorf("expected visible width <= %d, got %d for line %q", width, got, line)
+	}
+	if !strings.Contains(line, "Agent(browser-agent=working..., model=") {
+		t.Errorf("expected name and state preserved with model prefix, got %q", line)
+	}
+	if !strings.Contains(line, "...) 3s") {
+		t.Errorf("expected truncated model ending with '...) 3s', got %q", line)
+	}
+	if !strings.Contains(line, "browser-agent") {
+		t.Errorf("expected name preserved verbatim, got %q", line)
+	}
+	if !strings.Contains(line, "working...") {
+		t.Errorf("expected state preserved verbatim, got %q", line)
+	}
+}
+
+func TestBackgroundTaskDisplay_SubmittedPopulatesStartedAtFromTimestamp(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	ts := time.Now().Add(-2 * time.Second)
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentURL:  "http://localhost:8081",
+		Timestamp: ts,
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display == nil {
+		t.Fatal("expected display entry for task-1")
+	}
+	if !display.StartedAt.Equal(ts) {
+		t.Errorf("expected StartedAt=%v from event timestamp, got %v", ts, display.StartedAt)
+	}
+}
+
+func TestBackgroundTaskDisplay_SubmittedFallsBackToNowWhenTimestampZero(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	before := time.Now()
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID: "task-1",
+	}, nil)
+	after := time.Now()
+
+	display := cv.backgroundTasks["task-1"]
+	if display == nil {
+		t.Fatal("expected display entry for task-1")
+	}
+	if display.StartedAt.Before(before) || display.StartedAt.After(after) {
+		t.Errorf("expected StartedAt within [%v, %v], got %v", before, after, display.StartedAt)
+	}
+}
+
+func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnSubmit(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetAgentModelResolver(func(url string) string {
+		if url == "http://localhost:8081" {
+			return "deepseek/deepseek-v4-flash"
+		}
+		return ""
+	})
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:   "task-1",
+		AgentURL: "http://localhost:8081",
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display == nil {
+		t.Fatal("expected display entry for task-1")
+	}
+	if display.Model != "deepseek/deepseek-v4-flash" {
+		t.Errorf("expected resolver-populated Model 'deepseek/deepseek-v4-flash', got %q", display.Model)
+	}
+}
+
+func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnLateStatusUpdate(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetAgentModelResolver(func(url string) string {
+		if url == "http://localhost:8081" {
+			return "deepseek/deepseek-v4-flash"
+		}
+		return ""
+	})
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{TaskID: "task-1"}, nil)
+	if got := cv.backgroundTasks["task-1"].Model; got != "" {
+		t.Errorf("expected empty Model before AgentURL is known, got %q", got)
+	}
+
+	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+		TaskID:   "task-1",
+		AgentURL: "http://localhost:8081",
+		Status:   "TASK_STATE_WORKING",
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.Model != "deepseek/deepseek-v4-flash" {
+		t.Errorf("expected late resolver to populate Model 'deepseek/deepseek-v4-flash', got %q", display.Model)
 	}
 }
 
