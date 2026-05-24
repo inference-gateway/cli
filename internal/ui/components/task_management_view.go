@@ -413,25 +413,34 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	}
 }
 
-// mapTaskStatus maps task state to display status
+// mapTaskStatus maps task state to display status. Covers every
+// adk.TaskState constant so non-terminal states (Working, Submitted,
+// AuthRequired, ...) don't fall through to the raw "TASK_STATE_*"
+// label. Unknown states fall back to a title-cased rendering of the
+// raw value with the "TASK_STATE_" prefix stripped.
 func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
 	statusMap := map[adk.TaskState]string{
+		adk.TaskStateSubmitted:     "Submitted",
+		adk.TaskStateWorking:       "Working",
 		adk.TaskStateCompleted:     "Completed",
 		adk.TaskStateFailed:        "Failed",
 		adk.TaskStateCancelled:     "Cancelled",
 		adk.TaskStateRejected:      "Rejected",
 		adk.TaskStateInputRequired: "Input Required",
+		adk.TaskStateAuthRequired:  "Auth Required",
+		adk.TaskStateUnspecified:   "Unknown",
 	}
 
 	if displayName, exists := statusMap[state]; exists {
 		return displayName
 	}
 
-	stateStr := string(state)
-	if len(stateStr) > 0 {
-		return strings.ToUpper(stateStr[:1]) + stateStr[1:]
+	stateStr := strings.TrimPrefix(string(state), "TASK_STATE_")
+	stateStr = strings.ReplaceAll(strings.ToLower(stateStr), "_", " ")
+	if stateStr == "" {
+		return "Unknown"
 	}
-	return "Unknown"
+	return strings.ToUpper(stateStr[:1]) + stateStr[1:]
 }
 
 // mapTaskStateToDisplayStatus maps task state string to display status
@@ -608,25 +617,86 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 	if task.TaskRef.Task.Status.Message != nil {
 		t.renderFinalResult(content, task)
 	}
+
+	if len(task.TaskRef.Task.Artifacts) > 0 {
+		t.renderTaskArtifacts(content, task)
+	}
 }
 
-// renderHistoryItemRole renders the role prefix for a history item
+// renderTaskArtifacts surfaces the agent's produced artifacts (e.g. screenshots,
+// generated files) in the Task History panel — for many agents this is the
+// real output and Status.Message is empty.
+func (t *TaskManagerImpl) renderTaskArtifacts(content *strings.Builder, task TaskInfo) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	if len(task.TaskRef.Task.History) > 0 || task.TaskRef.Task.Status.Message != nil {
+		content.WriteString("\n")
+	}
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+	header := t.styleProvider.RenderWithColor(
+		fmt.Sprintf("Agent (Artifacts, %d produced):", len(task.TaskRef.Task.Artifacts)),
+		dimColor,
+	)
+	fmt.Fprintf(content, "%s %s\n", marker, header)
+
+	for i, artifact := range task.TaskRef.Task.Artifacts {
+		name := "unnamed"
+		if artifact.Name != nil && *artifact.Name != "" {
+			name = *artifact.Name
+		}
+		fmt.Fprintf(content, "  %d. %s", i+1, name)
+
+		if artifact.Metadata != nil {
+			if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok && mimeType != "" {
+				fmt.Fprintf(content, "  (%s)", mimeType)
+			}
+			if size, ok := (*artifact.Metadata)["size"].(float64); ok && size > 0 {
+				fmt.Fprintf(content, "  %d bytes", int64(size))
+			}
+		}
+		content.WriteString("\n")
+
+		if artifact.Metadata != nil {
+			if url, ok := (*artifact.Metadata)["url"].(string); ok && url != "" {
+				fmt.Fprintf(content, "     %s\n", t.styleProvider.RenderWithColor(url, dimColor))
+			}
+		}
+	}
+}
+
+// renderHistoryItemRole renders the role prefix for a history item.
+// Handles both ADK enum-style values (ROLE_USER / ROLE_AGENT) and the
+// historical lowercase ones (user / assistant).
 func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role string) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")
 
 	marker := t.styleProvider.RenderWithColor("◆", accentColor)
 
-	switch role {
-	case "assistant":
-		roleText := t.styleProvider.RenderWithColor("Assistant:", dimColor)
-		fmt.Fprintf(content, "%s %s\n", marker, roleText)
+	label := friendlyRoleLabel(role)
+	roleText := t.styleProvider.RenderWithColor(label+":", dimColor)
+	fmt.Fprintf(content, "%s %s\n", marker, roleText)
+}
+
+// friendlyRoleLabel maps an ADK Role string to a tidy display label.
+// "ROLE_USER" → "User", "ROLE_AGENT" → "Agent", "user" → "User",
+// "assistant" → "Agent", anything else is title-cased as-is.
+func friendlyRoleLabel(role string) string {
+	normalized := strings.ToLower(strings.TrimPrefix(strings.ToUpper(role), "ROLE_"))
+	switch normalized {
 	case "user":
-		roleText := t.styleProvider.RenderWithColor("User:", dimColor)
-		fmt.Fprintf(content, "%s %s\n", marker, roleText)
+		return "User"
+	case "agent":
+		return "Agent"
+	case "unspecified":
+		return "Unknown"
 	default:
-		roleText := t.styleProvider.RenderWithColor(fmt.Sprintf("%s:", role), dimColor)
-		fmt.Fprintf(content, "%s %s\n", marker, roleText)
+		if len(normalized) > 0 {
+			return strings.ToUpper(normalized[:1]) + normalized[1:]
+		}
+		return role
 	}
 }
 
@@ -642,7 +712,7 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 	}
 
 	marker := t.styleProvider.RenderWithColor("◆", accentColor)
-	roleText := t.styleProvider.RenderWithColor("Assistant (Final Result):", dimColor)
+	roleText := t.styleProvider.RenderWithColor("Agent (Final Result):", dimColor)
 	fmt.Fprintf(content, "%s %s\n", marker, roleText)
 
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {

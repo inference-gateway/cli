@@ -219,6 +219,71 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 	}
 }
 
+func TestA2ASubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
+	cfg := &config.Config{}
+	tool := NewA2ASubmitTaskTool(cfg, nil)
+
+	metadata := adk.Struct{
+		"usage": map[string]any{
+			"prompt_tokens":     21695,
+			"completion_tokens": 607,
+			"total_tokens":      22302,
+		},
+		"execution_stats": map[string]any{
+			"iterations":   5,
+			"messages":     4,
+			"tool_calls":   2,
+			"failed_tools": 0,
+		},
+	}
+	task := &adk.Task{
+		ID:       "task-with-meta",
+		Metadata: &metadata,
+		Status:   adk.TaskStatus{State: adk.TaskStateCompleted},
+	}
+	result := &domain.ToolExecutionResult{
+		ToolName: "A2A_SubmitTask",
+		Success:  true,
+		Data: A2ASubmitTaskResult{
+			TaskID:   "task-with-meta",
+			AgentURL: "http://browser-agent",
+			State:    string(adk.TaskStateCompleted),
+			Success:  true,
+			Task:     task,
+		},
+	}
+
+	out := tool.FormatResult(result, domain.FormatterLLM)
+	assert.Contains(t, out, "Usage:")
+	assert.Contains(t, out, "prompt_tokens=21695")
+	assert.Contains(t, out, "completion_tokens=607")
+	assert.Contains(t, out, "total_tokens=22302")
+	assert.Contains(t, out, "Execution Stats:")
+	assert.Contains(t, out, "tool_calls=2")
+	assert.Contains(t, out, "failed_tools=0")
+}
+
+func TestA2ASubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
+	cfg := &config.Config{}
+	tool := NewA2ASubmitTaskTool(cfg, nil)
+
+	result := &domain.ToolExecutionResult{
+		ToolName: "A2A_SubmitTask",
+		Success:  true,
+		Data: A2ASubmitTaskResult{
+			TaskID:   "no-meta",
+			AgentURL: "http://old-agent",
+			State:    string(adk.TaskStateCompleted),
+			Success:  true,
+			Task:     &adk.Task{ID: "no-meta", Status: adk.TaskStatus{State: adk.TaskStateCompleted}},
+		},
+	}
+
+	out := tool.FormatResult(result, domain.FormatterLLM)
+	assert.NotContains(t, out, "Usage:")
+	assert.NotContains(t, out, "Execution Stats:")
+}
+
 func TestA2ASubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 	cfg := &config.Config{}
 	tool := NewA2ASubmitTaskTool(cfg, nil)

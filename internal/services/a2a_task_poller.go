@@ -131,6 +131,8 @@ func (m *A2ATaskPoller) monitorSingleTask(ctx context.Context, taskID string, st
 		m.mu.Unlock()
 	}()
 
+	m.emitSubmittedEvent(state)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -220,6 +222,29 @@ func (m *A2ATaskPoller) emitCompletionEvent(taskID string, result *domain.ToolEx
 	}
 }
 
+// emitSubmittedEvent fires a single A2ATaskSubmittedEvent the first time
+// monitorSingleTask picks up a new polling state, so the UI gets the
+// task's agent identity before any status updates start arriving.
+func (m *A2ATaskPoller) emitSubmittedEvent(state *domain.TaskPollingState) {
+	if state == nil {
+		return
+	}
+
+	event := domain.A2ATaskSubmittedEvent{
+		RequestID: m.requestID,
+		Timestamp: time.Now(),
+		TaskID:    state.TaskID,
+		AgentURL:  state.AgentURL,
+	}
+
+	select {
+	case m.eventChan <- event:
+	default:
+		logger.Warn("Failed to emit A2A submitted event - channel full",
+			"task_id", state.TaskID)
+	}
+}
+
 func (m *A2ATaskPoller) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate) {
 	if update == nil {
 		logger.Error("Received nil update in emitStatusUpdateEvent")
@@ -230,6 +255,7 @@ func (m *A2ATaskPoller) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate
 		RequestID: m.requestID,
 		Timestamp: time.Now(),
 		TaskID:    update.TaskID,
+		AgentURL:  update.AgentURL,
 		Status:    update.State,
 		Message:   update.Message,
 	}

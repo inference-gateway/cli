@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -606,6 +607,8 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 	}
 	fmt.Fprintf(&dataContent, "State: %s\n", taskData.State)
 
+	t.appendTaskMetadataLines(&dataContent, taskData.Task)
+
 	if isFailedTaskState(adk.TaskState(taskData.State)) {
 		reason := taskData.TaskResult
 		if reason == "" && taskData.Task != nil {
@@ -628,6 +631,49 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 
 	hasMetadata := len(metadata) > 0
 	return dataContent.String(), hasMetadata
+}
+
+// appendTaskMetadataLines writes "Usage:" / "Execution Stats:" lines
+// from Task.Metadata into the formatted result, so the persisted history
+// view shows per-task token consumption and tool counts. Silently no-ops
+// when the remote agent didn't attach metadata (older ADK, or
+// EnableUsageMetadata=false).
+func (t *A2ASubmitTaskTool) appendTaskMetadataLines(builder *strings.Builder, task *adk.Task) {
+	if task == nil || task.Metadata == nil {
+		return
+	}
+	meta := *task.Metadata
+
+	if usageLine := formatMetadataMap(meta, "usage"); usageLine != "" {
+		fmt.Fprintf(builder, "Usage: %s\n", usageLine)
+	}
+	if statsLine := formatMetadataMap(meta, "execution_stats"); statsLine != "" {
+		fmt.Fprintf(builder, "Execution Stats: %s\n", statsLine)
+	}
+}
+
+// formatMetadataMap returns a flat "k1=v1, k2=v2" representation of one
+// top-level metadata map field. Keys are sorted for stable output.
+// Returns "" if the field is absent or empty.
+func formatMetadataMap(meta map[string]any, field string) string {
+	raw, ok := meta[field]
+	if !ok || raw == nil {
+		return ""
+	}
+	m, ok := raw.(map[string]any)
+	if !ok || len(m) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, m[k]))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // formatArtifact formats a single artifact for display

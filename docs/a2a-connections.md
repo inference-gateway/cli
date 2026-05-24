@@ -146,6 +146,69 @@ background. Only use `A2A_QueryTask` to:
 2. Check tasks submitted outside this session
 3. Get detailed results AFTER you receive a completion notification
 
+#### Background Task Visualisation
+
+While a remote A2A task is running in the background, the CLI shows a live,
+sticky status bar pinned **just above the input box** (below the scrollable
+conversation viewport). It is always visible regardless of where you've
+scrolled the conversation, so you never lose sight of in-flight delegations.
+
+A typical bar looks like:
+
+```text
+… conversation viewport (scrollable) …
+─────────────────────────────────────────────
+◓ Agent(weather-agent=working...)
+> _   (input)
+```
+
+The line updates in place as the task progresses through its lifecycle:
+`submitted` → `working` → `completed` / `failed` / `cancelled`.
+
+On successful completion, the indicator expands to a tree-style block
+showing the `usage` and `execution_stats` JSON taken from the remote
+task's `metadata` (populated by ADK ≥ 0.19.0 agents that have
+`EnableUsageMetadata` enabled - the default). `usage` reports token
+consumption; `execution_stats` reports iterations, messages, tool calls,
+and failed tool calls:
+
+```text
+✓ Agent(weather-agent=completed)
+  ├── usage={"prompt_tokens":156,"completion_tokens":89,"total_tokens":245}
+  └── execution_stats={"iterations":2,"messages":4,"tool_calls":1,"failed_tools":0}
+```
+
+Either or both branches are omitted if the remote agent doesn't emit
+the corresponding metadata (older ADK versions, or
+`EnableUsageMetadata=false`). Failures follow the same layout with an
+additional `error: …` branch.
+
+On failure:
+
+```text
+✗ Agent(weather-agent=failed: connection refused)
+```
+
+The indicator auto-removes itself **5 seconds** after the task reaches a
+terminal state (`completed`, `failed`, or `cancelled`), keeping the bar
+tidy while still giving you time to glance at the usage / error.
+
+Multiple concurrent tasks each get their own line in the bar (one line per
+task, lexicographically ordered by task ID for stability), so a single
+assistant turn that submits several A2A tasks shows independent progress
+lines side-by-side without any reordering between renders.
+
+Notes:
+
+- The indicator is purely a UI element — it is not persisted with the
+  conversation. Reloading a session will not bring back indicators for
+  tasks that have already completed.
+- If the remote agent does not attach `metadata.usage` (older ADK versions,
+  or `EnableUsageMetadata=false`), the completed line omits the `usage=...`
+  suffix.
+- For a full historical record of past tasks, use `A2A_QueryTask` or the
+  in-session task management view.
+
 ### Tool Implementation Details
 
 #### A2A_SubmitTask Tool

@@ -46,7 +46,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 ) string {
 	width, height := data.Width, data.Height
 
-	heights := r.calculateComponentHeights(data, height, helpBar, queueBoxView, todoBoxView, approvalBoxView)
+	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView)
 
 	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
 		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, heights)
@@ -55,7 +55,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
-	components := r.assembleComponents(data, header, conversationArea, inputArea, statusView, modeIndicator,
+	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
 		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, width, heights.statusHeight)
 
 	return strings.Join(components, "\n")
@@ -63,20 +63,22 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 
 // componentHeights holds calculated heights for various components
 type componentHeights struct {
-	headerHeight       int
-	helpBarHeight      int
-	queueBoxHeight     int
-	todoBoxHeight      int
-	approvalBoxHeight  int
-	conversationHeight int
-	inputHeight        int
-	statusHeight       int
+	headerHeight         int
+	helpBarHeight        int
+	queueBoxHeight       int
+	todoBoxHeight        int
+	approvalBoxHeight    int
+	backgroundTasksLines int
+	conversationHeight   int
+	inputHeight          int
+	statusHeight         int
 }
 
 // calculateComponentHeights calculates the heights for all components
 func (r *ApplicationViewRenderer) calculateComponentHeights(
 	data ChatInterfaceData,
 	totalHeight int,
+	conversationView ui.ConversationRenderer,
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
@@ -107,8 +109,13 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		}
 	}
 
+	if cv, ok := conversationView.(*ConversationView); ok && cv.HasBackgroundTasks() {
+		heights.backgroundTasksLines = cv.BackgroundTasksBarHeight()
+	}
+
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
-		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight
+		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
+		heights.backgroundTasksLines
 	heights.conversationHeight = ui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = ui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = ui.CalculateStatusHeight(adjustedHeight)
@@ -176,6 +183,7 @@ func (r *ApplicationViewRenderer) renderHeader(_ ChatInterfaceData, width int) s
 func (r *ApplicationViewRenderer) assembleComponents(
 	data ChatInterfaceData,
 	header, conversationArea, inputArea string,
+	conversationView ui.ConversationRenderer,
 	statusView ui.StatusComponent,
 	modeIndicator *ModeIndicator,
 	inputView ui.InputComponent,
@@ -191,6 +199,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 
 	components = r.appendQueueBox(components, data, queueBoxView)
 	components = r.appendTodoBox(components, todoBoxView)
+	components = r.appendBackgroundTaskBar(components, conversationView, width)
 	components = r.appendModeIndicator(components, modeIndicator)
 	components = r.appendStatusView(components, statusView, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
@@ -225,6 +234,25 @@ func (r *ApplicationViewRenderer) appendTodoBox(
 		if todoBoxContent := todoBoxView.Render(); todoBoxContent != "" {
 			components = append(components, todoBoxContent)
 		}
+	}
+	return components
+}
+
+// appendBackgroundTaskBar appends the sticky background-task indicator
+// rendered by the ConversationView, when any A2A task is currently tracked.
+// Always visible just above the input until the 5s post-terminal-state
+// auto-removal fires.
+func (r *ApplicationViewRenderer) appendBackgroundTaskBar(
+	components []string,
+	conversationView ui.ConversationRenderer,
+	width int,
+) []string {
+	cv, ok := conversationView.(*ConversationView)
+	if !ok || !cv.HasBackgroundTasks() {
+		return components
+	}
+	if bar := cv.RenderBackgroundTasksBar(width); bar != "" {
+		components = append(components, bar)
 	}
 	return components
 }

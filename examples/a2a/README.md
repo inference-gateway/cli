@@ -75,6 +75,45 @@ open vnc://localhost:5900
 **Note:** The X11 display is created by Xvfb when the browser-agent container starts. The VNC server will connect
 automatically and you can view browser automation in real-time.
 
+## What You'll See in the CLI
+
+When the model delegates a task to a configured agent via `A2A_SubmitTask`, a
+live sticky status bar appears **just above the input box** showing the remote
+task's progress:
+
+```text
+… conversation viewport …
+─────────────────────────────────────────────
+◓ Agent(google-calendar-agent=working...)
+> _   (input)
+```
+
+When the remote agent completes, the line expands to a tree-style block
+showing the token usage and execution statistics from the agent's
+`Task.metadata` (populated by ADK ≥ 0.19.0):
+
+```text
+✓ Agent(google-calendar-agent=completed)
+  ├── usage={"prompt_tokens":156,"completion_tokens":89,"total_tokens":245}
+  └── execution_stats={"iterations":2,"messages":4,"tool_calls":1,"failed_tools":0}
+```
+
+The indicator auto-disappears 5 seconds later so the conversation stays tidy.
+Failed tasks show `✗ Agent(<name>=failed: <error>)` and follow the same 5s
+auto-removal.
+
+Try it: ask the CLI a question that requires the calendar agent (e.g.
+"What's on my calendar today?") and watch the indicator appear and then
+auto-clear after the agent responds.
+
+> **Note:** The `usage=…` suffix only appears when the remote agent runs
+> ADK ≥ 0.19.0 with `EnableUsageMetadata` enabled (the default in 0.19.0+).
+> If you see `Agent(name=completed)` with no `usage=…`, the agent image
+> needs to be rebuilt against the newer ADK. The friendly agent name
+> (e.g. `mock-agent` vs the raw URL) is resolved from
+> `~/.infer/agents.yaml` — if you've only registered agents via
+> `INFER_A2A_AGENTS`, the indicator will show the URL instead.
+
 ## Troubleshooting
 
 ```bash
