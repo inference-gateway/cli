@@ -111,7 +111,7 @@ auto-clear after the agent responds.
 > If you see `Agent(name=completed)` with no `usage=…`, the agent image
 > needs to be rebuilt against the newer ADK. The friendly agent name
 > (e.g. `mock-agent` vs the raw URL) is resolved from
-> `~/.infer/agents.yaml` — if you've only registered agents via
+> `~/.infer/agents.yaml` - if you've only registered agents via
 > `INFER_A2A_AGENTS`, the indicator will show the URL instead.
 
 ## Troubleshooting

@@ -586,7 +586,7 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 
 // HandleToolCancelledEvent refreshes the conversation view so the
 // synthetic [cancelled] tool entry that the integrity validator just
-// persisted becomes visible. No status-bar message — the cancel that
+// persisted becomes visible. No status-bar message - the cancel that
 // triggered this already drove its own status ("User interrupted").
 func (h *ChatHandler) HandleToolCancelledEvent(
 	_ domain.ToolCancelledEvent,

@@ -1166,7 +1166,7 @@ func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEve
 
 // handleSpinnerTick processes spinner tick events. Tick messages carry a
 // per-spinner ID, so the same tea.Msg may belong to either the
-// ToolCallRenderer's spinner or our own backgroundSpinner — we forward
+// ToolCallRenderer's spinner or our own backgroundSpinner - we forward
 // it to both. Whichever one's ID matches advances its frame and returns
 // the next-tick cmd; the other call is a no-op.
 func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
@@ -1352,7 +1352,7 @@ func (cv *ConversationView) handleRemoveBackgroundTask(msg BackgroundTaskRemoval
 }
 
 // hasActiveBackgroundTasks reports whether any tracked task has not yet
-// reached a terminal state — used to keep the spinner ticking only while
+// reached a terminal state - used to keep the spinner ticking only while
 // needed.
 func (cv *ConversationView) hasActiveBackgroundTasks() bool {
 	for _, d := range cv.backgroundTasks {
@@ -1471,7 +1471,7 @@ func (cv *ConversationView) agentDisplayName(display *BackgroundTaskDisplay) str
 // formatTerminalHeader builds the single-line header for a terminal-state
 // background-task indicator. Appends the frozen elapsed suffix when
 // available. The model= segment is intentionally omitted in terminal
-// form — by completion, focus shifts to usage= / execution_stats=.
+// form - by completion, focus shifts to usage= / execution_stats=.
 func (cv *ConversationView) formatTerminalHeader(name, state string, display *BackgroundTaskDisplay) string {
 	elapsed := computeElapsedString(display)
 	if elapsed == "" {
@@ -1543,7 +1543,7 @@ func (cv *ConversationView) formatNonTerminalBody(name, state string, display *B
 // renderTerminalMultiLine emits a multi-line indicator for terminal
 // states: header (icon + Agent(name=state)), then `usage=…`,
 // `execution_stats=…`, and (for failures) `error: …`, each on its own
-// line under a tree branch (├── / └──) — matching the box-drawing
+// line under a tree branch (├── / └──) - matching the box-drawing
 // hierarchy style used elsewhere in the UI. Detail lines that have no
 // content are dropped, so older agents without usage metadata render
 // just the header.

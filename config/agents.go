@@ -45,7 +45,7 @@ const (
 // matching A2AAgentService's lookup order: project-level
 // `.infer/agents.yaml` wins if present, otherwise the userspace
 // `~/.infer/agents.yaml`, otherwise the project default (which may not
-// exist yet — LoadAgents handles that gracefully).
+// exist yet - LoadAgents handles that gracefully).
 func ResolveAgentsPath() string {
 	if _, err := os.Stat(DefaultAgentsPath); err == nil {
 		return DefaultAgentsPath

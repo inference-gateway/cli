@@ -51,7 +51,7 @@ func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ChatCompleteEvent indicates chat completion. Cancelled is set when the
 // completion is the result of a user-initiated cancel (Esc) rather than the
-// model finishing on its own — the UI uses this to show "User interrupted"
+// model finishing on its own - the UI uses this to show "User interrupted"
 // rather than "Response complete".
 type ChatCompleteEvent struct {
 	RequestID        string

@@ -1159,7 +1159,7 @@ func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) 
 }
 
 // TestAgentServiceImpl_CancelRequest_IsIdempotent verifies that multiple
-// Esc presses (or any repeated CancelRequest calls) are safe — no panic on
+// Esc presses (or any repeated CancelRequest calls) are safe - no panic on
 // double-close of the cancel channel, and every call returns nil.
 func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
 	agentService := &AgentServiceImpl{

@@ -416,7 +416,7 @@ func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, str
 // of synthetics inserted.
 //
 // persistSynthetics:
-//   - true at the drain-time chokepoint (real corruption point — JSONL
+//   - true at the drain-time chokepoint (real corruption point - JSONL
 //     append order matches logical order, so repo state stays valid).
 //   - false at defensive call sites (e.g. before sending to the
 //     gateway) where the orphan may have come from a pre-existing
@@ -604,7 +604,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 }
 
 // CancelRequest cancels an active request. Safe to call multiple times for
-// the same requestID — subsequent calls are no-ops via sync.Once on the
+// the same requestID - subsequent calls are no-ops via sync.Once on the
 // underlying sessionCancel. Returns nil even when the request is unknown,
 // so the UI can fire it on every Esc press without surfacing spurious
 // errors after the session has already torn down. The agent loop publishes

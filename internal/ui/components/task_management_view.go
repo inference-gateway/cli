@@ -624,7 +624,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 }
 
 // renderTaskArtifacts surfaces the agent's produced artifacts (e.g. screenshots,
-// generated files) in the Task History panel — for many agents this is the
+// generated files) in the Task History panel - for many agents this is the
 // real output and Status.Message is empty.
 func (t *TaskManagerImpl) renderTaskArtifacts(content *strings.Builder, task TaskInfo) {
 	accentColor := t.styleProvider.GetThemeColor("accent")

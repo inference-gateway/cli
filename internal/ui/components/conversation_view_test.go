@@ -790,7 +790,7 @@ func TestBackgroundTaskDisplay_AgentNameResolverFallsBackToShortenedURL(t *testi
 // removal cmd to fire but its message to be silently dropped, leaving
 // terminal-state indicators on screen forever.
 //
-// See internal/app/chat.go updateUIComponentsForUIMessages — only msgs
+// See internal/app/chat.go updateUIComponentsForUIMessages - only msgs
 // whose %T contains "Tick" or starts with "domain." get routed to
 // component Update() methods.
 func TestBackgroundTaskRemovalTickMsg_TypeNameMatchesDispatcherFilter(t *testing.T) {

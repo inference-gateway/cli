@@ -200,7 +200,7 @@ lines side-by-side without any reordering between renders.
 
 Notes:
 
-- The indicator is purely a UI element — it is not persisted with the
+- The indicator is purely a UI element - it is not persisted with the
   conversation. Reloading a session will not bring back indicators for
   tasks that have already completed.
 - If the remote agent does not attach `metadata.usage` (older ADK versions,

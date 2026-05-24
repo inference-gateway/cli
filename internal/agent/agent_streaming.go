@@ -131,12 +131,12 @@ func (a *EventDrivenAgent) processStreamEvents(
 	}
 }
 
-// handleStreamInterrupted handles a stream that ended via ctx cancellation —
+// handleStreamInterrupted handles a stream that ended via ctx cancellation -
 // either a real timeout (DeadlineExceeded) or user cancellation (Canceled).
 // Timeout: publish an error and transition to StateError.
 // Cancellation: persist any partial assistant content so the user doesn't
 // lose mid-flight output (e.g. a half-written poem when Esc is pressed),
-// then return silently — the main event loop owns the StateCancelled
+// then return silently - the main event loop owns the StateCancelled
 // transition via cancelChan.
 func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
 	if requestCtx.Err() == context.DeadlineExceeded {

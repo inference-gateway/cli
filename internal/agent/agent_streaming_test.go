@@ -99,7 +99,7 @@ func TestBuildAssistantMessage(t *testing.T) {
 
 // TestPersistPartialAssistantMessage_KeepsContent verifies that a half-streamed
 // LLM response (text + reasoning) is appended to the conversation and the
-// repo when the user cancels mid-generation — so a partially-written poem
+// repo when the user cancels mid-generation - so a partially-written poem
 // isn't lost the moment Esc is pressed.
 func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}

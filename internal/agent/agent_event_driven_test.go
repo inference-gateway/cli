@@ -592,7 +592,7 @@ func TestHandleCheckingQueueState_StopsAfterDrainWhenCancelled(t *testing.T) {
 // TestProcessEvents_PriorityProbeFavoursCancellation verifies the double-select
 // pattern: even when the events channel has pending work, a closed cancelChan
 // takes priority and exits the loop without draining events. This is the core
-// fix for the "Esc requires multiple presses" bug — a single Esc closes the
+// fix for the "Esc requires multiple presses" bug - a single Esc closes the
 // channel, and the next loop iteration always sees it first.
 func TestProcessEvents_PriorityProbeFavoursCancellation(t *testing.T) {
 	mocks := setupTestMocks()
@@ -621,7 +621,7 @@ func TestProcessEvents_PriorityProbeFavoursCancellation(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("processEvents did not exit within 2s — cancelChan priority probe broken")
+		t.Fatal("processEvents did not exit within 2s - cancelChan priority probe broken")
 	}
 
 	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
