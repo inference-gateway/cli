@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	utils "github.com/inference-gateway/cli/config/utils"
@@ -38,6 +40,24 @@ const (
 	AgentsFileName    = "agents.yaml"
 	DefaultAgentsPath = ConfigDirName + "/" + AgentsFileName
 )
+
+// ResolveAgentsPath returns the path agents.yaml should be loaded from,
+// matching A2AAgentService's lookup order: project-level
+// `.infer/agents.yaml` wins if present, otherwise the userspace
+// `~/.infer/agents.yaml`, otherwise the project default (which may not
+// exist yet — LoadAgents handles that gracefully).
+func ResolveAgentsPath() string {
+	if _, err := os.Stat(DefaultAgentsPath); err == nil {
+		return DefaultAgentsPath
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		userspace := filepath.Join(homeDir, ConfigDirName, AgentsFileName)
+		if _, err := os.Stat(userspace); err == nil {
+			return userspace
+		}
+	}
+	return DefaultAgentsPath
+}
 
 // ParseModel parses a model string in the format "provider/model" and returns
 // the provider and model separately. If the format is invalid, returns empty strings.

@@ -168,6 +168,7 @@ func NewChatApplication(
 		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
+		cv.SetAgentNameResolver(buildAgentNameResolver())
 	}
 
 	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
@@ -1111,6 +1112,14 @@ func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []t
 	}
 
 	app.focusedComponent = app.inputView
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
 
 	return cmds
 }
@@ -2140,6 +2149,30 @@ After merging, @infer mentions in issues will trigger the bot.
 	}
 
 	return fmt.Sprintf("https://github.com/%s/compare/%s...%s", repo, baseBranch, branch), nil
+}
+
+// buildAgentNameResolver loads ~/.infer/agents.yaml (or the project-level
+// equivalent) once and returns a closure that maps an agent URL to its
+// configured friendly name. Used by the background-agent indicator to show
+// e.g. `Agent(weather-agent=…)` instead of the raw URL. Returns nil on
+// load failure so the conversation view falls back to the URL.
+func buildAgentNameResolver() func(string) string {
+	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
+	if err != nil || cfg == nil {
+		return nil
+	}
+	nameByURL := make(map[string]string, len(cfg.Agents))
+	for _, a := range cfg.Agents {
+		if a.URL != "" && a.Name != "" {
+			nameByURL[a.URL] = a.Name
+		}
+	}
+	if len(nameByURL) == 0 {
+		return nil
+	}
+	return func(url string) string {
+		return nameByURL[url]
+	}
 }
 
 // PrintConversationHistory outputs the full conversation history to stdout

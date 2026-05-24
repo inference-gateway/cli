@@ -146,6 +146,7 @@ type A2ATaskSubmittedEvent struct {
 	Timestamp time.Time
 	TaskID    string
 	AgentName string
+	AgentURL  string
 	TaskType  string
 }
 
@@ -157,6 +158,7 @@ type A2ATaskStatusUpdateEvent struct {
 	RequestID string
 	Timestamp time.Time
 	TaskID    string
+	AgentURL  string
 	Status    string
 	Progress  float64
 	Message   string

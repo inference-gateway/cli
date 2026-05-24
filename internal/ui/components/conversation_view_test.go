@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,33 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
+
+// stubToolFormatter is a minimal ToolFormatter for tests that need the
+// view to render entries containing ToolExecution payloads.
+type stubToolFormatter struct{}
+
+func (s *stubToolFormatter) FormatToolCall(toolName string, _ map[string]any) string {
+	return toolName + "()"
+}
+func (s *stubToolFormatter) FormatToolResultForUI(result *domain.ToolExecutionResult, _ int) string {
+	if result == nil {
+		return ""
+	}
+	return "Tool: " + result.ToolName
+}
+func (s *stubToolFormatter) FormatToolResultExpanded(result *domain.ToolExecutionResult, _ int) string {
+	if result == nil {
+		return ""
+	}
+	return "Tool: " + result.ToolName
+}
+func (s *stubToolFormatter) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return ""
+	}
+	return "Tool: " + result.ToolName
+}
+func (s *stubToolFormatter) ShouldAlwaysExpandTool(_ string) bool { return false }
 
 // createMockStyleProvider creates a mock styles provider for testing
 func createMockStyleProvider() *styles.Provider {
@@ -247,6 +275,579 @@ func TestConversationView_Render(t *testing.T) {
 
 	if output == "" {
 		t.Error("Expected non-empty render output with conversation")
+	}
+}
+
+func TestBackgroundTaskDisplay_SubmittedCreatesEntry(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentName: "weather-agent",
+	}, nil)
+
+	display, ok := cv.backgroundTasks["task-1"]
+	if !ok {
+		t.Fatal("expected backgroundTasks to contain entry for task-1")
+	}
+	if display.AgentName != "weather-agent" {
+		t.Errorf("expected AgentName 'weather-agent', got %q", display.AgentName)
+	}
+	if display.State != "submitted" {
+		t.Errorf("expected State 'submitted', got %q", display.State)
+	}
+	if display.IsTerminal {
+		t.Error("expected IsTerminal to be false on submission")
+	}
+}
+
+func TestBackgroundTaskDisplay_StatusUpdateChangesState(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentName: "weather-agent",
+	}, nil)
+	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+		TaskID:  "task-1",
+		Status:  "working",
+		Message: "fetching forecast",
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.State != "working" {
+		t.Errorf("expected State 'working', got %q", display.State)
+	}
+	if display.Message != "fetching forecast" {
+		t.Errorf("expected Message 'fetching forecast', got %q", display.Message)
+	}
+	if display.AgentName != "weather-agent" {
+		t.Errorf("expected AgentName preserved as 'weather-agent', got %q", display.AgentName)
+	}
+}
+
+func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentName: "weather-agent",
+	}, nil)
+
+	resultData := map[string]any{
+		"task_id":   "task-1",
+		"agent_url": "http://example.com",
+		"state":     "completed",
+		"task": map[string]any{
+			"metadata": map[string]any{
+				"usage": map[string]any{
+					"input_tokens":  42,
+					"output_tokens": 100,
+					"total_tokens":  142,
+				},
+			},
+		},
+	}
+	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+		TaskID: "task-1",
+		Result: domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Data:     resultData,
+		},
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.State != "completed" {
+		t.Errorf("expected State 'completed', got %q", display.State)
+	}
+	if !display.IsTerminal {
+		t.Error("expected IsTerminal to be true after completion")
+	}
+	if !strings.Contains(display.UsageJSON, `"input_tokens":42`) {
+		t.Errorf("expected UsageJSON to contain input_tokens, got %q", display.UsageJSON)
+	}
+	if !strings.Contains(display.UsageJSON, `"total_tokens":142`) {
+		t.Errorf("expected UsageJSON to contain total_tokens, got %q", display.UsageJSON)
+	}
+}
+
+func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentName: "browser-agent",
+	}, nil)
+
+	resultData := map[string]any{
+		"task_id":   "task-1",
+		"agent_url": "http://example.com",
+		"state":     "completed",
+		"task": map[string]any{
+			"metadata": map[string]any{
+				"usage": map[string]any{
+					"prompt_tokens":     12255,
+					"completion_tokens": 502,
+					"total_tokens":      12757,
+				},
+				"execution_stats": map[string]any{
+					"iterations":   2,
+					"messages":     4,
+					"tool_calls":   3,
+					"failed_tools": 1,
+				},
+			},
+		},
+	}
+	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+		TaskID: "task-1",
+		Result: domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Data:     resultData,
+		},
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if !strings.Contains(display.ExecutionStatsJSON, `"tool_calls":3`) {
+		t.Errorf("expected ExecutionStatsJSON to contain tool_calls, got %q", display.ExecutionStatsJSON)
+	}
+	if !strings.Contains(display.ExecutionStatsJSON, `"failed_tools":1`) {
+		t.Errorf("expected ExecutionStatsJSON to contain failed_tools, got %q", display.ExecutionStatsJSON)
+	}
+
+	out := cv.renderBackgroundTaskLine(display)
+	if !strings.Contains(out, "Agent(browser-agent=completed)") {
+		t.Errorf("expected header line, got %q", out)
+	}
+	if !strings.Contains(out, "├── usage=") {
+		t.Errorf("expected branched usage line, got %q", out)
+	}
+	if !strings.Contains(out, "└── execution_stats=") {
+		t.Errorf("expected branched execution_stats line, got %q", out)
+	}
+	if !strings.Contains(out, `"failed_tools":1`) {
+		t.Errorf("expected failed_tools=1 in output, got %q", out)
+	}
+	if strings.Count(out, "\n") != 2 {
+		t.Errorf("expected exactly 3 lines (2 newlines) when both usage and stats present, got %q", out)
+	}
+}
+
+func TestBackgroundTaskDisplay_CompletedWithoutMetadataRendersBareName(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	out := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+		TaskID:     "t1",
+		AgentName:  "old-agent",
+		State:      "completed",
+		IsTerminal: true,
+	})
+	if !strings.Contains(out, "Agent(old-agent=completed)") {
+		t.Errorf("expected 'Agent(old-agent=completed)' header, got %q", out)
+	}
+	if strings.Contains(out, "\n") {
+		t.Errorf("expected single-line output when no metadata to show, got %q", out)
+	}
+}
+
+func TestBackgroundTaskDisplay_CompletedUsesLastBranchWhenOnlyOneDetail(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	out := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+		TaskID:     "t1",
+		AgentName:  "x",
+		State:      "completed",
+		UsageJSON:  `{"total_tokens":10}`,
+		IsTerminal: true,
+	})
+	if !strings.Contains(out, "└── usage=") {
+		t.Errorf("expected single detail to use └── branch, got %q", out)
+	}
+	if strings.Contains(out, "├──") {
+		t.Errorf("did not expect ├── branch with only one detail, got %q", out)
+	}
+}
+
+func TestBackgroundTaskDisplay_FailedCapturesError(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:    "task-1",
+		AgentName: "weather-agent",
+	}, nil)
+	cv.handleA2ATaskFailed(domain.A2ATaskFailedEvent{
+		TaskID: "task-1",
+		Error:  "connection refused",
+		Result: domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  false,
+		},
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.State != "failed" {
+		t.Errorf("expected State 'failed', got %q", display.State)
+	}
+	if display.ErrorMsg != "connection refused" {
+		t.Errorf("expected ErrorMsg 'connection refused', got %q", display.ErrorMsg)
+	}
+	if !display.IsTerminal {
+		t.Error("expected IsTerminal to be true after failure")
+	}
+}
+
+func TestBackgroundTaskDisplay_RemoveTickDeletesEntry(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.backgroundTasks["task-1"] = &BackgroundTaskDisplay{
+		TaskID:     "task-1",
+		State:      "completed",
+		IsTerminal: true,
+	}
+
+	cv.handleRemoveBackgroundTask(BackgroundTaskRemovalTickMsg{TaskID: "task-1"}, nil)
+
+	if _, ok := cv.backgroundTasks["task-1"]; ok {
+		t.Error("expected backgroundTasks entry for task-1 to be deleted")
+	}
+}
+
+func TestBackgroundTaskDisplay_RenderLine_StatesAndIcons(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cases := []struct {
+		name     string
+		display  *BackgroundTaskDisplay
+		contains []string
+	}{
+		{
+			name: "submitted",
+			display: &BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "weather-agent",
+				State:     "submitted",
+			},
+			contains: []string{"Agent(weather-agent=submitted...)"},
+		},
+		{
+			name: "working",
+			display: &BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "weather-agent",
+				State:     "working",
+			},
+			contains: []string{"Agent(weather-agent=working...)"},
+		},
+		{
+			name: "completed with usage",
+			display: &BackgroundTaskDisplay{
+				TaskID:     "t1",
+				AgentName:  "weather-agent",
+				State:      "completed",
+				UsageJSON:  `{"input_tokens":42,"output_tokens":100,"total_tokens":142}`,
+				IsTerminal: true,
+			},
+			contains: []string{
+				"✓",
+				"Agent(weather-agent=completed)",
+				"└── usage=",
+				`"input_tokens":42`,
+			},
+		},
+		{
+			name: "failed with error",
+			display: &BackgroundTaskDisplay{
+				TaskID:     "t1",
+				AgentName:  "weather-agent",
+				State:      "failed",
+				ErrorMsg:   "connection refused",
+				IsTerminal: true,
+			},
+			contains: []string{"✗", "Agent(weather-agent=failed)", "└── error: connection refused"},
+		},
+		{
+			name: "fallback to shortened agent url when no name",
+			display: &BackgroundTaskDisplay{
+				TaskID:   "t1",
+				AgentURL: "http://example.com",
+				State:    "working",
+			},
+			contains: []string{"Agent(example.com=working...)"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			line := cv.renderBackgroundTaskLine(tc.display)
+			for _, substr := range tc.contains {
+				if !strings.Contains(line, substr) {
+					t.Errorf("expected line to contain %q, got %q", substr, line)
+				}
+			}
+		})
+	}
+}
+
+func TestBackgroundTaskDisplay_BarHidesWhenNoTasks(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	if cv.HasBackgroundTasks() {
+		t.Error("expected HasBackgroundTasks to be false initially")
+	}
+	if got := cv.RenderBackgroundTasksBar(80); got != "" {
+		t.Errorf("expected empty bar with no tasks, got %q", got)
+	}
+	if got := cv.BackgroundTasksBarHeight(); got != 0 {
+		t.Errorf("expected zero bar height with no tasks, got %d", got)
+	}
+}
+
+func TestBackgroundTaskDisplay_BarRendersOneLinePerTask(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.backgroundTasks["task-a"] = &BackgroundTaskDisplay{
+		TaskID:    "task-a",
+		AgentName: "weather-agent",
+		State:     "working",
+	}
+	cv.backgroundTasks["task-b"] = &BackgroundTaskDisplay{
+		TaskID:    "task-b",
+		AgentName: "news-agent",
+		State:     "submitted",
+	}
+
+	if !cv.HasBackgroundTasks() {
+		t.Fatal("expected HasBackgroundTasks true")
+	}
+	if h := cv.BackgroundTasksBarHeight(); h != 2 {
+		t.Errorf("expected bar height 2 for two tasks, got %d", h)
+	}
+
+	bar := cv.RenderBackgroundTasksBar(80)
+	if !strings.Contains(bar, "Agent(weather-agent=working...)") {
+		t.Errorf("expected weather-agent line in bar, got:\n%s", bar)
+	}
+	if !strings.Contains(bar, "Agent(news-agent=submitted...)") {
+		t.Errorf("expected news-agent line in bar, got:\n%s", bar)
+	}
+	if strings.Count(bar, "\n") != 1 {
+		t.Errorf("expected two lines (one newline separator) in bar, got %q", bar)
+	}
+}
+
+func TestBackgroundTaskDisplay_BarOrderIsStable(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	for _, id := range []string{"task-z", "task-a", "task-m"} {
+		cv.backgroundTasks[id] = &BackgroundTaskDisplay{
+			TaskID:    id,
+			AgentName: id,
+			State:     "working",
+		}
+	}
+
+	bar := cv.RenderBackgroundTasksBar(80)
+	idxA := strings.Index(bar, "Agent(task-a")
+	idxM := strings.Index(bar, "Agent(task-m")
+	idxZ := strings.Index(bar, "Agent(task-z")
+	if idxA == -1 || idxM == -1 || idxZ == -1 {
+		t.Fatalf("expected all three task names in bar, got:\n%s", bar)
+	}
+	if idxA >= idxM || idxM >= idxZ {
+		t.Errorf("expected lexicographic order task-a < task-m < task-z, got positions a=%d m=%d z=%d", idxA, idxM, idxZ)
+	}
+}
+
+func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+	cv.backgroundTasks["task-1"] = &BackgroundTaskDisplay{
+		TaskID:    "task-1",
+		AgentName: "weather-agent",
+		State:     "working",
+	}
+
+	entry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Tool,
+			Content: sdk.NewMessageContent("Task delegated"),
+		},
+		Time: time.Now(),
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Data: map[string]any{
+				"task_id":   "task-1",
+				"agent_url": "http://example.com",
+				"state":     "submitted",
+			},
+		},
+	}
+	cv.SetConversation([]domain.ConversationEntry{entry})
+
+	if strings.Contains(cv.renderedContent, "Agent(weather-agent=working") {
+		t.Errorf("did not expect background-task line inside the scrollable viewport, got:\n%s", cv.renderedContent)
+	}
+}
+
+func TestBackgroundTaskDisplay_NormalizesStateString(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cases := []struct {
+		raw      string
+		contains string
+	}{
+		{"TASK_STATE_WORKING", "working..."},
+		{"TASK_STATE_SUBMITTED", "submitted..."},
+		{"TASK_STATE_INPUT_REQUIRED", "input-required..."},
+		{"working", "working..."},
+	}
+	for _, c := range cases {
+		t.Run(c.raw, func(t *testing.T) {
+			line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "weather-agent",
+				State:     c.raw,
+			})
+			if !strings.Contains(line, c.contains) {
+				t.Errorf("for raw state %q expected line to contain %q, got %q", c.raw, c.contains, line)
+			}
+			if strings.Contains(line, "TASK_STATE_") {
+				t.Errorf("for raw state %q expected normalisation, got raw enum in %q", c.raw, line)
+			}
+		})
+	}
+}
+
+func TestBackgroundTaskDisplay_StatusUpdateCapturesAgentURL(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+		TaskID:   "task-1",
+		AgentURL: "http://localhost:8081",
+		Status:   "TASK_STATE_WORKING",
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.AgentURL != "http://localhost:8081" {
+		t.Errorf("expected AgentURL captured from status update, got %q", display.AgentURL)
+	}
+}
+
+func TestBackgroundTaskDisplay_SubmittedCapturesAgentURL(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+		TaskID:   "task-1",
+		AgentURL: "http://localhost:8081",
+	}, nil)
+
+	display := cv.backgroundTasks["task-1"]
+	if display.AgentURL != "http://localhost:8081" {
+		t.Errorf("expected AgentURL captured from submitted event, got %q", display.AgentURL)
+	}
+	if display.State != "submitted" {
+		t.Errorf("expected default state 'submitted', got %q", display.State)
+	}
+}
+
+func TestBackgroundTaskDisplay_AgentNameResolverUsed(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetAgentNameResolver(func(url string) string {
+		if url == "http://localhost:8081" {
+			return "weather-agent"
+		}
+		return ""
+	})
+
+	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+		TaskID:   "t1",
+		AgentURL: "http://localhost:8081",
+		State:    "working",
+	})
+	if !strings.Contains(line, "Agent(weather-agent=working...)") {
+		t.Errorf("expected resolver-mapped name, got %q", line)
+	}
+}
+
+func TestBackgroundTaskDisplay_AgentNameResolverFallsBackToShortenedURL(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetAgentNameResolver(func(_ string) string { return "" })
+
+	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+		TaskID:   "t1",
+		AgentURL: "http://localhost:9090",
+		State:    "working",
+	})
+	if !strings.Contains(line, "Agent(localhost:9090=working...)") {
+		t.Errorf("expected fallback to shortened URL when resolver returns empty, got %q", line)
+	}
+}
+
+// TestBackgroundTaskRemovalTickMsg_TypeNameMatchesDispatcherFilter guards
+// against a regression where the message-name didn't match the parent
+// dispatcher's "Tick" / "domain." substring filter, causing the auto-
+// removal cmd to fire but its message to be silently dropped, leaving
+// terminal-state indicators on screen forever.
+//
+// See internal/app/chat.go updateUIComponentsForUIMessages — only msgs
+// whose %T contains "Tick" or starts with "domain." get routed to
+// component Update() methods.
+func TestBackgroundTaskRemovalTickMsg_TypeNameMatchesDispatcherFilter(t *testing.T) {
+	msg := BackgroundTaskRemovalTickMsg{TaskID: "x"}
+	typeName := fmt.Sprintf("%T", msg)
+	if !strings.Contains(typeName, "Tick") {
+		t.Errorf("BackgroundTaskRemovalTickMsg type %q must contain 'Tick' so the app dispatcher routes it; otherwise auto-removal won't fire", typeName)
+	}
+}
+
+func TestBackgroundTaskDisplay_ShortenAgentURLDropsScheme(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+	}{
+		{"http://localhost:8081", "localhost:8081"},
+		{"https://api.example.com/v1", "api.example.com"},
+		{"http://mock-agent:8080/", "mock-agent:8080"},
+		{"localhost:8081", "localhost:8081"},
+		{"", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.raw, func(t *testing.T) {
+			if got := shortenAgentURL(c.raw); got != c.want {
+				t.Errorf("shortenAgentURL(%q) = %q, want %q", c.raw, got, c.want)
+			}
+		})
+	}
+}
+
+func TestBackgroundTaskDisplay_FallsBackToShortenedURL(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
+		TaskID:   "t1",
+		AgentURL: "http://localhost:8081",
+		State:    "working",
+	})
+	if strings.Contains(line, "http://") {
+		t.Errorf("expected scheme stripped from fallback URL, got %q", line)
+	}
+	if !strings.Contains(line, "Agent(localhost:8081=working...)") {
+		t.Errorf("expected shortened URL, got %q", line)
+	}
+}
+
+func TestBackgroundTaskDisplay_HasActiveBackgroundTasks(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+
+	if cv.hasActiveBackgroundTasks() {
+		t.Error("expected no active tasks initially")
+	}
+
+	cv.backgroundTasks["t1"] = &BackgroundTaskDisplay{IsTerminal: false}
+	if !cv.hasActiveBackgroundTasks() {
+		t.Error("expected active tasks when non-terminal entry present")
+	}
+
+	cv.backgroundTasks["t1"].IsTerminal = true
+	if cv.hasActiveBackgroundTasks() {
+		t.Error("expected no active tasks when all entries are terminal")
 	}
 }
 

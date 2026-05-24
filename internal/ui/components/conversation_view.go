@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	viewport "github.com/charmbracelet/bubbles/viewport"
@@ -21,6 +23,7 @@ import (
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // NavigationMode represents the current navigation state of the conversation view
@@ -32,6 +35,32 @@ const (
 	// NavigationModeMessageHistory is the mode for navigating message history
 	NavigationModeMessageHistory
 )
+
+// backgroundTaskRemovalDelay is how long a terminal-state background-task
+// indicator lingers under the originating tool call before auto-removal.
+const backgroundTaskRemovalDelay = 5 * time.Second
+
+// BackgroundTaskDisplay tracks the live state of a remote A2A task for
+// inline visualisation under the originating A2A_SubmitTask tool result.
+// It is UI-only ephemeral state and is not persisted with the conversation.
+type BackgroundTaskDisplay struct {
+	TaskID             string
+	AgentName          string
+	AgentURL           string
+	State              string
+	Message            string
+	UsageJSON          string
+	ExecutionStatsJSON string
+	ErrorMsg           string
+	IsTerminal         bool
+	CompletedAt        time.Time
+}
+
+// BackgroundTaskRemovalTickMsg is dispatched backgroundTaskRemovalDelay after a
+// task reaches a terminal state to remove its inline indicator from the view.
+type BackgroundTaskRemovalTickMsg struct {
+	TaskID string
+}
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
@@ -72,6 +101,18 @@ type ConversationView struct {
 	navigationMode       NavigationMode
 	messageSnapshots     []domain.MessageSnapshot
 	historySelectedIndex int
+
+	// Inline background-task indicators for A2A_SubmitTask delegations.
+	// Keyed by remote task ID. Entries are inserted on
+	// A2ATaskSubmittedEvent, updated on status/complete/fail events, and
+	// removed by BackgroundTaskRemovalTickMsg ~5s after a terminal state.
+	backgroundTasks    map[string]*BackgroundTaskDisplay
+	backgroundSpinStep int
+	backgroundSpinner  spinner.Model
+	// agentNameResolver maps an agent URL to its configured friendly name
+	// from ~/.infer/agents.yaml. Optional; falls back to the URL when nil
+	// or when the URL has no matching entry.
+	agentNameResolver func(url string) string
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -84,6 +125,11 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
 		mdRenderer = markdown.NewRenderer(themeService, 80)
 	}
+
+	bgSpin := spinner.New()
+	bgSpinStyle := spinner.Dot
+	bgSpinStyle.FPS = 100 * time.Millisecond
+	bgSpin.Spinner = bgSpinStyle
 
 	return &ConversationView{
 		conversation:           []domain.ConversationEntry{},
@@ -98,6 +144,8 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		plainTextLines:         []string{},
 		styleProvider:          styleProvider,
 		markdownRenderer:       mdRenderer,
+		backgroundTasks:        make(map[string]*BackgroundTaskDisplay),
+		backgroundSpinner:      bgSpin,
 	}
 }
 
@@ -130,6 +178,13 @@ func (cv *ConversationView) SetStateManager(stateManager domain.StateManager) {
 // SetKeyHintFormatter sets the key hint formatter for displaying keybinding hints
 func (cv *ConversationView) SetKeyHintFormatter(formatter *hints.Formatter) {
 	cv.keyHintFormatter = formatter
+}
+
+// SetAgentNameResolver injects a URL→friendly-name lookup used when
+// rendering background-agent indicators. Pass nil to disable resolution
+// (the visual then falls back to the agent URL).
+func (cv *ConversationView) SetAgentNameResolver(resolver func(url string) string) {
+	cv.agentNameResolver = resolver
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -994,6 +1049,16 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handleStreamingContentEvent(msg, cmd)
 	case domain.ScrollRequestEvent:
 		return cv.handleScrollRequestEvent(msg, cmd)
+	case domain.A2ATaskSubmittedEvent:
+		return cv.handleA2ATaskSubmitted(msg, cmd)
+	case domain.A2ATaskStatusUpdateEvent:
+		return cv.handleA2ATaskStatusUpdate(msg, cmd)
+	case domain.A2ATaskCompletedEvent:
+		return cv.handleA2ATaskCompleted(msg, cmd)
+	case domain.A2ATaskFailedEvent:
+		return cv.handleA2ATaskFailed(msg, cmd)
+	case BackgroundTaskRemovalTickMsg:
+		return cv.handleRemoveBackgroundTask(msg, cmd)
 	case spinner.TickMsg:
 		return cv.handleSpinnerTick(msg, cmd)
 	default:
@@ -1086,19 +1151,453 @@ func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEve
 	return cv, cmd
 }
 
-// handleSpinnerTick processes spinner tick events
+// handleSpinnerTick processes spinner tick events. Tick messages carry a
+// per-spinner ID, so the same tea.Msg may belong to either the
+// ToolCallRenderer's spinner or our own backgroundSpinner — we forward
+// it to both. Whichever one's ID matches advances its frame and returns
+// the next-tick cmd; the other call is a no-op.
 func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	var bgCmd tea.Cmd
+	cv.backgroundSpinner, bgCmd = cv.backgroundSpinner.Update(msg)
+	if bgCmd != nil && cv.hasActiveBackgroundTasks() {
+		cv.backgroundSpinStep++
+		cmd = tea.Batch(cmd, bgCmd)
+	}
+
 	if cv.toolCallRenderer != nil {
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
-		if cv.navigationMode != NavigationModeMessageHistory && cv.toolCallRenderer.HasActivePreviews() {
+		if cv.navigationMode != NavigationModeMessageHistory &&
+			(cv.toolCallRenderer.HasActivePreviews() || cv.hasActiveBackgroundTasks()) {
 			cv.updateViewportContent()
 		}
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
+	} else if cv.navigationMode != NavigationModeMessageHistory && cv.hasActiveBackgroundTasks() {
+		cv.updateViewportContent()
 	}
 	return cv, cmd
+}
+
+// handleA2ATaskSubmitted records a newly submitted A2A task so its live
+// progress can be rendered under the originating tool result.
+func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.TaskID == "" {
+		return cv, cmd
+	}
+
+	display, exists := cv.backgroundTasks[msg.TaskID]
+	if !exists {
+		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
+		cv.backgroundTasks[msg.TaskID] = display
+	}
+	if msg.AgentName != "" {
+		display.AgentName = msg.AgentName
+	}
+	if msg.AgentURL != "" && display.AgentURL == "" {
+		display.AgentURL = msg.AgentURL
+	}
+	if display.State == "" {
+		display.State = "submitted"
+	}
+
+	startSpinner := !cv.hasOtherActiveBackgroundTasks(msg.TaskID)
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+
+	if startSpinner {
+		cmd = tea.Batch(cmd, cv.backgroundSpinner.Tick)
+	}
+	return cv, cmd
+}
+
+// handleA2ATaskStatusUpdate refreshes the live state/message for an in-flight task.
+func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUpdateEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.TaskID == "" {
+		return cv, cmd
+	}
+
+	display, exists := cv.backgroundTasks[msg.TaskID]
+	if !exists {
+		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
+		cv.backgroundTasks[msg.TaskID] = display
+	}
+	if msg.AgentURL != "" && display.AgentURL == "" {
+		display.AgentURL = msg.AgentURL
+	}
+	if msg.Status != "" {
+		display.State = msg.Status
+	}
+	if msg.Message != "" {
+		display.Message = msg.Message
+	}
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+// handleA2ATaskCompleted marks a task as successfully completed, captures
+// the usage JSON from Task.metadata, and schedules auto-removal.
+func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.TaskID == "" {
+		return cv, cmd
+	}
+
+	display, exists := cv.backgroundTasks[msg.TaskID]
+	if !exists {
+		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
+		cv.backgroundTasks[msg.TaskID] = display
+	}
+	display.State = "completed"
+	display.IsTerminal = true
+	display.CompletedAt = time.Now()
+	display.UsageJSON = extractA2AUsageJSON(msg.Result.Data)
+	display.ExecutionStatsJSON = extractA2AExecutionStatsJSON(msg.Result.Data)
+	if display.AgentName == "" {
+		display.AgentName = extractA2AAgentName(msg.Result.Data)
+	}
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, tea.Batch(cmd, scheduleBackgroundTaskRemoval(msg.TaskID))
+}
+
+// handleA2ATaskFailed marks a task as failed, captures the error, and
+// schedules auto-removal.
+func (cv *ConversationView) handleA2ATaskFailed(msg domain.A2ATaskFailedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.TaskID == "" {
+		return cv, cmd
+	}
+
+	display, exists := cv.backgroundTasks[msg.TaskID]
+	if !exists {
+		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
+		cv.backgroundTasks[msg.TaskID] = display
+	}
+	display.State = "failed"
+	display.IsTerminal = true
+	display.CompletedAt = time.Now()
+	display.ErrorMsg = msg.Error
+	if display.AgentName == "" {
+		display.AgentName = extractA2AAgentName(msg.Result.Data)
+	}
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, tea.Batch(cmd, scheduleBackgroundTaskRemoval(msg.TaskID))
+}
+
+// handleRemoveBackgroundTask removes a terminal-state task indicator after
+// its 5-second lingering window.
+func (cv *ConversationView) handleRemoveBackgroundTask(msg BackgroundTaskRemovalTickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if _, exists := cv.backgroundTasks[msg.TaskID]; !exists {
+		return cv, cmd
+	}
+	delete(cv.backgroundTasks, msg.TaskID)
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+// hasActiveBackgroundTasks reports whether any tracked task has not yet
+// reached a terminal state — used to keep the spinner ticking only while
+// needed.
+func (cv *ConversationView) hasActiveBackgroundTasks() bool {
+	for _, d := range cv.backgroundTasks {
+		if !d.IsTerminal {
+			return true
+		}
+	}
+	return false
+}
+
+// hasOtherActiveBackgroundTasks reports whether any non-terminal task other
+// than `exceptTaskID` is being tracked.
+func (cv *ConversationView) hasOtherActiveBackgroundTasks(exceptTaskID string) bool {
+	for id, d := range cv.backgroundTasks {
+		if id == exceptTaskID {
+			continue
+		}
+		if !d.IsTerminal {
+			return true
+		}
+	}
+	return false
+}
+
+// scheduleBackgroundTaskRemoval returns a tea.Cmd that fires
+// BackgroundTaskRemovalTickMsg after backgroundTaskRemovalDelay.
+func scheduleBackgroundTaskRemoval(taskID string) tea.Cmd {
+	return tea.Tick(backgroundTaskRemovalDelay, func(_ time.Time) tea.Msg {
+		return BackgroundTaskRemovalTickMsg{TaskID: taskID}
+	})
+}
+
+// HasBackgroundTasks reports whether there is at least one tracked
+// background task to render in the sticky indicator bar.
+func (cv *ConversationView) HasBackgroundTasks() bool {
+	return len(cv.backgroundTasks) > 0
+}
+
+// RenderBackgroundTasksBar returns the sticky multi-line indicator block
+// rendered above the input area. Each tracked task gets one line. Order is
+// stable (lexicographic by TaskID) so concurrent tasks don't jitter
+// between renders. Returns "" when there are no tasks to show.
+func (cv *ConversationView) RenderBackgroundTasksBar(_ int) string {
+	if len(cv.backgroundTasks) == 0 {
+		return ""
+	}
+
+	ids := make([]string, 0, len(cv.backgroundTasks))
+	for id := range cv.backgroundTasks {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	lines := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if line := cv.renderBackgroundTaskLine(cv.backgroundTasks[id]); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
+}
+
+// BackgroundTasksBarHeight returns the line count the sticky indicator
+// will occupy, for use in the parent layout's height budgeting. Terminal
+// states render across multiple lines (header + usage + execution_stats),
+// so this counts the actual rendered newlines rather than just the task
+// count.
+func (cv *ConversationView) BackgroundTasksBarHeight() int {
+	if len(cv.backgroundTasks) == 0 {
+		return 0
+	}
+	bar := cv.RenderBackgroundTasksBar(cv.width)
+	if bar == "" {
+		return 0
+	}
+	return strings.Count(bar, "\n") + 1
+}
+
+// normalizeTaskState turns ADK enum-style task states like
+// "TASK_STATE_WORKING" into tidy user-facing strings like "working".
+// Already-tidy inputs (e.g. "submitted") are returned unchanged.
+func normalizeTaskState(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	lower := strings.ToLower(s)
+	lower = strings.TrimPrefix(lower, "task_state_")
+	return strings.ReplaceAll(lower, "_", "-")
+}
+
+// agentDisplayName resolves the best available agent name for a display:
+// configured friendly name first, then resolver lookup by URL, then the
+// URL with scheme stripped (e.g. http://localhost:8081 → localhost:8081),
+// then the task ID as a last-resort fallback.
+func (cv *ConversationView) agentDisplayName(display *BackgroundTaskDisplay) string {
+	if display.AgentName != "" {
+		return display.AgentName
+	}
+	if cv.agentNameResolver != nil && display.AgentURL != "" {
+		if resolved := cv.agentNameResolver(display.AgentURL); resolved != "" {
+			return resolved
+		}
+	}
+	if display.AgentURL != "" {
+		return shortenAgentURL(display.AgentURL)
+	}
+	return display.TaskID
+}
+
+// renderTerminalMultiLine emits a multi-line indicator for terminal
+// states: header (icon + Agent(name=state)), then `usage=…`,
+// `execution_stats=…`, and (for failures) `error: …`, each on its own
+// line under a tree branch (├── / └──) — matching the box-drawing
+// hierarchy style used elsewhere in the UI. Detail lines that have no
+// content are dropped, so older agents without usage metadata render
+// just the header.
+func (cv *ConversationView) renderTerminalMultiLine(icon, iconColor, stateColor, header, usageJSON, statsJSON, err string) string {
+	headerStyled := cv.styleProvider.RenderWithColor(icon, cv.styleProvider.GetThemeColor(iconColor)) +
+		" " + cv.styleProvider.RenderWithColor(header, cv.styleProvider.GetThemeColor(stateColor))
+
+	dim := cv.styleProvider.GetThemeColor("dim")
+	errColor := cv.styleProvider.GetThemeColor("error")
+
+	type branch struct {
+		text  string
+		color string
+	}
+	var details []branch
+	if usageJSON != "" {
+		details = append(details, branch{"usage=" + usageJSON, dim})
+	}
+	if statsJSON != "" {
+		details = append(details, branch{"execution_stats=" + statsJSON, dim})
+	}
+	if err != "" {
+		details = append(details, branch{"error: " + err, errColor})
+	}
+
+	if len(details) == 0 {
+		return headerStyled
+	}
+
+	lines := []string{headerStyled}
+	for i, d := range details {
+		prefix := "├── "
+		if i == len(details)-1 {
+			prefix = "└── "
+		}
+		lines = append(lines, "  "+cv.styleProvider.RenderWithColor(prefix+d.text, d.color))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// shortenAgentURL produces a tidier label for an agent URL when no
+// configured friendly name is available. Strips the scheme and any
+// trailing path/query so a raw URL like "http://localhost:8081/api"
+// renders as "localhost:8081".
+func shortenAgentURL(url string) string {
+	url = strings.TrimPrefix(url, "https://")
+	url = strings.TrimPrefix(url, "http://")
+	if idx := strings.IndexAny(url, "/?#"); idx >= 0 {
+		url = url[:idx]
+	}
+	return url
+}
+
+// renderBackgroundTaskLine produces one styled line summarising a background
+// task's current state for inline display under the originating tool call.
+func (cv *ConversationView) renderBackgroundTaskLine(display *BackgroundTaskDisplay) string {
+	if display == nil {
+		return ""
+	}
+
+	name := cv.agentDisplayName(display)
+	state := normalizeTaskState(display.State)
+	if state == "" {
+		state = "submitted"
+	}
+
+	var (
+		icon       string
+		iconColor  string
+		stateColor string
+		body       string
+	)
+
+	switch state {
+	case "completed":
+		return cv.renderTerminalMultiLine(
+			icons.CheckMark, "success", "dim",
+			fmt.Sprintf("Agent(%s=completed)", name),
+			display.UsageJSON, display.ExecutionStatsJSON, "",
+		)
+	case "failed":
+		return cv.renderTerminalMultiLine(
+			icons.CrossMark, "error", "error",
+			fmt.Sprintf("Agent(%s=failed)", name),
+			display.UsageJSON, display.ExecutionStatsJSON, display.ErrorMsg,
+		)
+	case "cancelled", "canceled":
+		icon = icons.CrossMark
+		iconColor = "dim"
+		stateColor = "dim"
+		body = fmt.Sprintf("Agent(%s=cancelled)", name)
+	default:
+		icon = icons.GetSpinnerFrame(cv.backgroundSpinStep)
+		iconColor = "accent"
+		stateColor = "accent"
+		body = fmt.Sprintf("Agent(%s=%s...)", name, state)
+	}
+
+	styledIcon := cv.styleProvider.RenderWithColor(icon, cv.styleProvider.GetThemeColor(iconColor))
+	styledBody := cv.styleProvider.RenderWithColor(body, cv.styleProvider.GetThemeColor(stateColor))
+	return fmt.Sprintf("%s %s", styledIcon, styledBody)
+}
+
+// extractA2AAgentName attempts to derive a short agent identifier from an
+// A2A_SubmitTask tool result. Falls back to the raw agent_url if no
+// friendlier name is encoded.
+func extractA2AAgentName(data any) string {
+	if data == nil {
+		return ""
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	var probe struct {
+		AgentURL string `json:"agent_url"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return ""
+	}
+	return probe.AgentURL
+}
+
+// extractA2AUsageJSON extracts a compact JSON string for Task.metadata.usage
+// from an A2A_SubmitTask tool result. Returns "" if the metadata is absent
+// (e.g. remote agent has EnableUsageMetadata disabled, or the task ran no
+// LLM calls).
+func extractA2AUsageJSON(data any) string {
+	return extractTaskMetadataField(data, "usage")
+}
+
+// extractA2AExecutionStatsJSON extracts a compact JSON string for
+// Task.metadata.execution_stats from an A2A_SubmitTask tool result. Per
+// ADK ≥ 0.19.0 this is always present on terminal-state tasks when
+// EnableUsageMetadata is on, even if no LLM calls were made (so tool-only
+// agents still report tool_calls / failed_tools).
+func extractA2AExecutionStatsJSON(data any) string {
+	return extractTaskMetadataField(data, "execution_stats")
+}
+
+// extractTaskMetadataField pulls one top-level key out of
+// Task.Metadata via a json round-trip on the A2A_SubmitTask result Data.
+// JSON round-trip avoids importing internal/agent/tools (cyclic).
+func extractTaskMetadataField(data any, field string) string {
+	if data == nil {
+		return ""
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	var probe struct {
+		Task *struct {
+			Metadata *map[string]any `json:"metadata"`
+		} `json:"task"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return ""
+	}
+	if probe.Task == nil || probe.Task.Metadata == nil {
+		return ""
+	}
+	val, ok := (*probe.Task.Metadata)[field]
+	if !ok || val == nil {
+		return ""
+	}
+	out, err := json.Marshal(val)
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 // handleDefaultEvents processes all other events
