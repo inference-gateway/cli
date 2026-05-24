@@ -1513,7 +1513,7 @@ func (cv *ConversationView) formatNonTerminalBody(name, state string, display *B
 	if width <= 0 || model == "" {
 		return body
 	}
-	const iconBudget = 2 // icon + space prepended by caller
+	const iconBudget = 2
 	avail := width - iconBudget
 	if len(body) <= avail {
 		return body
