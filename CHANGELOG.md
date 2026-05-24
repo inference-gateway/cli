@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.111.0](https://github.com/inference-gateway/cli/compare/v0.110.1...v0.111.0) (2026-05-24)
+
+### 🚀 Features
+
+* **ui:** Visualise background A2A agents ([#534](https://github.com/inference-gateway/cli/issues/534)) ([#535](https://github.com/inference-gateway/cli/issues/535)) ([d2abc71](https://github.com/inference-gateway/cli/commit/d2abc71edc9b03f715f150e517a44967d15dac67))
+
+### 📚 Documentation
+
+* Update the badges to be flat-square ([69b63a6](https://github.com/inference-gateway/cli/commit/69b63a602e67d9d588cadfb49e69056c223468f9))
+
 ## [0.110.1](https://github.com/inference-gateway/cli/compare/v0.110.0...v0.110.1) (2026-05-24)
 
 ### 🐛 Bug Fixes
