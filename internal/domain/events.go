@@ -49,7 +49,10 @@ type ChatChunkEvent struct {
 func (e ChatChunkEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ChatCompleteEvent indicates chat completion
+// ChatCompleteEvent indicates chat completion. Cancelled is set when the
+// completion is the result of a user-initiated cancel (Esc) rather than the
+// model finishing on its own — the UI uses this to show "User interrupted"
+// rather than "Response complete".
 type ChatCompleteEvent struct {
 	RequestID        string
 	Timestamp        time.Time
@@ -57,6 +60,7 @@ type ChatCompleteEvent struct {
 	ReasoningContent string
 	ToolCalls        []sdk.ChatCompletionMessageToolCall
 	Metrics          *ChatMetrics
+	Cancelled        bool
 }
 
 func (e ChatCompleteEvent) GetRequestID() string    { return e.RequestID }
@@ -108,16 +112,6 @@ type ToolCallReadyEvent struct {
 
 func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// CancelledEvent indicates a request was cancelled
-type CancelledEvent struct {
-	RequestID string
-	Timestamp time.Time
-	Reason    string
-}
-
-func (e CancelledEvent) GetRequestID() string    { return e.RequestID }
-func (e CancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // OptimizationStatusEvent indicates conversation optimization status
 type OptimizationStatusEvent struct {
@@ -249,6 +243,22 @@ type ToolRejectedEvent struct {
 
 func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCancelledEvent is published when the conversation validator
+// synthesizes a Tool-role response for an assistant tool_call whose
+// real execution never completed (typically because the user pressed
+// Esc between the model emitting tool_calls and the tools running).
+// The conversation view uses this to surface a "[cancelled]" entry
+// so the user understands why a requested tool never produced output.
+type ToolCancelledEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+}
+
+func (e ToolCancelledEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolApprovalClearedEvent is used for standard tool approval workflow.
 // Computer-use tools use a separate pause/resume mechanism.

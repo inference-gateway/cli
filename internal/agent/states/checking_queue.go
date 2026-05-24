@@ -56,6 +56,17 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 			logger.Debug("batched queued messages", "count", numBatched)
 		}
 
+		if s.ctx.AgentCtx.Ctx.Err() != nil {
+			logger.Debug("session cancelled - completing without next turn",
+				"err", s.ctx.AgentCtx.Ctx.Err())
+			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCompleting); err != nil {
+				logger.Error("failed to transition to completing", "error", err)
+				return err
+			}
+			s.ctx.Events <- domain.CompletionRequestedEvent{}
+			return nil
+		}
+
 		if s.ctx.BackgroundTaskRegistry != nil && s.ctx.BackgroundTaskRegistry.HasPending() {
 			logger.Debug("background tasks pending, waiting")
 			s.ctx.WaitGroup.Add(1)

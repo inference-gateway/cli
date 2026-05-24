@@ -1,11 +1,16 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	sdk "github.com/inference-gateway/sdk"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestBuildAssistantMessage(t *testing.T) {
@@ -90,4 +95,54 @@ func TestBuildAssistantMessage(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPersistPartialAssistantMessage_KeepsContent verifies that a half-streamed
+// LLM response (text + reasoning) is appended to the conversation and the
+// repo when the user cancels mid-generation — so a partially-written poem
+// isn't lost the moment Esc is pressed.
+func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
+	repo := &domainmocks.FakeConversationRepository{}
+	repo.AddMessageReturns(nil)
+
+	conversation := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("Write a long poem")},
+	}
+
+	agent := &EventDrivenAgent{
+		service:  &AgentServiceImpl{conversationRepo: repo},
+		agentCtx: &domain.AgentContext{Conversation: &conversation, Ctx: context.Background()},
+		req:      &domain.AgentRequest{RequestID: "r1", Model: "deepseek/deepseek-v4-flash"},
+	}
+
+	partial := sdk.Message{
+		Role:    sdk.Assistant,
+		Content: sdk.NewMessageContent("Roses are red,\nViolets are blue,\nGo concurrency..."),
+	}
+
+	agent.persistPartialAssistantMessage(partial)
+
+	assert.Len(t, conversation, 2, "partial assistant message should be appended")
+	assert.Equal(t, sdk.Assistant, conversation[1].Role)
+	got, _ := conversation[1].Content.AsMessageContent0()
+	assert.Contains(t, got, "Roses are red")
+	assert.Equal(t, 1, repo.AddMessageCallCount(), "partial assistant message should be saved to repo")
+}
+
+// TestPersistPartialAssistantMessage_SkipsEmpty verifies that a cancel before
+// the model emits anything does NOT add an empty assistant message to history.
+func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
+	repo := &domainmocks.FakeConversationRepository{}
+	conversation := []sdk.Message{}
+
+	agent := &EventDrivenAgent{
+		service:  &AgentServiceImpl{conversationRepo: repo},
+		agentCtx: &domain.AgentContext{Conversation: &conversation, Ctx: context.Background()},
+		req:      &domain.AgentRequest{RequestID: "r1"},
+	}
+
+	agent.persistPartialAssistantMessage(sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("")})
+
+	assert.Empty(t, conversation, "empty partial should not be appended")
+	assert.Equal(t, 0, repo.AddMessageCallCount())
 }

@@ -51,7 +51,11 @@ func (s *CompletingState) Handle(event domain.AgentEvent) error {
 	logger.Debug("no queued messages, completing agent execution")
 
 	logger.Debug("publishing final chat completion event")
-	s.ctx.PublishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.ctx.GetMetrics(s.ctx.Request.RequestID))
+	if s.ctx.AgentCtx.Ctx.Err() != nil {
+		s.ctx.PublishChatCancelled(s.ctx.GetMetrics(s.ctx.Request.RequestID))
+	} else {
+		s.ctx.PublishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.ctx.GetMetrics(s.ctx.Request.RequestID))
+	}
 
 	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateIdle); err != nil {
 		logger.Error("failed to transition to idle", "error", err)

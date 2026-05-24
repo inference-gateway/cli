@@ -33,15 +33,7 @@ func (s *PostToolExecutionState) Handle(event domain.AgentEvent) error {
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
-		logger.Debug("messages queued during tool execution, draining queue")
-		numBatched := s.ctx.BatchDrainQueue()
-		logger.Debug("batched messages after tool execution", "count", numBatched)
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
-			logger.Error("failed to transition to checking queue", "error", err)
-			return err
-		}
-		s.ctx.Events <- domain.MessageReceivedEvent{}
-		return nil
+		return s.handleQueuedMessages()
 	}
 
 	if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
@@ -59,5 +51,33 @@ func (s *PostToolExecutionState) Handle(event domain.AgentEvent) error {
 		}
 		s.ctx.Events <- domain.MessageReceivedEvent{}
 	}
+	return nil
+}
+
+// handleQueuedMessages drains queued messages into conversation history. If
+// the session ctx was cancelled (Esc), it short-circuits to Completing so
+// the queued input is preserved without starting another LLM turn —
+// matching the "drain then stop" contract from issue #532.
+func (s *PostToolExecutionState) handleQueuedMessages() error {
+	logger.Debug("messages queued during tool execution, draining queue")
+	numBatched := s.ctx.BatchDrainQueue()
+	logger.Debug("batched messages after tool execution", "count", numBatched)
+
+	if s.ctx.AgentCtx.Ctx.Err() != nil {
+		logger.Debug("session cancelled after drain - completing without next turn",
+			"err", s.ctx.AgentCtx.Ctx.Err())
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCompleting); err != nil {
+			logger.Error("failed to transition to completing", "error", err)
+			return err
+		}
+		s.ctx.Events <- domain.CompletionRequestedEvent{}
+		return nil
+	}
+
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
+		logger.Error("failed to transition to checking queue", "error", err)
+		return err
+	}
+	s.ctx.Events <- domain.MessageReceivedEvent{}
 	return nil
 }

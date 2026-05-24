@@ -729,7 +729,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message: "Operation cancelled",
+			Message: "User interrupted",
 			Spinner: false,
 		}
 	}

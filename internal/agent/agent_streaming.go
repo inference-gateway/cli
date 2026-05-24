@@ -81,6 +81,8 @@ func (a *EventDrivenAgent) startStreaming() {
 		client = client.WithTools(&a.availableTools)
 	}
 
+	a.service.ensureConversationIntegrity(a.agentCtx.Conversation, a.eventPublisher, a.req.RequestID, false)
+
 	events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
 	if err != nil {
 		logger.Error("Failed to create stream",
@@ -113,7 +115,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 	for {
 		select {
 		case <-requestCtx.Done():
-			a.handleContextTimeout(requestCtx)
+			a.handleStreamInterrupted(requestCtx, message)
 			return
 
 		case event, ok := <-events:
@@ -129,8 +131,14 @@ func (a *EventDrivenAgent) processStreamEvents(
 	}
 }
 
-// handleContextTimeout handles context cancellation and timeout errors
-func (a *EventDrivenAgent) handleContextTimeout(requestCtx context.Context) {
+// handleStreamInterrupted handles a stream that ended via ctx cancellation —
+// either a real timeout (DeadlineExceeded) or user cancellation (Canceled).
+// Timeout: publish an error and transition to StateError.
+// Cancellation: persist any partial assistant content so the user doesn't
+// lose mid-flight output (e.g. a half-written poem when Esc is pressed),
+// then return silently — the main event loop owns the StateCancelled
+// transition via cancelChan.
+func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
 	if requestCtx.Err() == context.DeadlineExceeded {
 		logger.Error("stream timeout", "error", requestCtx.Err())
 		a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
@@ -138,8 +146,50 @@ func (a *EventDrivenAgent) handleContextTimeout(requestCtx context.Context) {
 			Timestamp: time.Now(),
 			Error:     fmt.Errorf("stream timed out after %d seconds", a.service.timeoutSeconds),
 		}
+		_ = a.stateMachine.Transition(a.agentCtx, domain.StateError)
+		return
 	}
-	_ = a.stateMachine.Transition(a.agentCtx, domain.StateError)
+
+	logger.Debug("stream cancelled", "request_id", a.req.RequestID, "err", requestCtx.Err())
+	a.persistPartialAssistantMessage(partial)
+}
+
+// persistPartialAssistantMessage saves the partial assistant text + reasoning
+// produced before cancellation. Partial tool calls are intentionally dropped:
+// a half-streamed tool call can't be executed safely, so attempting to
+// preserve it risks malformed arguments. Text content alone is appended to
+// both the in-memory conversation and the repo so the next session sees the
+// interruption point in history.
+func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
+	content, err := partial.Content.AsMessageContent0()
+	if err != nil {
+		content = ""
+	}
+
+	reasoning := ""
+	switch {
+	case partial.Reasoning != nil && *partial.Reasoning != "":
+		reasoning = *partial.Reasoning
+	case partial.ReasoningContent != nil && *partial.ReasoningContent != "":
+		reasoning = *partial.ReasoningContent
+	}
+
+	if content == "" && reasoning == "" {
+		return
+	}
+
+	assistantMessage := buildAssistantMessage(sdk.NewMessageContent(content), reasoning, nil)
+	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
+
+	entry := domain.ConversationEntry{
+		Message:          assistantMessage,
+		ReasoningContent: reasoning,
+		Model:            a.req.Model,
+		Time:             time.Now(),
+	}
+	if err := a.service.conversationRepo.AddMessage(entry); err != nil {
+		logger.Error("failed to persist partial assistant message after cancel", "error", err)
+	}
 }
 
 // processStreamEvent processes a single SSE event from the stream

@@ -33,13 +33,17 @@ type AgentServiceImpl struct {
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
 
-	// Request tracking
+	// Request tracking: per-iteration streaming timeout contexts.
+	// Lifetime is one LLM turn (created in startStreaming, deleted via defer).
 	activeRequests map[string]context.CancelFunc
 	requestsMux    sync.RWMutex
 
-	// Cancel channels for graceful stopping of agent event loops
-	cancelChannels map[string]chan struct{}
-	cancelMux      sync.RWMutex
+	// Session tracking: covers the full lifetime of a RunWithStream call.
+	// Cancelling a session aborts streaming, tool execution, approval waits,
+	// background pollers, and the main event loop in one shot. Idempotent
+	// via sync.Once so multiple Esc presses are safe.
+	activeSessions map[string]*sessionCancel
+	sessionMux     sync.RWMutex
 
 	// Metrics tracking
 	metrics    map[string]*domain.ChatMetrics
@@ -53,6 +57,26 @@ type AgentServiceImpl struct {
 	gitContextCache string
 	gitContextTurn  int
 	contextCacheMux sync.RWMutex
+}
+
+// sessionCancel bundles the two cancellation primitives for a single
+// RunWithStream session: a context.CancelFunc that aborts in-flight
+// streaming/tool/approval work, and a broadcast channel that wakes the
+// agent's main event loop and any polling goroutines. sync.Once makes
+// Cancel safe to call repeatedly so the UI can fire it on every Esc
+// press without panicking on double-close.
+type sessionCancel struct {
+	cancelCtx  context.CancelFunc
+	cancelChan chan struct{}
+	once       sync.Once
+}
+
+// Cancel triggers both primitives exactly once.
+func (sc *sessionCancel) Cancel() {
+	sc.once.Do(func() {
+		sc.cancelCtx()
+		close(sc.cancelChan)
+	})
 }
 
 // eventPublisher provides a utility for publishing chat events
@@ -77,7 +101,8 @@ func (p *eventPublisher) publishChatStart() {
 	}
 }
 
-// publishChatComplete publishes a ChatCompleteEvent
+// publishChatComplete publishes a ChatCompleteEvent for a normally-finished
+// chat turn.
 func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
 	p.chatEvents <- domain.ChatCompleteEvent{
 		RequestID:        p.requestID,
@@ -85,6 +110,19 @@ func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.C
 		ReasoningContent: reasoning,
 		ToolCalls:        toolCalls,
 		Metrics:          metrics,
+	}
+}
+
+// publishChatCancelled publishes a ChatCompleteEvent flagged as cancelled so
+// the UI shows "User interrupted" instead of "Response complete". The event
+// reuses ChatCompleteEvent (rather than a new type) so existing listeners
+// keep handling lifecycle bookkeeping uniformly.
+func (p *eventPublisher) publishChatCancelled(metrics *domain.ChatMetrics) {
+	p.chatEvents <- domain.ChatCompleteEvent{
+		RequestID: p.requestID,
+		Timestamp: time.Now(),
+		Metrics:   metrics,
+		Cancelled: true,
 	}
 }
 
@@ -267,7 +305,7 @@ func NewAgent(
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
 		activeRequests:   make(map[string]context.CancelFunc),
-		cancelChannels:   make(map[string]chan struct{}),
+		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
@@ -372,6 +410,69 @@ func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, str
 	return content, reasoning, toolCalls
 }
 
+// ensureConversationIntegrity enforces the OpenAI tool_call/response
+// invariant by inserting a synthetic Tool-role message for every
+// orphan tool_call_id in the current conversation. Returns the number
+// of synthetics inserted.
+//
+// persistSynthetics:
+//   - true at the drain-time chokepoint (real corruption point — JSONL
+//     append order matches logical order, so repo state stays valid).
+//   - false at defensive call sites (e.g. before sending to the
+//     gateway) where the orphan may have come from a pre-existing
+//     disk state we cannot retroactively repair without rewriting the
+//     JSONL.
+//
+// Idempotent: re-running on an already-repaired conversation is a
+// no-op (returns 0).
+func (s *AgentServiceImpl) ensureConversationIntegrity(
+	conversation *[]sdk.Message,
+	publisher *eventPublisher,
+	requestID string,
+	persistSynthetics bool,
+) int {
+	if conversation == nil || len(*conversation) == 0 {
+		return 0
+	}
+
+	repaired, synthetics := services.EnsureToolCallsClosed(*conversation)
+	if len(synthetics) == 0 {
+		return 0
+	}
+
+	*conversation = repaired
+
+	logger.Info("synthesized cancelled tool responses for orphan tool_calls",
+		"count", len(synthetics),
+		"persisted", persistSynthetics)
+
+	if !persistSynthetics {
+		return len(synthetics)
+	}
+
+	for _, syn := range synthetics {
+		entry := domain.ConversationEntry{
+			Message: syn.Message,
+			Time:    time.Now(),
+		}
+		if s.conversationRepo != nil {
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("failed to persist synthetic cancelled tool response",
+					"tool_call_id", syn.ToolCallID, "error", err)
+			}
+		}
+		if publisher != nil {
+			publisher.chatEvents <- domain.ToolCancelledEvent{
+				RequestID:  requestID,
+				Timestamp:  time.Now(),
+				ToolCallID: syn.ToolCallID,
+				ToolName:   syn.ToolName,
+			}
+		}
+	}
+	return len(synthetics)
+}
+
 // batchDrainQueue drains all queued messages and adds them to conversation
 // Returns the number of messages drained
 func (s *AgentServiceImpl) batchDrainQueue(
@@ -394,6 +495,8 @@ func (s *AgentServiceImpl) batchDrainQueue(
 	if len(messages) == 0 {
 		return 0
 	}
+
+	s.ensureConversationIntegrity(conversation, eventPublisher, messages[0].RequestID, true)
 
 	logger.Info("Batching queued messages into conversation",
 		"count", len(messages),
@@ -435,21 +538,23 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	chatEvents := make(chan domain.ChatEvent, 1000)
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
-	cancelChan := make(chan struct{}, 1)
-	s.cancelMux.Lock()
-	s.cancelChannels[req.RequestID] = cancelChan
-	s.cancelMux.Unlock()
-
-	defer func() {
-		s.cancelMux.Lock()
-		delete(s.cancelChannels, req.RequestID)
-		s.cancelMux.Unlock()
-	}()
+	sessionCtx, cancelCtx := context.WithCancel(ctx)
+	sc := &sessionCancel{
+		cancelCtx:  cancelCtx,
+		cancelChan: make(chan struct{}),
+	}
+	s.sessionMux.Lock()
+	s.activeSessions[req.RequestID] = sc
+	s.sessionMux.Unlock()
 
 	conversation := s.addSystemPrompt(req.Messages)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
+		sc.Cancel()
+		s.sessionMux.Lock()
+		delete(s.activeSessions, req.RequestID)
+		s.sessionMux.Unlock()
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
@@ -458,7 +563,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	if taskTracker != nil {
 		poller = services.NewA2ATaskPoller(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		go poller.Start(ctx)
+		go poller.Start(sessionCtx)
 	}
 
 	go func() {
@@ -467,17 +572,21 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				poller.Stop()
 			}
 			close(chatEvents)
+			s.sessionMux.Lock()
+			delete(s.activeSessions, req.RequestID)
+			s.sessionMux.Unlock()
+			sc.Cancel()
 		}()
 
-		conversation = s.optimizeConversation(ctx, req, conversation, eventPublisher)
+		conversation = s.optimizeConversation(sessionCtx, req, conversation, eventPublisher)
 
 		agent := NewEventDrivenAgent(
 			s,
-			ctx,
+			sessionCtx,
 			req,
 			&conversation,
 			eventPublisher,
-			cancelChan,
+			sc.cancelChan,
 			provider,
 			model,
 			s.bgRegistry,
@@ -494,44 +603,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	return chatEvents, nil
 }
 
-// CancelRequest cancels an active request
+// CancelRequest cancels an active request. Safe to call multiple times for
+// the same requestID — subsequent calls are no-ops via sync.Once on the
+// underlying sessionCancel. Returns nil even when the request is unknown,
+// so the UI can fire it on every Esc press without surfacing spurious
+// errors after the session has already torn down. The agent loop publishes
+// ChatCompleteEvent{Cancelled:true} as the single cancel-completion signal;
+// no separate CancelledEvent broadcast is needed.
 func (s *AgentServiceImpl) CancelRequest(requestID string) error {
-	s.requestsMux.Lock()
-	cancel, contextExists := s.activeRequests[requestID]
-	if contextExists {
-		delete(s.activeRequests, requestID)
-	}
-	s.requestsMux.Unlock()
+	s.sessionMux.RLock()
+	sc, sessionExists := s.activeSessions[requestID]
+	s.sessionMux.RUnlock()
 
-	s.cancelMux.Lock()
-	cancelChan, chanExists := s.cancelChannels[requestID]
-	if chanExists {
-		delete(s.cancelChannels, requestID)
-	}
-	s.cancelMux.Unlock()
-
-	if !contextExists && !chanExists {
-		return fmt.Errorf("request %s not found or already completed", requestID)
-	}
-
-	if contextExists {
-		cancel()
-	}
-
-	if chanExists {
-		select {
-		case cancelChan <- struct{}{}:
-		default:
-		}
-	}
-
-	if s.stateManager != nil {
-		cancelEvent := domain.CancelledEvent{
-			RequestID: requestID,
-			Timestamp: time.Now(),
-			Reason:    "user cancelled",
-		}
-		s.stateManager.BroadcastEvent(cancelEvent)
+	if sessionExists {
+		sc.Cancel()
 	}
 
 	return nil
