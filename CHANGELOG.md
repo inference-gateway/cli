@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.112.0](https://github.com/inference-gateway/cli/compare/v0.111.0...v0.112.0) (2026-05-24)
+
+### 🚀 Features
+
+* **ui:** Show elapsed time and model in background A2A indicator ([#537](https://github.com/inference-gateway/cli/issues/537)) ([b2ede2c](https://github.com/inference-gateway/cli/commit/b2ede2c3d4c31d6875b4426f875d6c204a2ddc23)), closes [#534](https://github.com/inference-gateway/cli/issues/534) [#536](https://github.com/inference-gateway/cli/issues/536)
+
 ## [0.111.0](https://github.com/inference-gateway/cli/compare/v0.110.1...v0.111.0) (2026-05-24)
 
 ### 🚀 Features
