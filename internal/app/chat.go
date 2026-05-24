@@ -10,6 +10,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -25,7 +28,6 @@ import (
 	factory "github.com/inference-gateway/cli/internal/ui/components/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -169,6 +171,7 @@ func NewChatApplication(
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
 		cv.SetAgentNameResolver(buildAgentNameResolver())
+		cv.SetAgentModelResolver(buildAgentModelResolver())
 	}
 
 	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
@@ -2172,6 +2175,31 @@ func buildAgentNameResolver() func(string) string {
 	}
 	return func(url string) string {
 		return nameByURL[url]
+	}
+}
+
+// buildAgentModelResolver loads ~/.infer/agents.yaml (or the project-level
+// equivalent) once and returns a closure that maps an agent URL to its
+// configured model (e.g. "deepseek/deepseek-v4-flash"). Used by the
+// background-agent indicator to show `model=<...>` in the live status
+// line. Returns nil on load failure or when no agent has a model set,
+// so the conversation view omits the model segment cleanly.
+func buildAgentModelResolver() func(string) string {
+	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
+	if err != nil || cfg == nil {
+		return nil
+	}
+	modelByURL := make(map[string]string, len(cfg.Agents))
+	for _, a := range cfg.Agents {
+		if a.URL != "" && a.Model != "" {
+			modelByURL[a.URL] = a.Model
+		}
+	}
+	if len(modelByURL) == 0 {
+		return nil
+	}
+	return func(url string) string {
+		return modelByURL[url]
 	}
 }
 

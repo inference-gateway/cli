@@ -47,12 +47,14 @@ type BackgroundTaskDisplay struct {
 	TaskID             string
 	AgentName          string
 	AgentURL           string
+	Model              string
 	State              string
 	Message            string
 	UsageJSON          string
 	ExecutionStatsJSON string
 	ErrorMsg           string
 	IsTerminal         bool
+	StartedAt          time.Time
 	CompletedAt        time.Time
 }
 
@@ -113,6 +115,10 @@ type ConversationView struct {
 	// from ~/.infer/agents.yaml. Optional; falls back to the URL when nil
 	// or when the URL has no matching entry.
 	agentNameResolver func(url string) string
+	// agentModelResolver maps an agent URL to its configured model (e.g.
+	// "deepseek/deepseek-v4-flash") from ~/.infer/agents.yaml. Optional;
+	// when nil or no match, the model segment is omitted from the indicator.
+	agentModelResolver func(url string) string
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -185,6 +191,13 @@ func (cv *ConversationView) SetKeyHintFormatter(formatter *hints.Formatter) {
 // (the visual then falls back to the agent URL).
 func (cv *ConversationView) SetAgentNameResolver(resolver func(url string) string) {
 	cv.agentNameResolver = resolver
+}
+
+// SetAgentModelResolver injects a URL→model lookup used when rendering
+// the background-agent indicator's "model=" segment. Pass nil to omit
+// that segment (the visual then drops "model=" cleanly).
+func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) string) {
+	cv.agentModelResolver = resolver
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -1201,6 +1214,18 @@ func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEv
 	if display.State == "" {
 		display.State = "submitted"
 	}
+	if display.StartedAt.IsZero() {
+		if !msg.Timestamp.IsZero() {
+			display.StartedAt = msg.Timestamp
+		} else {
+			display.StartedAt = time.Now()
+		}
+	}
+	if display.Model == "" && cv.agentModelResolver != nil && display.AgentURL != "" {
+		if m := cv.agentModelResolver(display.AgentURL); m != "" {
+			display.Model = m
+		}
+	}
 
 	startSpinner := !cv.hasOtherActiveBackgroundTasks(msg.TaskID)
 
@@ -1234,6 +1259,18 @@ func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUp
 	if msg.Message != "" {
 		display.Message = msg.Message
 	}
+	if display.Model == "" && cv.agentModelResolver != nil && display.AgentURL != "" {
+		if m := cv.agentModelResolver(display.AgentURL); m != "" {
+			display.Model = m
+		}
+	}
+	if display.StartedAt.IsZero() {
+		if !msg.Timestamp.IsZero() {
+			display.StartedAt = msg.Timestamp
+		} else {
+			display.StartedAt = time.Now()
+		}
+	}
 
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
@@ -1252,6 +1289,9 @@ func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEv
 	if !exists {
 		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
 		cv.backgroundTasks[msg.TaskID] = display
+	}
+	if display.StartedAt.IsZero() {
+		display.StartedAt = time.Now()
 	}
 	display.State = "completed"
 	display.IsTerminal = true
@@ -1279,6 +1319,9 @@ func (cv *ConversationView) handleA2ATaskFailed(msg domain.A2ATaskFailedEvent, c
 	if !exists {
 		display = &BackgroundTaskDisplay{TaskID: msg.TaskID}
 		cv.backgroundTasks[msg.TaskID] = display
+	}
+	if display.StartedAt.IsZero() {
+		display.StartedAt = time.Now()
 	}
 	display.State = "failed"
 	display.IsTerminal = true
@@ -1351,8 +1394,10 @@ func (cv *ConversationView) HasBackgroundTasks() bool {
 // RenderBackgroundTasksBar returns the sticky multi-line indicator block
 // rendered above the input area. Each tracked task gets one line. Order is
 // stable (lexicographic by TaskID) so concurrent tasks don't jitter
-// between renders. Returns "" when there are no tasks to show.
-func (cv *ConversationView) RenderBackgroundTasksBar(_ int) string {
+// between renders. Returns "" when there are no tasks to show. The
+// width controls non-terminal truncation of the model= segment; pass 0
+// to disable truncation entirely (used in some tests).
+func (cv *ConversationView) RenderBackgroundTasksBar(width int) string {
 	if len(cv.backgroundTasks) == 0 {
 		return ""
 	}
@@ -1365,7 +1410,7 @@ func (cv *ConversationView) RenderBackgroundTasksBar(_ int) string {
 
 	lines := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if line := cv.renderBackgroundTaskLine(cv.backgroundTasks[id]); line != "" {
+		if line := cv.renderBackgroundTaskLine(cv.backgroundTasks[id], width); line != "" {
 			lines = append(lines, line)
 		}
 	}
@@ -1421,6 +1466,78 @@ func (cv *ConversationView) agentDisplayName(display *BackgroundTaskDisplay) str
 		return shortenAgentURL(display.AgentURL)
 	}
 	return display.TaskID
+}
+
+// formatTerminalHeader builds the single-line header for a terminal-state
+// background-task indicator. Appends the frozen elapsed suffix when
+// available. The model= segment is intentionally omitted in terminal
+// form — by completion, focus shifts to usage= / execution_stats=.
+func (cv *ConversationView) formatTerminalHeader(name, state string, display *BackgroundTaskDisplay) string {
+	elapsed := computeElapsedString(display)
+	if elapsed == "" {
+		return fmt.Sprintf("Agent(%s=%s)", name, state)
+	}
+	return fmt.Sprintf("Agent(%s=%s) %s", name, state, elapsed)
+}
+
+// formatNonTerminalBody assembles the inline body for a non-terminal
+// background-task indicator. Shape:
+//
+//	Agent(<name>=<state>..., model=<model>) <elapsed>
+//
+// The model segment is dropped cleanly when unknown:
+//
+//	Agent(<name>=<state>...) <elapsed>
+//
+// When width > 0 and the assembled body would exceed the available
+// columns, only the model value is truncated with a trailing "...";
+// name, state, and elapsed are preserved verbatim. If even the framing
+// can't fit, the model segment is dropped rather than producing
+// garbled output.
+func (cv *ConversationView) formatNonTerminalBody(name, state string, display *BackgroundTaskDisplay, width int) string {
+	elapsed := computeElapsedString(display)
+	model := strings.TrimSpace(display.Model)
+
+	var body string
+	switch {
+	case model != "" && elapsed != "":
+		body = fmt.Sprintf("Agent(%s=%s..., model=%s) %s", name, state, model, elapsed)
+	case model != "":
+		body = fmt.Sprintf("Agent(%s=%s..., model=%s)", name, state, model)
+	case elapsed != "":
+		body = fmt.Sprintf("Agent(%s=%s...) %s", name, state, elapsed)
+	default:
+		body = fmt.Sprintf("Agent(%s=%s...)", name, state)
+	}
+
+	if width <= 0 || model == "" {
+		return body
+	}
+	const iconBudget = 2
+	avail := width - iconBudget
+	if len(body) <= avail {
+		return body
+	}
+
+	var framing string
+	if elapsed != "" {
+		framing = fmt.Sprintf("Agent(%s=%s..., model=) %s", name, state, elapsed)
+	} else {
+		framing = fmt.Sprintf("Agent(%s=%s..., model=)", name, state)
+	}
+	const ellipsis = "..."
+	modelBudget := avail - len(framing) - len(ellipsis)
+	if modelBudget <= 0 {
+		if elapsed != "" {
+			return fmt.Sprintf("Agent(%s=%s...) %s", name, state, elapsed)
+		}
+		return fmt.Sprintf("Agent(%s=%s...)", name, state)
+	}
+	truncated := model[:modelBudget] + ellipsis
+	if elapsed != "" {
+		return fmt.Sprintf("Agent(%s=%s..., model=%s) %s", name, state, truncated, elapsed)
+	}
+	return fmt.Sprintf("Agent(%s=%s..., model=%s)", name, state, truncated)
 }
 
 // renderTerminalMultiLine emits a multi-line indicator for terminal
@@ -1482,7 +1599,9 @@ func shortenAgentURL(url string) string {
 
 // renderBackgroundTaskLine produces one styled line summarising a background
 // task's current state for inline display under the originating tool call.
-func (cv *ConversationView) renderBackgroundTaskLine(display *BackgroundTaskDisplay) string {
+// The width controls non-terminal truncation of the "model=" segment;
+// pass 0 to disable truncation.
+func (cv *ConversationView) renderBackgroundTaskLine(display *BackgroundTaskDisplay, width int) string {
 	if display == nil {
 		return ""
 	}
@@ -1504,25 +1623,25 @@ func (cv *ConversationView) renderBackgroundTaskLine(display *BackgroundTaskDisp
 	case "completed":
 		return cv.renderTerminalMultiLine(
 			icons.CheckMark, "success", "dim",
-			fmt.Sprintf("Agent(%s=completed)", name),
+			cv.formatTerminalHeader(name, "completed", display),
 			display.UsageJSON, display.ExecutionStatsJSON, "",
 		)
 	case "failed":
 		return cv.renderTerminalMultiLine(
 			icons.CrossMark, "error", "error",
-			fmt.Sprintf("Agent(%s=failed)", name),
+			cv.formatTerminalHeader(name, "failed", display),
 			display.UsageJSON, display.ExecutionStatsJSON, display.ErrorMsg,
 		)
 	case "cancelled", "canceled":
 		icon = icons.CrossMark
 		iconColor = "dim"
 		stateColor = "dim"
-		body = fmt.Sprintf("Agent(%s=cancelled)", name)
+		body = cv.formatTerminalHeader(name, "cancelled", display)
 	default:
 		icon = icons.GetSpinnerFrame(cv.backgroundSpinStep)
 		iconColor = "accent"
 		stateColor = "accent"
-		body = fmt.Sprintf("Agent(%s=%s...)", name, state)
+		body = cv.formatNonTerminalBody(name, state, display, width)
 	}
 
 	styledIcon := cv.styleProvider.RenderWithColor(icon, cv.styleProvider.GetThemeColor(iconColor))
@@ -1598,6 +1717,33 @@ func extractTaskMetadataField(data any, field string) string {
 		return ""
 	}
 	return string(out)
+}
+
+// formatElapsed renders a duration as "17s" for <60s, "1m23s" for >=60s.
+// Negative durations render as "0s".
+func formatElapsed(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	total := int(d.Seconds())
+	if total < 60 {
+		return fmt.Sprintf("%ds", total)
+	}
+	return fmt.Sprintf("%dm%ds", total/60, total%60)
+}
+
+// computeElapsedString returns the trailing "<elapsed>" string for a
+// background-task indicator. Terminal states are frozen at
+// CompletedAt-StartedAt; non-terminal states use time.Since(StartedAt).
+// Returns "" if StartedAt is zero.
+func computeElapsedString(display *BackgroundTaskDisplay) string {
+	if display == nil || display.StartedAt.IsZero() {
+		return ""
+	}
+	if display.IsTerminal && !display.CompletedAt.IsZero() {
+		return formatElapsed(display.CompletedAt.Sub(display.StartedAt))
+	}
+	return formatElapsed(time.Since(display.StartedAt))
 }
 
 // handleDefaultEvents processes all other events
