@@ -450,8 +450,8 @@ func isDomainEvent(msg tea.Msg) bool {
 		return true
 
 	// Other domain events
-	case domain.CancelledEvent,
-		domain.MessageQueuedEvent,
+	case domain.MessageQueuedEvent,
+		domain.ToolCancelledEvent,
 		domain.TodoUpdateChatEvent,
 		domain.AgentStatusUpdateEvent,
 		domain.NavigateBackInTimeEvent,

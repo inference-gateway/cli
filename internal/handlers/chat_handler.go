@@ -135,8 +135,6 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleBackgroundShellRequest()
 	case domain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
-	case domain.CancelledEvent:
-		return h.HandleCancelledEvent(m)
 	case domain.A2AToolCallExecutedEvent:
 		return h.HandleA2AToolCallExecutedEvent(m)
 	case domain.A2ATaskSubmittedEvent:
@@ -151,6 +149,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	case domain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
+	case domain.ToolCancelledEvent:
+		return h.HandleToolCancelledEvent(m)
 	case domain.ToolApprovalRequestedEvent:
 		return h.HandleToolApprovalRequestedEvent(m)
 	case domain.ToolApprovalResponseEvent:
@@ -537,12 +537,6 @@ func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	return h.handleToolExecutionCompleted(msg)
 }
 
-func (h *ChatHandler) HandleCancelledEvent(
-	msg domain.CancelledEvent,
-) tea.Cmd {
-	return h.handleCancelled(msg)
-}
-
 func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
 	msg domain.A2AToolCallExecutedEvent,
 ) tea.Cmd {
@@ -588,6 +582,29 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 ) tea.Cmd {
 	_, cmd := h.handleMessageQueued(msg)
 	return cmd
+}
+
+// HandleToolCancelledEvent refreshes the conversation view so the
+// synthetic [cancelled] tool entry that the integrity validator just
+// persisted becomes visible. No status-bar message — the cancel that
+// triggered this already drove its own status ("User interrupted").
+func (h *ChatHandler) HandleToolCancelledEvent(
+	_ domain.ToolCancelledEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
+		return domain.UpdateHistoryEvent{
+			History: history,
+		}
+	})
+
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Sequence(cmds...)
 }
 
 func (h *ChatHandler) HandleToolApprovalResponseEvent(
@@ -1106,7 +1123,15 @@ func (h *ChatHandler) handleChatComplete(
 ) tea.Cmd {
 	h.restorePendingModel()
 
-	if len(msg.ToolCalls) == 0 {
+	if msg.Cancelled {
+		// Cancel path absorbs the cleanup that used to live in handleCancelled:
+		// end the chat session, clear active tool execution, and move chat
+		// status to Cancelled so the input area returns to idle.
+		_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
+		h.stateManager.EndChatSession()
+		h.stateManager.EndToolExecution()
+		h.SetActiveToolCallID("")
+	} else if len(msg.ToolCalls) == 0 {
 		_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}
 
@@ -1134,9 +1159,13 @@ func (h *ChatHandler) handleChatComplete(
 		})
 	}
 
+	statusMessage := "Response complete"
+	if msg.Cancelled {
+		statusMessage = "User interrupted"
+	}
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Response complete",
+			Message:    statusMessage,
 			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
@@ -1695,23 +1724,6 @@ func (h *ChatHandler) handleA2ATaskInputRequired(
 	}
 
 	return nil, tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleCancelled(
-	msg domain.CancelledEvent,
-) tea.Cmd {
-	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
-	h.stateManager.EndChatSession()
-	h.stateManager.EndToolExecution()
-	h.SetActiveToolCallID("")
-
-	return func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Request cancelled: %s", msg.Reason),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	}
 }
 
 func (h *ChatHandler) handleA2AToolCallExecuted(

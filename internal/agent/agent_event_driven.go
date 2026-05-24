@@ -152,6 +152,9 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		PublishChatComplete: func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
 			a.eventPublisher.publishChatComplete(reasoning, toolCalls, metrics)
 		},
+		PublishChatCancelled: func(metrics *domain.ChatMetrics) {
+			a.eventPublisher.publishChatCancelled(metrics)
+		},
 	}
 
 	a.registerHandler(states.NewIdleState(ctx))
@@ -196,15 +199,30 @@ func (a *EventDrivenAgent) Wait() {
 	close(a.events)
 }
 
-// processEvents is the main event processing loop
+// processEvents is the main event processing loop. The double-select pattern
+// (non-blocking probe before the real select) gives cancellation strict
+// priority over pending events. Without the probe, Go's select chooses
+// randomly when both channels are ready, so a flurry of in-flight events
+// could mask the cancel signal and force the user to press Esc again.
 func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
+
+	cancelAndExit := func() {
+		_ = a.stateMachine.Transition(a.agentCtx, domain.StateCancelled)
+		a.eventPublisher.publishChatCancelled(a.service.GetMetrics(a.req.RequestID))
+	}
 
 	for {
 		select {
 		case <-a.cancelChan:
-			_ = a.stateMachine.Transition(a.agentCtx, domain.StateCancelled)
-			a.eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, a.service.GetMetrics(a.req.RequestID))
+			cancelAndExit()
+			return
+		default:
+		}
+
+		select {
+		case <-a.cancelChan:
+			cancelAndExit()
 			return
 
 		case event, ok := <-a.events:

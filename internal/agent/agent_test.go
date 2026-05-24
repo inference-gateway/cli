@@ -69,43 +69,39 @@ func TestAgentServiceImpl_GetMetrics(t *testing.T) {
 
 func TestAgentServiceImpl_CancelRequest(t *testing.T) {
 	tests := []struct {
-		name          string
-		requestID     string
-		setupRequest  bool
-		expectedError bool
+		name         string
+		requestID    string
+		setupSession bool
 	}{
 		{
-			name:          "cancel_existing_request",
-			requestID:     "cancel-123",
-			setupRequest:  true,
-			expectedError: false,
+			name:         "cancel_existing_request",
+			requestID:    "cancel-123",
+			setupSession: true,
 		},
 		{
-			name:          "cancel_nonexistent_request",
-			requestID:     "nonexistent",
-			setupRequest:  false,
-			expectedError: true,
+			name:         "cancel_nonexistent_request",
+			requestID:    "nonexistent",
+			setupSession: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agentService := &AgentServiceImpl{
-				activeRequests: make(map[string]context.CancelFunc),
+				activeSessions: make(map[string]*sessionCancel),
 			}
 
-			if tt.setupRequest {
+			if tt.setupSession {
 				_, cancel := context.WithCancel(context.Background())
-				agentService.activeRequests[tt.requestID] = cancel
+				agentService.activeSessions[tt.requestID] = &sessionCancel{
+					cancelCtx:  cancel,
+					cancelChan: make(chan struct{}),
+				}
 			}
 
 			err := agentService.CancelRequest(tt.requestID)
 
-			if tt.expectedError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -277,7 +273,7 @@ func TestNewAgentService(t *testing.T) {
 	assert.Equal(t, 120, agentService.timeoutSeconds)
 	assert.Equal(t, 4096, agentService.maxTokens)
 	assert.NotNil(t, agentService.activeRequests)
-	assert.NotNil(t, agentService.cancelChannels)
+	assert.NotNil(t, agentService.activeSessions)
 	assert.NotNil(t, agentService.metrics)
 	assert.NotNil(t, agentService.toolCallsMap)
 }
@@ -874,7 +870,7 @@ func TestAgentServiceImpl_ClearToolCallsMap(t *testing.T) {
 	agentService.clearToolCallsMap()
 
 	assert.Empty(t, agentService.toolCallsMap)
-	assert.NotNil(t, agentService.toolCallsMap) // Should be a new empty map, not nil
+	assert.NotNil(t, agentService.toolCallsMap)
 }
 
 func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
@@ -1078,7 +1074,6 @@ func TestEventPublisher_PublishToolsQueued(t *testing.T) {
 
 	publisher.publishToolsQueued(toolCalls)
 
-	// Should publish individual events for each tool
 	for i, tc := range toolCalls {
 		select {
 		case event := <-chatEvents:
@@ -1116,11 +1111,15 @@ func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
 func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		activeRequests: make(map[string]context.CancelFunc),
-		cancelChannels: make(map[string]chan struct{}),
+		activeSessions: make(map[string]*sessionCancel),
 	}
 
-	cancelChan := make(chan struct{}, 1)
-	agentService.cancelChannels["request-123"] = cancelChan
+	_, cancel := context.WithCancel(context.Background())
+	cancelChan := make(chan struct{})
+	agentService.activeSessions["request-123"] = &sessionCancel{
+		cancelCtx:  cancel,
+		cancelChan: cancelChan,
+	}
 
 	err := agentService.CancelRequest("request-123")
 
@@ -1136,14 +1135,15 @@ func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		activeRequests: make(map[string]context.CancelFunc),
-		cancelChannels: make(map[string]chan struct{}),
+		activeSessions: make(map[string]*sessionCancel),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	agentService.activeRequests["request-123"] = cancel
-
-	cancelChan := make(chan struct{}, 1)
-	agentService.cancelChannels["request-123"] = cancelChan
+	cancelChan := make(chan struct{})
+	agentService.activeSessions["request-123"] = &sessionCancel{
+		cancelCtx:  cancel,
+		cancelChan: cancelChan,
+	}
 
 	err := agentService.CancelRequest("request-123")
 
@@ -1155,6 +1155,90 @@ func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) 
 	case <-cancelChan:
 	default:
 		t.Fatal("expected cancel signal")
+	}
+}
+
+// TestAgentServiceImpl_CancelRequest_IsIdempotent verifies that multiple
+// Esc presses (or any repeated CancelRequest calls) are safe — no panic on
+// double-close of the cancel channel, and every call returns nil.
+func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
+	agentService := &AgentServiceImpl{
+		activeRequests: make(map[string]context.CancelFunc),
+		activeSessions: make(map[string]*sessionCancel),
+	}
+
+	_, cancel := context.WithCancel(context.Background())
+	cancelChan := make(chan struct{})
+	agentService.activeSessions["request-123"] = &sessionCancel{
+		cancelCtx:  cancel,
+		cancelChan: cancelChan,
+	}
+
+	for range 5 {
+		assert.NoError(t, agentService.CancelRequest("request-123"))
+	}
+
+	select {
+	case <-cancelChan:
+	default:
+		t.Fatal("expected cancel signal after repeated CancelRequest calls")
+	}
+}
+
+// TestAgentServiceImpl_CancelRequest_CancelsSessionContext verifies that
+// cancellation propagates through the session-level context so downstream
+// tool execution and approval waits observe ctx.Done().
+func TestAgentServiceImpl_CancelRequest_CancelsSessionContext(t *testing.T) {
+	agentService := &AgentServiceImpl{
+		activeRequests: make(map[string]context.CancelFunc),
+		activeSessions: make(map[string]*sessionCancel),
+	}
+
+	sessionCtx, cancel := context.WithCancel(context.Background())
+	agentService.activeSessions["request-123"] = &sessionCancel{
+		cancelCtx:  cancel,
+		cancelChan: make(chan struct{}),
+	}
+
+	require.NoError(t, agentService.CancelRequest("request-123"))
+
+	assert.Equal(t, context.Canceled, sessionCtx.Err())
+}
+
+// TestSessionCancel_OnlyClosesOnce verifies the sync.Once contract: the
+// cancel channel is closed at most once, and the cancelCtx func is called
+// at most once, even when Cancel is invoked many times concurrently.
+func TestSessionCancel_OnlyClosesOnce(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelCallCount := 0
+	wrappedCancel := func() {
+		cancelCallCount++
+		cancel()
+	}
+
+	sc := &sessionCancel{
+		cancelCtx:  wrappedCancel,
+		cancelChan: make(chan struct{}),
+	}
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sc.Cancel()
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, 1, cancelCallCount, "cancelCtx should be invoked exactly once")
+	assert.Equal(t, context.Canceled, ctx.Err())
+
+	select {
+	case _, ok := <-sc.cancelChan:
+		assert.False(t, ok, "cancelChan should be closed")
+	default:
+		t.Fatal("expected cancelChan to be closed")
 	}
 }
 
@@ -1335,7 +1419,6 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	numGoroutines := 50
 
-	// Concurrent accumulations
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func(id int) {
@@ -1358,7 +1441,6 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 }
 
 func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
-	// Helper to create configured fake A2A agent service
 	createFakeA2AAgentService := func(agents []string) *domainmocks.FakeA2AAgentService {
 		fake := &domainmocks.FakeA2AAgentService{}
 		fake.GetConfiguredAgentsReturns(agents)
@@ -1421,4 +1503,119 @@ func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls is the
+// regression test for the bug where a user message queued during tool
+// execution + Esc would land in the conversation immediately after an
+// assistant message with orphan tool_calls, producing a payload the
+// gateway rejected with HTTP 400 ("insufficient tool messages
+// following tool_calls message").
+func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
+	toolCalls := []sdk.ChatCompletionMessageToolCall{
+		{ID: "tc-a", Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+		{ID: "tc-b", Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+		{ID: "tc-c", Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Tree"}},
+	}
+	conversation := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("read 3 files")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("reading"), ToolCalls: &toolCalls},
+	}
+
+	queue := services.NewMessageQueueService()
+	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, "req-1")
+
+	repo := &domainmocks.FakeConversationRepository{}
+
+	svc := &AgentServiceImpl{
+		messageQueue:     queue,
+		conversationRepo: repo,
+	}
+
+	eventCh := make(chan domain.ChatEvent, 16)
+	publisher := newEventPublisher("req-1", eventCh)
+
+	drained := svc.batchDrainQueue(&conversation, publisher)
+
+	assert.Equal(t, 1, drained, "exactly one queued message should be drained")
+	require.Len(t, conversation, 6, "conversation must be user, assistant, tool×3, user")
+
+	assert.Equal(t, sdk.User, conversation[0].Role)
+	assert.Equal(t, sdk.Assistant, conversation[1].Role)
+	assert.Equal(t, sdk.Tool, conversation[2].Role)
+	assert.Equal(t, sdk.Tool, conversation[3].Role)
+	assert.Equal(t, sdk.Tool, conversation[4].Role)
+	assert.Equal(t, sdk.User, conversation[5].Role, "queued user message must land AFTER synthetic tool responses")
+
+	require.NotNil(t, conversation[2].ToolCallID)
+	require.NotNil(t, conversation[3].ToolCallID)
+	require.NotNil(t, conversation[4].ToolCallID)
+	assert.Equal(t, "tc-a", *conversation[2].ToolCallID, "synthetics must preserve original tool_calls order")
+	assert.Equal(t, "tc-b", *conversation[3].ToolCallID)
+	assert.Equal(t, "tc-c", *conversation[4].ToolCallID)
+
+	body, err := conversation[2].Content.AsMessageContent0()
+	require.NoError(t, err)
+	assert.Equal(t, services.CancelledToolResponseContent, body)
+
+	close(eventCh)
+	var cancelled []domain.ToolCancelledEvent
+	var queued []domain.MessageQueuedEvent
+	for ev := range eventCh {
+		switch e := ev.(type) {
+		case domain.ToolCancelledEvent:
+			cancelled = append(cancelled, e)
+		case domain.MessageQueuedEvent:
+			queued = append(queued, e)
+		}
+	}
+	require.Len(t, cancelled, 3, "expected 3 ToolCancelledEvents")
+	assert.Equal(t, "tc-a", cancelled[0].ToolCallID)
+	assert.Equal(t, "Read", cancelled[0].ToolName)
+	assert.Equal(t, "tc-c", cancelled[2].ToolCallID)
+	assert.Equal(t, "Tree", cancelled[2].ToolName)
+	assert.Len(t, queued, 1, "expected 1 MessageQueuedEvent for the drained user message")
+
+	require.Equal(t, 4, repo.AddMessageCallCount(), "repo must record 3 synthetics + 1 queued message")
+	assert.Equal(t, sdk.Tool, repo.AddMessageArgsForCall(0).Message.Role, "synthetics must be persisted before the queued user message so JSONL append order matches logical order")
+	assert.Equal(t, sdk.Tool, repo.AddMessageArgsForCall(1).Message.Role)
+	assert.Equal(t, sdk.Tool, repo.AddMessageArgsForCall(2).Message.Role)
+	assert.Equal(t, sdk.User, repo.AddMessageArgsForCall(3).Message.Role)
+}
+
+func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *testing.T) {
+	idA := "tc-x"
+	toolCalls := []sdk.ChatCompletionMessageToolCall{
+		{ID: idA, Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+	}
+	conversation := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("u1")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
+		{Role: sdk.Tool, Content: sdk.NewMessageContent(services.CancelledToolResponseContent), ToolCallID: &idA},
+	}
+
+	queue := services.NewMessageQueueService()
+	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, "req-x")
+
+	repo := &domainmocks.FakeConversationRepository{}
+	svc := &AgentServiceImpl{
+		messageQueue:     queue,
+		conversationRepo: repo,
+	}
+
+	eventCh := make(chan domain.ChatEvent, 8)
+	publisher := newEventPublisher("req-x", eventCh)
+
+	drained := svc.batchDrainQueue(&conversation, publisher)
+	assert.Equal(t, 1, drained)
+	require.Len(t, conversation, 4, "no new synthetics should be inserted")
+
+	close(eventCh)
+	var cancelled int
+	for ev := range eventCh {
+		if _, ok := ev.(domain.ToolCancelledEvent); ok {
+			cancelled++
+		}
+	}
+	assert.Equal(t, 0, cancelled, "validator must be a no-op on already-repaired conversation")
 }

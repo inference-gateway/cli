@@ -505,7 +505,12 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 		messages = append(messages, sdkMsg)
 	}
 
-	return messages
+	repaired, synthetics := services.EnsureToolCallsClosed(messages)
+	if len(synthetics) > 0 {
+		logger.Warn("resumed conversation had orphan tool_calls; patched in-memory",
+			"count", len(synthetics))
+	}
+	return repaired
 }
 
 func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {

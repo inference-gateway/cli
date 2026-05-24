@@ -531,6 +531,152 @@ func TestHandlePostToolExecutionState(t *testing.T) {
 	})
 }
 
+// TestHandlePostToolExecutionState_DrainsThenStopsWhenCancelled verifies the
+// "drain then stop" semantics for Esc cancellation: when the session ctx is
+// cancelled and the message queue still has entries, the post-tool-execution
+// handler must drain the queue (so queued user input lands in history) and
+// then transition to Completing rather than starting another LLM turn.
+func TestHandlePostToolExecutionState_DrainsThenStopsWhenCancelled(t *testing.T) {
+	mocks := setupTestMocks()
+	ctx := createTestContext(mocks)
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	ctx.Ctx = cancelledCtx
+	agent := createTestAgent(mocks, ctx)
+
+	ctx.Turns = 1
+	ctx.MaxTurns = 10
+
+	// Calls 1+2 (the entry-log and the outer `if !IsEmpty()`) report
+	// queue-not-empty; calls 3+ (inside batchDrainQueue's drain loop)
+	// report empty so the loop exits.
+	callCount := 0
+	mocks.queue.IsEmptyCalls(func() bool {
+		callCount++
+		return callCount > 2
+	})
+	mocks.stateMachine.TransitionReturns(nil)
+
+	_ = agent.stateHandlers[domain.StatePostToolExecution].Handle(domain.MessageReceivedEvent{})
+
+	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
+	_, toState := mocks.stateMachine.TransitionArgsForCall(0)
+	assert.Equal(t, domain.StateCompleting, toState,
+		"cancelled session must short-circuit to Completing after drain, not loop back to CheckingQueue")
+}
+
+// TestHandleCheckingQueueState_StopsAfterDrainWhenCancelled verifies that
+// CheckingQueue also honours the drain-then-stop contract.
+func TestHandleCheckingQueueState_StopsAfterDrainWhenCancelled(t *testing.T) {
+	mocks := setupTestMocks()
+	ctx := createTestContext(mocks)
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	ctx.Ctx = cancelledCtx
+	agent := createTestAgent(mocks, ctx)
+
+	ctx.Turns = 1
+	ctx.HasToolResults = false
+
+	mocks.queue.IsEmptyReturns(true)
+	mocks.stateMachine.TransitionReturns(nil)
+
+	_ = agent.stateHandlers[domain.StateCheckingQueue].Handle(domain.MessageReceivedEvent{})
+
+	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
+	_, toState := mocks.stateMachine.TransitionArgsForCall(0)
+	assert.Equal(t, domain.StateCompleting, toState,
+		"cancelled session in CheckingQueue must transition to Completing, not StreamingLLM")
+}
+
+// TestProcessEvents_PriorityProbeFavoursCancellation verifies the double-select
+// pattern: even when the events channel has pending work, a closed cancelChan
+// takes priority and exits the loop without draining events. This is the core
+// fix for the "Esc requires multiple presses" bug — a single Esc closes the
+// channel, and the next loop iteration always sees it first.
+func TestProcessEvents_PriorityProbeFavoursCancellation(t *testing.T) {
+	mocks := setupTestMocks()
+	agentCtx := createTestContext(mocks)
+	agent := createTestAgent(mocks, agentCtx)
+	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+
+	cancelChan := make(chan struct{})
+	agent.cancelChan = cancelChan
+
+	for range 50 {
+		agent.events <- domain.MessageReceivedEvent{}
+	}
+
+	close(cancelChan)
+
+	mocks.stateMachine.TransitionReturns(nil)
+
+	agent.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		agent.processEvents()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processEvents did not exit within 2s — cancelChan priority probe broken")
+	}
+
+	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
+	foundCancelled := false
+	for i := range mocks.stateMachine.TransitionCallCount() {
+		_, toState := mocks.stateMachine.TransitionArgsForCall(i)
+		if toState == domain.StateCancelled {
+			foundCancelled = true
+			break
+		}
+	}
+	assert.True(t, foundCancelled, "expected a transition to StateCancelled")
+}
+
+// TestProcessEvents_PublishesCancelledFlag verifies that the ChatCompleteEvent
+// emitted on the cancel path carries Cancelled=true so the chat UI can
+// distinguish "User interrupted" from "Response complete".
+func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
+	mocks := setupTestMocks()
+	agentCtx := createTestContext(mocks)
+	agent := createTestAgent(mocks, agentCtx)
+	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+
+	chatEvents := make(chan domain.ChatEvent, 10)
+	agent.eventPublisher = &eventPublisher{chatEvents: chatEvents}
+
+	cancelChan := make(chan struct{})
+	agent.cancelChan = cancelChan
+	close(cancelChan)
+
+	mocks.stateMachine.TransitionReturns(nil)
+
+	agent.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		agent.processEvents()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processEvents did not exit within 2s")
+	}
+
+	select {
+	case ev := <-chatEvents:
+		complete, ok := ev.(domain.ChatCompleteEvent)
+		assert.True(t, ok, "expected a ChatCompleteEvent on the cancel path")
+		assert.True(t, complete.Cancelled, "ChatCompleteEvent.Cancelled must be true on user cancellation")
+	default:
+		t.Fatal("expected a ChatCompleteEvent on the events channel")
+	}
+}
+
 func TestHandleCompletingState(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -651,5 +797,44 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, domain.StateError, toState)
+	})
+
+	t.Run("cancelled_ctx_short_circuits_to_all_tools_processed", func(t *testing.T) {
+		mocks := setupTestMocks()
+		ctx := createTestContext(mocks)
+		cancelledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+		ctx.Ctx = cancelledCtx
+		agent := createTestAgent(mocks, ctx)
+		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+
+		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
+			{
+				ID:   "call-1",
+				Type: sdk.Function,
+				Function: sdk.ChatCompletionMessageToolCallFunction{
+					Name:      "test_tool",
+					Arguments: "{}",
+				},
+			},
+			{
+				ID:   "call-2",
+				Type: sdk.Function,
+				Function: sdk.ChatCompletionMessageToolCallFunction{
+					Name:      "test_tool",
+					Arguments: "{}",
+				},
+			},
+		}
+
+		_ = agent.stateHandlers[domain.StateApprovingTools].Handle(domain.MessageReceivedEvent{})
+
+		select {
+		case event := <-agent.events:
+			_, ok := event.(domain.AllToolsProcessedEvent)
+			assert.True(t, ok, "cancelled ctx must emit AllToolsProcessedEvent without running approval prompts")
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("processNextTool did not fast-exit on cancelled ctx")
+		}
 	})
 }

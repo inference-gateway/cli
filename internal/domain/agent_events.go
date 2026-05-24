@@ -117,4 +117,5 @@ type StateContext struct {
 	GetAgentMode          func() AgentMode
 	PublishChatEvent      func(event ChatEvent)
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *ChatMetrics)
+	PublishChatCancelled  func(metrics *ChatMetrics)
 }

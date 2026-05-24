@@ -65,9 +65,19 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 	return nil
 }
 
-// processNextTool handles approval and execution of ONE tool sequentially
+// processNextTool handles approval and execution of ONE tool sequentially.
+// Fast-exits if the session context was cancelled, mirroring the
+// drain-then-stop contract in CheckingQueue / PostToolExecution: the
+// remaining approval prompts are skipped and control returns to the state
+// machine, which will short-circuit to Completing.
 func (s *ApprovingToolsState) processNextTool() {
 	defer s.ctx.WaitGroup.Done()
+
+	if s.ctx.AgentCtx.Ctx.Err() != nil {
+		logger.Debug("session cancelled during approval loop", "err", s.ctx.AgentCtx.Ctx.Err())
+		s.ctx.Events <- domain.AllToolsProcessedEvent{}
+		return
+	}
 
 	tc := s.getNextToolForProcessing()
 	if tc == nil {

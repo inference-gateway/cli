@@ -832,12 +832,13 @@ func TestReasoningContentRoundTripSyncPath(t *testing.T) {
 						},
 					}},
 				},
+				{Role: "tool", Content: "hi", ToolCallID: "call_1"},
 			},
 		}
 
 		msgs := session.buildSDKMessages()
-		if len(msgs) != 2 {
-			t.Fatalf("expected 2 sdk messages, got %d", len(msgs))
+		if len(msgs) != 3 {
+			t.Fatalf("expected 3 sdk messages, got %d", len(msgs))
 		}
 
 		out := msgs[1]
