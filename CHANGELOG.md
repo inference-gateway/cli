@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.110.1](https://github.com/inference-gateway/cli/compare/v0.110.0...v0.110.1) (2026-05-24)
+
+### 🐛 Bug Fixes
+
+* Orphan tool calls and improve cancellation reliability ([#533](https://github.com/inference-gateway/cli/issues/533)) ([cf8c3f2](https://github.com/inference-gateway/cli/commit/cf8c3f2f6787764db7987e353a130242fbc801ff)), closes [#531](https://github.com/inference-gateway/cli/issues/531)
+
+### ♻️ Code Refactoring
+
+* **ui:** Address gopls modernization hints in conversation views ([7982dea](https://github.com/inference-gateway/cli/commit/7982dea4279830db4af30a4b0f0b0eefdf0d7587))
+
+### 🧹 Maintenance
+
+* **license:** Update license to Apache 2.0 ([b69a78b](https://github.com/inference-gateway/cli/commit/b69a78bcb742cca0bdda7a91ef0e48be6d5bc3a1))
+
 ## [0.110.0](https://github.com/inference-gateway/cli/compare/v0.109.11...v0.110.0) (2026-05-22)
 
 ### 🚀 Features
