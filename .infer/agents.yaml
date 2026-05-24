@@ -4,14 +4,14 @@ agents:
     url: http://localhost:8081
     oci: ghcr.io/inference-gateway/mock-agent:latest
     run: true
-    model: deepseek/deepseek-v4-pro
+    model: deepseek/deepseek-v4-flash
     enabled: true
   - name: browser-agent
     url: http://localhost:8083
     artifacts_url: http://localhost:8084
     oci: ghcr.io/inference-gateway/browser-agent:latest
     run: true
-    model: deepseek/deepseek-v4-pro
+    model: deepseek/deepseek-v4-flash
     environment:
       A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT: "true"
     enabled: true
