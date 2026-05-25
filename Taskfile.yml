@@ -57,7 +57,7 @@ tasks:
     desc: Run linter (requires golangci-lint)
     cmds:
       - golangci-lint run
-      - markdownlint . --ignore CHANGELOG.md --fix
+      - markdownlint . --ignore '{CHANGELOG,AGENTS,CLAUDE}.md' --fix
 
   fmt:
     desc: Format Go code
