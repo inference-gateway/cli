@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.112.1](https://github.com/inference-gateway/cli/compare/v0.112.0...v0.112.1) (2026-05-25)
+
+### ♻️ Code Refactoring
+
+* **init:** Rewrite /init prompt to follow agents.md standard ([a670788](https://github.com/inference-gateway/cli/commit/a670788c712cae9befc291e765a3781661418d54))
+
+### 👷 CI/CD
+
+* **deps:** Bump claude-code-action  v1.0.131 -> v1.0.133 ([9f36379](https://github.com/inference-gateway/cli/commit/9f363794510b1088dc185a8330656aeadcff0b08))
+
+### 🧹 Maintenance
+
+* Add a bunch of environment variables to extend the tasks life ([1c0a395](https://github.com/inference-gateway/cli/commit/1c0a395b64638c2091fed7e30eecf29f6eec7ad7))
+* **deps:** Bump dev dependecies ([cda4577](https://github.com/inference-gateway/cli/commit/cda4577ef8810564f637063a7d0a7922fcb68fe2))
+* **flox:** Bump dev tool versions in manifest ([3e45a81](https://github.com/inference-gateway/cli/commit/3e45a81ee9460b3181f37aaf6f858294ebfd70fb))
+* Re-generate AGENTS.md with codex ([c48b479](https://github.com/inference-gateway/cli/commit/c48b4797395078a0fd5272764f3cc9f945c84618))
+* Replace em dashes with normal dashes ([ffac4eb](https://github.com/inference-gateway/cli/commit/ffac4eb8797b0486659c206c24e0826d1e777b21))
+* Use deepseek v4 flash for the agents ([e2990d5](https://github.com/inference-gateway/cli/commit/e2990d537be16c5dceca5b0f920d7d2edd1ee7d1))
+
 ## [0.112.0](https://github.com/inference-gateway/cli/compare/v0.111.0...v0.112.0) (2026-05-24)
 
 ### 🚀 Features
