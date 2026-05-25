@@ -42,16 +42,15 @@ func (c *InitShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 }
 
 func defaultInitPrompt() string {
-	return `Please analyze this project and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
+	return `Generate an AGENTS.md at the project root following the open standard at https://agents.md.
 
-The AGENTS.md file should include:
-- Project overview and main technologies
-- Architecture and structure
-- Development environment setup
-- Key commands (build, test, lint, run)
-- Testing instructions
-- Project conventions and coding standards
-- Important files and configurations
+AGENTS.md is a README for coding agents - a predictable place for the context and instructions a new contributor would need. It complements (not duplicates) README.md.
 
-Write the AGENTS.md file to the project root when you have gathered enough information.`
+Guidelines:
+- Keep it concise - aim for ~400 words. Prefer signal over completeness.
+- Use standard Markdown with whatever headings fit the project; there is no required structure.
+- Cover what actually matters for an agent to be productive: build/test/lint commands, code style, testing, security gotchas, and any non-obvious conventions. Skip anything obvious from the file tree.
+- Be specific: real commands, real file paths, real constraints. No filler.
+
+Briefly inspect the project (build system, config files, existing docs) to ground the content, then write the file.`
 }
