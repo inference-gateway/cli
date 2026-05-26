@@ -1,14 +1,9 @@
 package handlers
 
 import (
-	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -193,128 +188,6 @@ func (h *ChatHandler) ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea
 	}
 }
 
-func (h *ChatHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
-	if metrics == nil {
-		return ""
-	}
-
-	var parts []string
-
-	messages := h.conversationRepo.GetMessages()
-	if len(messages) > 0 {
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Message.Role == sdk.User {
-				actualDuration := time.Since(messages[i].Time).Round(time.Millisecond)
-				parts = append(parts, fmt.Sprintf("Time: %v", actualDuration))
-				break
-			}
-		}
-	}
-
-	if metrics.Usage != nil {
-		if metrics.Usage.PromptTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Input: %d tokens", metrics.Usage.PromptTokens))
-		}
-		if metrics.Usage.CompletionTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Output: %d tokens", metrics.Usage.CompletionTokens))
-		}
-		if metrics.Usage.TotalTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Total: %d tokens", metrics.Usage.TotalTokens))
-		}
-	}
-
-	return strings.Join(parts, " | ")
-}
-
-func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
-	return h.messageProcessor.ExtractMarkdownSummary(content)
-}
-
-func (h *ChatHandler) handleFileSelectionRequest(
-	_ domain.FileSelectionRequestEvent,
-) tea.Cmd {
-	files, err := h.fileService.ListProjectFiles()
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to load files: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	if len(files) == 0 {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No files found in the current directory",
-				Sticky: false,
-			}
-		}
-	}
-
-	if err := h.stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Failed to open file selection",
-				Sticky: false,
-			}
-		}
-	}
-
-	return func() tea.Msg {
-		return domain.SetupFileSelectionEvent{
-			Files: files,
-		}
-	}
-}
-
-func (h *ChatHandler) handleConversationSelected(
-	msg domain.ConversationSelectedEvent,
-) tea.Cmd {
-	persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository)
-	if !ok {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Conversation selection requires persistent storage",
-				Sticky: false,
-			}
-		}
-	}
-
-	ctx := context.Background()
-	if err := persistentRepo.LoadConversation(ctx, msg.ConversationID); err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to load conversation: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.TodoUpdateEvent{
-				Todos: nil,
-			}
-		},
-		func() tea.Msg {
-			metadata := persistentRepo.GetCurrentConversationMetadata()
-			return domain.SetStatusEvent{
-				Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
-					metadata.Title, metadata.MessageCount),
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)
-}
-
 func (h *ChatHandler) HandleUserInputEvent(
 	msg domain.UserInputEvent,
 ) tea.Cmd {
@@ -454,10 +327,9 @@ func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
 }
 
 func (h *ChatHandler) HandleMessageQueuedEvent(
-	msg domain.MessageQueuedEvent,
+	_ domain.MessageQueuedEvent,
 ) tea.Cmd {
-	_, cmd := h.handleMessageQueued(msg)
-	return cmd
+	return h.handleMessageQueued()
 }
 
 func (h *ChatHandler) HandleToolCancelledEvent(
@@ -541,35 +413,6 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResume
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-func (h *ChatHandler) handleMessageQueued(
-	_ domain.MessageQueuedEvent,
-) (tea.Model, tea.Cmd) {
-	chatSession := h.stateManager.GetChatSession()
-
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    "Processing queued message...",
-			Spinner:    true,
-			StatusType: domain.StatusProcessing,
-		}
-	})
-
-	if chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return nil, tea.Sequence(cmds...)
-}
-
 // SetBashDetachChan satisfies the legacy domain.ChatHandler interface by
 // forwarding to DirectExecutionService (the actual owner post-#529).
 func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
@@ -598,30 +441,6 @@ func (h *ChatHandler) GetActiveToolCallID() string {
 // forwarding to ToolExecutionCoordinator.
 func (h *ChatHandler) SetActiveToolCallID(id string) {
 	h.toolCoordinator.SetActiveToolCallID(id)
-}
-
-// HandleCommand processes slash commands
-func (h *ChatHandler) HandleCommand(commandText string) tea.Cmd {
-	if h.shortcutRegistry == nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Shortcut registry not available",
-				Sticky: false,
-			}
-		}
-	}
-
-	mainShortcut, args, err := h.shortcutRegistry.ParseShortcut(commandText)
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Invalid shortcut format: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	return h.shortcutHandler.executeShortcut(mainShortcut, args)
 }
 
 // HandleBashCommand processes bash commands starting with !. Delegates to
