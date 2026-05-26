@@ -1137,3 +1137,18 @@ type A2ATaskCoordinator interface {
 	HandleTaskInputRequired(msg A2ATaskInputRequiredEvent) tea.Cmd
 	HandleToolCallExecuted(msg A2AToolCallExecutedEvent) tea.Cmd
 }
+
+// ApprovalCoordinator owns the "pause the assistant turn pending external
+// decision" family of events: plan approval (the agent stops, presents a
+// plan, awaits user accept/reject) and computer-use pause/resume (the user
+// hits a key to interrupt computer-use execution and later resumes).
+//
+// Response handlers return a restart bool so the orchestrator can fire
+// ChatCompletionRunner.Start() after the cmds without ApprovalCoordinator
+// having to depend on the runner.
+type ApprovalCoordinator interface {
+	HandlePlanApprovalRequested(msg PlanApprovalRequestedEvent) tea.Cmd
+	HandlePlanApprovalResponse(msg PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
+	HandleComputerUsePaused(msg ComputerUsePausedEvent) tea.Cmd
+	HandleComputerUseResumed(msg ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
+}

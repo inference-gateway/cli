@@ -51,7 +51,8 @@ type ChatApplication struct {
 	backgroundTaskService  domain.BackgroundTaskService
 
 	// Chat orchestration services
-	a2aTaskCoordinator domain.A2ATaskCoordinator
+	a2aTaskCoordinator  domain.A2ATaskCoordinator
+	approvalCoordinator domain.ApprovalCoordinator
 
 	// State management
 	stateManager domain.StateManager
@@ -126,6 +127,7 @@ func NewChatApplication(
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
 	a2aTaskCoordinator domain.A2ATaskCoordinator,
+	approvalCoordinator domain.ApprovalCoordinator,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -150,6 +152,7 @@ func NewChatApplication(
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,
 		a2aTaskCoordinator:     a2aTaskCoordinator,
+		approvalCoordinator:    approvalCoordinator,
 		availableModels:        models,
 		stateManager:           stateManager,
 		messageQueue:           messageQueue,
@@ -284,6 +287,7 @@ func NewChatApplication(
 		agentManager,
 		app.config,
 		app.a2aTaskCoordinator,
+		app.approvalCoordinator,
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(

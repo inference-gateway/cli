@@ -42,6 +42,7 @@ type ChatHandler struct {
 	agentManager              domain.AgentManager
 	config                    *config.Config
 	a2aTaskCoordinator        domain.A2ATaskCoordinator
+	approvalCoordinator       domain.ApprovalCoordinator
 	messageProcessor          *ChatMessageProcessor
 	shortcutHandler           *ChatShortcutHandler
 	bashDetachChan            chan<- struct{}
@@ -74,6 +75,7 @@ func NewChatHandler(
 	agentManager domain.AgentManager,
 	cfg *config.Config,
 	a2aTaskCoordinator domain.A2ATaskCoordinator,
+	approvalCoordinator domain.ApprovalCoordinator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -93,6 +95,7 @@ func NewChatHandler(
 		backgroundTaskService:  backgroundTaskService,
 		backgroundShellService: backgroundShellService,
 		a2aTaskCoordinator:     a2aTaskCoordinator,
+		approvalCoordinator:    approvalCoordinator,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -735,122 +738,17 @@ func (h *ChatHandler) handleToolApprovalResponse(
 func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 	msg domain.PlanApprovalRequestedEvent,
 ) tea.Cmd {
-	logger.Info("HandlePlanApprovalRequestedEvent called")
-
-	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
-
-	return tea.Batch(
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Plan ready - use arrow keys to select and Enter to confirm",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)
+	return h.approvalCoordinator.HandlePlanApprovalRequested(msg)
 }
 
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	msg domain.PlanApprovalResponseEvent,
 ) tea.Cmd {
-	logger.Info("HandlePlanApprovalResponseEvent called", "action", msg.Action)
-
-	planApprovalState := h.stateManager.GetPlanApprovalUIState()
-	if planApprovalState == nil {
-		logger.Warn("HandlePlanApprovalResponseEvent: planApprovalState is nil, ignoring")
-		return nil
+	cmd, restart := h.approvalCoordinator.HandlePlanApprovalResponse(msg)
+	if !restart {
+		return cmd
 	}
-
-	logger.Info("Clearing plan approval UI state to prevent re-entry")
-	h.stateManager.ClearPlanApprovalUIState()
-
-	h.executeOnConversationRepo(
-		func(repo *services.InMemoryConversationRepository) {
-			logger.Info("Updating plan status (InMemory)")
-			repo.UpdatePlanStatus(msg.Action)
-		},
-		func(repo *services.PersistentConversationRepository) {
-			logger.Info("Updating plan status (Persistent)")
-			repo.UpdatePlanStatus(msg.Action)
-		},
-	)
-
-	switch msg.Action {
-	case domain.PlanApprovalAccept:
-		logger.Info("Switching to standard agent mode for plan execution")
-		h.stateManager.SetAgentMode(domain.AgentModeStandard)
-	case domain.PlanApprovalAcceptAndAutoApprove:
-		logger.Info("Switching to auto-accept mode for plan execution")
-		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-	}
-
-	var statusMessage string
-	switch msg.Action {
-	case domain.PlanApprovalAccept:
-		statusMessage = "Plan accepted - executing plan..."
-		logger.Info("Adding hidden continue message to queue")
-		h.addHiddenContinueMessage()
-	case domain.PlanApprovalReject:
-		statusMessage = "Plan rejected - you can provide feedback or changes"
-		logger.Info("Ending chat session due to plan rejection")
-		h.stateManager.EndChatSession()
-	case domain.PlanApprovalAcceptAndAutoApprove:
-		statusMessage = "Plan accepted - Auto-Approve mode enabled, executing plan..."
-		logger.Info("Adding hidden continue message to queue (auto-approve mode)")
-		h.addHiddenContinueMessage()
-	}
-
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    statusMessage,
-				Spinner:    msg.Action != domain.PlanApprovalReject,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	}
-
-	if msg.Action != domain.PlanApprovalReject {
-		logger.Info("Starting new chat session to execute approved plan")
-		cmds = append(cmds, h.startChatCompletion())
-	}
-
-	return tea.Batch(cmds...)
-}
-
-// addHiddenContinueMessage adds a hidden user message to tell the LLM to continue with the approved plan
-func (h *ChatHandler) addHiddenContinueMessage() {
-	logger.Info("addHiddenContinueMessage called")
-
-	continueMessage := sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent("The plan has been approved. Please proceed with executing it step by step. Start by taking the first action required to implement the plan."),
-	}
-
-	entry := domain.ConversationEntry{
-		Message: continueMessage,
-		Time:    time.Now(),
-		Hidden:  true,
-	}
-
-	if err := h.conversationRepo.AddMessage(entry); err != nil {
-		logger.Error("Failed to add continue message to conversation", "error", err)
-		return
-	}
-
-	logger.Info("Continue message added to conversation history")
+	return tea.Batch(cmd, h.startChatCompletion())
 }
 
 // HandleAgentStatusUpdateEvent handles agent status updates
@@ -875,63 +773,16 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateE
 
 // HandleComputerUsePausedEvent handles computer use pause events
 func (h *ChatHandler) HandleComputerUsePausedEvent(msg domain.ComputerUsePausedEvent) tea.Cmd {
-	logger.Debug("HandleComputerUsePausedEvent called", "request_id", msg.RequestID)
-	logger.Info("Computer use execution paused", "request_id", msg.RequestID)
-
-	logger.Debug("Calling agentService.CancelRequest", "request_id", msg.RequestID)
-	if err := h.agentService.CancelRequest(msg.RequestID); err != nil {
-		logger.Error("Failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
-	} else {
-		logger.Debug("Successfully cancelled request", "request_id", msg.RequestID)
-	}
-
-	logger.Debug("Calling stateManager.SetComputerUsePaused", "request_id", msg.RequestID)
-	h.stateManager.SetComputerUsePaused(true, msg.RequestID)
-
-	return func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    "Computer use paused by user",
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	}
+	return h.approvalCoordinator.HandleComputerUsePaused(msg)
 }
 
 // HandleComputerUseResumedEvent handles computer use resume events
 func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResumedEvent) tea.Cmd {
-	h.stateManager.ClearComputerUsePauseState()
-
-	continueMessage := sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent("Please continue from where you left off."),
+	cmd, restart := h.approvalCoordinator.HandleComputerUseResumed(msg)
+	if !restart {
+		return cmd
 	}
-
-	entry := domain.ConversationEntry{
-		Message: continueMessage,
-		Time:    time.Now(),
-		Hidden:  true,
-	}
-
-	if err := h.conversationRepo.AddMessage(entry); err != nil {
-		logger.Error("Failed to add continue message", "error", err)
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to resume: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Resuming execution...",
-				Spinner:    true,
-				StatusType: domain.StatusDefault,
-			}
-		},
-		h.startChatCompletion(),
-	)
+	return tea.Batch(cmd, h.startChatCompletion())
 }
 
 func (h *ChatHandler) handleChatStart(

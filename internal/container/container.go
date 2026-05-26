@@ -20,6 +20,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
+	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -89,8 +90,9 @@ type ServiceContainer struct {
 	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener  domain.ChatEventListener
-	a2aTaskCoordinator domain.A2ATaskCoordinator
+	chatEventListener   domain.ChatEventListener
+	a2aTaskCoordinator  domain.A2ATaskCoordinator
+	approvalCoordinator domain.ApprovalCoordinator
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -385,6 +387,12 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		TaskRetentionService: c.taskRetentionService,
 		Listener:             c.chatEventListener,
 	})
+
+	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
+		AgentService:     c.agent,
+		ConversationRepo: c.conversationRepo,
+		StateManager:     c.stateManager,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -542,6 +550,12 @@ func (c *ServiceContainer) GetChatEventListener() domain.ChatEventListener {
 // GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
 func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
 	return c.a2aTaskCoordinator
+}
+
+// GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
+// coordinator.
+func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
+	return c.approvalCoordinator
 }
 
 // createRetryConfig creates a retry config with logging callback
