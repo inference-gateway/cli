@@ -1182,6 +1182,24 @@ type ChatCompletionRunner interface {
 	SetPendingRestoration(originalModel string)
 }
 
+// ToolExecutionCoordinator owns the tool round-trip: streaming-status updates
+// emitted while the model is producing a tool call, approval coordination
+// (forwarding the user's decision back to the agent), and execution-progress
+// events while the tool runs. Also owns the active-tool-call indicator the
+// UI uses to render the in-flight tool name.
+type ToolExecutionCoordinator interface {
+	ActiveToolTracker
+
+	HandleToolCallUpdate(msg ToolCallUpdateEvent) tea.Cmd
+	HandleToolCallReady(msg ToolCallReadyEvent) tea.Cmd
+	HandleToolApprovalRequested(msg ToolApprovalRequestedEvent) tea.Cmd
+	HandleToolApprovalResponse(msg ToolApprovalResponseEvent) tea.Cmd
+	HandleToolExecutionStarted(msg ToolExecutionStartedEvent) tea.Cmd
+	HandleToolExecutionProgress(msg ToolExecutionProgressEvent) tea.Cmd
+	HandleToolExecutionCompleted(msg ToolExecutionCompletedEvent) tea.Cmd
+	HandleToolCancelled(msg ToolCancelledEvent) tea.Cmd
+}
+
 // DirectExecutionService owns user-typed `!command` (bash) and `!!Tool(...)`
 // (tool) execution. It synthesizes the conversation entries, spawns the async
 // goroutines, owns the per-call event/detach channels, and exposes the

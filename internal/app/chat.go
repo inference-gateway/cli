@@ -51,10 +51,11 @@ type ChatApplication struct {
 	backgroundTaskService  domain.BackgroundTaskService
 
 	// Chat orchestration services
-	a2aTaskCoordinator     domain.A2ATaskCoordinator
-	approvalCoordinator    domain.ApprovalCoordinator
-	chatCompletionRunner   domain.ChatCompletionRunner
-	directExecutionService domain.DirectExecutionService
+	a2aTaskCoordinator       domain.A2ATaskCoordinator
+	approvalCoordinator      domain.ApprovalCoordinator
+	chatCompletionRunner     domain.ChatCompletionRunner
+	directExecutionService   domain.DirectExecutionService
+	toolExecutionCoordinator domain.ToolExecutionCoordinator
 
 	// State management
 	stateManager domain.StateManager
@@ -132,6 +133,7 @@ func NewChatApplication(
 	approvalCoordinator domain.ApprovalCoordinator,
 	chatCompletionRunner domain.ChatCompletionRunner,
 	directExecutionService domain.DirectExecutionService,
+	toolExecutionCoordinator domain.ToolExecutionCoordinator,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -139,30 +141,31 @@ func NewChatApplication(
 	}
 
 	app := &ChatApplication{
-		agentService:           agentService,
-		conversationRepo:       conversationRepo,
-		conversationOptimizer:  conversationOptimizer,
-		sessionRolloverManager: sessionRolloverManager,
-		modelService:           modelService,
-		config:                 cfg,
-		toolService:            toolService,
-		fileService:            fileService,
-		imageService:           imageService,
-		pricingService:         pricingService,
-		shortcutRegistry:       shortcutRegistry,
-		themeService:           themeService,
-		toolRegistry:           toolRegistry,
-		mcpManager:             mcpManager,
-		taskRetentionService:   taskRetentionService,
-		backgroundTaskService:  backgroundTaskService,
-		a2aTaskCoordinator:     a2aTaskCoordinator,
-		approvalCoordinator:    approvalCoordinator,
-		chatCompletionRunner:   chatCompletionRunner,
-		directExecutionService: directExecutionService,
-		availableModels:        models,
-		stateManager:           stateManager,
-		messageQueue:           messageQueue,
-		mouseEnabled:           true,
+		agentService:             agentService,
+		conversationRepo:         conversationRepo,
+		conversationOptimizer:    conversationOptimizer,
+		sessionRolloverManager:   sessionRolloverManager,
+		modelService:             modelService,
+		config:                   cfg,
+		toolService:              toolService,
+		fileService:              fileService,
+		imageService:             imageService,
+		pricingService:           pricingService,
+		shortcutRegistry:         shortcutRegistry,
+		themeService:             themeService,
+		toolRegistry:             toolRegistry,
+		mcpManager:               mcpManager,
+		taskRetentionService:     taskRetentionService,
+		backgroundTaskService:    backgroundTaskService,
+		a2aTaskCoordinator:       a2aTaskCoordinator,
+		approvalCoordinator:      approvalCoordinator,
+		chatCompletionRunner:     chatCompletionRunner,
+		directExecutionService:   directExecutionService,
+		toolExecutionCoordinator: toolExecutionCoordinator,
+		availableModels:          models,
+		stateManager:             stateManager,
+		messageQueue:             messageQueue,
+		mouseEnabled:             true,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -296,6 +299,7 @@ func NewChatApplication(
 		app.approvalCoordinator,
 		app.chatCompletionRunner,
 		app.directExecutionService,
+		app.toolExecutionCoordinator,
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(

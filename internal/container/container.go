@@ -25,6 +25,7 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
+	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -92,11 +93,12 @@ type ServiceContainer struct {
 	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener      domain.ChatEventListener
-	a2aTaskCoordinator     domain.A2ATaskCoordinator
-	approvalCoordinator    domain.ApprovalCoordinator
-	chatCompletionRunner   *chatcompletion.Runner
-	directExecutionService domain.DirectExecutionService
+	chatEventListener        domain.ChatEventListener
+	a2aTaskCoordinator       domain.A2ATaskCoordinator
+	approvalCoordinator      domain.ApprovalCoordinator
+	chatCompletionRunner     *chatcompletion.Runner
+	directExecutionService   domain.DirectExecutionService
+	toolExecutionCoordinator domain.ToolExecutionCoordinator
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -413,6 +415,13 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		BackgroundShellService: c.BackgroundShellService(),
 		Listener:               c.chatEventListener,
 	})
+
+	c.toolExecutionCoordinator = toolcoordinator.NewCoordinator(toolcoordinator.Options{
+		ConversationRepo: c.conversationRepo,
+		StateManager:     c.stateManager,
+		DirectExec:       c.directExecutionService,
+		Listener:         c.chatEventListener,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -587,6 +596,12 @@ func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner
 // execution service. Also satisfies BashDetachChannelHolder.
 func (c *ServiceContainer) GetDirectExecutionService() domain.DirectExecutionService {
 	return c.directExecutionService
+}
+
+// GetToolExecutionCoordinator returns the tool round-trip coordinator (tool
+// approval, streaming-status, execution progress, active-tool tracking).
+func (c *ServiceContainer) GetToolExecutionCoordinator() domain.ToolExecutionCoordinator {
+	return c.toolExecutionCoordinator
 }
 
 // createRetryConfig creates a retry config with logging callback

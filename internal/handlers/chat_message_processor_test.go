@@ -125,6 +125,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil, // approvalCoordinator
 				fakeRunner,
 				fakeDirect,
+				nil, // toolCoordinator
 			)
 
 			processor := NewChatMessageProcessor(handler)

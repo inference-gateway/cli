@@ -391,6 +391,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // approvalCoordinator
 		nil, // completionRunner
 		nil, // directExec
+		nil, // toolCoordinator
 	)
 
 	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150)
@@ -628,6 +629,11 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
+			// Note: post-refactor (#529) this dispatch case delegates to
+			// ToolExecutionCoordinator.HandleToolExecutionProgress via the
+			// fake, which always returns a non-nil cmd. The "unknown status
+			// returns nil" path is tested directly in
+			// toolcoordinator/coordinator_test.go.
 			name: "ToolExecutionProgressEvent",
 			msg: domain.ToolExecutionProgressEvent{
 				BaseChatEvent: domain.BaseChatEvent{
@@ -639,7 +645,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			},
 			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
 			},
-			expectedCmd: false,
+			expectedCmd: true,
 		},
 		{
 			name: "ToolExecutionCompletedEvent",
@@ -693,6 +699,16 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	fakeDirect.HandleBashCommandCompletedReturns(nonNilCmd)
 	fakeDirect.HandleBackgroundShellRequestReturns(nonNilCmd)
 
+	fakeToolCoord := &mocks.FakeToolExecutionCoordinator{}
+	fakeToolCoord.HandleToolCallUpdateReturns(nonNilCmd)
+	fakeToolCoord.HandleToolCallReadyReturns(nonNilCmd)
+	fakeToolCoord.HandleToolApprovalRequestedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolApprovalResponseReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionStartedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionProgressReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionCompletedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolCancelledReturns(nonNilCmd)
+
 	return NewChatHandler(
 		mockAgent,
 		conversationRepo,
@@ -714,6 +730,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		nil, // approvalCoordinator
 		fakeRunner,
 		fakeDirect,
+		fakeToolCoord,
 	)
 }
 

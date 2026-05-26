@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
@@ -39,10 +37,9 @@ type ChatHandler struct {
 	approvalCoordinator    domain.ApprovalCoordinator
 	completionRunner       domain.ChatCompletionRunner
 	directExec             domain.DirectExecutionService
+	toolCoordinator        domain.ToolExecutionCoordinator
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
-	activeToolCallID       string
-	activeToolCallIDMu     sync.RWMutex
 }
 
 func NewChatHandler(
@@ -66,6 +63,7 @@ func NewChatHandler(
 	approvalCoordinator domain.ApprovalCoordinator,
 	completionRunner domain.ChatCompletionRunner,
 	directExec domain.DirectExecutionService,
+	toolCoordinator domain.ToolExecutionCoordinator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -88,6 +86,7 @@ func NewChatHandler(
 		approvalCoordinator:    approvalCoordinator,
 		completionRunner:       completionRunner,
 		directExec:             directExec,
+		toolCoordinator:        toolCoordinator,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -337,9 +336,7 @@ func (h *ChatHandler) HandleConversationSelectedEvent(
 func (h *ChatHandler) HandleChatStartEvent(
 	msg domain.ChatStartEvent,
 ) tea.Cmd {
-	// Clear stale active-tool indicator before the runner handles the event.
-	// In commit 5 this concern moves to ToolExecutionCoordinator.
-	h.SetActiveToolCallID("")
+	h.toolCoordinator.SetActiveToolCallID("")
 	return h.completionRunner.HandleChatStart(msg)
 }
 
@@ -354,7 +351,7 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 ) tea.Cmd {
 	cmd := h.completionRunner.HandleChatComplete(msg)
 	if msg.Cancelled {
-		h.SetActiveToolCallID("")
+		h.toolCoordinator.SetActiveToolCallID("")
 	}
 	return cmd
 }
@@ -362,7 +359,7 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 func (h *ChatHandler) HandleChatErrorEvent(
 	msg domain.ChatErrorEvent,
 ) tea.Cmd {
-	h.SetActiveToolCallID("")
+	h.toolCoordinator.SetActiveToolCallID("")
 	return h.completionRunner.HandleChatError(msg)
 }
 
@@ -375,31 +372,31 @@ func (h *ChatHandler) HandleOptimizationStatusEvent(
 func (h *ChatHandler) HandleToolCallUpdateEvent(
 	msg domain.ToolCallUpdateEvent,
 ) tea.Cmd {
-	return h.handleToolCallUpdate(msg)
+	return h.toolCoordinator.HandleToolCallUpdate(msg)
 }
 
 func (h *ChatHandler) HandleToolCallReadyEvent(
 	msg domain.ToolCallReadyEvent,
 ) tea.Cmd {
-	return h.handleToolCallReady(msg)
+	return h.toolCoordinator.HandleToolCallReady(msg)
 }
 
 func (h *ChatHandler) HandleToolApprovalRequestedEvent(
 	msg domain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
-	return h.handleToolApprovalRequested(msg)
+	return h.toolCoordinator.HandleToolApprovalRequested(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionStartedEvent(
 	msg domain.ToolExecutionStartedEvent,
 ) tea.Cmd {
-	return h.handleToolExecutionStarted(msg)
+	return h.toolCoordinator.HandleToolExecutionStarted(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionProgressEvent(
 	msg domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
-	return h.handleToolExecutionProgress(msg)
+	return h.toolCoordinator.HandleToolExecutionProgress(msg)
 }
 
 func (h *ChatHandler) HandleBashOutputChunkEvent(
@@ -417,7 +414,7 @@ func (h *ChatHandler) HandleBashCommandCompletedEvent(
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	msg domain.ToolExecutionCompletedEvent,
 ) tea.Cmd {
-	return h.handleToolExecutionCompleted(msg)
+	return h.toolCoordinator.HandleToolExecutionCompleted(msg)
 }
 
 func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
@@ -463,33 +460,16 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 	return cmd
 }
 
-// HandleToolCancelledEvent refreshes the conversation view so the
-// synthetic [cancelled] tool entry that the integrity validator just
-// persisted becomes visible. No status-bar message - the cancel that
-// triggered this already drove its own status ("User interrupted").
 func (h *ChatHandler) HandleToolCancelledEvent(
-	_ domain.ToolCancelledEvent,
+	msg domain.ToolCancelledEvent,
 ) tea.Cmd {
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
+	return h.toolCoordinator.HandleToolCancelled(msg)
 }
 
 func (h *ChatHandler) HandleToolApprovalResponseEvent(
 	msg domain.ToolApprovalResponseEvent,
 ) tea.Cmd {
-	return h.handleToolApprovalResponse(msg)
+	return h.toolCoordinator.HandleToolApprovalResponse(msg)
 }
 
 // HandleTodoUpdateChatEvent converts the chat event to a UI event for the todo component
@@ -505,108 +485,6 @@ func (h *ChatHandler) HandleTodoUpdateChatEvent(
 	})
 
 	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Batch(cmds...)
-}
-
-// handleToolApprovalResponse processes the user's approval decision for inline tool approval
-func (h *ChatHandler) handleToolApprovalResponse(
-	msg domain.ToolApprovalResponseEvent,
-) tea.Cmd {
-	logger.Info("handleToolApprovalResponse called", "action", msg.Action, "tool", msg.ToolCall.Function.Name)
-
-	h.executeOnConversationRepo(
-		func(repo *services.InMemoryConversationRepository) {
-			logger.Info("Updating tool approval status (InMemory)")
-			repo.UpdateToolApprovalStatus(msg.Action)
-		},
-		func(repo *services.PersistentConversationRepository) {
-			logger.Info("Updating tool approval status (Persistent)")
-			repo.UpdateToolApprovalStatus(msg.Action)
-		},
-	)
-
-	if msg.Action == domain.ApprovalAutoAccept {
-		logger.Info("Switching to auto-accept mode for all future tools")
-		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-
-		approvalState := h.stateManager.GetApprovalUIState()
-		if approvalState != nil && approvalState.ResponseChan != nil {
-			select {
-			case approvalState.ResponseChan <- domain.ApprovalApprove:
-				logger.Info("Sent approval to agent (auto-accept mode)")
-			default:
-				logger.Warn("Failed to send approval - channel full or closed")
-			}
-		}
-
-		h.stateManager.ClearApprovalUIState()
-
-		var cmds []tea.Cmd
-		cmds = append(cmds, func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		})
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Auto-Approve mode enabled - executing tool...",
-				Spinner:    true,
-				StatusType: domain.StatusDefault,
-				ToolName:   msg.ToolCall.Function.Name,
-			}
-		})
-
-		if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-			cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-		}
-
-		return tea.Batch(cmds...)
-	}
-
-	approvalState := h.stateManager.GetApprovalUIState()
-	if approvalState != nil && approvalState.ResponseChan != nil {
-		select {
-		case approvalState.ResponseChan <- msg.Action:
-			logger.Info("Sent approval action to agent", "action", msg.Action)
-		default:
-			logger.Warn("Failed to send approval - channel full or closed")
-		}
-	}
-
-	h.stateManager.ClearApprovalUIState()
-
-	var statusMessage string
-	var spinner bool
-	switch msg.Action {
-	case domain.ApprovalApprove:
-		statusMessage = fmt.Sprintf("Tool approved - executing %s...", msg.ToolCall.Function.Name)
-		spinner = true
-	case domain.ApprovalReject:
-		statusMessage = fmt.Sprintf("Tool rejected: %s", msg.ToolCall.Function.Name)
-		spinner = false
-	}
-
-	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    spinner,
-			StatusType: domain.StatusDefault,
-			ToolName:   msg.ToolCall.Function.Name,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}
 
@@ -663,278 +541,6 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResume
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-func (h *ChatHandler) handleToolCallUpdate(
-	msg domain.ToolCallUpdateEvent,
-
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	statusMsg := h.formatToolCallStatusMessage(msg.ToolName, msg.Status)
-
-	switch msg.Status {
-	case domain.ToolCallStreamStatusStreaming:
-		cmds = append(cmds, func() tea.Msg {
-			return domain.UpdateStatusEvent{
-				Message:    statusMsg,
-				StatusType: domain.StatusWorking,
-				ToolName:   msg.ToolName,
-			}
-		})
-	default:
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    statusMsg,
-				Spinner:    false,
-				StatusType: domain.StatusWorking,
-				ToolName:   msg.ToolName,
-			}
-		})
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleToolCallReady(
-	_ /* msg */ domain.ToolCallReadyEvent,
-
-) tea.Cmd {
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleToolApprovalRequested(
-	msg domain.ToolApprovalRequestedEvent,
-) tea.Cmd {
-	h.executeOnConversationRepo(
-		func(repo *services.InMemoryConversationRepository) {
-			if err := repo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
-				logger.Error("Failed to add pending tool call", "error", err)
-			}
-		},
-		func(repo *services.PersistentConversationRepository) {
-			if err := repo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
-				logger.Error("Failed to add pending tool call", "error", err)
-			}
-		},
-	)
-
-	h.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
-
-	h.stateManager.BroadcastEvent(domain.ToolApprovalNotificationEvent{
-		RequestID: msg.RequestID,
-		Timestamp: time.Now(),
-		ToolName:  msg.ToolCall.Function.Name,
-		Message:   "Tool approval required - Check terminal for approval",
-	})
-
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleToolExecutionStarted(
-	msg domain.ToolExecutionStartedEvent,
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
-			Spinner:    true,
-			StatusType: domain.StatusWorking,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleToolExecutionProgress(
-	msg domain.ToolExecutionProgressEvent,
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	switch msg.Status {
-	case "starting":
-		h.SetActiveToolCallID(msg.ToolCallID)
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    msg.Message,
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-				ToolName:   msg.ToolName,
-			}
-		})
-	case "running":
-		if msg.Message != "" {
-			if h.GetActiveToolCallID() == msg.ToolCallID {
-				cmds = append(cmds, func() tea.Msg {
-					return domain.UpdateStatusEvent{
-						Message:    msg.Message,
-						StatusType: domain.StatusWorking,
-						ToolName:   msg.ToolName,
-					}
-				})
-			} else {
-				h.SetActiveToolCallID(msg.ToolCallID)
-				cmds = append(cmds, func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    msg.Message,
-						Spinner:    true,
-						StatusType: domain.StatusWorking,
-						ToolName:   msg.ToolName,
-					}
-				})
-			}
-		} else {
-			h.SetActiveToolCallID(msg.ToolCallID)
-		}
-	case "completed", "failed":
-		h.SetActiveToolCallID("")
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    msg.Message,
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-				ToolName:   "",
-			}
-		})
-	case "saving":
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    msg.Message,
-				Spinner:    true,
-				StatusType: domain.StatusDefault,
-				ToolName:   "",
-			}
-		})
-	}
-
-	if toolEventChan := h.directExec.PendingToolChannel(); toolEventChan != nil {
-		cmds = append(cmds, h.ListenForEvents(toolEventChan))
-		return tea.Sequence(cmds...)
-	}
-
-	if bashEventChan := h.directExec.PendingBashChannel(); bashEventChan != nil {
-		cmds = append(cmds, h.ListenForEvents(bashEventChan))
-		return tea.Sequence(cmds...)
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	if len(cmds) > 0 {
-		return tea.Sequence(cmds...)
-	}
-	return nil
-}
-
-func (h *ChatHandler) handleToolExecutionCompleted(
-	msg domain.ToolExecutionCompletedEvent,
-
-) tea.Cmd {
-	h.SetActiveToolCallID("")
-
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
-					msg.SuccessCount, msg.TotalExecuted),
-				Spinner:    true,
-				StatusType: domain.StatusPreparing,
-			}
-		},
-	}
-
-	todoUpdateCmd := h.extractTodoUpdateCmd(msg.Results)
-	if todoUpdateCmd != nil {
-		cmds = append(cmds, todoUpdateCmd)
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-// extractTodoUpdateCmd checks tool results for TodoWrite and returns a command to update todos
-func (h *ChatHandler) extractTodoUpdateCmd(results []*domain.ToolExecutionResult) tea.Cmd {
-	for _, result := range results {
-		if result == nil || result.ToolName != "TodoWrite" || !result.Success {
-			continue
-		}
-
-		todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
-		if !ok || todoResult == nil {
-			continue
-		}
-
-		todos := todoResult.Todos
-		return func() tea.Msg {
-			return domain.TodoUpdateEvent{
-				Todos: todos,
-			}
-		}
-	}
-	return nil
-}
-
-func (h *ChatHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
-	switch status {
-	case domain.ToolCallStreamStatusStreaming:
-		return fmt.Sprintf("Streaming %s...", toolName)
-	case domain.ToolCallStreamStatusComplete:
-		return fmt.Sprintf("Completed %s", toolName)
-	default:
-		return ""
-	}
-}
-
 func (h *ChatHandler) handleMessageQueued(
 	_ domain.MessageQueuedEvent,
 ) (tea.Model, tea.Cmd) {
@@ -982,18 +588,16 @@ func (h *ChatHandler) ClearBashDetachChan() {
 	h.directExec.ClearBashDetachChan()
 }
 
-// GetActiveToolCallID returns the currently active tool call ID
+// GetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// forwarding to ToolExecutionCoordinator (the actual owner post-#529).
 func (h *ChatHandler) GetActiveToolCallID() string {
-	h.activeToolCallIDMu.RLock()
-	defer h.activeToolCallIDMu.RUnlock()
-	return h.activeToolCallID
+	return h.toolCoordinator.GetActiveToolCallID()
 }
 
-// SetActiveToolCallID sets the currently active tool call ID
+// SetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// forwarding to ToolExecutionCoordinator.
 func (h *ChatHandler) SetActiveToolCallID(id string) {
-	h.activeToolCallIDMu.Lock()
-	defer h.activeToolCallIDMu.Unlock()
-	h.activeToolCallID = id
+	h.toolCoordinator.SetActiveToolCallID(id)
 }
 
 // HandleCommand processes slash commands
@@ -1060,24 +664,5 @@ func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 			return nil
 		}
 		return msg
-	}
-}
-
-// executeOnConversationRepo executes functions on the conversation repository
-// handling both InMemory and Persistent repository types
-func (h *ChatHandler) executeOnConversationRepo(
-	inMemFunc func(*services.InMemoryConversationRepository),
-	persistFunc func(*services.PersistentConversationRepository),
-) {
-	if inMemFunc != nil {
-		if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
-			inMemFunc(inMemRepo)
-			return
-		}
-	}
-	if persistFunc != nil {
-		if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
-			persistFunc(persistentRepo)
-		}
 	}
 }
