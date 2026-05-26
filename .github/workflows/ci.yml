@@ -102,9 +102,7 @@ jobs:
         go build \
           -ldflags "\
             -w -s \
-            -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }} \
-            -X github.com/inference-gateway/cli/cmd.commit=${{ github.sha }} \
-            -X github.com/inference-gateway/cli/cmd.date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }}" \
           -o infer .
 
   test:

@@ -19,7 +19,7 @@ tasks:
   build:
     desc: Build the CLI binary
     cmds:
-      - go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
     sources:
       - "**/*.go"
       - go.mod
@@ -30,7 +30,7 @@ tasks:
   install:
     desc: Install the CLI from source
     cmds:
-      - go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   clean:
     desc: Clean build artifacts
@@ -120,7 +120,7 @@ tasks:
         echo "Building for native platform..."
         GOOS=$(go env GOOS)
         GOARCH=$(go env GOARCH)
-        go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH} {{.MAIN_PACKAGE}}
+        go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH} {{.MAIN_PACKAGE}}
         echo "✓ Built dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH}"
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - |
@@ -138,7 +138,7 @@ tasks:
         sh: go env GOARCH
     cmds:
       - mkdir -p dist
-      - GOOS=darwin GOARCH={{.GOARCH}} go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
+      - GOOS=darwin GOARCH={{.GOARCH}} go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
 
   release:build:linux:
     desc: Build portable Linux binary using Docker
@@ -155,7 +155,7 @@ tasks:
           golang:1.26-alpine \
           sh -c 'CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH}} \
             go build \
-            -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" \
+            -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" \
             -o dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} .'
         echo "✓ Built portable dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} (pure Go, all storage backends supported)"
 
