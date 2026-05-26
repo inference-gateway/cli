@@ -8,9 +8,9 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -59,7 +59,6 @@
             "-s"
             "-w"
             "-X=github.com/inference-gateway/cli/cmd.version=${version}"
-            "-X=github.com/inference-gateway/cli/cmd.commit=${self.shortRev or "dirty"}"
           ];
 
           preCheck = ''

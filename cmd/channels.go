@@ -64,11 +64,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		}
 	}
 
-	logger.Info("Starting channels-manager",
-		"version", version,
-		"commit", commit,
-		"build_date", date,
-	)
+	logger.Info("Starting channels-manager", "version", version)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

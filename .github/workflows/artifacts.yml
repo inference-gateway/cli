@@ -50,11 +50,7 @@ jobs:
         id: version
         run: |
           VERSION="${{ github.event.release.tag_name }}"
-          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
-          echo "date=$DATE" >> $GITHUB_OUTPUT
 
       - name: Build binary (Linux portable - pure Go, no CGO dependencies)
         if: matrix.goos == 'linux'
@@ -64,7 +60,7 @@ jobs:
             -w /workspace \
             -e CGO_ENABLED=0 \
             golang:1.26-alpine3.23 \
-            sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
+            sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
 
       - name: Computer Use App (macOS only)
         if: matrix.goos == 'darwin'
@@ -78,7 +74,7 @@ jobs:
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
         run: |
-          go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+          go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1

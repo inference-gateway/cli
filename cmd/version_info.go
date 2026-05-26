@@ -6,7 +6,5 @@ import "github.com/inference-gateway/cli/internal/domain"
 func GetVersionInfo() domain.VersionInfo {
 	return domain.VersionInfo{
 		Version: version,
-		Commit:  commit,
-		Date:    date,
 	}
 }
