@@ -21,6 +21,7 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
+	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -90,9 +91,10 @@ type ServiceContainer struct {
 	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener   domain.ChatEventListener
-	a2aTaskCoordinator  domain.A2ATaskCoordinator
-	approvalCoordinator domain.ApprovalCoordinator
+	chatEventListener    domain.ChatEventListener
+	a2aTaskCoordinator   domain.A2ATaskCoordinator
+	approvalCoordinator  domain.ApprovalCoordinator
+	chatCompletionRunner *chatcompletion.Runner
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -393,6 +395,14 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		ConversationRepo: c.conversationRepo,
 		StateManager:     c.stateManager,
 	})
+
+	c.chatCompletionRunner = chatcompletion.NewRunner(chatcompletion.Options{
+		AgentService:     c.agent,
+		ConversationRepo: c.conversationRepo,
+		ModelService:     c.modelService,
+		StateManager:     c.stateManager,
+		Listener:         c.chatEventListener,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -556,6 +566,11 @@ func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
 // coordinator.
 func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
 	return c.approvalCoordinator
+}
+
+// GetChatCompletionRunner returns the LLM streaming lifecycle runner.
+func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner {
+	return c.chatCompletionRunner
 }
 
 // createRetryConfig creates a retry config with logging callback

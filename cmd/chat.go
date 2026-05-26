@@ -212,6 +212,7 @@ func StartChatSession(cfg *config.Config) error {
 		toolRegistry,
 		services.GetA2ATaskCoordinator(),
 		services.GetApprovalCoordinator(),
+		services.GetChatCompletionRunner(),
 	)
 
 	program := tea.NewProgram(

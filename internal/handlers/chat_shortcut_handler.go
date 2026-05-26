@@ -745,7 +745,9 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 		}
 	}
 
-	s.handler.pendingModelRestoration = switchData.OriginalModel
+	if s.handler.completionRunner != nil {
+		s.handler.completionRunner.SetPendingRestoration(switchData.OriginalModel)
+	}
 
 	return tea.Batch(
 		func() tea.Msg {

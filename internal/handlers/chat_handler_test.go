@@ -17,217 +17,6 @@ import (
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
-// The synthesized plan-mode assistant entry duplicates the args of the
-// preceding RequestPlanApproval tool call and lacks reasoning_content.
-// Sending it on the next turn breaks DeepSeek's thinking-mode contract
-// ("The reasoning_content in the thinking mode must be passed back to
-// the API.") with HTTP 400. The helper below filters those entries out.
-func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
-	planContent := "## Context\nDo X."
-	reasoning := "thought process"
-	planTitle := "Add Feature X"
-
-	entries := []domain.ConversationEntry{
-		{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent("Please plan it"),
-			},
-		},
-		{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent("Submitting plan"),
-				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
-					{
-						ID:   "call_1",
-						Type: sdk.Function,
-						Function: sdk.ChatCompletionMessageToolCallFunction{
-							Name:      "RequestPlanApproval",
-							Arguments: `{"title":"` + planTitle + `","plan":"` + planContent + `"}`,
-						},
-					},
-				},
-				Reasoning:        &reasoning,
-				ReasoningContent: &reasoning,
-			},
-			ReasoningContent: reasoning,
-		},
-		{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent("Plan approval requested. Plan saved to ..."),
-				ToolCallID: new("call_1"),
-			},
-		},
-		{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(planContent),
-			},
-			IsPlan:             true,
-			PlanApprovalStatus: domain.PlanApprovalAccepted,
-		},
-		{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent("The plan has been approved."),
-			},
-			Hidden: true,
-		},
-	}
-
-	out := buildAgentMessagesFromEntries(entries)
-
-	if len(out) != 4 {
-		t.Fatalf("expected 4 messages after filtering plan entry, got %d", len(out))
-	}
-
-	if out[1].Role != sdk.Assistant {
-		t.Errorf("expected message[1] to be the assistant tool-call turn, got role %s", out[1].Role)
-	}
-	if out[1].ReasoningContent == nil || *out[1].ReasoningContent != reasoning {
-		t.Errorf("expected reasoning_content preserved on assistant tool-call turn, got %v", out[1].ReasoningContent)
-	}
-
-	for i, msg := range out {
-		if msg.Role == sdk.Assistant && msg.ToolCalls == nil {
-			content, _ := msg.Content.AsMessageContent0()
-			if strings.Contains(content, "## Context") {
-				t.Errorf("plan-mode synthesized assistant message leaked into request at index %d", i)
-			}
-		}
-	}
-}
-
-func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
-	entries := []domain.ConversationEntry{
-		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},
-		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")}},
-	}
-	out := buildAgentMessagesFromEntries(entries)
-	if len(out) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(out))
-	}
-}
-
-// Regression for issue #474: when finalizeStream stored an assistant entry
-// without populating Message.Reasoning (the pre-fix behavior for non-tool-call
-// assistant turns), the rebuilt request would lack reasoning_content and
-// thinking-mode providers (e.g. Deepseek) would 400. The helper now backfills
-// Message.Reasoning/ReasoningContent from the entry's top-level
-// ReasoningContent so legacy entries and any future writers stay safe.
-func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
-	reasoning := "I should retry with a different path."
-
-	entries := []domain.ConversationEntry{
-		{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent("Let me try a different path."),
-			},
-			ReasoningContent: reasoning,
-		},
-	}
-
-	out := buildAgentMessagesFromEntries(entries)
-
-	if len(out) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(out))
-	}
-	if out[0].Reasoning == nil || *out[0].Reasoning != reasoning {
-		t.Errorf("expected Reasoning backfilled to %q, got %v", reasoning, out[0].Reasoning)
-	}
-	if out[0].ReasoningContent == nil || *out[0].ReasoningContent != reasoning {
-		t.Errorf("expected ReasoningContent backfilled to %q, got %v", reasoning, out[0].ReasoningContent)
-	}
-}
-
-// Regression for the second flavor of issue #474: user-typed `!command`
-// shortcuts synthesize an assistant entry (with tool_calls but no
-// reasoning_content) followed by a tool result. Tool-call IDs are prefixed
-// with `user-bash-`. Previously these were sent verbatim to the model and
-// rejected by thinking-mode providers (DeepSeek 400) on the next turn. Both
-// the assistant and the matching tool entry must be filtered.
-func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
-	userBashID := "user-bash-1234567890"
-
-	entries := []domain.ConversationEntry{
-		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("!task lint")}},
-		{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(""),
-				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
-					{
-						ID:   userBashID,
-						Type: sdk.Function,
-						Function: sdk.ChatCompletionMessageToolCallFunction{
-							Name:      "Bash",
-							Arguments: `{"command":"task lint"}`,
-						},
-					},
-				},
-			},
-		},
-		{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent("0 issues."),
-				ToolCallID: &userBashID,
-			},
-		},
-		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("anything else?")}},
-	}
-
-	out := buildAgentMessagesFromEntries(entries)
-
-	if len(out) != 2 {
-		t.Fatalf("expected 2 messages after filtering user-bash pair, got %d", len(out))
-	}
-	for i, msg := range out {
-		if msg.ToolCalls != nil {
-			for _, tc := range *msg.ToolCalls {
-				if strings.HasPrefix(tc.ID, "user-bash-") {
-					t.Errorf("user-bash tool call leaked into request at message %d", i)
-				}
-			}
-		}
-		if msg.ToolCallID != nil && strings.HasPrefix(*msg.ToolCallID, "user-bash-") {
-			t.Errorf("user-bash tool result leaked into request at message %d", i)
-		}
-	}
-}
-
-func TestBuildAgentMessagesFromEntries_DoesNotOverwriteExistingReasoning(t *testing.T) {
-	existing := "from message"
-	other := "from entry"
-
-	entries := []domain.ConversationEntry{
-		{
-			Message: sdk.Message{
-				Role:             sdk.Assistant,
-				Content:          sdk.NewMessageContent("hello"),
-				Reasoning:        &existing,
-				ReasoningContent: &existing,
-			},
-			ReasoningContent: other,
-		},
-	}
-
-	out := buildAgentMessagesFromEntries(entries)
-
-	if len(out) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(out))
-	}
-	if out[0].Reasoning == nil || *out[0].Reasoning != existing {
-		t.Errorf("expected Reasoning preserved as %q, got %v", existing, out[0].Reasoning)
-	}
-	if out[0].ReasoningContent == nil || *out[0].ReasoningContent != existing {
-		t.Errorf("expected ReasoningContent preserved as %q, got %v", existing, out[0].ReasoningContent)
-	}
-}
-
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
 	handler := &ChatHandler{}
 
@@ -772,6 +561,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		config.DefaultConfig(),
 		nil, // a2aTaskCoordinator
 		nil, // approvalCoordinator
+		nil, // completionRunner
 	)
 
 	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150)
@@ -938,6 +728,10 @@ func getChatEventTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
+			// Note: post-refactor (#529) this dispatch case now delegates to
+			// ChatCompletionRunner.HandleChatChunk via the fake runner, which
+			// always returns a non-nil cmd. The "no session returns nil" path
+			// is tested directly in chatcompletion/runner_test.go.
 			name: "ChatChunkEvent - with content (no session)",
 			msg: domain.ChatChunkEvent{
 				RequestID: "test-123",
@@ -947,7 +741,7 @@ func getChatEventTestCases() []chatHandlerTestCase {
 			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
 				model.GetCurrentModelReturns("test-model")
 			},
-			expectedCmd: false,
+			expectedCmd: true,
 		},
 		{
 			name: "ChatChunkEvent - with reasoning",
@@ -1051,6 +845,18 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	shortcutRegistry := shortcuts.NewRegistry()
 	messageQueue := services.NewMessageQueueService()
 
+	// Configure the fake completion runner to return non-nil cmds so the
+	// handler's Handle() dispatcher returns non-nil for chat-* events. The
+	// individual cmd contents are exercised by chatcompletion's own tests.
+	nonNilCmd := func() tea.Msg { return nil }
+	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner.HandleChatStartReturns(nonNilCmd)
+	fakeRunner.HandleChatChunkReturns(nonNilCmd)
+	fakeRunner.HandleChatCompleteReturns(nonNilCmd)
+	fakeRunner.HandleChatErrorReturns(nonNilCmd)
+	fakeRunner.HandleOptimizationStatusReturns(nonNilCmd)
+	fakeRunner.StartReturns(nonNilCmd)
+
 	return NewChatHandler(
 		mockAgent,
 		conversationRepo,
@@ -1070,6 +876,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		cfg,
 		nil, // a2aTaskCoordinator
 		nil, // approvalCoordinator
+		fakeRunner,
 	)
 }
 
@@ -1128,104 +935,6 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_ = tt
-		})
-	}
-}
-
-func TestChatEventHandler_handleChatComplete(t *testing.T) {
-	tests := []struct {
-		name                 string
-		msg                  domain.ChatCompleteEvent
-		withToolCalls        bool
-		metricsProvided      bool
-		shouldInjectReminder bool
-		setupMocks           func(*mocks.FakeAgentService, *mocks.FakeModelService, *config.Config)
-	}{
-		{
-			name: "Complete without tools or metrics",
-			msg: domain.ChatCompleteEvent{
-				RequestID: "test-123",
-				Timestamp: time.Now(),
-			},
-			withToolCalls:   false,
-			metricsProvided: false,
-		},
-		{
-			name: "Complete with metrics",
-			msg: domain.ChatCompleteEvent{
-				RequestID: "test-123",
-				Timestamp: time.Now(),
-				Metrics: &domain.ChatMetrics{
-					Duration: time.Second,
-					Usage: &sdk.CompletionUsage{
-						PromptTokens:     100,
-						CompletionTokens: 50,
-						TotalTokens:      150,
-					},
-				},
-			},
-			withToolCalls:   false,
-			metricsProvided: true,
-		},
-		{
-			name: "Complete with tool calls",
-			msg: domain.ChatCompleteEvent{
-				RequestID: "test-123",
-				Timestamp: time.Now(),
-				ToolCalls: []sdk.ChatCompletionMessageToolCall{
-					{
-						ID:   "tool-1",
-						Type: sdk.Function,
-						Function: sdk.ChatCompletionMessageToolCallFunction{
-							Name:      "Read",
-							Arguments: `{"file_path": "test.txt"}`,
-						},
-					},
-				},
-			},
-			withToolCalls:   true,
-			metricsProvided: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockAgent := &mocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
-			mockTool := &mocks.FakeToolService{}
-			mockFile := &mocks.FakeFileService{}
-
-			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
-			stateManager := services.NewStateManager(false)
-			shortcutRegistry := shortcuts.NewRegistry()
-			messageQueue := services.NewMessageQueueService()
-
-			handler := NewChatHandler(
-				mockAgent,
-				conversationRepo,
-				nil, // conversationOptimizer
-				nil, // sessionRolloverManager
-				mockModel,
-				mockTool,
-				mockFile,
-				nil,
-				shortcutRegistry,
-				stateManager,
-				messageQueue,
-				nil,
-				nil,
-				nil,
-				nil,
-				config.DefaultConfig(),
-				nil, // a2aTaskCoordinator
-				nil, // approvalCoordinator
-			)
-
-			cmd := handler.handleChatComplete(tt.msg)
-
-			assert.NotNil(t, cmd, "Should return a command")
-
-			assert.Nil(t, stateManager.GetChatSession())
 		})
 	}
 }

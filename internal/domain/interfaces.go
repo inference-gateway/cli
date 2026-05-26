@@ -1152,3 +1152,32 @@ type ApprovalCoordinator interface {
 	HandleComputerUsePaused(msg ComputerUsePausedEvent) tea.Cmd
 	HandleComputerUseResumed(msg ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
 }
+
+// ActiveToolTracker tracks which tool call (if any) is currently shown in the
+// UI's progress indicator. Lives behind an interface because both the
+// (current) ChatHandler and the (extracted) ChatCompletionRunner need to
+// touch it, and a future ToolExecutionCoordinator will own the
+// implementation outright.
+type ActiveToolTracker interface {
+	GetActiveToolCallID() string
+	SetActiveToolCallID(id string)
+}
+
+// ChatCompletionRunner owns the LLM streaming lifecycle — initiating
+// streaming, translating chat-start / chat-chunk / chat-complete / chat-error
+// events into UI state transitions, and handling the model-restoration side
+// effect after a temporary /model switch.
+//
+// Start takes a BashDetachChannelHolder because the agent core needs that
+// narrow interface attached to its context when launching tools that may
+// require backgrounding. In #529 commit 3 that holder is the orchestrator
+// itself; in commit 4 it becomes the DirectExecutionService.
+type ChatCompletionRunner interface {
+	Start(holder BashDetachChannelHolder) tea.Cmd
+	HandleChatStart(msg ChatStartEvent) tea.Cmd
+	HandleChatChunk(msg ChatChunkEvent) tea.Cmd
+	HandleChatComplete(msg ChatCompleteEvent) tea.Cmd
+	HandleChatError(msg ChatErrorEvent) tea.Cmd
+	HandleOptimizationStatus(msg OptimizationStatusEvent) tea.Cmd
+	SetPendingRestoration(originalModel string)
+}

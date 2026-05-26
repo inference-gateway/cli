@@ -114,6 +114,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				config.DefaultConfig(),
 				nil, // a2aTaskCoordinator
 				nil, // approvalCoordinator
+				&mocks.FakeChatCompletionRunner{},
 			)
 
 			processor := NewChatMessageProcessor(handler)
@@ -258,6 +259,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
+				completionRunner: &mocks.FakeChatCompletionRunner{},
 			}
 
 			processor := NewChatMessageProcessor(handler)

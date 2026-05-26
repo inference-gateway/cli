@@ -25,36 +25,35 @@ import (
 )
 
 type ChatHandler struct {
-	agentService              domain.AgentService
-	conversationRepo          domain.ConversationRepository
-	conversationOptimizer     domain.ConversationOptimizer
-	sessionRolloverManager    *services.SessionRolloverManager
-	modelService              domain.ModelService
-	toolService               domain.ToolService
-	fileService               domain.FileService
-	imageService              domain.ImageService
-	shortcutRegistry          *shortcuts.Registry
-	stateManager              domain.StateManager
-	messageQueue              domain.MessageQueue
-	taskRetentionService      domain.TaskRetentionService
-	backgroundTaskService     domain.BackgroundTaskService
-	backgroundShellService    domain.BackgroundShellService
-	agentManager              domain.AgentManager
-	config                    *config.Config
-	a2aTaskCoordinator        domain.A2ATaskCoordinator
-	approvalCoordinator       domain.ApprovalCoordinator
-	messageProcessor          *ChatMessageProcessor
-	shortcutHandler           *ChatShortcutHandler
-	bashDetachChan            chan<- struct{}
-	bashDetachChanMu          sync.RWMutex
-	bashEventChannel          <-chan tea.Msg
-	bashEventChannelMu        sync.RWMutex
-	toolEventChannel          <-chan tea.Msg
-	toolEventChannelMu        sync.RWMutex
-	activeToolCallID          string
-	activeToolCallIDMu        sync.RWMutex
-	pendingModelRestoration   string
-	pendingModelRestorationMu sync.RWMutex
+	agentService           domain.AgentService
+	conversationRepo       domain.ConversationRepository
+	conversationOptimizer  domain.ConversationOptimizer
+	sessionRolloverManager *services.SessionRolloverManager
+	modelService           domain.ModelService
+	toolService            domain.ToolService
+	fileService            domain.FileService
+	imageService           domain.ImageService
+	shortcutRegistry       *shortcuts.Registry
+	stateManager           domain.StateManager
+	messageQueue           domain.MessageQueue
+	taskRetentionService   domain.TaskRetentionService
+	backgroundTaskService  domain.BackgroundTaskService
+	backgroundShellService domain.BackgroundShellService
+	agentManager           domain.AgentManager
+	config                 *config.Config
+	a2aTaskCoordinator     domain.A2ATaskCoordinator
+	approvalCoordinator    domain.ApprovalCoordinator
+	completionRunner       domain.ChatCompletionRunner
+	messageProcessor       *ChatMessageProcessor
+	shortcutHandler        *ChatShortcutHandler
+	bashDetachChan         chan<- struct{}
+	bashDetachChanMu       sync.RWMutex
+	bashEventChannel       <-chan tea.Msg
+	bashEventChannelMu     sync.RWMutex
+	toolEventChannel       <-chan tea.Msg
+	toolEventChannelMu     sync.RWMutex
+	activeToolCallID       string
+	activeToolCallIDMu     sync.RWMutex
 }
 
 func NewChatHandler(
@@ -76,6 +75,7 @@ func NewChatHandler(
 	cfg *config.Config,
 	a2aTaskCoordinator domain.A2ATaskCoordinator,
 	approvalCoordinator domain.ApprovalCoordinator,
+	completionRunner domain.ChatCompletionRunner,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -96,6 +96,7 @@ func NewChatHandler(
 		backgroundShellService: backgroundShellService,
 		a2aTaskCoordinator:     a2aTaskCoordinator,
 		approvalCoordinator:    approvalCoordinator,
+		completionRunner:       completionRunner,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -183,111 +184,17 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 	return nil
 }
 
-// buildAgentMessagesFromEntries converts conversation entries into the
-// flat slice of SDK messages sent to the model.
-//
-// Two classes of entries are filtered:
-//
-//  1. Plan-mode entries (entry.IsPlan): synthesized assistant messages used
-//     for UI rendering only; their content duplicates the args of the
-//     preceding RequestPlanApproval tool call.
-//  2. User-initiated bash entries: synthetic assistant + tool pairs created
-//     when the user types `!command` directly in chat. Their assistant
-//     side has tool_calls but no reasoning_content (the user, not the
-//     model, generated them).
-//
-// Sending either to a thinking-mode provider (DeepSeek, etc.) produces an
-// assistant turn lacking `reasoning_content`, which is rejected with HTTP
-// 400 ("The reasoning_content in the thinking mode must be passed back to
-// the API.").
-func buildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsPlan {
-			continue
-		}
-		if isUserInitiatedBashEntry(entry) {
-			continue
-		}
-		msg := entry.Message
-		if entry.ReasoningContent != "" && msg.Reasoning == nil && msg.ReasoningContent == nil {
-			rc := entry.ReasoningContent
-			msg.Reasoning = &rc
-			msg.ReasoningContent = &rc
-		}
-		messages = append(messages, msg)
-	}
-	return messages
-}
-
-// isUserInitiatedBashEntry reports whether the entry was synthesized for a
-// user-typed `!command` shortcut. Tool-call IDs created by that path are
-// prefixed with `user-bash-` (see executeBashCommandImmediate in this file).
-func isUserInitiatedBashEntry(entry domain.ConversationEntry) bool {
-	const userBashPrefix = "user-bash-"
-
-	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {
-		return true
-	}
-
-	if entry.Message.ToolCalls != nil {
-		for _, tc := range *entry.Message.ToolCalls {
-			if strings.HasPrefix(tc.ID, userBashPrefix) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
+// startChatCompletion bridges the orchestrator to the extracted runner. The
+// handler still satisfies BashDetachChannelHolder; commit 4 swaps the holder
+// for DirectExecutionService when that service takes ownership of the bash
+// detach channel.
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-
-		currentModel := h.modelService.GetCurrentModel()
-		if currentModel == "" {
-			return domain.ChatErrorEvent{
-				RequestID: "unknown",
-				Timestamp: time.Now(),
-				Error:     fmt.Errorf("no model selected"),
-			}
-		}
-
-		entries := h.conversationRepo.GetMessages()
-		messages := buildAgentMessagesFromEntries(entries)
-
-		requestID := generateRequestID()
-
-		req := &domain.AgentRequest{
-			RequestID:  requestID,
-			Model:      currentModel,
-			Messages:   messages,
-			IsChatMode: true,
-		}
-
-		ctx = domain.WithChatHandler(ctx, h)
-
-		eventChan, err := h.agentService.RunWithStream(ctx, req)
-		if err != nil {
-			return domain.ChatErrorEvent{
-				RequestID: requestID,
-				Timestamp: time.Now(),
-				Error:     err,
-			}
-		}
-
-		_ = h.stateManager.StartChatSession(requestID, currentModel, eventChan)
-
-		return domain.ChatStartEvent{
-			RequestID: requestID,
-			Model:     currentModel,
-			Timestamp: time.Now(),
-		}
-	}
+	return h.completionRunner.Start(h)
 }
 
-// ListenForChatEvents creates a tea.Cmd that listens for the next event from the channel
+// ListenForChatEvents creates a tea.Cmd that listens for the next event from
+// the channel. Wraps the shared eventlistener service so callers within this
+// package and the legacy domain.ChatHandler interface continue to work.
 func (h *ChatHandler) ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
@@ -332,10 +239,6 @@ func (h *ChatHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 
 func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
 	return h.messageProcessor.ExtractMarkdownSummary(content)
-}
-
-func generateRequestID() string {
-	return fmt.Sprintf("req_%d", time.Now().UnixNano())
 }
 
 func (h *ChatHandler) handleFileSelectionRequest(
@@ -444,31 +347,39 @@ func (h *ChatHandler) HandleConversationSelectedEvent(
 func (h *ChatHandler) HandleChatStartEvent(
 	msg domain.ChatStartEvent,
 ) tea.Cmd {
-	return h.handleChatStart(msg)
+	// Clear stale active-tool indicator before the runner handles the event.
+	// In commit 5 this concern moves to ToolExecutionCoordinator.
+	h.SetActiveToolCallID("")
+	return h.completionRunner.HandleChatStart(msg)
 }
 
 func (h *ChatHandler) HandleChatChunkEvent(
 	msg domain.ChatChunkEvent,
 ) tea.Cmd {
-	return h.handleChatChunk(msg)
+	return h.completionRunner.HandleChatChunk(msg)
 }
 
 func (h *ChatHandler) HandleChatCompleteEvent(
 	msg domain.ChatCompleteEvent,
 ) tea.Cmd {
-	return h.handleChatComplete(msg)
+	cmd := h.completionRunner.HandleChatComplete(msg)
+	if msg.Cancelled {
+		h.SetActiveToolCallID("")
+	}
+	return cmd
 }
 
 func (h *ChatHandler) HandleChatErrorEvent(
 	msg domain.ChatErrorEvent,
 ) tea.Cmd {
-	return h.handleChatError(msg)
+	h.SetActiveToolCallID("")
+	return h.completionRunner.HandleChatError(msg)
 }
 
 func (h *ChatHandler) HandleOptimizationStatusEvent(
 	msg domain.OptimizationStatusEvent,
 ) tea.Cmd {
-	return h.handleOptimizationStatus(msg)
+	return h.completionRunner.HandleOptimizationStatus(msg)
 }
 
 func (h *ChatHandler) HandleToolCallUpdateEvent(
@@ -783,307 +694,6 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResume
 		return cmd
 	}
 	return tea.Batch(cmd, h.startChatCompletion())
-}
-
-func (h *ChatHandler) handleChatStart(
-	_ /* event */ domain.ChatStartEvent,
-) tea.Cmd {
-	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
-	h.SetActiveToolCallID("")
-
-	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    "Starting response...",
-			Spinner:    true,
-			StatusType: domain.StatusGenerating,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleChatChunk(
-	msg domain.ChatChunkEvent,
-) tea.Cmd {
-	chatSession := h.stateManager.GetChatSession()
-	if chatSession == nil {
-		return h.handleNoChatSession(msg)
-	}
-
-	if msg.Content == "" && msg.ReasoningContent == "" {
-		return h.handleEmptyContent(chatSession)
-	}
-
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			return domain.StreamingContentEvent{
-				RequestID:        msg.RequestID,
-				Content:          msg.Content,
-				ReasoningContent: msg.ReasoningContent,
-				Delta:            true,
-				Model:            chatSession.Model,
-			}
-		},
-	}
-
-	statusCmds := h.handleStatusUpdate(msg, chatSession)
-	cmds = append(cmds, statusCmds...)
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleOptimizationStatus(
-	event domain.OptimizationStatusEvent,
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	if event.IsActive {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    event.Message,
-				Spinner:    true,
-				StatusType: domain.StatusProcessing,
-			}
-		})
-	} else {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    event.Message,
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		})
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleNoChatSession(msg domain.ChatChunkEvent) tea.Cmd {
-	if msg.ReasoningContent != "" {
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Thinking...",
-				Spinner:    true,
-				StatusType: domain.StatusThinking,
-			}
-		}
-	}
-	return nil
-}
-
-func (h *ChatHandler) handleEmptyContent(chatSession *domain.ChatSession) tea.Cmd {
-	if chatSession != nil && chatSession.EventChannel != nil {
-		return h.ListenForChatEvents(chatSession.EventChannel)
-	}
-	return nil
-}
-
-func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) []tea.Cmd {
-	newStatus, shouldUpdateStatus := h.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
-
-	if !shouldUpdateStatus {
-		return nil
-	}
-
-	_ = h.stateManager.UpdateChatStatus(newStatus)
-
-	if chatSession.IsFirstChunk {
-		chatSession.IsFirstChunk = false
-		return h.createFirstChunkStatusCmd(newStatus)
-	}
-
-	if newStatus != chatSession.Status {
-		return h.createStatusUpdateCmd(newStatus)
-	}
-
-	return nil
-}
-
-func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, _ bool) (domain.ChatStatus, bool) {
-	if msg.ReasoningContent != "" {
-		return domain.ChatStatusThinking, true
-	}
-
-	if msg.Content != "" {
-		return domain.ChatStatusGenerating, true
-	}
-
-	return currentStatus, false
-}
-
-func (h *ChatHandler) createFirstChunkStatusCmd(status domain.ChatStatus) []tea.Cmd {
-	switch status {
-	case domain.ChatStatusThinking:
-		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Thinking...",
-				Spinner:    true,
-				StatusType: domain.StatusThinking,
-			}
-		}}
-	case domain.ChatStatusGenerating:
-		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Generating response...",
-				Spinner:    true,
-				StatusType: domain.StatusGenerating,
-			}
-		}}
-	}
-	return nil
-}
-
-func (h *ChatHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea.Cmd {
-	switch status {
-	case domain.ChatStatusThinking:
-		return []tea.Cmd{func() tea.Msg {
-			return domain.UpdateStatusEvent{
-				Message:    "Thinking...",
-				StatusType: domain.StatusThinking,
-			}
-		}}
-	case domain.ChatStatusGenerating:
-		return []tea.Cmd{func() tea.Msg {
-			return domain.UpdateStatusEvent{
-				Message:    "Generating response...",
-				StatusType: domain.StatusGenerating,
-			}
-		}}
-	}
-	return nil
-}
-
-func (h *ChatHandler) handleChatComplete(
-	msg domain.ChatCompleteEvent,
-
-) tea.Cmd {
-	h.restorePendingModel()
-
-	if msg.Cancelled {
-		// Cancel path absorbs the cleanup that used to live in handleCancelled:
-		// end the chat session, clear active tool execution, and move chat
-		// status to Cancelled so the input area returns to idle.
-		_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
-		h.stateManager.EndChatSession()
-		h.stateManager.EndToolExecution()
-		h.SetActiveToolCallID("")
-	} else if len(msg.ToolCalls) == 0 {
-		_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
-	}
-
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	for _, toolCall := range msg.ToolCalls {
-		tc := toolCall
-		cmds = append(cmds, func() tea.Msg {
-			return domain.ToolCallPreviewEvent{
-				RequestID:  msg.RequestID,
-				Timestamp:  msg.Timestamp,
-				ToolCallID: tc.ID,
-				ToolName:   tc.Function.Name,
-				Arguments:  tc.Function.Arguments,
-				Status:     domain.ToolCallStreamStatusReady,
-				IsComplete: false,
-			}
-		})
-	}
-
-	statusMessage := "Response complete"
-	if msg.Cancelled {
-		statusMessage = "User interrupted"
-	}
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-// restorePendingModel restores the original model if a temporary model switch is pending
-func (h *ChatHandler) restorePendingModel() {
-	h.pendingModelRestorationMu.Lock()
-	if h.pendingModelRestoration == "" {
-		h.pendingModelRestorationMu.Unlock()
-		return
-	}
-
-	originalModel := h.pendingModelRestoration
-	h.pendingModelRestoration = ""
-	h.pendingModelRestorationMu.Unlock()
-
-	if err := h.modelService.SelectModel(originalModel); err != nil {
-		logger.Error("Failed to restore original model", "model", originalModel, "error", err)
-		h.addModelRestorationWarning(originalModel)
-		return
-	}
-
-	logger.Debug("Successfully restored original model", "model", originalModel)
-}
-
-// addModelRestorationWarning adds a warning message when model restoration fails
-func (h *ChatHandler) addModelRestorationWarning(originalModel string) {
-	warningEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.Assistant,
-			Content: sdk.NewMessageContent(fmt.Sprintf("[Warning: Failed to restore model to %s]", originalModel)),
-		},
-		Time: time.Now(),
-	}
-
-	if err := h.conversationRepo.AddMessage(warningEntry); err != nil {
-		logger.Error("Failed to add model restoration warning message", "error", err)
-	}
-}
-
-func (h *ChatHandler) handleChatError(
-	msg domain.ChatErrorEvent,
-) tea.Cmd {
-	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusError)
-	h.stateManager.EndChatSession()
-	h.stateManager.EndToolExecution()
-	h.SetActiveToolCallID("")
-
-	_ = h.stateManager.TransitionToView(domain.ViewStateChat)
-
-	errorMsg := fmt.Sprintf("Chat error: %v", msg.Error)
-	if strings.Contains(msg.Error.Error(), "timed out") {
-		errorMsg = fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", msg.Error)
-	}
-
-	return func() tea.Msg {
-		return domain.ShowErrorEvent{
-			Error:  errorMsg,
-			Sticky: true,
-		}
-	}
 }
 
 func (h *ChatHandler) handleToolCallUpdate(
