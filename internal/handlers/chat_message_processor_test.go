@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -95,6 +97,13 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			stateManager := services.NewStateManager(false)
 			messageQueue := services.NewMessageQueueService()
 
+			fakeDirect := &mocks.FakeDirectExecutionService{}
+			fakeDirect.HandleBashCommandReturns(func() tea.Msg { return nil })
+			fakeDirect.HandleToolCommandReturns(func() tea.Msg { return nil })
+
+			fakeRunner := &mocks.FakeChatCompletionRunner{}
+			fakeRunner.StartReturns(func() tea.Msg { return nil })
+
 			handler := NewChatHandler(
 				mockAgent,
 				conversationRepo,
@@ -112,6 +121,11 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil,
 				nil,
 				config.DefaultConfig(),
+				nil, // a2aTaskCoordinator
+				nil, // approvalCoordinator
+				fakeRunner,
+				fakeDirect,
+				nil, // toolCoordinator
 			)
 
 			processor := NewChatMessageProcessor(handler)
@@ -256,6 +270,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
+				completionRunner: &mocks.FakeChatCompletionRunner{},
 			}
 
 			processor := NewChatMessageProcessor(handler)

@@ -210,6 +210,11 @@ func StartChatSession(cfg *config.Config) error {
 		toolService,
 		shortcutRegistry,
 		toolRegistry,
+		services.GetA2ATaskCoordinator(),
+		services.GetApprovalCoordinator(),
+		services.GetChatCompletionRunner(),
+		services.GetDirectExecutionService(),
+		services.GetToolExecutionCoordinator(),
 	)
 
 	program := tea.NewProgram(

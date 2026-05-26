@@ -19,7 +19,13 @@ import (
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
+	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
+	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
+	directexec "github.com/inference-gateway/cli/internal/services/directexec"
+	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
+	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -83,6 +89,16 @@ type ServiceContainer struct {
 	// Tool registry
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
+
+	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
+	// Constructed unconditionally; A2A-specific deps inside the
+	// services are nil-safe when A2A is disabled.
+	chatEventListener        domain.ChatEventListener
+	a2aTaskCoordinator       domain.A2ATaskCoordinator
+	approvalCoordinator      domain.ApprovalCoordinator
+	chatCompletionRunner     *chatcompletion.Runner
+	directExecutionService   domain.DirectExecutionService
+	toolExecutionCoordinator domain.ToolExecutionCoordinator
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -361,6 +377,51 @@ func (c *ServiceContainer) initializeServices() {
 
 		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry)
 	}
+
+	c.initializeChatOrchestrationServices()
+}
+
+// initializeChatOrchestrationServices wires the services extracted from the
+// monolithic ChatHandler (issue #529). All deps from earlier init phases must
+// be in place by the time this runs.
+func (c *ServiceContainer) initializeChatOrchestrationServices() {
+	c.chatEventListener = eventlistener.NewService()
+
+	c.a2aTaskCoordinator = a2acoord.NewService(a2acoord.Options{
+		ConversationRepo:     c.conversationRepo,
+		StateManager:         c.stateManager,
+		TaskRetentionService: c.taskRetentionService,
+		Listener:             c.chatEventListener,
+	})
+
+	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
+		AgentService:     c.agent,
+		ConversationRepo: c.conversationRepo,
+		StateManager:     c.stateManager,
+	})
+
+	c.chatCompletionRunner = chatcompletion.NewRunner(chatcompletion.Options{
+		AgentService:     c.agent,
+		ConversationRepo: c.conversationRepo,
+		ModelService:     c.modelService,
+		StateManager:     c.stateManager,
+		Listener:         c.chatEventListener,
+	})
+
+	c.directExecutionService = directexec.NewService(directexec.Options{
+		ConversationRepo:       c.conversationRepo,
+		ToolService:            c.toolService,
+		StateManager:           c.stateManager,
+		BackgroundShellService: c.BackgroundShellService(),
+		Listener:               c.chatEventListener,
+	})
+
+	c.toolExecutionCoordinator = toolcoordinator.NewCoordinator(toolcoordinator.Options{
+		ConversationRepo: c.conversationRepo,
+		StateManager:     c.stateManager,
+		DirectExec:       c.directExecutionService,
+		Listener:         c.chatEventListener,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -507,6 +568,40 @@ func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskServi
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
 func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
 	return c.mcpManager
+}
+
+// GetChatEventListener returns the shared Bubble Tea channel listener used by
+// every chat orchestration service.
+func (c *ServiceContainer) GetChatEventListener() domain.ChatEventListener {
+	return c.chatEventListener
+}
+
+// GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
+func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
+	return c.a2aTaskCoordinator
+}
+
+// GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
+// coordinator.
+func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
+	return c.approvalCoordinator
+}
+
+// GetChatCompletionRunner returns the LLM streaming lifecycle runner.
+func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner {
+	return c.chatCompletionRunner
+}
+
+// GetDirectExecutionService returns the user-typed !command / !!Tool(...)
+// execution service. Also satisfies BashDetachChannelHolder.
+func (c *ServiceContainer) GetDirectExecutionService() domain.DirectExecutionService {
+	return c.directExecutionService
+}
+
+// GetToolExecutionCoordinator returns the tool round-trip coordinator (tool
+// approval, streaming-status, execution progress, active-tool tracking).
+func (c *ServiceContainer) GetToolExecutionCoordinator() domain.ToolExecutionCoordinator {
+	return c.toolExecutionCoordinator
 }
 
 // createRetryConfig creates a retry config with logging callback
