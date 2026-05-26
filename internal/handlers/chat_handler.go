@@ -17,7 +17,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -42,6 +41,7 @@ type ChatHandler struct {
 	backgroundShellService    domain.BackgroundShellService
 	agentManager              domain.AgentManager
 	config                    *config.Config
+	a2aTaskCoordinator        domain.A2ATaskCoordinator
 	messageProcessor          *ChatMessageProcessor
 	shortcutHandler           *ChatShortcutHandler
 	bashDetachChan            chan<- struct{}
@@ -73,6 +73,7 @@ func NewChatHandler(
 	backgroundShellService domain.BackgroundShellService,
 	agentManager domain.AgentManager,
 	cfg *config.Config,
+	a2aTaskCoordinator domain.A2ATaskCoordinator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -91,6 +92,7 @@ func NewChatHandler(
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,
 		backgroundShellService: backgroundShellService,
+		a2aTaskCoordinator:     a2aTaskCoordinator,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -540,41 +542,37 @@ func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
 	msg domain.A2AToolCallExecutedEvent,
 ) tea.Cmd {
-	return h.handleA2AToolCallExecuted(msg)
+	return h.a2aTaskCoordinator.HandleToolCallExecuted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
 	msg domain.A2ATaskSubmittedEvent,
 ) tea.Cmd {
-	return h.handleA2ATaskSubmitted(msg)
+	return h.a2aTaskCoordinator.HandleTaskSubmitted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
 	msg domain.A2ATaskStatusUpdateEvent,
 ) tea.Cmd {
-	_, cmd := h.handleA2ATaskStatusUpdate(msg)
-	return cmd
+	return h.a2aTaskCoordinator.HandleTaskStatusUpdate(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskCompletedEvent(
 	msg domain.A2ATaskCompletedEvent,
 ) tea.Cmd {
-	_, cmd := h.handleA2ATaskCompleted(msg)
-	return cmd
+	return h.a2aTaskCoordinator.HandleTaskCompleted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskFailedEvent(
 	msg domain.A2ATaskFailedEvent,
 ) tea.Cmd {
-	_, cmd := h.handleA2ATaskFailed(msg)
-	return cmd
+	return h.a2aTaskCoordinator.HandleTaskFailed(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
 	msg domain.A2ATaskInputRequiredEvent,
 ) tea.Cmd {
-	_, cmd := h.handleA2ATaskInputRequired(msg, h.stateManager)
-	return cmd
+	return h.a2aTaskCoordinator.HandleTaskInputRequired(msg)
 }
 
 func (h *ChatHandler) HandleMessageQueuedEvent(
@@ -1535,146 +1533,6 @@ func (h *ChatHandler) formatToolCallStatusMessage(toolName string, status domain
 	}
 }
 
-func (h *ChatHandler) handleA2ATaskCompleted(
-	msg domain.A2ATaskCompletedEvent,
-) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	var taskResult string
-	if msg.Result.Data != nil {
-		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
-			taskResult = submitResult.TaskResult
-
-			if submitResult.Task != nil && h.taskRetentionService != nil {
-				retainedTask := domain.TaskInfo{
-					Task:        *submitResult.Task,
-					AgentURL:    submitResult.AgentURL,
-					StartedAt:   time.Now().Add(-msg.Result.Duration),
-					CompletedAt: time.Now(),
-				}
-				h.taskRetentionService.AddTask(retainedTask)
-			}
-		}
-	}
-
-	if taskResult == "" {
-		taskResult = h.conversationRepo.FormatToolResultForLLM(&msg.Result)
-	}
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.StreamingContentEvent{
-			RequestID: msg.RequestID,
-			Content:   taskResult,
-			Delta:     false,
-		}
-	})
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	chatSession := h.stateManager.GetChatSession()
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    "A2A task completed",
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
-	if chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return nil, tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleA2ATaskFailed(
-	msg domain.A2ATaskFailedEvent,
-) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	var taskResult string
-	if msg.Result.Data != nil {
-		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
-			taskResult = submitResult.TaskResult
-
-			if submitResult.Task != nil && h.taskRetentionService != nil {
-				retainedTask := domain.TaskInfo{
-					Task:        *submitResult.Task,
-					AgentURL:    submitResult.AgentURL,
-					StartedAt:   time.Now().Add(-msg.Result.Duration),
-					CompletedAt: time.Now(),
-				}
-				h.taskRetentionService.AddTask(retainedTask)
-			}
-		}
-	}
-
-	var errorContent string
-	if taskResult != "" {
-		errorContent = fmt.Sprintf("[A2A Task Failed]\n\n%s", taskResult)
-	} else {
-		formattedResult := h.conversationRepo.FormatToolResultForLLM(&msg.Result)
-		errorContent = fmt.Sprintf("[A2A Task Failed]\n\nError: %s\n\n%s", msg.Error, formattedResult)
-	}
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.StreamingContentEvent{
-			RequestID: msg.RequestID,
-			Content:   errorContent,
-			Delta:     false,
-		}
-	})
-
-	cmds = append(cmds, func() tea.Msg {
-		history := h.conversationRepo.GetMessages()
-		return domain.UpdateHistoryEvent{
-			History: history,
-		}
-	})
-
-	chatSession := h.stateManager.GetChatSession()
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("A2A task failed: %s", msg.Error),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
-	if chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return nil, tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleA2ATaskStatusUpdate(
-	msg domain.A2ATaskStatusUpdateEvent,
-) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	statusMessage := fmt.Sprintf("A2A task %s: %s", msg.Status, msg.Message)
-	cmds = append(cmds, func() tea.Msg {
-		return domain.UpdateStatusEvent{
-			Message:    statusMessage,
-			StatusType: domain.StatusWorking,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return nil, tea.Sequence(cmds...)
-}
-
 func (h *ChatHandler) handleMessageQueued(
 	_ domain.MessageQueuedEvent,
 ) (tea.Model, tea.Cmd) {
@@ -1702,70 +1560,6 @@ func (h *ChatHandler) handleMessageQueued(
 	}
 
 	return nil, tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleA2ATaskInputRequired(
-	msg domain.A2ATaskInputRequiredEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	statusMessage := fmt.Sprintf("⚠️  A2A task requires input: %s", msg.Message)
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return nil, tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleA2AToolCallExecuted(
-	msg domain.A2AToolCallExecutedEvent,
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	statusMessage := fmt.Sprintf("A2A tool %s executed on gateway", msg.ToolName)
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    true,
-			StatusType: domain.StatusWorking,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-func (h *ChatHandler) handleA2ATaskSubmitted(
-	msg domain.A2ATaskSubmittedEvent,
-) tea.Cmd {
-	var cmds []tea.Cmd
-
-	statusMessage := fmt.Sprintf("A2A task submitted to %s", msg.AgentName)
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    true,
-			StatusType: domain.StatusWorking,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
 }
 
 // SetBashDetachChan sets the bash detach channel (thread-safe)

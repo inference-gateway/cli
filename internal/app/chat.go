@@ -50,6 +50,9 @@ type ChatApplication struct {
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
 
+	// Chat orchestration services
+	a2aTaskCoordinator domain.A2ATaskCoordinator
+
 	// State management
 	stateManager domain.StateManager
 	messageQueue domain.MessageQueue
@@ -122,6 +125,7 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
+	a2aTaskCoordinator domain.A2ATaskCoordinator,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -145,6 +149,7 @@ func NewChatApplication(
 		mcpManager:             mcpManager,
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,
+		a2aTaskCoordinator:     a2aTaskCoordinator,
 		availableModels:        models,
 		stateManager:           stateManager,
 		messageQueue:           messageQueue,
@@ -278,6 +283,7 @@ func NewChatApplication(
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
 		app.config,
+		app.a2aTaskCoordinator,
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(

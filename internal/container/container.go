@@ -19,6 +19,8 @@ import (
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
+	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -83,6 +85,12 @@ type ServiceContainer struct {
 	// Tool registry
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
+
+	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
+	// Constructed unconditionally; A2A-specific deps inside the
+	// services are nil-safe when A2A is disabled.
+	chatEventListener  domain.ChatEventListener
+	a2aTaskCoordinator domain.A2ATaskCoordinator
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -361,6 +369,22 @@ func (c *ServiceContainer) initializeServices() {
 
 		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry)
 	}
+
+	c.initializeChatOrchestrationServices()
+}
+
+// initializeChatOrchestrationServices wires the services extracted from the
+// monolithic ChatHandler (issue #529). All deps from earlier init phases must
+// be in place by the time this runs.
+func (c *ServiceContainer) initializeChatOrchestrationServices() {
+	c.chatEventListener = eventlistener.NewService()
+
+	c.a2aTaskCoordinator = a2acoord.NewService(a2acoord.Options{
+		ConversationRepo:     c.conversationRepo,
+		StateManager:         c.stateManager,
+		TaskRetentionService: c.taskRetentionService,
+		Listener:             c.chatEventListener,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -507,6 +531,17 @@ func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskServi
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
 func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
 	return c.mcpManager
+}
+
+// GetChatEventListener returns the shared Bubble Tea channel listener used by
+// every chat orchestration service.
+func (c *ServiceContainer) GetChatEventListener() domain.ChatEventListener {
+	return c.chatEventListener
+}
+
+// GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
+func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
+	return c.a2aTaskCoordinator
 }
 
 // createRetryConfig creates a retry config with logging callback

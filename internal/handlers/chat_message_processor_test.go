@@ -112,6 +112,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil,
 				nil,
 				config.DefaultConfig(),
+				nil, // a2aTaskCoordinator
 			)
 
 			processor := NewChatMessageProcessor(handler)

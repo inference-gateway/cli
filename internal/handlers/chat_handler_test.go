@@ -770,6 +770,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // backgroundShellService
 		nil, // agentManager
 		config.DefaultConfig(),
+		nil, // a2aTaskCoordinator
 	)
 
 	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150)
@@ -1066,6 +1067,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		nil,
 		nil,
 		cfg,
+		nil, // a2aTaskCoordinator
 	)
 }
 
@@ -1213,6 +1215,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				nil,
 				nil,
 				config.DefaultConfig(),
+				nil, // a2aTaskCoordinator
 			)
 
 			cmd := handler.handleChatComplete(tt.msg)

@@ -1113,3 +1113,27 @@ type ChatHandler interface {
 	GetBashDetachChan() chan<- struct{}
 	ClearBashDetachChan()
 }
+
+// ChatEventListener wraps the small "read one message off a channel as a
+// tea.Cmd" pattern used throughout the handlers. Extracted so services can
+// chain channel reads back into the Bubble Tea event loop without each one
+// re-implementing the same closure.
+type ChatEventListener interface {
+	ListenForChatEvents(eventChan <-chan ChatEvent) tea.Cmd
+	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
+}
+
+// A2ATaskCoordinator owns the UI side of A2A (agent-to-agent) task lifecycle
+// events. It translates the six A2A event types into status updates,
+// streaming-content events, and conversation-history refreshes, and keeps the
+// chat session listener pumping. Self-contained — depends only on the
+// conversation repo, task retention, the chat state manager, and a chat
+// event listener.
+type A2ATaskCoordinator interface {
+	HandleTaskSubmitted(msg A2ATaskSubmittedEvent) tea.Cmd
+	HandleTaskCompleted(msg A2ATaskCompletedEvent) tea.Cmd
+	HandleTaskFailed(msg A2ATaskFailedEvent) tea.Cmd
+	HandleTaskStatusUpdate(msg A2ATaskStatusUpdateEvent) tea.Cmd
+	HandleTaskInputRequired(msg A2ATaskInputRequiredEvent) tea.Cmd
+	HandleToolCallExecuted(msg A2AToolCallExecutedEvent) tea.Cmd
+}
