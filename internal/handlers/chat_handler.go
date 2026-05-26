@@ -1,13 +1,8 @@
 package handlers
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +16,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 type ChatHandler struct {
@@ -44,14 +38,9 @@ type ChatHandler struct {
 	a2aTaskCoordinator     domain.A2ATaskCoordinator
 	approvalCoordinator    domain.ApprovalCoordinator
 	completionRunner       domain.ChatCompletionRunner
+	directExec             domain.DirectExecutionService
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
-	bashDetachChan         chan<- struct{}
-	bashDetachChanMu       sync.RWMutex
-	bashEventChannel       <-chan tea.Msg
-	bashEventChannelMu     sync.RWMutex
-	toolEventChannel       <-chan tea.Msg
-	toolEventChannelMu     sync.RWMutex
 	activeToolCallID       string
 	activeToolCallIDMu     sync.RWMutex
 }
@@ -76,6 +65,7 @@ func NewChatHandler(
 	a2aTaskCoordinator domain.A2ATaskCoordinator,
 	approvalCoordinator domain.ApprovalCoordinator,
 	completionRunner domain.ChatCompletionRunner,
+	directExec domain.DirectExecutionService,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -97,6 +87,7 @@ func NewChatHandler(
 		a2aTaskCoordinator:     a2aTaskCoordinator,
 		approvalCoordinator:    approvalCoordinator,
 		completionRunner:       completionRunner,
+		directExec:             directExec,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -185,11 +176,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 }
 
 // startChatCompletion bridges the orchestrator to the extracted runner. The
-// handler still satisfies BashDetachChannelHolder; commit 4 swaps the holder
-// for DirectExecutionService when that service takes ownership of the bash
-// detach channel.
+// DirectExecutionService owns the bash detach channel and satisfies
+// BashDetachChannelHolder for the agent core's context lookup.
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
-	return h.completionRunner.Start(h)
+	return h.completionRunner.Start(h.directExec)
 }
 
 // ListenForChatEvents creates a tea.Cmd that listens for the next event from
@@ -415,36 +405,13 @@ func (h *ChatHandler) HandleToolExecutionProgressEvent(
 func (h *ChatHandler) HandleBashOutputChunkEvent(
 	msg domain.BashOutputChunkEvent,
 ) tea.Cmd {
-	return h.handleBashOutputChunk(msg)
+	return h.directExec.HandleBashOutputChunk(msg)
 }
 
 func (h *ChatHandler) HandleBashCommandCompletedEvent(
 	msg domain.BashCommandCompletedEvent,
 ) tea.Cmd {
-	h.stateManager.EndToolExecution()
-
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.UpdateHistoryEvent{History: msg.History}
-	})
-
-	if msg.ErrorMessage != "" {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
-		})
-	}
-
-	if msg.Failed && msg.UserInitiated {
-		logger.Info("User-initiated bash command failed - triggering auto-fix")
-		cmds = append(cmds, func() tea.Msg {
-			return domain.UserInputEvent{
-				Content: "The bash command failed. Please analyze the error and help me fix it.",
-			}
-		})
-	}
-
-	return tea.Sequence(cmds...)
+	return h.directExec.HandleBashCommandCompleted(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
@@ -880,20 +847,12 @@ func (h *ChatHandler) handleToolExecutionProgress(
 		})
 	}
 
-	h.toolEventChannelMu.RLock()
-	toolEventChan := h.toolEventChannel
-	h.toolEventChannelMu.RUnlock()
-
-	if toolEventChan != nil {
+	if toolEventChan := h.directExec.PendingToolChannel(); toolEventChan != nil {
 		cmds = append(cmds, h.ListenForEvents(toolEventChan))
 		return tea.Sequence(cmds...)
 	}
 
-	h.bashEventChannelMu.RLock()
-	bashEventChan := h.bashEventChannel
-	h.bashEventChannelMu.RUnlock()
-
-	if bashEventChan != nil {
+	if bashEventChan := h.directExec.PendingBashChannel(); bashEventChan != nil {
 		cmds = append(cmds, h.ListenForEvents(bashEventChan))
 		return tea.Sequence(cmds...)
 	}
@@ -905,24 +864,6 @@ func (h *ChatHandler) handleToolExecutionProgress(
 	if len(cmds) > 0 {
 		return tea.Sequence(cmds...)
 	}
-	return nil
-}
-
-func (h *ChatHandler) handleBashOutputChunk(
-	_ domain.BashOutputChunkEvent,
-) tea.Cmd {
-	h.bashEventChannelMu.RLock()
-	bashEventChan := h.bashEventChannel
-	h.bashEventChannelMu.RUnlock()
-
-	if bashEventChan != nil {
-		return h.ListenForEvents(bashEventChan)
-	}
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return h.ListenForChatEvents(chatSession.EventChannel)
-	}
-
 	return nil
 }
 
@@ -1023,25 +964,22 @@ func (h *ChatHandler) handleMessageQueued(
 	return nil, tea.Sequence(cmds...)
 }
 
-// SetBashDetachChan sets the bash detach channel (thread-safe)
+// SetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// forwarding to DirectExecutionService (the actual owner post-#529).
 func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
-	h.bashDetachChanMu.Lock()
-	defer h.bashDetachChanMu.Unlock()
-	h.bashDetachChan = ch
+	h.directExec.SetBashDetachChan(ch)
 }
 
-// GetBashDetachChan gets the bash detach channel (thread-safe)
+// GetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// forwarding to DirectExecutionService.
 func (h *ChatHandler) GetBashDetachChan() chan<- struct{} {
-	h.bashDetachChanMu.RLock()
-	defer h.bashDetachChanMu.RUnlock()
-	return h.bashDetachChan
+	return h.directExec.GetBashDetachChan()
 }
 
-// ClearBashDetachChan clears the bash detach channel (thread-safe)
+// ClearBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// forwarding to DirectExecutionService.
 func (h *ChatHandler) ClearBashDetachChan() {
-	h.bashDetachChanMu.Lock()
-	defer h.bashDetachChanMu.Unlock()
-	h.bashDetachChan = nil
+	h.directExec.ClearBashDetachChan()
 }
 
 // GetActiveToolCallID returns the currently active tool call ID
@@ -1082,261 +1020,39 @@ func (h *ChatHandler) HandleCommand(commandText string) tea.Cmd {
 	return h.shortcutHandler.executeShortcut(mainShortcut, args)
 }
 
-// HandleBashCommand processes bash commands starting with !
+// HandleBashCommand processes bash commands starting with !. Delegates to
+// DirectExecutionService.
 func (h *ChatHandler) HandleBashCommand(commandText string) tea.Cmd {
-	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!"))
-
-	if command == "" {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No bash command provided. Use: !<command>",
-				Sticky: false,
-			}
-		}
-	}
-
-	if strings.HasSuffix(command, " &") || strings.HasSuffix(command, "&") {
-		command = strings.TrimSuffix(command, " &")
-		command = strings.TrimSuffix(command, "&")
-		command = strings.TrimSpace(command)
-
-		if command == "" {
-			return func() tea.Msg {
-				return domain.ShowErrorEvent{
-					Error:  "No bash command provided. Use: !<command>",
-					Sticky: false,
-				}
-			}
-		}
-
-		return h.executeBashCommandInBackground(commandText, command)
-	}
-
-	return h.executeBashCommand(commandText, command)
+	return h.directExec.HandleBashCommand(commandText)
 }
 
-// HandleToolCommand processes tool commands starting with !!
+// HandleToolCommand processes tool commands starting with !!. Delegates to
+// DirectExecutionService.
 func (h *ChatHandler) HandleToolCommand(commandText string) tea.Cmd {
-	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!!"))
-
-	if command == "" {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No tool command provided. Use: !!ToolName(arg=\"value\")",
-				Sticky: false,
-			}
-		}
-	}
-
-	toolName, args, err := h.ParseToolCall(command)
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Invalid tool syntax: %v. Use: !!ToolName(arg=\"value\")", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	if !h.toolService.IsToolEnabled(toolName) {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config tools list' for available tools.", toolName),
-				Sticky: false,
-			}
-		}
-	}
-
-	argsJSON, err := json.Marshal(args)
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to marshal arguments: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	return h.executeToolCommand(commandText, toolName, string(argsJSON))
+	return h.directExec.HandleToolCommand(commandText)
 }
 
-// executeBashCommand executes a bash command without approval
-func (h *ChatHandler) executeBashCommand(commandText, command string) tea.Cmd {
-	toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
-
-	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(commandText),
-		},
-		Time: time.Now(),
-	}
-	_ = h.conversationRepo.AddMessage(userEntry)
-
-	if err := h.stateManager.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{
-		ID:       toolCallID,
-		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: fmt.Sprintf(`{"command":"%s"}`, command)},
-	}}); err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to start tool execution: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing: %s", command),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-				ToolName:   "Bash",
-			}
-		},
-		h.executeBashCommandAsync(command, toolCallID),
-	)
+// HandleBackgroundShellRequest signals the currently-running bash command to
+// detach to the background. Delegates to DirectExecutionService.
+func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
+	return h.directExec.HandleBackgroundShellRequest()
 }
 
-// executeBashCommandAsync executes the bash command and returns results
-func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
-	eventChan := make(chan tea.Msg, 10000)
-	detachChan := make(chan struct{}, 1)
-
-	h.bashEventChannelMu.Lock()
-	h.bashEventChannel = eventChan
-	h.bashEventChannelMu.Unlock()
-
-	h.SetBashDetachChan(detachChan)
-
-	go func() {
-		defer func() {
-			time.Sleep(100 * time.Millisecond)
-			close(eventChan)
-			h.bashEventChannelMu.Lock()
-			h.bashEventChannel = nil
-			h.bashEventChannelMu.Unlock()
-
-			h.ClearBashDetachChan()
-		}()
-
-		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
-			Name:      "Bash",
-			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
-		}
-
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: toolCallID,
-				Timestamp: time.Now(),
-			},
-			ToolCallID: toolCallID,
-			ToolName:   "Bash",
-			Arguments:  toolCallFunc.Arguments,
-			Status:     "running",
-			Message:    "",
-		}
-
-		bashCallback := func(line string) {
-			eventChan <- domain.BashOutputChunkEvent{
-				BaseChatEvent: domain.BaseChatEvent{
-					RequestID: toolCallID,
-					Timestamp: time.Now(),
-				},
-				ToolCallID: toolCallID,
-				Output:     line,
-				IsComplete: false,
-			}
-		}
-
-		ctx := domain.WithToolApproved(context.Background())
-		ctx = domain.WithBashOutputCallback(ctx, bashCallback)
-		ctx = domain.WithBashDetachChannel(ctx, detachChan)
-		ctx = domain.WithDirectExecution(ctx)
-		result, err := h.toolService.ExecuteToolDirect(ctx, toolCallFunc)
-
-		if err != nil {
-			eventChan <- domain.BashCommandCompletedEvent{
-				History:       h.conversationRepo.GetMessages(),
-				Failed:        true,
-				UserInitiated: strings.HasPrefix(toolCallID, "user-bash-"),
-				ErrorMessage:  fmt.Sprintf("Failed to execute command: %v", err),
-			}
-			return
-		}
-
-		status := "completed"
-		message := "Completed successfully"
-		if result != nil && !result.Success {
-			status = "failed"
-			message = "Execution failed"
-		}
-
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: toolCallID,
-				Timestamp: time.Now(),
-			},
-			ToolCallID: toolCallID,
-			Status:     status,
-			Message:    message,
-		}
-
-		toolCalls := []sdk.ChatCompletionMessageToolCall{
-			{
-				ID:       toolCallID,
-				Type:     "function",
-				Function: toolCallFunc,
-			},
-		}
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   sdk.NewMessageContent(""),
-				ToolCalls: &toolCalls,
-			},
-			Time: time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(assistantEntry)
-
-		var formattedContent string
-		if result != nil {
-			formattedContent = h.conversationRepo.FormatToolResultForLLM(result)
-		} else {
-			formattedContent = "Tool execution failed: no result returned"
-		}
-		toolEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent(formattedContent),
-				ToolCallID: &toolCallID,
-			},
-			ToolExecution: result,
-			Time:          time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(toolEntry)
-
-		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
-		failed := result != nil && !result.Success
-
-		eventChan <- domain.BashCommandCompletedEvent{
-			History:       h.conversationRepo.GetMessages(),
-			Failed:        failed,
-			UserInitiated: isUserInitiated,
-		}
-	}()
-
-	return h.ListenForEvents(eventChan)
+// ParseToolCall satisfies the legacy domain.ChatHandler interface by
+// delegating to DirectExecutionService.
+func (h *ChatHandler) ParseToolCall(input string) (string, map[string]any, error) {
+	return h.directExec.ParseToolCall(input)
 }
 
-// ListenForEvents creates a tea.Cmd that listens for the next event from the channel
-// This is a generic event listener that works with any tea.Msg channel
+// ParseArguments satisfies the legacy domain.ChatHandler interface by
+// delegating to DirectExecutionService.
+func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
+	return h.directExec.ParseArguments(argsStr)
+}
+
+// ListenForEvents reads one event off a generic tea.Msg channel as a tea.Cmd.
+// Kept on the orchestrator because domain.ChatHandler still exposes it and
+// the runner-internal handlers (tool execution progress) call it directly.
 func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-eventChan
@@ -1345,361 +1061,6 @@ func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 		}
 		return msg
 	}
-}
-
-// executeBashCommandInBackground executes a bash command immediately in the background
-func (h *ChatHandler) executeBashCommandInBackground(commandText, command string) tea.Cmd {
-	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(commandText),
-		},
-		Time: time.Now(),
-	}
-	_ = h.conversationRepo.AddMessage(userEntry)
-
-	go func() {
-		ctx := domain.WithToolApproved(context.Background())
-
-		cmd := exec.CommandContext(ctx, "bash", "-c", command)
-
-		outputBuffer := utils.NewOutputRingBuffer(1024 * 1024)
-
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			return
-		}
-
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			return
-		}
-
-		if err := cmd.Start(); err != nil {
-			return
-		}
-
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			scanner := bufio.NewScanner(stdout)
-			for scanner.Scan() {
-				line := scanner.Text()
-				_, _ = outputBuffer.Write([]byte(line + "\n"))
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				line := scanner.Text()
-				_, _ = outputBuffer.Write([]byte(line + "\n"))
-			}
-		}()
-
-		shellID, err := h.backgroundShellService.DetachToBackground(
-			ctx,
-			cmd,
-			command,
-			outputBuffer,
-		)
-
-		if err != nil {
-			return
-		}
-
-		wg.Wait()
-
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(fmt.Sprintf("Command sent to the background with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),
-			},
-			Time: time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(assistantEntry)
-	}()
-
-	return tea.Batch(
-		func() tea.Msg {
-			history := h.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Starting command in background: %s", command),
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)
-}
-
-// HandleBackgroundShellRequest handles a request to background a running bash command
-func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
-	detachChan := h.GetBashDetachChan()
-
-	if detachChan == nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No running Bash command to background",
-				Sticky: false,
-			}
-		}
-	}
-
-	select {
-	case detachChan <- struct{}{}:
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Moving command to background...",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-	default:
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Failed to signal detach to running command",
-				Sticky: false,
-			}
-		}
-	}
-}
-
-// executeToolCommand executes a tool command without approval
-func (h *ChatHandler) executeToolCommand(commandText, toolName, argsJSON string) tea.Cmd {
-	toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
-
-	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(commandText),
-		},
-		Time: time.Now(),
-	}
-	_ = h.conversationRepo.AddMessage(userEntry)
-
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing: %s", toolName),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-				ToolName:   toolName,
-			}
-		},
-		func() tea.Msg {
-			return domain.ToolExecutionProgressEvent{
-				BaseChatEvent: domain.BaseChatEvent{
-					RequestID: toolCallID,
-					Timestamp: time.Now(),
-				},
-				ToolCallID: toolCallID,
-				ToolName:   toolName,
-				Arguments:  argsJSON,
-				Status:     "starting",
-				Message:    "",
-			}
-		},
-		h.executeToolCommandAsync(toolName, argsJSON, toolCallID),
-	)
-}
-
-// executeToolCommandAsync executes the tool command asynchronously and returns results
-func (h *ChatHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID string) tea.Cmd {
-	eventChan := make(chan tea.Msg, 100)
-
-	h.toolEventChannelMu.Lock()
-	h.toolEventChannel = eventChan
-	h.toolEventChannelMu.Unlock()
-
-	go func() {
-		defer func() {
-			time.Sleep(100 * time.Millisecond)
-			close(eventChan)
-			h.toolEventChannelMu.Lock()
-			h.toolEventChannel = nil
-			h.toolEventChannelMu.Unlock()
-		}()
-
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: toolCallID,
-				Timestamp: time.Now(),
-			},
-			ToolCallID: toolCallID,
-			ToolName:   toolName,
-			Status:     "running",
-			Message:    "Executing...",
-		}
-
-		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
-			Name:      toolName,
-			Arguments: argsJSON,
-		}
-
-		ctx := domain.WithToolApproved(context.Background())
-		ctx = domain.WithDirectExecution(ctx)
-		result, err := h.toolService.ExecuteToolDirect(ctx, toolCallFunc)
-		if err != nil {
-			eventChan <- domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
-				Sticky: false,
-			}
-			return
-		}
-
-		toolCalls := []sdk.ChatCompletionMessageToolCall{
-			{
-				ID:       toolCallID,
-				Type:     "function",
-				Function: toolCallFunc,
-			},
-		}
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   sdk.NewMessageContent(""),
-				ToolCalls: &toolCalls,
-			},
-			Time: time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(assistantEntry)
-
-		toolEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent(""),
-				ToolCallID: &toolCallID,
-			},
-			ToolExecution: result,
-			Time:          time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(toolEntry)
-
-		status := "completed"
-		message := "Completed successfully"
-		if result != nil && !result.Success {
-			status = "failed"
-			message = "Execution failed"
-		}
-
-		var images []domain.ImageAttachment
-		if result != nil && len(result.Images) > 0 {
-			for _, img := range result.Images {
-				images = append(images, domain.ImageAttachment{
-					Data:        img.Data,
-					MimeType:    img.MimeType,
-					DisplayName: img.DisplayName,
-				})
-			}
-		}
-
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: toolCallID,
-				Timestamp: time.Now(),
-			},
-			ToolCallID: toolCallID,
-			ToolName:   toolName,
-			Status:     status,
-			Message:    message,
-			Images:     images,
-		}
-
-		eventChan <- domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
-		}
-
-		eventChan <- domain.SetStatusEvent{
-			Message:    fmt.Sprintf("%s %s", toolName, message),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-
-		// Clear ToolCallRenderer previews now that tool entry is in conversation history
-		eventChan <- domain.ChatCompleteEvent{
-			RequestID: toolCallID,
-			Timestamp: time.Now(),
-			Message:   "",
-			ToolCalls: []sdk.ChatCompletionMessageToolCall{},
-		}
-	}()
-
-	return h.ListenForEvents(eventChan)
-}
-
-// ParseToolCall parses a tool call in the format ToolName(arg="value", arg2="value2") (exposed for testing)
-func (h *ChatHandler) ParseToolCall(input string) (string, map[string]any, error) {
-	parenIndex := strings.Index(input, "(")
-	if parenIndex == -1 {
-		return "", nil, fmt.Errorf("missing opening parenthesis")
-	}
-
-	toolName := strings.TrimSpace(input[:parenIndex])
-	if toolName == "" {
-		return "", nil, fmt.Errorf("missing tool name")
-	}
-
-	argsStr := strings.TrimSpace(input[parenIndex+1:])
-	if !strings.HasSuffix(argsStr, ")") {
-		return "", nil, fmt.Errorf("missing closing parenthesis")
-	}
-
-	argsStr = strings.TrimSuffix(argsStr, ")")
-	argsStr = strings.TrimSpace(argsStr)
-
-	args := make(map[string]any)
-	if argsStr == "" {
-		return toolName, args, nil
-	}
-
-	parsedArgs, err := h.ParseArguments(argsStr)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to parse arguments: %v", err)
-	}
-
-	return toolName, parsedArgs, nil
-}
-
-// ParseArguments parses function arguments in the format key="value", key2="value2" (exposed for testing)
-func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
-	args := make(map[string]any)
-
-	if argsStr == "" {
-		return args, nil
-	}
-
-	argPattern := regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
-	matches := argPattern.FindAllStringSubmatch(argsStr, -1)
-
-	for _, match := range matches {
-		if len(match) != 3 {
-			continue
-		}
-
-		key := match[1]
-		value := match[2]
-
-		if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
-			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
-			value = value[1 : len(value)-1]
-		}
-
-		if numValue, err := strconv.ParseFloat(value, 64); err == nil {
-			args[key] = numValue
-		} else {
-			args[key] = value
-		}
-	}
-
-	return args, nil
 }
 
 // executeOnConversationRepo executes functions on the conversation repository

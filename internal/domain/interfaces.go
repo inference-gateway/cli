@@ -1181,3 +1181,28 @@ type ChatCompletionRunner interface {
 	HandleOptimizationStatus(msg OptimizationStatusEvent) tea.Cmd
 	SetPendingRestoration(originalModel string)
 }
+
+// DirectExecutionService owns user-typed `!command` (bash) and `!!Tool(...)`
+// (tool) execution. It synthesizes the conversation entries, spawns the async
+// goroutines, owns the per-call event/detach channels, and exposes the
+// channels via PendingBashChannel / PendingToolChannel so the
+// ToolExecutionCoordinator can keep pumping them.
+//
+// Implements BashDetachChannelHolder so the agent core can find it on the
+// request context (see WithChatHandler / GetChatHandler in
+// context_helpers.go).
+type DirectExecutionService interface {
+	BashDetachChannelHolder
+
+	HandleBashCommand(commandText string) tea.Cmd
+	HandleToolCommand(commandText string) tea.Cmd
+	HandleBackgroundShellRequest() tea.Cmd
+	HandleBashOutputChunk(msg BashOutputChunkEvent) tea.Cmd
+	HandleBashCommandCompleted(msg BashCommandCompletedEvent) tea.Cmd
+
+	ParseToolCall(input string) (string, map[string]any, error)
+	ParseArguments(argsStr string) (map[string]any, error)
+
+	PendingBashChannel() <-chan tea.Msg
+	PendingToolChannel() <-chan tea.Msg
+}

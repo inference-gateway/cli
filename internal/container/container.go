@@ -22,6 +22,7 @@ import (
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
+	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -91,10 +92,11 @@ type ServiceContainer struct {
 	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener    domain.ChatEventListener
-	a2aTaskCoordinator   domain.A2ATaskCoordinator
-	approvalCoordinator  domain.ApprovalCoordinator
-	chatCompletionRunner *chatcompletion.Runner
+	chatEventListener      domain.ChatEventListener
+	a2aTaskCoordinator     domain.A2ATaskCoordinator
+	approvalCoordinator    domain.ApprovalCoordinator
+	chatCompletionRunner   *chatcompletion.Runner
+	directExecutionService domain.DirectExecutionService
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -403,6 +405,14 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		StateManager:     c.stateManager,
 		Listener:         c.chatEventListener,
 	})
+
+	c.directExecutionService = directexec.NewService(directexec.Options{
+		ConversationRepo:       c.conversationRepo,
+		ToolService:            c.toolService,
+		StateManager:           c.stateManager,
+		BackgroundShellService: c.BackgroundShellService(),
+		Listener:               c.chatEventListener,
+	})
 }
 
 // initializeUIComponents creates UI components and theme
@@ -571,6 +581,12 @@ func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
 // GetChatCompletionRunner returns the LLM streaming lifecycle runner.
 func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner {
 	return c.chatCompletionRunner
+}
+
+// GetDirectExecutionService returns the user-typed !command / !!Tool(...)
+// execution service. Also satisfies BashDetachChannelHolder.
+func (c *ServiceContainer) GetDirectExecutionService() domain.DirectExecutionService {
+	return c.directExecutionService
 }
 
 // createRetryConfig creates a retry config with logging callback
