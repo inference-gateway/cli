@@ -2015,9 +2015,19 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   infer:
-	if: "!endsWith(github.actor, '[bot]')"
+    if: |
+      github.event.sender.type != 'Bot' &&
+      !endsWith(github.actor, '[bot]') &&
+      (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
+      )
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -2028,7 +2038,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"
-          model: deepseek/deepseek-v4-pro
+          model: deepseek/deepseek-v4-flash
           max-turns: 50
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -2061,9 +2071,19 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   infer:
-    if: "!endsWith(github.actor, '[bot]')"
+    if: |
+      github.event.sender.type != 'Bot' &&
+      !endsWith(github.actor, '[bot]') &&
+      (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
+      )
     runs-on: ubuntu-24.04
     steps:
       - name: Generate GitHub App Token
@@ -2086,7 +2106,7 @@ jobs:
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"
-          model: deepseek/deepseek-v4-pro
+          model: deepseek/deepseek-v4-flash
           max-turns: 50
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
