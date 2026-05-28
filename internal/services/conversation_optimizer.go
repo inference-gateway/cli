@@ -111,7 +111,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		return messages
 	}
 
-	logger.Info("conversation compaction triggered",
+	logger.Debug("conversation compaction triggered",
 		"current_tokens", currentTokens,
 		"threshold", threshold,
 		"context_window", contextWindow,
@@ -119,7 +119,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		"messages_before", len(messages),
 		"force", force,
 	)
-	streamevent.Emit("compaction_started", map[string]any{
+	streamevent.EmitDebugEvent("compaction_started", map[string]any{
 		"current_tokens":  currentTokens,
 		"threshold":       threshold,
 		"context_window":  contextWindow,
@@ -145,7 +145,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		return messages
 	}
 	result := append(systemMessages, optimized...)
-	streamevent.Emit("compaction_completed", map[string]any{
+	streamevent.EmitDebugEvent("compaction_completed", map[string]any{
 		"messages_before": len(messages),
 		"messages_after":  len(result),
 	})

@@ -11,77 +11,91 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestEmit_WritesSingleJSONLineWithRoleAndTimestamp(t *testing.T) {
+// withDebugWriter wires a buffer and forces the debug gate on for the
+// duration of a test. Both are restored on cleanup.
+func withDebugWriter(t *testing.T) *bytes.Buffer {
+	t.Helper()
 	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+	restoreWriter := streamevent.SetWriter(&buf)
+	restoreGate := streamevent.SetDebugEnabledForTest(true)
+	t.Cleanup(restoreWriter)
+	t.Cleanup(restoreGate)
+	return &buf
+}
 
-	streamevent.Emit("system_reminder", map[string]any{
+func TestEmitDebugMessage_HiddenUserMessageShape(t *testing.T) {
+	buf := withDebugWriter(t)
+
+	streamevent.EmitDebugMessage("user", "<system-reminder>nudge</system-reminder>", "system_reminder", map[string]any{
 		"turn":     5,
 		"interval": 5,
-		"text":     "<system-reminder>nudge</system-reminder>",
 	})
 
 	out := buf.String()
-	require.Equal(t, 1, strings.Count(out, "\n"), "should emit exactly one newline-terminated line")
-	require.True(t, strings.HasSuffix(out, "\n"), "line must end with newline")
+	require.Equal(t, 1, strings.Count(out, "\n"))
 
 	var event map[string]any
-	require.NoError(t, json.Unmarshal([]byte(strings.TrimSuffix(out, "\n")), &event))
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
 
-	assert.Equal(t, "system_reminder", event["role"])
-	assert.NotEmpty(t, event["timestamp"], "timestamp must be set")
+	assert.Equal(t, "user", event["role"], "role must match the actual conversation role")
+	assert.Equal(t, "<system-reminder>nudge</system-reminder>", event["content"])
+	assert.Equal(t, true, event["hidden"], "reminder is a hidden conversation message")
+	assert.Equal(t, "system_reminder", event["kind"])
 	assert.EqualValues(t, 5, event["turn"])
 	assert.EqualValues(t, 5, event["interval"])
-	assert.Equal(t, "<system-reminder>nudge</system-reminder>", event["text"])
+	assert.NotEmpty(t, event["timestamp"])
 }
 
-func TestEmit_CallerFieldsCanOverrideRoleAndTimestamp(t *testing.T) {
-	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+func TestEmitDebugEvent_OperationalShape(t *testing.T) {
+	buf := withDebugWriter(t)
 
-	streamevent.Emit("compaction_started", map[string]any{
-		"role":      "should_win",
-		"timestamp": "2026-05-28T00:00:00Z",
-		"force":     true,
+	streamevent.EmitDebugEvent("compaction_started", map[string]any{
+		"current_tokens": 24000,
+		"threshold":      24000,
+		"force":          false,
 	})
 
 	var event map[string]any
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
 
-	assert.Equal(t, "should_win", event["role"], "caller override of role must win for test determinism")
-	assert.Equal(t, "2026-05-28T00:00:00Z", event["timestamp"])
-	assert.Equal(t, true, event["force"])
+	assert.Equal(t, "compaction_started", event["type"], "operational events use type, not role")
+	_, hasRole := event["role"]
+	assert.False(t, hasRole, "operational events must not carry a role field")
+	assert.EqualValues(t, 24000, event["current_tokens"])
+	assert.EqualValues(t, 24000, event["threshold"])
+	assert.Equal(t, false, event["force"])
+	assert.NotEmpty(t, event["timestamp"])
 }
 
-func TestEmit_NilFieldsStillProducesRoleAndTimestamp(t *testing.T) {
+func TestEmit_NoOpWhenDebugDisabled(t *testing.T) {
 	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+	restoreWriter := streamevent.SetWriter(&buf)
+	t.Cleanup(restoreWriter)
+	// Explicitly force the gate off — production default.
+	restoreGate := streamevent.SetDebugEnabledForTest(false)
+	t.Cleanup(restoreGate)
 
-	streamevent.Emit("compaction_completed", nil)
+	streamevent.EmitDebugMessage("user", "should not appear", "system_reminder", nil)
+	streamevent.EmitDebugEvent("compaction_started", map[string]any{"x": 1})
 
-	var event map[string]any
-	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
-
-	assert.Equal(t, "compaction_completed", event["role"])
-	assert.NotEmpty(t, event["timestamp"])
-	assert.Len(t, event, 2, "no extra keys when fields is nil")
+	assert.Empty(t, buf.String(), "no events must be written when debug gate is off")
 }
 
 func TestSetWriter_RestoreReturnsPreviousWriter(t *testing.T) {
+	restoreGate := streamevent.SetDebugEnabledForTest(true)
+	t.Cleanup(restoreGate)
+
 	var first, second bytes.Buffer
 
 	restoreFirst := streamevent.SetWriter(&first)
 	restoreSecond := streamevent.SetWriter(&second)
-	streamevent.Emit("inner", map[string]any{"i": 1})
+	streamevent.EmitDebugEvent("inner", map[string]any{"i": 1})
 	restoreSecond()
-	streamevent.Emit("outer", map[string]any{"o": 1})
+	streamevent.EmitDebugEvent("outer", map[string]any{"o": 1})
 	restoreFirst()
 
-	assert.Contains(t, second.String(), `"role":"inner"`)
-	assert.Contains(t, first.String(), `"role":"outer"`)
-	assert.NotContains(t, first.String(), `"role":"inner"`)
-	assert.NotContains(t, second.String(), `"role":"outer"`)
+	assert.Contains(t, second.String(), `"type":"inner"`)
+	assert.Contains(t, first.String(), `"type":"outer"`)
+	assert.NotContains(t, first.String(), `"type":"inner"`)
+	assert.NotContains(t, second.String(), `"type":"outer"`)
 }

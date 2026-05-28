@@ -1,16 +1,25 @@
-// Package streamevent emits structured JSON-line events on stdout
-// describing internal agent lifecycle moments that are otherwise invisible
-// to outside observers - system reminder injection, conversation
-// compaction triggers, and similar checkpoints. Downstream tooling (the
-// inference-gateway/infer-action runner, log scrapers, etc.) can react to
-// or surface these events without scraping free-form log text.
+// Package streamevent emits diagnostic JSON-line events on stdout so
+// observers (the inference-gateway/infer-action runner, log scrapers,
+// human eyeballs in CI) can see internal agent lifecycle moments that
+// are otherwise silent - system reminder injections, conversation
+// compaction triggers, and similar checkpoints.
 //
-// Events always carry a `role` field so they flow through consumers that
-// discriminate the agent's JSON-line stream by role. Existing roles
-// ("assistant", "user", "tool", "system") are reserved for conversation
-// messages; the roles emitted here ("system_reminder",
-// "compaction_started", "compaction_completed", ...) describe metadata
-// about the run rather than turns in the conversation.
+// Events are HIDDEN BY DEFAULT and only emitted when the global logger
+// is configured at debug level (via `--verbose`, `logging.debug=true`,
+// or env var `INFER_LOGGING_DEBUG=true`). This keeps normal `infer
+// agent` runs quiet on stdout while letting operators turn on the
+// firehose when they need to diagnose.
+//
+// Two shapes are emitted:
+//
+//   - EmitDebugMessage mirrors a real conversation message
+//     (`role`, `content`) with `hidden: true` and a `kind` discriminator.
+//     Use this when surfacing an internally-injected message the LLM
+//     received - e.g. a hidden user-role system-reminder turn.
+//
+//   - EmitDebugEvent emits an operational lifecycle event keyed by
+//     `type`, not `role`. Use this for things that aren't conversation
+//     turns at all - e.g. "auto-compaction crossed the token threshold".
 package streamevent
 
 import (
@@ -21,17 +30,23 @@ import (
 	"sync"
 	"time"
 
+	zapcore "go.uber.org/zap/zapcore"
+
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 var (
 	writerMu sync.Mutex
 	writer   io.Writer = os.Stdout
+
+	// gateMu protects the optional test override.
+	gateMu       sync.RWMutex
+	gateOverride *bool // nil = use logger debug level; non-nil = forced value for tests
 )
 
-// SetWriter overrides the destination io.Writer for stream events and
-// returns a restore function. Intended for tests that need to capture
-// emitted events; production callers should not call this.
+// SetWriter overrides the destination io.Writer for emitted events and
+// returns a restore function. Used by tests; production callers should
+// not touch it.
 func SetWriter(w io.Writer) func() {
 	writerMu.Lock()
 	defer writerMu.Unlock()
@@ -44,24 +59,94 @@ func SetWriter(w io.Writer) func() {
 	}
 }
 
-// Emit writes a single JSON line to the configured writer. The output
-// object carries `role`, an RFC3339Nano `timestamp`, and any caller-
-// supplied `fields` merged in. Caller-supplied keys that collide with
-// `role` or `timestamp` win, so tests can pin a deterministic timestamp.
+// SetDebugEnabledForTest forces the debug gate to a specific value,
+// bypassing the global-logger probe. Returns a restore function. Test-only.
+func SetDebugEnabledForTest(enabled bool) func() {
+	gateMu.Lock()
+	defer gateMu.Unlock()
+	prev := gateOverride
+	v := enabled
+	gateOverride = &v
+	return func() {
+		gateMu.Lock()
+		defer gateMu.Unlock()
+		gateOverride = prev
+	}
+}
+
+// debugEnabled reports whether emission is currently turned on.
 //
-// Marshal or write failures are logged and swallowed: stream events are
-// best-effort observability and must never break the agent.
-func Emit(role string, fields map[string]any) {
-	event := make(map[string]any, len(fields)+2)
+// In production this defers to the global zap logger's level: if the
+// core accepts DebugLevel (i.e. the user passed `--verbose` or set
+// `logging.debug=true`), events fire. Otherwise they're silently
+// dropped. Tests can pin the gate via SetDebugEnabledForTest.
+func debugEnabled() bool {
+	gateMu.RLock()
+	override := gateOverride
+	gateMu.RUnlock()
+	if override != nil {
+		return *override
+	}
+
+	l := logger.GetGlobalLogger()
+	if l == nil {
+		return false
+	}
+	return l.Core().Enabled(zapcore.DebugLevel)
+}
+
+// EmitDebugMessage writes a JSON-line that mirrors the shape of a normal
+// conversation message but flagged `hidden: true` and tagged with a
+// `kind` discriminator so observers can distinguish it from real
+// conversation turns. Used to surface internally-injected messages (e.g.
+// the hidden user-role system-reminder appended every N turns) that the
+// user would not otherwise see.
+//
+// No-op unless debug is enabled (see package docs).
+func EmitDebugMessage(role, content, kind string, extra map[string]any) {
+	if !debugEnabled() {
+		return
+	}
+
+	event := make(map[string]any, len(extra)+5)
 	event["role"] = role
+	event["content"] = content
+	event["hidden"] = true
+	event["kind"] = kind
+	event["timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
+	for k, v := range extra {
+		event[k] = v
+	}
+
+	writeEvent(event, kind)
+}
+
+// EmitDebugEvent writes a JSON-line describing an operational lifecycle
+// event keyed by `type`. Used for things that are NOT conversation
+// messages (e.g. compaction triggers, token-threshold crossings).
+//
+// No-op unless debug is enabled (see package docs).
+func EmitDebugEvent(eventType string, fields map[string]any) {
+	if !debugEnabled() {
+		return
+	}
+
+	event := make(map[string]any, len(fields)+2)
+	event["type"] = eventType
 	event["timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
 	for k, v := range fields {
 		event[k] = v
 	}
 
+	writeEvent(event, eventType)
+}
+
+// writeEvent serializes event to JSON and writes one newline-terminated
+// line to the configured writer. Failures are logged and swallowed.
+func writeEvent(event map[string]any, label string) {
 	out, err := json.Marshal(event)
 	if err != nil {
-		logger.Error("Failed to marshal stream event", "role", role, "error", err)
+		logger.Error("Failed to marshal stream event", "label", label, "error", err)
 		return
 	}
 
@@ -70,6 +155,6 @@ func Emit(role string, fields map[string]any) {
 	writerMu.Unlock()
 
 	if _, werr := fmt.Fprintln(w, string(out)); werr != nil {
-		logger.Error("Failed to write stream event", "role", role, "error", werr)
+		logger.Error("Failed to write stream event", "label", label, "error", werr)
 	}
 }

@@ -30,27 +30,37 @@ func remindersOnlyConfig(enabled bool, interval int, text string) *config.Config
 	}
 }
 
-func TestInjectSystemReminderIfDue_EmitsEventAndAppendsMessage(t *testing.T) {
+// withDebugStreamWriter wires a buffer + forces the streamevent debug
+// gate on for the lifetime of t.
+func withDebugStreamWriter(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	t.Cleanup(streamevent.SetWriter(&buf))
+	t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+	return &buf
+}
+
+func TestInjectSystemReminderIfDue_EmitsHiddenUserMessage(t *testing.T) {
 	cfg := remindersOnlyConfig(true, 2, "remember to push")
 	svc := &AgentServiceImpl{config: cfg}
 
-	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
 	injected := svc.injectSystemReminderIfDue(4, &conv)
 
 	assert.True(t, injected, "interval 2 with turn 4 must fire")
 	require.Len(t, conv, 1, "reminder must be appended to conversation")
-	assert.Equal(t, sdk.User, conv[0].Role)
+	assert.Equal(t, sdk.User, conv[0].Role, "actual conversation role is user")
 
 	var event map[string]any
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
-	assert.Equal(t, "system_reminder", event["role"])
+	assert.Equal(t, "user", event["role"], "stream event role mirrors the conversation role")
+	assert.Equal(t, "remember to push", event["content"])
+	assert.Equal(t, true, event["hidden"], "reminder is a hidden message")
+	assert.Equal(t, "system_reminder", event["kind"])
 	assert.EqualValues(t, 4, event["turn"])
 	assert.EqualValues(t, 2, event["interval"])
-	assert.Equal(t, "remember to push", event["text"])
 	assert.NotEmpty(t, event["timestamp"])
 }
 
@@ -58,9 +68,7 @@ func TestInjectSystemReminderIfDue_NoEventWhenDisabled(t *testing.T) {
 	cfg := remindersOnlyConfig(false, 2, "ignored")
 	svc := &AgentServiceImpl{config: cfg}
 
-	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
 	injected := svc.injectSystemReminderIfDue(4, &conv)
@@ -74,9 +82,7 @@ func TestInjectSystemReminderIfDue_NoEventBetweenIntervals(t *testing.T) {
 	cfg := remindersOnlyConfig(true, 5, "wait for turn 5")
 	svc := &AgentServiceImpl{config: cfg}
 
-	var buf bytes.Buffer
-	restore := streamevent.SetWriter(&buf)
-	t.Cleanup(restore)
+	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
 	injected := svc.injectSystemReminderIfDue(3, &conv)
@@ -84,4 +90,21 @@ func TestInjectSystemReminderIfDue_NoEventBetweenIntervals(t *testing.T) {
 	assert.False(t, injected, "turn 3 mod interval 5 != 0, must not fire")
 	assert.Empty(t, conv)
 	assert.Empty(t, buf.String())
+}
+
+func TestInjectSystemReminderIfDue_DebugGateOff_NoStdoutButStillAppends(t *testing.T) {
+	cfg := remindersOnlyConfig(true, 2, "remember to push")
+	svc := &AgentServiceImpl{config: cfg}
+
+	var buf bytes.Buffer
+	t.Cleanup(streamevent.SetWriter(&buf))
+	// Default = debug off
+	t.Cleanup(streamevent.SetDebugEnabledForTest(false))
+
+	conv := []sdk.Message{}
+	injected := svc.injectSystemReminderIfDue(4, &conv)
+
+	assert.True(t, injected, "reminder still injected into conversation regardless of stream gate")
+	require.Len(t, conv, 1, "conversation still gets the message")
+	assert.Empty(t, buf.String(), "but no stream event when debug gate is off")
 }

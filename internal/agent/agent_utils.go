@@ -531,16 +531,15 @@ func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Mess
 
 	reminderText, _ := msg.Content.AsMessageContent0()
 	interval := s.config.Prompts.Agent.SystemReminders.Interval
-	logger.Info("system reminder injected",
+	logger.Debug("system reminder injected",
 		"turn", turns,
 		"interval", interval,
 		"reminder_chars", len(reminderText),
 		"text_preview", truncateString(reminderText, 80),
 	)
-	streamevent.Emit("system_reminder", map[string]any{
+	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
 		"turn":     turns,
 		"interval": interval,
-		"text":     reminderText,
 	})
 	return true
 }
