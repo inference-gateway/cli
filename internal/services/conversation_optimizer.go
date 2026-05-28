@@ -6,12 +6,14 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
-	sdk "github.com/inference-gateway/sdk"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency
@@ -104,13 +106,28 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	}
 
 	threshold := (contextWindow * co.autoAt) / 100
+	currentTokens := co.estimateTriggerTokens(messages)
 
-	if !force {
-		currentTokens := co.estimateTriggerTokens(messages)
-		if currentTokens < threshold {
-			return messages
-		}
+	if !force && currentTokens < threshold {
+		return messages
 	}
+
+	logger.Debug("conversation compaction triggered",
+		"current_tokens", currentTokens,
+		"threshold", threshold,
+		"context_window", contextWindow,
+		"auto_at_pct", co.autoAt,
+		"messages_before", len(messages),
+		"force", force,
+	)
+	streamevent.EmitDebugEvent("compaction_started", map[string]any{
+		"current_tokens":  currentTokens,
+		"threshold":       threshold,
+		"context_window":  contextWindow,
+		"auto_at_pct":     co.autoAt,
+		"messages_before": len(messages),
+		"force":           force,
+	})
 
 	var systemMessages []sdk.Message
 	var conversationMessages []sdk.Message
@@ -128,7 +145,12 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		logger.Error("Optimization failed", "error", err)
 		return messages
 	}
-	return append(systemMessages, optimized...)
+	result := append(systemMessages, optimized...)
+	streamevent.EmitDebugEvent("compaction_completed", map[string]any{
+		"messages_before": len(messages),
+		"messages_after":  len(result),
+	})
+	return result
 }
 
 // smartOptimize implements the smart optimization strategy
