@@ -45,20 +45,7 @@ func (a *EventDrivenAgent) startStreaming() {
 
 	a.eventPublisher.publishChatStart()
 
-	if a.service.shouldInjectSystemReminder(a.agentCtx.Turns) {
-		systemReminderMsg := a.service.getSystemReminderMessage()
-		*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, systemReminderMsg)
-
-		reminderEntry := domain.ConversationEntry{
-			Message: systemReminderMsg,
-			Time:    time.Now(),
-			Hidden:  true,
-		}
-
-		if err := a.service.conversationRepo.AddMessage(reminderEntry); err != nil {
-			logger.Error("failed to store system reminder message", "error", err)
-		}
-	}
+	a.service.injectSystemReminderIfDue(a.agentCtx.Turns, a.agentCtx.Conversation)
 
 	mode := domain.AgentModeStandard
 	if a.service.stateManager != nil {

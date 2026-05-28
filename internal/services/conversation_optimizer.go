@@ -11,6 +11,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -104,13 +105,28 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	}
 
 	threshold := (contextWindow * co.autoAt) / 100
+	currentTokens := co.estimateTriggerTokens(messages)
 
-	if !force {
-		currentTokens := co.estimateTriggerTokens(messages)
-		if currentTokens < threshold {
-			return messages
-		}
+	if !force && currentTokens < threshold {
+		return messages
 	}
+
+	logger.Info("conversation compaction triggered",
+		"current_tokens", currentTokens,
+		"threshold", threshold,
+		"context_window", contextWindow,
+		"auto_at_pct", co.autoAt,
+		"messages_before", len(messages),
+		"force", force,
+	)
+	streamevent.Emit("compaction_started", map[string]any{
+		"current_tokens":  currentTokens,
+		"threshold":       threshold,
+		"context_window":  contextWindow,
+		"auto_at_pct":     co.autoAt,
+		"messages_before": len(messages),
+		"force":           force,
+	})
 
 	var systemMessages []sdk.Message
 	var conversationMessages []sdk.Message
@@ -128,7 +144,12 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		logger.Error("Optimization failed", "error", err)
 		return messages
 	}
-	return append(systemMessages, optimized...)
+	result := append(systemMessages, optimized...)
+	streamevent.Emit("compaction_completed", map[string]any{
+		"messages_before": len(messages),
+		"messages_after":  len(result),
+	})
+	return result
 }
 
 // smartOptimize implements the smart optimization strategy

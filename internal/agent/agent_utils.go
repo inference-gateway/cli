@@ -15,6 +15,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
@@ -500,6 +501,48 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(reminderText),
 	}
+}
+
+// injectSystemReminderIfDue evaluates the configured reminder interval and
+// appends the reminder to the conversation when due. It persists the
+// reminder via the conversation repo (when wired in), records a structured
+// log line, and emits a `system_reminder` stream event so downstream
+// observers - log scrapers, the inference-gateway/infer-action runner -
+// can see exactly when (and what) the model was nudged with. Returns true
+// when a reminder was actually injected; false otherwise.
+func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Message) bool {
+	if !s.shouldInjectSystemReminder(turns) {
+		return false
+	}
+
+	msg := s.getSystemReminderMessage()
+	*conv = append(*conv, msg)
+
+	if s.conversationRepo != nil {
+		entry := domain.ConversationEntry{
+			Message: msg,
+			Time:    time.Now(),
+			Hidden:  true,
+		}
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to store system reminder message", "error", err)
+		}
+	}
+
+	reminderText, _ := msg.Content.AsMessageContent0()
+	interval := s.config.Prompts.Agent.SystemReminders.Interval
+	logger.Info("system reminder injected",
+		"turn", turns,
+		"interval", interval,
+		"reminder_chars", len(reminderText),
+		"text_preview", truncateString(reminderText, 80),
+	)
+	streamevent.Emit("system_reminder", map[string]any{
+		"turn":     turns,
+		"interval": interval,
+		"text":     reminderText,
+	})
+	return true
 }
 
 // isCompleteJSON checks if a string is a complete, valid JSON
