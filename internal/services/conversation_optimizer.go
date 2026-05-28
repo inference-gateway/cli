@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency
