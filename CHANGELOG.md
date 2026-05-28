@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.112.3](https://github.com/inference-gateway/cli/compare/v0.112.2...v0.112.3) (2026-05-28)
+
+### 🐛 Bug Fixes
+
+* **agent:** emit structured tool_calls on assistant messages ([#545](https://github.com/inference-gateway/cli/issues/545)) ([55cb2b1](https://github.com/inference-gateway/cli/commit/55cb2b11ef3c36aaeeacaca85f36faf858dc8f49))
+* **ci:** only trigger infer when actually needed ([5719595](https://github.com/inference-gateway/cli/commit/5719595731d3f01f9c76959d222fb82e2012f6f6))
+
+### ♻️ Code Refactoring
+
+* **version:** Simplify --version output to one-liner ([#540](https://github.com/inference-gateway/cli/issues/540)) ([3c4c55e](https://github.com/inference-gateway/cli/commit/3c4c55e270c0a9929762b2521a969f395b9e40cb)), closes [#539](https://github.com/inference-gateway/cli/issues/539)
+* **handlers:** split chat_handler.go into focused services ([#529](https://github.com/inference-gateway/cli/issues/529)) ([#541](https://github.com/inference-gateway/cli/issues/541)) ([34a725f](https://github.com/inference-gateway/cli/commit/34a725f7b8f2bcc1bcbe7dc67e1acd642c7da115))
+
+### 🔧 Build System
+
+* **deps:** bump the github-actions group with 3 updates ([#544](https://github.com/inference-gateway/cli/issues/544)) ([d6e621d](https://github.com/inference-gateway/cli/commit/d6e621d14e0f43090f1ccc68197b196cd7e7fed2))
+* **deps:** bump the gomod group with 2 updates ([#543](https://github.com/inference-gateway/cli/issues/543)) ([9fa5201](https://github.com/inference-gateway/cli/commit/9fa52014c24935c81e1e95f4836833614afb2346))
+
+### 👷 CI/CD
+
+* **claude:** change effort to max ([dee965d](https://github.com/inference-gateway/cli/commit/dee965da58499d04fbdea22ac6b365de37cb815a))
+* **claude:** download all maintainer skill assets ([7c9680c](https://github.com/inference-gateway/cli/commit/7c9680c03f0eafb65504ae5c2147db5ca766e453))
+* **claude:** remove system prompt - use default community maintained prompt ([1494ffe](https://github.com/inference-gateway/cli/commit/1494ffe9a308b5bff37f875cc25c2650d95bcfa8))
+
+### 🧹 Maintenance
+
+* **flox:** Bump schema version ([59db374](https://github.com/inference-gateway/cli/commit/59db37417cd2708b5eaab68a666640645c43c5cd))
+* Delete AGENTS.md ([2d6f55d](https://github.com/inference-gateway/cli/commit/2d6f55def0058c5ba54142ece141e450fbc2b3d3))
+* **docs:** Generate AGENTS.md file ([d5affd1](https://github.com/inference-gateway/cli/commit/d5affd1d9df1015c5f35d975cc5ba370c8c7bc3d))
+* Generate CLAUDE.md file ([1684480](https://github.com/inference-gateway/cli/commit/1684480296a017c133807b3b417a7b2fb7fe27a7))
+* Remove CLAUDE.md file ([53bfb3c](https://github.com/inference-gateway/cli/commit/53bfb3c158b027748bdb4ab583bdea2644c1e178))
+
 ## [0.112.2](https://github.com/inference-gateway/cli/compare/v0.112.1...v0.112.2) (2026-05-25)
 
 ### 🧹 Maintenance
