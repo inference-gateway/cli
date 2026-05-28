@@ -39,9 +39,8 @@ var (
 	writerMu sync.Mutex
 	writer   io.Writer = os.Stdout
 
-	// gateMu protects the optional test override.
 	gateMu       sync.RWMutex
-	gateOverride *bool // nil = use logger debug level; non-nil = forced value for tests
+	gateOverride *bool
 )
 
 // SetWriter overrides the destination io.Writer for emitted events and
