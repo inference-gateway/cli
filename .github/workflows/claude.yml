@@ -88,6 +88,5 @@ jobs:
           claude_args: |
             --effort max
             --model claude-opus-4-7
-            --system-prompt "Use conventional commit with lowercase format"
             --allowedTools "Bash(task:*),Bash(go:*),Bash(gh:*),Bash(git:*)"
             --mcp-config '{"mcpServers":{"context7":{"command":"npx","args":["-y","@upstash/context7-mcp@latest"]}}}'
