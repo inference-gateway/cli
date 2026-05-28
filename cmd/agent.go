@@ -1009,7 +1009,6 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 		for i, toolCall := range *msg.ToolCalls {
 			summaries[i] = formatToolCallSummary(toolCall.Function.Name, toolCall.Function.Arguments)
 		}
-		logMsg.ToolCalls = nil
 		logMsg.Tools = summaries
 	}
 
