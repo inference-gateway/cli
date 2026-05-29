@@ -501,7 +501,7 @@ infer status
 ### `infer conversations`
 
 Inspect saved conversation history from the configured storage backend (works with `jsonl`,
-`sqlite`, `postgres`, `redis`, and `memory` — the command loads through the storage layer
+`sqlite`, `postgres`, `redis`, and `memory` - the command loads through the storage layer
 rather than reading files directly).
 
 **Subcommands:**
@@ -511,7 +511,7 @@ rather than reading files directly).
 
 **`show` flags:**
 
-- `--include-hidden`: Include entries marked hidden — system reminders, plan-approval prompts,
+- `--include-hidden`: Include entries marked hidden - system reminders, plan-approval prompts,
   drained background-task results, and the synthetic verify message injected by `infer agent`.
   Off by default.
 - `--format text|json`: `text` (default) is human-readable; `json` emits one JSON object per

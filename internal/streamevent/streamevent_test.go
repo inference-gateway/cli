@@ -71,7 +71,6 @@ func TestEmit_NoOpWhenDebugDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	restoreWriter := streamevent.SetWriter(&buf)
 	t.Cleanup(restoreWriter)
-	// Explicitly force the gate off — production default.
 	restoreGate := streamevent.SetDebugEnabledForTest(false)
 	t.Cleanup(restoreGate)
 

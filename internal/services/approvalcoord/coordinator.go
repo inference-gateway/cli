@@ -146,7 +146,7 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 }
 
 // HandleComputerUsePaused cancels the in-flight request and marks state as
-// paused. No restart — the user will manually resume.
+// paused. No restart - the user will manually resume.
 func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd {
 	logger.Debug("ApprovalCoordinator.HandleComputerUsePaused called", "request_id", msg.RequestID)
 	logger.Info("Computer use execution paused", "request_id", msg.RequestID)

@@ -1,4 +1,4 @@
-// Package toolcoordinator owns the UI side of the tool round-trip — the
+// Package toolcoordinator owns the UI side of the tool round-trip - the
 // streaming-status events emitted while the model is producing a tool call,
 // the approval handshake that forwards the user's accept/reject back to the
 // agent, and the execution-progress events while the tool runs.
@@ -378,7 +378,7 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg domain.ToolExecutionCompl
 
 // HandleToolCancelled refreshes the conversation view so the synthetic
 // [cancelled] tool entry that the integrity validator persisted becomes
-// visible. No status-bar message — the cancel that triggered this already
+// visible. No status-bar message - the cancel that triggered this already
 // drove its own status ("User interrupted").
 func (c *Coordinator) HandleToolCancelled(_ domain.ToolCancelledEvent) tea.Cmd {
 	cmds := []tea.Cmd{

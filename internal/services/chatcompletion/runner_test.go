@@ -322,7 +322,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		})
 
 		// Should NOT have called UpdateChatStatus on a non-cancelled
-		// completion with tool calls — the tool round-trip will end the
+		// completion with tool calls - the tool round-trip will end the
 		// status update later.
 		if state.UpdateChatStatusCallCount() != 0 {
 			t.Errorf("expected no UpdateChatStatus call when tool calls present, got %d", state.UpdateChatStatusCallCount())
@@ -346,7 +346,7 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 			t.Errorf("expected SelectModel(\"gpt-4\"), got %q", got)
 		}
 
-		// Second completion should NOT restore again — the pending value
+		// Second completion should NOT restore again - the pending value
 		// is cleared after the first restoration.
 		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{RequestID: "r"})
 		if model.SelectModelCallCount() != 1 {

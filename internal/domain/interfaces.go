@@ -1126,7 +1126,7 @@ type ChatEventListener interface {
 // A2ATaskCoordinator owns the UI side of A2A (agent-to-agent) task lifecycle
 // events. It translates the six A2A event types into status updates,
 // streaming-content events, and conversation-history refreshes, and keeps the
-// chat session listener pumping. Self-contained — depends only on the
+// chat session listener pumping. Self-contained - depends only on the
 // conversation repo, task retention, the chat state manager, and a chat
 // event listener.
 type A2ATaskCoordinator interface {
@@ -1163,7 +1163,7 @@ type ActiveToolTracker interface {
 	SetActiveToolCallID(id string)
 }
 
-// ChatCompletionRunner owns the LLM streaming lifecycle — initiating
+// ChatCompletionRunner owns the LLM streaming lifecycle - initiating
 // streaming, translating chat-start / chat-chunk / chat-complete / chat-error
 // events into UI state transitions, and handling the model-restoration side
 // effect after a temporary /model switch.

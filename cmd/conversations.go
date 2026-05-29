@@ -58,8 +58,8 @@ results). Output works against any configured storage backend (jsonl, sqlite,
 postgres, redis, memory) because it loads through the storage layer rather than
 reading files directly.
 
-Hidden entries — system reminders, plan-approval prompts, drained background-task
-results, and the synthetic verify message injected by 'infer agent' — are omitted
+Hidden entries - system reminders, plan-approval prompts, drained background-task
+results, and the synthetic verify message injected by 'infer agent' - are omitted
 by default. Pass --include-hidden to surface them.
 
 The session id is resolved the same way as 'infer agent --session-id': a literal

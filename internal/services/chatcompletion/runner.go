@@ -18,7 +18,7 @@ import (
 //
 // Clearing the orchestrator's "active tool call" indicator on chat
 // start/error/complete is the orchestrator's responsibility, not the
-// runner's — see the ChatHandler wrappers that call SetActiveToolCallID("")
+// runner's - see the ChatHandler wrappers that call SetActiveToolCallID("")
 // before delegating to these handlers.
 type Runner struct {
 	agentService     domain.AgentService

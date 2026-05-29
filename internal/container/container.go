@@ -90,7 +90,7 @@ type ServiceContainer struct {
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
 
-	// Chat orchestration services — extracted from internal/handlers/chat_handler.go.
+	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
 	chatEventListener        domain.ChatEventListener
