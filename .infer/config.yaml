@@ -259,7 +259,7 @@ pricing:
   custom_prices: {}
 compact:
   enabled: true
-  auto_at: 1
+  auto_at: 80
   keep_first_messages: 2
   rollover_on_idle_minutes: 30
   summary_max_tokens: 1024
