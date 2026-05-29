@@ -92,6 +92,8 @@ type AgentSession struct {
 	bgWaiter         *services.BackgroundTasksWaiter
 	requireApproval  bool
 	approvalCh       chan domain.ApprovalResponse
+	rolloverManager  *services.SessionRolloverManager
+	groupKey         string
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool) (err error) {
@@ -189,10 +191,10 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		approvalCh:      make(chan domain.ApprovalResponse, 1),
 	}
 
-	rolloverMgr := svc.GetSessionRolloverManager()
-	groupKey := resolveAndLoadSession(session, rolloverMgr, sessionID, selectedModel)
+	session.rolloverManager = svc.GetSessionRolloverManager()
+	session.groupKey = resolveAndLoadSession(session, session.rolloverManager, sessionID, selectedModel)
 
-	maybeRolloverSession(session, rolloverMgr, selectedModel, groupKey)
+	session.maybeRollover()
 
 	return session.execute(taskDescription, files)
 }
@@ -241,28 +243,30 @@ func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionR
 	return groupKey
 }
 
-// maybeRolloverSession checks the idle/token thresholds and, if either fires,
-// performs the rollover (summary + new conversation file) and reloads the
-// session into the in-memory AgentSession. Mirrors chat-mode /compact behavior.
-func maybeRolloverSession(session *AgentSession, rolloverMgr *services.SessionRolloverManager, selectedModel, groupKey string) {
-	if rolloverMgr == nil || !rolloverMgr.ShouldRollover(selectedModel) {
+// maybeRollover delegates to SessionRolloverManager.MaybeRollover for the
+// shared gate-then-perform-then-log path that chat mode also uses (see
+// internal/handlers/chat_message_processor.go), then performs the agent-mode
+// post-rollover work: emits a status message, swaps s.sessionID, reloads the
+// in-memory conversation from the new session file via initializeSession.
+//
+// Called both at startup (before the turn loop) and at the top of every turn
+// iteration. s.completedTurns is intentionally preserved across rollover so
+// that --max-turns N stays a hard ceiling and injectSystemReminderIfDue keeps
+// its cadence. The idle trigger is structurally a no-op inside an active loop
+// because every preceding executeTurn appended a fresh-timestamped message.
+func (s *AgentSession) maybeRollover() {
+	newID, fired := s.rolloverManager.MaybeRollover(context.Background(), s.model, s.groupKey)
+	if !fired {
 		return
 	}
 
-	newID, err := rolloverMgr.PerformRollover(context.Background(), selectedModel, groupKey)
-	if err != nil {
-		logger.Warn("Auto-rollover failed, continuing with current session",
-			"error", err, "session_id", session.sessionID)
-		return
-	}
-
-	session.outputStatusMessage("info", "Rolled over to new session (summary preserved)", map[string]any{
-		"previous_session_id": session.sessionID,
+	s.outputStatusMessage("info", "Rolled over to new session (summary preserved)", map[string]any{
+		"previous_session_id": s.sessionID,
 		"new_session_id":      newID,
 	})
-	session.sessionID = newID
-	session.conversation = nil
-	if _, err := session.initializeSession(newID); err != nil {
+	s.sessionID = newID
+	s.conversation = nil
+	if _, err := s.initializeSession(newID); err != nil {
 		logger.Warn("Failed to reload session after rollover", "error", err, "session_id", newID)
 	}
 }
@@ -369,6 +373,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	consecutiveNoToolCalls := 0
 
 	for s.completedTurns < s.maxTurns {
+		s.maybeRollover()
 		s.injectSystemReminderIfDue(s.completedTurns + 1)
 
 		if err := s.executeTurn(); err != nil {
