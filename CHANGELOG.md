@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.114.0](https://github.com/inference-gateway/cli/compare/v0.113.0...v0.114.0) (2026-05-29)
+
+### 🚀 Features
+
+* add system reminders to agent mode ([#548](https://github.com/inference-gateway/cli/issues/548)) ([36a44a8](https://github.com/inference-gateway/cli/commit/36a44a86b1100313886bd5adf827e2e34cdb4967))
+* **agent:** re-check session rollover inside the turn loop ([#549](https://github.com/inference-gateway/cli/issues/549)) ([#550](https://github.com/inference-gateway/cli/issues/550)) ([a26b9ba](https://github.com/inference-gateway/cli/commit/a26b9bae832b7e9d413c18868476d6eba4506fa0))
+
+### 🐛 Bug Fixes
+
+* chat rollover async ux ([#551](https://github.com/inference-gateway/cli/issues/551)) ([af5fac9](https://github.com/inference-gateway/cli/commit/af5fac9c796a9a8d4541b2062588b83c50026f6c)), closes [#549](https://github.com/inference-gateway/cli/issues/549)
+
 ## [0.113.0](https://github.com/inference-gateway/cli/compare/v0.112.3...v0.113.0) (2026-05-28)
 
 ### 🚀 Features
