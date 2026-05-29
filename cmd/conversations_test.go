@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
@@ -322,5 +324,173 @@ func TestRenderMarkdown_Table(t *testing.T) {
 	if err != nil {
 		t.Logf("renderMarkdown() with table returned error: %v", err)
 		// Don't fail - may not work in test environment
+	}
+}
+
+// makeShowEntries returns a fixture with a mix of user/assistant/tool/hidden
+// entries used to exercise the `conversations show` helpers.
+func makeShowEntries() []domain.ConversationEntry {
+	t0 := time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC)
+	toolID := "call_x"
+	return []domain.ConversationEntry{
+		{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hello world")},
+			Time:    t0,
+		},
+		{
+			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hi there")},
+			Model:   "gpt-4o",
+			Time:    t0.Add(1 * time.Second),
+		},
+		{
+			Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("tool result body"), ToolCallID: &toolID},
+			Time:    t0.Add(2 * time.Second),
+		},
+		{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("system reminder injected")},
+			Time:    t0.Add(3 * time.Second),
+			Hidden:  true,
+		},
+	}
+}
+
+func TestFilterConversationEntries_HiddenExcludedByDefault(t *testing.T) {
+	got := filterConversationEntries(makeShowEntries(), false)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 visible entries, got %d", len(got))
+	}
+	for _, e := range got {
+		if e.Hidden {
+			t.Errorf("hidden entry leaked into default output")
+		}
+	}
+}
+
+func TestFilterConversationEntries_HiddenIncluded(t *testing.T) {
+	entries := makeShowEntries()
+	got := filterConversationEntries(entries, true)
+	if len(got) != len(entries) {
+		t.Fatalf("expected all %d entries with include-hidden, got %d", len(entries), len(got))
+	}
+}
+
+func TestBuildConversationShowText_PlainAndHeaders(t *testing.T) {
+	out := buildConversationShowText(makeShowEntries(), "session-123")
+
+	wants := []string{
+		"Conversation: session-123",
+		"Entries: 4",
+		"[user]",
+		"[assistant]",
+		"[model=gpt-4o]",
+		"2026-05-29T10:00:00Z",
+		"hello world",
+		"hi there",
+	}
+	for _, w := range wants {
+		if !strings.Contains(out, w) {
+			t.Errorf("text output missing %q\n---\n%s", w, out)
+		}
+	}
+}
+
+func TestBuildConversationShowText_HiddenTagAndToolCallID(t *testing.T) {
+	// Include hidden so the [hidden] tag and tool entry are both present.
+	entries := filterConversationEntries(makeShowEntries(), true)
+	out := buildConversationShowText(entries, "s")
+
+	if !strings.Contains(out, "[hidden]") {
+		t.Errorf("expected [hidden] tag in output:\n%s", out)
+	}
+	if !strings.Contains(out, "[tool_call_id=call_x]") {
+		t.Errorf("expected [tool_call_id=call_x] in output:\n%s", out)
+	}
+}
+
+func TestBuildConversationShowText_Empty(t *testing.T) {
+	out := buildConversationShowText(nil, "s")
+	if !strings.Contains(out, "Entries: 0") {
+		t.Errorf("expected 'Entries: 0' for empty conversation:\n%s", out)
+	}
+	if !strings.Contains(out, "(no entries)") {
+		t.Errorf("expected '(no entries)' for empty conversation:\n%s", out)
+	}
+}
+
+func TestBuildConversationShowJSON_OneObjectPerLine(t *testing.T) {
+	entries := makeShowEntries()
+	out, err := buildConversationShowJSON(entries)
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != len(entries) {
+		t.Fatalf("expected %d JSON lines, got %d", len(entries), len(lines))
+	}
+
+	decoded := make([]conversationShowEntry, 0, len(lines))
+	for i, line := range lines {
+		var e conversationShowEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d not valid JSON object: %v (%q)", i, err, line)
+		}
+		decoded = append(decoded, e)
+	}
+
+	if decoded[0].Role != "user" || decoded[0].Content != "hello world" || decoded[0].Time != "2026-05-29T10:00:00Z" {
+		t.Errorf("unexpected first entry: %+v", decoded[0])
+	}
+	if decoded[1].Model != "gpt-4o" {
+		t.Errorf("expected assistant model gpt-4o, got %q", decoded[1].Model)
+	}
+	if decoded[2].ToolCallID != "call_x" {
+		t.Errorf("expected tool_call_id call_x, got %q", decoded[2].ToolCallID)
+	}
+	if !decoded[3].Hidden {
+		t.Errorf("expected fourth entry to be hidden")
+	}
+}
+
+func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
+	entry := domain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hey")},
+		Time:    time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
+	}
+	out, err := buildConversationShowJSON([]domain.ConversationEntry{entry})
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+
+	for _, omitted := range []string{"tool_call_id", `"hidden"`, `"model"`} {
+		if strings.Contains(out, omitted) {
+			t.Errorf("expected %s to be omitted from JSON: %s", omitted, out)
+		}
+	}
+}
+
+func TestBuildConversationShowJSON_Empty(t *testing.T) {
+	out, err := buildConversationShowJSON(nil)
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+	if out != "" {
+		t.Errorf("expected empty output for no entries, got %q", out)
+	}
+}
+
+func TestToConversationShowEntry_Multimodal(t *testing.T) {
+	// Mirrors how the codebase persists image entries: an Images attachment on
+	// an entry whose Message.Content carries no extractable text.
+	got := toConversationShowEntry(domain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User},
+		Images: []domain.ImageAttachment{
+			{MimeType: "image/png", DisplayName: "screenshot.png"},
+		},
+		Time: time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
+	})
+
+	if !strings.Contains(got.Content, "[Image 1]") {
+		t.Errorf("expected image-only content to render [Image 1], got %q", got.Content)
 	}
 }
