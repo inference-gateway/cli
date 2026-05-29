@@ -114,8 +114,8 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 
 var skillsInstallCmd = &cobra.Command{
 	Use:   "install <skill | org/skill | github-url>",
-	Short: "Install a skill from a public GitHub repository",
-	Long: `Install a skill folder from a public GitHub repository.
+	Short: "Install a skill from a GitHub repository",
+	Long: `Install a skill folder from a GitHub repository.
 
 You can pass any of the following:
 
@@ -142,8 +142,10 @@ After download, the same frontmatter validator that runs at startup runs
 against the downloaded folder. If validation fails the folder is removed
 and the reason is printed.
 
-Public repositories only. GitHub's unauthenticated API rate limit is 60
-requests per hour per IP.`,
+Requests are unauthenticated by default, which GitHub limits to 60 API
+requests per hour per IP. Set GITHUB_TOKEN (or GH_TOKEN) in the environment
+to authenticate: this raises the limit to 5,000 requests per hour and allows
+installing from private repositories the token can access.`,
 	Args: cobra.ExactArgs(1),
 	RunE: installSkill,
 }
