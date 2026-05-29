@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,6 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -974,6 +977,193 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		}
 		if buf.Len() != 0 {
 			t.Errorf("expected no stream event, got %q", buf.String())
+		}
+	})
+}
+
+// rolloverFakeOptimizer is a minimal ConversationOptimizer used to exercise
+// the in-loop rollover path. It returns a single summary message regardless
+// of input - the rollover machinery only cares that something is returned
+// that PerformRollover can re-add to the new conversation.
+type rolloverFakeOptimizer struct{ calls int }
+
+func (f *rolloverFakeOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool) []sdk.Message {
+	f.calls++
+	return []sdk.Message{
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("--- Context Summary ---\nfake summary\n--- End Summary ---")},
+	}
+}
+
+// newAgentRolloverFixture stands up a real SessionRolloverManager backed by
+// an in-memory SQLite PersistentConversationRepository and an in-memory
+// SessionGroupStorage. The same pattern is used in
+// internal/services/session_rollover_manager_test.go - inlined here so the
+// cmd-package test stays self-contained.
+func newAgentRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *services.PersistentConversationRepository, storage.SessionGroupStorage, func()) {
+	t.Helper()
+
+	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
+	if err != nil {
+		t.Fatalf("create sqlite storage: %v", err)
+	}
+	repo := services.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
+
+	cfg := &config.Config{}
+	cfg.Compact.Enabled = true
+	cfg.Compact.AutoAt = 80
+	cfg.Compact.RolloverOnIdleMinutes = 0
+	cfg.Compact.KeepFirstMessages = 2
+
+	groupStore := storage.NewMemorySessionGroupStorage()
+	mgr := services.NewSessionRolloverManager(
+		cfg,
+		&rolloverFakeOptimizer{},
+		repo,
+		services.NewTokenizerService(services.DefaultTokenizerConfig()),
+		groupStore,
+	)
+
+	cleanup := func() {
+		_ = repo.Close()
+		_ = storageBackend.Close()
+	}
+	return mgr, repo, groupStore, cleanup
+}
+
+func TestMaybeRolloverInLoop(t *testing.T) {
+	t.Run("no-op when rolloverManager is nil", func(t *testing.T) {
+		s := &AgentSession{
+			sessionID: "orig-id",
+			model:     "openai/gpt-4",
+		}
+		out := captureStdout(t, func() { s.maybeRollover() })
+
+		if s.sessionID != "orig-id" {
+			t.Errorf("sessionID must not change when rolloverManager is nil; got %q", s.sessionID)
+		}
+		if out != "" {
+			t.Errorf("expected no stdout output, got %q", out)
+		}
+	})
+
+	t.Run("no-op when ShouldRollover returns false", func(t *testing.T) {
+		mgr, repo, _, cleanup := newAgentRolloverFixture(t)
+		defer cleanup()
+
+		if err := repo.StartNewConversation("Initial"); err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		originalID := repo.GetCurrentConversationID()
+
+		s := &AgentSession{
+			config:           &config.Config{},
+			conversationRepo: repo,
+			sessionID:        originalID,
+			model:            "openai/gpt-4",
+			rolloverManager:  mgr,
+		}
+
+		out := captureStdout(t, func() { s.maybeRollover() })
+
+		if s.sessionID != originalID {
+			t.Errorf("sessionID must not change when ShouldRollover is false; got %q want %q", s.sessionID, originalID)
+		}
+		if out != "" {
+			t.Errorf("expected no stdout output, got %q", out)
+		}
+	})
+
+	t.Run("token trigger fires mid-loop: swaps sessionID, preserves groupKey, preserves completedTurns", func(t *testing.T) {
+		mgr, repo, groupStore, cleanup := newAgentRolloverFixture(t)
+		defer cleanup()
+
+		if _, _, err := mgr.ResolveSessionID("channel-test-group"); err != nil {
+			t.Fatalf("resolve: %v", err)
+		}
+		if err := repo.StartNewConversation("Initial"); err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		originalID := repo.GetCurrentConversationID()
+
+		if err := repo.AddMessage(domain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+			Time:    time.Now(),
+		}); err != nil {
+			t.Fatalf("AddMessage: %v", err)
+		}
+		if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+			t.Fatalf("AddTokenUsage: %v", err)
+		}
+
+		s := &AgentSession{
+			config:           &config.Config{},
+			conversationRepo: repo,
+			sessionID:        originalID,
+			model:            "unknown-tiny-model",
+			rolloverManager:  mgr,
+			groupKey:         "channel-test-group",
+			completedTurns:   7,
+		}
+
+		captureStdout(t, func() { s.maybeRollover() })
+
+		if s.sessionID == "" || s.sessionID == originalID {
+			t.Errorf("sessionID must be swapped to a new id; got %q (original %q)", s.sessionID, originalID)
+		}
+		if got := repo.GetCurrentConversationID(); got != s.sessionID {
+			t.Errorf("repo must be aligned with new session: got %q want %q", got, s.sessionID)
+		}
+		if s.groupKey != "channel-test-group" {
+			t.Errorf("groupKey must be preserved across rollover; got %q", s.groupKey)
+		}
+		if s.completedTurns != 7 {
+			t.Errorf("completedTurns must NOT be reset on rollover; got %d want 7", s.completedTurns)
+		}
+
+		entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-test-group")
+		if err != nil || !ok {
+			t.Fatalf("GetSessionGroup: ok=%v err=%v", ok, err)
+		}
+		if entry.CurrentSessionID != s.sessionID {
+			t.Errorf("group index must point at new id %q, got %q", s.sessionID, entry.CurrentSessionID)
+		}
+		if len(entry.History) == 0 || entry.History[len(entry.History)-1] != originalID {
+			t.Errorf("group history must record previous id %q, got %v", originalID, entry.History)
+		}
+	})
+
+	t.Run("PerformRollover error: no swap, sessionID unchanged", func(t *testing.T) {
+		mgr, repo, _, cleanup := newAgentRolloverFixture(t)
+		defer cleanup()
+
+		if err := repo.StartNewConversation("Initial"); err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		originalID := repo.GetCurrentConversationID()
+
+		if err := repo.AddMessage(domain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden")},
+			Time:    time.Now(),
+			Hidden:  true,
+		}); err != nil {
+			t.Fatalf("AddMessage: %v", err)
+		}
+		if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+			t.Fatalf("AddTokenUsage: %v", err)
+		}
+
+		s := &AgentSession{
+			config:           &config.Config{},
+			conversationRepo: repo,
+			sessionID:        originalID,
+			model:            "unknown-tiny-model",
+			rolloverManager:  mgr,
+		}
+
+		captureStdout(t, func() { s.maybeRollover() })
+
+		if s.sessionID != originalID {
+			t.Errorf("sessionID must not change on PerformRollover error; got %q want %q", s.sessionID, originalID)
 		}
 	})
 }

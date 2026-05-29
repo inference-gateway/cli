@@ -112,6 +112,23 @@ func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string,
 	return rawID, groupKey, nil
 }
 
+// MaybeRollover combines the ShouldRollover gate with PerformRollover and the
+// uniform warn-on-failure fallback that both `chat` and `infer agent` need.
+// Returns the new session id and true if a rollover fired; "" and false
+// otherwise (whether because the gate was closed or because PerformRollover
+// errored - callers do not need to distinguish).
+func (m *SessionRolloverManager) MaybeRollover(ctx context.Context, model, groupKey string) (string, bool) {
+	if m == nil || !m.ShouldRollover(model) {
+		return "", false
+	}
+	newID, err := m.PerformRollover(ctx, model, groupKey)
+	if err != nil {
+		logger.Warn("auto-rollover failed, continuing with current session", "error", err)
+		return "", false
+	}
+	return newID, true
+}
+
 // ShouldRollover checks the currently loaded conversation in the repo against
 // both rollover triggers (idle and token threshold) and returns true if either
 // fires. Returns false on a fresh/empty conversation, when the optimizer is

@@ -395,3 +395,105 @@ func TestConcurrentRolloversForDifferentGroups(t *testing.T) {
 		t.Errorf("expected %d groups after concurrent registration, got %d", groupCount, len(all))
 	}
 }
+
+func TestMaybeRollover_NilReceiverReturnsFalse(t *testing.T) {
+	var mgr *SessionRolloverManager
+	newID, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", "")
+	if fired {
+		t.Error("nil receiver must return fired=false")
+	}
+	if newID != "" {
+		t.Errorf("nil receiver must return empty newID, got %q", newID)
+	}
+}
+
+func TestMaybeRollover_GateClosedReturnsFalse(t *testing.T) {
+	mgr, _, opt, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	defer cleanup()
+
+	newID, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", "")
+	if fired {
+		t.Error("MaybeRollover with closed gate must return fired=false")
+	}
+	if newID != "" {
+		t.Errorf("MaybeRollover with closed gate must return empty newID, got %q", newID)
+	}
+	if opt.calls != 0 {
+		t.Errorf("optimizer must not be called when gate is closed; got %d", opt.calls)
+	}
+}
+
+func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
+	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 0)
+	defer cleanup()
+
+	if _, _, err := mgr.ResolveSessionID("channel-test-group"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+
+	addUserMessage(t, repo, "hi", time.Now())
+	if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+		t.Fatalf("AddTokenUsage: %v", err)
+	}
+
+	newID, fired := mgr.MaybeRollover(context.Background(), "unknown-tiny-model", "channel-test-group")
+	if !fired {
+		t.Fatal("MaybeRollover should have fired with LastInputTokens above threshold")
+	}
+	if newID == "" || newID == originalID {
+		t.Errorf("MaybeRollover must return a new session id; got %q (original %q)", newID, originalID)
+	}
+	if opt.calls != 1 {
+		t.Errorf("optimizer should have been called once via PerformRollover, got %d", opt.calls)
+	}
+	if got := repo.GetCurrentConversationID(); got != newID {
+		t.Errorf("repo should point at new session: got %q want %q", got, newID)
+	}
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-test-group")
+	if err != nil || !ok {
+		t.Fatalf("GetSessionGroup: ok=%v err=%v", ok, err)
+	}
+	if entry.CurrentSessionID != newID {
+		t.Errorf("group index must point at new id %q, got %q", newID, entry.CurrentSessionID)
+	}
+	if len(entry.History) == 0 || entry.History[len(entry.History)-1] != originalID {
+		t.Errorf("group history must record previous id %q, got %v", originalID, entry.History)
+	}
+}
+
+func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	defer cleanup()
+
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+
+	hidden := domain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden")},
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+	if err := repo.AddMessage(hidden); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+		t.Fatalf("AddTokenUsage: %v", err)
+	}
+
+	newID, fired := mgr.MaybeRollover(context.Background(), "unknown-tiny-model", "")
+	if fired {
+		t.Error("MaybeRollover must return fired=false when PerformRollover errors")
+	}
+	if newID != "" {
+		t.Errorf("MaybeRollover must return empty newID on error, got %q", newID)
+	}
+	if got := repo.GetCurrentConversationID(); got != originalID {
+		t.Errorf("repo must not be rolled over on PerformRollover error; got %q want %q", got, originalID)
+	}
+}

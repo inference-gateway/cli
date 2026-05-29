@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -236,15 +235,12 @@ func (p *ChatMessageProcessor) processChatMessage(
 	// fires on a 30-min idle gap or 80% context fill - both rare edge cases.
 	// If this becomes noticeable we can move it into an async tea.Cmd that
 	// dispatches a synthetic continuation event.
-	if p.handler.sessionRolloverManager != nil &&
-		p.handler.sessionRolloverManager.ShouldRollover(p.handler.modelService.GetCurrentModel()) {
-		if _, err := p.handler.sessionRolloverManager.PerformRollover(
+	if p.handler.sessionRolloverManager != nil {
+		p.handler.sessionRolloverManager.MaybeRollover(
 			context.Background(),
 			p.handler.modelService.GetCurrentModel(),
 			"",
-		); err != nil {
-			logger.Warn("auto-rollover failed, continuing with current session", "error", err)
-		}
+		)
 	}
 
 	userEntry := domain.ConversationEntry{
