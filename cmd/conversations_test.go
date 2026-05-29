@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	sdk "github.com/inference-gateway/sdk"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
 func TestRenderConversationsJSON(t *testing.T) {
