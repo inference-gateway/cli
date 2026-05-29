@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.115.0](https://github.com/inference-gateway/cli/compare/v0.114.0...v0.115.0) (2026-05-29)
+
+### 🚀 Features
+
+* add 'infer conversations show <id>' subcommand ([#547](https://github.com/inference-gateway/cli/issues/547)) ([#554](https://github.com/inference-gateway/cli/issues/554)) ([41e06d5](https://github.com/inference-gateway/cli/commit/41e06d5e455c63c010926cc50cc2cf790f5568ee)), closes [#n](https://github.com/inference-gateway/cli/issues/n)
+* **agent:** emit session_stats summary on stream completion ([#553](https://github.com/inference-gateway/cli/issues/553)) ([892203b](https://github.com/inference-gateway/cli/commit/892203b10ffbf42072fe909b288d9bc42bcd6b10))
+
 ## [0.114.0](https://github.com/inference-gateway/cli/compare/v0.113.0...v0.114.0) (2026-05-29)
 
 ### 🚀 Features
