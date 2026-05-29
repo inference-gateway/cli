@@ -18,6 +18,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 )
@@ -368,6 +369,8 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	consecutiveNoToolCalls := 0
 
 	for s.completedTurns < s.maxTurns {
+		s.injectSystemReminderIfDue(s.completedTurns + 1)
+
 		if err := s.executeTurn(); err != nil {
 			logger.Error("Turn execution failed", "error", err, "turn", s.completedTurns)
 			return err
@@ -945,6 +948,46 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 	}
 
 	return msg
+}
+
+// injectSystemReminderIfDue mirrors AgentServiceImpl.injectSystemReminderIfDue
+// for the sync `infer agent` loop: the streaming path is the only caller of
+// the internal version, so this command would otherwise never see reminders
+// even with the env vars set. Same gate (Enabled + turn%interval), same
+// streamevent shape, so downstream observers can't tell the two callers apart.
+func (s *AgentSession) injectSystemReminderIfDue(turn int) {
+	reminders := s.config.Prompts.Agent.SystemReminders
+	if !reminders.Enabled {
+		return
+	}
+	interval := reminders.Interval
+	if interval <= 0 {
+		interval = 4
+	}
+	if turn <= 0 || turn%interval != 0 {
+		return
+	}
+	reminderText := reminders.ReminderText
+	if reminderText == "" {
+		return
+	}
+
+	s.addMessage(ConversationMessage{
+		Role:      "user",
+		Content:   reminderText,
+		Timestamp: time.Now(),
+		Internal:  true,
+	})
+
+	logger.Info("system reminder injected",
+		"turn", turn,
+		"interval", interval,
+		"reminder_chars", len(reminderText),
+	)
+	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
+		"turn":     turn,
+		"interval": interval,
+	})
 }
 
 func (s *AgentSession) addMessage(msg ConversationMessage) {

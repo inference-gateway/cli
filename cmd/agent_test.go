@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
 // captureStdout redirects os.Stdout for the duration of fn and returns what was written.
@@ -871,6 +873,107 @@ func TestReasoningContentRoundTripSyncPath(t *testing.T) {
 		restored := session.convertFromConversationEntry(entry)
 		if restored.ReasoningContent != reasoning {
 			t.Errorf("restored.ReasoningContent = %q, want %q", restored.ReasoningContent, reasoning)
+		}
+	})
+}
+
+func TestInjectSystemReminderIfDue(t *testing.T) {
+	newSession := func(enabled bool, interval int, text string) *AgentSession {
+		return &AgentSession{
+			config: &config.Config{
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemReminders: config.PromptsAgentRemindersConfig{
+							Enabled:      enabled,
+							Interval:     interval,
+							ReminderText: text,
+						},
+					},
+				},
+			},
+			conversation: []ConversationMessage{},
+		}
+	}
+
+	t.Run("appends hidden user message and emits stream event when due", func(t *testing.T) {
+		s := newSession(true, 2, "remember to push")
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(2)
+
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message appended, got %d", len(s.conversation))
+		}
+		msg := s.conversation[0]
+		if msg.Role != "user" || msg.Content != "remember to push" || !msg.Internal {
+			t.Errorf("unexpected message: %+v", msg)
+		}
+
+		var event map[string]any
+		if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event); err != nil {
+			t.Fatalf("unmarshal stream event: %v (raw: %q)", err, buf.String())
+		}
+		if event["kind"] != "system_reminder" {
+			t.Errorf("kind = %v, want system_reminder", event["kind"])
+		}
+		if event["hidden"] != true {
+			t.Errorf("hidden = %v, want true", event["hidden"])
+		}
+		if v, _ := event["turn"].(float64); v != 2 {
+			t.Errorf("turn = %v, want 2", event["turn"])
+		}
+		if v, _ := event["interval"].(float64); v != 2 {
+			t.Errorf("interval = %v, want 2", event["interval"])
+		}
+	})
+
+	t.Run("no-op when disabled", func(t *testing.T) {
+		s := newSession(false, 2, "ignored")
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(2)
+
+		if len(s.conversation) != 0 {
+			t.Errorf("expected no messages, got %d", len(s.conversation))
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no stream event, got %q", buf.String())
+		}
+	})
+
+	t.Run("no-op between intervals", func(t *testing.T) {
+		s := newSession(true, 5, "wait")
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(3)
+
+		if len(s.conversation) != 0 {
+			t.Errorf("expected no messages, got %d", len(s.conversation))
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no stream event, got %q", buf.String())
+		}
+	})
+
+	t.Run("no-op on turn 0", func(t *testing.T) {
+		s := newSession(true, 2, "x")
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(0)
+
+		if len(s.conversation) != 0 {
+			t.Errorf("expected no messages, got %d", len(s.conversation))
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no stream event, got %q", buf.String())
 		}
 	})
 }
