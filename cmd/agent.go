@@ -13,14 +13,16 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	cobra "github.com/spf13/cobra"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
-	sdk "github.com/inference-gateway/sdk"
-	cobra "github.com/spf13/cobra"
 )
 
 var agentCmd = &cobra.Command{
@@ -77,23 +79,28 @@ type ConversationMessage struct {
 
 // AgentSession manages the background execution session
 type AgentSession struct {
-	agentService     domain.AgentService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	imageService     domain.ImageService
-	model            string
-	conversation     []ConversationMessage
-	sessionID        string
-	maxTurns         int
-	completedTurns   int
-	config           *config.Config
-	conversationRepo domain.ConversationRepository
-	saveEnabled      bool
-	bgWaiter         *services.BackgroundTasksWaiter
-	requireApproval  bool
-	approvalCh       chan domain.ApprovalResponse
-	rolloverManager  *services.SessionRolloverManager
-	groupKey         string
+	agentService          domain.AgentService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	imageService          domain.ImageService
+	model                 string
+	conversation          []ConversationMessage
+	sessionID             string
+	maxTurns              int
+	completedTurns        int
+	config                *config.Config
+	conversationRepo      domain.ConversationRepository
+	saveEnabled           bool
+	bgWaiter              *services.BackgroundTasksWaiter
+	requireApproval       bool
+	approvalCh            chan domain.ApprovalResponse
+	rolloverManager       *services.SessionRolloverManager
+	groupKey              string
+	pricingService        domain.PricingService
+	totalPromptTokens     int
+	totalCompletionTokens int
+	totalTokens           int
+	requestCount          int
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool) (err error) {
@@ -158,6 +165,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	imageService := svc.GetImageService()
 	conversationRepo := svc.GetConversationRepository()
 	stateManager := svc.GetStateManager()
+	pricingService := svc.GetPricingService()
 
 	if requireApproval {
 		stateManager.SetAgentMode(domain.AgentModeStandard)
@@ -189,6 +197,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		),
 		requireApproval: requireApproval,
 		approvalCh:      make(chan domain.ApprovalResponse, 1),
+		pricingService:  pricingService,
 	}
 
 	session.rolloverManager = svc.GetSessionRolloverManager()
@@ -347,6 +356,8 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 }
 
 func (s *AgentSession) execute(taskDescription string, files []string) error {
+	defer s.emitSessionStats()
+
 	expansion, err := s.expandFileReferences(taskDescription, files)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
@@ -557,6 +568,13 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	if response.Usage != nil {
+		s.totalPromptTokens += int(response.Usage.PromptTokens)
+		s.totalCompletionTokens += int(response.Usage.CompletionTokens)
+		s.totalTokens += int(response.Usage.TotalTokens)
+		s.requestCount++
+	}
+
 	if response.Content == "" && len(response.ToolCalls) == 0 {
 		return nil
 	}
@@ -1128,6 +1146,42 @@ func (s *AgentSession) outputStatusMessage(messageType, message string, metadata
 	}
 
 	fmt.Println(string(output))
+}
+
+// emitSessionStats emits a single structured session_stats JSON line summarizing token usage and
+// dollar cost for this run. Token counts come from session-local accumulators (independent of
+// --no-save); cost is computed via the shared PricingService so the pricing table is never
+// duplicated. Invoked via defer in execute() so it fires on completion, early error, and panic
+// unwind. Suppressed when no usage-bearing request occurred.
+func (s *AgentSession) emitSessionStats() {
+	if s.requestCount == 0 {
+		return
+	}
+
+	var inputCost, outputCost, totalCost float64
+	if s.pricingService != nil {
+		inputCost, outputCost, totalCost = s.pricingService.CalculateCost(
+			s.model, s.totalPromptTokens, s.totalCompletionTokens)
+	}
+
+	currency := "USD"
+	if s.config != nil && s.config.Pricing.Currency != "" {
+		currency = s.config.Pricing.Currency
+	}
+
+	s.outputStatusMessage("session_stats", "Session complete", map[string]any{
+		"model":             s.model,
+		"prompt_tokens":     s.totalPromptTokens,
+		"completion_tokens": s.totalCompletionTokens,
+		"total_tokens":      s.totalTokens,
+		"requests":          s.requestCount,
+		"cost": map[string]any{
+			"input":    inputCost,
+			"output":   outputCost,
+			"total":    totalCost,
+			"currency": currency,
+		},
+	})
 }
 
 func (s *AgentSession) lastResponseHadNoToolCalls() bool {

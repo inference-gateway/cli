@@ -467,6 +467,201 @@ func mockTime() time.Time {
 	return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
+// fakePricing returns a FakePricingService whose CalculateCost yields the given costs.
+func fakePricing(in, out, total float64) *domainmocks.FakePricingService {
+	fake := &domainmocks.FakePricingService{}
+	fake.IsEnabledReturns(true)
+	fake.CalculateCostReturns(in, out, total)
+	return fake
+}
+
+// sessionStatsLine mirrors the emitted session_stats JSON for assertions.
+type sessionStatsLine struct {
+	Type             string `json:"type"`
+	Message          string `json:"message"`
+	Model            string `json:"model"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	TotalTokens      int    `json:"total_tokens"`
+	Requests         int    `json:"requests"`
+	Cost             struct {
+		Input    float64 `json:"input"`
+		Output   float64 `json:"output"`
+		Total    float64 `json:"total"`
+		Currency string  `json:"currency"`
+	} `json:"cost"`
+}
+
+// decodeStatsLine runs emitSessionStats, asserts a single JSON line was emitted,
+// and unmarshals it into a sessionStatsLine.
+func decodeStatsLine(t *testing.T, session *AgentSession) sessionStatsLine {
+	t.Helper()
+	out := captureStdout(t, session.emitSessionStats)
+	line := strings.TrimRight(out, "\n")
+	if line == "" || strings.Contains(line, "\n") {
+		t.Fatalf("expected single JSON line, got %q", out)
+	}
+	var got sessionStatsLine
+	if err := json.Unmarshal([]byte(line), &got); err != nil {
+		t.Fatalf("unmarshal: %v (raw: %q)", err, line)
+	}
+	return got
+}
+
+func TestEmitSessionStatsFullLine(t *testing.T) {
+	session := &AgentSession{
+		model:                 "deepseek/deepseek-v4-flash",
+		pricingService:        fakePricing(0.0021, 0.0008, 0.0029),
+		config:                &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
+		totalPromptTokens:     21000,
+		totalCompletionTokens: 1260,
+		totalTokens:           22260,
+		requestCount:          7,
+	}
+
+	got := decodeStatsLine(t, session)
+
+	if got.Type != "session_stats" {
+		t.Errorf("Type = %q, want session_stats", got.Type)
+	}
+	if got.Message != "Session complete" {
+		t.Errorf("Message = %q", got.Message)
+	}
+	if got.Model != "deepseek/deepseek-v4-flash" {
+		t.Errorf("Model = %q", got.Model)
+	}
+	if got.PromptTokens != 21000 || got.CompletionTokens != 1260 || got.TotalTokens != 22260 {
+		t.Errorf("tokens = %d/%d/%d, want 21000/1260/22260",
+			got.PromptTokens, got.CompletionTokens, got.TotalTokens)
+	}
+	if got.Requests != 7 {
+		t.Errorf("Requests = %d, want 7", got.Requests)
+	}
+	if got.Cost.Input != 0.0021 || got.Cost.Output != 0.0008 || got.Cost.Total != 0.0029 {
+		t.Errorf("cost = %v/%v/%v, want 0.0021/0.0008/0.0029",
+			got.Cost.Input, got.Cost.Output, got.Cost.Total)
+	}
+	if got.Cost.Currency != "USD" {
+		t.Errorf("currency = %q, want USD", got.Cost.Currency)
+	}
+}
+
+func TestEmitSessionStatsSuppressedWhenNoRequests(t *testing.T) {
+	session := &AgentSession{config: &config.Config{}}
+	out := captureStdout(t, session.emitSessionStats)
+	if strings.TrimSpace(out) != "" {
+		t.Errorf("expected no output for zero requests, got %q", out)
+	}
+}
+
+func TestEmitSessionStatsZeroCostWhenPricingDisabled(t *testing.T) {
+	session := &AgentSession{
+		model:                 "some/model",
+		pricingService:        fakePricing(0, 0, 0), // pricing disabled / zero cost
+		config:                &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
+		totalPromptTokens:     10,
+		totalCompletionTokens: 5,
+		totalTokens:           15,
+		requestCount:          1,
+	}
+
+	got := decodeStatsLine(t, session)
+
+	if got.Cost.Total != 0 || got.Cost.Input != 0 || got.Cost.Output != 0 {
+		t.Errorf("expected zero cost, got %v/%v/%v", got.Cost.Input, got.Cost.Output, got.Cost.Total)
+	}
+	if got.Cost.Currency != "USD" {
+		t.Errorf("currency = %q, want USD", got.Cost.Currency)
+	}
+}
+
+func TestEmitSessionStatsCurrencyFallback(t *testing.T) {
+	session := &AgentSession{
+		model:          "some/model",
+		pricingService: fakePricing(0, 0, 0.01),
+		config:         &config.Config{},
+		requestCount:   1,
+	}
+
+	got := decodeStatsLine(t, session)
+
+	if got.Cost.Currency != "USD" {
+		t.Errorf("currency = %q, want USD fallback", got.Cost.Currency)
+	}
+}
+
+func TestEmitSessionStatsNilPricingServiceSafe(t *testing.T) {
+	session := &AgentSession{
+		model:             "some/model",
+		pricingService:    nil,
+		config:            &config.Config{},
+		totalPromptTokens: 10,
+		requestCount:      1,
+	}
+
+	got := decodeStatsLine(t, session)
+
+	if got.Cost.Total != 0 {
+		t.Errorf("expected zero cost with nil pricing service, got %v", got.Cost.Total)
+	}
+	if got.PromptTokens != 10 {
+		t.Errorf("PromptTokens = %d, want 10", got.PromptTokens)
+	}
+}
+
+func TestProcessSyncResponseAccumulatesTokens(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 1}}
+
+	usage := func(p, c, total int64) *sdk.CompletionUsage {
+		return &sdk.CompletionUsage{PromptTokens: p, CompletionTokens: c, TotalTokens: total}
+	}
+
+	t.Run("accumulates usage from a content response", func(t *testing.T) {
+		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
+		_ = captureStdout(t, func() {
+			if err := session.processSyncResponse(&domain.ChatSyncResponse{
+				Content: "done", Usage: usage(100, 20, 120),
+			}, "req_1"); err != nil {
+				t.Fatalf("processSyncResponse: %v", err)
+			}
+		})
+		if session.totalPromptTokens != 100 || session.totalCompletionTokens != 20 ||
+			session.totalTokens != 120 || session.requestCount != 1 {
+			t.Errorf("accumulators = %d/%d/%d req=%d, want 100/20/120 req=1",
+				session.totalPromptTokens, session.totalCompletionTokens,
+				session.totalTokens, session.requestCount)
+		}
+	})
+
+	t.Run("nil usage does not increment request count", func(t *testing.T) {
+		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
+		_ = captureStdout(t, func() {
+			if err := session.processSyncResponse(&domain.ChatSyncResponse{Content: "done"}, "req_1"); err != nil {
+				t.Fatalf("processSyncResponse: %v", err)
+			}
+		})
+		if session.requestCount != 0 {
+			t.Errorf("requestCount = %d, want 0 for nil usage", session.requestCount)
+		}
+	})
+
+	t.Run("usage counted even when response content is empty", func(t *testing.T) {
+		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
+		if err := session.processSyncResponse(&domain.ChatSyncResponse{
+			Content: "", Usage: usage(5, 3, 8),
+		}, "req_1"); err != nil {
+			t.Fatalf("processSyncResponse: %v", err)
+		}
+		if session.requestCount != 1 || session.totalTokens != 8 {
+			t.Errorf("requestCount=%d totalTokens=%d, want 1 / 8 (increment precedes early return)",
+				session.requestCount, session.totalTokens)
+		}
+		if len(session.conversation) != 0 {
+			t.Errorf("expected no message recorded for empty response, got %d", len(session.conversation))
+		}
+	})
+}
+
 func TestConvertFromConversationEntry(t *testing.T) {
 	session := &AgentSession{
 		model: "openai/gpt-4",
