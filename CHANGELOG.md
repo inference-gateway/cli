@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.115.1](https://github.com/inference-gateway/cli/compare/v0.115.0...v0.115.1) (2026-05-29)
+
+### 🐛 Bug Fixes
+
+* **skills:** authenticate GitHub requests in 'infer skills install' ([#556](https://github.com/inference-gateway/cli/issues/556)) ([4a4f554](https://github.com/inference-gateway/cli/commit/4a4f554c2df36956725c4781663f914f300b3b20)), closes [#555](https://github.com/inference-gateway/cli/issues/555)
+
+### 🧹 Maintenance
+
+* cleanup redundant inline comment ([4c81fee](https://github.com/inference-gateway/cli/commit/4c81fee79b5ce9f7d0d106672ecef6d1fd0f3f57))
+* em dashes cleanup ([265015b](https://github.com/inference-gateway/cli/commit/265015bfdd0b5c1ec54d6fce4b51884370d976a1))
+
 ## [0.115.0](https://github.com/inference-gateway/cli/compare/v0.114.0...v0.115.0) (2026-05-29)
 
 ### 🚀 Features
