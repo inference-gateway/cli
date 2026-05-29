@@ -10,8 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	sdk "github.com/inference-gateway/sdk"
-  
-  domain "github.com/inference-gateway/cli/internal/domain"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // ChatMessageProcessor handles message processing logic
@@ -279,15 +280,6 @@ func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images [
 
 	rolloverCmd := func() tea.Msg {
 		newID, fired := p.handler.sessionRolloverManager.MaybeRollover(
-	// the new user message lands in the new file via AddMessage below.
-	//
-	// TODO: this synchronously blocks the Bubble Tea Update loop while the
-	// summary LLM call runs (~few seconds). Acceptable because rollover only
-	// fires on a 30-min idle gap or 80% context fill - both rare edge cases.
-	// If this becomes noticeable we can move it into an async tea.Cmd that
-	// dispatches a synthetic continuation event.
-	if p.handler.sessionRolloverManager != nil {
-		p.handler.sessionRolloverManager.MaybeRollover(
 			context.Background(),
 			p.handler.modelService.GetCurrentModel(),
 			"",
