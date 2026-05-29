@@ -411,8 +411,6 @@ func TestMaybeRollover_GateClosedReturnsFalse(t *testing.T) {
 	mgr, _, opt, _, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
-	// Empty conversation, idle threshold not crossed, no token usage recorded.
-	// ShouldRollover returns false, so MaybeRollover must short-circuit.
 	newID, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", "")
 	if fired {
 		t.Error("MaybeRollover with closed gate must return fired=false")
@@ -476,10 +474,6 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	}
 	originalID := repo.GetCurrentConversationID()
 
-	// Hidden:true entries pass the ShouldRollover gate (the trigger inspects
-	// entry count + token usage, not Hidden) but PerformRollover filters them
-	// out and returns "no visible messages to rollover". Exercising this path
-	// verifies MaybeRollover swallows the error and returns ("", false).
 	hidden := domain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden")},
 		Time:    time.Now(),

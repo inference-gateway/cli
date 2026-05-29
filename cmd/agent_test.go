@@ -1141,9 +1141,6 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 		}
 		originalID := repo.GetCurrentConversationID()
 
-		// Hidden:true messages cross the ShouldRollover gate (via the
-		// gateway-reported LastInputTokens) but get filtered by PerformRollover,
-		// driving the "no visible messages to rollover" error path.
 		if err := repo.AddMessage(domain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden")},
 			Time:    time.Now(),
