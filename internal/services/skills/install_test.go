@@ -493,7 +493,6 @@ func TestInstallFromGitHub_AuthenticatedForbidden(t *testing.T) {
 	_, err := inst.InstallFromGitHub(context.Background(),
 		"https://github.com/foo/bar/tree/main/skills/pdf", t.TempDir(), false)
 	require.Error(t, err)
-	// Authenticated 403 must not blame the anonymous rate limit.
 	require.Contains(t, err.Error(), "forbidden")
 	require.NotContains(t, err.Error(), "unauthenticated")
 }
