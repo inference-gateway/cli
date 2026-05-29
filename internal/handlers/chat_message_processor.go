@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -215,6 +216,9 @@ func (p *ChatMessageProcessor) processChatMessage(
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
 		p.handler.messageQueue.Enqueue(message, requestID)
+		logger.Info("chat input queued - agent busy",
+			"request_id", requestID,
+			"queue_size_after_enqueue", p.handler.messageQueue.Size())
 
 		return func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -228,21 +232,75 @@ func (p *ChatMessageProcessor) processChatMessage(
 	// Auto-rollover BEFORE appending the new user message - otherwise the new
 	// message resets the idle clock and never triggers. Mirrors what /compact
 	// does manually: produces a summary, starts a new conversation file, and
-	// the new user message lands in the new file via AddMessage below.
-	//
-	// TODO: this synchronously blocks the Bubble Tea Update loop while the
-	// summary LLM call runs (~few seconds). Acceptable because rollover only
-	// fires on a 30-min idle gap or 80% context fill - both rare edge cases.
-	// If this becomes noticeable we can move it into an async tea.Cmd that
-	// dispatches a synthetic continuation event.
-	if p.handler.sessionRolloverManager != nil {
-		p.handler.sessionRolloverManager.MaybeRollover(
+	// the new user message lands in the new file via AddMessage in the tail
+	// helper below.
+	if p.shouldRolloverNow() {
+		return p.compactThenContinue(message, images)
+	}
+
+	return p.appendUserMessageAndStartCompletion(message, images)
+}
+
+// shouldRolloverNow is a cheap pre-check on the synchronous Update path so
+// that the vast majority of user messages (where no rollover is due) skip
+// the async dispatch entirely. The real ShouldRollover/PerformRollover run
+// inside MaybeRollover on the goroutine; a false negative here just means
+// we skip a one-message rollover that would otherwise fire, and the next
+// message will catch it.
+func (p *ChatMessageProcessor) shouldRolloverNow() bool {
+	return p.handler.sessionRolloverManager != nil &&
+		p.handler.sessionRolloverManager.ShouldRollover(p.handler.modelService.GetCurrentModel())
+}
+
+// compactThenContinue runs the rollover asynchronously so the Bubble Tea
+// Update loop stays responsive (the summary LLM call takes a few seconds and
+// would otherwise freeze the UI with no spinner). The flow:
+//
+//  1. SetChatPending so IsAgentBusy() queues any further user input arriving
+//     while the rollover is in flight.
+//  2. Emit a "Compacting conversation..." status (spinner on) for the user.
+//  3. Run MaybeRollover on a goroutine via a tea.Cmd; on completion dispatch
+//     a RolloverCompletedEvent that the chat handler routes back into
+//     appendUserMessageAndStartCompletion to resume the deferred work.
+func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []domain.ImageAttachment) tea.Cmd {
+	p.handler.stateManager.SetChatPending()
+	logger.Info("chat rollover: deferring user message, kicking off async MaybeRollover",
+		"queue_size_before", p.handler.messageQueue.Size(),
+		"agent_busy_now", p.handler.stateManager.IsAgentBusy())
+
+	statusCmd := func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Compacting conversation...",
+			Spinner:    true,
+			StatusType: domain.StatusPreparing,
+		}
+	}
+
+	rolloverCmd := func() tea.Msg {
+		newID, fired := p.handler.sessionRolloverManager.MaybeRollover(
 			context.Background(),
 			p.handler.modelService.GetCurrentModel(),
 			"",
 		)
+		logger.Info("chat rollover: MaybeRollover returned",
+			"fired", fired,
+			"new_session_id", newID,
+			"queue_size_after", p.handler.messageQueue.Size())
+		return domain.RolloverCompletedEvent{
+			Message: message,
+			Images:  images,
+		}
 	}
 
+	return tea.Batch(statusCmd, rolloverCmd)
+}
+
+// appendUserMessageAndStartCompletion is the synchronous tail of
+// processChatMessage. It persists the user message, fires the history
+// refresh and optional optimization status, and kicks off the chat
+// completion. Called directly when no rollover is due, and via
+// HandleRolloverCompletedEvent after an async rollover finishes.
+func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.Message, images []domain.ImageAttachment) tea.Cmd {
 	userEntry := domain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),
@@ -250,6 +308,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
+		logger.Error("chat: failed to AddMessage in appendUserMessageAndStartCompletion", "error", err)
 		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -257,6 +316,10 @@ func (p *ChatMessageProcessor) processChatMessage(
 			}
 		}
 	}
+
+	logger.Info("chat: AddMessage + startChatCompletion",
+		"repo_messages_after_add", len(p.handler.conversationRepo.GetMessages()),
+		"queue_size", p.handler.messageQueue.Size())
 
 	p.handler.stateManager.SetChatPending()
 

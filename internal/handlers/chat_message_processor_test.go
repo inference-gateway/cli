@@ -3,16 +3,19 @@ package handlers
 import (
 	"errors"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {
@@ -223,6 +226,50 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 	}
 }
 
+// fakeRolloverOptimizer is a minimal ConversationOptimizer used to exercise
+// the async-rollover path in chat mode. It returns a single summary message
+// regardless of input so PerformRollover always has something to write into
+// the new conversation.
+type fakeRolloverOptimizer struct{}
+
+func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool) []sdk.Message {
+	return []sdk.Message{
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("--- summary ---")},
+	}
+}
+
+// newChatRolloverFixture stands up a real SessionRolloverManager backed by
+// in-memory SQLite and an in-memory SessionGroupStorage. Used by the
+// async-rollover handler tests; cheaper than refactoring SessionRolloverManager
+// to an interface just for mocking.
+func newChatRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *services.PersistentConversationRepository, func()) {
+	t.Helper()
+
+	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
+	require.NoError(t, err)
+	repo := services.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
+
+	cfg := &config.Config{}
+	cfg.Compact.Enabled = true
+	cfg.Compact.AutoAt = 80
+	cfg.Compact.RolloverOnIdleMinutes = 0
+	cfg.Compact.KeepFirstMessages = 2
+
+	mgr := services.NewSessionRolloverManager(
+		cfg,
+		fakeRolloverOptimizer{},
+		repo,
+		services.NewTokenizerService(services.DefaultTokenizerConfig()),
+		storage.NewMemorySessionGroupStorage(),
+	)
+
+	cleanup := func() {
+		_ = repo.Close()
+		_ = storageBackend.Close()
+	}
+	return mgr, repo, cleanup
+}
+
 func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -270,6 +317,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
+				messageQueue:     services.NewMessageQueueService(),
 				completionRunner: &mocks.FakeChatCompletionRunner{},
 			}
 
@@ -280,4 +328,135 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 			assert.NotNil(t, cmd)
 		})
 	}
+}
+
+// TestChatMessageProcessor_processChatMessage_AsyncRolloverPath verifies that
+// when the rollover gate is open, processChatMessage emits a "Compacting..."
+// status and dispatches a RolloverCompletedEvent asynchronously so the
+// Bubble Tea Update loop stays responsive while the summary LLM call runs.
+func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T) {
+	mgr, repo, cleanup := newChatRolloverFixture(t)
+	defer cleanup()
+
+	require.NoError(t, repo.StartNewConversation("Initial"))
+	require.NoError(t, repo.AddMessage(domain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		Time:    time.Now(),
+	}))
+	// LastInputTokens above the 80% threshold for the unknown-model fallback
+	// (30000 * 80 / 100 = 24000) opens the rollover gate without needing a
+	// large conversation in the entries-only estimator.
+	require.NoError(t, repo.AddTokenUsage("unknown-tiny-model", 25000, 100, 25100))
+
+	mockModel := &mocks.FakeModelService{}
+	mockModel.GetCurrentModelReturns("unknown-tiny-model")
+	stateManager := services.NewStateManager(false)
+	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner.StartReturns(func() tea.Msg { return nil })
+
+	handler := &ChatHandler{
+		conversationRepo:       repo,
+		sessionRolloverManager: mgr,
+		modelService:           mockModel,
+		stateManager:           stateManager,
+		messageQueue:           services.NewMessageQueueService(),
+		completionRunner:       fakeRunner,
+	}
+	processor := NewChatMessageProcessor(handler)
+
+	require.False(t, stateManager.IsAgentBusy(), "pre-condition: not busy")
+
+	cmd := processor.processChatMessage("hello world", nil)
+	require.NotNil(t, cmd)
+
+	assert.True(t, stateManager.IsAgentBusy(),
+		"compactThenContinue must SetChatPending before returning so subsequent input queues")
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok, "expected tea.BatchMsg from async path; got %T", cmd())
+
+	var sawCompactingStatus, sawRolloverCompleted bool
+	for _, sub := range batch {
+		msg := sub()
+		switch m := msg.(type) {
+		case domain.SetStatusEvent:
+			if m.Message == "Compacting conversation..." && m.Spinner {
+				sawCompactingStatus = true
+			}
+		case domain.RolloverCompletedEvent:
+			sawRolloverCompleted = true
+			assert.Equal(t, sdk.User, m.Message.Role,
+				"RolloverCompletedEvent must carry the user message that was deferred")
+		}
+	}
+	assert.True(t, sawCompactingStatus, "expected SetStatusEvent(\"Compacting conversation...\")")
+	assert.True(t, sawRolloverCompleted, "expected RolloverCompletedEvent after async rollover")
+}
+
+// TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil verifies
+// that the no-rollover-manager case still produces the synchronous AddMessage +
+// startChatCompletion batch with no "Compacting..." status.
+func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testing.T) {
+	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	stateManager := services.NewStateManager(false)
+	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner.StartReturns(func() tea.Msg { return nil })
+
+	handler := &ChatHandler{
+		conversationRepo:       conversationRepo,
+		sessionRolloverManager: nil,
+		modelService:           &mocks.FakeModelService{},
+		stateManager:           stateManager,
+		messageQueue:           services.NewMessageQueueService(),
+		completionRunner:       fakeRunner,
+	}
+	processor := NewChatMessageProcessor(handler)
+
+	cmd := processor.processChatMessage("hello", nil)
+	require.NotNil(t, cmd)
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+
+	for _, sub := range batch {
+		switch m := sub().(type) {
+		case domain.SetStatusEvent:
+			assert.NotEqual(t, "Compacting conversation...", m.Message,
+				"nil rolloverManager must not produce a Compacting status")
+		case domain.RolloverCompletedEvent:
+			t.Errorf("nil rolloverManager must not dispatch RolloverCompletedEvent")
+		}
+	}
+
+	assert.Equal(t, 1, conversationRepo.GetMessageCount(),
+		"sync path must AddMessage immediately, not defer until after rollover")
+}
+
+// TestChatHandler_HandleRolloverCompletedEvent verifies the handler-side
+// continuation: receiving the event resumes the deferred AddMessage +
+// startChatCompletion flow that processChatMessage skipped while the async
+// rollover was in flight.
+func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
+	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	stateManager := services.NewStateManager(false)
+	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner.StartReturns(func() tea.Msg { return nil })
+
+	handler := &ChatHandler{
+		conversationRepo: conversationRepo,
+		modelService:     &mocks.FakeModelService{},
+		stateManager:     stateManager,
+		messageQueue:     services.NewMessageQueueService(),
+		completionRunner: fakeRunner,
+	}
+	handler.messageProcessor = NewChatMessageProcessor(handler)
+
+	deferred := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hello after rollover")}
+	cmd := handler.HandleRolloverCompletedEvent(domain.RolloverCompletedEvent{Message: deferred})
+	require.NotNil(t, cmd)
+
+	require.Equal(t, 1, conversationRepo.GetMessageCount(),
+		"HandleRolloverCompletedEvent must AddMessage to resume the deferred user turn")
+	assert.True(t, stateManager.IsAgentBusy(),
+		"HandleRolloverCompletedEvent must SetChatPending before returning")
 }

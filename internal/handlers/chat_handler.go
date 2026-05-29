@@ -7,6 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
@@ -96,6 +97,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
+	case domain.RolloverCompletedEvent:
+		return h.HandleRolloverCompletedEvent(m)
 	case domain.FileSelectionRequestEvent:
 		return h.HandleFileSelectionRequestEvent(m)
 	case domain.ConversationSelectedEvent:
@@ -240,6 +243,17 @@ func (h *ChatHandler) HandleOptimizationStatusEvent(
 	msg domain.OptimizationStatusEvent,
 ) tea.Cmd {
 	return h.completionRunner.HandleOptimizationStatus(msg)
+}
+
+// HandleRolloverCompletedEvent resumes the deferred work after the async
+// rollover (kicked off by ChatMessageProcessor.compactThenContinue) finishes.
+func (h *ChatHandler) HandleRolloverCompletedEvent(
+	msg domain.RolloverCompletedEvent,
+) tea.Cmd {
+	logger.Info("chat rollover: completed, resuming deferred AddMessage + startChatCompletion",
+		"queue_size", h.messageQueue.Size(),
+		"repo_messages_before", len(h.conversationRepo.GetMessages()))
+	return h.messageProcessor.appendUserMessageAndStartCompletion(msg.Message, msg.Images)
 }
 
 func (h *ChatHandler) HandleToolCallUpdateEvent(

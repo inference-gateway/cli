@@ -209,13 +209,29 @@ func (sm *StateManager) CycleAgentMode() domain.AgentMode {
 // SetChatPending marks the agent as busy before the chat actually starts.
 // This prevents race conditions where messages might not be queued
 // between the time we decide to start a chat and when StartChatSession is called.
+//
+// Promotes to "pending" if there is no existing chat session OR if the existing
+// session is in a terminal status (Completed/Error/Cancelled/Idle). Terminal
+// sessions are leftovers from a prior chat that hasn't been GC'd yet; treating
+// them as "in progress" would make IsAgentBusy() return false here but true
+// for a subsequent caller that just won the SetChatPending race, which is
+// exactly the window the chat-mode async rollover relies on for queueing.
 func (sm *StateManager) SetChatPending() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	if sm.state.GetChatSession() == nil {
+	existing := sm.state.GetChatSession()
+	if existing == nil || isTerminalChatStatus(existing.Status) {
 		sm.state.SetChatPending()
 	}
+}
+
+func isTerminalChatStatus(s domain.ChatStatus) bool {
+	switch s {
+	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:
+		return true
+	}
+	return false
 }
 
 // SetEventBridge sets the event bridge for multicasting events to floating window

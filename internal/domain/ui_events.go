@@ -91,6 +91,16 @@ type UserInputEvent struct {
 	Images  []ImageAttachment
 }
 
+// RolloverCompletedEvent is dispatched when an asynchronous auto-rollover
+// finishes in chat mode. It carries the already-built sdk.Message + images
+// that were pending while the summary LLM call was in flight, so the
+// post-rollover handler can resume the deferred AddMessage + start-chat
+// completion flow without re-parsing user input.
+type RolloverCompletedEvent struct {
+	Message sdk.Message
+	Images  []ImageAttachment
+}
+
 // ModelSelectedEvent indicates model selection
 type ModelSelectedEvent struct {
 	Model string

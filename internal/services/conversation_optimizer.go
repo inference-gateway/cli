@@ -49,8 +49,8 @@ type OptimizerConfig struct {
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
 func NewConversationOptimizer(config OptimizerConfig) domain.ConversationOptimizer {
-	if config.AutoAt < 20 || config.AutoAt > 100 {
-		logger.Warn("AutoAt must be between 20 and 100, defaulting to 80", "provided", config.AutoAt)
+	if config.AutoAt < 1 || config.AutoAt > 80 {
+		logger.Warn("compact.auto_at must be between 1 and 80, defaulting to 80", "provided", config.AutoAt)
 		config.AutoAt = 80
 	}
 	if config.BufferSize <= 0 {
