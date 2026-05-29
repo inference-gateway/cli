@@ -442,7 +442,8 @@ func isDomainEvent(msg tea.Msg) bool {
 		domain.ChatChunkEvent,
 		domain.ChatCompleteEvent,
 		domain.ChatErrorEvent,
-		domain.OptimizationStatusEvent:
+		domain.OptimizationStatusEvent,
+		domain.RolloverCompletedEvent:
 		return true
 
 	// Tool execution

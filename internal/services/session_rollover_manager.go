@@ -192,7 +192,7 @@ func (m *SessionRolloverManager) idleTriggerFires(entries []domain.ConversationE
 // estimate before the first round-trip when LastInputTokens is still zero.
 func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.ConversationEntry, model string) bool {
 	autoAt := m.cfg.Compact.AutoAt
-	if autoAt <= 0 || autoAt > 100 {
+	if autoAt < 1 || autoAt > 80 {
 		autoAt = 80
 	}
 
