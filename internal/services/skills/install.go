@@ -116,21 +116,45 @@ type treeResponse struct {
 	Truncated bool        `json:"truncated"`
 }
 
-// Installer downloads a skill folder from a public GitHub repo into a local
-// destination directory.
+// Installer downloads a skill folder from a GitHub repo into a local
+// destination directory. When Token is non-empty its requests are
+// authenticated, which raises the GitHub API rate limit from 60 to 5,000
+// requests/hour and allows access to private repositories the token can see.
 type Installer struct {
 	Client  *http.Client
 	APIBase string
 	RawBase string
+	Token   string
 }
 
 // NewInstaller returns an Installer pointed at github.com with a 30s HTTP
-// timeout. Tests substitute APIBase / RawBase to point at httptest.Server.
+// timeout. The GitHub token is read from the environment (GITHUB_TOKEN, then
+// GH_TOKEN); when neither is set requests are made unauthenticated. Tests
+// substitute APIBase / RawBase to point at httptest.Server.
 func NewInstaller() *Installer {
 	return &Installer{
 		Client:  &http.Client{Timeout: installerTimeout},
 		APIBase: githubAPIBase,
 		RawBase: githubRawBase,
+		Token:   githubToken(),
+	}
+}
+
+// githubToken returns the GitHub token from the environment, preferring
+// GITHUB_TOKEN and falling back to GH_TOKEN (matching the gh CLI). It returns
+// "" when neither is set.
+func githubToken() string {
+	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
+		return t
+	}
+	return strings.TrimSpace(os.Getenv("GH_TOKEN"))
+}
+
+// setAuth adds the bearer token to req when the installer is authenticated.
+// GitHub honors the same token on api.github.com and raw.githubusercontent.com.
+func (i *Installer) setAuth(req *http.Request) {
+	if i.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+i.Token)
 	}
 }
 
@@ -227,6 +251,7 @@ func (i *Installer) fetchTree(ctx context.Context, loc *GitHubLocation) (*treeRe
 	}
 	req.Header.Set("User-Agent", installerUA)
 	req.Header.Set("Accept", "application/vnd.github+json")
+	i.setAuth(req)
 
 	resp, err := i.Client.Do(req)
 	if err != nil {
@@ -238,7 +263,10 @@ func (i *Installer) fetchTree(ctx context.Context, loc *GitHubLocation) (*treeRe
 		return nil, fmt.Errorf("repository or ref not found: %s/%s @ %s", loc.Owner, loc.Repo, loc.Ref)
 	}
 	if resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests); try again later")
+		if i.Token == "" {
+			return nil, fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests) - set GITHUB_TOKEN (or GH_TOKEN) to raise the limit to 5,000/hour, or try again later")
+		}
+		return nil, fmt.Errorf("GitHub API request forbidden (403) for %s/%s - the token may lack access or a secondary rate limit was hit; try again later", loc.Owner, loc.Repo)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -294,6 +322,7 @@ func (i *Installer) downloadFile(ctx context.Context, loc *GitHubLocation, repoP
 		return fmt.Errorf("failed to create request for %s: %w", repoPath, err)
 	}
 	req.Header.Set("User-Agent", installerUA)
+	i.setAuth(req)
 
 	resp, err := i.Client.Do(req)
 	if err != nil {

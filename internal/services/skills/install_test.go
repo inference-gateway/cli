@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
@@ -411,6 +412,90 @@ func TestUninstall_RejectsFile(t *testing.T) {
 	_, err := Uninstall("pdf", dest)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not a directory")
+}
+
+func TestGithubToken(t *testing.T) {
+	tests := []struct {
+		name        string
+		githubToken string
+		ghToken     string
+		want        string
+	}{
+		{name: "prefers GITHUB_TOKEN over GH_TOKEN", githubToken: "primary", ghToken: "secondary", want: "primary"},
+		{name: "falls back to GH_TOKEN", githubToken: "", ghToken: "secondary", want: "secondary"},
+		{name: "trims surrounding whitespace", githubToken: "  spaced  ", ghToken: "", want: "spaced"},
+		{name: "empty when neither set", githubToken: "", ghToken: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GITHUB_TOKEN", tt.githubToken)
+			t.Setenv("GH_TOKEN", tt.ghToken)
+			require.Equal(t, tt.want, githubToken())
+		})
+	}
+}
+
+func TestInstallFromGitHub_Authorization(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    string
+		wantAuth string
+	}{
+		{name: "token set sends bearer header on api and raw requests", token: "secret-token", wantAuth: "Bearer secret-token"},
+		{name: "no token sends no authorization header", token: "", wantAuth: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mu sync.Mutex
+			seen := map[string]string{}
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				seen["tree"] = r.Header.Get("Authorization")
+				mu.Unlock()
+				resp := treeResponse{Tree: []treeEntry{{Path: "skills/pdf/SKILL.md", Type: "blob"}}}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(resp)
+			})
+			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				seen["raw"] = r.Header.Get("Authorization")
+				mu.Unlock()
+				_, _ = w.Write([]byte(validSkillBody("pdf", "ok")))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			inst := &Installer{Client: http.DefaultClient, APIBase: srv.URL, RawBase: srv.URL, Token: tt.token}
+			_, err := inst.InstallFromGitHub(context.Background(),
+				"https://github.com/foo/bar/tree/main/skills/pdf", t.TempDir(), false)
+			require.NoError(t, err)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, tt.wantAuth, seen["tree"], "tree (api) request Authorization header")
+			require.Equal(t, tt.wantAuth, seen["raw"], "raw file request Authorization header")
+		})
+	}
+}
+
+func TestInstallFromGitHub_AuthenticatedForbidden(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	inst := &Installer{Client: http.DefaultClient, APIBase: srv.URL, RawBase: srv.URL, Token: "tok"}
+	_, err := inst.InstallFromGitHub(context.Background(),
+		"https://github.com/foo/bar/tree/main/skills/pdf", t.TempDir(), false)
+	require.Error(t, err)
+	// Authenticated 403 must not blame the anonymous rate limit.
+	require.Contains(t, err.Error(), "forbidden")
+	require.NotContains(t, err.Error(), "unauthenticated")
 }
 
 func TestInstallFromGitHub_OverwriteReplaces(t *testing.T) {

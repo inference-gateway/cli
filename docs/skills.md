@@ -85,7 +85,7 @@ were skipped.
 
 ## Installing skills from GitHub
 
-You can install a skill folder directly from a public GitHub repository:
+You can install a skill folder directly from a GitHub repository:
 
 ```bash
 infer skills install https://github.com/anthropics/skills/tree/main/skills/pdf
@@ -110,13 +110,25 @@ validation fails (missing `name`, name doesn't match the directory name,
 etc.) the folder is removed and the reason is printed. There is never a
 half-installed state.
 
+### Authentication
+
+Requests are unauthenticated by default, which GitHub limits to 60 API
+requests per hour per IP - easily exhausted on shared CI runners. Set
+`GITHUB_TOKEN` (or `GH_TOKEN`, matching the `gh` CLI) in the environment to
+authenticate:
+
+```bash
+GITHUB_TOKEN="$MY_TOKEN" infer skills install acme/internal-comms
+```
+
+Authenticating raises the limit to 5,000 requests per hour and lets you
+install from private repositories the token can access.
+
 **Limitations:**
 
-- Public repositories only. Private repos and `GITHUB_TOKEN`
-  authentication are not supported in this version.
-- GitHub's unauthenticated API rate limit is 60 requests per hour per
-  IP. Each install is one API call (the tree enumeration) plus one raw
-  download per file in the skill folder.
+- Each install is one API call (the tree enumeration) plus one raw
+  download per file in the skill folder. Without a token you share the
+  60 requests/hour anonymous limit with everything else on your IP.
 - Refs containing a literal `/` (e.g. `feature/foo` branches) are not
   supported. Use a tag, the default branch, or a single-segment branch.
 
