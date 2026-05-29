@@ -500,6 +500,10 @@ infer conversations list                    # List all saved conversations
 infer conversations list --limit 20         # List first 20 conversations
 infer conversations list --offset 40 -l 20  # Paginate: conversations 41-60
 infer conversations list --format json      # Output as JSON
+
+infer conversations show <session-id>                  # Show a conversation's entries
+infer conversations show <session-id> --include-hidden # Include hidden entries (e.g. system reminders)
+infer conversations show <session-id> --format json    # One JSON object per line (jq-friendly)
 ```
 
 **`infer conversation-title`** - Manage AI-powered conversation titles

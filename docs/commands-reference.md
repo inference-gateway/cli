@@ -498,6 +498,50 @@ Check the status of the inference gateway including health checks and resource u
 infer status
 ```
 
+### `infer conversations`
+
+Inspect saved conversation history from the configured storage backend (works with `jsonl`,
+`sqlite`, `postgres`, `redis`, and `memory` — the command loads through the storage layer
+rather than reading files directly).
+
+**Subcommands:**
+
+- `list`: List saved conversations with metadata (id, title, message/request counts, tokens, cost).
+- `show <session-id>`: Print a single conversation's entries in chronological order.
+
+**`show` flags:**
+
+- `--include-hidden`: Include entries marked hidden — system reminders, plan-approval prompts,
+  drained background-task results, and the synthetic verify message injected by `infer agent`.
+  Off by default.
+- `--format text|json`: `text` (default) is human-readable; `json` emits one JSON object per
+  line (NDJSON), matching the `infer agent` stdout shape for piping into `jq` or log scrapers.
+
+The `<session-id>` is resolved the same way as `infer agent --session-id`: a literal UUID is
+used as-is, while any other value is treated as a session group key and resolved to that
+group's current session id (registering the group if it is new).
+
+**Examples:**
+
+```bash
+# List conversations to find a session id
+infer conversations list
+
+# Show a conversation's entries (hidden entries omitted)
+infer conversations show 12345678-1234-1234-1234-123456789abc
+
+# Show by session group name (e.g. a channel group key)
+infer conversations show channel-telegram-12345
+
+# Include hidden entries such as system reminders
+infer conversations show <session-id> --include-hidden
+
+# One JSON object per line for piping into jq
+infer conversations show <session-id> --format json | jq .
+```
+
+See [conversation-storage.md](conversation-storage.md) for backend configuration.
+
 ### `infer conversation-title`
 
 Manage AI-powered conversation title generation. The CLI can automatically generate descriptive titles
