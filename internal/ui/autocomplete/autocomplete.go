@@ -465,12 +465,6 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", a.loadGitHubIssues, a.filterIssueSuggestions)
 		return
 	}
-	// Mid-text `/<query>` shows ONLY skills - the start-of-input `/` keeps
-	// its existing behaviour (shortcuts, skills, /model, subcommands,
-	// immediate-execution) via the switch below. Shortcuts are commands
-	// meant for start-of-input, so showing them in mid-sentence (e.g.
-	// "use /<query>") would be noisy and misleading. Skills, by contrast,
-	// are agent capabilities the user often wants to reference inline.
 	if triggerStart := findSlashTriggerStart(inputText, cursorPos); triggerStart > 0 {
 		a.applyMidTextMode(inputText, cursorPos, triggerStart, "skills-midtext", a.loadSkillsOnly, a.filterSuggestions)
 		return

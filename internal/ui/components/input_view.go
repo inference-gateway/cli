@@ -678,10 +678,6 @@ func (iv *InputView) ensureHighlighter() {
 	}
 
 	if iv.githubIssueService != nil {
-		// The validator only checks digit shape - resolution against actual
-		// issues happens at submit time in expandIssueReferences. Highlighting
-		// a "#999999" that doesn't exist is cheap; the expansion path will
-		// silently leave the raw token alone and the LLM sees it as plain text.
 		rules = append(rules, inputsyntax.IssueRefRule(func(name string) bool {
 			if name == "" {
 				return false

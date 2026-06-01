@@ -78,7 +78,6 @@ func TestListIssues_MalformedJSONReturnsEmpty(t *testing.T) {
 }
 
 func TestGetIssue_HappyPathWithCommentSlicing(t *testing.T) {
-	// Generate a response with 25 comments to verify tail-slicing to 20.
 	body := `{"number":42,"title":"feat","body":"hello","state":"OPEN","url":"https://example.com/42","author":{"login":"alice"},"comments":[`
 	for i := 0; i < 25; i++ {
 		if i > 0 {
@@ -97,8 +96,6 @@ func TestGetIssue_HappyPathWithCommentSlicing(t *testing.T) {
 	require.Equal(t, 42, iss.Number)
 	require.Equal(t, "feat", iss.Title)
 	require.Len(t, iss.Comments, maxComments, "comments must be tail-sliced to maxComments")
-	// Tail slice means we keep the LAST N - the first kept comment should be c5
-	// (since 25-20=5).
 	require.Equal(t, "c5", iss.Comments[0].Body)
 	require.Equal(t, "c24", iss.Comments[len(iss.Comments)-1].Body)
 }
@@ -121,8 +118,6 @@ func TestGetIssue_GhFailure(t *testing.T) {
 }
 
 func TestIsAvailable_CachedAfterFirstProbe(t *testing.T) {
-	// available is pre-set by newWithRunner so the probe is short-circuited;
-	// flipping it lets us prove the cached value is what's returned.
 	s := newWithRunner(nil, false)
 	require.False(t, s.IsAvailable())
 }
@@ -146,7 +141,6 @@ func TestCacheTTL_IsHonored(t *testing.T) {
 	_, _ = s.ListIssues(context.Background())
 	require.Equal(t, 1, f.calls)
 
-	// Fast-forward the cache by mutating cachedAt past the TTL.
 	s.mu.Lock()
 	s.cachedAt = time.Now().Add(-cacheTTL - time.Second)
 	s.mu.Unlock()

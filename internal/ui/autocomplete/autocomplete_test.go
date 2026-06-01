@@ -414,7 +414,6 @@ func TestAutocomplete_IssueMode_NoServiceShortCircuits(t *testing.T) {
 	theme.GetAccentColorReturns("#FF00FF")
 
 	ac := autocomplete.NewAutocomplete(theme, mockRegistry)
-	// no SetGitHubIssueService - simulates "gh not installed / no repo".
 	ac.Update("#", 1)
 	assert.False(t, ac.IsVisible())
 }
@@ -480,11 +479,9 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 		input := "look at #"
 		ac.Update(input, len(input))
 		assert.True(t, ac.IsVisible())
-		// Simulate enter-key selection by invoking handleSelection via HandleKey.
 		handled, completion := ac.HandleKey(tea.KeyMsg{Type: tea.KeyEnter})
 		assert.True(t, handled)
 		assert.Equal(t, "look at #573 ", completion)
-		// Caret should be right after "#573 " (position 13).
 		assert.Equal(t, 13, ac.GetCompletionCursorPos())
 	})
 
@@ -497,16 +494,11 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 		assert.True(t, ac.IsVisible())
 		handled, completion := ac.HandleKey(tea.KeyMsg{Type: tea.KeyEnter})
 		assert.True(t, handled)
-		// Splice should yield "look at #573 then something" - no double space
-		// because the suffix already starts with one.
 		assert.Equal(t, "look at #573 then something", completion)
 	})
 }
 
 func TestAutocomplete_SkillsMidText(t *testing.T) {
-	// A registered shortcut and a skill with similar names - mid-text must
-	// show ONLY the skill, never the shortcut. Shortcuts are commands meant
-	// for start-of-input.
 	fakeShortcut := &shortcutsmocks.FakeShortcut{}
 	fakeShortcut.GetNameReturns("clear")
 	fakeShortcut.GetDescriptionReturns("Clear screen")
@@ -529,7 +521,6 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 		input := "use /"
 		ac.Update(input, len(input))
 		assert.True(t, ac.IsVisible(), "mid-sentence /<query> should trigger")
-		// Only the skill should match - "clear" shortcut must be filtered out.
 		assert.Equal(t, "/maintainer", ac.GetSelectedShortcut(),
 			"mid-text dropdown must only contain skills")
 	})
@@ -537,7 +528,6 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	t.Run("mid-text hides when no skills match the query", func(t *testing.T) {
 		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 		ac.SetSkillsService(skillsSvc)
-		// "clear" matches the shortcut but NOT the skill, so dropdown must hide.
 		input := "use /clear"
 		ac.Update(input, len(input))
 		assert.False(t, ac.IsVisible(),
@@ -547,9 +537,6 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	t.Run("start-of-input / still shows shortcuts via existing path", func(t *testing.T) {
 		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 		ac.SetSkillsService(skillsSvc)
-		// At position 0 the existing shortcuts mode handles it - the dropdown
-		// includes both the shortcut and the skill. TestAutocomplete_CommandMode
-		// covers full behaviour; here we just assert it stays visible.
 		ac.Update("/", 1)
 		assert.True(t, ac.IsVisible())
 	})
