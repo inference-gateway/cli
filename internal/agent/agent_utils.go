@@ -409,16 +409,11 @@ func (s *AgentServiceImpl) buildOSInfo() string {
 
 	switch runtime.GOOS {
 	case "darwin":
-		osInfo += "\n- Use 'cmd' modifier for keyboard shortcuts (e.g., 'cmd+c' for copy)"
-		osInfo += "\n- Use 'open -a AppName' to launch applications (e.g., 'open -a Firefox')"
-		osInfo += "\n- Use 'open file.txt' to open files with default app"
-		osInfo += "\n- IMPORTANT: When opening URLs in browsers, ALWAYS open in a NEW WINDOW, not a new tab"
-		osInfo += "\n  Example: 'open -n -a \"Google Chrome\" --args --new-window https://example.com'"
-		osInfo += "\n  Or for Safari: 'open -n -a Safari https://example.com'"
-		osInfo += "\n  This allows proper focus management between windows"
+		osInfo += "\n- Keyboard shortcuts use the 'cmd' modifier (e.g. 'cmd+c')."
+		osInfo += "\n- Open apps and files with 'open' (e.g. 'open -a Firefox', 'open file.txt')."
 	case "linux":
-		osInfo += "\n- Use 'ctrl' modifier for keyboard shortcuts (e.g., 'ctrl+c' for copy)"
-		osInfo += "\n- Use command name directly or 'xdg-open' to launch applications"
+		osInfo += "\n- Keyboard shortcuts use the 'ctrl' modifier (e.g. 'ctrl+c')."
+		osInfo += "\n- Open apps and files with 'xdg-open' or the command name."
 	}
 
 	return osInfo

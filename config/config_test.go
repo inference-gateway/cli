@@ -900,3 +900,38 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		}
 	})
 }
+
+// TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
+// the config dir: sensitive config files are denied wholesale, while the
+// operational subdirs (tmp, plans) stay reachable - except for files that match
+// a hard protection like *.env.
+func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		ConfigDirName + "/config.yaml",
+		ConfigDirName + "/agents.yaml",
+		ConfigDirName + "/conversations.db",
+		ConfigDirName + "/shortcuts/git.yaml",
+		ConfigDirName + "/tmp/leaked.env",
+	}
+	for _, p := range denied {
+		t.Run("deny "+p, func(t *testing.T) {
+			if err := cfg.ValidatePathInSandbox(p); err == nil {
+				t.Fatalf("expected %s to be denied", p)
+			}
+		})
+	}
+
+	allowed := []string{
+		ConfigDirName + "/tmp/scratch.txt",
+		ConfigDirName + "/plans/2026-06-01-do-thing.md",
+	}
+	for _, p := range allowed {
+		t.Run("allow "+p, func(t *testing.T) {
+			if err := cfg.ValidatePathInSandbox(p); err != nil {
+				t.Fatalf("expected %s allowed, got %v", p, err)
+			}
+		})
+	}
+}

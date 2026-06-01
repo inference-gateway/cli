@@ -44,11 +44,7 @@ tools:
       - /tmp
       - .infer/tmp
     protected_paths:
-      - .infer/config.yaml
-      - .infer/*.db
-      - .infer/shortcuts/
-      - .infer/agents.yaml
-      - .infer/mcp.yaml
+      - .infer/
       - .git/
       - '*.env'
   bash:

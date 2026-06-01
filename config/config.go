@@ -619,16 +619,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Sandbox: SandboxConfig{
 				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{
-					ConfigDirName + "/config.yaml",
-					ConfigDirName + "/*.db",
-					ConfigDirName + "/shortcuts/",
-					ConfigDirName + "/agents.yaml",
-					ConfigDirName + "/mcp.yaml",
-					ConfigDirName + "/keybindings.yaml",
-					ConfigDirName + "/prompts.yaml",
-					ConfigDirName + "/channels.yaml",
-					ConfigDirName + "/heartbeat.yaml",
-					ConfigDirName + "/computer_use.yaml",
+					ConfigDirName + "/",
 					".git/",
 					"*.env",
 				},
@@ -1043,17 +1034,28 @@ func (c *Config) IsBashCommandWhitelisted(command string) bool {
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
-	if err := c.checkProtectedPaths(path); err != nil {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	// Operational carve-outs that live under the protected config dir but must
+	// stay reachable by file tools: skills (read SKILL.md), tmp (scratch) and
+	// plans (persisted plans). Hard file protections like *.env still apply
+	// inside them - see checkProtectedPaths.
+	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
+		isWithinConfigSubdir(absPath, "tmp", "plans")
+
+	if err := c.checkProtectedPaths(path, carveOut); err != nil {
 		return err
+	}
+
+	if carveOut {
+		return nil
 	}
 
 	if len(c.Tools.Sandbox.Directories) == 0 {
 		return nil
-	}
-
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
 	if c.ClaudeCode.Enabled {
@@ -1064,10 +1066,6 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 				return nil
 			}
 		}
-	}
-
-	if c.Agent.Skills.Enabled && isWithinSkillsDir(absPath) {
-		return nil
 	}
 
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {
@@ -1110,11 +1108,35 @@ func isWithinSkillsDir(absPath string) bool {
 	return false
 }
 
-// checkProtectedPaths checks if a path matches any protected path patterns
-func (c *Config) checkProtectedPaths(path string) error {
+// isWithinConfigSubdir reports whether absPath lives inside one of the named
+// subdirectories of the project config dir (./.infer/<name>). These are
+// operational areas - tmp scratch, persisted plans - that stay reachable even
+// though the rest of .infer/ is protected as a whole.
+func isWithinConfigSubdir(absPath string, names ...string) bool {
+	for _, name := range names {
+		dir, err := filepath.Abs(filepath.Join(ConfigDirName, name))
+		if err != nil {
+			continue
+		}
+		if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkProtectedPaths checks if a path matches any protected path patterns. When
+// carveOut is set the path is an operational carve-out under the config dir
+// (skills/tmp/plans), so the config-dir directory match is skipped while
+// file-level protections (e.g. *.env, .git/) are still enforced.
+func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
+		if carveOut && strings.TrimSuffix(protectedPath, "/") == ConfigDirName {
+			continue
+		}
+
 		if strings.HasSuffix(protectedPath, "/") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/")
 			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
