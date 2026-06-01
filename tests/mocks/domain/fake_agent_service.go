@@ -9,6 +9,16 @@ import (
 )
 
 type FakeAgentService struct {
+	BuildSystemPromptStub        func() string
+	buildSystemPromptMutex       sync.RWMutex
+	buildSystemPromptArgsForCall []struct {
+	}
+	buildSystemPromptReturns struct {
+		result1 string
+	}
+	buildSystemPromptReturnsOnCall map[int]struct {
+		result1 string
+	}
 	CancelRequestStub        func(string) error
 	cancelRequestMutex       sync.RWMutex
 	cancelRequestArgsForCall []struct {
@@ -61,6 +71,59 @@ type FakeAgentService struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeAgentService) BuildSystemPrompt() string {
+	fake.buildSystemPromptMutex.Lock()
+	ret, specificReturn := fake.buildSystemPromptReturnsOnCall[len(fake.buildSystemPromptArgsForCall)]
+	fake.buildSystemPromptArgsForCall = append(fake.buildSystemPromptArgsForCall, struct {
+	}{})
+	stub := fake.BuildSystemPromptStub
+	fakeReturns := fake.buildSystemPromptReturns
+	fake.recordInvocation("BuildSystemPrompt", []interface{}{})
+	fake.buildSystemPromptMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAgentService) BuildSystemPromptCallCount() int {
+	fake.buildSystemPromptMutex.RLock()
+	defer fake.buildSystemPromptMutex.RUnlock()
+	return len(fake.buildSystemPromptArgsForCall)
+}
+
+func (fake *FakeAgentService) BuildSystemPromptCalls(stub func() string) {
+	fake.buildSystemPromptMutex.Lock()
+	defer fake.buildSystemPromptMutex.Unlock()
+	fake.BuildSystemPromptStub = stub
+}
+
+func (fake *FakeAgentService) BuildSystemPromptReturns(result1 string) {
+	fake.buildSystemPromptMutex.Lock()
+	defer fake.buildSystemPromptMutex.Unlock()
+	fake.BuildSystemPromptStub = nil
+	fake.buildSystemPromptReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAgentService) BuildSystemPromptReturnsOnCall(i int, result1 string) {
+	fake.buildSystemPromptMutex.Lock()
+	defer fake.buildSystemPromptMutex.Unlock()
+	fake.BuildSystemPromptStub = nil
+	if fake.buildSystemPromptReturnsOnCall == nil {
+		fake.buildSystemPromptReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.buildSystemPromptReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeAgentService) CancelRequest(arg1 string) error {

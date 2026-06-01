@@ -359,57 +359,6 @@ var configToolsGrepStatusCmd = &cobra.Command{
 	RunE:  grepStatus,
 }
 
-var configToolsGithubCmd = &cobra.Command{
-	Use:   "github",
-	Short: "Manage GitHub tool settings",
-	Long:  `Manage GitHub-specific tool execution settings including authentication and repository configuration.`,
-}
-
-var configToolsGithubEnableCmd = &cobra.Command{
-	Use:   "enable",
-	Short: "Enable GitHub tool",
-	Long:  `Enable the GitHub tool for repository operations.`,
-	RunE:  enableGithubTool,
-}
-
-var configToolsGithubDisableCmd = &cobra.Command{
-	Use:   "disable",
-	Short: "Disable GitHub tool",
-	Long:  `Disable the GitHub tool to prevent repository operations.`,
-	RunE:  disableGithubTool,
-}
-
-var configToolsGithubStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show GitHub tool status and configuration",
-	Long:  `Display current GitHub tool status, authentication, and repository settings.`,
-	RunE:  githubStatus,
-}
-
-var configToolsGithubSetTokenCmd = &cobra.Command{
-	Use:   "set-token <token>",
-	Short: "Set GitHub authentication token",
-	Long:  `Set the GitHub personal access token for API authentication.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  setGithubToken,
-}
-
-var configToolsGithubSetOwnerCmd = &cobra.Command{
-	Use:   "set-owner <owner>",
-	Short: "Set default GitHub repository owner",
-	Long:  `Set the default GitHub repository owner/organization name.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  setGithubOwner,
-}
-
-var configToolsGithubSetRepoCmd = &cobra.Command{
-	Use:   "set-repo <repo>",
-	Short: "Set default GitHub repository name",
-	Long:  `Set the default GitHub repository name (optional, can be overridden per operation).`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  setGithubRepo,
-}
-
 var configToolsWebFetchCmd = &cobra.Command{
 	Use:   "web-fetch",
 	Short: "Manage web fetch tool settings",
@@ -781,7 +730,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_TOOLS_REQUEST_PLAN_APPROVAL_DESCRIPTION": &cfg.Prompts.Tools.RequestPlanApproval.Description,
 		"INFER_PROMPTS_TOOLS_WEB_FETCH_DESCRIPTION":             &cfg.Prompts.Tools.WebFetch.Description,
 		"INFER_PROMPTS_TOOLS_WEB_SEARCH_DESCRIPTION":            &cfg.Prompts.Tools.WebSearch.Description,
-		"INFER_PROMPTS_TOOLS_GITHUB_DESCRIPTION":                &cfg.Prompts.Tools.Github.Description,
 		"INFER_PROMPTS_TOOLS_SCHEDULE_DESCRIPTION":              &cfg.Prompts.Tools.Schedule.Description,
 		"INFER_PROMPTS_TOOLS_A2A_QUERY_AGENT_DESCRIPTION":       &cfg.Prompts.Tools.A2AQueryAgent.Description,
 		"INFER_PROMPTS_TOOLS_A2A_QUERY_TASK_DESCRIPTION":        &cfg.Prompts.Tools.A2AQueryTask.Description,
@@ -1203,7 +1151,6 @@ func init() {
 	configToolsCmd.AddCommand(configToolsSandboxCmd)
 	configToolsCmd.AddCommand(configToolsBashCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
-	configToolsCmd.AddCommand(configToolsGithubCmd)
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsWebFetchCmd)
 
@@ -1227,13 +1174,6 @@ func init() {
 	configToolsGrepCmd.AddCommand(configToolsGrepDisableCmd)
 	configToolsGrepCmd.AddCommand(configToolsGrepBackendCmd)
 	configToolsGrepCmd.AddCommand(configToolsGrepStatusCmd)
-
-	configToolsGithubCmd.AddCommand(configToolsGithubEnableCmd)
-	configToolsGithubCmd.AddCommand(configToolsGithubDisableCmd)
-	configToolsGithubCmd.AddCommand(configToolsGithubStatusCmd)
-	configToolsGithubCmd.AddCommand(configToolsGithubSetTokenCmd)
-	configToolsGithubCmd.AddCommand(configToolsGithubSetOwnerCmd)
-	configToolsGithubCmd.AddCommand(configToolsGithubSetRepoCmd)
 
 	configToolsWebFetchCmd.AddCommand(configToolsWebFetchEnableCmd)
 	configToolsWebFetchCmd.AddCommand(configToolsWebFetchDisableCmd)
@@ -1385,9 +1325,6 @@ func listTools(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nWeb Operations:\n")
 	fmt.Printf("  WebFetch  : %s\n", formatToolStatus(V.GetBool("tools.web_fetch.enabled")))
 	fmt.Printf("  WebSearch : %s\n", formatToolStatus(V.GetBool("tools.web_search.enabled")))
-
-	fmt.Printf("\nExternal Services:\n")
-	fmt.Printf("  GitHub    : %s\n", formatToolStatus(V.GetBool("tools.github.enabled")))
 
 	fmt.Printf("\nTask Management:\n")
 	fmt.Printf("  TodoWrite : %s\n", formatToolStatus(V.GetBool("tools.todo_write.enabled")))
@@ -2063,135 +2000,6 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return nil
-}
-
-// formatToolStatus formats a tool's enabled/disabled status
-func enableGithubTool(cmd *cobra.Command, args []string) error {
-	V.Set("tools.github.enabled", true)
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", formatting.FormatSuccess("GitHub tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
-	fmt.Printf("LLMs can now perform GitHub operations\n")
-	return nil
-}
-
-func disableGithubTool(cmd *cobra.Command, args []string) error {
-	V.Set("tools.github.enabled", false)
-	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", formatting.FormatErrorCLI("GitHub tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
-	fmt.Printf("LLMs can no longer perform GitHub operations\n")
-	return nil
-}
-
-func githubStatus(cmd *cobra.Command, args []string) error {
-	fmt.Printf("GitHub Tool Status: ")
-	if V.GetBool("tools.github.enabled") {
-		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
-	} else {
-		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
-	}
-
-	fmt.Printf("\nConfiguration:\n")
-	fmt.Printf("  • Base URL: %s\n", V.GetString("tools.github.base_url"))
-	fmt.Printf("  • Owner: ")
-	if owner := V.GetString("tools.github.owner"); owner != "" {
-		fmt.Printf("%s\n", owner)
-	} else {
-		fmt.Printf("(not set)\n")
-	}
-
-	fmt.Printf("  • Repository: ")
-	if repo := V.GetString("tools.github.repo"); repo != "" {
-		fmt.Printf("%s\n", repo)
-	} else {
-		fmt.Printf("(not set)\n")
-	}
-
-	fmt.Printf("  • Token: ")
-	token := V.GetString("tools.github.token")
-	resolvedToken := config.ResolveEnvironmentVariables(token)
-	if resolvedToken != "" && resolvedToken != "%GITHUB_TOKEN%" {
-		fmt.Printf("%s configured\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-	} else if token == "%GITHUB_TOKEN%" {
-		fmt.Printf("%s environment variable GITHUB_TOKEN not set\n", icons.CrossMarkStyle.Render(icons.CrossMark))
-	} else {
-		fmt.Printf("%s not configured\n", icons.CrossMarkStyle.Render(icons.CrossMark))
-	}
-
-	fmt.Printf("\nSafety Settings:\n")
-	maxSize := V.GetInt("tools.github.safety.max_size")
-	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", maxSize, float64(maxSize)/(1024*1024))
-	fmt.Printf("  • Timeout: %d seconds\n", V.GetInt("tools.github.safety.timeout"))
-
-	fmt.Printf("  • Require approval: ")
-	if V.IsSet("tools.github.require_approval") {
-		status := "disabled"
-		color := formatting.FormatErrorCLI
-		if V.GetBool("tools.github.require_approval") {
-			status = "enabled"
-			color = formatting.FormatSuccess
-		}
-		fmt.Printf("%s\n", color(status))
-	} else {
-		status := "disabled"
-		if V.GetBool("tools.safety.require_approval") {
-			status = "enabled"
-		}
-		fmt.Printf("using global setting (%s)\n", status)
-	}
-
-	return nil
-}
-
-func setGithubToken(cmd *cobra.Command, args []string) error {
-	token := args[0]
-
-	V.Set("tools.github.token", token)
-	err := utils.WriteViperConfigWithIndent(V, 2)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", formatting.FormatSuccess("GitHub token set successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Printf("Note: For security, consider using environment variables (%%GITHUB_TOKEN%%)\n")
-	return nil
-}
-
-func setGithubOwner(cmd *cobra.Command, args []string) error {
-	owner := args[0]
-
-	V.Set("tools.github.owner", owner)
-	err := utils.WriteViperConfigWithIndent(V, 2)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("GitHub default owner set to: %s", owner)))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	return nil
-}
-
-func setGithubRepo(cmd *cobra.Command, args []string) error {
-	repo := args[0]
-
-	V.Set("tools.github.repo", repo)
-	err := utils.WriteViperConfigWithIndent(V, 2)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("GitHub default repository set to: %s", repo)))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Printf("Note: This can be overridden per operation\n")
 	return nil
 }
 

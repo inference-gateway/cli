@@ -78,7 +78,6 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.RequestPlanApproval, &defaults.RequestPlanApproval)
 	mergeToolDescription(&loaded.WebFetch, &defaults.WebFetch)
 	mergeToolDescription(&loaded.WebSearch, &defaults.WebSearch)
-	mergeToolDescription(&loaded.Github, &defaults.Github)
 	mergeToolDescription(&loaded.Schedule, &defaults.Schedule)
 	mergeToolDescription(&loaded.A2AQueryAgent, &defaults.A2AQueryAgent)
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
@@ -181,7 +180,6 @@ type PromptsToolsConfig struct {
 	RequestPlanApproval PromptsToolDescription `yaml:"RequestPlanApproval" mapstructure:"RequestPlanApproval"`
 	WebFetch            PromptsToolDescription `yaml:"WebFetch" mapstructure:"WebFetch"`
 	WebSearch           PromptsToolDescription `yaml:"WebSearch" mapstructure:"WebSearch"`
-	Github              PromptsToolDescription `yaml:"Github" mapstructure:"Github"`
 	Schedule            PromptsToolDescription `yaml:"Schedule" mapstructure:"Schedule"`
 	A2AQueryAgent       PromptsToolDescription `yaml:"A2A_QueryAgent" mapstructure:"A2A_QueryAgent"`
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
@@ -201,7 +199,7 @@ type PromptsToolsConfig struct {
 func DefaultPromptsConfig() *PromptsConfig { //nolint:funlen
 	return &PromptsConfig{
 		Agent: PromptsAgentConfig{
-			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.`,
+			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion. For GitHub operations (issues, pull requests, releases, the API), use the gh CLI via the Bash tool - there is no built-in GitHub tool.`,
 			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
 
 CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
@@ -545,9 +543,6 @@ Only call this tool when the plan is final. If you need clarification, ask the u
 		},
 		WebSearch: PromptsToolDescription{
 			Description: `Search the web using Google or DuckDuckGo search engines`,
-		},
-		Github: PromptsToolDescription{
-			Description: `Interact with GitHub API to fetch issues, pull requests, and other data`,
 		},
 		Schedule: PromptsToolDescription{
 			Description: `Schedule a task that fires on a cron schedule and delivers its output through the same messaging channel that triggered the current session (e.g. Telegram).

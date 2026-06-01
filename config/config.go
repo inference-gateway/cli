@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -151,7 +150,6 @@ type ToolsConfig struct {
 	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
 	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
 	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
-	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
 	Schedule  ScheduleToolConfig  `yaml:"schedule" mapstructure:"schedule"`
 
@@ -265,23 +263,6 @@ type SubmitTaskToolConfig struct {
 type QueryTaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-}
-
-// GithubToolConfig contains GitHub fetch-specific tool settings
-type GithubToolConfig struct {
-	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
-	Token           string             `yaml:"token" mapstructure:"token"`
-	BaseURL         string             `yaml:"base_url" mapstructure:"base_url"`
-	Owner           string             `yaml:"owner" mapstructure:"owner"`
-	Repo            string             `yaml:"repo,omitempty" mapstructure:"repo,omitempty"`
-	Safety          GithubSafetyConfig `yaml:"safety" mapstructure:"safety"`
-	RequireApproval *bool              `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-}
-
-// GithubSafetyConfig contains safety settings for GitHub fetch operations
-type GithubSafetyConfig struct {
-	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
-	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -668,6 +649,11 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git diff",
 						"^git remote( -v)?$",
 						"^git show",
+						`^gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( |$)`,
+						"^gh auth status( |$)",
+						"^gh issue (create|edit|comment)( |$)",
+						"^gh pr create( |$)",
+						`^gh api [^ -][^ ]*( --paginate| --jq [^ ]+| -q [^ ]+)*$`,
 					},
 				},
 				BackgroundShells: BackgroundShellsConfig{
@@ -722,17 +708,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxResults:    10,
 				Engines:       []string{"duckduckgo", "google"},
 				Timeout:       10,
-			},
-			Github: GithubToolConfig{
-				Enabled: true,
-				Token:   "%GITHUB_TOKEN%",
-				BaseURL: "https://api.github.com",
-				Safety: GithubSafetyConfig{
-					MaxSize: 1048576, // 1MB
-					Timeout: 30,      // 30 seconds
-				},
-				Owner: DetectGithubOwner(),
-				Repo:  "",
 			},
 			TodoWrite: TodoWriteToolConfig{
 				Enabled:         true,
@@ -923,10 +898,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "WebSearch":
 		if c.Tools.WebSearch.RequireApproval != nil {
 			return *c.Tools.WebSearch.RequireApproval
-		}
-	case "Github":
-		if c.Tools.Github.RequireApproval != nil {
-			return *c.Tools.Github.RequireApproval
 		}
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {
@@ -1199,47 +1170,6 @@ func ResolveEnvironmentVariables(value string) string {
 	})
 
 	return result
-}
-
-// DetectGithubOwner attempts to detect the GitHub owner from the git remote URL
-// Returns empty string if not a git repository or not a GitHub remote
-func DetectGithubOwner() string {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	if err := cmd.Run(); err != nil {
-		return ""
-	}
-
-	cmd = exec.Command("git", "remote", "get-url", "origin")
-	output, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-
-	remoteURL := strings.TrimSpace(string(output))
-	return parseGithubOwnerFromURL(remoteURL)
-}
-
-// parseGithubOwnerFromURL extracts the GitHub owner from a git remote URL
-// Supports both HTTPS and SSH formats:
-// - https://github.com/owner/repo.git
-// - git@github.com:owner/repo.git
-func parseGithubOwnerFromURL(url string) string {
-	url = strings.TrimSpace(url)
-	if url == "" {
-		return ""
-	}
-
-	httpsPattern := regexp.MustCompile(`^https?://github\.com/([^/]+)/`)
-	if matches := httpsPattern.FindStringSubmatch(url); len(matches) > 1 {
-		return matches[1]
-	}
-
-	sshPattern := regexp.MustCompile(`^git@github\.com:([^/]+)/`)
-	if matches := sshPattern.FindStringSubmatch(url); len(matches) > 1 {
-		return matches[1]
-	}
-
-	return ""
 }
 
 // KeyNamespace represents the namespace for key binding actions

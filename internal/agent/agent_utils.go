@@ -128,11 +128,13 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
 }
 
-// addSystemPrompt adds system prompt with dynamic sandbox info and returns messages
-func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+// buildSystemPromptText assembles the full system prompt text for the given
+// turn (base prompt + custom instructions + dynamic context + date). Returns ""
+// when no base prompt is configured for the current mode.
+func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string {
 	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt == "" {
-		return messages
+		return ""
 	}
 
 	agentConfig := s.config.GetAgentConfig()
@@ -152,23 +154,58 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
 	parts = append(parts, fmt.Sprintf("Current date and time: %s", currentTime))
 
+	return strings.Join(parts, "\n\n")
+}
+
+// BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
+// send to the LLM. Exposed for the `infer debug agent system_prompt` command.
+func (s *AgentServiceImpl) BuildSystemPrompt() string {
+	return s.buildSystemPromptText(nil)
+}
+
+// addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
+// info) to messages.
+func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+	prompt := s.buildSystemPromptText(messages)
+	if prompt == "" {
+		return messages
+	}
+
 	systemMessage := sdk.Message{
 		Role:    sdk.System,
-		Content: sdk.NewMessageContent(strings.Join(parts, "\n\n")),
+		Content: sdk.NewMessageContent(prompt),
 	}
 
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
-// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, skills) for the system prompt
+// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, skills) for the system prompt
 func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Message) string {
 	return s.buildSandboxInfo() +
 		s.buildA2AAgentInfo() +
 		s.buildOSInfo() +
 		s.buildWorkingDirectoryInfo() +
 		s.buildGitContextInfo(currentTurn) +
+		s.buildGitHubGuidanceInfo() +
 		s.buildSkillsInfo() +
 		s.buildActiveSkillInfo(messages)
+}
+
+// buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work.
+// There is no built-in GitHub tool; `gh` (via Bash) covers issues, PRs,
+// releases, and the raw API with clearer errors and the standard credential
+// chain. Emitted only when Bash is enabled (otherwise the guidance is moot).
+// Lives in the dynamic context so it reaches existing users regardless of their
+// prompts.yaml override.
+func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
+	if !s.config.Tools.Bash.Enabled {
+		return ""
+	}
+	return "\n\nGITHUB OPERATIONS:\n" +
+		"Use the `gh` CLI via the Bash tool for all GitHub operations - issues, pull requests, " +
+		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
+		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. " +
+		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain)."
 }
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode
