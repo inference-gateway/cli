@@ -339,7 +339,7 @@ shortcuts:
 
             REQUIREMENTS:
             - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
-            - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
+            - Commit message: Follow conventional commits format "type: description" (under 50 chars)
             - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
             - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
             - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
@@ -411,27 +411,27 @@ shortcuts:
             REQUIREMENTS:
             - MUST use format: "type: Brief description"
             - Type MUST be one of: feat, fix, docs, style, refactor, test, chore
-            - Description MUST start with a capital letter
+            - Description MUST start with a lowercase letter
             - Description MUST be under 50 characters
             - DO NOT include any explanation, body, or additional text
             - Output ONLY the commit message, nothing else
 
             Examples of GOOD commit messages:
-            - feat: Add user authentication
-            - fix: Resolve memory leak in parser
-            - docs: Update API documentation
-            - refactor: Simplify error handling
+            - feat: add user authentication
+            - fix: resolve memory leak in parser
+            - docs: update API documentation
+            - refactor: simplify error handling
 
             Examples of BAD commit messages (DO NOT DO THIS):
             - Add user authentication (missing type)
-            - feat: add user authentication (lowercase description)
-            - feat: added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
+            - feat: Add user authentication (lowercase description)
+            - feat: Added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
 
             Analyze this diff and generate ONE commit message:
 
             ` + "```diff\n            {diff}\n            ```" + `
 
-            Output ONLY the commit message in the format "type: Description"
+            Output ONLY the commit message in the format "type: description"
           template: "!git commit -m \"{llm}\""
 `
 

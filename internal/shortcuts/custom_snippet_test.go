@@ -24,9 +24,9 @@ func TestFillTemplate(t *testing.T) {
 			name:     "LLM placeholder replacement",
 			template: "## PR Plan\n\n{llm}\n\nReview this plan.",
 			data: map[string]string{
-				"llm": "**Branch:** feat/test\n**Commit:** feat: Add test",
+				"llm": "**Branch:** feat/test\n**Commit:** feat: add test",
 			},
-			expected: "## PR Plan\n\n**Branch:** feat/test\n**Commit:** feat: Add test\n\nReview this plan.",
+			expected: "## PR Plan\n\n**Branch:** feat/test\n**Commit:** feat: add test\n\nReview this plan.",
 		},
 		{
 			name:     "mixed placeholders",
@@ -74,7 +74,7 @@ func TestFillTemplateMultiline(t *testing.T) {
 	data := map[string]string{
 		"llm": `**Branch:** feat/new-feature
 
-**Commit:** feat: Add new feature
+**Commit:** feat: add new feature
 
 **PR Title:** Add new feature implementation
 
@@ -89,7 +89,7 @@ Implements the requested feature with proper error handling.`,
 
 **Branch:** feat/new-feature
 
-**Commit:** feat: Add new feature
+**Commit:** feat: add new feature
 
 **PR Title:** Add new feature implementation
 

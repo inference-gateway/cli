@@ -3,20 +3,24 @@ package handlers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
+
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
-	assert "github.com/stretchr/testify/assert"
-	require "github.com/stretchr/testify/require"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {
@@ -118,6 +122,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockFile,
 				nil,
 				nil, // skillsService
+				nil, // githubIssueService
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
@@ -226,6 +231,117 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
+	issue123 := &domain.GitHubIssue{
+		Number: 123,
+		Title:  "Add login",
+		Body:   "Implement auth.",
+		State:  "OPEN",
+		URL:    "https://github.com/o/r/issues/123",
+		Comments: []domain.GitHubIssueComment{
+			{Author: "alice", Body: "first comment", CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		content   string
+		setup     func(*mocks.FakeGitHubIssueService)
+		assertOut func(t *testing.T, out string)
+		fetchCt   int
+	}{
+		{
+			name:    "no issue refs - passthrough",
+			content: "just text",
+			setup:   func(s *mocks.FakeGitHubIssueService) {},
+			assertOut: func(t *testing.T, out string) {
+				assert.Equal(t, "just text", out)
+			},
+		},
+		{
+			name:    "single issue ref expanded with title and body",
+			content: "fix #123 please",
+			setup: func(s *mocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(issue123, nil)
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Contains(t, out, "GitHub Issue #123 (OPEN): Add login")
+				assert.Contains(t, out, "Implement auth.")
+				assert.Contains(t, out, "[@alice, 2024-01-01]: first comment")
+				assert.True(t, strings.HasPrefix(out, "fix "), "leading content preserved")
+				assert.True(t, strings.HasSuffix(out, " please"), "trailing content preserved")
+			},
+			fetchCt: 1,
+		},
+		{
+			name:    "duplicate refs share one fetch",
+			content: "look at #1 and #1 again",
+			setup: func(s *mocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&domain.GitHubIssue{Number: 1, Title: "t", State: "OPEN"}, nil)
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Equal(t, 2, strings.Count(out, "GitHub Issue #1"))
+			},
+			fetchCt: 1,
+		},
+		{
+			name:    "fetch failure leaves raw token",
+			content: "ref #999",
+			setup: func(s *mocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(nil, errors.New("not found"))
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Equal(t, "ref #999", out)
+			},
+			fetchCt: 1,
+		},
+		{
+			name:    "no leading whitespace - not matched",
+			content: "phone-555#1234",
+			setup: func(s *mocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&domain.GitHubIssue{Number: 1234}, nil)
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Equal(t, "phone-555#1234", out)
+			},
+			fetchCt: 0,
+		},
+		{
+			name:    "start-of-string ref is matched",
+			content: "#42 is the answer",
+			setup: func(s *mocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&domain.GitHubIssue{Number: 42, Title: "Life", State: "OPEN"}, nil)
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Contains(t, out, "GitHub Issue #42 (OPEN): Life")
+				assert.True(t, strings.HasSuffix(out, " is the answer"))
+			},
+			fetchCt: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeGH := &mocks.FakeGitHubIssueService{}
+			if tt.setup != nil {
+				tt.setup(fakeGH)
+			}
+			handler := &ChatHandler{githubIssueService: fakeGH}
+			processor := NewChatMessageProcessor(handler)
+			out := processor.expandIssueReferences(context.Background(), tt.content)
+			tt.assertOut(t, out)
+			assert.Equal(t, tt.fetchCt, fakeGH.GetIssueCallCount(), "GetIssue call count mismatch")
+		})
+	}
+}
+
+func TestChatMessageProcessor_expandIssueReferences_NilService(t *testing.T) {
+	handler := &ChatHandler{}
+	processor := NewChatMessageProcessor(handler)
+	out := processor.expandIssueReferences(context.Background(), "look at #1")
+	assert.Equal(t, "look at #1", out)
 }
 
 // fakeRolloverOptimizer is a minimal ConversationOptimizer used to exercise

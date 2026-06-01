@@ -252,10 +252,10 @@ git:
       - Types: feat, fix, docs, style, refactor, test, chore
 
       EXAMPLES:
-      - "feat: Add git shortcut with AI commits"
-      - "fix: Resolve build error in container"
-      - "docs: Update README installation guide"
-      - "refactor: Simplify error handling"
+      - "feat: add git shortcut with AI commits"
+      - "fix: resolve build error in container"
+      - "docs: update README installation guide"
+      - "refactor: simplify error handling"
 
       Respond with ONLY the commit message, no quotes or explanation.
 scm:

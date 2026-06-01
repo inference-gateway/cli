@@ -839,10 +839,12 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	if autocomplete != nil && autocomplete.IsVisible() {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
 			if completion != "" {
+				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
 					return domain.AutocompleteCompleteEvent{
 						Completion:         completion,
 						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
+						CursorPos:          cursorPos,
 					}
 				}
 			}

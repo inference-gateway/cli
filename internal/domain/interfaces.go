@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -608,6 +609,51 @@ type WebSearchService interface {
 	SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
 	IsEnabled() bool
 	SetEnabled(enabled bool)
+}
+
+// GitHubIssue is a minimal projection of a GitHub issue, big enough for both
+// the autocomplete dropdown (Number, Title, State) and inline expansion into a
+// chat-message block (Body, URL, Comments, UpdatedAt). Comments is nil for the
+// list variant and populated for the view variant.
+type GitHubIssue struct {
+	Number    int
+	Title     string
+	Body      string
+	State     string
+	URL       string
+	UpdatedAt time.Time
+	Author    string
+	Comments  []GitHubIssueComment
+}
+
+// GitHubIssueComment is a single comment on a GitHub issue, sorted by
+// CreatedAt ascending.
+type GitHubIssueComment struct {
+	Author    string
+	Body      string
+	CreatedAt time.Time
+}
+
+// GitHubIssueService provides cached access to the current repository's GitHub
+// issues via the gh CLI. Implementations gracefully degrade (return empty/nil
+// with no error) when not in a git repo, when gh is not installed, or when the
+// remote/auth is not configured - the chat input's "#" autocomplete and "#N"
+// inline expansion simply become no-ops in those environments.
+type GitHubIssueService interface {
+	// ListIssues returns recent open issues for the current repo, newest first.
+	// Results are cached for a short TTL so repeated autocomplete keystrokes
+	// don't shell out per character. Returns ([], nil) on environment failures.
+	ListIssues(ctx context.Context) ([]GitHubIssue, error)
+
+	// GetIssue fetches an issue with body and the most-recent comments (capped
+	// internally). Uncached. Returns (nil, err) on failure so the expansion
+	// path can leave the raw token in place.
+	GetIssue(ctx context.Context, number int) (*GitHubIssue, error)
+
+	// IsAvailable reports whether the service can serve requests in the
+	// current environment. Used by the autocomplete trigger to short-circuit
+	// a slow first shell-out when gh / repo / auth are missing.
+	IsAvailable() bool
 }
 
 // GatewayManager manages the lifecycle of the gateway (container or binary)

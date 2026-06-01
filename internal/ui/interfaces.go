@@ -32,6 +32,7 @@ type AutocompleteComponent interface {
 	SetHeight(height int)
 	Render() string
 	GetSelectedShortcut() string
+	GetCompletionCursorPos() int
 	Hide()
 	RefreshToolsList()
 	GetUsageHint() string

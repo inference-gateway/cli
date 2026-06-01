@@ -136,7 +136,7 @@ git add .
 ```
 
 The AI will generate a commit message following the conventional commit format (e.g.,
-`feat: Add user authentication`, `fix: Resolve memory leak`).
+`feat: add user authentication`, `fix: resolve memory leak`).
 
 **Requirements:**
 

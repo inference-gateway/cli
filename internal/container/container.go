@@ -26,6 +26,7 @@ import (
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
+	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -59,6 +60,7 @@ type ServiceContainer struct {
 	pricingService         domain.PricingService
 	a2aAgentService        domain.A2AAgentService
 	skillsService          domain.SkillsService
+	githubIssueService     domain.GitHubIssueService
 	messageQueue           domain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower domain.A2ATaskTracker
@@ -285,6 +287,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		logger.Warn("failed to load skills", "error", err)
 	}
 	c.skillsService = skillsSvc
+
+	c.githubIssueService = githubissues.New()
 
 	agentClient := c.createAgentSDKClient()
 	c.agent = agent.NewAgent(
@@ -526,6 +530,10 @@ func (c *ServiceContainer) GetImageService() domain.ImageService {
 
 func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
 	return c.skillsService
+}
+
+func (c *ServiceContainer) GetGitHubIssueService() domain.GitHubIssueService {
+	return c.githubIssueService
 }
 
 func (c *ServiceContainer) GetPricingService() domain.PricingService {

@@ -232,6 +232,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebSearchService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebFetchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubIssueService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SkillsService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ModelService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ThemeService
@@ -301,6 +303,8 @@ tasks:
       - "tests/mocks/domain/fake_tool_service.go"
       - "tests/mocks/domain/fake_web_search_service.go"
       - "tests/mocks/domain/fake_web_fetch_service.go"
+      - "tests/mocks/domain/fake_git_hub_issue_service.go"
+      - "tests/mocks/domain/fake_skills_service.go"
       - "tests/mocks/domain/fake_file_service.go"
       - "tests/mocks/domain/fake_agent_service.go"
       - "tests/mocks/domain/fake_model_service.go"
