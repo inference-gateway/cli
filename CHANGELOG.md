@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.116.0](https://github.com/inference-gateway/cli/compare/v0.115.2...v0.116.0) (2026-06-01)
+
+### 🚀 Features
+
+* add /copy shortcut to copy the current conversation to clipboard ([#565](https://github.com/inference-gateway/cli/issues/565)) ([bdfe618](https://github.com/inference-gateway/cli/commit/bdfe618130ad59f0768c14668087b3e3f4d4896a))
+* **stt:** add Whisper speech-to-text for chat /voice and Telegram voice ([2f3828a](https://github.com/inference-gateway/cli/commit/2f3828a8693fbfa1bceb00f02c57c2bbe666f8ef)), closes [#559](https://github.com/inference-gateway/cli/issues/559)
+* regenerate config ([ae43e7f](https://github.com/inference-gateway/cli/commit/ae43e7f0aee603b7d274f4dbf48b77b8dd9e97b3))
+
+### 👷 CI/CD
+
+* centralize claude.yml via reusable workflow ([#557](https://github.com/inference-gateway/cli/issues/557)) ([3d48856](https://github.com/inference-gateway/cli/commit/3d48856ab5fdc15aaa42070b652504ab0aa91f69))
+* centralize claude.yml via reusable workflow ([#558](https://github.com/inference-gateway/cli/issues/558)) ([affc7a1](https://github.com/inference-gateway/cli/commit/affc7a10fe91805e1a2a6209676a1924820689d9))
+* centralize claude.yml via reusable workflow ([#563](https://github.com/inference-gateway/cli/issues/563)) ([feaeeb0](https://github.com/inference-gateway/cli/commit/feaeeb0ad19bfb41a80147fc8827f5cde1c0b49f))
+* centralize infer.yml via reusable workflow ([#564](https://github.com/inference-gateway/cli/issues/564)) ([2b80aed](https://github.com/inference-gateway/cli/commit/2b80aed45ba67997338123002519731f49b0252a))
+* **claude:** standardize workflow + task-based branch prefix ([2d256d0](https://github.com/inference-gateway/cli/commit/2d256d0a9d16e8821e94748f6709e28b5aa619aa))
+
+### 🧹 Maintenance
+
+* **deps:** add whisper-cpp and ffmpeg to flox env ([2652e99](https://github.com/inference-gateway/cli/commit/2652e99eb29191f39fcf167e4b0b40b5362190a0))
+
 ## [0.115.2](https://github.com/inference-gateway/cli/compare/v0.115.1...v0.115.2) (2026-05-30)
 
 ### ♻️ Code Refactoring
