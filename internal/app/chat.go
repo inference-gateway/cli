@@ -42,6 +42,7 @@ type ChatApplication struct {
 	toolService            domain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
+	skillsService          domain.SkillsService
 	pricingService         domain.PricingService
 	shortcutRegistry       *shortcuts.Registry
 	themeService           domain.ThemeService
@@ -118,6 +119,7 @@ func NewChatApplication(
 	conversationRepo domain.ConversationRepository,
 	fileService domain.FileService,
 	imageService domain.ImageService,
+	skillsService domain.SkillsService,
 	mcpManager domain.MCPManager,
 	messageQueue domain.MessageQueue,
 	modelService domain.ModelService,
@@ -150,6 +152,7 @@ func NewChatApplication(
 		toolService:              toolService,
 		fileService:              fileService,
 		imageService:             imageService,
+		skillsService:            skillsService,
 		pricingService:           pricingService,
 		shortcutRegistry:         shortcutRegistry,
 		themeService:             themeService,
@@ -287,6 +290,7 @@ func NewChatApplication(
 		app.toolService,
 		app.fileService,
 		app.imageService,
+		app.skillsService,
 		app.shortcutRegistry,
 		app.stateManager,
 		messageQueue,

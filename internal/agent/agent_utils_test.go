@@ -7,6 +7,8 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -20,6 +22,15 @@ type stubSkillsService struct {
 func (s *stubSkillsService) Load(_ context.Context) error    { return nil }
 func (s *stubSkillsService) List() []domain.Skill            { return s.skills }
 func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
+
+func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
+	for _, sk := range s.skills {
+		if sk.Name == name {
+			return sk, true
+		}
+	}
+	return domain.Skill{}, false
+}
 
 func TestIsCompleteJSON(t *testing.T) {
 	tests := []struct {
@@ -366,4 +377,85 @@ func TestBuildSkillsInfo_FormatsSkills(t *testing.T) {
 		require.Contains(t, got, want)
 	}
 	require.GreaterOrEqual(t, strings.Count(got, "Path: "), 2)
+}
+
+func userMsg(text string) sdk.Message {
+	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(text)}
+}
+
+func assistantMsg(text string) sdk.Message {
+	return sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(text)}
+}
+
+// activeSkillsAgent returns an agent whose skills service knows foo/bar, each
+// with distinctive metadata (description + path).
+func activeSkillsAgent() *AgentServiceImpl {
+	return &AgentServiceImpl{
+		skillsService: &stubSkillsService{
+			skills: []domain.Skill{
+				{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
+				{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
+			},
+		},
+	}
+}
+
+func TestBuildActiveSkillInfo_NilService(t *testing.T) {
+	s := &AgentServiceImpl{}
+	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo")}))
+}
+
+func TestBuildActiveSkillInfo_NoTrigger(t *testing.T) {
+	s := activeSkillsAgent()
+	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("just a normal message about foo")}))
+}
+
+// The deterministic path injects only metadata (description + path) and points
+// the model at the Read tool - it never inlines the SKILL.md body.
+func TestBuildActiveSkillInfo_SlashTriggerInjectsMetadataNotBody(t *testing.T) {
+	s := activeSkillsAgent()
+	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo please do the thing")})
+	require.Contains(t, got, "ACTIVE SKILL ")
+	require.Contains(t, got, "Read tool")
+	require.Contains(t, got, "foo (project): FOO_DESC")
+	require.Contains(t, got, "Path: /abs/.infer/skills/foo/SKILL.md")
+}
+
+func TestBuildActiveSkillInfo_PhraseTriggerCaseInsensitive(t *testing.T) {
+	for _, text := range []string{"use the bar skill now", "use bar skill", "Please Use The Bar Skill"} {
+		s := activeSkillsAgent()
+		got := s.buildActiveSkillInfo([]sdk.Message{userMsg(text)})
+		require.Contains(t, got, "bar (user): BAR_DESC", "text: %q", text)
+	}
+}
+
+func TestBuildActiveSkillInfo_TwoSkillsPluralHeader(t *testing.T) {
+	s := activeSkillsAgent()
+	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo and use the bar skill")})
+	require.Contains(t, got, "ACTIVE SKILLS ")
+	require.Contains(t, got, "FOO_DESC")
+	require.Contains(t, got, "BAR_DESC")
+}
+
+func TestBuildActiveSkillInfo_DedupesAcrossMessages(t *testing.T) {
+	s := activeSkillsAgent()
+	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo"), userMsg("/foo again")})
+	require.Equal(t, 1, strings.Count(got, "FOO_DESC"))
+}
+
+func TestBuildActiveSkillInfo_UnknownTokenIgnored(t *testing.T) {
+	s := activeSkillsAgent()
+	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("/unknown-skill do it")}))
+}
+
+func TestBuildActiveSkillInfo_OnlyUserMessagesScanned(t *testing.T) {
+	s := activeSkillsAgent()
+	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{assistantMsg("you could /foo here")}))
+}
+
+func TestBuildActiveSkillInfo_AdjacentSlashTokens(t *testing.T) {
+	s := activeSkillsAgent()
+	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo /bar")})
+	require.Contains(t, got, "FOO_DESC")
+	require.Contains(t, got, "BAR_DESC")
 }

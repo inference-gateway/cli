@@ -138,6 +138,19 @@ func (s *Service) List() []domain.Skill {
 	return out
 }
 
+// Get returns the loaded skill with the given name. Lookup is exact (names are
+// validated to the lowercase `[a-z0-9-]+` charset at load time).
+func (s *Service) Get(name string) (domain.Skill, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, sk := range s.skills {
+		if sk.Name == name {
+			return sk, true
+		}
+	}
+	return domain.Skill{}, false
+}
+
 // Errors returns a defensive copy of validation failures from the last Load.
 func (s *Service) Errors() []domain.SkillLoadError {
 	s.mu.RLock()

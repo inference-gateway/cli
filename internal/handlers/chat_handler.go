@@ -36,6 +36,7 @@ type ChatHandler struct {
 	toolCoordinator        domain.ToolExecutionCoordinator
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
+	skillsService          domain.SkillsService
 }
 
 func NewChatHandler(
@@ -47,6 +48,7 @@ func NewChatHandler(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
+	skillsService domain.SkillsService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -70,6 +72,7 @@ func NewChatHandler(
 		toolService:            toolService,
 		fileService:            fileService,
 		imageService:           imageService,
+		skillsService:          skillsService,
 		shortcutRegistry:       shortcutRegistry,
 		stateManager:           stateManager,
 		messageQueue:           messageQueue,

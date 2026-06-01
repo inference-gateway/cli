@@ -900,3 +900,55 @@ func TestGetDefaultStatusBarConfig(t *testing.T) {
 		t.Error("Expected context_usage indicator to be enabled by default")
 	}
 }
+
+func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home dir available")
+	}
+
+	userSkill := filepath.Join(home, ConfigDirName, "skills", "demo", "SKILL.md")
+	projectSkill, err := filepath.Abs(filepath.Join(ConfigDirName, "skills", "demo", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("failed to resolve project skill path: %v", err)
+	}
+
+	newCfg := func(skillsEnabled bool) *Config {
+		cfg := DefaultConfig()
+		cfg.Tools.Sandbox.Directories = []string{"/tmp"}
+		cfg.Agent.Skills.Enabled = skillsEnabled
+		return cfg
+	}
+
+	t.Run("user skills dir allowed when enabled", func(t *testing.T) {
+		if err := newCfg(true).ValidatePathInSandbox(userSkill); err != nil {
+			t.Fatalf("expected %s allowed, got %v", userSkill, err)
+		}
+	})
+
+	t.Run("project skills dir allowed when enabled", func(t *testing.T) {
+		if err := newCfg(true).ValidatePathInSandbox(projectSkill); err != nil {
+			t.Fatalf("expected %s allowed, got %v", projectSkill, err)
+		}
+	})
+
+	t.Run("rejected when skills disabled", func(t *testing.T) {
+		if err := newCfg(false).ValidatePathInSandbox(userSkill); err == nil {
+			t.Fatalf("expected %s rejected when skills disabled", userSkill)
+		}
+	})
+
+	t.Run("lookalike sibling dir not allowed", func(t *testing.T) {
+		sibling := filepath.Join(home, ConfigDirName, "skills-evil", "SKILL.md")
+		if err := newCfg(true).ValidatePathInSandbox(sibling); err == nil {
+			t.Fatalf("expected sibling %s rejected (prefix must be a path boundary)", sibling)
+		}
+	})
+
+	t.Run("protected paths under skills dir still block", func(t *testing.T) {
+		secret := filepath.Join(home, ConfigDirName, "skills", "demo", "creds.env")
+		if err := newCfg(true).ValidatePathInSandbox(secret); err == nil {
+			t.Fatalf("expected protected file %s to be denied", secret)
+		}
+	})
+}
