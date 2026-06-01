@@ -489,7 +489,6 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 		ac.SetGitHubIssueService(mockGH)
 		input := "look at #5 then something"
-		// Cursor between "5" and " " - i.e. right after "#5".
 		ac.Update(input, 10)
 		assert.True(t, ac.IsVisible())
 		handled, completion := ac.HandleKey(tea.KeyMsg{Type: tea.KeyEnter})

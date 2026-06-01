@@ -42,7 +42,6 @@ func TestListIssues_HappyPath(t *testing.T) {
 	issues, err := s.ListIssues(context.Background())
 	require.NoError(t, err)
 	require.Len(t, issues, 2)
-	// Sort is by UpdatedAt desc - beta should come first.
 	require.Equal(t, 2, issues[0].Number)
 	require.Equal(t, "beta", issues[0].Title)
 	require.Equal(t, "bob", issues[0].Author)
