@@ -187,6 +187,7 @@ words:
   - otiai
   - parenleft
   - parenright
+  - pbcopy
   - perfstat
   - pflag
   - pgdn
@@ -292,11 +293,13 @@ words:
   - wrongowner
   - wtype
   - Wtype
+  - xclip
   - xclipboard
   - xdraw
   - xgbutil
   - xgraphics
   - ximg
+  - xsel
   - xtest
   - xxhash
   - ydotool

@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
@@ -447,6 +448,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.backgroundTaskRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
+	c.shortcutRegistry.Register(shortcuts.NewCopyShortcut(c.conversationRepo, clipboardtext.NewWriter()))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())

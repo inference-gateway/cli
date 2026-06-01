@@ -832,6 +832,7 @@ actions.
 - `/theme` - Switch chat theme
 - `/cost` - Show session cost breakdown with per-model details
 - `/compact` - Compact conversation
+- `/copy [format]` - Copy current conversation to the system clipboard (text, markdown, or json)
 - `/export` - Export conversation
 
 **Git Shortcuts** (created by `infer init`):
