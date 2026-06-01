@@ -650,14 +650,6 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git diff",
 						"^git remote( -v)?$",
 						"^git show",
-						// gh CLI: non-destructive operations. Reads (list/view/
-						// status/diff/checks), the targeted writes the agent
-						// needs (issue create/edit/comment, pr create), and
-						// GET-only `gh api` (bare endpoint + read-only flags).
-						// Destructive ops (pr merge, repo delete, release
-						// create/delete, run cancel, auth login, workflow run,
-						// `gh api -X POST/...`) are deliberately omitted so they
-						// fall through to the approval flow.
 						`^gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( |$)`,
 						"^gh auth status( |$)",
 						"^gh issue (create|edit|comment)( |$)",
