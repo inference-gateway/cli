@@ -26,7 +26,7 @@ claude_code:
   thinking_budget: 10000
   max_turns: 10
 speech_to_text:
-  enabled: true
+  enabled: false
   engine: whisper.cpp
   binary_path: ""
   model: tiny
