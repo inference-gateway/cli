@@ -524,6 +524,10 @@ func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
 }
 
+func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
+	return c.skillsService
+}
+
 func (c *ServiceContainer) GetPricingService() domain.PricingService {
 	return c.PricingService()
 }

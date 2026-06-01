@@ -131,7 +131,7 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 // buildSystemPromptText assembles the full system prompt text for the given
 // turn (base prompt + custom instructions + dynamic context + date). Returns ""
 // when no base prompt is configured for the current mode.
-func (s *AgentServiceImpl) buildSystemPromptText(currentTurn int) string {
+func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string {
 	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt == "" {
 		return ""
@@ -145,7 +145,7 @@ func (s *AgentServiceImpl) buildSystemPromptText(currentTurn int) string {
 	}
 
 	if agentConfig.SystemPromptWithDefaults {
-		contextInfo := s.buildContextInfo(currentTurn)
+		contextInfo := s.buildContextInfo(len(messages)/2, messages)
 		if contextInfo != "" {
 			parts = append(parts, contextInfo)
 		}
@@ -160,13 +160,13 @@ func (s *AgentServiceImpl) buildSystemPromptText(currentTurn int) string {
 // BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
 // send to the LLM. Exposed for the `infer debug agent system_prompt` command.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
-	return s.buildSystemPromptText(0)
+	return s.buildSystemPromptText(nil)
 }
 
 // addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
 // info) to messages.
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
-	prompt := s.buildSystemPromptText(len(messages) / 2)
+	prompt := s.buildSystemPromptText(messages)
 	if prompt == "" {
 		return messages
 	}
@@ -180,14 +180,15 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 }
 
 // buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, skills) for the system prompt
-func (s *AgentServiceImpl) buildContextInfo(currentTurn int) string {
+func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Message) string {
 	return s.buildSandboxInfo() +
 		s.buildA2AAgentInfo() +
 		s.buildOSInfo() +
 		s.buildWorkingDirectoryInfo() +
 		s.buildGitContextInfo(currentTurn) +
 		s.buildGitHubGuidanceInfo() +
-		s.buildSkillsInfo()
+		s.buildSkillsInfo() +
+		s.buildActiveSkillInfo(messages)
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work.
@@ -249,11 +250,112 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	var b strings.Builder
 	b.WriteString("\n\nAVAILABLE SKILLS:\n")
 	b.WriteString("Skills are reusable instructions for specific tasks. ")
-	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions.\n\n")
+	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions. ")
+	b.WriteString("To deterministically load a skill's full instructions, invoke it explicitly with /<name> or \"use the <name> skill\".\n\n")
 	for _, sk := range skills {
 		fmt.Fprintf(&b, "- %s (%s): %s\n  Path: %s\n", sk.Name, sk.Scope, sk.Description, sk.Path)
 	}
 	return b.String()
+}
+
+var (
+	// skillNameLead extracts the leading skill-name run from a "/<name>" token
+	// after the slash (names are the lowercase [a-z0-9-]+ charset enforced at
+	// load time). Applied per whitespace-delimited field so adjacent tokens
+	// like "/foo /bar" both match.
+	skillNameLead = regexp.MustCompile(`^[a-z0-9-]+`)
+	// skillPhraseTrigger matches natural-language "use the <name> skill" /
+	// "use <name> skill" (case-insensitive). The boundaries are zero-width, so
+	// consecutive phrases don't shadow one another.
+	skillPhraseTrigger = regexp.MustCompile(`(?i)\buse(?:\s+the)?\s+([a-z0-9-]+)\s+skill\b`)
+)
+
+// buildActiveSkillInfo deterministically surfaces the skills the user
+// explicitly invoked (via "/<name>" or "use the <name> skill"). Unlike
+// buildSkillsInfo - which lists every available skill and leaves it to the
+// model whether to engage one - this guarantees an invoked skill is flagged as
+// active regardless of mode (chat, `infer agent`, channels, heartbeat), all of
+// which funnel through addSystemPrompt. It injects only the skill's metadata
+// (description + path), not the body: the SKILL.md body stays progressive
+// disclosure, read on demand by the model via the Read tool (now reachable
+// thanks to the sandbox carve-out). Empty when no trigger matched a loaded
+// skill.
+func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
+	if s.skillsService == nil {
+		return ""
+	}
+
+	names := s.matchSkillTriggers(messages)
+	if len(names) == 0 {
+		return ""
+	}
+
+	var entries []string
+	for _, name := range names {
+		sk, ok := s.skillsService.Get(name)
+		if !ok {
+			continue
+		}
+		entries = append(entries, fmt.Sprintf("- %s (%s): %s\n  Path: %s", sk.Name, sk.Scope, sk.Description, sk.Path))
+	}
+
+	if len(entries) == 0 {
+		return ""
+	}
+
+	header := "ACTIVE SKILL"
+	if len(entries) > 1 {
+		header = "ACTIVE SKILLS"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n\n%s - the user explicitly invoked the following; read each SKILL.md at the listed path with the Read tool and follow its instructions:\n", header)
+	b.WriteString(strings.Join(entries, "\n"))
+	b.WriteString("\n")
+	return b.String()
+}
+
+// matchSkillTriggers scans user-role messages for explicit skill invocations
+// (slash token or "use the X skill" phrase), returning the de-duplicated names
+// of skills that are actually loaded, in first-seen order. Unknown tokens are
+// ignored so a bare "/word" in prose never errors.
+func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
+	seen := make(map[string]struct{})
+	var names []string
+
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, dup := seen[name]; dup {
+			return
+		}
+		if _, ok := s.skillsService.Get(name); !ok {
+			return
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+
+	for _, msg := range messages {
+		if msg.Role != sdk.User {
+			continue
+		}
+		text, err := msg.Content.AsMessageContent0()
+		if err != nil || text == "" {
+			continue
+		}
+		for _, field := range strings.Fields(text) {
+			if name, ok := strings.CutPrefix(field, "/"); ok {
+				add(skillNameLead.FindString(strings.ToLower(name)))
+			}
+		}
+		for _, m := range skillPhraseTrigger.FindAllStringSubmatch(text, -1) {
+			add(strings.ToLower(m[1]))
+		}
+	}
+
+	return names
 }
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt

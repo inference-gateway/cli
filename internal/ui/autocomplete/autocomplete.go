@@ -37,6 +37,7 @@ type AutocompleteImpl struct {
 	height                   int
 	maxVisible               int
 	shortcutRegistry         ShortcutRegistry
+	skillsService            domain.SkillsService
 	stateManager             domain.StateManager
 	lastAgentMode            domain.AgentMode
 	toolService              domain.ToolService
@@ -66,6 +67,12 @@ func NewAutocomplete(theme ui.Theme, shortcutRegistry ShortcutRegistry) *Autocom
 // SetToolService sets the tool service for tool autocomplete
 func (a *AutocompleteImpl) SetToolService(toolService domain.ToolService) {
 	a.toolService = toolService
+}
+
+// SetSkillsService sets the skills service so installed skills appear in the
+// slash-command autocomplete alongside shortcuts.
+func (a *AutocompleteImpl) SetSkillsService(skillsService domain.SkillsService) {
+	a.skillsService = skillsService
 }
 
 // SetStateManager sets the state manager for agent mode filtering
@@ -117,13 +124,39 @@ func (a *AutocompleteImpl) loadShortcuts() {
 	}
 
 	a.suggestions = []ShortcutOption{}
+	seen := make(map[string]bool)
 	shortcuts := a.shortcutRegistry.GetAll()
 
 	for _, shortcut := range shortcuts {
+		seen[shortcut.GetName()] = true
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "/" + shortcut.GetName(),
 			Description: shortcut.GetDescription(),
 			Usage:       shortcut.GetUsage(),
+		})
+	}
+
+	a.appendSkills(seen)
+}
+
+// appendSkills adds installed skills to the suggestion list as "/<name>"
+// entries so they autocomplete like shortcuts. Skills are invoked as
+// "/<name> ..." and routed to the agent (see isSkillInvocation). A skill whose
+// name already matches a registered shortcut is skipped to avoid duplicates.
+func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
+	if a.skillsService == nil {
+		return
+	}
+
+	for _, skill := range a.skillsService.List() {
+		if seen[skill.Name] {
+			continue
+		}
+		seen[skill.Name] = true
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + skill.Name,
+			Description: skill.Description,
+			Usage:       "",
 		})
 	}
 }

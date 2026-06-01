@@ -169,6 +169,9 @@ func installSkill(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Printf("Installed skill to %s\n", dest)
+	if Cfg == nil || !Cfg.Agent.Skills.Enabled {
+		fmt.Println("Note: skills are disabled - run `infer config agent skills enable` (or set INFER_AGENT_SKILLS_ENABLED=true) to load this skill.")
+	}
 	return nil
 }
 

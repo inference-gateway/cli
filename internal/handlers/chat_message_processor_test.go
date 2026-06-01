@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -116,6 +117,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockTool,
 				mockFile,
 				nil,
+				nil, // skillsService
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
@@ -459,4 +461,43 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 		"HandleRolloverCompletedEvent must AddMessage to resume the deferred user turn")
 	assert.True(t, stateManager.IsAgentBusy(),
 		"HandleRolloverCompletedEvent must SetChatPending before returning")
+}
+
+type stubSkillsService struct {
+	names map[string]struct{}
+}
+
+func (s stubSkillsService) Load(context.Context) error { return nil }
+func (s stubSkillsService) List() []domain.Skill       { return nil }
+func (s stubSkillsService) Get(name string) (domain.Skill, bool) {
+	_, ok := s.names[name]
+	return domain.Skill{Name: name}, ok
+}
+func (s stubSkillsService) Errors() []domain.SkillLoadError { return nil }
+
+func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
+	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}}}
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: skills})
+
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"known skill", "/maintainer fix issue 5", true},
+		{"known skill case-insensitive", "/Maintainer go", true},
+		{"unknown skill falls through to shortcut", "/clear", false},
+		{"non-slash message", "use the maintainer skill", false},
+		{"unknown slash token", "/totally-unknown", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, p.isSkillInvocation(tt.content))
+		})
+	}
+}
+
+func TestChatMessageProcessor_isSkillInvocation_NilService(t *testing.T) {
+	p := NewChatMessageProcessor(&ChatHandler{})
+	require.False(t, p.isSkillInvocation("/maintainer"))
 }

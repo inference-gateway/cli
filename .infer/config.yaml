@@ -26,7 +26,7 @@ claude_code:
   thinking_budget: 10000
   max_turns: 10
 speech_to_text:
-  enabled: true
+  enabled: false
   engine: whisper.cpp
   binary_path: ""
   model: tiny
@@ -183,7 +183,7 @@ agent:
     working_dir_enabled: true
     git_context_refresh_turns: 10
   skills:
-    enabled: false
+    enabled: true
   verbose_tools: false
   max_turns: 50
   max_tokens: 8192

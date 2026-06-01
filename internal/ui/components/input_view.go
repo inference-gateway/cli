@@ -9,7 +9,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
+	inputsyntax "github.com/inference-gateway/cli/internal/ui/inputsyntax"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -24,6 +26,10 @@ type InputView struct {
 	modelService         domain.ModelService
 	imageService         domain.ImageService
 	stateManager         domain.StateManager
+	skillsService        domain.SkillsService
+	shortcutRegistry     *shortcuts.Registry
+	fileService          domain.FileService
+	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
 	conversationRepo     domain.ConversationRepository
 	historyManager       *history.HistoryManager
@@ -93,6 +99,24 @@ func (iv *InputView) SetImageService(imageService domain.ImageService) {
 // SetConversationRepo sets the conversation repository for context usage display
 func (iv *InputView) SetConversationRepo(repo domain.ConversationRepository) {
 	iv.conversationRepo = repo
+}
+
+// SetSkillsService sets the skills service so "/<skill>" tokens can be
+// highlighted in the input to signal they route to the agent.
+func (iv *InputView) SetSkillsService(skillsService domain.SkillsService) {
+	iv.skillsService = skillsService
+}
+
+// SetShortcutRegistry sets the shortcut registry so "/<shortcut>" tokens can be
+// highlighted in the input.
+func (iv *InputView) SetShortcutRegistry(registry *shortcuts.Registry) {
+	iv.shortcutRegistry = registry
+}
+
+// SetFileService sets the file service so "@<path>" references to real files can
+// be highlighted in the input.
+func (iv *InputView) SetFileService(fileService domain.FileService) {
+	iv.fileService = fileService
 }
 
 func (iv *InputView) GetInput() string {
@@ -264,7 +288,14 @@ func (iv *InputView) renderTextWithCursor() string {
 		result = iv.renderUnwrappedText(before, after)
 	}
 
-	return iv.applyModePrefixStyling(result)
+	result = iv.applyModePrefixStyling(result)
+	if !strings.HasPrefix(iv.text, "!") {
+		iv.ensureHighlighter()
+		if iv.highlighter != nil {
+			result = iv.highlighter.Highlight(result)
+		}
+	}
+	return result
 }
 
 func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
@@ -605,6 +636,47 @@ func (iv *InputView) TryHandleHistorySuggestionTab() bool {
 // HasHistorySuggestion returns true if there's a history suggestion available
 func (iv *InputView) HasHistorySuggestion() bool {
 	return iv.historySuggestion != ""
+}
+
+// ensureHighlighter lazily builds the input-token highlighter the first time it
+// is needed, once the style provider is available. Each rule is included only
+// when its backing service is wired, so the highlighter degrades gracefully (and
+// tests that set only a theme don't crash). Validators close over iv so they
+// read live service state. Rules are ordered skill-before-shortcut because they
+// share the "/" sigil - the skill rule's ANSI prevents the shortcut rule from
+// re-coloring a known skill (see inputsyntax.Highlight).
+func (iv *InputView) ensureHighlighter() {
+	if iv.highlighter != nil || iv.styleProvider == nil {
+		return
+	}
+
+	var rules []inputsyntax.Rule
+	if iv.skillsService != nil {
+		rules = append(rules, inputsyntax.SkillRule(func(name string) bool {
+			_, found := iv.skillsService.Get(strings.ToLower(name))
+			return found
+		}))
+	}
+	if iv.shortcutRegistry != nil {
+		rules = append(rules, inputsyntax.ShortcutRule(func(name string) bool {
+			_, found := iv.shortcutRegistry.Get(name)
+			return found
+		}))
+	}
+	if iv.fileService != nil {
+		rules = append(rules, inputsyntax.FileRefRule(func(path string) bool {
+			return iv.fileService.ValidateFile(path) == nil
+		}))
+	}
+
+	// TODO: highlight GitHub issue refs ("#365") once they carry meaning in the
+	// input - add: rules = append(rules, inputsyntax.IssueRefRule(nil))
+	// (give KindIssueRef its own theme color key in rules.go).
+
+	if len(rules) == 0 {
+		return
+	}
+	iv.highlighter = inputsyntax.New(rules, iv.styleProvider.GetThemeColor, iv.styleProvider.RenderWithColor)
 }
 
 // applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)
