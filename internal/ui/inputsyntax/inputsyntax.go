@@ -47,8 +47,8 @@ type Rule struct {
 	Kind     Kind
 	Re       *regexp.Regexp
 	Sigil    byte
-	ColorKey string                 // theme color key, e.g. "accent"
-	Validate func(name string) bool // name = token without its sigil; nil => always valid
+	ColorKey string
+	Validate func(name string) bool
 }
 
 // Highlighter applies an ordered set of rules to an already-rendered string.

@@ -61,8 +61,6 @@ func TestHighlight_PartialTokenLeftUnstyled(t *testing.T) {
 func TestHighlight_AlreadyStyledNotReprocessed(t *testing.T) {
 	h := newSkillHighlighter("plan")
 	once := h.Highlight("/plan")
-	// Running Highlight again must not double-wrap: the sigil is no longer on a
-	// boundary after the first pass styled it.
 	assert.Equal(t, once, h.Highlight(once))
 }
 
@@ -73,8 +71,6 @@ func TestHighlight_SkillBeforeShortcutSameSigil(t *testing.T) {
 	}
 	h := New(rules, fakeColor, fakeRender)
 
-	// "maintainer" is both a skill and a shortcut: the skill rule (accent) wins
-	// because it runs first; "git" falls through to the shortcut rule (status).
 	got := h.Highlight("/maintainer /git")
 	assert.Equal(t, "<accent>/maintainer</> <status>/git</>", got)
 }
@@ -112,8 +108,6 @@ func TestHighlight_FileRef(t *testing.T) {
 
 func TestHighlight_FileRefFollowedByEscapeStillMatches(t *testing.T) {
 	h := New([]Rule{FileRefRule(knownSet("main.go"))}, fakeColor, fakeRender)
-	// Simulates the cursor's ANSI markup immediately after the path (no trailing
-	// space): the body must stop at ESC, not swallow it, so the file still styles.
 	in := "@main.go\x1b[7m \x1b[0m"
 	want := "<success>@main.go</>\x1b[7m \x1b[0m"
 	assert.Equal(t, want, h.Highlight(in))

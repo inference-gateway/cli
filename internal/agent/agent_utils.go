@@ -308,14 +308,11 @@ func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
 		if err != nil || text == "" {
 			continue
 		}
-		// Slash tokens: one candidate per whitespace-delimited field starting
-		// with "/", so adjacent "/foo /bar" both register.
 		for _, field := range strings.Fields(text) {
 			if name, ok := strings.CutPrefix(field, "/"); ok {
 				add(skillNameLead.FindString(strings.ToLower(name)))
 			}
 		}
-		// Natural-language "use the <name> skill".
 		for _, m := range skillPhraseTrigger.FindAllStringSubmatch(text, -1) {
 			add(strings.ToLower(m[1]))
 		}
