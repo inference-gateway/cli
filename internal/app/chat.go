@@ -201,9 +201,12 @@ func NewChatApplication(
 		iv.SetImageService(app.imageService)
 		iv.SetConfig(app.config)
 		iv.SetConversationRepo(app.conversationRepo)
+		iv.SetSkillsService(app.skillsService)
+		iv.SetShortcutRegistry(app.shortcutRegistry)
+		iv.SetFileService(app.fileService)
 	}
 
-	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService)
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
 	}

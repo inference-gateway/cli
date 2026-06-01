@@ -1156,6 +1156,38 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 	},
 }
 
+var configAgentSkillsCmd = &cobra.Command{
+	Use:   "skills",
+	Short: "Manage Agent Skills loading",
+	Long: `Manage Agent Skills loading.
+
+Skills are folders containing a SKILL.md file that the agent reads on demand.
+They are disabled by default; enable them to have skills under .infer/skills/
+and ~/.infer/skills/ discovered, injected into the system prompt, and offered
+in chat autocomplete.`,
+}
+
+var configAgentSkillsEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable Agent Skills loading",
+	Long:  `Enable Agent Skills loading (sets agent.skills.enabled: true).`,
+	RunE:  enableSkills,
+}
+
+var configAgentSkillsDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable Agent Skills loading",
+	Long:  `Disable Agent Skills loading (sets agent.skills.enabled: false). No skill directories are scanned and nothing is injected into the system prompt.`,
+	RunE:  disableSkills,
+}
+
+var configAgentSkillsStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show whether Agent Skills loading is enabled",
+	Long:  `Display whether Agent Skills loading is currently enabled.`,
+	RunE:  skillsStatus,
+}
+
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
@@ -1223,10 +1255,48 @@ func init() {
 	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
 	configAgentCmd.AddCommand(configAgentSetMaxConcurrentToolsCmd)
 	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
+	configAgentCmd.AddCommand(configAgentSkillsCmd)
+
+	configAgentSkillsCmd.AddCommand(configAgentSkillsEnableCmd)
+	configAgentSkillsCmd.AddCommand(configAgentSkillsDisableCmd)
+	configAgentSkillsCmd.AddCommand(configAgentSkillsStatusCmd)
 
 	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
 
 	rootCmd.AddCommand(configCmd)
+}
+
+func enableSkills(cmd *cobra.Command, args []string) error {
+	V.Set("agent.skills.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", formatting.FormatSuccess("Agent Skills enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
+	fmt.Println("Skills under .infer/skills/ and ~/.infer/skills/ will now load (run `infer skills list` to verify).")
+	return nil
+}
+
+func disableSkills(cmd *cobra.Command, args []string) error {
+	V.Set("agent.skills.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", formatting.FormatSuccess("Agent Skills disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
+	return nil
+}
+
+func skillsStatus(cmd *cobra.Command, args []string) error {
+	enabled := Cfg != nil && Cfg.Agent.Skills.Enabled
+	status := "disabled"
+	if enabled {
+		status = "enabled"
+	}
+	fmt.Printf("Agent Skills: %s (agent.skills.enabled: %t)\n", status, enabled)
+	return nil
 }
 
 func enableTools(cmd *cobra.Command, args []string) error {
