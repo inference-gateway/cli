@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services"
+	services "github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
@@ -1355,6 +1356,53 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 	assert.Contains(t, content, "/etc")
 
 	assert.Equal(t, sdk.User, result[1].Role)
+}
+
+func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			SystemPromptWithDefaults: true,
+		},
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemPrompt: "You are a helpful assistant.",
+			},
+		},
+		Tools: config.ToolsConfig{
+			Sandbox: config.SandboxConfig{
+				Directories:    []string{"/home/user"},
+				ProtectedPaths: []string{"/etc"},
+			},
+		},
+	}
+
+	agentService := &AgentServiceImpl{
+		config: cfg,
+	}
+
+	prompt := agentService.BuildSystemPrompt()
+
+	assert.Contains(t, prompt, "You are a helpful assistant.")
+	assert.Contains(t, prompt, "SANDBOX RESTRICTIONS:")
+	assert.Contains(t, prompt, "Current date and time:")
+
+	systemMsg := agentService.addSystemPrompt(nil)[0]
+	content, err := systemMsg.Content.AsMessageContent0()
+	assert.NoError(t, err)
+	const tsMarker = "Current date and time:"
+	assert.Equal(t, strings.SplitN(content, tsMarker, 2)[0], strings.SplitN(prompt, tsMarker, 2)[0])
+}
+
+func TestAgentServiceImpl_BuildSystemPrompt_EmptyPrompt(t *testing.T) {
+	agentService := &AgentServiceImpl{
+		config: &config.Config{
+			Prompts: config.PromptsConfig{
+				Agent: config.PromptsAgentConfig{SystemPrompt: ""},
+			},
+		},
+	}
+
+	assert.Equal(t, "", agentService.BuildSystemPrompt())
 }
 
 func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {

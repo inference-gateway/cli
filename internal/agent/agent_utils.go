@@ -128,11 +128,13 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
 }
 
-// addSystemPrompt adds system prompt with dynamic sandbox info and returns messages
-func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+// buildSystemPromptText assembles the full system prompt text for the given
+// turn (base prompt + custom instructions + dynamic context + date). Returns ""
+// when no base prompt is configured for the current mode.
+func (s *AgentServiceImpl) buildSystemPromptText(currentTurn int) string {
 	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt == "" {
-		return messages
+		return ""
 	}
 
 	agentConfig := s.config.GetAgentConfig()
@@ -143,7 +145,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	}
 
 	if agentConfig.SystemPromptWithDefaults {
-		contextInfo := s.buildContextInfo(len(messages) / 2)
+		contextInfo := s.buildContextInfo(currentTurn)
 		if contextInfo != "" {
 			parts = append(parts, contextInfo)
 		}
@@ -152,9 +154,26 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
 	parts = append(parts, fmt.Sprintf("Current date and time: %s", currentTime))
 
+	return strings.Join(parts, "\n\n")
+}
+
+// BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
+// send to the LLM. Exposed for the `infer debug agent system_prompt` command.
+func (s *AgentServiceImpl) BuildSystemPrompt() string {
+	return s.buildSystemPromptText(0)
+}
+
+// addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
+// info) to messages.
+func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+	prompt := s.buildSystemPromptText(len(messages) / 2)
+	if prompt == "" {
+		return messages
+	}
+
 	systemMessage := sdk.Message{
 		Role:    sdk.System,
-		Content: sdk.NewMessageContent(strings.Join(parts, "\n\n")),
+		Content: sdk.NewMessageContent(prompt),
 	}
 
 	return append([]sdk.Message{systemMessage}, messages...)
