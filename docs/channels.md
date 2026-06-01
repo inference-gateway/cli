@@ -30,6 +30,8 @@ Key features:
 - **Secure by default**: Allowlist-based access control per channel
 - **Persistent sessions**: Deterministic session IDs per sender
 - **Text and image support**: Forward text messages and images to the agent
+- **Voice transcription**: Inbound voice messages are transcribed to text with Whisper when
+  `speech_to_text.enabled` is set — see [Speech-to-Text](speech-to-text.md)
 
 ## Architecture
 

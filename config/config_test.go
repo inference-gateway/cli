@@ -37,6 +37,30 @@ func TestDefaultConfig(t *testing.T) {
 	t.Run("chat defaults", func(t *testing.T) {
 		testChatDefaults(t, cfg)
 	})
+	t.Run("speech_to_text defaults", func(t *testing.T) {
+		testSpeechToTextDefaults(t, cfg)
+	})
+}
+
+func testSpeechToTextDefaults(t *testing.T, cfg *Config) {
+	if cfg.SpeechToText.Enabled {
+		t.Error("Expected speech_to_text to be disabled by default")
+	}
+	if cfg.IsSpeechToTextEnabled() {
+		t.Error("Expected IsSpeechToTextEnabled to be false by default")
+	}
+	if cfg.SpeechToText.Engine != "whisper.cpp" {
+		t.Errorf("Expected engine 'whisper.cpp', got %q", cfg.SpeechToText.Engine)
+	}
+	if cfg.SpeechToText.Model != "tiny" {
+		t.Errorf("Expected default model 'tiny', got %q", cfg.SpeechToText.Model)
+	}
+	if !cfg.SpeechToText.AutoDownload {
+		t.Error("Expected auto_download to be true by default")
+	}
+	if cfg.SpeechToText.MaxRecordingSeconds != 30 {
+		t.Errorf("Expected max_recording_seconds 30, got %d", cfg.SpeechToText.MaxRecordingSeconds)
+	}
 }
 
 func testGatewayDefaults(t *testing.T, cfg *Config) {

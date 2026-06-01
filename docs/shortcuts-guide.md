@@ -50,6 +50,7 @@ These shortcuts are available out of the box:
 - `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
+- `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
 
 ### Project Initialization Shortcut
 
@@ -84,6 +85,25 @@ By default `/copy` uses plain `text`; pass a format to override it — `/copy ma
 - **WSL:** `clip.exe` (writes to the Windows host clipboard)
 
 If none of these utilities is available, `/copy` reports an error naming the ones it looked for.
+
+### Voice Shortcut
+
+The `/voice` shortcut records audio from your microphone, transcribes it locally with
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp), and places the transcription into the
+input field — ready to review and send. It is **disabled by default** and gated behind the
+`speech_to_text.enabled` feature flag (see [Speech-to-Text](speech-to-text.md) for full setup).
+
+1. Enable it: set `speech_to_text.enabled: true` in `.infer/config.yaml`
+2. Type `/voice` and press Enter — recording starts immediately and stops a couple of
+   seconds after you go quiet (`speech_to_text.silence_timeout`), or at the
+   `max_recording_seconds` cap, or pass an override like `/voice 8`
+3. The transcribed text appears in the input field; edit if needed and press Enter to send
+
+`/voice` shells out to `ffmpeg` (or `arecord`/`sox` on Linux) to capture 16 kHz mono audio and to a
+`whisper-cli`/`whisper-cpp` binary to transcribe it. The GGML model (default `tiny`) is downloaded
+on first use. If a required tool is missing, `/voice` reports an actionable error with install
+hints. The same speech-to-text engine also transcribes inbound Telegram voice messages when running
+`infer channels-manager`.
 
 ---
 

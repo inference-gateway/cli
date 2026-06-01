@@ -26,6 +26,7 @@ type Config struct {
 	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
 	ClaudeCode       ClaudeCodeConfig       `yaml:"claude_code" mapstructure:"claude_code"`
+	SpeechToText     SpeechToTextConfig     `yaml:"speech_to_text" mapstructure:"speech_to_text"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -75,6 +76,27 @@ type ClaudeCodeConfig struct {
 	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
 	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
 	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"`
+}
+
+// SpeechToTextConfig contains speech-to-text (Whisper) integration settings.
+// It is an opt-in feature flag: when Enabled, the /voice chat shortcut and
+// inbound Telegram voice-message transcription become available. Transcription
+// shells out to a local whisper.cpp binary (whisper-cli/whisper-cpp) and uses
+// ffmpeg for audio capture and OGG->WAV conversion; the GGML model is
+// downloaded on first use. None of this adds CGO to the Go binary.
+type SpeechToTextConfig struct {
+	Enabled             bool   `yaml:"enabled" mapstructure:"enabled"`
+	Engine              string `yaml:"engine" mapstructure:"engine"`                               // "whisper.cpp" (only engine for now)
+	BinaryPath          string `yaml:"binary_path" mapstructure:"binary_path"`                     // "" -> resolve whisper-cli/whisper-cpp on PATH
+	Model               string `yaml:"model" mapstructure:"model"`                                 // "tiny" (->ggml-tiny.bin); base/small/medium/large/*.en accepted
+	ModelsDir           string `yaml:"models_dir" mapstructure:"models_dir"`                       // "" -> ~/.infer/models/whisper
+	Language            string `yaml:"language" mapstructure:"language"`                           // "" -> auto-detect
+	AutoDownload        bool   `yaml:"auto_download" mapstructure:"auto_download"`                 // download model on first use if missing
+	Timeout             int    `yaml:"timeout" mapstructure:"timeout"`                             // transcription timeout (seconds)
+	MaxRecordingSeconds int    `yaml:"max_recording_seconds" mapstructure:"max_recording_seconds"` // chat /voice recording cap
+	SilenceTimeout      int    `yaml:"silence_timeout" mapstructure:"silence_timeout"`             // stop /voice after N s of silence (0 = record full cap)
+	FFmpegPath          string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`                     // "" -> resolve ffmpeg on PATH
+	InputDevice         string `yaml:"input_device" mapstructure:"input_device"`                   // "" -> platform default mic
 }
 
 // ClientConfig contains HTTP client settings
@@ -581,6 +603,20 @@ func DefaultConfig() *Config { //nolint:funlen
 			ThinkingBudget:  10000,
 			MaxTurns:        10,
 		},
+		SpeechToText: SpeechToTextConfig{
+			Enabled:             false,
+			Engine:              "whisper.cpp",
+			BinaryPath:          "",
+			Model:               "tiny",
+			ModelsDir:           "",
+			Language:            "",
+			AutoDownload:        true,
+			Timeout:             120,
+			MaxRecordingSeconds: 30,
+			SilenceTimeout:      2,
+			FFmpegPath:          "",
+			InputDevice:         "",
+		},
 		Client: ClientConfig{
 			Timeout: 200,
 			Retry: RetryConfig{
@@ -932,6 +968,13 @@ func (c *Config) IsA2AToolsEnabled() bool {
 // When enabled, the CLI will use Claude Max/Pro subscription instead of gateway
 func (c *Config) IsClaudeCodeMode() bool {
 	return c.ClaudeCode.Enabled
+}
+
+// IsSpeechToTextEnabled checks if speech-to-text (Whisper) is enabled.
+// When enabled, the /voice chat shortcut and Telegram voice-message
+// transcription become available.
+func (c *Config) IsSpeechToTextEnabled() bool {
+	return c.SpeechToText.Enabled
 }
 
 func (c *Config) GetAgentConfig() *AgentConfig {

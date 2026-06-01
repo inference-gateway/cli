@@ -72,6 +72,8 @@ An agentic command-line assistant that writes code, understands project context,
   [Learn more →](docs/mcp-integration.md)
 - **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
+- **Speech-to-Text (Whisper)**: Dictate into chat with `/voice` and transcribe inbound Telegram voice messages, locally and offline -
+  off by default - [Learn more →](docs/speech-to-text.md)
 - **Scheduled Tasks**: Ask the agent (over Telegram, etc.) to run a prompt on a cron schedule and deliver the result back through the same channel -
   recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
 - **Heartbeat (Periodic Wake-Up)**: Wake the agent on a fixed interval to check for pending todos and background work,
@@ -833,6 +835,7 @@ actions.
 - `/cost` - Show session cost breakdown with per-model details
 - `/compact` - Compact conversation
 - `/copy [format]` - Copy current conversation to the system clipboard (text, markdown, or json)
+- `/voice [seconds]` - Record from the microphone and transcribe to the input field with Whisper (requires `speech_to_text.enabled`)
 - `/export` - Export conversation
 
 **Git Shortcuts** (created by `infer init`):

@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	audio "github.com/inference-gateway/cli/internal/audio"
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
@@ -28,6 +29,7 @@ import (
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	stt "github.com/inference-gateway/cli/internal/stt"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -468,6 +470,14 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
+	}
+
+	if c.config.IsSpeechToTextEnabled() {
+		c.shortcutRegistry.Register(shortcuts.NewVoiceShortcut(
+			c.config.SpeechToText,
+			audio.NewRecorder(c.config.SpeechToText),
+			stt.NewWhisperTranscriber(c.config.SpeechToText),
+		))
 	}
 
 	configDir := c.config.GetConfigDir()

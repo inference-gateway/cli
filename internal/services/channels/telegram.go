@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,16 +23,26 @@ import (
 
 const maxMessageLen = 4096
 
+// VoiceTranscriber transcribes a downloaded audio file (any format ffmpeg can
+// decode) into text. It is defined here so the channel can be wired with a
+// concrete speech-to-text implementation only when the feature is enabled,
+// while remaining nil (and a no-op) otherwise.
+type VoiceTranscriber interface {
+	TranscribeFile(ctx context.Context, audioPath string) (string, error)
+}
+
 // TelegramChannel implements domain.Channel for the Telegram Bot API
 // using the go-telegram/bot SDK with long-polling.
 type TelegramChannel struct {
-	cfg config.TelegramChannelConfig
-	bot *bot.Bot
+	cfg         config.TelegramChannelConfig
+	bot         *bot.Bot
+	transcriber VoiceTranscriber
 }
 
-// NewTelegramChannel creates a new Telegram channel
-func NewTelegramChannel(cfg config.TelegramChannelConfig) *TelegramChannel {
-	return &TelegramChannel{cfg: cfg}
+// NewTelegramChannel creates a new Telegram channel. transcriber may be nil, in
+// which case inbound voice messages are ignored.
+func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber) *TelegramChannel {
+	return &TelegramChannel{cfg: cfg, transcriber: transcriber}
 }
 
 // Name returns the channel identifier
@@ -76,6 +87,12 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 					logger.Error("Failed to download photo: %v", err)
 				} else {
 					msg.Images = append(msg.Images, *img)
+				}
+			}
+
+			if fileID, ok := msg.Metadata["voice_file_id"]; ok && fileID != "" {
+				if !t.applyVoiceTranscription(ctx, b, msg, fileID) {
+					return
 				}
 			}
 
@@ -178,7 +195,7 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 		content = msg.Caption
 	}
 
-	if content == "" && len(msg.Photo) == 0 {
+	if content == "" && len(msg.Photo) == 0 && msg.Voice == nil && msg.Audio == nil {
 		return nil
 	}
 
@@ -213,29 +230,113 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 		}
 	}
 
+	if msg.Voice != nil {
+		inbound.Metadata["voice_file_id"] = msg.Voice.FileID
+		if inbound.Content == "" {
+			inbound.Content = "[Voice message]"
+		}
+	} else if msg.Audio != nil {
+		inbound.Metadata["voice_file_id"] = msg.Audio.FileID
+		if inbound.Content == "" {
+			inbound.Content = "[Audio message]"
+		}
+	}
+
 	return inbound
+}
+
+// applyVoiceTranscription downloads the voice/audio file referenced by fileID,
+// transcribes it, and replaces the message content with the transcription. It
+// returns false when the message should be dropped (transcription disabled,
+// failed, or produced no text), matching the prior behavior of ignoring voice
+// messages the bot cannot turn into text.
+func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bot, msg *domain.InboundMessage, fileID string) bool {
+	if t.transcriber == nil {
+		logger.Warn("Received a voice message but speech-to-text is disabled; ignoring")
+		return false
+	}
+
+	text, err := t.transcribeVoice(ctx, b, fileID)
+	if err != nil {
+		logger.Error("Failed to transcribe voice message: %v", err)
+		return false
+	}
+	if strings.TrimSpace(text) == "" {
+		logger.Warn("Voice message transcription was empty; ignoring")
+		return false
+	}
+
+	switch msg.Content {
+	case "", "[Voice message]", "[Audio message]":
+		msg.Content = text
+	default:
+		msg.Content = msg.Content + "\n" + text
+	}
+	return true
+}
+
+// transcribeVoice downloads the referenced Telegram file to a temp path and
+// transcribes it via the configured transcriber.
+func (t *TelegramChannel) transcribeVoice(ctx context.Context, b *bot.Bot, fileID string) (string, error) {
+	data, filePath, err := fetchTelegramFile(ctx, b, t.cfg.BotToken, fileID)
+	if err != nil {
+		return "", err
+	}
+
+	tmp, err := os.CreateTemp("", "infer-tg-voice-*"+filepath.Ext(filePath))
+	if err != nil {
+		return "", fmt.Errorf("creating temp audio file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return "", fmt.Errorf("writing temp audio file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return "", fmt.Errorf("closing temp audio file: %w", err)
+	}
+
+	return t.transcriber.TranscribeFile(ctx, tmpName)
 }
 
 // downloadTelegramPhoto fetches a photo from Telegram's file API and returns it as an ImageAttachment.
 func downloadTelegramPhoto(ctx context.Context, b *bot.Bot, token, fileID string) (*domain.ImageAttachment, error) {
+	data, filePath, err := fetchTelegramFile(ctx, b, token, fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.ImageAttachment{
+		Data:        base64.StdEncoding.EncodeToString(data),
+		MimeType:    mimeFromPath(filePath),
+		Filename:    filepath.Base(filePath),
+		DisplayName: filepath.Base(filePath),
+	}, nil
+}
+
+// fetchTelegramFile resolves a file_id to its download path and returns the raw
+// file bytes along with the Telegram file path (used for extension/MIME hints).
+func fetchTelegramFile(ctx context.Context, b *bot.Bot, token, fileID string) ([]byte, string, error) {
 	file, err := b.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
 	if err != nil {
-		return nil, fmt.Errorf("getFile: %w", err)
+		return nil, "", fmt.Errorf("getFile: %w", err)
 	}
 	if file.FilePath == "" {
-		return nil, fmt.Errorf("empty file path for file_id %s", fileID)
+		return nil, "", fmt.Errorf("empty file path for file_id %s", fileID)
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", token, file.FilePath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
+		return nil, "", fmt.Errorf("creating request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("downloading file: %w", err)
+		return nil, "", fmt.Errorf("downloading file: %w", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -244,22 +345,15 @@ func downloadTelegramPhoto(ctx context.Context, b *bot.Bot, token, fileID string
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
+		return nil, "", fmt.Errorf("reading response: %w", err)
 	}
 
-	mimeType := mimeFromPath(file.FilePath)
-
-	return &domain.ImageAttachment{
-		Data:        base64.StdEncoding.EncodeToString(data),
-		MimeType:    mimeType,
-		Filename:    filepath.Base(file.FilePath),
-		DisplayName: filepath.Base(file.FilePath),
-	}, nil
+	return data, file.FilePath, nil
 }
 
 // mimeFromPath guesses MIME type from a file path extension.

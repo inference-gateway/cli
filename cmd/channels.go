@@ -15,6 +15,7 @@ import (
 	channels "github.com/inference-gateway/cli/internal/services/channels"
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
+	stt "github.com/inference-gateway/cli/internal/stt"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -206,7 +207,12 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {
-		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram)
+		var transcriber channels.VoiceTranscriber
+		if cfg.SpeechToText.Enabled {
+			transcriber = stt.NewFileTranscriber(cfg.SpeechToText)
+			logger.Info("Speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
+		}
+		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber)
 		cm.Register(telegramCh)
 		registered++
 		logger.Info("Registered channel", "channel", "telegram")

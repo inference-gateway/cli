@@ -5,10 +5,13 @@ words:
   - afero
   - alecthomas
   - alrvd
+  - alsa
   - apapsch
+  - arecord
   - asciicircum
   - asciitilde
   - autoreleasepool
+  - avfoundation
   - aymanbagabas
   - aymerick
   - bahlo
@@ -54,6 +57,7 @@ words:
   - dgryski
   - diffinfo
   - difflib
+  - dshow
   - dlclark
   - domainmocks
   - dotall
@@ -68,6 +72,7 @@ words:
   - Errorw
   - exclam
   - Fatalw
+  - ffmpeg
   - filewriter
   - filewriterdomain
   - filewriterservice
@@ -79,6 +84,8 @@ words:
   - frontmost
   - fsnotify
   - funlen
+  - ggerganov
+  - ggml
   - gjson
   - GOARCH
   - gocognit
@@ -101,6 +108,7 @@ words:
   - healthchecks
   - HTMLURL
   - htpasswd
+  - huggingface
   - imgo
   - inconshreveable
   - Infow
@@ -183,6 +191,7 @@ words:
   - OLLAMA
   - oneline
   - opencontainers
+  - opus
   - OSPEED
   - otiai
   - parenleft
@@ -200,6 +209,7 @@ words:
   - Preproc
   - procps
   - psql
+  - pulseaudio
   - purego
   - pycache
   - pytest
@@ -243,6 +253,7 @@ words:
   - slackmacgap
   - sname
   - sourcegraph
+  - sox
   - SSEHTTP
   - sslmode
   - startxfce
@@ -286,6 +297,7 @@ words:
   - webfetch
   - webp
   - websearch
+  - whisper
   - wingoes
   - Winsize
   - wordwrap

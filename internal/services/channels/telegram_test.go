@@ -15,7 +15,7 @@ import (
 )
 
 func TestTelegramChannel_Name(t *testing.T) {
-	ch := NewTelegramChannel(config.TelegramChannelConfig{})
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil)
 	if ch.Name() != "telegram" {
 		t.Errorf("expected 'telegram', got %q", ch.Name())
 	}
@@ -24,7 +24,7 @@ func TestTelegramChannel_Name(t *testing.T) {
 func TestTelegramChannel_StartRequiresToken(t *testing.T) {
 	ch := NewTelegramChannel(config.TelegramChannelConfig{
 		BotToken: "",
-	})
+	}, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -149,6 +149,57 @@ func TestProcessUpdate_PhotoWithoutCaption(t *testing.T) {
 	}
 }
 
+func TestProcessUpdate_VoiceMessage(t *testing.T) {
+	update := &models.Update{
+		ID: 1,
+		Message: &models.Message{
+			ID:    42,
+			Chat:  models.Chat{ID: 123, Type: "private"},
+			Date:  int(time.Now().Unix()),
+			Voice: &models.Voice{FileID: "voice123", Duration: 3},
+		},
+	}
+
+	msg := processUpdate(update)
+	if msg == nil {
+		t.Fatal("expected non-nil message for voice")
+	}
+	if msg.Metadata["voice_file_id"] != "voice123" {
+		t.Errorf("expected voice_file_id 'voice123', got %q", msg.Metadata["voice_file_id"])
+	}
+	if msg.Content != "[Voice message]" {
+		t.Errorf("expected placeholder content '[Voice message]', got %q", msg.Content)
+	}
+}
+
+func TestProcessUpdate_AudioMessage(t *testing.T) {
+	update := &models.Update{
+		ID: 1,
+		Message: &models.Message{
+			ID:    42,
+			Chat:  models.Chat{ID: 123, Type: "private"},
+			Date:  int(time.Now().Unix()),
+			Audio: &models.Audio{FileID: "audio123", Duration: 5},
+		},
+	}
+
+	msg := processUpdate(update)
+	if msg == nil {
+		t.Fatal("expected non-nil message for audio")
+	}
+	if msg.Metadata["voice_file_id"] != "audio123" {
+		t.Errorf("expected voice_file_id 'audio123', got %q", msg.Metadata["voice_file_id"])
+	}
+}
+
+func TestApplyVoiceTranscription_DisabledDropsMessage(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil)
+	msg := &domain.InboundMessage{Content: "[Voice message]"}
+	if ch.applyVoiceTranscription(context.Background(), nil, msg, "voice123") {
+		t.Error("expected applyVoiceTranscription to return false when transcriber is nil")
+	}
+}
+
 func TestProcessUpdate_NilMessage(t *testing.T) {
 	update := &models.Update{
 		ID:      1,
@@ -262,7 +313,7 @@ func TestDownloadTelegramPhoto(t *testing.T) {
 }
 
 func TestTelegramChannel_SendRequiresBot(t *testing.T) {
-	ch := NewTelegramChannel(config.TelegramChannelConfig{})
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil)
 
 	err := ch.Send(context.Background(), domain.OutboundMessage{
 		RecipientID: "123",
@@ -275,7 +326,7 @@ func TestTelegramChannel_SendRequiresBot(t *testing.T) {
 }
 
 func TestTelegramChannel_Stop(t *testing.T) {
-	ch := NewTelegramChannel(config.TelegramChannelConfig{})
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil)
 	err := ch.Stop()
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
@@ -283,7 +334,7 @@ func TestTelegramChannel_Stop(t *testing.T) {
 }
 
 func TestTelegramChannel_SendApprovalRequiresBot(t *testing.T) {
-	ch := NewTelegramChannel(config.TelegramChannelConfig{})
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil)
 
 	err := ch.SendApproval(context.Background(), "123", &domain.ApprovalRequest{
 		Type:       "approval_request",
