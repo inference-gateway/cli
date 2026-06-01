@@ -289,3 +289,22 @@ func TestParse_NoFrontmatter(t *testing.T) {
 	require.Len(t, s.Errors(), 1)
 	require.Contains(t, s.Errors()[0].Reason, "frontmatter")
 }
+
+func TestGet(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "pdf-helper", validSkillBody("pdf-helper", "Extract text from PDFs."))
+
+	s := newWithScopes(enabledCfg(), scope(tmp))
+	require.NoError(t, s.Load(context.Background()))
+
+	t.Run("hit", func(t *testing.T) {
+		sk, ok := s.Get("pdf-helper")
+		require.True(t, ok)
+		require.Equal(t, "pdf-helper", sk.Name)
+	})
+
+	t.Run("miss", func(t *testing.T) {
+		_, ok := s.Get("nope")
+		require.False(t, ok)
+	})
+}

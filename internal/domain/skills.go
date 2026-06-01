@@ -41,6 +41,11 @@ type SkillsService interface {
 	// List returns the currently loaded skills. The slice is a defensive
 	// copy - callers may retain or mutate it freely.
 	List() []Skill
+	// Get returns the loaded skill with the given name and true, or a zero
+	// Skill and false when no such skill is loaded. Used by deterministic
+	// activation to resolve an explicitly invoked skill name to its metadata
+	// (description + path) for injection.
+	Get(name string) (Skill, bool)
 	// Errors returns validation failures encountered during the most recent
 	// Load. Cleared on each Load call.
 	Errors() []SkillLoadError

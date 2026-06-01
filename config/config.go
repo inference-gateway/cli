@@ -1095,6 +1095,10 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		}
 	}
 
+	if c.Agent.Skills.Enabled && isWithinSkillsDir(absPath) {
+		return nil
+	}
+
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {
 		absSandboxDir, err := filepath.Abs(sandboxDir)
 		if err != nil {
@@ -1112,6 +1116,27 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
+}
+
+// isWithinSkillsDir reports whether absPath lives inside either the project
+// (./.infer/skills) or user-global (~/.infer/skills) skills directory. The
+// sandbox carve-out uses this so the agent can Read installed SKILL.md files
+// even though ~/.infer is outside the default sandbox - only consulted when Agent.Skills.Enabled.
+func isWithinSkillsDir(absPath string) bool {
+	dirs := make([]string, 0, 2)
+	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
+		dirs = append(dirs, projectDir)
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(homeDir, ConfigDirName, "skills"))
+	}
+
+	for _, dir := range dirs {
+		if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkProtectedPaths checks if a path matches any protected path patterns

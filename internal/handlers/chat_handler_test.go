@@ -379,6 +379,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // toolService
 		nil, // fileService
 		nil, // imageService
+		nil, // skillsService
 		shortcutRegistry,
 		nil, // stateManager
 		messageQueue,
@@ -718,6 +719,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockTool,
 		mockFile,
 		nil,
+		nil, // skillsService
 		shortcutRegistry,
 		stateManager,
 		messageQueue,

@@ -37,7 +37,7 @@ type fileExpansionResult struct {
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
 ) tea.Cmd {
-	if strings.HasPrefix(msg.Content, "/") {
+	if strings.HasPrefix(msg.Content, "/") && !p.isSkillInvocation(msg.Content) {
 		return p.handler.HandleCommand(msg.Content)
 	}
 
@@ -81,6 +81,28 @@ func (p *ChatMessageProcessor) handleUserInput(
 		return tea.Batch(warningCmd, chatCmd)
 	}
 	return chatCmd
+}
+
+// isSkillInvocation reports whether content is a "/<name> ..." where <name> is
+// a loaded skill. Such input is sent to the agent (which deterministically
+// flags the skill as active via buildActiveSkillInfo) rather than dispatched as
+// a chat shortcut - otherwise "/maintainer" would dead-end as "Unknown
+// shortcut". Returns false when no skills service is wired or the token isn't a
+// known skill, leaving normal shortcut handling untouched.
+func (p *ChatMessageProcessor) isSkillInvocation(content string) bool {
+	if p.handler.skillsService == nil {
+		return false
+	}
+	fields := strings.Fields(content)
+	if len(fields) == 0 {
+		return false
+	}
+	name, ok := strings.CutPrefix(fields[0], "/")
+	if !ok {
+		return false
+	}
+	_, found := p.handler.skillsService.Get(strings.ToLower(name))
+	return found
 }
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
