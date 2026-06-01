@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,11 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
+
+// issueRefRe matches `#<digits>` only at start-of-line or after whitespace, so
+// fragments like "phone-555#anchor" or "abc#1" don't get expanded. Word boundary
+// at the tail prevents partial-number false matches inside longer strings.
+var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
 
 // ChatMessageProcessor handles message processing logic
 type ChatMessageProcessor struct {
@@ -58,6 +64,8 @@ func (p *ChatMessageProcessor) handleUserInput(
 			}
 		}
 	}
+
+	result.content = p.expandIssueReferences(context.Background(), result.content)
 
 	allImages := append(msg.Images, result.images...)
 
@@ -189,6 +197,74 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 
 	result.content = expandedContent
 	return result, nil
+}
+
+// expandIssueReferences replaces `#N` tokens in the user's message with an
+// inline block containing the issue's title, body, and (capped) recent
+// comments. Mirrors expandFileReferences for `@<path>` - the substitution
+// happens before the message reaches the SDK so the LLM gets full context
+// without spending an extra turn shelling out to `gh issue view`. A failed
+// fetch leaves the raw token in place so the LLM can still attempt a
+// best-effort response or fall back to gh on its own.
+func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, content string) string {
+	if p.handler.githubIssueService == nil {
+		return content
+	}
+	matches := issueRefRe.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return content
+	}
+
+	fetched := map[int]string{}
+	for _, m := range matches {
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		if _, ok := fetched[n]; ok {
+			continue
+		}
+		fetchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		iss, err := p.handler.githubIssueService.GetIssue(fetchCtx, n)
+		cancel()
+		if err != nil || iss == nil {
+			logger.Debug("issue expansion: GetIssue failed - leaving token in place",
+				"number", n, "err", err)
+			continue
+		}
+		fetched[n] = p.formatIssueBlock(iss)
+	}
+
+	if len(fetched) == 0 {
+		return content
+	}
+
+	return issueRefRe.ReplaceAllStringFunc(content, func(match string) string {
+		sub := issueRefRe.FindStringSubmatch(match)
+		n, err := strconv.Atoi(sub[2])
+		if err != nil {
+			return match
+		}
+		block, ok := fetched[n]
+		if !ok {
+			return match
+		}
+		return sub[1] + block
+	})
+}
+
+func (p *ChatMessageProcessor) formatIssueBlock(iss *domain.GitHubIssue) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "GitHub Issue #%d (%s): %s\nURL: %s\n\n%s\n",
+		iss.Number, iss.State, iss.Title, iss.URL, iss.Body)
+	if len(iss.Comments) > 0 {
+		fmt.Fprintf(&b, "\n--- Comments (last %d) ---\n", len(iss.Comments))
+		for _, c := range iss.Comments {
+			fmt.Fprintf(&b, "[@%s, %s]: %s\n",
+				c.Author, c.CreatedAt.Format("2006-01-02"), c.Body)
+		}
+	}
+	return b.String()
 }
 
 // processChatMessage processes a regular chat message with optional image attachments

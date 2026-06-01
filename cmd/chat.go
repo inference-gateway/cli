@@ -150,6 +150,7 @@ func StartChatSession(cfg *config.Config) error {
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
 	skillsService := services.GetSkillsService()
+	githubIssueService := services.GetGitHubIssueService()
 	pricingService := services.GetPricingService()
 	shortcutRegistry := services.GetShortcutRegistry()
 	stateManager := services.GetStateManager()
@@ -201,6 +202,7 @@ func StartChatSession(cfg *config.Config) error {
 		fileService,
 		imageService,
 		skillsService,
+		githubIssueService,
 		mcpManager,
 		messageQueue,
 		modelService,

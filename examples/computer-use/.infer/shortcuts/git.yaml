@@ -51,15 +51,15 @@ shortcuts:
             - Output ONLY the commit message, nothing else
 
             Examples of GOOD commit messages:
-            - feat: Add user authentication
-            - fix: Resolve memory leak in parser
-            - docs: Update API documentation
-            - refactor: Simplify error handling
+            - feat: add user authentication
+            - fix: resolve memory leak in parser
+            - docs: update API documentation
+            - refactor: simplify error handling
 
             Examples of BAD commit messages (DO NOT DO THIS):
             - Add user authentication (missing type)
-            - feat: add user authentication (lowercase description)
-            - feat: added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
+            - feat: Add user authentication (lowercase description)
+            - feat: Added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
 
             Analyze this diff and generate ONE commit message:
 

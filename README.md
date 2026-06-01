@@ -64,6 +64,11 @@ An agentic command-line assistant that writes code, understands project context,
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers that don't return usage metrics
 - **Cost Tracking**: Real-time cost calculation for API usage with per-model breakdown and configurable pricing
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
+- **GitHub Issue References (`#`)**: Type `#` in chat to open a dropdown of the current
+  repo's open issues. Selecting one inserts a `#N` token that is highlighted in the input
+  and, on submit, expanded inline into the issue's title, body, and recent comments — so
+  the agent works from full context without a redundant `gh issue view` lookup. Gracefully
+  no-ops when `gh` is not installed or the repo has no remote.
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
 - **Model Thinking Visualization**: When models use extended thinking,
   their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)

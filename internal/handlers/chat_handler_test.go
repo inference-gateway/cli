@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	assert "github.com/stretchr/testify/assert"
+
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
+	tea "github.com/charmbracelet/bubbletea"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -14,7 +17,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
@@ -380,6 +382,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // fileService
 		nil, // imageService
 		nil, // skillsService
+		nil, // githubIssueService
 		shortcutRegistry,
 		nil, // stateManager
 		messageQueue,
@@ -720,6 +723,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockFile,
 		nil,
 		nil, // skillsService
+		nil, // githubIssueService
 		shortcutRegistry,
 		stateManager,
 		messageQueue,

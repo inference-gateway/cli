@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ShortcutOption represents a shortcut option for autocomplete
@@ -43,9 +46,13 @@ type AutocompleteImpl struct {
 	toolService              domain.ToolService
 	modelService             domain.ModelService
 	pricingService           domain.PricingService
+	githubIssueService       domain.GitHubIssueService
 	completionMode           string
 	shouldExecuteImmediately bool
 	usageHint                string
+	splicePrefix             string
+	spliceSuffix             string
+	lastCompletionCursor     int
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -88,6 +95,36 @@ func (a *AutocompleteImpl) SetModelService(modelService domain.ModelService) {
 // SetPricingService sets the pricing service for model pricing display
 func (a *AutocompleteImpl) SetPricingService(pricingService domain.PricingService) {
 	a.pricingService = pricingService
+}
+
+// SetGitHubIssueService sets the GitHub issue lookup used by the "#"
+// autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
+func (a *AutocompleteImpl) SetGitHubIssueService(s domain.GitHubIssueService) {
+	a.githubIssueService = s
+}
+
+// loadGitHubIssues populates the suggestion list with open issues from the
+// current repo. Bounded to a 2-second shell-out timeout so the Bubble Tea
+// Update goroutine doesn't stall on a slow gh call.
+func (a *AutocompleteImpl) loadGitHubIssues() {
+	a.suggestions = []ShortcutOption{}
+	if a.githubIssueService == nil || !a.githubIssueService.IsAvailable() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	issues, err := a.githubIssueService.ListIssues(ctx)
+	if err != nil {
+		return
+	}
+	a.suggestions = make([]ShortcutOption, 0, len(issues))
+	for _, iss := range issues {
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    fmt.Sprintf("#%d", iss.Number),
+			Description: iss.Title,
+			Usage:       "",
+		})
+	}
 }
 
 // loadModels loads available models from the model service
@@ -153,6 +190,24 @@ func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 			continue
 		}
 		seen[skill.Name] = true
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + skill.Name,
+			Description: skill.Description,
+			Usage:       "",
+		})
+	}
+}
+
+// loadSkillsOnly populates the suggestion list with skills only - no
+// registered shortcuts. Used by the mid-text "/" trigger because shortcuts
+// are commands that only make sense at start-of-input, while skills are
+// agent capabilities that can be referenced anywhere in a sentence.
+func (a *AutocompleteImpl) loadSkillsOnly() {
+	a.suggestions = []ShortcutOption{}
+	if a.skillsService == nil {
+		return
+	}
+	for _, skill := range a.skillsService.List() {
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "/" + skill.Name,
 			Description: skill.Description,
@@ -334,8 +389,86 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 	return paramName + "=\"\""
 }
 
+// findIssueTriggerStart locates the start of a `#<query>` token at the cursor,
+// scanning backward from cursorPos. Returns the index of the `#` sigil, or -1
+// if the cursor isn't inside an issue-reference token. A trigger is valid when
+// the `#` sits at start-of-string or directly after whitespace, and there is
+// no whitespace between the `#` and the cursor (so the user is actively
+// editing one token). This lets the `#` autocomplete fire mid-sentence, e.g.
+// "can you work on #57|" - typing more characters refines the same query.
+func findIssueTriggerStart(text string, cursorPos int) int {
+	return findSigilTriggerStart(text, cursorPos, '#')
+}
+
+// findSlashTriggerStart is the `/` counterpart of findIssueTriggerStart, used
+// to enable mid-text shortcut/skill autocomplete. Returns the index of the `/`
+// sigil at the cursor, or -1.
+func findSlashTriggerStart(text string, cursorPos int) int {
+	return findSigilTriggerStart(text, cursorPos, '/')
+}
+
+// findSigilTriggerStart factors the trigger-detection logic: scan backward
+// from cursorPos for `sigil`, requiring the run between sigil and cursor to be
+// non-whitespace and the character before the sigil to be start-of-string or
+// whitespace. Returns the sigil index or -1.
+func findSigilTriggerStart(text string, cursorPos int, sigil byte) int {
+	if cursorPos <= 0 || cursorPos > len(text) {
+		return -1
+	}
+	for k := cursorPos - 1; k >= 0; k-- {
+		c := text[k]
+		if c == ' ' || c == '\t' || c == '\n' {
+			return -1
+		}
+		if c != sigil {
+			continue
+		}
+		if k == 0 {
+			return k
+		}
+		prev := text[k-1]
+		if prev == ' ' || prev == '\t' || prev == '\n' {
+			return k
+		}
+		return -1
+	}
+	return -1
+}
+
+// applyMidTextMode is the shared body of every mid-text completion case
+// (issues, skills). It saves the prefix/suffix around the token at the cursor,
+// (re)loads the right suggestion set if the mode changed, applies the given
+// filter, and updates visibility/selection. Reads everything else from the
+// receiver, so the per-call args stay small.
+func (a *AutocompleteImpl) applyMidTextMode(
+	inputText string, cursorPos, triggerStart int,
+	mode string, loader, filter func(),
+) {
+	if a.completionMode != mode || len(a.suggestions) == 0 {
+		loader()
+		a.completionMode = mode
+		a.usageHint = ""
+	}
+	a.query = inputText[triggerStart+1 : cursorPos]
+	a.splicePrefix = inputText[:triggerStart]
+	a.spliceSuffix = inputText[cursorPos:]
+	filter()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+}
+
 // Update handles autocomplete logic
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
+	if triggerStart := findIssueTriggerStart(inputText, cursorPos); triggerStart >= 0 {
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", a.loadGitHubIssues, a.filterIssueSuggestions)
+		return
+	}
+	if triggerStart := findSlashTriggerStart(inputText, cursorPos); triggerStart > 0 {
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "skills-midtext", a.loadSkillsOnly, a.filterSuggestions)
+		return
+	}
 	switch {
 	case strings.HasPrefix(inputText, "/model ") && cursorPos >= 7:
 		if a.completionMode != "models" || len(a.suggestions) == 0 {
@@ -416,6 +549,38 @@ func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos 
 	a.usageHint = ""
 }
 
+// filterIssueSuggestions narrows the open-issues list. When the query is all
+// digits we prefix-match the issue number (so "#12" keeps #12, #120, #123...);
+// otherwise we substring-match the title and the number, case-insensitively
+// (so "#auth" finds "Add auth flow" and "#api" matches issue numbers too).
+func (a *AutocompleteImpl) filterIssueSuggestions() {
+	a.filtered = []ShortcutOption{}
+	if a.query == "" {
+		a.filtered = a.suggestions
+		return
+	}
+	allDigits := true
+	for _, r := range a.query {
+		if r < '0' || r > '9' {
+			allDigits = false
+			break
+		}
+	}
+	q := strings.ToLower(a.query)
+	for _, cmd := range a.suggestions {
+		num := strings.TrimPrefix(cmd.Shortcut, "#")
+		if allDigits {
+			if strings.HasPrefix(num, a.query) {
+				a.filtered = append(a.filtered, cmd)
+			}
+			continue
+		}
+		if strings.Contains(strings.ToLower(cmd.Description), q) || strings.Contains(num, a.query) {
+			a.filtered = append(a.filtered, cmd)
+		}
+	}
+}
+
 // filterSuggestions filters commands based on current query
 func (a *AutocompleteImpl) filterSuggestions() {
 	a.filtered = []ShortcutOption{}
@@ -489,11 +654,39 @@ func (a *AutocompleteImpl) ShouldExecuteImmediately() bool {
 	return a.shouldExecuteImmediately
 }
 
+// spliceMidText reconstructs the input by inserting `selected` between
+// `prefix` and `suffix`, preserving the user's surrounding sentence. Adds a
+// trailing space only when the suffix doesn't already start with whitespace,
+// so the user doesn't end up with a double space when editing mid-sentence.
+// Returns the new input and the caret position immediately after the inserted
+// token (past the separating space).
+func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (string, int) {
+	tail := suffix
+	addedSpace := false
+	if tail == "" || (tail[0] != ' ' && tail[0] != '\t' && tail[0] != '\n') {
+		tail = " " + tail
+		addedSpace = true
+	}
+	caret := len(prefix) + len(selected)
+	if addedSpace || (len(suffix) > 0 && (suffix[0] == ' ' || suffix[0] == '\t')) {
+		caret++
+	}
+	return prefix + selected + tail, caret
+}
+
 // handleSelection handles the selected autocomplete item
 func (a *AutocompleteImpl) handleSelection() (bool, string) {
 	selected := a.filtered[a.selected].Shortcut
 	usage := a.filtered[a.selected].Usage
 	a.shouldExecuteImmediately = false
+	a.lastCompletionCursor = 0
+
+	if a.completionMode == "issues" || a.completionMode == "skills-midtext" {
+		result, caret := a.spliceMidText(selected, a.splicePrefix, a.spliceSuffix)
+		a.lastCompletionCursor = caret
+		a.visible = false
+		return true, result
+	}
 
 	if a.completionMode == "models" {
 		selected = "/model " + selected + " "
@@ -765,6 +958,13 @@ func (a *AutocompleteImpl) renderHelpText(b *strings.Builder) {
 		fmt.Fprintf(b, "\n\n%s%sTab to select, ↑↓ to navigate%s\n",
 			leftPadding, helpColor, colors.Reset)
 	}
+}
+
+// GetCompletionCursorPos returns the explicit caret position requested by the
+// most recent handleSelection call, or 0 to mean "use the caller's default
+// heuristic". Mirrors AutocompleteCompleteEvent.CursorPos.
+func (a *AutocompleteImpl) GetCompletionCursorPos() int {
+	return a.lastCompletionCursor
 }
 
 // GetSelectedShortcut returns the currently selected shortcut

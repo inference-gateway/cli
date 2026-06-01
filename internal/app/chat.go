@@ -43,6 +43,7 @@ type ChatApplication struct {
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	skillsService          domain.SkillsService
+	githubIssueService     domain.GitHubIssueService
 	pricingService         domain.PricingService
 	shortcutRegistry       *shortcuts.Registry
 	themeService           domain.ThemeService
@@ -120,6 +121,7 @@ func NewChatApplication(
 	fileService domain.FileService,
 	imageService domain.ImageService,
 	skillsService domain.SkillsService,
+	githubIssueService domain.GitHubIssueService,
 	mcpManager domain.MCPManager,
 	messageQueue domain.MessageQueue,
 	modelService domain.ModelService,
@@ -153,6 +155,7 @@ func NewChatApplication(
 		fileService:              fileService,
 		imageService:             imageService,
 		skillsService:            skillsService,
+		githubIssueService:       githubIssueService,
 		pricingService:           pricingService,
 		shortcutRegistry:         shortcutRegistry,
 		themeService:             themeService,
@@ -204,9 +207,10 @@ func NewChatApplication(
 		iv.SetSkillsService(app.skillsService)
 		iv.SetShortcutRegistry(app.shortcutRegistry)
 		iv.SetFileService(app.fileService)
+		iv.SetGitHubIssueService(app.githubIssueService)
 	}
 
-	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService)
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
 	}
@@ -294,6 +298,7 @@ func NewChatApplication(
 		app.fileService,
 		app.imageService,
 		app.skillsService,
+		app.githubIssueService,
 		app.shortcutRegistry,
 		app.stateManager,
 		messageQueue,
@@ -330,7 +335,7 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!!", Description: "for tools mode"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for shortcuts"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize(not implemented)"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "for github issues"})
 
 	for _, kbShortcut := range keyBindingShortcuts {
 		shortcuts = append(shortcuts, ui.KeyShortcut{
@@ -1604,10 +1609,15 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 	case domain.AutocompleteCompleteEvent:
 		if acMsg.Completion != "" {
 			app.inputView.SetText(acMsg.Completion)
-			if idx := strings.Index(acMsg.Completion, `=""`); idx != -1 {
-				app.inputView.SetCursor(idx + 2)
-			} else {
-				app.inputView.SetCursor(len(acMsg.Completion))
+			switch {
+			case acMsg.CursorPos > 0:
+				app.inputView.SetCursor(acMsg.CursorPos)
+			default:
+				if idx := strings.Index(acMsg.Completion, `=""`); idx != -1 {
+					app.inputView.SetCursor(idx + 2)
+				} else {
+					app.inputView.SetCursor(len(acMsg.Completion))
+				}
 			}
 
 			usageHint := app.autocomplete.GetUsageHint()

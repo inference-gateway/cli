@@ -29,6 +29,7 @@ type InputView struct {
 	skillsService        domain.SkillsService
 	shortcutRegistry     *shortcuts.Registry
 	fileService          domain.FileService
+	githubIssueService   domain.GitHubIssueService
 	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
 	conversationRepo     domain.ConversationRepository
@@ -117,6 +118,13 @@ func (iv *InputView) SetShortcutRegistry(registry *shortcuts.Registry) {
 // be highlighted in the input.
 func (iv *InputView) SetFileService(fileService domain.FileService) {
 	iv.fileService = fileService
+}
+
+// SetGitHubIssueService enables "#<number>" highlighting in the input. The
+// validator only checks the digit shape - resolution against actual repo
+// issues happens at submit time in the expansion path.
+func (iv *InputView) SetGitHubIssueService(s domain.GitHubIssueService) {
+	iv.githubIssueService = s
 }
 
 func (iv *InputView) GetInput() string {
@@ -669,9 +677,19 @@ func (iv *InputView) ensureHighlighter() {
 		}))
 	}
 
-	// TODO: highlight GitHub issue refs ("#365") once they carry meaning in the
-	// input - add: rules = append(rules, inputsyntax.IssueRefRule(nil))
-	// (give KindIssueRef its own theme color key in rules.go).
+	if iv.githubIssueService != nil {
+		rules = append(rules, inputsyntax.IssueRefRule(func(name string) bool {
+			if name == "" {
+				return false
+			}
+			for _, r := range name {
+				if r < '0' || r > '9' {
+					return false
+				}
+			}
+			return true
+		}))
+	}
 
 	if len(rules) == 0 {
 		return

@@ -78,6 +78,7 @@ type AutocompleteHideEvent struct{}
 type AutocompleteCompleteEvent struct {
 	Completion         string
 	ExecuteImmediately bool
+	CursorPos          int
 }
 
 // AutocompleteVisibilityCheckEvent requests autocomplete visibility state

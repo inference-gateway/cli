@@ -83,7 +83,7 @@ shortcuts:
 
             REQUIREMENTS:
             - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
-            - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
+            - Commit message: Follow conventional commits format "type: description" (under 50 chars)
             - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
             - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
             - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"

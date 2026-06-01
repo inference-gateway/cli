@@ -13,6 +13,16 @@ type FakeAutocompleteComponent struct {
 	clearUsageHintMutex       sync.RWMutex
 	clearUsageHintArgsForCall []struct {
 	}
+	GetCompletionCursorPosStub        func() int
+	getCompletionCursorPosMutex       sync.RWMutex
+	getCompletionCursorPosArgsForCall []struct {
+	}
+	getCompletionCursorPosReturns struct {
+		result1 int
+	}
+	getCompletionCursorPosReturnsOnCall map[int]struct {
+		result1 int
+	}
 	GetSelectedShortcutStub        func() string
 	getSelectedShortcutMutex       sync.RWMutex
 	getSelectedShortcutArgsForCall []struct {
@@ -126,6 +136,59 @@ func (fake *FakeAutocompleteComponent) ClearUsageHintCalls(stub func()) {
 	fake.clearUsageHintMutex.Lock()
 	defer fake.clearUsageHintMutex.Unlock()
 	fake.ClearUsageHintStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) GetCompletionCursorPos() int {
+	fake.getCompletionCursorPosMutex.Lock()
+	ret, specificReturn := fake.getCompletionCursorPosReturnsOnCall[len(fake.getCompletionCursorPosArgsForCall)]
+	fake.getCompletionCursorPosArgsForCall = append(fake.getCompletionCursorPosArgsForCall, struct {
+	}{})
+	stub := fake.GetCompletionCursorPosStub
+	fakeReturns := fake.getCompletionCursorPosReturns
+	fake.recordInvocation("GetCompletionCursorPos", []interface{}{})
+	fake.getCompletionCursorPosMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAutocompleteComponent) GetCompletionCursorPosCallCount() int {
+	fake.getCompletionCursorPosMutex.RLock()
+	defer fake.getCompletionCursorPosMutex.RUnlock()
+	return len(fake.getCompletionCursorPosArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) GetCompletionCursorPosCalls(stub func() int) {
+	fake.getCompletionCursorPosMutex.Lock()
+	defer fake.getCompletionCursorPosMutex.Unlock()
+	fake.GetCompletionCursorPosStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) GetCompletionCursorPosReturns(result1 int) {
+	fake.getCompletionCursorPosMutex.Lock()
+	defer fake.getCompletionCursorPosMutex.Unlock()
+	fake.GetCompletionCursorPosStub = nil
+	fake.getCompletionCursorPosReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) GetCompletionCursorPosReturnsOnCall(i int, result1 int) {
+	fake.getCompletionCursorPosMutex.Lock()
+	defer fake.getCompletionCursorPosMutex.Unlock()
+	fake.GetCompletionCursorPosStub = nil
+	if fake.getCompletionCursorPosReturnsOnCall == nil {
+		fake.getCompletionCursorPosReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.getCompletionCursorPosReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
 }
 
 func (fake *FakeAutocompleteComponent) GetSelectedShortcut() string {

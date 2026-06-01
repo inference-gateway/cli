@@ -37,6 +37,7 @@ type ChatHandler struct {
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          domain.SkillsService
+	githubIssueService     domain.GitHubIssueService
 }
 
 func NewChatHandler(
@@ -49,6 +50,7 @@ func NewChatHandler(
 	fileService domain.FileService,
 	imageService domain.ImageService,
 	skillsService domain.SkillsService,
+	githubIssueService domain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -73,6 +75,7 @@ func NewChatHandler(
 		fileService:            fileService,
 		imageService:           imageService,
 		skillsService:          skillsService,
+		githubIssueService:     githubIssueService,
 		shortcutRegistry:       shortcutRegistry,
 		stateManager:           stateManager,
 		messageQueue:           messageQueue,
