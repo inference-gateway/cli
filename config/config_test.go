@@ -743,94 +743,42 @@ func writeViperConfigForTest(v *viper.Viper, indent int) error {
 	return nil
 }
 
-func TestParseGithubOwnerFromURL(t *testing.T) {
-	tests := []struct {
-		name     string
-		url      string
-		expected string
-	}{
-		{
-			name:     "HTTPS URL with .git extension",
-			url:      "https://github.com/inference-gateway/cli.git",
-			expected: "inference-gateway",
-		},
-		{
-			name:     "HTTPS URL without .git extension",
-			url:      "https://github.com/inference-gateway/cli",
-			expected: "inference-gateway",
-		},
-		{
-			name:     "SSH URL with .git extension",
-			url:      "git@github.com:inference-gateway/cli.git",
-			expected: "inference-gateway",
-		},
-		{
-			name:     "SSH URL without .git extension",
-			url:      "git@github.com:inference-gateway/cli",
-			expected: "inference-gateway",
-		},
-		{
-			name:     "HTTP URL (not HTTPS)",
-			url:      "http://github.com/test-org/test-repo.git",
-			expected: "test-org",
-		},
-		{
-			name:     "URL with trailing whitespace",
-			url:      "https://github.com/myorg/myrepo.git  ",
-			expected: "myorg",
-		},
-		{
-			name:     "URL with leading whitespace",
-			url:      "  git@github.com:myorg/myrepo.git",
-			expected: "myorg",
-		},
-		{
-			name:     "Non-GitHub HTTPS URL",
-			url:      "https://gitlab.com/myorg/myrepo.git",
-			expected: "",
-		},
-		{
-			name:     "Non-GitHub SSH URL",
-			url:      "git@gitlab.com:myorg/myrepo.git",
-			expected: "",
-		},
-		{
-			name:     "Empty URL",
-			url:      "",
-			expected: "",
-		},
-		{
-			name:     "Invalid URL format",
-			url:      "not-a-url",
-			expected: "",
-		},
-		{
-			name:     "GitHub Enterprise URL",
-			url:      "https://github.enterprise.com/myorg/myrepo.git",
-			expected: "",
-		},
+func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+
+	allowed := []string{
+		// read-only gh
+		"gh issue list", "gh issue view 5", "gh pr view 5", "gh pr diff",
+		"gh pr checks", "gh repo view", "gh run list", "gh release view v1",
+		"gh workflow view ci.yml", "gh auth status",
+		// targeted writes
+		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
+		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
+		// gh api GET (bare endpoint + read-only flags)
+		"gh api repos/o/r/issues", "gh api user --paginate",
+		"gh api repos/o/r/issues --jq .[].title",
+		// env inspection
+		"env", "printenv PATH",
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseGithubOwnerFromURL(tt.url)
-			if result != tt.expected {
-				t.Errorf("parseGithubOwnerFromURL(%q) = %q, expected %q", tt.url, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestDetectGithubOwner(t *testing.T) {
-	owner := DetectGithubOwner()
-
-	if owner != "" {
-		t.Logf("Detected GitHub owner: %s", owner)
-		if strings.Contains(owner, "/") {
-			t.Errorf("GitHub owner should not contain slashes: %s", owner)
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted", cmd)
 		}
-	} else {
-		t.Log("No GitHub owner detected (not a git repo or not a GitHub remote)")
+	}
+
+	denied := []string{
+		// destructive gh
+		"gh pr merge 5", "gh repo delete o/r", "gh release create v1",
+		"gh release delete v1", "gh run cancel 5", "gh auth login",
+		"gh workflow run ci.yml", "gh issue delete 5", "gh pr close 5",
+		// mutating gh api must fall through to approval
+		"gh api repos/o/r/issues -X POST", "gh api repos/o/r/issues --method POST",
+		"gh api -X DELETE repos/o/r", "gh api repos/o/r -f title=x",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		}
 	}
 }
 

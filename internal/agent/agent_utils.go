@@ -160,14 +160,32 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
-// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, skills) for the system prompt
+// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, skills) for the system prompt
 func (s *AgentServiceImpl) buildContextInfo(currentTurn int) string {
 	return s.buildSandboxInfo() +
 		s.buildA2AAgentInfo() +
 		s.buildOSInfo() +
 		s.buildWorkingDirectoryInfo() +
 		s.buildGitContextInfo(currentTurn) +
+		s.buildGitHubGuidanceInfo() +
 		s.buildSkillsInfo()
+}
+
+// buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work.
+// There is no built-in GitHub tool; `gh` (via Bash) covers issues, PRs,
+// releases, and the raw API with clearer errors and the standard credential
+// chain. Emitted only when Bash is enabled (otherwise the guidance is moot).
+// Lives in the dynamic context so it reaches existing users regardless of their
+// prompts.yaml override.
+func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
+	if !s.config.Tools.Bash.Enabled {
+		return ""
+	}
+	return "\n\nGITHUB OPERATIONS:\n" +
+		"Use the `gh` CLI via the Bash tool for all GitHub operations - issues, pull requests, " +
+		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
+		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. " +
+		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain)."
 }
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode

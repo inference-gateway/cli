@@ -39,7 +39,6 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"tools.RequestPlanApproval.description":       cfg.Tools.RequestPlanApproval.Description,
 		"tools.WebFetch.description":                  cfg.Tools.WebFetch.Description,
 		"tools.WebSearch.description":                 cfg.Tools.WebSearch.Description,
-		"tools.Github.description":                    cfg.Tools.Github.Description,
 		"tools.Schedule.description":                  cfg.Tools.Schedule.Description,
 		"tools.A2A_QueryAgent.description":            cfg.Tools.A2AQueryAgent.Description,
 		"tools.A2A_QueryTask.description":             cfg.Tools.A2AQueryTask.Description,

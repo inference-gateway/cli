@@ -113,10 +113,6 @@ func (r *Registry) registerTools() {
 		r.tools["WebSearch"] = NewWebSearchTool(cfg)
 	}
 
-	if cfg.Tools.Github.Enabled {
-		r.tools["Github"] = NewGithubTool(cfg, r.imageService)
-	}
-
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.taskTracker)
