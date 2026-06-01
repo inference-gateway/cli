@@ -95,8 +95,6 @@ tools:
         - task
         - make
         - find
-        - env
-        - printenv
       patterns:
         - ^git status$
         - ^git branch( --show-current)?( -[alrvd])?$

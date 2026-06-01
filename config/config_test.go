@@ -757,8 +757,6 @@ func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
 		// gh api GET (bare endpoint + read-only flags)
 		"gh api repos/o/r/issues", "gh api user --paginate",
 		"gh api repos/o/r/issues --jq .[].title",
-		// env inspection
-		"env", "printenv PATH",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandWhitelisted(cmd) {
@@ -774,6 +772,8 @@ func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
 		// mutating gh api must fall through to approval
 		"gh api repos/o/r/issues -X POST", "gh api repos/o/r/issues --method POST",
 		"gh api -X DELETE repos/o/r", "gh api repos/o/r -f title=x",
+		// env inspection leaks secrets (API keys, tokens) — must fall through to approval
+		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
