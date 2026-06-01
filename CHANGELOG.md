@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.117.0](https://github.com/inference-gateway/cli/compare/v0.116.0...v0.117.0) (2026-06-01)
+
+### 🚀 Features
+
+* add GitHub issue references autocomplete and inline expansion ([#574](https://github.com/inference-gateway/cli/issues/574)) ([5056c9d](https://github.com/inference-gateway/cli/commit/5056c9dd822baccc804babce1a0825d520973190)), closes [#N](https://github.com/inference-gateway/cli/issues/N) [#573](https://github.com/inference-gateway/cli/issues/573)
+
+### 🐛 Bug Fixes
+
+* **skills:** load installed skills via sandbox carve-out and deterministic activation ([#571](https://github.com/inference-gateway/cli/issues/571)) ([18a9287](https://github.com/inference-gateway/cli/commit/18a928779a4c6d97169ad9fedd6fb3fbc8879319)), closes [#569](https://github.com/inference-gateway/cli/issues/569)
+
+### ♻️ Code Refactoring
+
+* **system-prompt:** add available tools info to system prompt ([a913728](https://github.com/inference-gateway/cli/commit/a91372833f05eb9ba951fb87e1cc1b71f6b07f37))
+* remove built-in Github tool in favor of the gh CLI ([#572](https://github.com/inference-gateway/cli/issues/572)) ([4c74997](https://github.com/inference-gateway/cli/commit/4c7499731f7a1963450e9b2f1113269a42703d37))
+* **config:** remove inline redundant comment ([c389929](https://github.com/inference-gateway/cli/commit/c3899292018e6d21153d9413591a34573bfdd60e))
+* system prompt - reduce tokens ([0be4b3a](https://github.com/inference-gateway/cli/commit/0be4b3a717374a3d8ee5db61399345b623e6aca5))
+
+### 👷 CI/CD
+
+* centralize infer.yml + bump infer CLI and sync .infer config ([#567](https://github.com/inference-gateway/cli/issues/567)) ([c0369de](https://github.com/inference-gateway/cli/commit/c0369dee66295e0fd3007c9045224ad4ac0b02cb))
+
 ## [0.116.0](https://github.com/inference-gateway/cli/compare/v0.115.2...v0.116.0) (2026-06-01)
 
 ### 🚀 Features
