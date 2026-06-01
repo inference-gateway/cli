@@ -179,7 +179,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
-// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, skills) for the system prompt
+// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, tools, skills) for the system prompt
 func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Message) string {
 	return s.buildSandboxInfo() +
 		s.buildA2AAgentInfo() +
@@ -187,6 +187,7 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Mess
 		s.buildWorkingDirectoryInfo() +
 		s.buildGitContextInfo(currentTurn) +
 		s.buildGitHubGuidanceInfo() +
+		s.buildToolsInfo() +
 		s.buildSkillsInfo() +
 		s.buildActiveSkillInfo(messages)
 }
@@ -206,6 +207,45 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
 		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. " +
 		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain)."
+}
+
+// buildToolsInfo lists the tools available to the model for the active agent
+// mode as a lightweight name + one-line-description roster. The list is derived
+// from the same toolService.ListToolsForMode(mode) call that populates the
+// request's native tool definitions, so the prose can never drift from what the
+// model can actually call. Empty when tools are disabled or none are registered
+// (e.g. NoOpToolService, or before MCP tools finish async registration).
+func (s *AgentServiceImpl) buildToolsInfo() string {
+	if s.toolService == nil {
+		return ""
+	}
+
+	mode := domain.AgentModeStandard
+	if s.stateManager != nil {
+		mode = s.stateManager.GetAgentMode()
+	}
+
+	defs := s.toolService.ListToolsForMode(mode)
+	if len(defs) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\nAVAILABLE TOOLS:\n")
+	b.WriteString("These are the tools you can call right now (full parameter " +
+		"schemas are supplied separately via the tool-use API). Use the exact name:\n")
+	for _, def := range defs {
+		desc := ""
+		if def.Function.Description != nil {
+			desc = truncateString(strings.SplitN(*def.Function.Description, "\n", 2)[0], 100)
+		}
+		if desc != "" {
+			fmt.Fprintf(&b, "- %s: %s\n", def.Function.Name, desc)
+		} else {
+			fmt.Fprintf(&b, "- %s\n", def.Function.Name)
+		}
+	}
+	return b.String()
 }
 
 // getSystemPromptForMode returns the appropriate system prompt based on current agent mode

@@ -10,6 +10,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // stubSkillsService implements domain.SkillsService for testing the
@@ -377,6 +378,82 @@ func TestBuildSkillsInfo_FormatsSkills(t *testing.T) {
 		require.Contains(t, got, want)
 	}
 	require.GreaterOrEqual(t, strings.Count(got, "Path: "), 2)
+}
+
+// toolDef builds an sdk.ChatCompletionTool with the given name and (optional)
+// description, mirroring what tools register via Definition().
+func toolDef(name, description string) sdk.ChatCompletionTool {
+	fn := sdk.FunctionObject{Name: name}
+	if description != "" {
+		fn.Description = &description
+	}
+	return sdk.ChatCompletionTool{Type: sdk.ChatCompletionToolType("function"), Function: fn}
+}
+
+func TestBuildToolsInfo_NilService(t *testing.T) {
+	s := &AgentServiceImpl{}
+	require.Empty(t, s.buildToolsInfo())
+}
+
+func TestBuildToolsInfo_EmptyList(t *testing.T) {
+	fake := &domainmocks.FakeToolService{}
+	fake.ListToolsForModeReturns(nil)
+	s := &AgentServiceImpl{toolService: fake}
+	require.Empty(t, s.buildToolsInfo())
+}
+
+func TestBuildToolsInfo_FormatsRoster(t *testing.T) {
+	fake := &domainmocks.FakeToolService{}
+	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+		toolDef("Read", "Read a file from disk.\nSupports line ranges."),
+		toolDef("Grep", "Search file contents with a regex."),
+		toolDef("Bare", ""),
+	})
+	s := &AgentServiceImpl{toolService: fake}
+
+	got := s.buildToolsInfo()
+
+	require.Contains(t, got, "AVAILABLE TOOLS:")
+	require.Contains(t, got, "- Read: Read a file from disk.")
+	require.NotContains(t, got, "Supports line ranges.")
+	require.Contains(t, got, "- Grep: Search file contents with a regex.")
+	require.Contains(t, got, "- Bare\n")
+	require.NotContains(t, got, "- Bare:")
+}
+
+func TestBuildToolsInfo_TruncatesLongDescription(t *testing.T) {
+	long := strings.Repeat("x", 200)
+	fake := &domainmocks.FakeToolService{}
+	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Big", long)})
+	s := &AgentServiceImpl{toolService: fake}
+
+	got := s.buildToolsInfo()
+
+	require.Contains(t, got, "...")
+	require.NotContains(t, got, long)
+}
+
+func TestBuildToolsInfo_DefaultsToStandardModeWhenNoStateManager(t *testing.T) {
+	fake := &domainmocks.FakeToolService{}
+	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Read", "Read a file.")})
+	s := &AgentServiceImpl{toolService: fake}
+
+	s.buildToolsInfo()
+
+	require.Equal(t, 1, fake.ListToolsForModeCallCount())
+	require.Equal(t, domain.AgentModeStandard, fake.ListToolsForModeArgsForCall(0))
+}
+
+func TestBuildToolsInfo_UsesCurrentAgentMode(t *testing.T) {
+	fake := &domainmocks.FakeToolService{}
+	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Read", "Read a file.")})
+	sm := &domainmocks.FakeStateManager{}
+	sm.GetAgentModeReturns(domain.AgentModePlan)
+	s := &AgentServiceImpl{toolService: fake, stateManager: sm}
+
+	s.buildToolsInfo()
+
+	require.Equal(t, domain.AgentModePlan, fake.ListToolsForModeArgsForCall(0))
 }
 
 func userMsg(text string) sdk.Message {
