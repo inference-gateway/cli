@@ -80,7 +80,6 @@ func TestCopyShortcut_EmptyConversation(t *testing.T) {
 func TestCopyShortcut_SuccessfulDefaultCopy(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(2)
-	// 12 bytes, 2 newlines -> reported as 3 lines.
 	exported := []byte("line1\nline2\n")
 	repo.ExportReturns(exported, nil)
 	clip := &fakeClipboard{}

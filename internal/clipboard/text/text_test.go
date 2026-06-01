@@ -43,8 +43,6 @@ func TestUtilNames(t *testing.T) {
 }
 
 func TestCopy_NoUtilityFound(t *testing.T) {
-	// Point PATH at an empty directory so every exec.LookPath fails and Copy
-	// reports the install-one-of error without touching the real clipboard.
 	t.Setenv("PATH", t.TempDir())
 
 	w := NewWriter()
