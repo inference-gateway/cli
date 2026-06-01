@@ -44,6 +44,10 @@ claude-code.pkg-group = "ai"
 codex.pkg-path = "codex"
 codex.version = "^0.133.0"
 codex.pkg-group = "ai"
+whisper-cpp.pkg-path = "whisper-cpp"
+whisper-cpp.version = "1.8.4"
+ffmpeg.pkg-path = "ffmpeg"
+ffmpeg.version = "8.1"
 
 [hook]
 on-activate = '''
