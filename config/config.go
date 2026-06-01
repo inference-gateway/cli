@@ -912,7 +912,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
-	// Computer use tools bypass approval entirely (checked in shouldRequireApproval)
 	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":
 		return false
 	}
@@ -1039,10 +1038,6 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	// Operational carve-outs that live under the protected config dir but must
-	// stay reachable by file tools: skills (read SKILL.md), tmp (scratch) and
-	// plans (persisted plans). Hard file protections like *.env still apply
-	// inside them - see checkProtectedPaths.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans")
 
