@@ -47,6 +47,7 @@ These shortcuts are available out of the box:
 - `/theme` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact` - Immediately compact conversation to reduce token usage
+- `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 
@@ -64,6 +65,25 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 - Analyze your project structure, build tools, and configuration files
 - Create comprehensive documentation for AI agents
 - Generate an AGENTS.md file with project overview, commands, and conventions
+
+### Copy Shortcut
+
+The `/copy` shortcut copies the current conversation to your system clipboard, so you can move a
+session to another terminal or machine and continue it there. It pairs well with `/compact`:
+
+1. Run `/compact` to summarize the conversation and reduce its size
+2. Run `/copy` to place the (now compact) session on the clipboard
+3. Paste it into another terminal or chat to continue the work
+
+By default `/copy` uses plain `text`; pass a format to override it — `/copy markdown` or
+`/copy json`. The shortcut shells out to your platform's native clipboard utility:
+
+- **macOS:** `pbcopy`
+- **Linux:** one of `wl-copy` (Wayland), `xclip`, or `xsel` (X11) — install at least one
+- **Windows:** `clip`
+- **WSL:** `clip.exe` (writes to the Windows host clipboard)
+
+If none of these utilities is available, `/copy` reports an error naming the ones it looked for.
 
 ---
 
