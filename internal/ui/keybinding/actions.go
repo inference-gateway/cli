@@ -1686,22 +1686,22 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	if keys.IsPrintableCharacter(keyStr) {
-		return handlePrintableCharacter(keyStr, inputView)
+	if literal := keys.PrintableText(keyMsg); literal != "" {
+		return handlePrintableCharacter(literal, inputView)
 	}
 	return nil
 }
 
-// handlePrintableCharacter processes printable character input
-func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cmd {
+// handlePrintableCharacter inserts the literal typed text at the cursor.
+func handlePrintableCharacter(literal string, inputView ui.InputComponent) tea.Cmd {
 	if inputView == nil {
 		return nil
 	}
 
 	cursor := inputView.GetCursor()
 	text := inputView.GetInput()
-	newText := text[:cursor] + keyStr + text[cursor:]
-	newCursor := cursor + 1
+	newText := text[:cursor] + literal + text[cursor:]
+	newCursor := cursor + len(literal)
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
@@ -1712,7 +1712,7 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 		}
 	}
 
-	if keyStr == "@" {
+	if literal == "@" {
 		return tea.Batch(
 			autocompleteCmd,
 			func() tea.Msg {
@@ -1728,7 +1728,6 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 		)
 	}
 
-	// Default: autocomplete update, scroll to bottom, hide help
 	return tea.Batch(
 		autocompleteCmd,
 		func() tea.Msg {
