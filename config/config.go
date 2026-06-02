@@ -1043,7 +1043,8 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	carveOut := isWithinConfigSubdir(absPath, "tmp", "plans")
+	carveOut := isWithinSkillsDir(absPath) ||
+		isWithinConfigSubdir(absPath, "tmp", "plans")
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
 		return err
@@ -1087,9 +1088,10 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 }
 
 // isWithinSkillsDir reports whether absPath lives inside either the project
-// (./.infer/skills) or user-global (~/.infer/skills) skills directory. This
-// is used as a short-circuit in checkProtectedPaths to allow reads of SKILL.md
-// and references/*.md even though .infer/ is in protected_paths.
+// (./.infer/skills) or user-global (~/.infer/skills) skills directory. Feeds
+// the carveOut path in ValidatePathInSandbox so reads of SKILL.md and
+// references/*.md succeed even though the broader .infer/ directory is in
+// ProtectedPaths. File-level protections like *.env still apply.
 func isWithinSkillsDir(absPath string) bool {
 	dirs := make([]string, 0, 2)
 	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
@@ -1130,10 +1132,6 @@ func isWithinConfigSubdir(absPath string, names ...string) bool {
 // file-level protections (e.g. *.env, .git/) are still enforced.
 func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
-
-	if isWithinSkillsDir(normalizedPath) {
-		return nil
-	}
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
 		if carveOut && strings.TrimSuffix(protectedPath, "/") == ConfigDirName {

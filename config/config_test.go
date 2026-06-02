@@ -896,6 +896,20 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 			t.Fatalf("expected sibling %s rejected (prefix must be a path boundary)", sibling)
 		}
 	})
+
+	t.Run("protected paths under skills dir still block", func(t *testing.T) {
+		secret := filepath.Join(home, ConfigDirName, "skills", "demo", "creds.env")
+		if err := cfg.ValidatePathInSandbox(secret); err == nil {
+			t.Fatalf("expected protected file %s to be denied", secret)
+		}
+	})
+
+	t.Run("relative project skill path allowed", func(t *testing.T) {
+		rel := filepath.Join(ConfigDirName, "skills", "demo", "SKILL.md")
+		if err := cfg.ValidatePathInSandbox(rel); err != nil {
+			t.Fatalf("expected relative %s allowed, got %v", rel, err)
+		}
+	})
 }
 
 // TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
