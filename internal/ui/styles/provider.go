@@ -20,6 +20,13 @@ func NewProvider(themeService domain.ThemeService) *Provider {
 	}
 }
 
+// GetCurrentTheme returns the active theme, exposing it for callers that need
+// to derive colors outside of Provider's pre-baked render methods (e.g. the
+// diffview Style selector).
+func (p *Provider) GetCurrentTheme() domain.Theme {
+	return p.themeService.GetCurrentTheme()
+}
+
 // Modal styles
 
 // RenderModal renders a modal with rounded border

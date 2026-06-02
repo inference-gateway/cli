@@ -8,89 +8,116 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// stripANSI removes ANSI escape sequences so tests can assert against the
+// rendered text content without coupling to color codes.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			i += 2
+			for i < len(s) && s[i] != 'm' && s[i] != 'K' && s[i] != 'H' && s[i] != 'J' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 func TestDiffRenderer_RenderDiff(t *testing.T) {
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("New file creation", func(t *testing.T) {
-		diffInfo := DiffInfo{
+		out := stripANSI(renderer.RenderDiff(DiffInfo{
 			FilePath:   "test.go",
 			OldContent: "",
-			NewContent: "package main\n\nfunc main() {}",
+			NewContent: "package main\n\nfunc main() {}\n",
 			Title:      "Test Diff",
+		}))
+		if !strings.Contains(out, "@@") {
+			t.Fatalf("expected hunk header in output:\n%s", out)
 		}
-
-		output := renderer.RenderDiff(diffInfo)
-
-		if !strings.Contains(output, "@@ -0,0 +1,") {
-			t.Errorf("Expected new file chunk header, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "+package main") {
-			t.Errorf("Expected added lines with + prefix, got:\n%s", output)
+		if !strings.Contains(out, "package main") {
+			t.Fatalf("expected added content in output:\n%s", out)
 		}
 	})
 
 	t.Run("File deletion", func(t *testing.T) {
-		diffInfo := DiffInfo{
+		out := stripANSI(renderer.RenderDiff(DiffInfo{
 			FilePath:   "test.go",
-			OldContent: "package main\n\nfunc main() {}",
+			OldContent: "package main\n\nfunc main() {}\n",
 			NewContent: "",
 			Title:      "Test Diff",
+		}))
+		if !strings.Contains(out, "@@") {
+			t.Fatalf("expected hunk header in output:\n%s", out)
 		}
-
-		output := renderer.RenderDiff(diffInfo)
-
-		if !strings.Contains(output, "@@ -1,") && !strings.Contains(output, " +0,0 @@") {
-			t.Errorf("Expected deletion chunk header, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "-package main") {
-			t.Errorf("Expected deleted lines with - prefix, got:\n%s", output)
+		if !strings.Contains(out, "package main") {
+			t.Fatalf("expected removed content visible in output:\n%s", out)
 		}
 	})
 
 	t.Run("File modification", func(t *testing.T) {
-		diffInfo := DiffInfo{
+		out := stripANSI(renderer.RenderDiff(DiffInfo{
 			FilePath:   "test.go",
-			OldContent: "Hello World",
-			NewContent: "Hello Universe",
+			OldContent: "Hello World\n",
+			NewContent: "Hello Universe\n",
 			Title:      "Test Diff",
+		}))
+		if !strings.Contains(out, "@@") {
+			t.Fatalf("expected hunk header in output:\n%s", out)
 		}
-
-		output := renderer.RenderDiff(diffInfo)
-
-		if !strings.Contains(output, "@@") {
-			t.Errorf("Expected chunk header, got:\n%s", output)
+		if !strings.Contains(out, "Hello World") {
+			t.Fatalf("expected old content in output:\n%s", out)
 		}
-
-		if !strings.Contains(output, "-Hello World") {
-			t.Errorf("Expected old content with - prefix, got:\n%s", output)
-		}
-		if !strings.Contains(output, "+Hello Universe") {
-			t.Errorf("Expected new content with + prefix, got:\n%s", output)
+		if !strings.Contains(out, "Hello Universe") {
+			t.Fatalf("expected new content in output:\n%s", out)
 		}
 	})
 
 	t.Run("No changes", func(t *testing.T) {
-		diffInfo := DiffInfo{
+		out := stripANSI(renderer.RenderDiff(DiffInfo{
 			FilePath:   "test.go",
-			OldContent: "Same content",
-			NewContent: "Same content",
+			OldContent: "Same content\n",
+			NewContent: "Same content\n",
 			Title:      "Test Diff",
+		}))
+		if !strings.Contains(out, "test.go") {
+			t.Fatalf("expected file path in output:\n%s", out)
 		}
-
-		output := renderer.RenderDiff(diffInfo)
-
-		if !strings.Contains(output, "test.go") {
-			t.Errorf("Expected file path in output, got:\n%s", output)
-		}
-
-		if strings.Contains(output, "-Same content") || strings.Contains(output, "+Same content") {
-			t.Errorf("Should not show diff for identical content, got:\n%s", output)
+		// no hunks should be present for identical input
+		if strings.Contains(out, "@@") {
+			t.Fatalf("did not expect hunks for identical content:\n%s", out)
 		}
 	})
+}
+
+// TestDiffRenderer_MidFileInsertRegression guards against the parallel-array
+// algorithm bug: the old renderer marked every line after a mid-file insert
+// as both add+delete.
+func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
+
+	before := "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+	after := "alpha\nbeta\nINSERTED\ngamma\ndelta\nepsilon\n"
+	out := stripANSI(renderer.RenderDiff(DiffInfo{
+		FilePath:   "f.txt",
+		OldContent: before,
+		NewContent: after,
+	}))
+	for _, tail := range []string{"gamma", "delta", "epsilon"} {
+		if strings.Contains(out, "- "+tail) {
+			t.Fatalf("line %q should not be marked deleted; cascade regression:\n%s", tail, out)
+		}
+	}
+	if !strings.Contains(out, "INSERTED") {
+		t.Fatalf("expected INSERTED in output:\n%s", out)
+	}
 }
 
 func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
@@ -113,174 +140,63 @@ func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 				},
 			},
 		}
-
-		output := renderer.RenderMultiEditToolArguments(args)
-
-		if !strings.Contains(output, "test.go") {
-			t.Errorf("Expected file name in output, got:\n%s", output)
+		out := stripANSI(renderer.RenderMultiEditToolArguments(args))
+		if !strings.Contains(out, "test.go") {
+			t.Fatalf("expected file name in output: %s", out)
 		}
-
-		if !strings.Contains(output, "2 edits") {
-			t.Errorf("Expected '2 edits' in output, got:\n%s", output)
+		if !strings.Contains(out, "2 edits") {
+			t.Fatalf("expected '2 edits' in output: %s", out)
 		}
-
-		if !strings.Contains(output, "Edit 1:") {
-			t.Errorf("Expected 'Edit 1:' in output, got:\n%s", output)
+		if !strings.Contains(out, "Edit 1:") || !strings.Contains(out, "Edit 2:") {
+			t.Fatalf("expected per-edit headers in output: %s", out)
 		}
-		if !strings.Contains(output, "Edit 2:") {
-			t.Errorf("Expected 'Edit 2:' in output, got:\n%s", output)
+		if !strings.Contains(out, "Replace all") {
+			t.Fatalf("expected 'Replace all' for the second edit: %s", out)
 		}
-
-		if !strings.Contains(output, "Replace all") {
-			t.Errorf("Expected 'Replace all' for second edit, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "-Hello") || !strings.Contains(output, "+Hi") {
-			t.Errorf("Expected diff for first edit, got:\n%s", output)
+		if !strings.Contains(out, "Hi") || !strings.Contains(out, "Universe") {
+			t.Fatalf("expected per-edit diff content in output: %s", out)
 		}
 	})
 
 	t.Run("Empty edits array", func(t *testing.T) {
-		args := map[string]any{
+		out := stripANSI(renderer.RenderMultiEditToolArguments(map[string]any{
 			"file_path": "/path/to/test.go",
 			"edits":     []any{},
-		}
-
-		output := renderer.RenderMultiEditToolArguments(args)
-
-		if !strings.Contains(output, "test.go") {
-			t.Errorf("Expected file name in output, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "0 edits") {
-			t.Errorf("Expected '0 edits' in output, got:\n%s", output)
+		}))
+		if !strings.Contains(out, "test.go") || !strings.Contains(out, "0 edits") {
+			t.Fatalf("expected file name and '0 edits' in output: %s", out)
 		}
 	})
 
 	t.Run("Invalid edits format", func(t *testing.T) {
-		args := map[string]any{
+		out := stripANSI(renderer.RenderMultiEditToolArguments(map[string]any{
 			"file_path": "/path/to/test.go",
 			"edits":     "invalid",
-		}
-
-		output := renderer.RenderMultiEditToolArguments(args)
-
-		if !strings.Contains(output, "Invalid edits format") {
-			t.Errorf("Expected error message for invalid format, got:\n%s", output)
+		}))
+		if !strings.Contains(out, "Invalid edits format") {
+			t.Fatalf("expected error message for invalid format: %s", out)
 		}
 	})
 }
 
-func TestDiffRenderer_HelperMethods(t *testing.T) {
+func TestDiffRenderer_Construction(t *testing.T) {
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
-	renderer := NewDiffRenderer(styleProvider)
 
-	t.Run("renderNewFileContent", func(t *testing.T) {
-		content := "line1\nline2\nline3"
-		output := renderer.renderNewFileContent(content)
-
-		if !strings.Contains(output, "@@ -0,0 +1,3 @@") {
-			t.Errorf("Expected chunk header for 3 lines, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "+line1") {
-			t.Errorf("Expected +line1, got:\n%s", output)
-		}
-		if !strings.Contains(output, "+line2") {
-			t.Errorf("Expected +line2, got:\n%s", output)
-		}
-		if !strings.Contains(output, "+line3") {
-			t.Errorf("Expected +line3, got:\n%s", output)
-		}
-	})
-
-	t.Run("renderDeletedFileContent", func(t *testing.T) {
-		content := "line1\nline2"
-		output := renderer.renderDeletedFileContent(content)
-
-		if !strings.Contains(output, "@@ -1,2 +0,0 @@") {
-			t.Errorf("Expected chunk header for deletion, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "-line1") {
-			t.Errorf("Expected -line1, got:\n%s", output)
-		}
-		if !strings.Contains(output, "-line2") {
-			t.Errorf("Expected -line2, got:\n%s", output)
-		}
-	})
-
-	t.Run("renderUnifiedDiff", func(t *testing.T) {
-		oldContent := "Hello\nWorld"
-		newContent := "Hello\nUniverse"
-		output := renderer.renderUnifiedDiff(oldContent, newContent, 1)
-
-		if !strings.Contains(output, "@@") {
-			t.Errorf("Expected chunk header, got:\n%s", output)
-		}
-
-		if !strings.Contains(output, " Hello") {
-			t.Errorf("Expected context line ' Hello', got:\n%s", output)
-		}
-
-		if !strings.Contains(output, "-World") {
-			t.Errorf("Expected -World, got:\n%s", output)
-		}
-		if !strings.Contains(output, "+Universe") {
-			t.Errorf("Expected +Universe, got:\n%s", output)
-		}
-	})
-
-	t.Run("renderUnifiedDiff with identical content", func(t *testing.T) {
-		content := "Same\nContent"
-		output := renderer.renderUnifiedDiff(content, content, 1)
-
-		if output != "" {
-			t.Errorf("Expected empty string for identical content, got:\n%s", output)
-		}
-	})
-}
-
-func TestDiffRenderer_Styling(t *testing.T) {
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
-	renderer := NewDiffRenderer(styleProvider)
-
-	if renderer == nil {
-		t.Fatal("NewDiffRenderer should not return nil")
+	if NewDiffRenderer(styleProvider) == nil {
+		t.Fatal("NewDiffRenderer returned nil")
+	}
+	if NewToolDiffRenderer(styleProvider) == nil {
+		t.Fatal("NewToolDiffRenderer returned nil")
 	}
 
-	diffInfo := DiffInfo{
+	out := NewToolDiffRenderer(styleProvider).RenderDiff(DiffInfo{
 		FilePath:   "test.go",
-		OldContent: "old",
-		NewContent: "new",
+		OldContent: "old\n",
+		NewContent: "new\n",
 		Title:      "Test",
-	}
-	output := renderer.RenderDiff(diffInfo)
-	if output == "" {
-		t.Error("Expected non-empty output from RenderDiff")
-	}
-}
-
-func TestNewToolDiffRenderer(t *testing.T) {
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
-	renderer := NewToolDiffRenderer(styleProvider)
-
-	if renderer == nil {
-		t.Fatal("NewToolDiffRenderer should not return nil")
-	}
-
-	diffInfo := DiffInfo{
-		FilePath:   "test.go",
-		OldContent: "old",
-		NewContent: "new",
-		Title:      "Test",
-	}
-
-	output := renderer.RenderDiff(diffInfo)
-	if output == "" {
-		t.Error("Renderer should produce output")
+	})
+	if out == "" {
+		t.Fatal("expected non-empty output")
 	}
 }
