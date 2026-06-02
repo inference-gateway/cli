@@ -552,7 +552,6 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
-	// Build sandbox directories with skills dirs unconditionally (no flag gating).
 	sandboxDirs := []string{".", "/tmp", ConfigDirName + "/tmp", ConfigDirName + "/skills"}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		sandboxDirs = append(sandboxDirs, filepath.Join(homeDir, ConfigDirName, "skills"))
@@ -1132,9 +1131,6 @@ func isWithinConfigSubdir(absPath string, names ...string) bool {
 func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
 
-	// Skills directories are unconditionally readable — they're a well-known
-	// allowlist under Sandbox.Directories, and the broader .infer/ protected-path
-	// pattern must not deny them.
 	if isWithinSkillsDir(normalizedPath) {
 		return nil
 	}

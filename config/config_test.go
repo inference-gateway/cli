@@ -861,8 +861,6 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		t.Fatalf("failed to resolve project skill path: %v", err)
 	}
 
-	// Default config, skills explicitly disabled — skills dirs are in
-	// Sandbox.Directories unconditionally, so the flag must not matter.
 	cfg := DefaultConfig()
 	cfg.Agent.Skills.Enabled = false
 
