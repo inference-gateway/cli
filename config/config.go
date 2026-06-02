@@ -552,6 +552,11 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
+	sandboxDirs := []string{".", "/tmp", ConfigDirName + "/tmp", ConfigDirName + "/skills"}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		sandboxDirs = append(sandboxDirs, filepath.Join(homeDir, ConfigDirName, "skills"))
+	}
+
 	return &Config{
 		ContainerRuntime: ContainerRuntimeConfig{
 			Type: "docker",
@@ -617,7 +622,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
+				Directories: sandboxDirs,
 				ProtectedPaths: []string{
 					ConfigDirName + "/",
 					".git/",
@@ -1038,7 +1043,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
+	carveOut := isWithinSkillsDir(absPath) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans")
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
@@ -1083,9 +1088,10 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 }
 
 // isWithinSkillsDir reports whether absPath lives inside either the project
-// (./.infer/skills) or user-global (~/.infer/skills) skills directory. The
-// sandbox carve-out uses this so the agent can Read installed SKILL.md files
-// even though ~/.infer is outside the default sandbox - only consulted when Agent.Skills.Enabled.
+// (./.infer/skills) or user-global (~/.infer/skills) skills directory. Feeds
+// the carveOut path in ValidatePathInSandbox so reads of SKILL.md and
+// references/*.md succeed even though the broader .infer/ directory is in
+// ProtectedPaths. File-level protections like *.env still apply.
 func isWithinSkillsDir(absPath string) bool {
 	dirs := make([]string, 0, 2)
 	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
