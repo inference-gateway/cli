@@ -555,7 +555,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 		{
 			Namespace:   config.NamespaceNavigation,
 			ID:          config.ActionID(config.NamespaceNavigation, "page_down"),
-			Keys:        []string{"pgdn", "page_down"},
+			Keys:        []string{"pgdn", "pgdown", "page_down"},
 			Description: "page down",
 			Category:    "navigation",
 			Handler:     handlePageDown,

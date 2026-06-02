@@ -690,9 +690,15 @@ func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 
 // View renders the current application view using state management.
 // Bubble Tea v2 expects tea.View; viewContent keeps the original
-// string-composition logic and View wraps it.
+// string-composition logic and View wraps it. MouseMode is read from
+// the app's mouse-enabled state on every render so the ctrl+s toggle
+// actually takes effect — without this, no mouse/wheel events arrive.
 func (app *ChatApplication) View() tea.View {
-	return tea.NewView(app.viewContent())
+	v := tea.NewView(app.viewContent())
+	if app.mouseEnabled {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
+	return v
 }
 
 func (app *ChatApplication) viewContent() string {

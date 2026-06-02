@@ -21,7 +21,7 @@ var AllKnownKeys = []string{
 	"shift+up", "shift+down", "shift+left", "shift+right",
 	"alt+left", "alt+right", "ctrl+left", "ctrl+right",
 	"enter", "shift+enter", "backspace", "delete", "tab", "shift+tab", "space",
-	"home", "end", "pgup", "pgdn", "page_up", "page_down",
+	"home", "end", "pgup", "pgdn", "pgdown", "page_up", "page_down",
 	"esc", "escape",
 
 	// Ctrl combinations
