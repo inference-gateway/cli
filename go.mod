@@ -13,6 +13,7 @@ require (
 	github.com/BurntSushi/xgbutil v0.0.0-20190907113008-ad855c713046
 	github.com/alecthomas/chroma/v2 v2.24.1
 	github.com/aymanbagabas/go-udiff v0.4.1
+	github.com/charmbracelet/x/exp/charmtone v0.0.0-20260602025833-85a30b5e440a
 	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-redis/redis/v8 v8.11.5

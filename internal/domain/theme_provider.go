@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 
+	"github.com/charmbracelet/x/exp/charmtone"
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -28,6 +29,7 @@ func (tp *ThemeProvider) registerDefaultThemes() {
 	tp.themes["tokyo-night"] = NewTokyoNightTheme()
 	tp.themes["github-light"] = NewGithubLightTheme()
 	tp.themes["dracula"] = NewDraculaTheme()
+	tp.themes["charm"] = NewCharmTheme()
 }
 
 // GetTheme returns the theme by name, or the current theme if name is empty
@@ -131,3 +133,24 @@ func (t *DraculaTheme) GetDimColor() string        { return colors.DraculaDimCol
 func (t *DraculaTheme) GetBorderColor() string     { return colors.DraculaBorderColor.Lipgloss }
 func (t *DraculaTheme) GetDiffAddColor() string    { return colors.DraculaDiffAddColor.Lipgloss }
 func (t *DraculaTheme) GetDiffRemoveColor() string { return colors.DraculaDiffRemoveColor.Lipgloss }
+
+// CharmTheme is built on the official Charm palette (charmtone). It's the
+// modern, on-brand option that uses the same semantic tokens Crush ships
+// with — Sapphire as the primary blue, Cherry for errors, Julep for
+// success, Smoke/Iron as neutrals over a Pepper base.
+type CharmTheme struct{}
+
+func NewCharmTheme() *CharmTheme {
+	return &CharmTheme{}
+}
+
+func (t *CharmTheme) GetUserColor() string       { return charmtone.Sapphire.Hex() }
+func (t *CharmTheme) GetAssistantColor() string  { return charmtone.Salt.Hex() }
+func (t *CharmTheme) GetErrorColor() string      { return charmtone.Cherry.Hex() }
+func (t *CharmTheme) GetSuccessColor() string    { return charmtone.Julep.Hex() }
+func (t *CharmTheme) GetStatusColor() string     { return charmtone.Charple.Hex() }
+func (t *CharmTheme) GetAccentColor() string     { return charmtone.Sapphire.Hex() }
+func (t *CharmTheme) GetDimColor() string        { return charmtone.Smoke.Hex() }
+func (t *CharmTheme) GetBorderColor() string     { return charmtone.Iron.Hex() }
+func (t *CharmTheme) GetDiffAddColor() string    { return charmtone.Julep.Hex() }
+func (t *CharmTheme) GetDiffRemoveColor() string { return charmtone.Cherry.Hex() }
