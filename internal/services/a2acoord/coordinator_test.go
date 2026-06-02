@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	adk "github.com/inference-gateway/adk/types"
 
 	tools "github.com/inference-gateway/cli/internal/agent/tools"

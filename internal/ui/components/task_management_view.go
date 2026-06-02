@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	viewport "github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	viewport "charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	adk "github.com/inference-gateway/adk/types"
 
@@ -65,7 +65,7 @@ func NewTaskManager(
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 ) *TaskManagerImpl {
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 
 	return &TaskManagerImpl{
@@ -238,8 +238,8 @@ func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, 
 	t.width = msg.Width
 	t.height = msg.Height
 
-	t.infoViewport.Width = msg.Width
-	t.infoViewport.Height = msg.Height - 2
+	t.infoViewport.SetWidth(msg.Width)
+	t.infoViewport.SetHeight(msg.Height - 2)
 
 	return t, nil
 }
@@ -503,7 +503,11 @@ func (t *TaskManagerImpl) applyFilters() {
 	}
 }
 
-func (t *TaskManagerImpl) View() string {
+func (t *TaskManagerImpl) View() tea.View {
+	return tea.NewView(t.viewContent())
+}
+
+func (t *TaskManagerImpl) viewContent() string {
 	if t.loading {
 		return t.renderLoading()
 	}
@@ -595,7 +599,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 	content.WriteString(separator)
 	content.WriteString("\n\n")
 
-	textWidth := max(t.infoViewport.Width-4, 40)
+	textWidth := max(t.infoViewport.Width()-4, 40)
 
 	for i, historyItem := range task.TaskRef.Task.History {
 		if i > 0 {
@@ -702,7 +706,7 @@ func friendlyRoleLabel(role string) string {
 
 // renderFinalResult renders the final result message
 func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
-	textWidth := max(t.infoViewport.Width-4, 40)
+	textWidth := max(t.infoViewport.Width()-4, 40)
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")

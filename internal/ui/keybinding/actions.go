@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -1395,7 +1395,10 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	if !mouseEnabled {
 		return tea.Batch(
-			tea.EnableMouseCellMotion,
+			// Bubble Tea v2 controls mouse mode via View.MouseMode rather
+			// than a one-shot command; ChatApplication.View() reflects
+			// app.GetMouseEnabled() into View.MouseMode. The status event
+			// here keeps the user feedback unchanged.
 			func() tea.Msg {
 				return domain.SetStatusEvent{
 					Message:    "Mouse scrolling enabled",
@@ -1407,7 +1410,6 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	return tea.Batch(
-		tea.DisableMouse,
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Text selection enabled",
@@ -1498,7 +1500,7 @@ func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyM
 
 		action := m.registry.Resolve(pendingKey, m.app)
 		if action != nil {
-			pendingCmd := action.Handler(m.app, tea.KeyMsg{})
+			pendingCmd := action.Handler(m.app, tea.KeyPressMsg{})
 			newKeyCmd := m.ProcessKey(keyMsg)
 			return m.batchCmds([]tea.Cmd{pendingCmd, newKeyCmd})
 		}

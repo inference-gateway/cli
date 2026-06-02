@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -180,7 +180,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 // Bubble Tea interface
 func (hb *HelpBar) Init() tea.Cmd { return nil }
 
-func (hb *HelpBar) View() string { return hb.Render() }
+func (hb *HelpBar) View() tea.View { return tea.NewView(hb.Render()) }
 
 func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

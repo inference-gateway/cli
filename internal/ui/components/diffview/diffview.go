@@ -22,10 +22,10 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/aymanbagabas/go-udiff"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/zeebo/xxh3"
 )
 
@@ -521,11 +521,14 @@ func (dv *DiffView) renderSplitSide(b *strings.Builder, l *udiff.Line, isBefore 
 
 func (dv *DiffView) lineContent(in string, ls LineStyle) (string, bool) {
 	content := strings.TrimSuffix(in, "\n")
+	// Pull the background color out of the lipgloss v2 style as RGB hex so
+	// the chroma formatter can preserve it across tokens.
 	bg := ""
-	// Pull the background color out of the lipgloss style so the chroma
-	// formatter can preserve it across the tokens.
-	if c, ok := ls.Code.GetBackground().(lipgloss.Color); ok {
-		bg = string(c)
+	if c := ls.Code.GetBackground(); c != nil {
+		r, g, bch, a := c.RGBA()
+		if a > 0 {
+			bg = fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(bch>>8))
+		}
 	}
 	content = dv.highlightCode(content, bg)
 	return content, false

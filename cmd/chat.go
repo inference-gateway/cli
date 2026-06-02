@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
 
@@ -221,11 +221,10 @@ func StartChatSession(cfg *config.Config) error {
 		services.GetToolExecutionCoordinator(),
 	)
 
-	program := tea.NewProgram(
-		application,
-		tea.WithMouseCellMotion(),
-		tea.WithReportFocus(),
-	)
+	// Bubble Tea v2 controls mouse mode and focus reporting via the
+	// returned View struct fields (MouseMode / ReportFocus) rather than
+	// per-program options; ChatApplication.View() sets these.
+	program := tea.NewProgram(application)
 
 	if floatingWindowMgr != nil {
 		eventBridge := stateManager.GetEventBridge()

@@ -9,7 +9,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -235,8 +235,8 @@ func TestConversationView_SetWidth(t *testing.T) {
 		t.Errorf("Expected width 120, got %d", cv.width)
 	}
 
-	if cv.Viewport.Width != 120 {
-		t.Errorf("Expected viewport width 120, got %d", cv.Viewport.Width)
+	if cv.Viewport.Width() != 120 {
+		t.Errorf("Expected viewport width 120, got %d", cv.Viewport.Width())
 	}
 }
 
@@ -249,8 +249,8 @@ func TestConversationView_SetHeight(t *testing.T) {
 		t.Errorf("Expected height 30, got %d", cv.height)
 	}
 
-	if cv.Viewport.Height != 30 {
-		t.Errorf("Expected viewport height 30, got %d", cv.Viewport.Height)
+	if cv.Viewport.Height() != 30 {
+		t.Errorf("Expected viewport height 30, got %d", cv.Viewport.Height())
 	}
 }
 

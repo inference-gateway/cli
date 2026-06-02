@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	spinner "github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	spinner "charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -299,7 +299,7 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 // Bubble Tea interface
 func (sv *StatusView) Init() tea.Cmd { return sv.spinner.Tick }
 
-func (sv *StatusView) View() string { return sv.Render() }
+func (sv *StatusView) View() tea.View { return tea.NewView(sv.Render()) }
 
 func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd

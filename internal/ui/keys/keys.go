@@ -3,7 +3,7 @@ package keys
 import (
 	"slices"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // InputHandlerKeys are keys that can be handled by text input components

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -168,7 +168,11 @@ func (m *ThemeSelectorImpl) updateSearch() {
 	m.selected = 0
 }
 
-func (m *ThemeSelectorImpl) View() string {
+func (m *ThemeSelectorImpl) View() tea.View {
+	return tea.NewView(m.viewContent())
+}
+
+func (m *ThemeSelectorImpl) viewContent() string {
 	var b strings.Builder
 
 	b.WriteString(m.styleProvider.RenderWithColor("Select a Theme", m.styleProvider.GetThemeColor("accent")))

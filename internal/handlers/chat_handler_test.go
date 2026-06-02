@@ -9,7 +9,7 @@ import (
 
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 

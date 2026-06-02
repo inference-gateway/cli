@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -688,8 +688,14 @@ func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-// View renders the current application view using state management
-func (app *ChatApplication) View() string {
+// View renders the current application view using state management.
+// Bubble Tea v2 expects tea.View; viewContent keeps the original
+// string-composition logic and View wraps it.
+func (app *ChatApplication) View() tea.View {
+	return tea.NewView(app.viewContent())
+}
+
+func (app *ChatApplication) viewContent() string {
 	currentView := app.stateManager.GetCurrentView()
 
 	switch currentView {
@@ -1246,7 +1252,7 @@ func (app *ChatApplication) renderThemeSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
-	return app.themeSelector.View()
+	return app.themeSelector.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {
@@ -1257,7 +1263,7 @@ func (app *ChatApplication) renderConversationSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.conversationSelector.SetWidth(width)
 	app.conversationSelector.SetHeight(height)
-	return app.conversationSelector.View()
+	return app.conversationSelector.View().Content
 }
 
 func (app *ChatApplication) renderA2ATaskManagement() string {
@@ -1268,14 +1274,14 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	width, height := app.stateManager.GetDimensions()
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
-	return app.taskManager.View()
+	return app.taskManager.View().Content
 }
 
 func (app *ChatApplication) renderGithubActionSetup() string {
 	width, height := app.stateManager.GetDimensions()
 	app.initGithubActionView.SetWidth(width)
 	app.initGithubActionView.SetHeight(height)
-	return app.initGithubActionView.View()
+	return app.initGithubActionView.View().Content
 }
 
 func (app *ChatApplication) renderChatInterface() string {
@@ -1313,7 +1319,7 @@ func (app *ChatApplication) renderModelSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.modelSelector.SetWidth(width)
 	app.modelSelector.SetHeight(height)
-	return app.modelSelector.View()
+	return app.modelSelector.View().Content
 }
 
 func (app *ChatApplication) renderFileSelection() string {

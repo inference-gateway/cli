@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -163,8 +163,10 @@ func (v *InitGithubActionView) handleTextInput(msg tea.KeyMsg) (tea.Model, tea.C
 		return v, nil
 	}
 
-	if msg.Type == tea.KeyRunes {
-		input := v.sanitizeInput(string(msg.Runes))
+	// Bubble Tea v2: KeyMsg is an interface; printable text lives in
+	// Key.Text rather than the v1 Runes field. KeyPressMsg embeds Key.
+	if press, ok := msg.(tea.KeyPressMsg); ok && press.Text != "" {
+		input := v.sanitizeInput(press.Text)
 		if len(input) > 0 {
 			v.inputBuffer = v.inputBuffer[:v.cursorPos] + input + v.inputBuffer[v.cursorPos:]
 			v.cursorPos += len(input)
@@ -257,7 +259,11 @@ func (v *InitGithubActionView) handleEnter() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *InitGithubActionView) View() string {
+func (v *InitGithubActionView) View() tea.View {
+	return tea.NewView(v.viewContent())
+}
+
+func (v *InitGithubActionView) viewContent() string {
 	if v.done {
 		if v.cancelled {
 			return "Setup cancelled.\n"

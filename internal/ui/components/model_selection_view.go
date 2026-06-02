@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -177,7 +177,11 @@ func (m *ModelSelectorImpl) handleViewSwitch(key string) {
 	m.applyFilters()
 }
 
-func (m *ModelSelectorImpl) View() string {
+func (m *ModelSelectorImpl) View() tea.View {
+	return tea.NewView(m.viewContent())
+}
+
+func (m *ModelSelectorImpl) viewContent() string {
 	var b strings.Builder
 
 	accentColor := m.styleProvider.GetThemeColor("accent")

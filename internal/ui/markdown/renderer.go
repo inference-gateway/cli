@@ -3,8 +3,8 @@ package markdown
 import (
 	"strings"
 
-	glamour "github.com/charmbracelet/glamour"
-	ansi "github.com/charmbracelet/glamour/ansi"
+	glamour "charm.land/glamour/v2"
+	ansi "charm.land/glamour/v2/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 )
@@ -74,9 +74,10 @@ func (r *Renderer) updateRenderer() {
 		glamour.WithWordWrap(r.width),
 	)
 	if err != nil {
-		// Fallback to default if custom style fails
+		// Fallback to default if custom style fails. Glamour v2 removed
+		// WithAutoStyle and now defaults to dark when no style option is
+		// supplied, so omitting it gives us the same fallback semantics.
 		renderer, _ = glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(r.width),
 		)
 	}

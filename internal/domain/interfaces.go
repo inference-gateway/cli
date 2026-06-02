@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"

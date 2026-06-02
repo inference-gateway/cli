@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	spinner "github.com/charmbracelet/bubbles/spinner"
-	viewport "github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	spinner "charm.land/bubbles/v2/spinner"
+	viewport "charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -122,7 +122,7 @@ type ConversationView struct {
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
@@ -214,7 +214,7 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 }
 
 func (cv *ConversationView) GetScrollOffset() int {
-	return cv.Viewport.YOffset
+	return cv.Viewport.YOffset()
 }
 
 func (cv *ConversationView) CanScrollUp() bool {
@@ -327,7 +327,7 @@ func (cv *ConversationView) updatePlainTextLines() {
 
 func (cv *ConversationView) SetWidth(width int) {
 	cv.width = width
-	cv.Viewport.Width = width
+	cv.Viewport.SetWidth(width)
 	if cv.lineFormatter != nil {
 		cv.lineFormatter.SetWidth(width)
 	}
@@ -338,7 +338,7 @@ func (cv *ConversationView) SetWidth(width int) {
 
 func (cv *ConversationView) SetHeight(height int) {
 	cv.height = height
-	cv.Viewport.Height = height
+	cv.Viewport.SetHeight(height)
 }
 
 func (cv *ConversationView) Render() string {
@@ -1033,7 +1033,7 @@ func (cv *ConversationView) shortenPath(path string) string {
 // Bubble Tea interface
 func (cv *ConversationView) Init() tea.Cmd { return nil }
 
-func (cv *ConversationView) View() string { return cv.Render() }
+func (cv *ConversationView) View() tea.View { return tea.NewView(cv.Render()) }
 
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -1079,10 +1079,12 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleMouseEvents processes mouse wheel events
+// handleMouseEvents processes mouse wheel events.
+// Bubble Tea v2 split MouseMsg into concrete types — wheel-up events arrive
+// as MouseWheelMsg with Button == MouseWheelUp.
 func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress && mouseMsg.Button == tea.MouseButtonWheelUp {
+	if wheel, ok := msg.(tea.MouseWheelMsg); ok {
+		if wheel.Button == tea.MouseWheelUp {
 			cv.userScrolledUp = true
 		}
 	}
