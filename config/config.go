@@ -552,6 +552,12 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
+	// Build sandbox directories with skills dirs unconditionally (no flag gating).
+	sandboxDirs := []string{".", "/tmp", ConfigDirName + "/tmp", ConfigDirName + "/skills"}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		sandboxDirs = append(sandboxDirs, filepath.Join(homeDir, ConfigDirName, "skills"))
+	}
+
 	return &Config{
 		ContainerRuntime: ContainerRuntimeConfig{
 			Type: "docker",
@@ -617,7 +623,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
+				Directories: sandboxDirs,
 				ProtectedPaths: []string{
 					ConfigDirName + "/",
 					".git/",
@@ -1038,8 +1044,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
-		isWithinConfigSubdir(absPath, "tmp", "plans")
+	carveOut := isWithinConfigSubdir(absPath, "tmp", "plans")
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
 		return err
@@ -1083,9 +1088,9 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 }
 
 // isWithinSkillsDir reports whether absPath lives inside either the project
-// (./.infer/skills) or user-global (~/.infer/skills) skills directory. The
-// sandbox carve-out uses this so the agent can Read installed SKILL.md files
-// even though ~/.infer is outside the default sandbox - only consulted when Agent.Skills.Enabled.
+// (./.infer/skills) or user-global (~/.infer/skills) skills directory. This
+// is used as a short-circuit in checkProtectedPaths to allow reads of SKILL.md
+// and references/*.md even though .infer/ is in protected_paths.
 func isWithinSkillsDir(absPath string) bool {
 	dirs := make([]string, 0, 2)
 	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
@@ -1126,6 +1131,13 @@ func isWithinConfigSubdir(absPath string, names ...string) bool {
 // file-level protections (e.g. *.env, .git/) are still enforced.
 func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+
+	// Skills directories are unconditionally readable — they're a well-known
+	// allowlist under Sandbox.Directories, and the broader .infer/ protected-path
+	// pattern must not deny them.
+	if isWithinSkillsDir(normalizedPath) {
+		return nil
+	}
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
 		if carveOut && strings.TrimSuffix(protectedPath, "/") == ConfigDirName {

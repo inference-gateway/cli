@@ -861,42 +861,41 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		t.Fatalf("failed to resolve project skill path: %v", err)
 	}
 
-	newCfg := func(skillsEnabled bool) *Config {
-		cfg := DefaultConfig()
-		cfg.Tools.Sandbox.Directories = []string{"/tmp"}
-		cfg.Agent.Skills.Enabled = skillsEnabled
-		return cfg
-	}
+	// Default config, skills explicitly disabled — skills dirs are in
+	// Sandbox.Directories unconditionally, so the flag must not matter.
+	cfg := DefaultConfig()
+	cfg.Agent.Skills.Enabled = false
 
-	t.Run("user skills dir allowed when enabled", func(t *testing.T) {
-		if err := newCfg(true).ValidatePathInSandbox(userSkill); err != nil {
+	t.Run("user skills dir allowed with default config (skills disabled)", func(t *testing.T) {
+		if err := cfg.ValidatePathInSandbox(userSkill); err != nil {
 			t.Fatalf("expected %s allowed, got %v", userSkill, err)
 		}
 	})
 
-	t.Run("project skills dir allowed when enabled", func(t *testing.T) {
-		if err := newCfg(true).ValidatePathInSandbox(projectSkill); err != nil {
+	t.Run("project skills dir allowed with default config (skills disabled)", func(t *testing.T) {
+		if err := cfg.ValidatePathInSandbox(projectSkill); err != nil {
 			t.Fatalf("expected %s allowed, got %v", projectSkill, err)
 		}
 	})
 
-	t.Run("rejected when skills disabled", func(t *testing.T) {
-		if err := newCfg(false).ValidatePathInSandbox(userSkill); err == nil {
-			t.Fatalf("expected %s rejected when skills disabled", userSkill)
+	t.Run("user config.yaml still denied (protected paths)", func(t *testing.T) {
+		denied := filepath.Join(home, ConfigDirName, "config.yaml")
+		if err := cfg.ValidatePathInSandbox(denied); err == nil {
+			t.Fatalf("expected %s to be denied", denied)
+		}
+	})
+
+	t.Run("user conversations.db still denied (protected paths)", func(t *testing.T) {
+		denied := filepath.Join(home, ConfigDirName, "conversations.db")
+		if err := cfg.ValidatePathInSandbox(denied); err == nil {
+			t.Fatalf("expected %s to be denied", denied)
 		}
 	})
 
 	t.Run("lookalike sibling dir not allowed", func(t *testing.T) {
 		sibling := filepath.Join(home, ConfigDirName, "skills-evil", "SKILL.md")
-		if err := newCfg(true).ValidatePathInSandbox(sibling); err == nil {
+		if err := cfg.ValidatePathInSandbox(sibling); err == nil {
 			t.Fatalf("expected sibling %s rejected (prefix must be a path boundary)", sibling)
-		}
-	})
-
-	t.Run("protected paths under skills dir still block", func(t *testing.T) {
-		secret := filepath.Join(home, ConfigDirName, "skills", "demo", "creds.env")
-		if err := newCfg(true).ValidatePathInSandbox(secret); err == nil {
-			t.Fatalf("expected protected file %s to be denied", secret)
 		}
 	})
 }
