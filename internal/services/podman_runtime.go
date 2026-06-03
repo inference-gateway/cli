@@ -21,56 +21,84 @@ type PodmanRuntime struct {
 func NewPodmanRuntime(sessionID domain.SessionID) domain.ContainerRuntime {
 	return &PodmanRuntime{
 		sessionID:   sessionID,
-		networkName: fmt.Sprintf("%s-%s", InferNetworkPrefix, sessionID),
+		networkName: InferNetworkPrefix,
 	}
 }
 
-// GetNetworkName returns the session-specific network name
+// GetNetworkName returns the shared infer network name
 func (pr *PodmanRuntime) GetNetworkName() string {
 	return pr.networkName
 }
 
-// EnsureNetwork creates the Podman network if it doesn't exist
+// EnsureNetwork creates the shared Podman network if it doesn't exist. The
+// network is reused across sessions, so at most one ever exists. If creation
+// fails because the IPAM address pools are exhausted (leaked networks from
+// prior sessions), it prunes those and retries once.
 func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
 	if pr.networkCreated {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "podman", "network", "inspect", pr.networkName)
-	if err := cmd.Run(); err == nil {
+	if err := exec.CommandContext(ctx, "podman", "network", "inspect", pr.networkName).Run(); err == nil {
 		pr.networkCreated = true
 		return nil
 	}
 
+	if err := pr.createNetwork(ctx); err != nil {
+		if !isAddressPoolExhausted(err.Error()) {
+			return err
+		}
+		logger.Warn("Podman network address pools exhausted; pruning leaked networks and retrying", "network", pr.networkName)
+		pruneNetworks(ctx, "podman", pr.networkName)
+		if err := pr.createNetwork(ctx); err != nil {
+			return err
+		}
+	}
+
+	pr.networkCreated = true
+	logger.Info("Podman network ready", "session", pr.sessionID, "network", pr.networkName)
+	return nil
+}
+
+// createNetwork runs "podman network create", treating an "already exists" race
+// (another session created it first) as success.
+func (pr *PodmanRuntime) createNetwork(ctx context.Context) error {
 	logger.Info("Creating Podman network", "session", pr.sessionID, "network", pr.networkName)
-	cmd = exec.CommandContext(ctx, "podman", "network", "create", pr.networkName)
-	output, err := cmd.CombinedOutput()
+	output, err := exec.CommandContext(ctx, "podman", "network", "create", pr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
-			pr.networkCreated = true
 			return nil
 		}
 		return fmt.Errorf("failed to create Podman network: %w, output: %s", err, string(output))
 	}
-
-	pr.networkCreated = true
-	logger.Info("Podman network created successfully", "session", pr.sessionID, "network", pr.networkName)
 	return nil
 }
 
-// CleanupNetwork removes the session-specific network
+// CleanupNetwork best-effort removes the shared network. Because the network is
+// shared across sessions it may still be in use by another session's
+// containers, in which case removal is refused and we leave it in place
+// (keeping networkCreated set so a later call retries once the network frees
+// up). It is never an error to fail here — shutdown must not block.
 func (pr *PodmanRuntime) CleanupNetwork(ctx context.Context) error {
 	if !pr.networkCreated {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "podman", "network", "rm", pr.networkName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove Podman network %s: %w", pr.networkName, err)
+	output, err := exec.CommandContext(ctx, "podman", "network", "rm", pr.networkName).CombinedOutput()
+	if err == nil {
+		pr.networkCreated = false
+		logger.Info("Podman network removed successfully", "network", pr.networkName)
+		return nil
 	}
 
-	pr.networkCreated = false
-	logger.Info("Podman network removed successfully", "session", pr.sessionID, "network", pr.networkName)
+	switch gone, inUse := interpretNetworkRm(string(output)); {
+	case gone:
+		pr.networkCreated = false
+	case inUse:
+		logger.Debug("Podman network still in use by another session; leaving in place", "network", pr.networkName)
+	default:
+		logger.Warn("Failed to remove Podman network", "network", pr.networkName, "error", err, "output", string(output))
+	}
 	return nil
 }
 

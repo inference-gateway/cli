@@ -83,7 +83,13 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 
 	if am.containerRuntime != nil && len(agentsToStart) > 0 {
 		if err := am.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Warn("Failed to create Docker network", "session", am.sessionID, "error", err)
+			logger.Error("Failed to ensure container network; local agents cannot start", "session", am.sessionID, "error", err)
+			for _, agent := range agentsToStart {
+				am.notifyStatus(agent.Name, domain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
+			}
+			am.initializeExternalAgents(ctx)
+			am.isRunning = true
+			return nil
 		}
 	}
 
