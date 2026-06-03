@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.117.1](https://github.com/inference-gateway/cli/compare/v0.117.0...v0.117.1) (2026-06-02)
+
+### 🐛 Bug Fixes
+
+* **sandbox:** move skills dirs into default Sandbox.Directories unconditionally ([#578](https://github.com/inference-gateway/cli/issues/578)) ([e67222e](https://github.com/inference-gateway/cli/commit/e67222e8d67b49213298f7f5a532255da09b284a)), closes [#577](https://github.com/inference-gateway/cli/issues/577) [#569](https://github.com/inference-gateway/cli/issues/569) [#571](https://github.com/inference-gateway/cli/issues/571) [#569](https://github.com/inference-gateway/cli/issues/569)
+
+### 👷 CI/CD
+
+* **infer:** centralize infer.yml + bump infer CLI and sync .infer config ([#575](https://github.com/inference-gateway/cli/issues/575)) ([bcf7ca4](https://github.com/inference-gateway/cli/commit/bcf7ca450f151b60e08aec437af096a6d607408e))
+
 ## [0.117.0](https://github.com/inference-gateway/cli/compare/v0.116.0...v0.117.0) (2026-06-01)
 
 ### 🚀 Features
