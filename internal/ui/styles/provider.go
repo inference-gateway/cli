@@ -530,12 +530,12 @@ type StyleOptions struct {
 	MarginTop    int
 }
 
-// RenderCursor renders text with cursor styling
+// RenderCursor renders text with cursor styling. It uses lipgloss Reverse,
+// which swaps the foreground/background of whatever theme colours are in
+// effect, so the cursor stays legible on every theme instead of relying on a
+// hardcoded grey-on-black pair.
 func (p *Provider) RenderCursor(text string) string {
-	style := lipgloss.NewStyle().
-		Background(lipgloss.Color("#808080")).
-		Foreground(lipgloss.Color("#000000"))
-	return style.Render(text)
+	return lipgloss.NewStyle().Reverse(true).Render(text)
 }
 
 // RenderBorderedBox renders text inside a rounded border with padding
