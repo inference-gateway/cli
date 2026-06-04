@@ -891,6 +891,10 @@ func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 	}
 
 	app.initGithubActionView.SetRepositoryInfo(owner, isOrg)
+	app.initGithubActionView.Reset()
+	if cmd := app.initGithubActionView.Init(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateGithubActionSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
