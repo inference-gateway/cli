@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -21,6 +21,7 @@ import (
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
@@ -82,6 +83,7 @@ type ChatApplication struct {
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 	initGithubActionView *components.InitGithubActionView
+	diffViewer           *components.DiffViewerImpl
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -558,7 +560,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 			inHistoryMode = cv.IsInMessageHistoryMode()
 		}
 
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode {
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
+			inHistoryMode || currentView == domain.ViewStateDiffViewer {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -580,6 +583,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2ATaskManagementView(msg)
 	case domain.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
+	case domain.ViewStateDiffViewer:
+		return app.handleDiffViewerView(msg)
 	default:
 		return nil
 	}
@@ -688,8 +693,20 @@ func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-// View renders the current application view using state management
-func (app *ChatApplication) View() string {
+// View renders the current application view using state management.
+// Bubble Tea v2 expects tea.View; viewContent keeps the original
+// string-composition logic and View wraps it. MouseMode is read from
+// the app's mouse-enabled state on every render so the ctrl+s toggle
+// actually takes effect — without this, no mouse/wheel events arrive.
+func (app *ChatApplication) View() tea.View {
+	v := tea.NewView(app.viewContent())
+	if app.mouseEnabled {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
+	return v
+}
+
+func (app *ChatApplication) viewContent() string {
 	currentView := app.stateManager.GetCurrentView()
 
 	switch currentView {
@@ -707,6 +724,8 @@ func (app *ChatApplication) View() string {
 		return app.renderA2ATaskManagement()
 	case domain.ViewStateGithubActionSetup:
 		return app.renderGithubActionSetup()
+	case domain.ViewStateDiffViewer:
+		return app.renderDiffViewer()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1246,7 +1265,7 @@ func (app *ChatApplication) renderThemeSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
-	return app.themeSelector.View()
+	return app.themeSelector.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {
@@ -1257,7 +1276,7 @@ func (app *ChatApplication) renderConversationSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.conversationSelector.SetWidth(width)
 	app.conversationSelector.SetHeight(height)
-	return app.conversationSelector.View()
+	return app.conversationSelector.View().Content
 }
 
 func (app *ChatApplication) renderA2ATaskManagement() string {
@@ -1268,14 +1287,92 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	width, height := app.stateManager.GetDimensions()
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
-	return app.taskManager.View()
+	return app.taskManager.View().Content
 }
 
 func (app *ChatApplication) renderGithubActionSetup() string {
 	width, height := app.stateManager.GetDimensions()
 	app.initGithubActionView.SetWidth(width)
 	app.initGithubActionView.SetHeight(height)
-	return app.initGithubActionView.View()
+	return app.initGithubActionView.View().Content
+}
+
+// handleDiffViewerView drives the VS Code-style changes panel. It is lazily
+// constructed on first entry and re-initialized when reopened, mirroring the
+// A2A task management view.
+func (app *ChatApplication) handleDiffViewerView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.diffViewer == nil {
+		styleProvider := styles.NewProvider(app.themeService)
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = "."
+		}
+		app.diffViewer = components.NewDiffViewer(gitdiff.NewGitSource(cwd), styleProvider, app.themeService, app.config.Chat.Keybindings)
+		if cmd := app.diffViewer.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if app.diffViewer.IsDone() || app.diffViewer.IsCancelled() {
+		app.diffViewer.Reset()
+		if cmd := app.diffViewer.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.diffViewer.Update(msg)
+	app.diffViewer = model.(*components.DiffViewerImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleDiffViewerClose(cmds)
+}
+
+func (app *ChatApplication) handleDiffViewerClose(cmds []tea.Cmd) []tea.Cmd {
+	if !app.diffViewer.IsCancelled() {
+		return cmds
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetDisabled(false)
+		iv.ClearCustomHint()
+	}
+	app.focusedComponent = app.inputView
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
+	})
+	return cmds
+}
+
+func (app *ChatApplication) renderDiffViewer() string {
+	if app.diffViewer == nil {
+		return "Loading changes…"
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.diffViewer.SetWidth(width)
+	app.diffViewer.SetHeight(height)
+	return app.diffViewer.Render(app.renderDiffViewerInput())
+}
+
+// renderDiffViewerInput renders the chat input (disabled, with a hint) sized to
+// the diff pane width, so it sits beneath the diff to the right of the sidebar.
+func (app *ChatApplication) renderDiffViewerInput() string {
+	iv, ok := app.inputView.(*components.InputView)
+	if !ok {
+		return ""
+	}
+	iv.SetCustomHint(app.diffViewer.HintText())
+	iv.SetWidth(app.diffViewer.PaneWidth())
+	return app.inputView.Render()
 }
 
 func (app *ChatApplication) renderChatInterface() string {
@@ -1313,7 +1410,7 @@ func (app *ChatApplication) renderModelSelection() string {
 	width, height := app.stateManager.GetDimensions()
 	app.modelSelector.SetWidth(width)
 	app.modelSelector.SetHeight(height)
-	return app.modelSelector.View()
+	return app.modelSelector.View().Content
 }
 
 func (app *ChatApplication) renderFileSelection() string {

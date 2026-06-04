@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -113,8 +113,8 @@ func (qv *QueueBoxView) Init() tea.Cmd {
 	return nil
 }
 
-func (qv *QueueBoxView) View() string {
-	return ""
+func (qv *QueueBoxView) View() tea.View {
+	return tea.NewView("")
 }
 
 func (qv *QueueBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

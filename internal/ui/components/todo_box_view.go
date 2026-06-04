@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	progress "github.com/charmbracelet/bubbles/progress"
-	tea "github.com/charmbracelet/bubbletea"
+	progress "charm.land/bubbles/v2/progress"
+	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -250,7 +250,7 @@ func (tv *TodoBoxView) formatProgressBar(completed, total int) string {
 	prog := progress.New(
 		progress.WithoutPercentage(),
 		progress.WithWidth(10),
-		progress.WithDefaultGradient(),
+		progress.WithDefaultBlend(),
 	)
 
 	return prog.ViewAs(percent)
@@ -270,7 +270,7 @@ func (tv *TodoBoxView) formatMiniProgressBar(completed, total int) string {
 	prog := progress.New(
 		progress.WithoutPercentage(),
 		progress.WithWidth(5),
-		progress.WithDefaultGradient(),
+		progress.WithDefaultBlend(),
 	)
 
 	return prog.ViewAs(percent)
@@ -305,8 +305,8 @@ func (tv *TodoBoxView) Init() tea.Cmd {
 }
 
 // View returns the rendered view
-func (tv *TodoBoxView) View() string {
-	return tv.Render()
+func (tv *TodoBoxView) View() tea.View {
+	return tea.NewView(tv.Render())
 }
 
 // Update handles messages

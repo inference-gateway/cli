@@ -1,19 +1,22 @@
 package colors
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestColor_GetLipglossColor(t *testing.T) {
-	color := Color{ANSI: Red, Lipgloss: "31"}
-
-	lipglossColor := color.GetLipglossColor()
-
-	if lipglossColor != lipgloss.Color("31") {
-		t.Errorf("Expected lipgloss color '31', got '%s'", string(lipglossColor))
+	c := Color{ANSI: Red, Lipgloss: "31"}
+	got := c.GetLipglossColor()
+	if got == nil {
+		t.Fatal("expected non-nil color")
+	}
+	want := lipgloss.Color("31")
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Expected lipgloss color from %q to deeply equal %#v, got %#v", "31", want, got)
 	}
 }
 

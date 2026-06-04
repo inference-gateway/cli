@@ -5,298 +5,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// DiffRenderer provides high-performance diff rendering with colors
+// DiffRenderer is a thin adapter that preserves the legacy public surface
+// (RenderEditToolArguments / RenderMultiEditToolArguments / RenderWriteToolArguments
+// / RenderDiff / RenderColoredDiff) and delegates the actual diff rendering
+// to the diffview package. The internal renderer there uses go-udiff for a
+// correct LCS-based diff algorithm and optional chroma syntax highlighting.
 type DiffRenderer struct {
 	styleProvider *styles.Provider
+	width         int
 }
 
-// NewDiffRenderer creates a new diff renderer with colored output
-func NewDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
-	return &DiffRenderer{
-		styleProvider: styleProvider,
-	}
-}
-
-// RenderEditToolArguments renders Edit tool arguments with diff preview
-func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
-	filePath, _ := args["file_path"].(string)
-	oldString, _ := args["old_string"].(string)
-	newString, _ := args["new_string"].(string)
-	replaceAll, _ := args["replace_all"].(bool)
-
-	var result strings.Builder
-
-	result.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
-	result.WriteString("\n")
-	if replaceAll {
-		result.WriteString(d.styleProvider.RenderDimText("Mode: Replace all occurrences"))
-		result.WriteString("\n")
-	}
-	result.WriteString("\n")
-
-	result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("--- a/%s", filePath), d.styleProvider.GetThemeColor("accent")))
-	result.WriteString("\n")
-	result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("+++ b/%s", filePath), d.styleProvider.GetThemeColor("accent")))
-	result.WriteString("\n")
-
-	startLine := d.findLineNumber(filePath, oldString)
-	result.WriteString(d.renderUnifiedDiff(oldString, newString, startLine))
-
-	return result.String()
-}
-
-// findLineNumber finds the line number where the old string starts in the file
-func (d *DiffRenderer) findLineNumber(filePath, oldString string) int {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return 1
-	}
-
-	fileContent := string(content)
-
-	index := strings.Index(fileContent, oldString)
-	if index != -1 {
-		lineNum := 1
-		for i := 0; i < index; i++ {
-			if fileContent[i] == '\n' {
-				lineNum++
-			}
-		}
-		return lineNum
-	}
-
-	fileLines := strings.Split(fileContent, "\n")
-	oldLines := strings.Split(oldString, "\n")
-
-	if len(oldLines) == 0 {
-		return 1
-	}
-
-	firstOldLine := strings.TrimSpace(oldLines[0])
-	if firstOldLine == "" && len(oldLines) > 1 {
-		firstOldLine = strings.TrimSpace(oldLines[1])
-	}
-
-	for i, fileLine := range fileLines {
-		if strings.TrimSpace(fileLine) == firstOldLine {
-			if len(oldLines) == 1 {
-				return i + 1
-			}
-
-			match := true
-			for j := 1; j < len(oldLines) && (i+j) < len(fileLines); j++ {
-				if strings.TrimSpace(oldLines[j]) != strings.TrimSpace(fileLines[i+j]) {
-					match = false
-					break
-				}
-			}
-
-			if match {
-				return i + 1
-			}
-		}
-	}
-
-	return 1
-}
-
-// RenderMultiEditToolArguments renders MultiEdit tool arguments
-func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string {
-	filePath, _ := args["file_path"].(string)
-	editsInterface := args["edits"]
-
-	var result strings.Builder
-
-	result.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
-	result.WriteString("\n\n")
-
-	editsArray, ok := editsInterface.([]any)
-	if !ok {
-		result.WriteString("Invalid edits format\n")
-		return result.String()
-	}
-
-	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("Operations: %d edits", len(editsArray))))
-	result.WriteString("\n\n")
-
-	for i, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, _ := editMap["old_string"].(string)
-		newString, _ := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("Edit %d:", i+1), d.styleProvider.GetThemeColor("accent")))
-		result.WriteString("\n")
-		if replaceAll {
-			result.WriteString(d.styleProvider.RenderDimText("Replace all occurrences"))
-			result.WriteString("\n")
-		}
-
-		startLine := d.findLineNumber(filePath, oldString)
-		result.WriteString(d.renderUnifiedDiff(oldString, newString, startLine))
-
-		if i < len(editsArray)-1 {
-			result.WriteString("\n")
-		}
-	}
-
-	return result.String()
-}
-
-// RenderWriteToolArguments renders Write tool arguments with diff for existing files
-func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
-	filePath, _ := args["file_path"].(string)
-	content, _ := args["content"].(string)
-
-	var result strings.Builder
-
-	existingContent, err := d.readFileIfExists(filePath)
-	if err == nil && existingContent != "" {
-		diffInfo := DiffInfo{
-			FilePath:   filePath,
-			OldContent: existingContent,
-			NewContent: content,
-			Title:      "← File will be overwritten →",
-		}
-		return d.RenderDiff(diffInfo)
-	}
-
-	icon := d.getFileIcon(filePath)
-	header := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
-	result.WriteString(header)
-	result.WriteString("\n\n")
-
-	opts := styles.StyleOptions{
-		Background: d.styleProvider.GetThemeColor("success"),
-		Foreground: "#000000",
-		Bold:       true,
-		Padding:    [2]int{0, 1},
-	}
-	newFileBadge := d.styleProvider.RenderStyledText(" NEW FILE ", opts)
-	result.WriteString(newFileBadge)
-	result.WriteString("\n\n")
-
-	result.WriteString(d.renderContentPreview(content))
-
-	return result.String()
-}
-
-// readFileIfExists attempts to read a file, returning empty string if not exists
-func (d *DiffRenderer) readFileIfExists(filePath string) (string, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
-}
-
-// renderContentPreview renders content with line numbers for preview
-func (d *DiffRenderer) renderContentPreview(content string) string {
-	lines := strings.Split(content, "\n")
-
-	var result strings.Builder
-	maxLineNumWidth := len(fmt.Sprintf("%d", len(lines)))
-	gutterSep := d.styleProvider.RenderDimText(" │ ")
-
-	for i, line := range lines {
-		if i >= 50 {
-			remaining := len(lines) - i
-			opts := styles.StyleOptions{
-				Foreground: d.styleProvider.GetThemeColor("dim"),
-				Italic:     true,
-			}
-			result.WriteString(d.styleProvider.RenderStyledText(fmt.Sprintf("\n... %d more lines ...", remaining), opts))
-			break
-		}
-
-		lineNumStr := d.styleProvider.RenderDimText(
-			fmt.Sprintf("%*d", maxLineNumWidth, i+1))
-		result.WriteString(lineNumStr)
-		result.WriteString(gutterSep)
-		result.WriteString(line)
-		if i < len(lines)-1 {
-			result.WriteString("\n")
-		}
-	}
-
-	return result.String()
-}
-
-// RenderDiff renders a unified diff with colors and modern styling
-func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
-	var result strings.Builder
-
-	stats := d.calculateDiffStats(diffInfo.OldContent, diffInfo.NewContent)
-
-	if diffInfo.Title != "" {
-		opts := styles.StyleOptions{
-			Foreground: d.styleProvider.GetThemeColor("accent"),
-			Bold:       true,
-		}
-		result.WriteString(d.styleProvider.RenderStyledText(diffInfo.Title, opts))
-		result.WriteString("\n\n")
-	}
-
-	result.WriteString(d.renderFileHeader(diffInfo.FilePath, stats))
-	result.WriteString("\n\n")
-
-	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("--- a/%s", diffInfo.FilePath)))
-	result.WriteString("\n")
-	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("+++ b/%s", diffInfo.FilePath)))
-	result.WriteString("\n")
-
-	var diffContent string
-	switch {
-	case diffInfo.OldContent == "" && diffInfo.NewContent != "":
-		diffContent = d.renderNewFileContent(diffInfo.NewContent)
-	case diffInfo.OldContent != "" && diffInfo.NewContent == "":
-		diffContent = d.renderDeletedFileContent(diffInfo.OldContent)
-	default:
-		startLine := 1
-		if diffInfo.FilePath != "" && diffInfo.OldContent != "" {
-			startLine = d.findLineNumber(diffInfo.FilePath, diffInfo.OldContent)
-		}
-
-		diffContent = d.renderUnifiedDiff(diffInfo.OldContent, diffInfo.NewContent, startLine)
-	}
-
-	separatorWidth := d.calculateMaxLineWidth(diffContent)
-	if separatorWidth == 0 {
-		separatorWidth = 80
-	}
-
-	result.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
-	result.WriteString("\n")
-	result.WriteString(diffContent)
-	result.WriteString("\n")
-	result.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
-
-	return result.String()
-}
-
-// calculateMaxLineWidth calculates the visible width of the longest line
-func (d *DiffRenderer) calculateMaxLineWidth(content string) int {
-	lines := strings.Split(content, "\n")
-	maxWidth := 0
-
-	for _, line := range lines {
-		width := d.styleProvider.GetWidth(line)
-		if width > maxWidth {
-			maxWidth = width
-		}
-	}
-
-	return maxWidth
-}
-
-// DiffInfo contains information needed to render a diff
+// DiffInfo carries the inputs for a single diff render.
 type DiffInfo struct {
 	FilePath   string
 	OldContent string
@@ -304,248 +28,278 @@ type DiffInfo struct {
 	Title      string
 }
 
-// NewToolDiffRenderer creates a tool diff renderer (alias for NewDiffRenderer)
+// NewDiffRenderer creates a new diff renderer with colored output.
+func NewDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
+	return &DiffRenderer{styleProvider: styleProvider}
+}
+
+// NewToolDiffRenderer creates a tool diff renderer (alias for NewDiffRenderer).
 func NewToolDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
 	return NewDiffRenderer(styleProvider)
 }
 
-// RenderColoredDiff renders a simple diff between old and new content (for compatibility)
+// SetWidth tells the renderer the available terminal width so the underlying
+// DiffView can pick a width-adaptive layout (split when >= 160 cols).
+func (d *DiffRenderer) SetWidth(w int) *DiffRenderer { d.width = w; return d }
+
+// RenderEditToolArguments renders Edit tool arguments as a snippet diff.
+func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
+	filePath, _ := args["file_path"].(string)
+	oldString, _ := args["old_string"].(string)
+	newString, _ := args["new_string"].(string)
+	replaceAll, _ := args["replace_all"].(bool)
+
+	var out strings.Builder
+	out.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
+	out.WriteString("\n")
+	if replaceAll {
+		out.WriteString(d.styleProvider.RenderDimText("Mode: Replace all occurrences"))
+		out.WriteString("\n")
+	}
+	out.WriteString("\n")
+	out.WriteString(d.snippetDiff(filePath, oldString, newString))
+	return out.String()
+}
+
+// RenderMultiEditToolArguments renders MultiEdit tool arguments as a sequence
+// of snippet diffs (one per edit).
+func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string {
+	filePath, _ := args["file_path"].(string)
+	editsAny := args["edits"]
+
+	var out strings.Builder
+	out.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
+	out.WriteString("\n\n")
+
+	edits, ok := editsAny.([]any)
+	if !ok {
+		out.WriteString("Invalid edits format\n")
+		return out.String()
+	}
+
+	out.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("Operations: %d edits", len(edits))))
+	out.WriteString("\n\n")
+
+	for i, raw := range edits {
+		em, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		oldString, _ := em["old_string"].(string)
+		newString, _ := em["new_string"].(string)
+		replaceAll, _ := em["replace_all"].(bool)
+
+		out.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("Edit %d:", i+1), d.styleProvider.GetThemeColor("accent")))
+		out.WriteString("\n")
+		if replaceAll {
+			out.WriteString(d.styleProvider.RenderDimText("Replace all occurrences"))
+			out.WriteString("\n")
+		}
+		out.WriteString(d.snippetDiff(filePath, oldString, newString))
+		if i < len(edits)-1 {
+			out.WriteString("\n")
+		}
+	}
+
+	return out.String()
+}
+
+// RenderWriteToolArguments renders Write tool arguments. If the target file
+// already exists, the rendered output is a full diff against the new content;
+// otherwise it's a NEW FILE badge plus a numbered preview of the first lines.
+func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
+	filePath, _ := args["file_path"].(string)
+	content, _ := args["content"].(string)
+
+	if existing, err := os.ReadFile(filePath); err == nil && len(existing) > 0 {
+		return d.RenderDiff(DiffInfo{
+			FilePath:   filePath,
+			OldContent: string(existing),
+			NewContent: content,
+			Title:      "← File will be overwritten →",
+		})
+	}
+
+	var out strings.Builder
+	icon := d.getFileIcon(filePath)
+	out.WriteString(d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent")))
+	out.WriteString("\n\n")
+	out.WriteString(d.styleProvider.RenderStyledText(" NEW FILE ", styles.StyleOptions{
+		Background: d.styleProvider.GetThemeColor("success"),
+		Foreground: "#000000",
+		Bold:       true,
+		Padding:    [2]int{0, 1},
+	}))
+	out.WriteString("\n\n")
+	out.WriteString(d.renderContentPreview(content))
+	return out.String()
+}
+
+// RenderDiff renders a full diff between OldContent and NewContent with a
+// title, file header with addition/removal stats, and the underlying DiffView
+// body. Empty contents are handled gracefully (new file, deleted file).
+func (d *DiffRenderer) RenderDiff(info DiffInfo) string {
+	var out strings.Builder
+
+	if info.Title != "" {
+		out.WriteString(d.styleProvider.RenderStyledText(info.Title, styles.StyleOptions{
+			Foreground: d.styleProvider.GetThemeColor("accent"),
+			Bold:       true,
+		}))
+		out.WriteString("\n\n")
+	}
+
+	stats := d.calculateDiffStats(info.OldContent, info.NewContent)
+	out.WriteString(d.renderFileHeader(info.FilePath, stats))
+	out.WriteString("\n\n")
+
+	out.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("--- a/%s", info.FilePath)))
+	out.WriteString("\n")
+	out.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("+++ b/%s", info.FilePath)))
+	out.WriteString("\n")
+
+	out.WriteString(d.buildDiffView(info.FilePath, info.OldContent, info.NewContent).String())
+	return out.String()
+}
+
+// RenderColoredDiff is a minimal compatibility wrapper that renders a simple
+// diff with a placeholder title and file path.
 func (d *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
-	diffInfo := DiffInfo{
+	return d.RenderDiff(DiffInfo{
 		FilePath:   "test-file",
 		OldContent: oldContent,
 		NewContent: newContent,
 		Title:      "Diff Test",
-	}
-	return d.RenderDiff(diffInfo)
+	})
 }
 
-// renderNewFileContent renders content for a newly created file
-func (d *DiffRenderer) renderNewFileContent(newContent string) string {
-	var result strings.Builder
-	newLines := strings.Split(newContent, "\n")
-	chunkHeader := fmt.Sprintf("@@ -0,0 +1,%d @@", len(newLines))
-	opts := styles.StyleOptions{
-		Foreground: d.styleProvider.GetThemeColor("status"),
-		Bold:       true,
-	}
-	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
-	result.WriteString("\n")
+// --- internals ---
 
-	maxLineNumWidth := len(fmt.Sprintf("%d", len(newLines)))
-	gutterSep := d.styleProvider.RenderDimText(" │ ")
-
-	for i, line := range newLines {
-		if i < len(newLines)-1 || line != "" {
-			lineNumStr := d.styleProvider.RenderDimText(
-				fmt.Sprintf("%*d", maxLineNumWidth, i+1))
-			result.WriteString(lineNumStr)
-			result.WriteString(gutterSep)
-			result.WriteString(d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%s", line)))
-			result.WriteString("\n")
-		}
-	}
-	return result.String()
+func (d *DiffRenderer) snippetDiff(filePath, oldString, newString string) string {
+	return d.buildDiffView(filePath, ensureTrailingNL(oldString), ensureTrailingNL(newString)).String()
 }
 
-// renderDeletedFileContent renders content for a deleted file
-func (d *DiffRenderer) renderDeletedFileContent(oldContent string) string {
-	var result strings.Builder
-	oldLines := strings.Split(oldContent, "\n")
-	chunkHeader := fmt.Sprintf("@@ -1,%d +0,0 @@", len(oldLines))
-	opts := styles.StyleOptions{
-		Foreground: d.styleProvider.GetThemeColor("status"),
-		Bold:       true,
+func ensureTrailingNL(s string) string {
+	if s == "" || strings.HasSuffix(s, "\n") {
+		return s
 	}
-	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
-	result.WriteString("\n")
-
-	maxLineNumWidth := len(fmt.Sprintf("%d", len(oldLines)))
-	gutterSep := d.styleProvider.RenderDimText(" │ ")
-
-	for i, line := range oldLines {
-		if i < len(oldLines)-1 || line != "" {
-			lineNumStr := d.styleProvider.RenderDimText(
-				fmt.Sprintf("%*d", maxLineNumWidth, i+1))
-			result.WriteString(lineNumStr)
-			result.WriteString(gutterSep)
-			result.WriteString(d.styleProvider.RenderDiffRemoval(fmt.Sprintf("-%s", line)))
-			result.WriteString("\n")
-		}
-	}
-	return result.String()
+	return s + "\n"
 }
 
-// renderUnifiedDiff generates a unified diff with line numbers and chunk headers
-func (d *DiffRenderer) renderUnifiedDiff(oldContent, newContent string, startLine int) string {
-	if oldContent == newContent {
-		return ""
+func (d *DiffRenderer) buildDiffView(filePath, before, after string) *diffview.DiffView {
+	dv := diffview.New().
+		Before(filePath, before).
+		After(filePath, after).
+		Style(d.diffStyle())
+	if d.width > 0 {
+		dv = dv.Width(d.width)
 	}
-
-	var result strings.Builder
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	oldCount := len(oldLines)
-	newCount := len(newLines)
-
-	chunkHeader := fmt.Sprintf("@@ -%d,%d +%d,%d @@", startLine, oldCount, startLine, newCount)
-	opts := styles.StyleOptions{
-		Foreground: d.styleProvider.GetThemeColor("status"),
-		Bold:       true,
-	}
-	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
-	result.WriteString("\n")
-
-	type diffLine struct {
-		oldLineNum int
-		newLineNum int
-		content    string
-		isAdd      bool
-		isDelete   bool
-		isContext  bool
-	}
-
-	var diffLines []diffLine
-	oldIdx := 0
-	newIdx := 0
-	oldLineNum := startLine
-	newLineNum := startLine
-
-	for oldIdx < len(oldLines) || newIdx < len(newLines) {
-		oldLine := ""
-		newLine := ""
-
-		if oldIdx < len(oldLines) {
-			oldLine = oldLines[oldIdx]
-		}
-		if newIdx < len(newLines) {
-			newLine = newLines[newIdx]
-		}
-
-		if oldLine == newLine {
-			diffLines = append(diffLines, diffLine{
-				oldLineNum: oldLineNum,
-				newLineNum: newLineNum,
-				content:    oldLine,
-				isContext:  true,
-			})
-			oldIdx++
-			newIdx++
-			oldLineNum++
-			newLineNum++
-		} else if oldIdx >= len(oldLines) {
-			diffLines = append(diffLines, diffLine{
-				newLineNum: newLineNum,
-				content:    newLine,
-				isAdd:      true,
-			})
-			newIdx++
-			newLineNum++
-		} else if newIdx >= len(newLines) {
-			diffLines = append(diffLines, diffLine{
-				oldLineNum: oldLineNum,
-				content:    oldLine,
-				isDelete:   true,
-			})
-			oldIdx++
-			oldLineNum++
-		} else {
-			diffLines = append(diffLines, diffLine{
-				oldLineNum: oldLineNum,
-				content:    oldLine,
-				isDelete:   true,
-			})
-			diffLines = append(diffLines, diffLine{
-				newLineNum: newLineNum,
-				content:    newLine,
-				isAdd:      true,
-			})
-			oldIdx++
-			newIdx++
-			oldLineNum++
-			newLineNum++
-		}
-	}
-
-	maxLineNumWidth := len(fmt.Sprintf("%d", max(oldLineNum, newLineNum)))
-	gutterSep := d.styleProvider.RenderDimText(" │ ")
-
-	for _, line := range diffLines {
-		var lineNumStr string
-		if line.isDelete {
-			lineNumStr = d.styleProvider.RenderDimText(fmt.Sprintf("%*d", maxLineNumWidth, line.oldLineNum))
-		} else {
-			lineNumStr = d.styleProvider.RenderDimText(fmt.Sprintf("%*d", maxLineNumWidth, line.newLineNum))
-		}
-
-		result.WriteString(lineNumStr)
-		result.WriteString(gutterSep)
-
-		if line.isContext {
-			result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf(" %s", line.content)))
-		} else if line.isAdd {
-			result.WriteString(d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%s", line.content)))
-		} else if line.isDelete {
-			result.WriteString(d.styleProvider.RenderDiffRemoval(fmt.Sprintf("-%s", line.content)))
-		}
-		result.WriteString("\n")
-	}
-
-	output := result.String()
-	return strings.TrimSuffix(output, "\n")
+	return dv
 }
 
-// DiffStats represents statistics about a diff
+// diffStyle returns a Style chosen based on the active theme's perceived
+// background brightness — light themes get the light style, dark the dark.
+func (d *DiffRenderer) diffStyle() diffview.Style {
+	theme := d.themeOrNil()
+	if theme != nil && isLightTheme(theme) {
+		return diffview.DefaultLightStyle()
+	}
+	return diffview.DefaultDarkStyle()
+}
+
+func (d *DiffRenderer) themeOrNil() domain.Theme {
+	if d.styleProvider == nil {
+		return nil
+	}
+	return d.styleProvider.GetCurrentTheme()
+}
+
+// isLightTheme classifies the theme by the luminance of its assistant
+// (primary text) color. Dark themes have light text (high luminance); light
+// themes have dark text (low luminance).
+func isLightTheme(theme domain.Theme) bool {
+	return hexLuminance(theme.GetAssistantColor()) < 0.5
+}
+
+// hexLuminance returns the relative luminance of a "#RRGGBB" string in [0,1].
+// Anything unparseable returns 1 (treated as light text → dark theme path).
+func hexLuminance(hex string) float64 {
+	hex = strings.TrimPrefix(strings.TrimSpace(hex), "#")
+	if len(hex) != 6 {
+		return 1
+	}
+	var r, g, b int
+	if _, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return 1
+	}
+	return (0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)) / 255.0
+}
+
+func (d *DiffRenderer) renderContentPreview(content string) string {
+	lines := strings.Split(content, "\n")
+	var out strings.Builder
+	maxWidth := len(fmt.Sprintf("%d", len(lines)))
+	gutter := d.styleProvider.RenderDimText(" │ ")
+
+	for i, line := range lines {
+		if i >= 50 {
+			remaining := len(lines) - i
+			out.WriteString(d.styleProvider.RenderStyledText(
+				fmt.Sprintf("\n... %d more lines ...", remaining),
+				styles.StyleOptions{Foreground: d.styleProvider.GetThemeColor("dim"), Italic: true},
+			))
+			break
+		}
+		out.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("%*d", maxWidth, i+1)))
+		out.WriteString(gutter)
+		out.WriteString(line)
+		if i < len(lines)-1 {
+			out.WriteString("\n")
+		}
+	}
+	return out.String()
+}
+
+// DiffStats represents statistics about a diff.
 type DiffStats struct {
 	LinesAdded   int
 	LinesRemoved int
 	LinesChanged int
 }
 
-// calculateDiffStats computes statistics from old and new content
 func (d *DiffRenderer) calculateDiffStats(oldContent, newContent string) DiffStats {
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
-
 	stats := DiffStats{}
 	maxLines := max(len(oldLines), len(newLines))
-
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-
+	for i := range maxLines {
+		oldLine, newLine := "", ""
 		if i < len(oldLines) {
 			oldLine = oldLines[i]
 		}
 		if i < len(newLines) {
 			newLine = newLines[i]
 		}
-
 		if oldLine == newLine {
 			continue
 		}
-
-		if oldLine != "" && newLine != "" {
+		switch {
+		case oldLine != "" && newLine != "":
 			stats.LinesChanged++
-		} else if oldLine == "" {
+		case oldLine == "":
 			stats.LinesAdded++
-		} else if newLine == "" {
+		case newLine == "":
 			stats.LinesRemoved++
 		}
 	}
-
 	return stats
 }
 
-// renderDiffStats creates a visual stats summary
 func (d *DiffRenderer) renderDiffStats(stats DiffStats) string {
 	if stats.LinesAdded == 0 && stats.LinesRemoved == 0 && stats.LinesChanged == 0 {
 		return ""
 	}
-
 	var parts []string
-
 	if stats.LinesAdded > 0 {
 		parts = append(parts, d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%d", stats.LinesAdded)))
 	}
@@ -555,14 +309,11 @@ func (d *DiffRenderer) renderDiffStats(stats DiffStats) string {
 	if stats.LinesChanged > 0 {
 		parts = append(parts, d.styleProvider.RenderWithColor(fmt.Sprintf("~%d", stats.LinesChanged), d.styleProvider.GetThemeColor("status")))
 	}
-
 	return d.styleProvider.RenderDimText("Changes: ") + strings.Join(parts, " ")
 }
 
-// getFileIcon returns an appropriate icon/glyph for a file based on extension
 func (d *DiffRenderer) getFileIcon(filePath string) string {
 	ext := strings.ToLower(filePath)
-
 	switch {
 	case strings.HasSuffix(ext, ".go"):
 		return "🐹"
@@ -587,33 +338,24 @@ func (d *DiffRenderer) getFileIcon(filePath string) string {
 	}
 }
 
-// renderFileHeader creates an elegant file header with metadata
 func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string {
 	icon := d.getFileIcon(filePath)
 	fileName := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
 
-	var contentLine strings.Builder
-	contentLine.WriteString(fileName)
-
-	statsLine := d.renderDiffStats(stats)
-	if statsLine != "" {
-		contentLine.WriteString("  ")
-		contentLine.WriteString(statsLine)
+	var content strings.Builder
+	content.WriteString(fileName)
+	if statsLine := d.renderDiffStats(stats); statsLine != "" {
+		content.WriteString("  ")
+		content.WriteString(statsLine)
 	}
 
-	contentWidth := d.styleProvider.GetWidth(contentLine.String())
-	separatorWidth := contentWidth
-	if separatorWidth < 40 {
-		separatorWidth = 40
-	}
+	sepWidth := max(d.styleProvider.GetWidth(content.String()), 40)
 
 	var header strings.Builder
-
-	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
+	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", sepWidth)))
 	header.WriteString("\n")
-	header.WriteString(contentLine.String())
+	header.WriteString(content.String())
 	header.WriteString("\n")
-	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
-
+	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", sepWidth)))
 	return header.String()
 }

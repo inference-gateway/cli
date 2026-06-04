@@ -3,7 +3,7 @@ package styles
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -18,6 +18,13 @@ func NewProvider(themeService domain.ThemeService) *Provider {
 	return &Provider{
 		themeService: themeService,
 	}
+}
+
+// GetCurrentTheme returns the active theme, exposing it for callers that need
+// to derive colors outside of Provider's pre-baked render methods (e.g. the
+// diffview Style selector).
+func (p *Provider) GetCurrentTheme() domain.Theme {
+	return p.themeService.GetCurrentTheme()
 }
 
 // Modal styles

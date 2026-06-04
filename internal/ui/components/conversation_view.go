@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	spinner "github.com/charmbracelet/bubbles/spinner"
-	viewport "github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	spinner "charm.land/bubbles/v2/spinner"
+	viewport "charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -74,6 +74,7 @@ type ConversationView struct {
 	expandedThinkingBlocks map[int]bool
 	allToolsExpanded       bool
 	allThinkingExpanded    bool
+	defaultExpandedTools   map[string]bool
 	toolFormatter          domain.ToolFormatter
 	lineFormatter          *formatting.ConversationLineFormatter
 	plainTextLines         []string
@@ -122,7 +123,7 @@ type ConversationView struct {
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
@@ -146,6 +147,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		expandedThinkingBlocks: make(map[int]bool),
 		allToolsExpanded:       false,
 		allThinkingExpanded:    false,
+		defaultExpandedTools:   map[string]bool{"Edit": true, "MultiEdit": true},
 		lineFormatter:          formatting.NewConversationLineFormatter(80, nil),
 		plainTextLines:         []string{},
 		styleProvider:          styleProvider,
@@ -214,7 +216,7 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 }
 
 func (cv *ConversationView) GetScrollOffset() int {
-	return cv.Viewport.YOffset
+	return cv.Viewport.YOffset()
 }
 
 func (cv *ConversationView) CanScrollUp() bool {
@@ -233,7 +235,8 @@ func (cv *ConversationView) ResetUserScroll() {
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
+		// Flip the effective state (an explicit override of any per-tool default).
+		cv.expandedToolResults[index] = !cv.IsToolResultExpanded(index)
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.updateViewportContentFull()
 		}
@@ -241,11 +244,14 @@ func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
-	cv.allToolsExpanded = !cv.allToolsExpanded
+	// Direction follows the current effective state, so the first press collapses
+	// whatever is on screen (including diffs that are expanded by default).
+	expand := !cv.anyToolResultExpanded()
+	cv.allToolsExpanded = expand
 
 	for i, entry := range cv.conversation {
 		if entry.Message.Role == "tool" {
-			cv.expandedToolResults[i] = cv.allToolsExpanded
+			cv.expandedToolResults[i] = expand
 		}
 	}
 
@@ -254,11 +260,44 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 	}
 }
 
-func (cv *ConversationView) IsToolResultExpanded(index int) bool {
-	if index >= 0 && index < len(cv.conversation) {
-		return cv.expandedToolResults[index]
+// anyToolResultExpanded reports whether any tool result is currently expanded,
+// honoring per-tool defaults (e.g. Edit/MultiEdit diffs default to expanded).
+func (cv *ConversationView) anyToolResultExpanded() bool {
+	for i, entry := range cv.conversation {
+		if entry.Message.Role == "tool" && cv.IsToolResultExpanded(i) {
+			return true
+		}
 	}
 	return false
+}
+
+// IsToolResultExpanded returns the effective expansion of a tool result: an
+// explicit user choice (set via ctrl+o or a per-entry toggle) if present,
+// otherwise the per-tool default from defaultExpandedTools.
+func (cv *ConversationView) IsToolResultExpanded(index int) bool {
+	if index < 0 || index >= len(cv.conversation) {
+		return false
+	}
+	if v, ok := cv.expandedToolResults[index]; ok {
+		return v
+	}
+	return cv.defaultExpanded(index)
+}
+
+// defaultExpanded reports whether the tool at index should render expanded
+// before any explicit user choice — true for tools in defaultExpandedTools
+// (Edit/MultiEdit), so their diffs are visible without a keypress.
+func (cv *ConversationView) defaultExpanded(index int) bool {
+	if index < 0 || index >= len(cv.conversation) {
+		return false
+	}
+	te := cv.conversation[index].ToolExecution
+	return te != nil && cv.defaultExpandedTools[te.ToolName]
+}
+
+// SetDefaultExpandedTools overrides which tool names render expanded by default.
+func (cv *ConversationView) SetDefaultExpandedTools(names map[string]bool) {
+	cv.defaultExpandedTools = names
 }
 
 func (cv *ConversationView) ToggleAllThinkingExpansion() {
@@ -327,7 +366,7 @@ func (cv *ConversationView) updatePlainTextLines() {
 
 func (cv *ConversationView) SetWidth(width int) {
 	cv.width = width
-	cv.Viewport.Width = width
+	cv.Viewport.SetWidth(width)
 	if cv.lineFormatter != nil {
 		cv.lineFormatter.SetWidth(width)
 	}
@@ -338,7 +377,7 @@ func (cv *ConversationView) SetWidth(width int) {
 
 func (cv *ConversationView) SetHeight(height int) {
 	cv.height = height
-	cv.Viewport.Height = height
+	cv.Viewport.SetHeight(height)
 }
 
 func (cv *ConversationView) Render() string {
@@ -809,11 +848,11 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 }
 
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
-	if entry.ToolExecution != nil {
+	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		content := cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 
 		var helpText string
-		if cv.toolFormatter != nil && cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
+		if cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
 			helpText = ""
 		} else {
 			helpText = "\n• " + cv.getToggleToolHint("collapse all tool calls")
@@ -1033,7 +1072,7 @@ func (cv *ConversationView) shortenPath(path string) string {
 // Bubble Tea interface
 func (cv *ConversationView) Init() tea.Cmd { return nil }
 
-func (cv *ConversationView) View() string { return cv.Render() }
+func (cv *ConversationView) View() tea.View { return tea.NewView(cv.Render()) }
 
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -1079,10 +1118,12 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleMouseEvents processes mouse wheel events
+// handleMouseEvents processes mouse wheel events.
+// Bubble Tea v2 split MouseMsg into concrete types — wheel-up events arrive
+// as MouseWheelMsg with Button == MouseWheelUp.
 func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress && mouseMsg.Button == tea.MouseButtonWheelUp {
+	if wheel, ok := msg.(tea.MouseWheelMsg); ok {
+		if wheel.Button == tea.MouseWheelUp {
 			cv.userScrolledUp = true
 		}
 	}

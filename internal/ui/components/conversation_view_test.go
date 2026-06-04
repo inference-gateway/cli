@@ -9,7 +9,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -226,6 +226,68 @@ func TestConversationView_IsToolResultExpanded(t *testing.T) {
 	}
 }
 
+func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"},
+			Time:          time.Now(),
+		},
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("ran")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			Time:          time.Now(),
+		},
+	})
+
+	// Edit/MultiEdit diffs are expanded by default; other tools stay collapsed.
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to be expanded by default")
+	}
+	if cv.IsToolResultExpanded(1) {
+		t.Error("expected Bash tool result to be collapsed by default")
+	}
+
+	// ctrl+o / per-entry toggle must still collapse a default-expanded diff.
+	cv.ToggleToolResultExpansion(0)
+	if cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to collapse after toggle")
+	}
+	cv.ToggleToolResultExpansion(0)
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to expand again after second toggle")
+	}
+}
+
+func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "MultiEdit"},
+			Time:          time.Now(),
+		},
+	})
+
+	// The diff is expanded by default, so the first ctrl+o should collapse it.
+	if !cv.IsToolResultExpanded(0) {
+		t.Fatal("precondition: MultiEdit should be expanded by default")
+	}
+	cv.ToggleAllToolResultsExpansion()
+	if cv.IsToolResultExpanded(0) {
+		t.Error("expected first ToggleAll to collapse the default-expanded diff")
+	}
+	cv.ToggleAllToolResultsExpansion()
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected second ToggleAll to expand again")
+	}
+}
+
 func TestConversationView_SetWidth(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
@@ -235,8 +297,8 @@ func TestConversationView_SetWidth(t *testing.T) {
 		t.Errorf("Expected width 120, got %d", cv.width)
 	}
 
-	if cv.Viewport.Width != 120 {
-		t.Errorf("Expected viewport width 120, got %d", cv.Viewport.Width)
+	if cv.Viewport.Width() != 120 {
+		t.Errorf("Expected viewport width 120, got %d", cv.Viewport.Width())
 	}
 }
 
@@ -249,8 +311,8 @@ func TestConversationView_SetHeight(t *testing.T) {
 		t.Errorf("Expected height 30, got %d", cv.height)
 	}
 
-	if cv.Viewport.Height != 30 {
-		t.Errorf("Expected viewport height 30, got %d", cv.Viewport.Height)
+	if cv.Viewport.Height() != 30 {
+		t.Errorf("Expected viewport height 30, got %d", cv.Viewport.Height())
 	}
 }
 

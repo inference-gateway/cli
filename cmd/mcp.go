@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	glamour "github.com/charmbracelet/glamour"
+	glamour "charm.land/glamour/v2"
 	config "github.com/inference-gateway/cli/config"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
@@ -241,8 +241,9 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 }
 
 func renderMarkdown(markdown string) (string, error) {
+	// Glamour v2 removed WithAutoStyle; omitting style options defaults to
+	// the dark theme, matching v1's WithAutoStyle behaviour on dark terms.
 	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(0),
 	)
 	if err != nil {

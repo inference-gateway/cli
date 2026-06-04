@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	spinner "github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	spinner "charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 

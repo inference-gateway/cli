@@ -3,7 +3,7 @@ package keys
 import (
 	"slices"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // InputHandlerKeys are keys that can be handled by text input components
@@ -21,7 +21,7 @@ var AllKnownKeys = []string{
 	"shift+up", "shift+down", "shift+left", "shift+right",
 	"alt+left", "alt+right", "ctrl+left", "ctrl+right",
 	"enter", "shift+enter", "backspace", "delete", "tab", "shift+tab", "space",
-	"home", "end", "pgup", "pgdn", "page_up", "page_down",
+	"home", "end", "pgup", "pgdn", "pgdown", "page_up", "page_down",
 	"esc", "escape",
 
 	// Ctrl combinations
@@ -62,15 +62,25 @@ func IsKnownKey(keyStr string) bool {
 	return slices.Contains(AllKnownKeys, keyStr) || IsPrintableCharacter(keyStr)
 }
 
+// PrintableText returns the literal characters represented by a key press, or
+// "" if the key has no printable text (Enter, Backspace, arrow keys, modifier
+// combos, etc.). In Bubble Tea v2 the printable text lives in KeyPressMsg.Text;
+// KeyMsg.String() returns the human-readable key *name* ("space", "ctrl+c"),
+// which is what keybinding lookups want but is not what should be inserted
+// into a text buffer. Use this helper when you need the literal input.
+func PrintableText(key tea.KeyMsg) string {
+	if press, ok := key.(tea.KeyPressMsg); ok {
+		return press.Text
+	}
+	return ""
+}
+
 // CanInputHandle checks if a key can be handled by input components
 func CanInputHandle(key tea.KeyMsg) bool {
-	keyStr := key.String()
-
-	if IsPrintableCharacter(keyStr) {
+	if PrintableText(key) != "" {
 		return true
 	}
-
-	return slices.Contains(InputHandlerKeys, keyStr)
+	return slices.Contains(InputHandlerKeys, key.String())
 }
 
 // IsKeyOrPrintable checks if a key is either a known key or a printable character

@@ -44,6 +44,7 @@ const (
 	SideEffectShowInitGithubActionSetup
 	SideEffectEmbedImages
 	SideEffectSendMessageWithModel
+	SideEffectShowDiffViewer
 )
 
 // PersistentConversationRepository interface for conversation persistence

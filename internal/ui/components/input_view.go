@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -432,7 +432,7 @@ func (iv *InputView) ClearCustomHint() {
 // Bubble Tea interface
 func (iv *InputView) Init() tea.Cmd { return nil }
 
-func (iv *InputView) View() string { return iv.Render() }
+func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
 
 func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

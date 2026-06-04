@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -226,7 +226,11 @@ func (c *ConversationSelectorImpl) updateSearch() {
 	c.selected = 0
 }
 
-func (c *ConversationSelectorImpl) View() string {
+func (c *ConversationSelectorImpl) View() tea.View {
+	return tea.NewView(c.viewContent())
+}
+
+func (c *ConversationSelectorImpl) viewContent() string {
 	var b strings.Builder
 
 	c.writeHeader(&b)

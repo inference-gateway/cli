@@ -3,7 +3,7 @@ package keybinding_test
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
@@ -147,7 +147,7 @@ func TestActionHandlers(t *testing.T) {
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to quit action")
 	} else {
-		cmd := action.Handler(mockContext, tea.KeyMsg{})
+		cmd := action.Handler(mockContext, tea.KeyPressMsg{})
 		if cmd == nil {
 			t.Error("Expected quit handler to return a command")
 		}
@@ -158,7 +158,7 @@ func TestActionHandlers(t *testing.T) {
 		t.Fatal("Expected ctrl+o to resolve to toggle action")
 	} else {
 		initialCallCount := mockContext.ToggleToolResultExpansionCallCount()
-		_ = action.Handler(mockContext, tea.KeyMsg{})
+		_ = action.Handler(mockContext, tea.KeyPressMsg{})
 
 		if mockContext.ToggleToolResultExpansionCallCount() != initialCallCount+1 {
 			t.Error("Expected toggle handler to call ToggleToolResultExpansion()")

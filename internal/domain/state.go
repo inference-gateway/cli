@@ -70,6 +70,7 @@ const (
 	ViewStateA2ATaskManagement
 	ViewStatePlanApproval
 	ViewStateGithubActionSetup
+	ViewStateDiffViewer
 )
 
 // AgentMode represents the operational mode of the agent
@@ -102,6 +103,8 @@ func (v ViewState) String() string {
 		return "PlanApproval"
 	case ViewStateGithubActionSetup:
 		return "GithubActionSetup"
+	case ViewStateDiffViewer:
+		return "DiffViewer"
 	default:
 		return "Unknown"
 	}
@@ -433,6 +436,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateA2ATaskManagement,
 			ViewStatePlanApproval,
 			ViewStateGithubActionSetup,
+			ViewStateDiffViewer,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
@@ -440,6 +444,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateA2ATaskManagement:     {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
 		ViewStateGithubActionSetup:     {ViewStateChat},
+		ViewStateDiffViewer:            {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]

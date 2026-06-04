@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -698,7 +698,7 @@ func (isb *InputStatusBar) estimateContextWindow(model string) int {
 // Bubble Tea interface
 func (isb *InputStatusBar) Init() tea.Cmd { return nil }
 
-func (isb *InputStatusBar) View() string { return isb.Render() }
+func (isb *InputStatusBar) View() tea.View { return tea.NewView(isb.Render()) }
 
 func (isb *InputStatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

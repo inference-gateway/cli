@@ -21,56 +21,84 @@ type DockerRuntime struct {
 func NewDockerRuntime(sessionID domain.SessionID) domain.ContainerRuntime {
 	return &DockerRuntime{
 		sessionID:   sessionID,
-		networkName: fmt.Sprintf("%s-%s", InferNetworkPrefix, sessionID),
+		networkName: InferNetworkPrefix,
 	}
 }
 
-// GetNetworkName returns the session-specific network name
+// GetNetworkName returns the shared infer network name
 func (dr *DockerRuntime) GetNetworkName() string {
 	return dr.networkName
 }
 
-// EnsureNetwork creates the Docker network if it doesn't exist
+// EnsureNetwork creates the shared Docker network if it doesn't exist. The
+// network is reused across sessions, so at most one ever exists. If creation
+// fails because the IPAM address pools are exhausted (leaked networks from
+// prior sessions), it prunes those and retries once.
 func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
 	if dr.networkCreated {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", dr.networkName)
-	if err := cmd.Run(); err == nil {
+	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dr.networkName).Run(); err == nil {
 		dr.networkCreated = true
 		return nil
 	}
 
+	if err := dr.createNetwork(ctx); err != nil {
+		if !isAddressPoolExhausted(err.Error()) {
+			return err
+		}
+		logger.Warn("Docker network address pools exhausted; pruning leaked networks and retrying", "network", dr.networkName)
+		pruneNetworks(ctx, "docker", dr.networkName)
+		if err := dr.createNetwork(ctx); err != nil {
+			return err
+		}
+	}
+
+	dr.networkCreated = true
+	logger.Info("Docker network ready", "session", dr.sessionID, "network", dr.networkName)
+	return nil
+}
+
+// createNetwork runs "docker network create", treating an "already exists" race
+// (another session created it first) as success.
+func (dr *DockerRuntime) createNetwork(ctx context.Context) error {
 	logger.Info("Creating Docker network", "session", dr.sessionID, "network", dr.networkName)
-	cmd = exec.CommandContext(ctx, "docker", "network", "create", dr.networkName)
-	output, err := cmd.CombinedOutput()
+	output, err := exec.CommandContext(ctx, "docker", "network", "create", dr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
-			dr.networkCreated = true
 			return nil
 		}
 		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
 	}
-
-	dr.networkCreated = true
-	logger.Info("Docker network created successfully", "session", dr.sessionID, "network", dr.networkName)
 	return nil
 }
 
-// CleanupNetwork removes the session-specific network
+// CleanupNetwork best-effort removes the shared network. Because the network is
+// shared across sessions it may still be in use by another session's
+// containers, in which case removal is refused and we leave it in place
+// (keeping networkCreated set so a later call retries once the network frees
+// up). It is never an error to fail here — shutdown must not block.
 func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
 	if !dr.networkCreated {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "network", "rm", dr.networkName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove Docker network %s: %w", dr.networkName, err)
+	output, err := exec.CommandContext(ctx, "docker", "network", "rm", dr.networkName).CombinedOutput()
+	if err == nil {
+		dr.networkCreated = false
+		logger.Info("Docker network removed successfully", "network", dr.networkName)
+		return nil
 	}
 
-	dr.networkCreated = false
-	logger.Info("Docker network removed successfully", "session", dr.sessionID, "network", dr.networkName)
+	switch gone, inUse := interpretNetworkRm(string(output)); {
+	case gone:
+		dr.networkCreated = false
+	case inUse:
+		logger.Debug("Docker network still in use by another session; leaving in place", "network", dr.networkName)
+	default:
+		logger.Warn("Failed to remove Docker network", "network", dr.networkName, "error", err, "output", string(output))
+	}
 	return nil
 }
 

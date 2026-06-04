@@ -5,7 +5,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
@@ -208,22 +208,24 @@ func TestInputView_CanHandle(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	charKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	// Bubble Tea v2: KeyMsg is an interface; KeyPressMsg is the concrete
+	// type. Printable text lives in Text, special keys in Code.
+	charKey := tea.KeyPressMsg{Text: "a"}
 	if !iv.CanHandle(charKey) {
 		t.Error("Expected CanHandle to return true for character input")
 	}
 
-	backspaceKey := tea.KeyMsg{Type: tea.KeyBackspace}
+	backspaceKey := tea.KeyPressMsg{Code: tea.KeyBackspace}
 	if !iv.CanHandle(backspaceKey) {
 		t.Error("Expected CanHandle to return true for backspace")
 	}
 
-	leftKey := tea.KeyMsg{Type: tea.KeyLeft}
+	leftKey := tea.KeyPressMsg{Code: tea.KeyLeft}
 	if !iv.CanHandle(leftKey) {
 		t.Error("Expected CanHandle to return true for left arrow")
 	}
 
-	rightKey := tea.KeyMsg{Type: tea.KeyRight}
+	rightKey := tea.KeyPressMsg{Code: tea.KeyRight}
 	if !iv.CanHandle(rightKey) {
 		t.Error("Expected CanHandle to return true for right arrow")
 	}
@@ -474,7 +476,7 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 
 	firstSuggestion := iv.historySuggestion
 
-	tabKey := tea.KeyMsg{Type: tea.KeyTab}
+	tabKey := tea.KeyPressMsg{Code: tea.KeyTab}
 	_, _ = iv.HandleKey(tabKey)
 
 	if iv.historySuggestion == firstSuggestion {

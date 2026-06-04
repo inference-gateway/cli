@@ -4,7 +4,7 @@ package ui
 import (
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 

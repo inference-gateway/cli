@@ -64,6 +64,7 @@ func GetDefaultKeybindings() map[string]KeyBindingEntry {
 	addToolsBindings(bindings)
 	addSelectionBindings(bindings)
 	addHelpBindings(bindings)
+	addDiffViewerBindings(bindings)
 
 	return bindings
 }
@@ -350,4 +351,61 @@ func addHelpBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "help",
 		Enabled:     &enabled,
 	}
+}
+
+// addDiffViewerBindings registers the configurable keys for the `/diff` changes
+// panel (the self-contained overlay opened with /diff). Both the file-tree and
+// the hunk (patch) modes resolve their keys from these entries.
+func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
+	enabled := true
+	add := func(action, desc string, keys ...string) {
+		bindings[ActionID(NamespaceDiffViewer, action)] = KeyBindingEntry{
+			Keys:        keys,
+			Description: desc,
+			Category:    string(NamespaceDiffViewer),
+			Enabled:     &enabled,
+		}
+	}
+	add("nav_up", "move selection up", "up", "k")
+	add("nav_down", "move selection down", "down", "j")
+	add("collapse", "collapse section/folder", "left", "h")
+	add("expand", "expand section/folder", "right", "l")
+	add("toggle", "toggle section/folder collapse", "enter", "space")
+	add("stage", "stage the selected file", "a")
+	add("unstage", "unstage the selected file", "u")
+	add("discard", "discard a file's working-tree changes", "d")
+	add("patch", "stage hunks (enter patch mode)", "p")
+	add("edit", "edit the selected file (vim mode)", "v")
+	add("commit", "commit staged changes", "c")
+	add("scroll_up", "scroll the diff up", "pgup")
+	add("scroll_down", "scroll the diff down", "pgdown", "pgdn")
+	add("halfpage_up", "scroll the diff up half a page", "ctrl+u")
+	add("halfpage_down", "scroll the diff down half a page", "ctrl+d")
+	add("patch_apply", "apply the current hunk", "a", "s", "u", "enter", "space")
+	add("cancel", "close the changes panel / exit patch mode", "esc", "q")
+}
+
+// ResolveNamespaceBindings returns the effective key lists for every default
+// action in the namespace, applying any user overrides from cfg (and skipping
+// actions the user explicitly disabled). Action IDs absent from cfg fall back
+// to their built-in default keys, so the result is complete even for
+// keybindings.yaml files written before the namespace existed.
+func ResolveNamespaceBindings(cfg KeybindingsConfig, ns KeyNamespace) map[string][]string {
+	out := make(map[string][]string)
+	for id, def := range GetDefaultKeybindings() {
+		if def.Category != string(ns) {
+			continue
+		}
+		keys := def.Keys
+		if ov, ok := cfg.Bindings[id]; ok {
+			if ov.Enabled != nil && !*ov.Enabled {
+				continue
+			}
+			if len(ov.Keys) > 0 {
+				keys = ov.Keys
+			}
+		}
+		out[id] = keys
+	}
+	return out
 }

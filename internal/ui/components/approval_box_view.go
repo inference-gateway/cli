@@ -3,7 +3,7 @@ package components
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -92,8 +92,8 @@ func (av *ApprovalBoxView) Init() tea.Cmd {
 	return nil
 }
 
-func (av *ApprovalBoxView) View() string {
-	return ""
+func (av *ApprovalBoxView) View() tea.View {
+	return tea.NewView("")
 }
 
 func (av *ApprovalBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

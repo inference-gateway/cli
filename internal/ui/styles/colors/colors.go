@@ -2,9 +2,10 @@ package colors
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ANSI Color Codes - Tokyo Night Theme
@@ -109,8 +110,10 @@ var (
 	DraculaDiffRemoveColor = Color{ANSI: "\033[38;2;255;85;85m", Lipgloss: DraculaRed}
 )
 
-// GetLipglossColor returns a lipgloss color for the given Color
-func (c Color) GetLipglossColor() lipgloss.Color {
+// GetLipglossColor returns a lipgloss color for the given Color.
+// Lipgloss v2's lipgloss.Color is a constructor that returns a
+// color.Color implementation; the return type reflects that.
+func (c Color) GetLipglossColor() color.Color {
 	return lipgloss.Color(c.Lipgloss)
 }
 

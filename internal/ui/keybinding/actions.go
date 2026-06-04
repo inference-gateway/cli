@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -555,7 +555,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 		{
 			Namespace:   config.NamespaceNavigation,
 			ID:          config.ActionID(config.NamespaceNavigation, "page_down"),
-			Keys:        []string{"pgdn", "page_down"},
+			Keys:        []string{"pgdn", "pgdown", "page_down"},
 			Description: "page down",
 			Category:    "navigation",
 			Handler:     handlePageDown,
@@ -1395,7 +1395,10 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	if !mouseEnabled {
 		return tea.Batch(
-			tea.EnableMouseCellMotion,
+			// Bubble Tea v2 controls mouse mode via View.MouseMode rather
+			// than a one-shot command; ChatApplication.View() reflects
+			// app.GetMouseEnabled() into View.MouseMode. The status event
+			// here keeps the user feedback unchanged.
 			func() tea.Msg {
 				return domain.SetStatusEvent{
 					Message:    "Mouse scrolling enabled",
@@ -1407,7 +1410,6 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	return tea.Batch(
-		tea.DisableMouse,
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Text selection enabled",
@@ -1498,7 +1500,7 @@ func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyM
 
 		action := m.registry.Resolve(pendingKey, m.app)
 		if action != nil {
-			pendingCmd := action.Handler(m.app, tea.KeyMsg{})
+			pendingCmd := action.Handler(m.app, tea.KeyPressMsg{})
 			newKeyCmd := m.ProcessKey(keyMsg)
 			return m.batchCmds([]tea.Cmd{pendingCmd, newKeyCmd})
 		}
@@ -1684,22 +1686,22 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	if keys.IsPrintableCharacter(keyStr) {
-		return handlePrintableCharacter(keyStr, inputView)
+	if literal := keys.PrintableText(keyMsg); literal != "" {
+		return handlePrintableCharacter(literal, inputView)
 	}
 	return nil
 }
 
-// handlePrintableCharacter processes printable character input
-func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cmd {
+// handlePrintableCharacter inserts the literal typed text at the cursor.
+func handlePrintableCharacter(literal string, inputView ui.InputComponent) tea.Cmd {
 	if inputView == nil {
 		return nil
 	}
 
 	cursor := inputView.GetCursor()
 	text := inputView.GetInput()
-	newText := text[:cursor] + keyStr + text[cursor:]
-	newCursor := cursor + 1
+	newText := text[:cursor] + literal + text[cursor:]
+	newCursor := cursor + len(literal)
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
@@ -1710,7 +1712,7 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 		}
 	}
 
-	if keyStr == "@" {
+	if literal == "@" {
 		return tea.Batch(
 			autocompleteCmd,
 			func() tea.Msg {
@@ -1726,7 +1728,6 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 		)
 	}
 
-	// Default: autocomplete update, scroll to bottom, hide help
 	return tea.Batch(
 		autocompleteCmd,
 		func() tea.Msg {
