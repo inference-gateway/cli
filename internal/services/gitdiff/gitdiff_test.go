@@ -25,6 +25,9 @@ func newTestRepo(t *testing.T) string {
 
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed; skipping git-backed test")
+	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
