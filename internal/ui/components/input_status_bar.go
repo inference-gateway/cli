@@ -118,7 +118,10 @@ func (isb *InputStatusBar) Render() string {
 	return strings.Join(lines, "\n")
 }
 
-// buildStatusLines builds status bar content across multiple lines (max 2 lines, dynamically fit based on width)
+// buildStatusLines builds the status bar content. Indicators are packed onto the
+// top row(s); the git branch always gets its own dedicated row directly below,
+// left-aligned with the indicators. The bar stays within maxLines rows total -
+// when a branch is shown the indicators get maxLines-1 rows, otherwise maxLines.
 func (isb *InputStatusBar) buildStatusLines() []string {
 	const (
 		maxLines       = 2
@@ -130,22 +133,34 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 		return []string{leftPadding + "\u00A0"}
 	}
 
-	parts := isb.getAllIndicatorParts()
+	dimColor := isb.styleProvider.GetThemeColor("dim")
 	availableWidth := isb.width - len(leftPadding) - 2
 
-	if len(parts) == 0 {
+	branchLine := isb.buildGitBranchLine(leftPadding, dimColor)
+
+	parts := isb.getAllIndicatorParts()
+	if len(parts) == 0 && branchLine == "" {
 		return []string{leftPadding + "\u00A0"}
 	}
 
-	dimColor := isb.styleProvider.GetThemeColor("dim")
-
-	lineGroups := isb.splitPartsIntoLines(parts, availableWidth, maxLines, separatorWidth)
+	indicatorMaxLines := maxLines
+	if branchLine != "" {
+		indicatorMaxLines = maxLines - 1
+	}
 
 	var lines []string
-	for _, lineItems := range lineGroups {
-		lineText := strings.Join(lineItems, " • ")
-		renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
-		lines = append(lines, leftPadding+renderedLine)
+	if len(parts) > 0 && indicatorMaxLines > 0 {
+		lineGroups := isb.splitPartsIntoLines(parts, availableWidth, indicatorMaxLines, separatorWidth)
+		lineGroups = capIndicatorLines(lineGroups, indicatorMaxLines)
+		for _, lineItems := range lineGroups {
+			lineText := strings.Join(lineItems, " • ")
+			renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
+			lines = append(lines, leftPadding+renderedLine)
+		}
+	}
+
+	if branchLine != "" {
+		lines = append(lines, branchLine)
 	}
 
 	if len(lines) == 0 {
@@ -169,15 +184,12 @@ func (isb *InputStatusBar) getAllIndicatorParts() []string {
 	return isb.buildIndicatorParts(currentModel)
 }
 
-// buildIndicatorParts builds individual indicator parts without joining them
+// buildIndicatorParts builds individual indicator parts without joining them.
+// The git branch is intentionally excluded here - it is rendered on its own
+// dedicated row by buildGitBranchLine so it never competes with these indicators
+// for horizontal space.
 func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 	parts := []string{}
-
-	if isb.shouldShowIndicator("git_branch") {
-		if gitBranchPart := isb.buildGitBranchIndicator(); gitBranchPart != "" {
-			parts = append(parts, gitBranchPart)
-		}
-	}
 
 	if isb.shouldShowIndicator("model") {
 		parts = append(parts, currentModel)
@@ -280,6 +292,27 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []string, availableWidth, m
 	}
 
 	return lineGroups
+}
+
+// capIndicatorLines hard-caps the indicator rows at maxLines. splitPartsIntoLines
+// can emit one row beyond its budget at the cap boundary; this guarantees the
+// indicators never exceed their share of the status bar so the branch row keeps
+// the bar at a stable height. When rows are dropped, an ellipsis is appended to
+// the last kept row to signal the overflow.
+func capIndicatorLines(lineGroups [][]string, maxLines int) [][]string {
+	if maxLines <= 0 {
+		return nil
+	}
+	if len(lineGroups) <= maxLines {
+		return lineGroups
+	}
+
+	capped := lineGroups[:maxLines]
+	last := capped[maxLines-1]
+	if n := len(last); n == 0 || (last[n-1] != "…" && last[n-1] != "...") {
+		capped[maxLines-1] = append(last, "…")
+	}
+	return capped
 }
 
 // shouldAddOverflowAndBreak checks if we've reached max lines and adds overflow indicator if needed
@@ -577,6 +610,23 @@ func (isb *InputStatusBar) getCurrentGitBranch() (string, bool) {
 func (isb *InputStatusBar) InvalidateGitBranchCache() {
 	isb.gitBranchCache = ""
 	isb.gitBranchCacheTime = time.Time{}
+}
+
+// buildGitBranchLine renders the git branch as its own status bar row, left-aligned
+// with the indicator row above it. Returns "" when the git_branch indicator is
+// disabled or there is no branch to show (not a repo / detached HEAD), in which case
+// the indicators reclaim the full line budget.
+func (isb *InputStatusBar) buildGitBranchLine(leftPadding, dimColor string) string {
+	if !isb.shouldShowIndicator("git_branch") {
+		return ""
+	}
+
+	part := isb.buildGitBranchIndicator()
+	if part == "" {
+		return ""
+	}
+
+	return leftPadding + isb.styleProvider.RenderWithColor(part, dimColor)
 }
 
 // buildGitBranchIndicator builds the git branch indicator text
