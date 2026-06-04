@@ -384,7 +384,9 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case actDiffUnstage:
 		return t, t.unstageCmd()
 	case actDiffDiscard:
-		if fc := t.selectedFile(); fc != nil {
+		// Discard reverts working-tree changes, so it only applies to unstaged
+		// entries; on a staged file it is a no-op (unstage it first).
+		if fc := t.selectedFile(); fc != nil && !fc.Staged {
 			t.confirmDiscard = fc
 		}
 	case actDiffPatch:

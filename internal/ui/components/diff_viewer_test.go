@@ -433,3 +433,17 @@ func TestDiffViewer_DiscardConfirm(t *testing.T) {
 		t.Errorf("discardCalls = %v, want [a.go]", src.discardCalls)
 	}
 }
+
+func TestDiffViewer_DiscardSkipsStaged(t *testing.T) {
+	src := &fakeDiffSource{
+		staged: []gitdiff.FileChange{{Path: "s.go", Status: gitdiff.StatusModified, Staged: true}},
+		diffs:  map[string][2]string{},
+	}
+	v := newTestDiffViewer(src)
+	v.cursor = fileRowIndex(v, "s.go", true)
+
+	v.Update(tea.KeyPressMsg{Text: "d", Code: 'd'})
+	if v.confirmDiscard != nil {
+		t.Error("d on a staged file should not arm a discard (discard is for unstaged changes)")
+	}
+}
