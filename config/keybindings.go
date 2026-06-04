@@ -65,6 +65,7 @@ func GetDefaultKeybindings() map[string]KeyBindingEntry {
 	addSelectionBindings(bindings)
 	addHelpBindings(bindings)
 	addDiffViewerBindings(bindings)
+	addExplorerBindings(bindings)
 
 	return bindings
 }
@@ -383,6 +384,34 @@ func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
 	add("halfpage_down", "scroll the diff down half a page", "ctrl+d")
 	add("patch_apply", "apply the current hunk", "a", "s", "u", "enter", "space")
 	add("cancel", "close the changes panel / exit patch mode", "esc", "q")
+}
+
+// addExplorerBindings registers the configurable keys for the `/explorer` file
+// panel (the VS Code-style tree opened with /explorer). The fuzzy-finder overlay
+// captures its own typing; only the keys below are resolved from these entries.
+func addExplorerBindings(bindings map[string]KeyBindingEntry) {
+	enabled := true
+	add := func(action, desc string, keys ...string) {
+		bindings[ActionID(NamespaceExplorer, action)] = KeyBindingEntry{
+			Keys:        keys,
+			Description: desc,
+			Category:    string(NamespaceExplorer),
+			Enabled:     &enabled,
+		}
+	}
+	add("nav_up", "move selection up", "up", "k")
+	add("nav_down", "move selection down", "down", "j")
+	add("collapse", "collapse the selected folder", "left", "h")
+	add("expand", "expand the selected folder", "right", "l")
+	add("toggle", "expand/collapse a folder", "enter", "space")
+	add("open", "open the selected file in your editor", "v")
+	add("find", "open the fuzzy file finder", "/")
+	add("toggle_hidden", "show/hide hidden and ignored files", ".")
+	add("scroll_up", "scroll the preview up", "pgup")
+	add("scroll_down", "scroll the preview down", "pgdown", "pgdn")
+	add("halfpage_up", "scroll the preview up half a page", "ctrl+u")
+	add("halfpage_down", "scroll the preview down half a page", "ctrl+d")
+	add("cancel", "close the explorer panel", "esc", "q")
 }
 
 // ResolveNamespaceBindings returns the effective key lists for every default
