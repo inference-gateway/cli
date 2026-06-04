@@ -438,21 +438,12 @@ func listAgents(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	var md strings.Builder
-	fmt.Fprintf(&md, "**CONFIGURED A2A AGENTS:** %d total (%d local, %d external)\n\n", totalAgents, len(localAgents), len(externalAgents))
+	fmt.Println(listTitle(fmt.Sprintf("Configured A2A Agents (%d)", totalAgents)))
+	fmt.Println(listHint(fmt.Sprintf("%d local, %d external", len(localAgents), len(externalAgents))))
+	fmt.Println()
 
-	md.WriteString("| Source | Enabled | Name | URL | OCI Image | Local | Model | Env |\n")
-	md.WriteString("|--------|---------|------|-----|-----------|-------|-------|-----|\n")
-
+	agentsTable := newListTable("Source", "Enabled", "Name", "URL", "OCI Image", "Local", "Model", "Env")
 	for _, agent := range localAgents {
-		status := icons.CheckMark
-		if !agent.Enabled {
-			status = icons.CrossMark
-		}
-
-		name := agent.Name
-		url := agent.URL
-
 		oci := "-"
 		if agent.OCI != "" {
 			ociParts := strings.Split(agent.OCI, "/")
@@ -474,26 +465,16 @@ func listAgents(cmd *cobra.Command, args []string) error {
 			envStr = fmt.Sprintf("%d", len(agent.Environment))
 		}
 
-		fmt.Fprintf(&md, "| yaml | %s | %s | %s | %s | %s | %s | %s |\n",
-			status, name, url, oci, runLocally, model, envStr)
+		agentsTable.Row("yaml", statusIcon(agent.Enabled), agent.Name, agent.URL, oci, runLocally, model, envStr)
 	}
 
 	for _, agent := range externalAgents {
-		fmt.Fprintf(&md, "| env | %s | %s | %s | - | - | - | - |\n",
-			icons.CheckMark, agent.Name, agent.URL)
+		agentsTable.Row("env", icons.CheckMark, agent.Name, agent.URL, "-", "-", "-", "-")
 	}
+	fmt.Println(agentsTable.Render())
 
-	fmt.Fprintf(&md, "\n%s = enabled, %s = disabled\n",
-		icons.CheckMark,
-		icons.CrossMark)
-
-	rendered, err := renderMarkdown(md.String())
-	if err != nil {
-		fmt.Print(md.String())
-		return nil
-	}
-
-	fmt.Print(rendered)
+	fmt.Println()
+	fmt.Println(statusLegend())
 	return nil
 }
 
@@ -523,50 +504,45 @@ func showAgent(cmd *cobra.Command, name string) error {
 		return nil
 	}
 
-	var md strings.Builder
-	fmt.Fprintf(&md, "**AGENT:** %s\n\n", agent.Name)
+	fmt.Println(listTitle(fmt.Sprintf("Agent: %s", agent.Name)))
+	fmt.Println()
 
 	status := icons.CheckMark + " enabled"
 	if !agent.Enabled {
 		status = icons.CrossMark + " disabled"
 	}
-	fmt.Fprintf(&md, "**Status:** %s  \n", status)
-	fmt.Fprintf(&md, "**URL:** `%s`  \n", agent.URL)
+	fmt.Println(listField("Status", status))
+	fmt.Println(listField("URL", agent.URL))
 
 	if agent.ArtifactsURL != "" {
-		fmt.Fprintf(&md, "**Artifacts URL:** `%s`  \n", agent.ArtifactsURL)
+		fmt.Println(listField("Artifacts URL", agent.ArtifactsURL))
 	}
 
 	if agent.OCI != "" {
-		fmt.Fprintf(&md, "**OCI:** `%s`  \n", agent.OCI)
+		fmt.Println(listField("OCI", agent.OCI))
 	}
 
 	runLocally := icons.CrossMark
 	if agent.Run {
 		runLocally = icons.CheckMark
 	}
-	fmt.Fprintf(&md, "**Run Locally:** %s  \n", runLocally)
+	fmt.Println(listField("Run Locally", runLocally))
 
 	if agent.Model != "" {
-		fmt.Fprintf(&md, "**Model:** `%s`  \n", agent.Model)
+		fmt.Println(listField("Model", agent.Model))
 	}
 
 	if len(agent.Environment) > 0 {
-		md.WriteString("\n**Environment Variables:**\n\n")
-		md.WriteString("| Variable | Value |\n")
-		md.WriteString("|----------|-------|\n")
+		fmt.Println()
+		fmt.Println(listTitle("Environment Variables"))
+		fmt.Println()
+		envTable := newListTable("Variable", "Value")
 		for key, value := range agent.Environment {
-			fmt.Fprintf(&md, "| `%s` | `%s` |\n", key, value)
+			envTable.Row(key, value)
 		}
+		fmt.Println(envTable.Render())
 	}
 
-	rendered, err := renderMarkdown(md.String())
-	if err != nil {
-		fmt.Print(md.String())
-		return nil
-	}
-
-	fmt.Print(rendered)
 	return nil
 }
 
