@@ -2,9 +2,11 @@ package components
 
 import (
 	"sort"
-	"strings"
 
+	help "charm.land/bubbles/v2/help"
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -17,6 +19,7 @@ type HelpBar struct {
 	width         int
 	shortcuts     []ui.KeyShortcut
 	styleProvider *styles.Provider
+	help          help.Model
 }
 
 func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
@@ -25,6 +28,7 @@ func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
 		width:         80,
 		shortcuts:     make([]ui.KeyShortcut, 0),
 		styleProvider: styleProvider,
+		help:          help.New(),
 	}
 }
 
@@ -52,129 +56,57 @@ func (hb *HelpBar) SetEnabled(enabled bool) {
 
 func (hb *HelpBar) SetWidth(width int) {
 	hb.width = width
+	hb.help.SetWidth(width)
 }
 
 func (hb *HelpBar) SetHeight(height int) {
-	// Help bar has fixed height
+	// Help bar height is driven by its content
 }
 
+// Render draws the shortcuts as a multi-column cheat sheet using
+// bubbles/v2/help, which handles column layout, key/description alignment, and
+// width-aware truncation. Colours follow the active theme.
 func (hb *HelpBar) Render() string {
 	if !hb.enabled || len(hb.shortcuts) == 0 {
 		return ""
 	}
 
-	return hb.renderResponsiveTable()
+	hb.help.SetWidth(hb.width)
+	dim := lipgloss.Color(hb.styleProvider.GetThemeColor("dim"))
+	hb.help.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color(hb.styleProvider.GetThemeColor("accent")))
+	hb.help.Styles.FullDesc = lipgloss.NewStyle().Foreground(dim)
+	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dim)
+
+	return hb.help.FullHelpView(hb.helpColumns())
 }
 
-// renderResponsiveTable creates a 4-row by 3-column grid layout for shortcuts
-func (hb *HelpBar) renderResponsiveTable() string {
-	if len(hb.shortcuts) == 0 {
-		return ""
+// helpColumns converts the sorted shortcuts into key.Binding columns laid out
+// column-major, so each column reads top to bottom.
+func (hb *HelpBar) helpColumns() [][]key.Binding {
+	bindings := make([]key.Binding, 0, len(hb.shortcuts))
+	for _, s := range hb.shortcuts {
+		bindings = append(bindings, key.NewBinding(
+			key.WithKeys(s.Key),
+			key.WithHelp(s.Key, s.Description),
+		))
 	}
 
-	const rows = 11
-	const cols = 3
+	cols := hb.columnCount()
+	rowsPerCol := (len(bindings) + cols - 1) / cols
 
-	colWidth := (hb.width - 6) / cols
-	if colWidth < 20 {
-		colWidth = 20
+	groups := make([][]key.Binding, 0, cols)
+	for start := 0; start < len(bindings); start += rowsPerCol {
+		end := min(start+rowsPerCol, len(bindings))
+		groups = append(groups, bindings[start:end])
 	}
+	return groups
+}
 
-	// Create grid of shortcuts (not formatted text yet)
-	grid := make([][]ui.KeyShortcut, rows)
-	for i := range grid {
-		grid[i] = make([]ui.KeyShortcut, cols)
-	}
-
-	var firstColumnKeys []ui.KeyShortcut
-	var otherKeys []ui.KeyShortcut
-
-	priorityKeys := []string{"!", "/", "@", "#", "ctrl+s", "shift+down", "shift+up", "pgdn/page_down", "pgup/page_up"}
-	for _, shortcut := range hb.shortcuts {
-		isPriority := false
-		for _, priority := range priorityKeys {
-			if shortcut.Key == priority {
-				firstColumnKeys = append(firstColumnKeys, shortcut)
-				isPriority = true
-				break
-			}
-		}
-		if !isPriority {
-			otherKeys = append(otherKeys, shortcut)
-		}
-	}
-
-	for i, shortcut := range firstColumnKeys {
-		if i >= rows {
-			break
-		}
-		grid[i][0] = shortcut
-	}
-
-	cellIndex := 0
-	for _, shortcut := range otherKeys {
-		for cellIndex < rows*cols {
-			row := cellIndex / cols
-			col := cellIndex % cols
-
-			if col == 0 && row < len(firstColumnKeys) {
-				cellIndex++
-				continue
-			}
-
-			grid[row][col] = shortcut
-			cellIndex++
-			break
-		}
-
-		if cellIndex >= rows*cols {
-			break
-		}
-	}
-
-	colKeyWidths := make([]int, cols)
-	for col := 0; col < cols; col++ {
-		maxKeyWidth := 0
-		for row := 0; row < rows; row++ {
-			if grid[row][col].Key != "" {
-				if len(grid[row][col].Key) > maxKeyWidth {
-					maxKeyWidth = len(grid[row][col].Key)
-				}
-			}
-		}
-		colKeyWidths[col] = maxKeyWidth + 1
-	}
-
-	var tableRows []string
-	for row := 0; row < rows; row++ {
-		var cells []string
-		for col := 0; col < cols; col++ {
-			shortcut := grid[row][col]
-			var cellText string
-
-			if shortcut.Key != "" {
-				keyWidth := colKeyWidths[col]
-				padding := keyWidth - len(shortcut.Key)
-				cellText = shortcut.Key + strings.Repeat(" ", padding) + shortcut.Description
-
-				if len(cellText) > colWidth-2 {
-					cellText = cellText[:colWidth-5] + "..."
-				}
-			}
-
-			cellText = hb.styleProvider.RenderStyledText(cellText, styles.StyleOptions{
-				Width: colWidth,
-			})
-			cells = append(cells, cellText)
-		}
-		tableRows = append(tableRows, hb.styleProvider.JoinHorizontal(cells...))
-	}
-
-	fullTable := strings.Join(tableRows, "\n")
-	return hb.styleProvider.RenderStyledText(fullTable, styles.StyleOptions{
-		Foreground: hb.styleProvider.GetThemeColor("dim"),
-		Width:      hb.width,
-	})
+// columnCount picks how many help columns fit within the current width,
+// clamped to between 1 and 4.
+func (hb *HelpBar) columnCount() int {
+	const minColumnWidth = 28
+	return min(max(hb.width/minColumnWidth, 1), 4)
 }
 
 // Bubble Tea interface
