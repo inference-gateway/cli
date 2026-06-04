@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	fang "github.com/charmbracelet/fang"
+	fang "charm.land/fang/v2"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
