@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	constants "github.com/inference-gateway/cli/internal/constants"
@@ -33,6 +34,7 @@ type ConversationSelectorImpl struct {
 	confirmDelete         bool
 	deleteError           error
 	dataLoaded            bool
+	spinner               spinner.Model
 }
 
 // NewConversationSelector creates a new conversation selector
@@ -51,11 +53,15 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 		loadError:             nil,
 	}
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	c.spinner = s
+
 	return c
 }
 
 func (c *ConversationSelectorImpl) Init() tea.Cmd {
-	return c.loadConversationsCmd()
+	return tea.Batch(c.loadConversationsCmd(), c.spinner.Tick)
 }
 
 func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
@@ -90,6 +96,13 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return c, nil
 		}
 		return c.handleKeyInput(msg)
+	case spinner.TickMsg:
+		if !c.loading {
+			return c, nil
+		}
+		var cmd tea.Cmd
+		c.spinner, cmd = c.spinner.Update(msg)
+		return c, cmd
 	}
 
 	return c, nil
@@ -395,7 +408,8 @@ func (c *ConversationSelectorImpl) writeHeader(b *strings.Builder) {
 
 // writeLoadingView writes the loading view and returns the complete string
 func (c *ConversationSelectorImpl) writeLoadingView(b *strings.Builder) string {
-	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor("Loading conversations...", c.styleProvider.GetThemeColor("status")))
+	loading := fmt.Sprintf("%s Loading conversations...", c.spinner.View())
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(loading, c.styleProvider.GetThemeColor("status")))
 	return b.String()
 }
 

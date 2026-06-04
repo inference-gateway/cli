@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
@@ -46,6 +47,7 @@ type TaskManagerImpl struct {
 	showInfo              bool
 	currentView           TaskViewMode
 	infoViewport          viewport.Model
+	spinner               spinner.Model
 }
 
 type TaskViewMode int
@@ -68,6 +70,9 @@ func NewTaskManager(
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+
 	return &TaskManagerImpl{
 		activeTasks:           make([]TaskInfo, 0),
 		completedTasks:        make([]TaskInfo, 0),
@@ -85,11 +90,12 @@ func NewTaskManager(
 		loadError:             nil,
 		currentView:           TaskViewAll,
 		infoViewport:          vp,
+		spinner:               sp,
 	}
 }
 
 func (t *TaskManagerImpl) Init() tea.Cmd {
-	return t.loadTasksCmd()
+	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick)
 }
 
 // Reset resets the task manager state for reuse
@@ -192,6 +198,13 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return t, nil
 		}
 		return t.handleKeyInput(msg)
+	case spinner.TickMsg:
+		if !t.loading {
+			return t, nil
+		}
+		var cmd tea.Cmd
+		t.spinner, cmd = t.spinner.Update(msg)
+		return t, cmd
 	}
 
 	return t, nil
@@ -524,7 +537,7 @@ func (t *TaskManagerImpl) viewContent() string {
 }
 
 func (t *TaskManagerImpl) renderLoading() string {
-	return "Loading tasks..."
+	return fmt.Sprintf("%s Loading tasks...", t.spinner.View())
 }
 
 func (t *TaskManagerImpl) renderError() string {
