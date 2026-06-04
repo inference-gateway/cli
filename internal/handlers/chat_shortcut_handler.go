@@ -3,12 +3,14 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
@@ -207,6 +209,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowGithubActionSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
+	case shortcuts.SideEffectShowDiffViewer:
+		return s.handleShowDiffViewerSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:
@@ -385,6 +389,38 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Task management interface",
 		Spinner:    hasBackgroundTasks,
+		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to resolve working directory: %v", err),
+			Sticky: false,
+		}
+	}
+
+	if !gitdiff.IsRepo(cwd) {
+		return domain.SetStatusEvent{
+			Message:    "Not a git repository - nothing to diff",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	if err := s.handler.stateManager.TransitionToView(domain.ViewStateDiffViewer); err != nil {
+		logger.Error("Failed to transition to diff viewer view", "error", err)
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to open changes panel: %v", err),
+			Sticky: false,
+		}
+	}
+
+	return domain.SetStatusEvent{
+		Message:    "Changes panel - ↑/↓ select · a stage · u unstage · c commit · esc back",
+		Spinner:    false,
 		StatusType: domain.StatusDefault,
 	}
 }

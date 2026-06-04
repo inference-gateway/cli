@@ -226,6 +226,68 @@ func TestConversationView_IsToolResultExpanded(t *testing.T) {
 	}
 }
 
+func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"},
+			Time:          time.Now(),
+		},
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("ran")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			Time:          time.Now(),
+		},
+	})
+
+	// Edit/MultiEdit diffs are expanded by default; other tools stay collapsed.
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to be expanded by default")
+	}
+	if cv.IsToolResultExpanded(1) {
+		t.Error("expected Bash tool result to be collapsed by default")
+	}
+
+	// ctrl+o / per-entry toggle must still collapse a default-expanded diff.
+	cv.ToggleToolResultExpansion(0)
+	if cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to collapse after toggle")
+	}
+	cv.ToggleToolResultExpansion(0)
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected Edit tool result to expand again after second toggle")
+	}
+}
+
+func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "MultiEdit"},
+			Time:          time.Now(),
+		},
+	})
+
+	// The diff is expanded by default, so the first ctrl+o should collapse it.
+	if !cv.IsToolResultExpanded(0) {
+		t.Fatal("precondition: MultiEdit should be expanded by default")
+	}
+	cv.ToggleAllToolResultsExpansion()
+	if cv.IsToolResultExpanded(0) {
+		t.Error("expected first ToggleAll to collapse the default-expanded diff")
+	}
+	cv.ToggleAllToolResultsExpansion()
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected second ToggleAll to expand again")
+	}
+}
+
 func TestConversationView_SetWidth(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
