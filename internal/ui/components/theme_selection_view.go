@@ -2,320 +2,235 @@ package components
 
 import (
 	"fmt"
-	"strings"
+	"io"
 
+	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// ThemeSelectorImpl implements theme selection UI
-type ThemeSelectorImpl struct {
-	themes         []string
-	filteredThemes []string
-	selected       int
-	width          int
-	height         int
-	done           bool
-	cancelled      bool
-	themeService   domain.ThemeService
-	styleProvider  *styles.Provider
-	searchQuery    string
-	searchMode     bool
+// themeItem is a single selectable theme row in the theme list.
+type themeItem struct {
+	name    string
+	current bool
 }
 
-// NewThemeSelector creates a new theme selector
+// FilterValue is what the list filters against when the user searches (/).
+func (i themeItem) FilterValue() string { return i.name }
+
+// themeDelegate renders a themeItem as a single line: a caret on the
+// highlighted row, the theme name, and a check marker on the active theme.
+// It is the reference pattern for migrating the other hand-rolled selectors
+// (model / conversation / file) to bubbles/v2/list.
+type themeDelegate struct {
+	styleProvider *styles.Provider
+}
+
+func (d themeDelegate) Height() int                             { return 1 }
+func (d themeDelegate) Spacing() int                            { return 0 }
+func (d themeDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d themeDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	it, ok := item.(themeItem)
+	if !ok {
+		return
+	}
+
+	selected := index == m.Index()
+
+	prefix := "  "
+	if selected {
+		prefix = "▶ "
+	}
+	suffix := ""
+	if it.current {
+		suffix = " ✓"
+	}
+	line := prefix + it.name + suffix
+
+	switch {
+	case selected:
+		line = d.styleProvider.RenderWithColor(line, d.styleProvider.GetThemeColor("accent"))
+	case it.current:
+		line = d.styleProvider.RenderWithColor(line, d.styleProvider.GetThemeColor("status"))
+	}
+
+	_, _ = fmt.Fprint(w, line)
+}
+
+// ThemeSelectorImpl implements theme selection UI on top of bubbles/v2/list,
+// which provides cursor movement, fuzzy filtering (press /), pagination and
+// help for free.
+type ThemeSelectorImpl struct {
+	list          list.Model
+	themes        []string
+	width         int
+	height        int
+	done          bool
+	cancelled     bool
+	selectedTheme string
+	themeService  domain.ThemeService
+	styleProvider *styles.Provider
+}
+
+// NewThemeSelector creates a new theme selector.
 func NewThemeSelector(themeService domain.ThemeService, styleProvider *styles.Provider) *ThemeSelectorImpl {
 	themes := themeService.ListThemes()
+
+	l := list.New(
+		themeItems(themes, themeService.GetCurrentThemeName()),
+		themeDelegate{styleProvider: styleProvider},
+		80, 24,
+	)
+	l.Title = "Select a Theme"
+	l.SetShowStatusBar(true)
+	l.SetFilteringEnabled(true)
+	l.SetShowHelp(true)
+	// The selector is an overlay inside the chat TUI, so the list must not be
+	// able to quit the whole program: cancel (esc/ctrl+c) and select (enter)
+	// are handled here instead. esc still clears an applied filter via the
+	// list's separate ClearFilter binding.
+	l.DisableQuitKeybindings()
+	l.Styles.Title = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
+		Bold(true)
+
 	m := &ThemeSelectorImpl{
-		themes:         themes,
-		filteredThemes: make([]string, len(themes)),
-		selected:       0,
-		width:          80,
-		height:         24,
-		themeService:   themeService,
-		styleProvider:  styleProvider,
-		searchQuery:    "",
-		searchMode:     false,
+		list:          l,
+		themes:        themes,
+		width:         80,
+		height:        24,
+		themeService:  themeService,
+		styleProvider: styleProvider,
 	}
-	copy(m.filteredThemes, themes)
-
-	currentTheme := themeService.GetCurrentThemeName()
-	for i, themeName := range themes {
-		if themeName == currentTheme {
-			m.selected = i
-			break
-		}
-	}
-
+	m.selectCurrentTheme()
 	return m
 }
 
-func (m *ThemeSelectorImpl) Init() tea.Cmd {
-	return nil
+// themeItems builds the list items, marking the active theme.
+func themeItems(themes []string, current string) []list.Item {
+	items := make([]list.Item, len(themes))
+	for i, name := range themes {
+		items[i] = themeItem{name: name, current: name == current}
+	}
+	return items
 }
+
+// selectCurrentTheme moves the cursor to the active theme.
+func (m *ThemeSelectorImpl) selectCurrentTheme() {
+	current := m.themeService.GetCurrentThemeName()
+	for i, name := range m.themes {
+		if name == current {
+			m.list.Select(i)
+			return
+		}
+	}
+}
+
+func (m *ThemeSelectorImpl) Init() tea.Cmd { return nil }
 
 func (m *ThemeSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		return m.handleWindowResize(msg)
+		m.width = msg.Width
+		m.height = msg.Height
+		m.list.SetSize(msg.Width, msg.Height)
+		return m, nil
 	case tea.KeyMsg:
-		return m.handleKeyInput(msg)
+		if handled, cmd := m.handleKey(msg); handled {
+			return m, cmd
+		}
 	}
 
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
-func (m *ThemeSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
-	m.width = msg.Width
-	m.height = msg.Height
-	return m, nil
-}
+// handleKey intercepts selection/cancel keys when the list is not actively
+// filtering; otherwise it lets the list own typing, enter (apply filter) and
+// esc (clear filter).
+func (m *ThemeSelectorImpl) handleKey(msg tea.KeyMsg) (handled bool, cmd tea.Cmd) {
+	if m.list.FilterState() == list.Filtering {
+		return false, nil
+	}
 
-func (m *ThemeSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
-		return m.handleCancel()
+		m.cancel()
+		return true, nil
 	case "esc":
-		return m.handleEscape()
-	case "up":
-		return m.handleNavigationUp()
-	case "down":
-		return m.handleNavigationDown()
-	case "enter", " ":
-		return m.handleSelection()
-	case "/":
-		if !m.searchMode {
-			return m.handleSearchToggle()
+		if m.list.FilterState() == list.FilterApplied {
+			return false, nil
 		}
-		return m.handleCharacterInput(msg)
-	case "backspace":
-		return m.handleBackspace()
-	default:
-		return m.handleCharacterInput(msg)
+		m.cancel()
+		return true, nil
+	case "enter", " ":
+		return true, m.selectTheme()
 	}
+	return false, nil
 }
 
-func (m *ThemeSelectorImpl) handleEscape() (tea.Model, tea.Cmd) {
-	if m.searchMode {
-		m.searchMode = false
-		m.searchQuery = ""
-		m.updateSearch()
-		return m, nil
-	}
-	return m.handleCancel()
-}
-
-func (m *ThemeSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
+func (m *ThemeSelectorImpl) cancel() {
 	m.cancelled = true
 	m.done = true
-	return m, nil
 }
 
-func (m *ThemeSelectorImpl) handleNavigationUp() (tea.Model, tea.Cmd) {
-	if m.selected > 0 {
-		m.selected--
+func (m *ThemeSelectorImpl) selectTheme() tea.Cmd {
+	item, ok := m.list.SelectedItem().(themeItem)
+	if !ok {
+		return nil
 	}
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) handleNavigationDown() (tea.Model, tea.Cmd) {
-	if m.selected < len(m.filteredThemes)-1 {
-		m.selected++
+	if err := m.themeService.SetTheme(item.name); err != nil {
+		return nil
 	}
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
-	if len(m.filteredThemes) > 0 {
-		selectedTheme := m.filteredThemes[m.selected]
-		if err := m.themeService.SetTheme(selectedTheme); err == nil {
-			m.done = true
-			return m, func() tea.Msg {
-				return domain.ThemeSelectedEvent{Theme: selectedTheme}
-			}
-		}
+	m.selectedTheme = item.name
+	m.done = true
+	return func() tea.Msg {
+		return domain.ThemeSelectedEvent{Theme: item.name}
 	}
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) handleSearchToggle() (tea.Model, tea.Cmd) {
-	m.searchMode = true
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
-	if m.searchMode && len(m.searchQuery) > 0 {
-		m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-		m.updateSearch()
-	} else if m.searchMode && len(m.searchQuery) == 0 {
-		m.searchMode = false
-	}
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
-		m.searchQuery += msg.String()
-		m.updateSearch()
-	}
-	return m, nil
-}
-
-func (m *ThemeSelectorImpl) updateSearch() {
-	m.filterThemes()
-	m.selected = 0
 }
 
 func (m *ThemeSelectorImpl) View() tea.View {
-	return tea.NewView(m.viewContent())
+	return tea.NewView(m.list.View())
 }
 
-func (m *ThemeSelectorImpl) viewContent() string {
-	var b strings.Builder
+// IsSelected returns true if a theme was selected.
+func (m *ThemeSelectorImpl) IsSelected() bool { return m.done && !m.cancelled }
 
-	b.WriteString(m.styleProvider.RenderWithColor("Select a Theme", m.styleProvider.GetThemeColor("accent")))
-	b.WriteString("\n\n")
+// IsCancelled returns true if selection was cancelled.
+func (m *ThemeSelectorImpl) IsCancelled() bool { return m.cancelled }
 
-	if m.searchMode {
-		b.WriteString(m.styleProvider.RenderWithColor("Search: "+m.searchQuery, m.styleProvider.GetThemeColor("status")))
-		b.WriteString(m.styleProvider.RenderWithColor("│", m.styleProvider.GetThemeColor("accent")))
-		b.WriteString("\n\n")
-	} else {
-		helpText := fmt.Sprintf("Press / to search • %d themes available", len(m.themes))
-		b.WriteString(m.styleProvider.RenderDimText(helpText))
-		b.WriteString("\n\n")
-	}
-
-	if len(m.filteredThemes) == 0 {
-		if m.searchQuery != "" {
-			b.WriteString(m.styleProvider.RenderWithColor(fmt.Sprintf("No themes match '%s'", m.searchQuery), m.styleProvider.GetThemeColor("error")))
-		} else {
-			b.WriteString(m.styleProvider.RenderWithColor("No themes available", m.styleProvider.GetThemeColor("error")))
-		}
-		b.WriteString("\n")
-		return b.String()
-	}
-
-	maxVisible := m.height - 10
-	if maxVisible > len(m.filteredThemes) {
-		maxVisible = len(m.filteredThemes)
-	}
-
-	start := 0
-	if m.selected >= maxVisible {
-		start = m.selected - maxVisible + 1
-	}
-
-	currentTheme := m.themeService.GetCurrentThemeName()
-
-	for i := start; i < start+maxVisible && i < len(m.filteredThemes); i++ {
-		themeName := m.filteredThemes[i]
-
-		prefix := "  "
-		suffix := ""
-
-		if i == m.selected {
-			prefix = "▶ "
-		}
-
-		if themeName == currentTheme {
-			suffix = " ✓"
-		}
-
-		line := prefix + themeName + suffix
-		if i == m.selected {
-			b.WriteString(m.styleProvider.RenderWithColor(line, m.styleProvider.GetThemeColor("accent")))
-		} else if themeName == currentTheme {
-			b.WriteString(m.styleProvider.RenderWithColor(line, m.styleProvider.GetThemeColor("status")))
-		} else {
-			b.WriteString(line)
-		}
-		b.WriteString("\n")
-	}
-
-	if len(m.filteredThemes) > maxVisible {
-		paginationText := fmt.Sprintf("Showing %d-%d of %d themes", start+1, start+maxVisible, len(m.filteredThemes))
-		b.WriteString("\n")
-		b.WriteString(m.styleProvider.RenderDimText(paginationText))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", m.width))
-	b.WriteString("\n")
-
-	if m.searchMode {
-		b.WriteString(m.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
-	} else {
-		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
-	}
-
-	return b.String()
-}
-
-// filterThemes filters the themes based on the search query
-func (m *ThemeSelectorImpl) filterThemes() {
-	if m.searchQuery == "" {
-		m.filteredThemes = make([]string, len(m.themes))
-		copy(m.filteredThemes, m.themes)
-		return
-	}
-
-	m.filteredThemes = m.filteredThemes[:0]
-	query := strings.ToLower(m.searchQuery)
-
-	for _, themeName := range m.themes {
-		if strings.Contains(strings.ToLower(themeName), query) {
-			m.filteredThemes = append(m.filteredThemes, themeName)
-		}
-	}
-}
-
-// IsSelected returns true if a theme was selected
-func (m *ThemeSelectorImpl) IsSelected() bool {
-	return m.done && !m.cancelled
-}
-
-// IsCancelled returns true if selection was cancelled
-func (m *ThemeSelectorImpl) IsCancelled() bool {
-	return m.cancelled
-}
-
-// GetSelected returns the selected theme
+// GetSelected returns the selected theme.
 func (m *ThemeSelectorImpl) GetSelected() string {
-	if m.IsSelected() && len(m.themes) > 0 {
-		return m.themes[m.selected]
+	if m.IsSelected() {
+		return m.selectedTheme
 	}
 	return ""
 }
 
-// SetWidth sets the width of the theme selector
+// SetWidth sets the width of the theme selector.
 func (m *ThemeSelectorImpl) SetWidth(width int) {
 	m.width = width
+	m.list.SetSize(width, m.height)
 }
 
-// SetHeight sets the height of the theme selector
+// SetHeight sets the height of the theme selector.
 func (m *ThemeSelectorImpl) SetHeight(height int) {
 	m.height = height
+	m.list.SetSize(m.width, height)
 }
 
-// Reset resets the theme selector to its initial state
+// Reset returns the selector to its initial state, rebuilding the items so the
+// active-theme marker reflects any theme change since it was last shown.
 func (m *ThemeSelectorImpl) Reset() {
 	m.done = false
 	m.cancelled = false
-	m.searchQuery = ""
-	m.searchMode = false
-	m.selected = 0
-	m.updateSearch()
-
-	// Reset to current theme selection
-	currentTheme := m.themeService.GetCurrentThemeName()
-	for i, themeName := range m.themes {
-		if themeName == currentTheme {
-			m.selected = i
-			break
-		}
-	}
+	m.selectedTheme = ""
+	m.list.ResetFilter()
+	m.list.SetItems(themeItems(m.themes, m.themeService.GetCurrentThemeName()))
+	m.selectCurrentTheme()
 }
