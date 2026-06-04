@@ -812,8 +812,6 @@ func TestInputStatusBar_GitBranchRendersWithoutModel(t *testing.T) {
 }
 
 func TestInputStatusBar_GitBranchStaysTwoRowsWhenNarrow(t *testing.T) {
-	// A narrow width forces the indicators to overflow their single row; the bar
-	// must still stay at exactly two rows (truncated indicators + branch).
 	statusBar := newStatusBarWithBranch(t, 24, "some-very-long-model-name", "feature/branch", config.DefaultConfig())
 
 	lines := statusBar.buildStatusLines()
