@@ -38,10 +38,6 @@ deployment, monitoring, and management of inference services.`,
 func Execute() {
 	defer logger.Close()
 
-	// fang wraps Cobra to provide styled help, errors, and `--version`, plus
-	// shell completions, across every subcommand. It also silences Cobra's
-	// default error/usage output and renders the returned error itself, so we
-	// only need to set the exit code here.
 	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
 		os.Exit(1)
 	}
