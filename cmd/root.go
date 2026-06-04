@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	fang "charm.land/fang/v2"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
@@ -28,32 +30,21 @@ var rootCmd = &cobra.Command{
 the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if cmd.Flags().Changed("version") {
-			versionCmd.Run(cmd, args)
-			return
-		}
-		if len(args) == 0 && !cmd.Flags().Changed("help") {
-			fmt.Println("Welcome to the Inference Gateway CLI!")
-			fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
-		} else {
-			fmt.Println("Welcome to the Inference Gateway CLI!")
-			fmt.Println("Use --help to see available commands or 'infer chat' for interactive mode.")
-		}
+		fmt.Println("Welcome to the Inference Gateway CLI!")
+		fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
 	},
 }
 
 func Execute() {
 	defer logger.Close()
 
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.Flags().BoolP("version", "", false, "print version information")
 
 	cobra.OnInitialize(initConfig)
 }
