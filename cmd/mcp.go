@@ -148,37 +148,24 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	var md strings.Builder
-	md.WriteString("**MCP CONFIGURATION**\n\n")
+	fmt.Println(listTitle("MCP Configuration"))
+	fmt.Println()
 
-	globalStatus := icons.CheckMark
-	if !cfg.Enabled {
-		globalStatus = icons.CrossMark
-	}
-
-	fmt.Fprintf(&md, "**Global Status:** %s %s  \n", globalStatus, enabledText(cfg.Enabled))
-	fmt.Fprintf(&md, "**Connection Timeout:** %ds  \n", cfg.ConnectionTimeout)
-	fmt.Fprintf(&md, "**Discovery Timeout:** %ds  \n", cfg.DiscoveryTimeout)
-	fmt.Fprintf(&md, "**Liveness Probes:** %s", enabledText(cfg.LivenessProbeEnabled))
+	fmt.Println(listField("Global Status", fmt.Sprintf("%s %s", statusIcon(cfg.Enabled), enabledText(cfg.Enabled))))
+	fmt.Println(listField("Connection Timeout", fmt.Sprintf("%ds", cfg.ConnectionTimeout)))
+	fmt.Println(listField("Discovery Timeout", fmt.Sprintf("%ds", cfg.DiscoveryTimeout)))
+	liveness := enabledText(cfg.LivenessProbeEnabled)
 	if cfg.LivenessProbeEnabled {
-		fmt.Fprintf(&md, " (Interval: %ds)", cfg.LivenessProbeInterval)
+		liveness += fmt.Sprintf(" (interval: %ds)", cfg.LivenessProbeInterval)
 	}
-	md.WriteString("\n")
-	fmt.Fprintf(&md, "**Config Path:** `%s`\n\n", configPath)
+	fmt.Println(listField("Liveness Probes", liveness))
+	fmt.Println(listField("Config Path", configPath))
+	fmt.Println()
+	fmt.Println(listHint(fmt.Sprintf("%d server(s) configured", len(cfg.Servers))))
+	fmt.Println()
 
-	fmt.Fprintf(&md, "**Servers:** %d total\n\n", len(cfg.Servers))
-
-	md.WriteString("| Enabled | Name | URL | Description | Timeout | Auto |\n")
-	md.WriteString("|---------|------|-----|-------------|---------|------|\n")
-
+	serversTable := newListTable("Enabled", "Name", "URL", "Description", "Timeout", "Auto")
 	for _, server := range cfg.Servers {
-		status := icons.CheckMark
-		if !server.Enabled {
-			status = icons.CrossMark
-		}
-
-		name := server.Name
-		url := server.GetURL()
 		description := server.Description
 		if description == "" {
 			description = "-"
@@ -194,50 +181,45 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 			autoStart = icons.CheckMark
 			if server.OCI != "" {
 				ociParts := strings.Split(server.OCI, "/")
-				ociShort := ociParts[len(ociParts)-1]
-				autoStart = fmt.Sprintf("%s %s", icons.CheckMark, ociShort)
+				autoStart = fmt.Sprintf("%s %s", icons.CheckMark, ociParts[len(ociParts)-1])
 			}
 		}
 
-		fmt.Fprintf(&md, "| %s | %s | %s | %s | %s | %s |\n",
-			status, name, url, description, timeoutStr, autoStart)
+		serversTable.Row(statusIcon(server.Enabled), server.Name, server.GetURL(), description, timeoutStr, autoStart)
 	}
+	fmt.Println(serversTable.Render())
 
-	md.WriteString("\n")
+	printMCPToolFilters(cfg.Servers)
 
+	fmt.Println()
+	fmt.Println(statusLegend())
+	return nil
+}
+
+// printMCPToolFilters prints the per-server include/exclude tool filters when
+// any server defines them.
+func printMCPToolFilters(servers []config.MCPServerEntry) {
 	hasFilters := false
-	for _, server := range cfg.Servers {
+	for _, server := range servers {
 		if len(server.IncludeTools) > 0 || len(server.ExcludeTools) > 0 {
 			hasFilters = true
 			break
 		}
 	}
+	if !hasFilters {
+		return
+	}
 
-	if hasFilters {
-		md.WriteString("### Tool Filters\n\n")
-		for _, server := range cfg.Servers {
-			if len(server.IncludeTools) > 0 {
-				fmt.Fprintf(&md, "**%s** - Include: `%s`  \n", server.Name, strings.Join(server.IncludeTools, ", "))
-			}
-			if len(server.ExcludeTools) > 0 {
-				fmt.Fprintf(&md, "**%s** - Exclude: `%s`  \n", server.Name, strings.Join(server.ExcludeTools, ", "))
-			}
+	fmt.Println()
+	fmt.Println(listTitle("Tool Filters"))
+	for _, server := range servers {
+		if len(server.IncludeTools) > 0 {
+			fmt.Println(listField(server.Name+" include", strings.Join(server.IncludeTools, ", ")))
 		}
-		md.WriteString("\n")
+		if len(server.ExcludeTools) > 0 {
+			fmt.Println(listField(server.Name+" exclude", strings.Join(server.ExcludeTools, ", ")))
+		}
 	}
-
-	fmt.Fprintf(&md, "\n%s = enabled, %s = disabled\n",
-		icons.CheckMark,
-		icons.CrossMark)
-
-	rendered, err := renderMarkdown(md.String())
-	if err != nil {
-		fmt.Print(md.String())
-		return nil
-	}
-
-	fmt.Print(rendered)
-	return nil
 }
 
 func renderMarkdown(markdown string) (string, error) {
