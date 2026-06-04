@@ -84,6 +84,7 @@ type ChatApplication struct {
 	toolCallRenderer     *components.ToolCallRenderer
 	initGithubActionView *components.InitGithubActionView
 	diffViewer           *components.DiffViewerImpl
+	fileExplorer         *components.FileExplorerImpl
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -561,7 +562,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		}
 
 		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
-			inHistoryMode || currentView == domain.ViewStateDiffViewer {
+			inHistoryMode || currentView == domain.ViewStateDiffViewer ||
+			currentView == domain.ViewStateExplorer {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -585,6 +587,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleInitGithubActionView(msg)
 	case domain.ViewStateDiffViewer:
 		return app.handleDiffViewerView(msg)
+	case domain.ViewStateExplorer:
+		return app.handleExplorerView(msg)
 	default:
 		return nil
 	}
@@ -726,6 +730,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderGithubActionSetup()
 	case domain.ViewStateDiffViewer:
 		return app.renderDiffViewer()
+	case domain.ViewStateExplorer:
+		return app.renderExplorer()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1372,6 +1378,84 @@ func (app *ChatApplication) renderDiffViewerInput() string {
 	}
 	iv.SetCustomHint(app.diffViewer.HintText())
 	iv.SetWidth(app.diffViewer.PaneWidth())
+	return app.inputView.Render()
+}
+
+// handleExplorerView drives the VS Code-style file explorer panel. It is lazily
+// constructed on first entry and re-initialized when reopened, mirroring the
+// diff viewer.
+func (app *ChatApplication) handleExplorerView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.fileExplorer == nil {
+		styleProvider := styles.NewProvider(app.themeService)
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = "."
+		}
+		app.fileExplorer = components.NewFileExplorer(cwd, styleProvider, app.themeService, app.config.Chat.Keybindings)
+		if cmd := app.fileExplorer.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if app.fileExplorer.IsDone() || app.fileExplorer.IsCancelled() {
+		app.fileExplorer.Reset()
+		if cmd := app.fileExplorer.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.fileExplorer.Update(msg)
+	app.fileExplorer = model.(*components.FileExplorerImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleExplorerClose(cmds)
+}
+
+func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
+	if !app.fileExplorer.IsCancelled() {
+		return cmds
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetDisabled(false)
+		iv.ClearCustomHint()
+	}
+	app.focusedComponent = app.inputView
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
+	})
+	return cmds
+}
+
+func (app *ChatApplication) renderExplorer() string {
+	if app.fileExplorer == nil {
+		return "Loading explorer…"
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.fileExplorer.SetWidth(width)
+	app.fileExplorer.SetHeight(height)
+	return app.fileExplorer.Render(app.renderExplorerInput())
+}
+
+// renderExplorerInput renders the chat input (disabled, with a hint) sized to the
+// preview pane width, so it sits beneath the pane to the right of the sidebar.
+func (app *ChatApplication) renderExplorerInput() string {
+	iv, ok := app.inputView.(*components.InputView)
+	if !ok {
+		return ""
+	}
+	iv.SetCustomHint(app.fileExplorer.HintText())
+	iv.SetWidth(app.fileExplorer.PaneWidth())
 	return app.inputView.Render()
 }
 

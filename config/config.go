@@ -1212,6 +1212,7 @@ const (
 	NamespaceTextEditing  KeyNamespace = "text_editing"
 	NamespaceTools        KeyNamespace = "tools"
 	NamespaceDiffViewer   KeyNamespace = "diff_viewer"
+	NamespaceExplorer     KeyNamespace = "explorer"
 )
 
 // ActionID constructs a namespaced action ID from namespace and action name

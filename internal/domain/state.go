@@ -71,6 +71,7 @@ const (
 	ViewStatePlanApproval
 	ViewStateGithubActionSetup
 	ViewStateDiffViewer
+	ViewStateExplorer
 )
 
 // AgentMode represents the operational mode of the agent
@@ -105,6 +106,8 @@ func (v ViewState) String() string {
 		return "GithubActionSetup"
 	case ViewStateDiffViewer:
 		return "DiffViewer"
+	case ViewStateExplorer:
+		return "Explorer"
 	default:
 		return "Unknown"
 	}
@@ -437,6 +440,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStatePlanApproval,
 			ViewStateGithubActionSetup,
 			ViewStateDiffViewer,
+			ViewStateExplorer,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
@@ -445,6 +449,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStatePlanApproval:          {ViewStateChat},
 		ViewStateGithubActionSetup:     {ViewStateChat},
 		ViewStateDiffViewer:            {ViewStateChat},
+		ViewStateExplorer:              {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]

@@ -211,6 +211,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectShowDiffViewer:
 		return s.handleShowDiffViewerSideEffect()
+	case shortcuts.SideEffectShowExplorer:
+		return s.handleShowExplorerSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:
@@ -420,6 +422,25 @@ func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 
 	return domain.SetStatusEvent{
 		Message:    "Changes panel - ↑/↓ select · a stage · u unstage · c commit · esc back",
+		Spinner:    false,
+		StatusType: domain.StatusDefault,
+	}
+}
+
+// handleShowExplorerSideEffect opens the file explorer panel. Unlike the diff
+// viewer, it has no git-repository gate — it browses the working directory via
+// the filesystem, so it works in any directory (git or not).
+func (s *ChatShortcutHandler) handleShowExplorerSideEffect() tea.Msg {
+	if err := s.handler.stateManager.TransitionToView(domain.ViewStateExplorer); err != nil {
+		logger.Error("Failed to transition to explorer view", "error", err)
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to open explorer: %v", err),
+			Sticky: false,
+		}
+	}
+
+	return domain.SetStatusEvent{
+		Message:    "Explorer - ↑/↓ select · →/← expand/collapse · / find · v open · esc back",
 		Spinner:    false,
 		StatusType: domain.StatusDefault,
 	}
