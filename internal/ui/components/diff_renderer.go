@@ -197,14 +197,23 @@ func (d *DiffRenderer) buildDiffView(filePath, before, after string) *diffview.D
 	return dv
 }
 
-// diffStyle returns a Style chosen based on the active theme's perceived
-// background brightness — light themes get the light style, dark the dark.
+// diffStyle returns a Style derived from the active theme: the light/dark base
+// (and its tuned background tints) is chosen by the theme's perceived
+// brightness, and the add/remove/accent/dim foreground colours come from the
+// theme itself so each theme shows its own diff palette. Falls back to the
+// default dark style when no theme is available.
 func (d *DiffRenderer) diffStyle() diffview.Style {
 	theme := d.themeOrNil()
-	if theme != nil && isLightTheme(theme) {
-		return diffview.DefaultLightStyle()
+	if theme == nil {
+		return diffview.DefaultDarkStyle()
 	}
-	return diffview.DefaultDarkStyle()
+	return diffview.NewThemeAwareStyle(diffview.ThemePalette{
+		Add:    theme.GetDiffAddColor(),
+		Remove: theme.GetDiffRemoveColor(),
+		Accent: theme.GetAccentColor(),
+		Dim:    theme.GetDimColor(),
+		Dark:   !isLightTheme(theme),
+	})
 }
 
 func (d *DiffRenderer) themeOrNil() domain.Theme {
