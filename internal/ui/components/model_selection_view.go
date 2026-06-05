@@ -18,7 +18,8 @@ type ModelViewMode int
 const (
 	ModelViewAll ModelViewMode = iota
 	ModelViewFree
-	ModelViewProprietary
+	ModelViewPaid
+	ModelViewPro
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -97,7 +98,7 @@ func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m.handleCharacterInput(msg)
 	case "backspace":
 		return m.handleBackspace()
-	case "1", "2", "3":
+	case "1", "2", "3", "4":
 		m.handleViewSwitch(msg.String())
 		return m, nil
 	default:
@@ -171,7 +172,9 @@ func (m *ModelSelectorImpl) handleViewSwitch(key string) {
 	case "2":
 		m.currentView = ModelViewFree
 	case "3":
-		m.currentView = ModelViewProprietary
+		m.currentView = ModelViewPaid
+	case "4":
+		m.currentView = ModelViewPro
 	}
 	m.selected = 0
 	m.applyFilters()
@@ -260,7 +263,7 @@ func (m *ModelSelectorImpl) viewContent() string {
 	if m.searchMode {
 		b.WriteString(m.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
 	} else {
-		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, 1-3 to filter, Esc/Ctrl+C to cancel"))
+		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, 1-4 to filter, Esc/Ctrl+C to cancel"))
 	}
 
 	return b.String()
@@ -279,10 +282,8 @@ func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
 		parts = append(parts, "?")
 	}
 
-	if m.pricingService != nil {
-		if pricing := m.pricingService.FormatModelPricing(model); pricing != "" {
-			parts = append(parts, pricing)
-		}
+	if label := domain.FormatModelPricingLabel(m.pricingService, model); label != "" {
+		parts = append(parts, label)
 	}
 
 	return fmt.Sprintf("(%s)", strings.Join(parts, ", "))
@@ -320,10 +321,17 @@ func (m *ModelSelectorImpl) applyFilters() {
 				baseModels = append(baseModels, model)
 			}
 		}
-	case ModelViewProprietary:
+	case ModelViewPaid:
 		baseModels = make([]string, 0)
 		for _, model := range m.models {
-			if !m.isModelFree(model) {
+			if !m.isModelFree(model) && !m.isModelPro(model) {
+				baseModels = append(baseModels, model)
+			}
+		}
+	case ModelViewPro:
+		baseModels = make([]string, 0)
+		for _, model := range m.models {
+			if m.isModelPro(model) {
 				baseModels = append(baseModels, model)
 			}
 		}
@@ -344,10 +352,15 @@ func (m *ModelSelectorImpl) applyFilters() {
 	}
 }
 
-// isModelFree checks if a model is free (both input and output prices are 0.0)
-// Returns false if pricing is disabled or not configured
+// isModelFree checks if a model is free (both input and output prices are 0.0).
+// Pro-subscription models are also $0/$0 but are not free, so they are excluded.
+// Returns false if pricing is disabled or not configured.
 func (m *ModelSelectorImpl) isModelFree(model string) bool {
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
+		return false
+	}
+
+	if m.isModelPro(model) {
 		return false
 	}
 
@@ -355,6 +368,16 @@ func (m *ModelSelectorImpl) isModelFree(model string) bool {
 	outputPrice := m.pricingService.GetOutputPrice(model)
 
 	return inputPrice == 0.0 && outputPrice == 0.0
+}
+
+// isModelPro reports whether a model is gated behind a paid Pro subscription.
+// Returns false if pricing is disabled or not configured.
+func (m *ModelSelectorImpl) isModelPro(model string) bool {
+	if m.pricingService == nil || !m.pricingService.IsEnabled() {
+		return false
+	}
+
+	return m.pricingService.RequiresPro(model)
 }
 
 // IsSelected returns true if a model was selected
@@ -391,18 +414,21 @@ func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
 
 	allStyle := "[1] All"
 	freeStyle := "[2] Free"
-	proprietaryStyle := "[3] Proprietary"
+	paidStyle := "[3] Paid"
+	proStyle := "[4] Pro"
 
 	switch m.currentView {
 	case ModelViewAll:
 		allStyle = m.styleProvider.RenderWithColor("[1] All", accentColor)
 	case ModelViewFree:
 		freeStyle = m.styleProvider.RenderWithColor("[2] Free", accentColor)
-	case ModelViewProprietary:
-		proprietaryStyle = m.styleProvider.RenderWithColor("[3] Proprietary", accentColor)
+	case ModelViewPaid:
+		paidStyle = m.styleProvider.RenderWithColor("[3] Paid", accentColor)
+	case ModelViewPro:
+		proStyle = m.styleProvider.RenderWithColor("[4] Pro", accentColor)
 	}
 
-	tabs := fmt.Sprintf("%s  %s  %s", allStyle, freeStyle, proprietaryStyle)
+	tabs := fmt.Sprintf("%s  %s  %s  %s", allStyle, freeStyle, paidStyle, proStyle)
 	dimTabs := m.styleProvider.RenderDimText(tabs)
 	fmt.Fprintf(b, "%s\n", dimTabs)
 
