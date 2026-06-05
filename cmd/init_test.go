@@ -52,6 +52,8 @@ func TestInitializeProject(t *testing.T) {
 			}
 			defer func() { _ = os.RemoveAll(tmpDir) }()
 
+			t.Setenv("HOME", t.TempDir())
+
 			oldWd, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get working directory: %v", err)

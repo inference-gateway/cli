@@ -122,7 +122,7 @@ infer status --format json
 infer chat
 
 # Set a default model to skip selection
-infer config agent set-model anthropic/claude-4.5-sonnet
+infer config set agent.model anthropic/claude-4.5-sonnet
 infer chat
 ```
 
@@ -133,48 +133,46 @@ infer chat
 infer init
 
 # Set default model for chat sessions
-infer config agent set-model anthropic/claude-4.5-sonnet
-infer config agent set-model openai/gpt-4
-infer config agent set-model google/gemini-pro
+infer config set agent.model anthropic/claude-4.5-sonnet
+infer config set agent.model openai/gpt-4
+infer config set agent.model google/gemini-pro
 
-# Set system prompt for all chat sessions
-infer config agent set-system "You are a helpful assistant."
+# Read a value back (or `infer config get` to dump everything)
+infer config get agent.model
 ```
 
 ### Tool Management
 
 ```bash
-# Enable/disable tool execution
-infer config tools enable
-infer config tools disable
+# Enable/disable tool execution (config get/set on tools.* keys)
+infer config set tools.enabled true
+infer config set tools.enabled false
 
-# List whitelisted commands and tool status
-infer config tools list
-infer config tools list --format json
+# Inspect tool configuration and status
+infer config get tools
+infer config get tools -f json
 
-# Validate if a command is whitelisted
-infer config tools validate "ls"
+# Validate if a command is whitelisted (top-level tools command)
+infer tools validate "ls"
 
 # Execute tools directly with JSON arguments
-infer config tools exec Bash '{"command":"git status"}'
-infer config tools exec Tree '{"path":"."}'
-infer config tools exec Read '{"file_path":"README.md"}'
-infer config tools exec WebSearch '{"query":"golang tutorial"}'
+infer tools execute Bash '{"command":"git status"}'
+infer tools execute Tree '{"path":"."}'
+infer tools execute Read '{"file_path":"README.md"}'
+infer tools execute WebSearch '{"query":"golang tutorial"}'
 
 # Manage safety settings
-infer config tools safety enable   # Require approval for all tools
-infer config tools safety disable  # Execute immediately
-infer config tools safety status   # Show current settings
+infer config set tools.safety.require_approval true    # Require approval for all tools
+infer config set tools.safety.require_approval false   # Execute immediately
+infer config get tools.safety                          # Show current settings
 
 # Tool-specific safety settings
-infer config tools safety set bash enabled
-infer config tools safety set websearch disabled
-infer config tools safety unset bash
+infer config set tools.bash.require_approval true
+infer config set tools.web_search.require_approval false
 
-# Manage excluded paths
-infer config tools sandbox list
-infer config tools sandbox add ".github/"
-infer config tools sandbox remove "test.txt"
+# Manage sandbox directories (comma-separated, replaces the whole list)
+infer config get tools.sandbox.directories
+infer config set tools.sandbox.directories ".,/tmp,.github"
 ```
 
 ### Version Information

@@ -462,20 +462,29 @@ infer agent "analyze new logs" --session-id abc-123 --files error.log
 **`infer config`** - Manage CLI configuration settings
 
 ```bash
+# Read any value (effective config: defaults + ~/.infer + .infer + env)
+infer config get agent.model
+infer config get                       # dump the whole effective config
+
 # Agent configuration
-infer config agent set-model "deepseek/deepseek-v4-pro"
-infer config agent set-system "You are a helpful assistant"
-infer config agent set-max-turns 100
-infer config agent verbose-tools enable
+infer config set agent.model "deepseek/deepseek-v4-pro"
+infer config set agent.max_turns 100
+infer config set agent.verbose_tools true
 
 # Tool management
-infer config tools enable
-infer config tools bash enable
-infer config tools safety enable
+infer config set tools.enabled true
+infer config set tools.bash.enabled true
+infer config set tools.safety.require_approval true
 
 # Export configuration
-infer config export set-model "anthropic/claude-4.1-haiku"
+infer config set export.summary_model "anthropic/claude-4.1-haiku"
+
+# Write to userspace (~/.infer/config.yaml) instead of the project
+infer config set agent.model "openai/gpt-4o" --userspace
 ```
+
+> System prompts live in `prompts.yaml` (e.g. `prompts.agent.system_prompt`), not
+> in `config.yaml`, so they are edited there rather than via `config set`.
 
 See [Commands Reference](docs/commands-reference.md#configuration-management) for all configuration options.
 
@@ -557,12 +566,13 @@ Tools can be enabled/disabled and configured individually:
 
 ```bash
 # Enable/disable specific tools
-infer config tools bash enable
-infer config tools write enable
+infer config set tools.bash.enabled true
+infer config set tools.write.enabled true
 
 # Configure tool settings
-infer config tools grep set-backend ripgrep
-infer config tools web-fetch add-domain "example.com"
+infer config set tools.grep.backend ripgrep
+# List values are comma-separated and replace the whole list
+infer config set tools.web_fetch.whitelisted_domains "example.com,github.com"
 ```
 
 **Customising Tool Descriptions:**
@@ -635,7 +645,7 @@ chat:
 export INFER_AGENT_MODEL="openai/gpt-4"
 
 # Or via config file
-infer config agent set-model "deepseek/deepseek-v4-pro"
+infer config set agent.model "deepseek/deepseek-v4-pro"
 
 # Or via command flag
 infer chat --model "anthropic/claude-4"
@@ -798,8 +808,8 @@ Configure approval requirements per tool:
 
 ```bash
 # Enable/disable approval for specific tools
-infer config tools safety enable    # Global approval
-infer config tools bash enable       # Enable bash tool
+infer config set tools.safety.require_approval true   # Global approval
+infer config set tools.bash.enabled true              # Enable bash tool
 ```
 
 Or via configuration file:
@@ -1150,16 +1160,16 @@ infer chat
 
 ```bash
 # Set default model
-infer config agent set-model "deepseek/deepseek-v4-pro"
+infer config set agent.model "deepseek/deepseek-v4-pro"
 
 # Enable bash tool
-infer config tools bash enable
+infer config set tools.bash.enabled true
 
 # Configure web search
-infer config tools web-search enable
+infer config set tools.web_search.enabled true
 
 # Check current configuration
-infer config show
+infer config get
 ```
 
 ### Web Terminal Example

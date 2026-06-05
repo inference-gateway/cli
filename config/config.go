@@ -552,11 +552,6 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
-	sandboxDirs := []string{".", "/tmp", ConfigDirName + "/tmp", ConfigDirName + "/skills"}
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		sandboxDirs = append(sandboxDirs, filepath.Join(homeDir, ConfigDirName, "skills"))
-	}
-
 	return &Config{
 		ContainerRuntime: ContainerRuntimeConfig{
 			Type: "docker",
@@ -622,7 +617,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: sandboxDirs,
+				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{
 					ConfigDirName + "/",
 					".git/",
@@ -969,6 +964,29 @@ func (c *Config) GetDefaultModel() string {
 
 func (c *Config) GetSandboxDirectories() []string {
 	return c.Tools.Sandbox.Directories
+}
+
+// MergeSandboxDirectories appends directories from extra that are not already
+// present, preserving order. Used to union the userspace (~/.infer) sandbox
+// allowlist into the active config so global directories are not lost when a
+// project config.yaml shadows the global one. Skills directories are reachable
+// regardless via the isWithinSkillsDir carve-out; this is for any other
+// directory a user keeps allowed globally.
+func (c *Config) MergeSandboxDirectories(extra []string) {
+	seen := make(map[string]struct{}, len(c.Tools.Sandbox.Directories))
+	for _, dir := range c.Tools.Sandbox.Directories {
+		seen[dir] = struct{}{}
+	}
+	for _, dir := range extra {
+		if dir == "" {
+			continue
+		}
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+		c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories, dir)
+	}
 }
 
 func (c *Config) GetProtectedPaths() []string {

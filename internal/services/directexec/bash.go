@@ -350,6 +350,9 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 				line := scanner.Text()
 				_, _ = outputBuffer.Write([]byte(line + "\n"))
 			}
+			if err := scanner.Err(); err != nil {
+				logger.Debug("directexec: stdout scanner error", "error", err)
+			}
 		}()
 
 		go func() {
@@ -358,6 +361,9 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 			for scanner.Scan() {
 				line := scanner.Text()
 				_, _ = outputBuffer.Write([]byte(line + "\n"))
+			}
+			if err := scanner.Err(); err != nil {
+				logger.Debug("directexec: stderr scanner error", "error", err)
 			}
 		}()
 

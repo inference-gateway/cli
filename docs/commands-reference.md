@@ -48,7 +48,9 @@ infer init --userspace
 
 ### `infer config`
 
-Manage CLI configuration settings including models, system prompts, and tools.
+Manage CLI configuration with a uniform interface: read any value with `config get`, write any
+value with `config set`, and create the file with `config init`. There are no per-setting
+subcommands - every `config.yaml` key is reachable by its dotted path.
 
 ### `infer config init`
 
@@ -73,167 +75,89 @@ infer config init --overwrite
 infer config init --userspace
 ```
 
-### `infer config agent set-model`
+### `infer config get [key]`
 
-Set the default model for chat sessions. When set, chat sessions will automatically use this model
-without showing the model selection prompt.
+Print the effective value of a configuration key, or the whole config when no key is given. The
+value reflects what the CLI actually runs with: built-in defaults, the global `~/.infer/config.yaml`
+and the local `.infer/config.yaml` (sandbox directories are merged), and `INFER_*` environment
+overrides. Keys are dotted paths into `config.yaml`.
 
-**Examples:**
+**Options:**
 
-```bash
-infer config agent set-model openai/gpt-4-turbo
-infer config agent set-model anthropic/claude-opus-4-1-20250805
-```
-
-### `infer config agent set-system`
-
-Set a system prompt that will be included with every chat session, providing context and instructions to the AI model.
+- `-f, --format <yaml|json>`: Output format (default `yaml`)
 
 **Examples:**
 
 ```bash
-infer config agent set-system "You are a helpful assistant."
-infer config agent set-system "You are a Go programming expert."
+infer config get                          # dump the whole effective config
+infer config get agent.model
+infer config get tools.bash               # print a whole subtree
+infer config get tools.sandbox.directories
+infer config get tools.web_fetch -f json
 ```
 
-### `infer config agent set-max-turns`
+### `infer config set <key> <value>`
 
-Set the maximum number of turns for agent sessions.
+Set a configuration value in `config.yaml`. The value is parsed to the field's type (bool, integer,
+number or string); list keys take a comma-separated value that replaces the whole list. Unknown keys
+are rejected.
+
+By default the project `.infer/config.yaml` is updated; pass `--userspace` to update
+`~/.infer/config.yaml` instead.
 
 **Examples:**
 
 ```bash
-infer config agent set-max-turns 100
+# Scalars
+infer config set agent.model "openai/gpt-4-turbo"
+infer config set agent.max_turns 100
+infer config set agent.max_concurrent_tools 5
+infer config set agent.verbose_tools true
+infer config set agent.skills.enabled true
+infer config set export.summary_model "anthropic/claude-4.1-haiku"
+
+# Tools
+infer config set tools.enabled true
+infer config set tools.bash.enabled true
+infer config set tools.web_search.enabled true
+infer config set tools.grep.backend ripgrep
+infer config set tools.safety.require_approval true
+
+# List values (comma-separated, replaces the whole list)
+infer config set tools.sandbox.directories ".,/tmp,/data"
+infer config set tools.web_fetch.whitelisted_domains "example.com,github.com"
+
+# Write to userspace (~/.infer/config.yaml) instead of the project
+infer config set agent.model "openai/gpt-4o" --userspace
 ```
 
-### `infer config agent set-max-concurrent-tools`
+> System prompts and per-tool descriptions live in `prompts.yaml` (e.g.
+> `prompts.agent.system_prompt`), which is edited directly rather than via `config set`.
 
-Set the maximum number of tools that can execute concurrently.
+Tool *configuration* (enable/disable, whitelists, sandbox, backends, domains, approval) is done with
+`config get`/`config set` on the `tools.*` keys - see the examples above. To run a tool directly or
+check a command against the whitelist, use the top-level `infer tools` command below.
 
-**Examples:**
+### `infer tools`
 
-```bash
-infer config agent set-max-concurrent-tools 5
-```
-
-### `infer config agent verbose-tools`
-
-Enable or disable verbose tool output for agent sessions.
-
-**Examples:**
-
-```bash
-infer config agent verbose-tools enable
-infer config agent verbose-tools disable
-```
-
-### `infer config export`
-
-Manage export settings for conversation exports.
+Run agent tools directly or check whether a bash command is whitelisted, using the same execution and
+validation path as the agent.
 
 **Subcommands:**
 
-- `set-model <model>`: Set the model used for generating export summaries
-- `show`: Display current export configuration
+- `execute <tool> [json-args] [--format text|json]`: Execute any enabled tool directly
+- `validate <command>`: Check whether a bash command would be allowed, without running it
 
 **Examples:**
 
 ```bash
-infer config export set-model anthropic/claude-4.1-haiku
-infer config export show
-```
+# Execute a tool (JSON args, exactly as the agent invokes it)
+infer tools execute Bash '{"command":"ls -la"}'
+infer tools execute Read '{"file_path":"README.md"}'
+infer tools execute Tree '{"path":".", "max_depth":2}'
 
-### `infer config tools`
-
-Manage tool execution settings for LLMs, including enabling/disabling tools, managing whitelists, and security settings.
-
-**Subcommands:**
-
-- `enable`: Enable tool execution for LLMs
-- `disable`: Disable tool execution for LLMs
-- `list [--format text|json]`: List whitelisted commands and patterns
-- `validate <command>`: Validate if a command is whitelisted
-- `exec <command> [--format text|json]`: Execute a whitelisted command directly
-- `safety`: Manage safety approval settings
-  - `enable`: Enable safety approval prompts
-  - `disable`: Disable safety approval prompts
-  - `status`: Show current safety approval status
-- `sandbox`: Manage sandbox directories for security
-  - `list`: List all sandbox directories
-  - `add <path>`: Add a protected path to the sandbox
-  - `remove <path>`: Remove a protected path from the sandbox
-- `bash`: Manage Bash tool settings
-  - `enable`: Enable Bash tool
-  - `disable`: Disable Bash tool
-- `grep`: Manage Grep tool settings
-  - `enable`: Enable Grep tool
-  - `disable`: Disable Grep tool
-  - `set-backend <backend>`: Set grep backend ("ripgrep" or "go")
-  - `status`: Show current Grep tool configuration
-- `web-search`: Manage WebSearch tool settings
-  - `enable`: Enable WebSearch tool
-  - `disable`: Disable WebSearch tool
-- `web-fetch`: Manage WebFetch tool settings
-  - `enable`: Enable WebFetch tool
-  - `disable`: Disable WebFetch tool
-  - `list`: List whitelisted domains
-  - `add-domain <domain>`: Add a domain to whitelist
-  - `remove-domain <domain>`: Remove a domain from whitelist
-  - `cache`: Manage WebFetch cache
-    - `status`: Show cache status
-    - `clear`: Clear cache
-- `github`: Manage GitHub tool settings
-  - `enable`: Enable GitHub tool
-  - `disable`: Disable GitHub tool
-  - `status`: Show current GitHub tool configuration
-  - `set-token <token>`: Set GitHub personal access token
-  - `set-owner <owner>`: Set default GitHub owner/organization
-  - `set-repo <repo>`: Set default GitHub repository
-
-**Examples:**
-
-```bash
-# Enable/disable tool execution
-infer config tools enable
-infer config tools disable
-
-# List whitelisted commands
-infer config tools list
-infer config tools list --format json
-
-# Validate and execute commands
-infer config tools validate "ls -la"
-infer config tools exec "git status"
-
-# Manage global safety settings (approval prompts)
-infer config tools safety enable   # Enable approval prompts for all tool execution
-infer config tools safety disable  # Disable approval prompts (execute tools immediately)
-infer config tools safety status   # Show current safety approval status
-
-# Manage excluded paths
-infer config tools sandbox list
-infer config tools sandbox add ".github/"
-infer config tools sandbox remove "test.txt"
-
-# Manage individual tools
-infer config tools bash enable
-infer config tools bash disable
-
-infer config tools grep set-backend ripgrep
-infer config tools grep status
-
-infer config tools web-search enable
-infer config tools web-search disable
-
-infer config tools web-fetch add-domain "example.com"
-infer config tools web-fetch list
-infer config tools web-fetch cache status
-infer config tools web-fetch cache clear
-
-infer config tools github set-token "%GITHUB_TOKEN%"
-infer config tools github set-owner "my-org"
-infer config tools github set-repo "my-repo"
-infer config tools github status
+# Validate a bash command against the whitelist
+infer tools validate "git status"
 ```
 
 ---

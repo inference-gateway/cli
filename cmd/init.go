@@ -213,7 +213,7 @@ plans/
 		fmt.Println("")
 	}
 	fmt.Println("You can now customize the configuration:")
-	fmt.Println("  - Set default model: infer config agent set-model <model-name>")
+	fmt.Println("  - Set default model: infer config set agent.model <model-name>")
 	fmt.Println("  - Configure tools: infer config tools --help")
 	fmt.Println("  - Customize shortcuts: Edit .infer/shortcuts/scm.yaml or add your own")
 	fmt.Println("  - Start chatting: infer chat")
