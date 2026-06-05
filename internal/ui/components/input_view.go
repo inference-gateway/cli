@@ -2,7 +2,9 @@ package components
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -14,6 +16,7 @@ import (
 	inputsyntax "github.com/inference-gateway/cli/internal/ui/inputsyntax"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // InputView handles user input with history
@@ -46,6 +49,9 @@ type InputView struct {
 	focused              bool
 	usageHint            string
 	customHint           string
+	gitBranchCache       string
+	gitBranchCacheTime   time.Time
+	gitBranchCacheTTL    time.Duration
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -63,16 +69,17 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 	}
 
 	return &InputView{
-		text:             "",
-		cursor:           0,
-		placeholder:      "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)",
-		width:            80,
-		height:           5,
-		modelService:     modelService,
-		historyManager:   historyManager,
-		themeService:     nil,
-		imageAttachments: []domain.ImageAttachment{},
-		focused:          true,
+		text:              "",
+		cursor:            0,
+		placeholder:       "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)",
+		width:             80,
+		height:            5,
+		modelService:      modelService,
+		historyManager:    historyManager,
+		themeService:      nil,
+		imageAttachments:  []domain.ImageAttachment{},
+		focused:           true,
+		gitBranchCacheTTL: 5 * time.Second,
 	}
 }
 
@@ -176,9 +183,53 @@ func (iv *InputView) Render() string {
 	inputContent := fmt.Sprintf("> %s", displayText)
 
 	focused := isBashMode || isToolsMode
-	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused)
+	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused, iv.buildGitBranchLabel())
 
 	return borderedInput
+}
+
+// buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
+// top border, or "" when the git_branch indicator is disabled or there is no
+// branch to show (not a repo / detached HEAD). Truncation to fit the border is
+// handled by the style provider, so no length cap is applied here.
+func (iv *InputView) buildGitBranchLabel() string {
+	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
+		return ""
+	}
+
+	branch, ok := iv.getCurrentGitBranch()
+	if !ok || branch == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
+}
+
+// getCurrentGitBranch returns the current git branch with caching.
+func (iv *InputView) getCurrentGitBranch() (string, bool) {
+	if time.Since(iv.gitBranchCacheTime) < iv.gitBranchCacheTTL && iv.gitBranchCache != "" {
+		return iv.gitBranchCache, true
+	}
+
+	cmd := exec.Command("git", "branch", "--show-current")
+	output, err := cmd.Output()
+
+	iv.gitBranchCacheTime = time.Now()
+
+	if err != nil {
+		iv.gitBranchCache = ""
+		return "", false
+	}
+
+	branch := strings.TrimSpace(string(output))
+	iv.gitBranchCache = branch
+	return branch, branch != ""
+}
+
+// InvalidateGitBranchCache clears the git branch cache to force a refresh.
+func (iv *InputView) InvalidateGitBranchCache() {
+	iv.gitBranchCache = ""
+	iv.gitBranchCacheTime = time.Time{}
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -451,6 +502,9 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case domain.SetInputEvent:
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
+		return iv, nil
+	case domain.BashCommandCompletedEvent:
+		iv.InvalidateGitBranchCache()
 		return iv, nil
 	}
 	return iv, nil

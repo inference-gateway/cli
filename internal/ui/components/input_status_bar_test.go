@@ -3,16 +3,13 @@ package components
 import (
 	"strings"
 	"testing"
-	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 type stubTokenEstimator struct {
@@ -593,57 +590,6 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 	}
 }
 
-func TestInputStatusBar_BuildGitBranchIndicator(t *testing.T) {
-	tests := []struct {
-		name         string
-		branch       string
-		branchExists bool
-		expectedText string
-		expectEmpty  bool
-	}{
-		{
-			name:         "shows branch name when in git repo",
-			branch:       "main",
-			branchExists: true,
-			expectedText: "⎇ main",
-			expectEmpty:  false,
-		},
-		{
-			name:         "shows feature branch",
-			branch:       "feature/git-indicator",
-			branchExists: true,
-			expectedText: "⎇ feature/git-indicator",
-			expectEmpty:  false,
-		},
-		{
-			name:         "truncates very long branch names",
-			branch:       "feature/this-is-a-very-long-branch-name-that-should-be-truncated",
-			branchExists: true,
-			expectedText: "⎇ feature/this-is-a-very-long-branch-...",
-			expectEmpty:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			statusBar := &InputStatusBar{
-				gitBranchCache:     tt.branch,
-				gitBranchCacheTime: time.Now(),
-				gitBranchCacheTTL:  5 * time.Second,
-			}
-
-			result := statusBar.buildGitBranchIndicator()
-
-			if tt.expectEmpty && result != "" {
-				t.Errorf("Expected empty string but got: %s", result)
-			}
-			if !tt.expectEmpty && result != tt.expectedText {
-				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
-			}
-		})
-	}
-}
-
 func TestInputStatusBar_ShouldShowIndicator_GitBranch(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -726,124 +672,20 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	}
 }
 
-// newStatusBarStyleProvider builds a real style provider so buildStatusLines does
-// not short-circuit on a nil provider (the path that renders the branch row).
-func newStatusBarStyleProvider() *styles.Provider {
-	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
-	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
-	return styles.NewProvider(fakeThemeService)
-}
-
-// newStatusBarWithBranch builds a status bar with the git branch cache pre-seeded
-// so getCurrentGitBranch returns without shelling out to git.
-func newStatusBarWithBranch(t *testing.T, width int, model, branch string, cfg *config.Config) *InputStatusBar {
-	t.Helper()
-
-	modelService := &domainmocks.FakeModelService{}
-	modelService.GetCurrentModelReturns(model)
-
-	themeService := &domainmocks.FakeThemeService{}
-	themeService.GetCurrentThemeNameReturns("tokyo-night")
-
-	return &InputStatusBar{
-		width:              width,
-		styleProvider:      newStatusBarStyleProvider(),
-		modelService:       modelService,
-		themeService:       themeService,
-		config:             cfg,
-		gitBranchCache:     branch,
-		gitBranchCacheTime: time.Now(),
-		gitBranchCacheTTL:  5 * time.Second,
-	}
-}
-
-func TestInputStatusBar_GitBranchOnSeparateRow(t *testing.T) {
-	statusBar := newStatusBarWithBranch(t, 100, "test-model", "feature/some-branch", config.DefaultConfig())
-
-	lines := statusBar.buildStatusLines()
-
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 rows (indicators + branch), got %d: %#v", len(lines), lines)
-	}
-
-	branchRow := lines[len(lines)-1]
-	if !strings.Contains(branchRow, "feature/some-branch") || !strings.Contains(branchRow, "⎇") {
-		t.Errorf("expected branch on the last row, got %q", branchRow)
-	}
-
-	indicatorRow := lines[0]
-	if strings.Contains(indicatorRow, "feature/some-branch") || strings.Contains(indicatorRow, "⎇") {
-		t.Errorf("expected branch NOT on the indicator row, got %q", indicatorRow)
-	}
-	if !strings.Contains(indicatorRow, "test-model") {
-		t.Errorf("expected model on the indicator row, got %q", indicatorRow)
-	}
-}
-
-func TestInputStatusBar_GitBranchDisabled_NoBranchRow(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
-
-	statusBar := newStatusBarWithBranch(t, 100, "test-model", "feature/some-branch", cfg)
-
-	lines := statusBar.buildStatusLines()
-	joined := strings.Join(lines, "\n")
-
-	if strings.Contains(joined, "⎇") || strings.Contains(joined, "feature/some-branch") {
-		t.Errorf("expected no branch row when git_branch disabled, got %q", joined)
-	}
-	if !strings.Contains(joined, "test-model") {
-		t.Errorf("expected indicators to still render, got %q", joined)
-	}
-}
-
-func TestInputStatusBar_GitBranchRendersWithoutModel(t *testing.T) {
-	statusBar := newStatusBarWithBranch(t, 100, "", "feature/no-model", config.DefaultConfig())
-
-	lines := statusBar.buildStatusLines()
-
-	if len(lines) != 1 {
-		t.Fatalf("expected only the branch row when no model is set, got %d rows: %#v", len(lines), lines)
-	}
-	if !strings.Contains(lines[0], "feature/no-model") {
-		t.Errorf("expected branch row, got %q", lines[0])
-	}
-}
-
-func TestInputStatusBar_GitBranchStaysTwoRowsWhenNarrow(t *testing.T) {
-	statusBar := newStatusBarWithBranch(t, 24, "some-very-long-model-name", "feature/branch", config.DefaultConfig())
-
-	lines := statusBar.buildStatusLines()
-
-	if len(lines) != 2 {
-		t.Fatalf("expected the bar to stay at 2 rows when narrow, got %d: %#v", len(lines), lines)
-	}
-	if !strings.Contains(lines[len(lines)-1], "feature/branch") {
-		t.Errorf("expected branch to remain on the last row, got %q", lines[len(lines)-1])
-	}
-}
-
 func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
 	modelService := &domainmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	statusBar := &InputStatusBar{
-		width:              100,
-		styleProvider:      nil,
-		modelService:       modelService,
-		config:             config.DefaultConfig(),
-		gitBranchCache:     "feature/branch",
-		gitBranchCacheTime: time.Now(),
-		gitBranchCacheTTL:  5 * time.Second,
+		width:         100,
+		styleProvider: nil,
+		modelService:  modelService,
+		config:        config.DefaultConfig(),
 	}
 
 	lines := statusBar.buildStatusLines()
 
 	if len(lines) != 1 {
 		t.Fatalf("expected a single fallback row with a nil provider, got %d: %#v", len(lines), lines)
-	}
-	if strings.Contains(lines[0], "⎇") {
-		t.Errorf("expected no branch rendering on the nil-provider fallback, got %q", lines[0])
 	}
 }

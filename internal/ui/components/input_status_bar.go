@@ -2,9 +2,7 @@ package components
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -14,7 +12,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // InputStatusBar displays input status information like model, theme, agents
@@ -32,17 +29,13 @@ type InputStatusBar struct {
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
-	gitBranchCache         string
-	gitBranchCacheTime     time.Time
-	gitBranchCacheTTL      time.Duration
 }
 
 // NewInputStatusBar creates a new input status bar
 func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 	return &InputStatusBar{
-		width:             80,
-		styleProvider:     styleProvider,
-		gitBranchCacheTTL: 5 * time.Second,
+		width:         80,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -118,10 +111,10 @@ func (isb *InputStatusBar) Render() string {
 	return strings.Join(lines, "\n")
 }
 
-// buildStatusLines builds the status bar content. Indicators are packed onto the
-// top row(s); the git branch always gets its own dedicated row directly below,
-// left-aligned with the indicators. The bar stays within maxLines rows total -
-// when a branch is shown the indicators get maxLines-1 rows, otherwise maxLines.
+// buildStatusLines builds the status bar content. Indicators are packed onto up
+// to maxLines rows; overflow beyond that is collapsed with an ellipsis. The git
+// branch is rendered separately, in the input box top border (see InputView), so
+// it never competes with these indicators for horizontal space.
 func (isb *InputStatusBar) buildStatusLines() []string {
 	const (
 		maxLines       = 2
@@ -136,31 +129,19 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 	dimColor := isb.styleProvider.GetThemeColor("dim")
 	availableWidth := isb.width - len(leftPadding) - 2
 
-	branchLine := isb.buildGitBranchLine(leftPadding, dimColor)
-
 	parts := isb.getAllIndicatorParts()
-	if len(parts) == 0 && branchLine == "" {
+	if len(parts) == 0 {
 		return []string{leftPadding + "\u00A0"}
 	}
 
-	indicatorMaxLines := maxLines
-	if branchLine != "" {
-		indicatorMaxLines = maxLines - 1
-	}
+	lineGroups := isb.splitPartsIntoLines(parts, availableWidth, maxLines, separatorWidth)
+	lineGroups = capIndicatorLines(lineGroups, maxLines)
 
 	var lines []string
-	if len(parts) > 0 && indicatorMaxLines > 0 {
-		lineGroups := isb.splitPartsIntoLines(parts, availableWidth, indicatorMaxLines, separatorWidth)
-		lineGroups = capIndicatorLines(lineGroups, indicatorMaxLines)
-		for _, lineItems := range lineGroups {
-			lineText := strings.Join(lineItems, " • ")
-			renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
-			lines = append(lines, leftPadding+renderedLine)
-		}
-	}
-
-	if branchLine != "" {
-		lines = append(lines, branchLine)
+	for _, lineItems := range lineGroups {
+		lineText := strings.Join(lineItems, " • ")
+		renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
+		lines = append(lines, leftPadding+renderedLine)
 	}
 
 	if len(lines) == 0 {
@@ -185,9 +166,8 @@ func (isb *InputStatusBar) getAllIndicatorParts() []string {
 }
 
 // buildIndicatorParts builds individual indicator parts without joining them.
-// The git branch is intentionally excluded here - it is rendered on its own
-// dedicated row by buildGitBranchLine so it never competes with these indicators
-// for horizontal space.
+// The git branch is not included here - it is rendered in the input box top
+// border by InputView, not in the status bar.
 func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 	parts := []string{}
 
@@ -333,12 +313,6 @@ func (isb *InputStatusBar) shouldAddOverflowAndBreak(currentLines, maxLines, cur
 
 func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 	parts := []string{}
-
-	if isb.shouldShowIndicator("git_branch") {
-		if gitBranchPart := isb.buildGitBranchIndicator(); gitBranchPart != "" {
-			parts = append(parts, gitBranchPart)
-		}
-	}
 
 	if isb.shouldShowIndicator("model") {
 		parts = append(parts, currentModel)
@@ -585,65 +559,6 @@ func (isb *InputStatusBar) buildCostIndicator() string {
 	}
 }
 
-// getCurrentGitBranch returns the current git branch with caching
-func (isb *InputStatusBar) getCurrentGitBranch() (string, bool) {
-	if time.Since(isb.gitBranchCacheTime) < isb.gitBranchCacheTTL && isb.gitBranchCache != "" {
-		return isb.gitBranchCache, true
-	}
-
-	cmd := exec.Command("git", "branch", "--show-current")
-	output, err := cmd.Output()
-
-	isb.gitBranchCacheTime = time.Now()
-
-	if err != nil {
-		isb.gitBranchCache = ""
-		return "", false
-	}
-
-	branch := strings.TrimSpace(string(output))
-	isb.gitBranchCache = branch
-	return branch, branch != ""
-}
-
-// InvalidateGitBranchCache clears the git branch cache to force a refresh
-func (isb *InputStatusBar) InvalidateGitBranchCache() {
-	isb.gitBranchCache = ""
-	isb.gitBranchCacheTime = time.Time{}
-}
-
-// buildGitBranchLine renders the git branch as its own status bar row, left-aligned
-// with the indicator row above it. Returns "" when the git_branch indicator is
-// disabled or there is no branch to show (not a repo / detached HEAD), in which case
-// the indicators reclaim the full line budget.
-func (isb *InputStatusBar) buildGitBranchLine(leftPadding, dimColor string) string {
-	if !isb.shouldShowIndicator("git_branch") {
-		return ""
-	}
-
-	part := isb.buildGitBranchIndicator()
-	if part == "" {
-		return ""
-	}
-
-	return leftPadding + isb.styleProvider.RenderWithColor(part, dimColor)
-}
-
-// buildGitBranchIndicator builds the git branch indicator text
-func (isb *InputStatusBar) buildGitBranchIndicator() string {
-	branch, ok := isb.getCurrentGitBranch()
-	if !ok || branch == "" {
-		return ""
-	}
-
-	const maxBranchLength = 35
-	if len(branch) > maxBranchLength {
-		branch = branch[:maxBranchLength] + "..."
-	}
-
-	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
-}
-
 // getToolInfo returns tool count and token information
 func (isb *InputStatusBar) getToolInfo() string {
 	if isb.toolService == nil || isb.tokenEstimator == nil {
@@ -751,11 +666,8 @@ func (isb *InputStatusBar) Init() tea.Cmd { return nil }
 func (isb *InputStatusBar) View() tea.View { return tea.NewView(isb.Render()) }
 
 func (isb *InputStatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		isb.SetWidth(msg.Width)
-	case domain.BashCommandCompletedEvent:
-		isb.InvalidateGitBranchCache()
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		isb.SetWidth(windowMsg.Width)
 	}
 	return isb, nil
 }
