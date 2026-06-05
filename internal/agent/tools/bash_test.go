@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestBashTool_Definition(t *testing.T) {
@@ -354,4 +354,42 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			t.Errorf("Expected successful execution, got error: %s", result.Error)
 		}
 	})
+}
+
+// TestBashTool_Validate_RedirectionAndCompound confirms the tool delegates to
+// config.IsBashCommandWhitelisted: benign redirections and per-segment-allowed
+// compound commands validate, while command substitution and a non-whitelisted
+// segment are rejected.
+func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo"},
+					Patterns: []string{`^gh api [^ -][^ ]*( --jq [^ ]+)*$`},
+				},
+			},
+		},
+	}
+	tool := NewBashTool(cfg, nil)
+
+	tests := []struct {
+		command   string
+		wantError bool
+	}{
+		{"gh api repos/o/r/issues 2>&1", false},
+		{"echo hi && echo bye", false},
+		{"echo hi || echo failed", false},
+		{"echo $(rm -rf /)", true},
+		{"echo hi && rm -rf /", true},
+		{"gh api repos/o/r -X POST", true},
+	}
+	for _, tt := range tests {
+		err := tool.Validate(map[string]any{"command": tt.command})
+		if (err != nil) != tt.wantError {
+			t.Errorf("Validate(%q) error = %v, wantError %v", tt.command, err, tt.wantError)
+		}
+	}
 }

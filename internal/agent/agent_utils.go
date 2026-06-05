@@ -192,12 +192,12 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Mess
 		s.buildActiveSkillInfo(messages)
 }
 
-// buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work.
-// There is no built-in GitHub tool; `gh` (via Bash) covers issues, PRs,
-// releases, and the raw API with clearer errors and the standard credential
-// chain. Emitted only when Bash is enabled (otherwise the guidance is moot).
-// Lives in the dynamic context so it reaches existing users regardless of their
-// prompts.yaml override.
+// buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
+// and away from shell habits that needlessly trip the Bash whitelist. There is
+// no built-in GitHub tool; `gh` (via Bash) covers issues, PRs, releases, and the
+// raw API with clearer errors and the standard credential chain. Emitted only
+// when Bash is enabled (otherwise the guidance is moot). Lives in the dynamic
+// context so it reaches existing users regardless of their prompts.yaml override.
 func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 	if !s.config.Tools.Bash.Enabled {
 		return ""
@@ -205,8 +205,15 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 	return "\n\nGITHUB OPERATIONS:\n" +
 		"Use the `gh` CLI via the Bash tool for all GitHub operations - issues, pull requests, " +
 		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
-		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. " +
-		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain)."
+		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. Prefer `gh api` " +
+		"over fetching api.github.com directly. " +
+		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain).\n\n" +
+		"BASH USAGE:\n" +
+		"The Bash tool already captures stdout, stderr, and the exit code. Do NOT append `2>&1`, " +
+		"`2>/dev/null`, or `|| echo ...` to commands - they are unnecessary and can cause an " +
+		"otherwise-allowed command to be rejected by the whitelist. Run one command per call; " +
+		"compound commands (with &&, ||, or |) are permitted only when every segment is " +
+		"independently whitelisted."
 }
 
 // buildToolsInfo lists the tools available to the model for the active agent
