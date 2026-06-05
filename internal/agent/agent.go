@@ -531,7 +531,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	}
 
 	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
-		logger.Info("Execution is paused, waiting for resume")
+		logger.Info("execution is paused, waiting for resume")
 		return nil, fmt.Errorf("execution is paused")
 	}
 
@@ -1008,7 +1008,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 	if result.ToolName == "RequestPlanApproval" && result.Success {
 		if extractPlanContent(result) == "" {
-			logger.Warn("RequestPlanApproval succeeded but plan content is empty")
+			logger.Warn("requestPlanApproval succeeded but plan content is empty")
 		}
 	}
 
@@ -1043,7 +1043,7 @@ func (s *AgentServiceImpl) handleToolResults(
 	s.addToolResultsToConversation(toolResults, conversation)
 
 	if hasRejection {
-		logger.Info("Tool was rejected - stopping agent loop")
+		logger.Info("tool was rejected - stopping agent loop")
 		eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 		return true
 	}
@@ -1111,7 +1111,7 @@ func (s *AgentServiceImpl) createPlanMessage(
 
 	eventPublisher.publishPlanApprovalRequest(planContent)
 
-	logger.Info("Plan approval requested - stopping agent loop")
+	logger.Info("plan approval requested - stopping agent loop")
 	eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 }
 
@@ -1186,7 +1186,7 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 	}
 
 	if len(contentParts) == 0 {
-		logger.Warn("No content parts created for image message from tool results")
+		logger.Warn("no content parts created for image message from tool results")
 		return nil
 	}
 
@@ -1217,7 +1217,7 @@ func (s *AgentServiceImpl) requestToolApproval(
 	select {
 	case response := <-responseChan:
 		if response == domain.ApprovalAutoAccept {
-			logger.Info("Switching to auto-accept mode from floating window")
+			logger.Info("switching to auto-accept mode from floating window")
 			s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 		}
 		approved = response == domain.ApprovalApprove || response == domain.ApprovalAutoAccept

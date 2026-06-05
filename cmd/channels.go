@@ -74,7 +74,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	if cfg.Channels.Enabled {
-		logger.Info("Starting channel listener...")
+		logger.Info("starting channel listener...")
 		if err := cm.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start channels: %w", err)
 		}
@@ -97,10 +97,10 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start heartbeat: %w", err)
 	}
 
-	logger.Info("Daemon ready. Press Ctrl+C to stop.")
+	logger.Info("daemon ready. Press Ctrl+C to stop.")
 
 	<-sigChan
-	logger.Info("Shutting down...")
+	logger.Info("shutting down...")
 	cancel()
 
 	if hb != nil {
@@ -123,7 +123,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to stop channels: %w", err)
 	}
 
-	logger.Info("Daemon stopped.")
+	logger.Info("daemon stopped.")
 	return nil
 }
 
@@ -215,7 +215,7 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber)
 		cm.Register(telegramCh)
 		registered++
-		logger.Info("Registered channel", "channel", "telegram")
+		logger.Info("registered channel", "channel", "telegram")
 	}
 
 	// WhatsApp channel is not yet implemented; enable this block once
@@ -224,7 +224,7 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 	// 	whatsappCh := channels.NewWhatsAppChannel(cfg.Channels.WhatsApp)
 	// 	cm.Register(whatsappCh)
 	// 	registered++
-	// 	logger.Info("Registered channel", "channel", "whatsapp")
+	// 	logger.Info("registered channel", "channel", "whatsapp")
 	// }
 
 	if registered == 0 {

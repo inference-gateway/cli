@@ -43,7 +43,7 @@ func (m *BackgroundJobManager) Start(ctx context.Context) {
 	}
 
 	m.running = true
-	logger.Info("Starting background job manager")
+	logger.Info("starting background job manager")
 
 	m.wg.Add(1)
 	go m.runTitleGenerationWorker(ctx)
@@ -58,7 +58,7 @@ func (m *BackgroundJobManager) Stop() {
 		return
 	}
 
-	logger.Info("Stopping background job manager")
+	logger.Info("stopping background job manager")
 	close(m.stopChan)
 	m.running = false
 
@@ -70,9 +70,9 @@ func (m *BackgroundJobManager) Stop() {
 
 	select {
 	case <-done:
-		logger.Info("Background job manager stopped gracefully")
+		logger.Info("background job manager stopped gracefully")
 	case <-time.After(10 * time.Second):
-		logger.Warn("Background job manager stop timeout")
+		logger.Warn("background job manager stop timeout")
 	}
 }
 

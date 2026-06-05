@@ -48,7 +48,7 @@ func NewWebTerminalServer(cfg *config.Config) *WebTerminalServer {
 func (s *WebTerminalServer) Start() error {
 	s.sessionManager = NewSessionManager(s.cfg)
 
-	logger.Info("Checking embedded static files...")
+	logger.Info("checking embedded static files...")
 	if err := fs.WalkDir(staticFiles, ".", func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {
 			logger.Info("Embedded file found", "path", path)
@@ -389,7 +389,7 @@ func (s *WebTerminalServer) handleShutdown() {
 	<-sigChan
 
 	fmt.Println("\n\nShutting down web terminal server...")
-	logger.Info("Shutting down web terminal server...")
+	logger.Info("shutting down web terminal server...")
 
 	if s.sessionManager != nil {
 		activeSessions := s.sessionManager.ActiveSessionCount()
@@ -408,7 +408,7 @@ func (s *WebTerminalServer) handleShutdown() {
 		fmt.Printf("Server shutdown error: %v\n", err)
 	}
 
-	logger.Info("Web terminal server stopped")
+	logger.Info("web terminal server stopped")
 	fmt.Println("Web terminal server stopped gracefully")
 	fmt.Println()
 }

@@ -19,7 +19,7 @@ const (
 // If runtimeType is empty, returns nil to allow binary mode fallback
 func NewContainerRuntime(sessionID domain.SessionID, runtimeType RuntimeType) (domain.ContainerRuntime, error) {
 	if runtimeType == "" {
-		logger.Info("No container runtime configured, will use binary mode")
+		logger.Info("no container runtime configured, will use binary mode")
 		return nil, nil
 	}
 

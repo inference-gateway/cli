@@ -46,7 +46,7 @@ func NewService(opts Options) *Service {
 // HandlePlanApprovalRequested sets up the plan-approval UI state and emits an
 // info status. Always returns a cmd; no restart side-effect.
 func (s *Service) HandlePlanApprovalRequested(msg domain.PlanApprovalRequestedEvent) tea.Cmd {
-	logger.Info("ApprovalCoordinator.HandlePlanApprovalRequested called")
+	logger.Info("approvalCoordinator.HandlePlanApprovalRequested called")
 
 	s.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
 
@@ -79,11 +79,11 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 
 	planApprovalState := s.stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
-		logger.Warn("ApprovalCoordinator.HandlePlanApprovalResponse: planApprovalState is nil, ignoring")
+		logger.Warn("approvalCoordinator.HandlePlanApprovalResponse: planApprovalState is nil, ignoring")
 		return nil, false
 	}
 
-	logger.Info("Clearing plan approval UI state to prevent re-entry")
+	logger.Info("clearing plan approval UI state to prevent re-entry")
 	s.stateManager.ClearPlanApprovalUIState()
 
 	s.updatePlanStatus(msg.Action)
@@ -114,19 +114,19 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 func (s *Service) applyPlanDecision(action domain.PlanApprovalAction) (string, bool) {
 	switch action {
 	case domain.PlanApprovalAccept:
-		logger.Info("Switching to standard agent mode for plan execution")
+		logger.Info("switching to standard agent mode for plan execution")
 		s.stateManager.SetAgentMode(domain.AgentModeStandard)
-		logger.Info("Adding hidden continue message to queue")
+		logger.Info("adding hidden continue message to queue")
 		s.addHiddenContinueMessage()
 		return "Plan accepted - executing plan...", true
 	case domain.PlanApprovalAcceptAndAutoApprove:
-		logger.Info("Switching to auto-accept mode for plan execution")
+		logger.Info("switching to auto-accept mode for plan execution")
 		s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-		logger.Info("Adding hidden continue message to queue (auto-approve mode)")
+		logger.Info("adding hidden continue message to queue (auto-approve mode)")
 		s.addHiddenContinueMessage()
 		return "Plan accepted - Auto-Approve mode enabled, executing plan...", true
 	case domain.PlanApprovalReject:
-		logger.Info("Ending chat session due to plan rejection")
+		logger.Info("ending chat session due to plan rejection")
 		s.stateManager.EndChatSession()
 		return "Plan rejected - you can provide feedback or changes", false
 	}
@@ -141,7 +141,7 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 	if !ok {
 		return
 	}
-	logger.Info("Updating plan status")
+	logger.Info("updating plan status")
 	updater.UpdatePlanStatus(action)
 }
 
@@ -200,7 +200,7 @@ func (s *Service) addHiddenContinueMessage() {
 		logger.Error("Failed to add continue message to conversation", "error", err)
 		return
 	}
-	logger.Info("Continue message added to conversation history")
+	logger.Info("continue message added to conversation history")
 }
 
 // addHiddenContinue appends a hidden user message to the conversation repo.

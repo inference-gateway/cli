@@ -247,7 +247,7 @@ func (m *A2ATaskPoller) emitSubmittedEvent(state *domain.TaskPollingState) {
 
 func (m *A2ATaskPoller) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate) {
 	if update == nil {
-		logger.Error("Received nil update in emitStatusUpdateEvent")
+		logger.Error("received nil update in emitStatusUpdateEvent")
 		return
 	}
 

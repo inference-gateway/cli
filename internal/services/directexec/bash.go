@@ -88,7 +88,7 @@ func (s *Service) HandleBashCommandCompleted(msg domain.BashCommandCompletedEven
 	}
 
 	if msg.Failed && msg.UserInitiated {
-		logger.Info("User-initiated bash command failed - triggering auto-fix")
+		logger.Info("user-initiated bash command failed - triggering auto-fix")
 		cmds = append(cmds, func() tea.Msg {
 			return domain.UserInputEvent{
 				Content: "The bash command failed. Please analyze the error and help me fix it.",

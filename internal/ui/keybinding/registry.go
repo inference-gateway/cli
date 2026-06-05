@@ -350,7 +350,7 @@ func (r *Registry) determineTargetLayer(views []domain.ViewState) string {
 // Only processes config bindings. Missing entries automatically use defaults already registered.
 func (r *Registry) ApplyConfigOverrides(cfg config.KeybindingsConfig) error {
 	if !cfg.Enabled {
-		logger.Debug("Keybindings disabled in config, using defaults only")
+		logger.Debug("keybindings disabled in config, using defaults only")
 		return nil
 	}
 

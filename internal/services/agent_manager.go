@@ -129,7 +129,7 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 
 	a2aSvc, ok := am.a2aAgentService.(*A2AAgentService)
 	if !ok || a2aSvc == nil {
-		logger.Warn("Cannot monitor external agents: A2A service not available")
+		logger.Warn("cannot monitor external agents: A2A service not available")
 		return
 	}
 

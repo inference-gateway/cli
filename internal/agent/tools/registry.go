@@ -243,12 +243,12 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
 	cfg := r.config
 	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
-		logger.Debug("Screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
+		logger.Debug("screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
 		return
 	}
 
 	if provider == nil {
-		logger.Warn("Screenshot provider is nil, cannot register GetLatestScreenshot tool")
+		logger.Warn("screenshot provider is nil, cannot register GetLatestScreenshot tool")
 		return
 	}
 
@@ -257,7 +257,7 @@ func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
 	getLatestTool := NewGetLatestScreenshotTool(cfg, provider)
 	r.tools["GetLatestScreenshot"] = getLatestTool
 
-	logger.Info("Dynamically registered GetLatestScreenshot tool for streaming mode")
+	logger.Info("dynamically registered GetLatestScreenshot tool for streaming mode")
 }
 
 // SetReadToolUsed marks that the Read tool has been used

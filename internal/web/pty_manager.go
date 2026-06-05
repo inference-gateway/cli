@@ -34,7 +34,7 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager, progressCh)
 	}
 
-	logger.Info("Creating local PTY session")
+	logger.Info("creating local PTY session")
 	return NewLocalPTYSession(cfg), nil
 }
 
@@ -214,7 +214,7 @@ func (s *LocalPTYSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	logger.Info("Stopping PTY session...")
+	logger.Info("stopping PTY session...")
 
 	if s.cmd == nil || s.cmd.Process == nil {
 		return s.closePTYOnly()

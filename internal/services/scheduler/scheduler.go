@@ -171,10 +171,10 @@ func (s *Service) Stop(ctx context.Context) error {
 		case <-stopCtx.Done():
 		case <-ctx.Done():
 		case <-time.After(30 * time.Second):
-			logger.Warn("Scheduler stop timed out waiting for in-flight jobs")
+			logger.Warn("scheduler stop timed out waiting for in-flight jobs")
 		}
 	}
-	logger.Info("Scheduler stopped")
+	logger.Info("scheduler stopped")
 	return nil
 }
 

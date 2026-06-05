@@ -35,7 +35,7 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 		messages := h.extractMessages(entries)
 
 		if len(messages) == 0 {
-			logger.Warn("No messages to navigate back to")
+			logger.Warn("no messages to navigate back to")
 			return nil
 		}
 

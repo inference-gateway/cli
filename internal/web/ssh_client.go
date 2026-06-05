@@ -125,7 +125,7 @@ func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
 			logger.Info("Using known_hosts for host key verification", "path", knownHostsPath)
 		}
 	} else {
-		logger.Warn("No known_hosts path configured, using insecure connection")
+		logger.Warn("no known_hosts path configured, using insecure connection")
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 

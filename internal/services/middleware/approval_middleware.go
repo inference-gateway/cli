@@ -108,7 +108,7 @@ func (m *ApprovalMiddleware) requestApproval(
 	case response := <-responseChan:
 		// Handle auto-accept mode switch
 		if response == domain.ApprovalAutoAccept {
-			logger.Info("Switching to auto-accept mode from approval middleware")
+			logger.Info("switching to auto-accept mode from approval middleware")
 			if m.stateManager != nil {
 				m.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 			}
@@ -168,7 +168,7 @@ func (m *ApprovalMiddleware) ExecuteBatch(
 
 		// If rejected, stop processing remaining tools
 		if result.Rejected {
-			logger.Info("Tool execution rejected, stopping batch execution")
+			logger.Info("tool execution rejected, stopping batch execution")
 			break
 		}
 	}

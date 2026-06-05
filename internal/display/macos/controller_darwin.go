@@ -139,7 +139,7 @@ func hasAccessibilityPermissions() bool {
 	hasPerm := bool(trusted)
 
 	if !hasPerm {
-		logger.Debug("Accessibility permissions not granted")
+		logger.Debug("accessibility permissions not granted")
 	}
 
 	return hasPerm
@@ -165,5 +165,5 @@ func (p *Provider) IsAvailable() bool {
 // Register the macOS provider in the global registry (darwin only)
 func init() {
 	display.Register(NewProvider())
-	logger.Debug("Registered macOS display provider")
+	logger.Debug("registered macOS display provider")
 }

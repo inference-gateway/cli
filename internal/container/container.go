@@ -199,7 +199,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	logger.Info("Starting MCP servers in background...")
+	logger.Info("starting MCP servers in background...")
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
@@ -239,7 +239,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
 
 	if c.config.IsClaudeCodeMode() {
-		logger.Info("Using static Claude model list (Claude Code mode)")
+		logger.Info("using static Claude model list (Claude Code mode)")
 		c.modelService = services.NewClaudeCodeModelService()
 	} else {
 		modelClient := c.createRawSDKClient()
@@ -366,7 +366,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 			"  storage.type: postgres  # or redis", storageConfig.Type, err))
 	}
 
-	logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
+	logger.Warn("using in-memory conversation storage (conversations will not be persisted)")
 	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
@@ -700,11 +700,11 @@ func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
 	}
 
 	if c.config.IsClaudeCodeMode() {
-		logger.Info("Using Claude Code CLI mode (subscription-based)")
+		logger.Info("using Claude Code CLI mode (subscription-based)")
 		return adapters.NewClaudeCodeClient(&c.config.ClaudeCode, c.stateManager)
 	}
 
-	logger.Debug("Using gateway mode (API-based)")
+	logger.Debug("using gateway mode (API-based)")
 	return adapters.NewSDKClientAdapter(c.createRawSDKClient())
 }
 
@@ -757,12 +757,12 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	if c.backgroundShellService != nil {
-		logger.Info("Stopping background shell service...")
+		logger.Info("stopping background shell service...")
 		c.backgroundShellService.Stop()
 	}
 
 	if c.agentManager != nil && c.agentManager.IsRunning() {
-		logger.Info("Shutting down agent containers...")
+		logger.Info("shutting down agent containers...")
 		if err := c.agentManager.StopAgents(ctx); err != nil {
 			logger.Error("Failed to stop agent containers", "error", err)
 		}

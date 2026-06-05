@@ -188,7 +188,7 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 // applyAutoAccept flips agent mode to auto-accept, sends approval down the
 // response channel, and returns the appropriate UI cmds.
 func (c *Coordinator) applyAutoAccept(msg domain.ToolApprovalResponseEvent) tea.Cmd {
-	logger.Info("Switching to auto-accept mode for all future tools")
+	logger.Info("switching to auto-accept mode for all future tools")
 	c.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 	c.sendApprovalDecision(domain.ApprovalApprove)
 	c.stateManager.ClearApprovalUIState()
@@ -225,7 +225,7 @@ func (c *Coordinator) sendApprovalDecision(action domain.ApprovalAction) {
 	case approvalState.ResponseChan <- action:
 		logger.Info("Sent approval action to agent", "action", action)
 	default:
-		logger.Warn("Failed to send approval - channel full or closed")
+		logger.Warn("failed to send approval - channel full or closed")
 	}
 }
 
@@ -421,7 +421,7 @@ func (c *Coordinator) updateToolApprovalStatus(action domain.ApprovalAction) {
 	if !ok {
 		return
 	}
-	logger.Info("Updating tool approval status")
+	logger.Info("updating tool approval status")
 	updater.UpdateToolApprovalStatus(action)
 }
 

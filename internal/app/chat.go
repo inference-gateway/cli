@@ -2223,13 +2223,13 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyMsg) []tea.Cm
 
 	cv, ok := app.conversationView.(*components.ConversationView)
 	if !ok {
-		logger.Warn("Failed to cast conversationView to ConversationView")
+		logger.Warn("failed to cast conversationView to ConversationView")
 		return cmds
 	}
 
 	iv, ok := app.inputView.(*components.InputView)
 	if !ok {
-		logger.Warn("Failed to cast inputView to InputView")
+		logger.Warn("failed to cast inputView to InputView")
 		return cmds
 	}
 

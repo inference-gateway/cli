@@ -20,13 +20,13 @@ func (a *EventDrivenAgent) executeTools() {
 		logger.Debug("executing tool", "tool", tc.Function.Name, "id", tc.ID)
 	}
 
-	logger.Debug("Running tools in parallel...")
+	logger.Debug("running tools in parallel...")
 	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher, a.req.IsChatMode)
 	logger.Debug("tool execution completed", "result_count", len(toolResults))
 
 	// Handle tool results
 	if a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req) {
-		logger.Debug("Tool results indicated stop (user rejection or error)")
+		logger.Debug("tool results indicated stop (user rejection or error)")
 		_ = a.stateMachine.Transition(a.agentCtx, domain.StateStopped)
 		return
 	}

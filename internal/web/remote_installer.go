@@ -200,7 +200,7 @@ fi`, i.gatewayURL)
 	if err != nil {
 		logger.Warn("Failed to setup environment variables in profile", "error", err, "output", string(envOutput))
 	} else {
-		logger.Info("Environment variables configured in user profile")
+		logger.Info("environment variables configured in user profile")
 	}
 
 	return nil

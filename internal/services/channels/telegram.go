@@ -108,7 +108,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 
 	t.bot = b
 
-	logger.Info("Starting long-polling")
+	logger.Info("starting long-polling")
 
 	b.Start(ctx)
 	return ctx.Err()
@@ -252,7 +252,7 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 // messages the bot cannot turn into text.
 func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bot, msg *domain.InboundMessage, fileID string) bool {
 	if t.transcriber == nil {
-		logger.Warn("Received a voice message but speech-to-text is disabled; ignoring")
+		logger.Warn("received a voice message but speech-to-text is disabled; ignoring")
 		return false
 	}
 
@@ -262,7 +262,7 @@ func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bo
 		return false
 	}
 	if strings.TrimSpace(text) == "" {
-		logger.Warn("Voice message transcription was empty; ignoring")
+		logger.Warn("voice message transcription was empty; ignoring")
 		return false
 	}
 

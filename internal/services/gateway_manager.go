@@ -81,10 +81,10 @@ func (gm *GatewayManager) EnsureStarted() error {
 
 // startBinary downloads and runs the gateway as a binary
 func (gm *GatewayManager) startBinary(ctx context.Context) error {
-	logger.Info("Starting gateway from binary")
+	logger.Info("starting gateway from binary")
 
 	if gm.isBinaryRunning() {
-		logger.Info("Gateway is already running on port")
+		logger.Info("gateway is already running on port")
 		fmt.Println("• Gateway is already running")
 		gm.isRunning = true
 		return nil
@@ -129,7 +129,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	logger.Info("Starting gateway container", "image", gm.config.Gateway.OCI)
 
 	if gm.isContainerRunning() {
-		logger.Info("Gateway container is already running")
+		logger.Info("gateway container is already running")
 		fmt.Println("• Gateway container is already running")
 		gm.isRunning = true
 		return nil
@@ -209,7 +209,7 @@ func (gm *GatewayManager) stopBinary() error {
 
 	gm.isRunning = false
 	gm.binaryCmd = nil
-	logger.Info("Gateway binary stopped")
+	logger.Info("gateway binary stopped")
 	return nil
 }
 
@@ -439,7 +439,7 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 		return binaryPath, nil
 	}
 
-	logger.Info("Downloading latest gateway binary using installer")
+	logger.Info("downloading latest gateway binary using installer")
 
 	fmt.Println("• Downloading gateway binary...")
 

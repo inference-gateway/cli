@@ -613,7 +613,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		case optimizedMessages = <-optimizedChan:
 			logger.Info("Optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
 		case <-time.After(70 * time.Second):
-			logger.Error("Optimization timed out after 70 seconds")
+			logger.Error("optimization timed out after 70 seconds")
 			return domain.SetStatusEvent{
 				Message:    "Conversation optimization timed out - try again or check gateway logs",
 				Spinner:    false,
@@ -697,7 +697,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 	}
 
 	if len(contentParts) == 0 {
-		logger.Warn("No content parts created for image message")
+		logger.Warn("no content parts created for image message")
 		return domain.SetStatusEvent{
 			Message:    "Failed to create image content",
 			Spinner:    false,

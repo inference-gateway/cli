@@ -102,7 +102,7 @@ func StartChatSession(cfg *config.Config) error {
 
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
-			logger.Info("Received shutdown signal, cleaning up...")
+			logger.Info("received shutdown signal, cleaning up...")
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if err := services.Shutdown(ctx); err != nil {
@@ -392,7 +392,7 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 
 // startScreenshotServer initializes and starts the screenshot streaming server
 func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *screenshotsvc.ScreenshotServer {
-	logger.Info("Screenshot streaming conditions met, starting server")
+	logger.Info("screenshot streaming conditions met, starting server")
 	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
 	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
 
@@ -406,7 +406,7 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
 
 	toolRegistry.SetScreenshotServer(screenshotServer)
-	logger.Info("Registered GetLatestScreenshot tool with tool registry")
+	logger.Info("registered GetLatestScreenshot tool with tool registry")
 
 	return screenshotServer
 }
@@ -414,7 +414,7 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to BubbleTea program
 // This ensures control events (pause/resume) reach ChatHandler even when chat session is closed
 func forwardControlEventsToBubbleTea(program *tea.Program, eventBridge domain.EventBridge) {
-	logger.Debug("Starting control event forwarder")
+	logger.Debug("starting control event forwarder")
 	subscription := eventBridge.Subscribe()
 
 	for event := range subscription {
@@ -431,7 +431,7 @@ func forwardControlEventsToBubbleTea(program *tea.Program, eventBridge domain.Ev
 		}
 	}
 
-	logger.Debug("Control event forwarder stopped")
+	logger.Debug("control event forwarder stopped")
 }
 
 func init() {

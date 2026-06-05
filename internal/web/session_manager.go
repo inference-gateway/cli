@@ -219,7 +219,7 @@ func (sm *SessionManager) Shutdown() {
 	}
 
 	sm.sessions = make(map[string]*SessionEntry)
-	logger.Info("All sessions stopped")
+	logger.Info("all sessions stopped")
 }
 
 // SessionWrapper wraps a session to track activity

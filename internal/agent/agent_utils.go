@@ -585,7 +585,7 @@ func getGitMainBranch() string {
 		return "master"
 	}
 
-	logger.Debug("Could not determine main branch (neither 'main' nor 'master' exists)")
+	logger.Debug("could not determine main branch (neither 'main' nor 'master' exists)")
 	return ""
 }
 

@@ -71,7 +71,7 @@ func (s *PostStreamState) transitionToEvaluatingTools() error {
 // handleNoToolCallsScenario handles the scenario when there are no tool calls
 func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false
-	logger.Debug("No tool calls in response")
+	logger.Debug("no tool calls in response")
 
 	canComplete := s.ctx.AgentCtx.Turns > 0 && s.ctx.AgentCtx.MessageQueue.IsEmpty()
 	if canComplete {

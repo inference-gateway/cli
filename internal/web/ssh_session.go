@@ -445,7 +445,7 @@ func (s *SSHSession) handleForwardedConnection(localConn net.Conn, remotePort in
 // notifyWebUI sends a message to the WebSocket with the local screenshot port
 func (s *SSHSession) notifyWebUI(localPort int) {
 	if s.ws == nil {
-		logger.Warn("WebSocket connection not available for notification")
+		logger.Warn("webSocket connection not available for notification")
 		return
 	}
 

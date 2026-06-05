@@ -233,7 +233,7 @@ func (mgr *FloatingWindowManager) monitorProcess() {
 
 // respawnWindow handles respawning the floating window after crash/close
 func (mgr *FloatingWindowManager) respawnWindow() {
-	logger.Debug("Respawning floating window after crash/close")
+	logger.Debug("respawning floating window after crash/close")
 	time.Sleep(1 * time.Second)
 
 	if err := mgr.launchWindow(); err != nil {
@@ -257,7 +257,7 @@ func (mgr *FloatingWindowManager) restoreBorderOverlay() {
 	if err := mgr.ShowBorderOverlay(); err != nil {
 		logger.Warn("Failed to show border overlay after respawn", "error", err)
 	} else {
-		logger.Info("Border overlay restored after respawn")
+		logger.Info("border overlay restored after respawn")
 	}
 }
 
@@ -267,7 +267,7 @@ func (mgr *FloatingWindowManager) Shutdown() error {
 		return nil
 	}
 
-	logger.Info("Shutting down floating window manager")
+	logger.Info("shutting down floating window manager")
 
 	mgr.enabled = false
 
@@ -359,7 +359,7 @@ func (mgr *FloatingWindowManager) startPauseResumeListener() {
 	for scanner.Scan() {
 		select {
 		case <-mgr.pauseListener:
-			logger.Debug("Pause listener stopped")
+			logger.Debug("pause listener stopped")
 			return
 		default:
 		}

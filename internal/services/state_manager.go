@@ -721,7 +721,7 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 
 	oldState := sm.state.GetStateSnapshot()
 
-	logger.Warn("Attempting to recover from inconsistent state")
+	logger.Warn("attempting to recover from inconsistent state")
 
 	sm.state.EndChatSession()
 	sm.state.EndToolExecution()
@@ -735,7 +735,7 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 		}
 	}
 
-	logger.Warn("State recovery completed")
+	logger.Warn("state recovery completed")
 	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
 
 	return nil

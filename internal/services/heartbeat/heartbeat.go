@@ -132,7 +132,7 @@ func (s *Service) Stop(ctx context.Context) error {
 	}()
 	select {
 	case <-done:
-		logger.Info("Heartbeat service stopped")
+		logger.Info("heartbeat service stopped")
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("heartbeat stop: %w", ctx.Err())
@@ -170,7 +170,7 @@ func (s *Service) run() {
 // pick it up.
 func (s *Service) fireGuarded() {
 	if !s.running.CompareAndSwap(0, 1) {
-		logger.Warn("Heartbeat tick skipped - previous run still in flight")
+		logger.Warn("heartbeat tick skipped - previous run still in flight")
 		return
 	}
 	defer s.running.Store(0)
