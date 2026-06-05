@@ -3,12 +3,13 @@ package components
 import (
 	"testing"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
 	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func newTestThemeSelector(t *testing.T, themes []string, current string) (*ThemeSelectorImpl, *domainmocks.FakeThemeService) {

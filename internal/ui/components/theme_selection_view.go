@@ -89,10 +89,6 @@ func NewThemeSelector(themeService domain.ThemeService, styleProvider *styles.Pr
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
-	// The selector is an overlay inside the chat TUI, so the list must not be
-	// able to quit the whole program: cancel (esc/ctrl+c) and select (enter)
-	// are handled here instead. esc still clears an applied filter via the
-	// list's separate ClearFilter binding.
 	l.DisableQuitKeybindings()
 	l.Styles.Title = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
