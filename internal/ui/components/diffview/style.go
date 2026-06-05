@@ -142,3 +142,48 @@ func buildStyle(p styleParts) Style {
 		},
 	}
 }
+
+// ThemePalette carries the semantic colours a diff Style derives from the
+// active application theme. Callers build it from their theme so the diffview
+// package stays decoupled from the app's theme types. Empty colour fields keep
+// the tuned base value.
+type ThemePalette struct {
+	Add    string // additions foreground (+ symbol and line number)
+	Remove string // deletions foreground (- symbol and line number)
+	Accent string // hunk header (@@ ... @@) foreground
+	Dim    string // gutter / context line numbers
+	Dark   bool   // pick the dark vs light tuned background base
+}
+
+// NewThemeAwareStyle builds a diff Style whose semantic foreground colours come
+// from the active theme, while the carefully-tuned background tints are
+// inherited from the dark or light base style. This lets every theme show its
+// own add/remove/accent colours without re-tuning the row backgrounds (which
+// are what keep additions and deletions legible and colour-blind distinct).
+func NewThemeAwareStyle(p ThemePalette) Style {
+	base := DefaultLightStyle()
+	if p.Dark {
+		base = DefaultDarkStyle()
+	}
+
+	if p.Add != "" {
+		add := lipgloss.Color(p.Add)
+		base.InsertLine.LineNumber = base.InsertLine.LineNumber.Foreground(add)
+		base.InsertLine.Symbol = base.InsertLine.Symbol.Foreground(add)
+	}
+	if p.Remove != "" {
+		remove := lipgloss.Color(p.Remove)
+		base.DeleteLine.LineNumber = base.DeleteLine.LineNumber.Foreground(remove)
+		base.DeleteLine.Symbol = base.DeleteLine.Symbol.Foreground(remove)
+	}
+	if p.Accent != "" {
+		base.DividerLine.Code = base.DividerLine.Code.Foreground(lipgloss.Color(p.Accent))
+	}
+	if p.Dim != "" {
+		dim := lipgloss.Color(p.Dim)
+		base.DividerLine.LineNumber = base.DividerLine.LineNumber.Foreground(dim)
+		base.EqualLine.LineNumber = base.EqualLine.LineNumber.Foreground(dim)
+	}
+
+	return base
+}
