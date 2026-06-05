@@ -1169,3 +1169,52 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 		t.Errorf("Expected buffer length 0 after flush, got %d", bufLen)
 	}
 }
+
+func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
+	return domain.ConversationEntry{
+		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      "Bash",
+				Arguments: `{"command":"git status"}`,
+			},
+		},
+		ToolApprovalStatus: status,
+	}
+}
+
+func TestRenderPendingToolEntry_ApprovedThemedHeader(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalApproved))
+
+	if !strings.Contains(out, "Approved") {
+		t.Errorf("expected Approved label, got %q", out)
+	}
+	if !strings.Contains(out, "Bash") {
+		t.Errorf("expected tool name in header, got %q", out)
+	}
+
+	if strings.Contains(out, "Tool:") || strings.Contains(out, "Arguments:") {
+		t.Errorf("approval header should not contain raw Tool:/Arguments: block, got %q", out)
+	}
+}
+
+func TestRenderPendingToolEntry_RejectedThemedHeader(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalRejected))
+	if !strings.Contains(out, "Rejected") {
+		t.Errorf("expected Rejected label, got %q", out)
+	}
+}
+
+func TestRenderPendingToolEntry_PendingRendersNothing(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	if out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalPending)); out != "" {
+		t.Errorf("pending approval should render nothing, got %q", out)
+	}
+}

@@ -849,16 +849,7 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
-		content := cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
-
-		var helpText string
-		if cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
-			helpText = ""
-		} else {
-			helpText = "\n• " + cv.getToggleToolHint("collapse all tool calls")
-		}
-
-		return content + helpText
+		return cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -870,11 +861,11 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
-	hint := cv.getHintForEntry(entry)
-	if entry.ToolExecution != nil {
-		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		return content + "\n• " + hint
+	// Tool results own their themed status line, preview and expand hint.
+	if entry.ToolExecution != nil && cv.toolFormatter != nil {
+		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 	}
+	hint := cv.getHintForEntry(entry)
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
@@ -2056,59 +2047,54 @@ func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, c
 	}
 }
 
-// renderGenericToolArgs renders tool arguments as JSON
-func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
-	argsJSON, _ := json.MarshalIndent(args, "  ", "  ")
-	return fmt.Sprintf("  Arguments:\n  %s\n", string(argsJSON))
-}
-
 func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry) string {
 	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
 		return ""
 	}
 
-	var result strings.Builder
-
-	var color string
-	var role string
-	switch entry.ToolApprovalStatus {
-	case domain.ToolApprovalApproved:
-		color = cv.styleProvider.GetThemeColor("success")
-		role = "Tool (Approved)"
-	case domain.ToolApprovalRejected:
-		color = cv.styleProvider.GetThemeColor("error")
-		role = "Tool (Rejected)"
-	default:
-		color = cv.getAssistantColor()
-		role = "Tool"
-	}
-
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	result.WriteString(roleStyled)
-	result.WriteString("\n")
-
-	toolCall := entry.PendingToolCall
-	toolName := toolCall.Function.Name
+	toolName := entry.PendingToolCall.Function.Name
 
 	var args map[string]any
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-		fmt.Fprintf(&result, "  Tool: %s\n", toolName)
+	_ = json.Unmarshal([]byte(entry.PendingToolCall.Function.Arguments), &args)
 
-		switch toolName {
-		case "Edit":
-			result.WriteString(cv.renderEditToolArgs(args))
-		case "Write":
-			result.WriteString(cv.renderWriteToolArgs(args))
-		case "RequestPlanApproval":
-			result.WriteString(cv.renderRequestPlanApprovalArgs(args))
-		default:
-			result.WriteString(cv.renderGenericToolArgs(args))
-		}
-	} else {
-		fmt.Fprintf(&result, "  Tool: %s\n", toolName)
+	var result strings.Builder
+	result.WriteString(cv.renderApprovalHeader(toolName, args, entry.ToolApprovalStatus))
+	result.WriteString("\n")
+
+	switch toolName {
+	case "Edit":
+		result.WriteString(cv.renderEditToolArgs(args))
+	case "Write":
+		result.WriteString(cv.renderWriteToolArgs(args))
+	case "RequestPlanApproval":
+		result.WriteString(cv.renderRequestPlanApprovalArgs(args))
 	}
 
 	return result.String() + "\n"
+}
+
+// renderApprovalHeader renders a themed one-line header for an approved/rejected tool
+// call, mirroring the completed result status line: "<icon> Name(args) · <status>".
+func (cv *ConversationView) renderApprovalHeader(toolName string, args map[string]any, status domain.ToolApprovalStatus) string {
+	icon := icons.CheckMark
+	colorName := "success"
+	label := "Approved"
+	if status == domain.ToolApprovalRejected {
+		icon = icons.CrossMark
+		colorName = "error"
+		label = "Rejected"
+	}
+
+	color := cv.styleProvider.GetThemeColor(colorName)
+	styledIcon := cv.styleProvider.RenderWithColor(icon, color)
+	styledLabel := cv.styleProvider.RenderWithColor("· "+label, color)
+
+	call := toolName + "()"
+	if cv.toolFormatter != nil && len(args) > 0 {
+		call = cv.toolFormatter.FormatToolCall(toolName, args)
+	}
+
+	return fmt.Sprintf("%s %s %s", styledIcon, call, styledLabel)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events

@@ -250,6 +250,7 @@ func NewChatApplication(
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
+	toolFormatterService.SetHintFormatter(keyHintFormatter)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetKeyHintFormatter(keyHintFormatter)
 	}
