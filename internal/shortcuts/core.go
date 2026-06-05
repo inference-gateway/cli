@@ -359,19 +359,8 @@ func (c *HelpShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 		}, nil
 	}
 
-	var output strings.Builder
-	output.WriteString("## Available Shortcuts\n\n")
-
-	shortcuts := c.registry.GetAll()
-	for _, shortcut := range shortcuts {
-		fmt.Fprintf(&output, "/%s\n", shortcut.GetName())
-		fmt.Fprintf(&output, "  %s\n\n", shortcut.GetDescription())
-	}
-
-	output.WriteString("Type `/help <shortcut>` for detailed usage information.")
-
 	return ShortcutResult{
-		Output:     output.String(),
+		Output:     "",
 		Success:    true,
 		SideEffect: SideEffectShowHelp,
 	}, nil

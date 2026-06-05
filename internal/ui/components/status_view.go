@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	progress "charm.land/bubbles/v2/progress"
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
@@ -243,26 +244,22 @@ func (sv *StatusView) formatStatusWithType(message string) string {
 	return message
 }
 
-// createProgressBar creates a visual progress bar when progress information is available
+// createProgressBar renders a gradient progress bar (via bubbles/v2/progress,
+// matching the TodoBox treatment) followed by the current/total count when
+// progress information is available.
 func (sv *StatusView) createProgressBar() string {
 	if sv.progress == nil || sv.progress.Total == 0 {
 		return ""
 	}
 
-	barWidth := 10
-	filled := int(float64(sv.progress.Current) / float64(sv.progress.Total) * float64(barWidth))
+	percent := float64(sv.progress.Current) / float64(sv.progress.Total)
+	bar := progress.New(
+		progress.WithoutPercentage(),
+		progress.WithWidth(10),
+		progress.WithDefaultBlend(),
+	).ViewAs(percent)
 
-	bar := "["
-	for i := range barWidth {
-		if i < filled {
-			bar += "█"
-		} else {
-			bar += "░"
-		}
-	}
-	bar += fmt.Sprintf("] %d/%d", sv.progress.Current, sv.progress.Total)
-
-	return bar
+	return fmt.Sprintf("%s %d/%d", bar, sv.progress.Current, sv.progress.Total)
 }
 
 func (sv *StatusView) formatErrorStatus() (string, string, string) {
