@@ -105,3 +105,59 @@ func TestContextShortcut_Execute_NoUsageNoEstimateOmitsPercent(t *testing.T) {
 		t.Errorf("expected no usage line when both provider and estimator are empty, got: %s", res.Output)
 	}
 }
+
+func TestHelpShortcut_Execute_OpensOverlay(t *testing.T) {
+	registry := NewRegistry()
+	registry.Register(NewExitShortcut())
+	help := NewHelpShortcut(registry)
+
+	res, err := help.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res.Output != "" {
+		t.Errorf("expected empty output so nothing is appended to the conversation, got: %q", res.Output)
+	}
+	if res.SideEffect != SideEffectShowHelp {
+		t.Errorf("expected SideEffectShowHelp to drive the overlay, got: %v", res.SideEffect)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
+	}
+}
+
+func TestHelpShortcut_Execute_DetailForKnownShortcut(t *testing.T) {
+	registry := NewRegistry()
+	registry.Register(NewExitShortcut())
+	help := NewHelpShortcut(registry)
+
+	res, err := help.Execute(context.Background(), []string{"exit"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if !strings.Contains(res.Output, "exit") {
+		t.Errorf("expected detail output to describe the 'exit' shortcut, got: %q", res.Output)
+	}
+	if res.SideEffect != SideEffectNone {
+		t.Errorf("expected no side effect for a detail lookup, got: %v", res.SideEffect)
+	}
+}
+
+func TestHelpShortcut_Execute_UnknownShortcut(t *testing.T) {
+	registry := NewRegistry()
+	help := NewHelpShortcut(registry)
+
+	res, err := help.Execute(context.Background(), []string{"does-not-exist"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res.Success {
+		t.Error("expected Success to be false for an unknown shortcut")
+	}
+	if !strings.Contains(res.Output, "Unknown shortcut") {
+		t.Errorf("expected an 'Unknown shortcut' message, got: %q", res.Output)
+	}
+}

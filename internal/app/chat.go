@@ -85,6 +85,7 @@ type ChatApplication struct {
 	initGithubActionView *components.InitGithubActionView
 	diffViewer           *components.DiffViewerImpl
 	fileExplorer         *components.FileExplorerImpl
+	helpView             *components.HelpViewImpl
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -235,6 +236,7 @@ func NewChatApplication(
 	app.modeIndicator = components.NewModeIndicator(styleProvider)
 	app.modeIndicator.SetStateManager(app.stateManager)
 	app.helpBar = factory.CreateHelpBar(app.themeService)
+	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager)
@@ -327,27 +329,30 @@ func NewChatApplication(
 
 // updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
 func (app *ChatApplication) updateHelpBarShortcuts() {
-	var shortcuts []ui.KeyShortcut
+	app.helpBar.SetShortcuts(app.collectKeyShortcuts())
+}
 
-	var keyBindingShortcuts []keybinding.HelpShortcut
+// collectKeyShortcuts gathers the input-prefix hints and the active keybinding
+// shortcuts into a single list, shared by the help bar and the /help overlay.
+func (app *ChatApplication) collectKeyShortcuts() []ui.KeyShortcut {
+	shortcuts := []ui.KeyShortcut{
+		{Key: "!", Description: "for bash mode"},
+		{Key: "!!", Description: "for tools mode"},
+		{Key: "/", Description: "for shortcuts"},
+		{Key: "@", Description: "for file paths"},
+		{Key: "#", Description: "for github issues"},
+	}
+
 	if app.keyBindingManager != nil {
-		keyBindingShortcuts = app.keyBindingManager.GetHelpShortcuts()
+		for _, kbShortcut := range app.keyBindingManager.GetHelpShortcuts() {
+			shortcuts = append(shortcuts, ui.KeyShortcut{
+				Key:         kbShortcut.Key,
+				Description: kbShortcut.Description,
+			})
+		}
 	}
 
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!!", Description: "for tools mode"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for shortcuts"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "for github issues"})
-
-	for _, kbShortcut := range keyBindingShortcuts {
-		shortcuts = append(shortcuts, ui.KeyShortcut{
-			Key:         kbShortcut.Key,
-			Description: kbShortcut.Description,
-		})
-	}
-
-	app.helpBar.SetShortcuts(shortcuts)
+	return shortcuts
 }
 
 // Init initializes the application
@@ -512,6 +517,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case domain.TriggerGithubActionSetupEvent:
 		return tea.Batch(app.handleGithubActionSetupTrigger()...)
 
+	case domain.TriggerHelpViewEvent:
+		return tea.Batch(app.handleHelpViewTrigger()...)
+
 	case domain.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
@@ -563,7 +571,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 
 		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
 			inHistoryMode || currentView == domain.ViewStateDiffViewer ||
-			currentView == domain.ViewStateExplorer {
+			currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -589,6 +597,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleDiffViewerView(msg)
 	case domain.ViewStateExplorer:
 		return app.handleExplorerView(msg)
+	case domain.ViewStateHelp:
+		return app.handleHelpView(msg)
 	default:
 		return nil
 	}
@@ -732,6 +742,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderDiffViewer()
 	case domain.ViewStateExplorer:
 		return app.renderExplorer()
+	case domain.ViewStateHelp:
+		return app.renderHelp()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -879,6 +891,10 @@ func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 	}
 
 	app.initGithubActionView.SetRepositoryInfo(owner, isOrg)
+	app.initGithubActionView.Reset()
+	if cmd := app.initGithubActionView.Init(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateGithubActionSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
@@ -1301,6 +1317,100 @@ func (app *ChatApplication) renderGithubActionSetup() string {
 	app.initGithubActionView.SetWidth(width)
 	app.initGithubActionView.SetHeight(height)
 	return app.initGithubActionView.View().Content
+}
+
+// handleHelpViewTrigger fills the help overlay with the current commands and
+// keybindings, then transitions to the scrollable help view.
+func (app *ChatApplication) handleHelpViewTrigger() []tea.Cmd {
+	var cmds []tea.Cmd
+
+	app.helpView.Reset()
+
+	width, height := app.stateManager.GetDimensions()
+	app.helpView.SetWidth(width)
+	app.helpView.SetHeight(height)
+	app.helpView.SetContent(app.buildHelpCommands(), app.collectKeyShortcuts())
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateHelp); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to show help: %v", err),
+				Sticky: false,
+			}
+		})
+		return cmds
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return cmds
+}
+
+// buildHelpCommands collects every registered slash command (sorted by name)
+// for the help overlay's commands table.
+func (app *ChatApplication) buildHelpCommands() []components.HelpCommand {
+	if app.shortcutRegistry == nil {
+		return nil
+	}
+
+	all := app.shortcutRegistry.GetAll()
+	commands := make([]components.HelpCommand, 0, len(all))
+	for _, s := range all {
+		commands = append(commands, components.HelpCommand{
+			Name:        s.GetName(),
+			Description: s.GetDescription(),
+		})
+	}
+	return commands
+}
+
+func (app *ChatApplication) handleHelpView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	model, cmd := app.helpView.Update(msg)
+	app.helpView = model.(*components.HelpViewImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.helpView.IsCancelled() {
+		return app.handleHelpViewClosed(cmds)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleHelpViewClosed(cmds []tea.Cmd) []tea.Cmd {
+	app.helpView.Reset()
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return cmds
+}
+
+func (app *ChatApplication) renderHelp() string {
+	width, height := app.stateManager.GetDimensions()
+	app.helpView.SetWidth(width)
+	app.helpView.SetHeight(height)
+	return app.helpView.View().Content
 }
 
 // handleDiffViewerView drives the VS Code-style changes panel. It is lazily
@@ -2233,7 +2343,7 @@ jobs:
         uses: actions/checkout@v6.0.2
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.4.0
+        uses: inference-gateway/infer-action@v0.11.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"
@@ -2301,7 +2411,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.4.0
+        uses: inference-gateway/infer-action@v0.11.2
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"

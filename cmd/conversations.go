@@ -148,40 +148,33 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 		return nil
 	}
 
-	var md strings.Builder
-	fmt.Fprintf(&md, "**SAVED CONVERSATIONS:** %d total\n\n", len(conversations))
+	fmt.Println(listTitle(fmt.Sprintf("Saved Conversations (%d)", len(conversations))))
+	fmt.Println()
 
-	md.WriteString("| ID                                   | Summary                  | Messages | Requests | Input Tokens | Output Tokens | Cost    |\n")
-	md.WriteString("|--------------------------------------|--------------------------|----------|----------|--------------|---------------|---------|" + "\n")
-
+	t := newListTable("ID", "Summary", "Messages", "Requests", "Input", "Output", "Cost")
 	for _, conv := range conversations {
-		id := conv.ID
-		summary := formatting.TruncateText(conv.Title, 25)
-		messages := fmt.Sprintf("%d", conv.MessageCount)
-		requests := fmt.Sprintf("%d", conv.TokenStats.RequestCount)
-		inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
-		outputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens)
-		cost := formatting.FormatCost(conv.CostStats.TotalCost)
+		t.Row(
+			conv.ID,
+			formatting.TruncateText(conv.Title, 25),
+			fmt.Sprintf("%d", conv.MessageCount),
+			fmt.Sprintf("%d", conv.TokenStats.RequestCount),
+			fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens),
+			fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens),
+			formatting.FormatCost(conv.CostStats.TotalCost),
+		)
+	}
+	fmt.Println(t.Render())
 
-		fmt.Fprintf(&md, "| %-36s | %-24s | %8s | %8s | %12s | %13s | %7s |\n",
-			id, summary, messages, requests, inputTokens, outputTokens, cost)
+	switch {
+	case len(conversations) >= limit:
+		fmt.Println()
+		fmt.Println(listHint(fmt.Sprintf("Showing %d-%d (use --limit and --offset for pagination)",
+			offset+1, offset+len(conversations))))
+	case offset > 0:
+		fmt.Println()
+		fmt.Println(listHint(fmt.Sprintf("Showing %d-%d", offset+1, offset+len(conversations))))
 	}
 
-	if len(conversations) >= limit {
-		fmt.Fprintf(&md, "\nShowing %d-%d conversations (use --limit and --offset for pagination)\n",
-			offset+1, offset+len(conversations))
-	} else if offset > 0 {
-		fmt.Fprintf(&md, "\nShowing %d-%d of conversations\n",
-			offset+1, offset+len(conversations))
-	}
-
-	rendered, err := renderMarkdown(md.String())
-	if err != nil {
-		fmt.Print(md.String())
-		return nil
-	}
-
-	fmt.Print(rendered)
 	return nil
 }
 

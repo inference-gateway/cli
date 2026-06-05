@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	cobra "github.com/spf13/cobra"
 
@@ -86,29 +85,26 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 		fmt.Println()
 	}
 
-	var md strings.Builder
-	fmt.Fprintf(&md, "**DISCOVERED SKILLS:** %d\n\n", len(loaded))
-	md.WriteString("| Name | Scope | Description | Path |\n")
-	md.WriteString("|------|-------|-------------|------|\n")
+	fmt.Println(listTitle(fmt.Sprintf("Discovered Skills (%d)", len(loaded))))
+	fmt.Println()
+
+	skillsTable := newListTable("Name", "Scope", "Description", "Path")
 	for _, sk := range loaded {
-		fmt.Fprintf(&md, "| %s | %s | %s | %s |\n", sk.Name, sk.Scope, sk.Description, sk.Path)
+		skillsTable.Row(sk.Name, string(sk.Scope), sk.Description, sk.Path)
 	}
+	fmt.Println(skillsTable.Render())
 
 	if len(errs) > 0 {
-		fmt.Fprintf(&md, "\n**SKIPPED (%d):**\n\n", len(errs))
-		md.WriteString("| Path | Reason |\n")
-		md.WriteString("|------|--------|\n")
+		fmt.Println()
+		fmt.Println(listTitle(fmt.Sprintf("Skipped (%d)", len(errs))))
+		fmt.Println()
+		errTable := newListTable("Path", "Reason")
 		for _, e := range errs {
-			fmt.Fprintf(&md, "| %s | %s |\n", e.Path, e.Reason)
+			errTable.Row(e.Path, e.Reason)
 		}
+		fmt.Println(errTable.Render())
 	}
 
-	rendered, err := renderMarkdown(md.String())
-	if err != nil {
-		fmt.Print(md.String())
-		return nil
-	}
-	fmt.Print(rendered)
 	return nil
 }
 
