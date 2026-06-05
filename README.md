@@ -718,6 +718,15 @@ The CLI includes hardcoded pricing for 30+ models across all major providers
 (Anthropic, OpenAI, Google, DeepSeek, Groq, Mistral, Cohere, etc.).
 Prices are updated regularly to match current provider pricing.
 
+The model picker groups models into three categories you can filter with the
+`[1] All` / `[2] Free` / `[3] Paid` / `[4] Pro` tabs:
+
+- **Free** — no per-token cost (e.g. local Ollama, Gemma).
+- **Paid** — billed per token at the listed `$input/$output per MTok` rate.
+- **Pro** — gated behind a paid **Pro subscription** (some Ollama Cloud models).
+  These have no per-token price but are not free, so they are marked
+  `pro subscription` instead of `free` to avoid the misleading label.
+
 **Override pricing** for specific models or add pricing for custom models:
 
 ```yaml
@@ -739,7 +748,17 @@ pricing:
     "custom-fine-tuned-model":
       input_price_per_mtoken: 5.00
       output_price_per_mtoken: 15.00
+
+    # Mark a model as Pro-subscription only (no per-token cost, but gated)
+    "ollama_cloud/deepseek-v4-pro":
+      input_price_per_mtoken: 0.0
+      output_price_per_mtoken: 0.0
+      requires_pro: true
 ```
+
+> **Note:** A custom entry fully replaces the default for that model. Omitting
+> `requires_pro` in a custom override resets it to `false`, so re-state
+> `requires_pro: true` if you override a model the CLI flags as Pro by default.
 
 **Via environment variables:**
 

@@ -144,7 +144,7 @@ func (a *AutocompleteImpl) loadModels() {
 	for _, model := range models {
 		description := ""
 		if a.pricingService != nil {
-			description = a.pricingService.FormatModelPricing(model)
+			description = domain.FormatModelPricingLabel(a.pricingService, model)
 		}
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    model,

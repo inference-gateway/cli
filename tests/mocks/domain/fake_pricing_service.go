@@ -68,6 +68,17 @@ type FakePricingService struct {
 	isEnabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	RequiresProStub        func(string) bool
+	requiresProMutex       sync.RWMutex
+	requiresProArgsForCall []struct {
+		arg1 string
+	}
+	requiresProReturns struct {
+		result1 bool
+	}
+	requiresProReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -373,6 +384,67 @@ func (fake *FakePricingService) IsEnabledReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.isEnabledReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakePricingService) RequiresPro(arg1 string) bool {
+	fake.requiresProMutex.Lock()
+	ret, specificReturn := fake.requiresProReturnsOnCall[len(fake.requiresProArgsForCall)]
+	fake.requiresProArgsForCall = append(fake.requiresProArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.RequiresProStub
+	fakeReturns := fake.requiresProReturns
+	fake.recordInvocation("RequiresPro", []interface{}{arg1})
+	fake.requiresProMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakePricingService) RequiresProCallCount() int {
+	fake.requiresProMutex.RLock()
+	defer fake.requiresProMutex.RUnlock()
+	return len(fake.requiresProArgsForCall)
+}
+
+func (fake *FakePricingService) RequiresProCalls(stub func(string) bool) {
+	fake.requiresProMutex.Lock()
+	defer fake.requiresProMutex.Unlock()
+	fake.RequiresProStub = stub
+}
+
+func (fake *FakePricingService) RequiresProArgsForCall(i int) string {
+	fake.requiresProMutex.RLock()
+	defer fake.requiresProMutex.RUnlock()
+	argsForCall := fake.requiresProArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakePricingService) RequiresProReturns(result1 bool) {
+	fake.requiresProMutex.Lock()
+	defer fake.requiresProMutex.Unlock()
+	fake.RequiresProStub = nil
+	fake.requiresProReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakePricingService) RequiresProReturnsOnCall(i int, result1 bool) {
+	fake.requiresProMutex.Lock()
+	defer fake.requiresProMutex.Unlock()
+	fake.RequiresProStub = nil
+	if fake.requiresProReturnsOnCall == nil {
+		fake.requiresProReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.requiresProReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

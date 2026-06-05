@@ -38,6 +38,27 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 	return 0.0, 0.0, false
 }
 
+// resolveRequiresPro returns whether a model is gated behind a Pro subscription.
+// Custom prices take precedence over defaults, matching resolvePricing.
+func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
+	if customPrice, exists := p.config.CustomPrices[model]; exists {
+		return customPrice.RequiresPro
+	}
+	if defaultPrice, exists := p.defaultPrices[model]; exists {
+		return defaultPrice.RequiresPro
+	}
+	return false
+}
+
+// RequiresPro reports whether the model is gated behind a paid Pro subscription.
+// Returns false when pricing is disabled or the model has no entry.
+func (p *PricingServiceImpl) RequiresPro(model string) bool {
+	if !p.config.Enabled {
+		return false
+	}
+	return p.resolveRequiresPro(model)
+}
+
 // GetInputPrice retrieves the input price per million tokens for a specific model.
 // Returns 0.0 for unknown models (e.g., Ollama, custom models).
 func (p *PricingServiceImpl) GetInputPrice(model string) float64 {

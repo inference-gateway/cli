@@ -11,6 +11,11 @@ type PricingConfig struct {
 type CustomPricing struct {
 	InputPricePerMToken  float64 `yaml:"input_price_per_mtoken" mapstructure:"input_price_per_mtoken"`
 	OutputPricePerMToken float64 `yaml:"output_price_per_mtoken" mapstructure:"output_price_per_mtoken"`
+	// RequiresPro marks a model as gated behind a paid Pro subscription
+	// (e.g. some Ollama Cloud models). Such models have no per-token price
+	// but are not freely available. Omitting this in a custom entry resets
+	// it to false, overriding any default flag for that model.
+	RequiresPro bool `yaml:"requires_pro" mapstructure:"requires_pro"`
 }
 
 // ModelPricing represents pricing information for a specific model.
@@ -21,6 +26,9 @@ type ModelPricing struct {
 	InputPricePerMToken  float64
 	OutputPricePerMToken float64
 	Currency             string
+	// RequiresPro marks a model as gated behind a paid Pro subscription
+	// (e.g. some Ollama Cloud models) even though it has no per-token price.
+	RequiresPro bool
 }
 
 // GetDefaultPricingConfig returns the default pricing configuration.
@@ -567,6 +575,7 @@ var DefaultModelPricing = map[string]ModelPricing{
 		InputPricePerMToken:  0.00,
 		OutputPricePerMToken: 0.00,
 		Currency:             "USD",
+		RequiresPro:          true,
 	},
 	"ollama_cloud/deepseek-v4-pro": {
 		Provider:             "ollama_cloud",
@@ -574,6 +583,7 @@ var DefaultModelPricing = map[string]ModelPricing{
 		InputPricePerMToken:  0.00,
 		OutputPricePerMToken: 0.00,
 		Currency:             "USD",
+		RequiresPro:          true,
 	},
 	"ollama_cloud/gemini-3-flash-preview": {
 		Provider:             "ollama_cloud",
