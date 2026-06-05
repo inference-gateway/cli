@@ -10,7 +10,7 @@ import (
 )
 
 // previewLineCount is how many output lines the collapsed tool result shows on success.
-const previewLineCount = 3
+const previewLineCount = 5
 
 // ResultBodyProvider is an optional interface a tool may implement to expose its
 // primary output (command stdout, file content, …) for the collapsed preview and

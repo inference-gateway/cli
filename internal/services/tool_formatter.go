@@ -118,7 +118,7 @@ func (s *ToolFormatterService) joinArgs(args []string) string {
 }
 
 // FormatToolResultForUI formats the collapsed (default) tool result: a themed status
-// line followed by an indented dim output preview (first 3 lines on success, the full
+// line followed by an indented dim output preview (first 5 lines on success, the full
 // output on failure) and a "+N lines · ctrl+o to expand" footer.
 func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
@@ -209,7 +209,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 
 	themed := s.themeTreeLines(tree)
 	if hint := s.collapseHintLine(result); hint != "" {
-		themed += "\n" + hint
+		return themed + "\n" + hint
 	}
 	return themed
 }

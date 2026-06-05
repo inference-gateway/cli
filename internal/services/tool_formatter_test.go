@@ -91,8 +91,8 @@ func bashResult(success bool, args map[string]any) *domain.ToolExecutionResult {
 	}
 }
 
-func TestFormatToolResultForUI_CollapsedSuccessTruncatesToThree(t *testing.T) {
-	tool := &fakeTool{name: "Bash", hasBody: true, body: "l1\nl2\nl3\nl4\nl5\nl6"}
+func TestFormatToolResultForUI_CollapsedSuccessTruncatesToFive(t *testing.T) {
+	tool := &fakeTool{name: "Bash", hasBody: true, body: "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8"}
 	svc := newTestService(tool)
 
 	out := stripANSI(svc.FormatToolResultForUI(bashResult(true, map[string]any{"command": "git branch"}), 80))
@@ -101,11 +101,10 @@ func TestFormatToolResultForUI_CollapsedSuccessTruncatesToThree(t *testing.T) {
 	if !strings.Contains(lines[0], "Bash(command=git branch)") || !strings.Contains(lines[0], "19ms") {
 		t.Fatalf("status line missing name/duration: %q", lines[0])
 	}
-	// status + 3 preview lines + footer = 5 lines
-	if len(lines) != 5 {
-		t.Fatalf("expected 5 lines, got %d: %#v", len(lines), lines)
+	if len(lines) != 7 {
+		t.Fatalf("expected 7 lines, got %d: %#v", len(lines), lines)
 	}
-	for i, want := range []string{"l1", "l2", "l3"} {
+	for i, want := range []string{"l1", "l2", "l3", "l4", "l5"} {
 		if strings.TrimSpace(lines[1+i]) != want {
 			t.Errorf("preview line %d = %q, want %q", i, lines[1+i], want)
 		}
@@ -113,9 +112,13 @@ func TestFormatToolResultForUI_CollapsedSuccessTruncatesToThree(t *testing.T) {
 			t.Errorf("preview line %d not indented: %q", i, lines[1+i])
 		}
 	}
-	footer := lines[4]
+	footer := lines[6]
 	if !strings.Contains(footer, "+3 lines") || !strings.Contains(footer, "ctrl+o to expand") {
 		t.Errorf("footer = %q, want +3 lines + expand hint", footer)
+	}
+	// the count must sit on the same line as the hint, dot-separated
+	if !strings.Contains(footer, "+3 lines · ") {
+		t.Errorf("footer = %q, want count and hint side-by-side separated by a dot", footer)
 	}
 }
 
@@ -221,10 +224,10 @@ func TestPreviewLines(t *testing.T) {
 		wantLines int
 		wantMore  int
 	}{
-		{"success truncates", "a\nb\nc\nd\ne", true, 3, 2},
+		{"success truncates", "a\nb\nc\nd\ne\nf\ng\nh", true, 5, 3},
 		{"success short", "a\nb", true, 2, 0},
-		{"success exact", "a\nb\nc", true, 3, 0},
-		{"failure full", "a\nb\nc\nd\ne", false, 5, 0},
+		{"success exact", "a\nb\nc\nd\ne", true, 5, 0},
+		{"failure full", "a\nb\nc\nd\ne\nf\ng\nh", false, 8, 0},
 		{"empty", "", true, 0, 0},
 	}
 	for _, tt := range tests {
