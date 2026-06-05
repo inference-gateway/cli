@@ -116,7 +116,6 @@ func TestFormatToolResultForUI_CollapsedSuccessTruncatesToFive(t *testing.T) {
 	if !strings.Contains(footer, "+3 lines") || !strings.Contains(footer, "ctrl+o to expand") {
 		t.Errorf("footer = %q, want +3 lines + expand hint", footer)
 	}
-	// the count must sit on the same line as the hint, dot-separated
 	if !strings.Contains(footer, "+3 lines · ") {
 		t.Errorf("footer = %q, want count and hint side-by-side separated by a dot", footer)
 	}
@@ -129,7 +128,6 @@ func TestFormatToolResultForUI_FailureShowsFullBody(t *testing.T) {
 	out := stripANSI(svc.FormatToolResultForUI(bashResult(false, map[string]any{"command": "boom"}), 80))
 	lines := strings.Split(out, "\n")
 
-	// status + 5 full lines + footer (hint only, no "+N")
 	if len(lines) != 7 {
 		t.Fatalf("expected 7 lines, got %d: %#v", len(lines), lines)
 	}
@@ -145,7 +143,6 @@ func TestFormatToolResultForUI_FailureShowsFullBody(t *testing.T) {
 }
 
 func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
-	// hasBody=false -> resultBody falls back to FormatPreview (a one-line summary).
 	tool := &fakeTool{name: "Write", preview: "Created main.go (123 bytes)"}
 	svc := newTestService(tool)
 
@@ -168,7 +165,6 @@ func TestFormatToolResultForUI_NoBodyOmitsPreview(t *testing.T) {
 	out := stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 80))
 	lines := strings.Split(out, "\n")
 
-	// status + footer (hint only); no preview lines
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines (status + hint), got %d: %#v", len(lines), lines)
 	}

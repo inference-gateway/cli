@@ -155,9 +155,6 @@ func (s *ToolFormatterService) themeTreeLine(line string, isFirst bool) string {
 
 	styledPrefix := s.styleProvider.RenderWithColor(prefix, s.styleProvider.GetThemeColor("dim"))
 
-	// Only field lines (those with a branch glyph) get an accent label; body lines
-	// (spaces / "│  " only) keep their content verbatim, so values containing ":"
-	// (URLs, "Exit Code: 0") and embedded diff/status ANSI are never mis-coloured.
 	if isFieldLine(prefix) {
 		if label, value, ok := splitLabel(rest); ok && !containsANSI(label) {
 			return styledPrefix + s.styleProvider.RenderWithColor(label, s.styleProvider.GetThemeColor("accent")) + value
