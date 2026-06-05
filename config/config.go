@@ -187,8 +187,9 @@ type WriteToolConfig struct {
 
 // EditToolConfig contains edit-specific tool settings
 type EditToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled          bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval  *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	StrictWhitespace bool  `yaml:"strict_whitespace" mapstructure:"strict_whitespace"`
 }
 
 // DeleteToolConfig contains delete-specific tool settings
@@ -664,8 +665,9 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{true}[0],
 			},
 			Edit: EditToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{true}[0],
+				Enabled:          true,
+				RequireApproval:  &[]bool{true}[0],
+				StrictWhitespace: false,
 			},
 			Delete: DeleteToolConfig{
 				Enabled:         true,

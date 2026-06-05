@@ -1378,10 +1378,9 @@ func TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace(t *testing.T) {
 			initialContent:  "line1\nline2\n",
 			oldString:       "line1 ",
 			newString:       "replaced",
-			expectedContent: "line1\nline2\n",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has trailing space but file doesn't",
+			expectedContent: "replaced\nline2\n",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a trailing-space-only mismatch now applies, re-aligned to the file",
 		},
 		{
 			name:            "remove trailing tabs",
@@ -1456,20 +1455,18 @@ func TestEditTool_Execute_WhitespaceHandling_TabsVsSpaces(t *testing.T) {
 			initialContent:  "    func test() {",
 			oldString:       "\tfunc test() {",
 			newString:       "replaced",
-			expectedContent: "    func test() {",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has tab but file has spaces",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique tab-vs-spaces indent mismatch now applies",
 		},
 		{
 			name:            "spaces in old_string but tab in file",
 			initialContent:  "\tfunc test() {",
 			oldString:       "    func test() {",
 			newString:       "replaced",
-			expectedContent: "\tfunc test() {",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has spaces but file has tab",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique spaces-vs-tab indent mismatch now applies",
 		},
 		{
 			name:            "exact tab match",
@@ -1496,10 +1493,9 @@ func TestEditTool_Execute_WhitespaceHandling_MixedIndentation(t *testing.T) {
 			initialContent:  "\t\tcode",
 			oldString:       "        code",
 			newString:       "replaced",
-			expectedContent: "\t\tcode",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail: file has 2 tabs, old_string has 8 spaces",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique 8-spaces-vs-2-tabs indent mismatch now applies",
 		},
 		{
 			name:            "remove indented line with exact match",
@@ -1576,6 +1572,76 @@ func TestEditTool_Execute_WhitespaceHandling_ComplexCombinations(t *testing.T) {
 			expectedContent: "{\n\tbufferSize: 2,\n}",
 			expectedSuccess: true,
 			description:     "Should remove config line including trailing comma, tab, and newline",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_FlexibleWhitespaceMatch verifies the indentation-tolerant fallback:
+// edits whose content matches a unique block but whose leading whitespace differs by a uniform
+// shift now apply (re-aligned to the file), while ambiguous or non-uniform cases still error.
+func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "off-by-one tab is re-aligned to the file",
+			initialContent:  "\t\t\t\t\t\tx := 1",
+			oldString:       "\t\t\t\t\t\t\tx := 1",
+			newString:       "\t\t\t\t\t\t\tx := 2",
+			expectedContent: "\t\t\t\t\t\tx := 2",
+			expectedSuccess: true,
+			description:     "Model over-indented by one tab; fallback re-aligns to the file's 6 tabs",
+		},
+		{
+			name:            "over-indented multi-line block re-aligns",
+			initialContent:  "func f() {\n\tdenied := []string{\n\t\t\"a\",\n\t}\n}",
+			oldString:       "\t\tdenied := []string{\n\t\t\t\"a\",\n\t\t}",
+			newString:       "\t\tdenied := []string{\n\t\t\t\"b\",\n\t\t}",
+			expectedContent: "func f() {\n\tdenied := []string{\n\t\t\"b\",\n\t}\n}",
+			expectedSuccess: true,
+			description:     "Every old line over-indented by one tab; uniform shift re-aligns the whole block",
+		},
+		{
+			name:            "tabs vs spaces uniform substitution",
+			initialContent:  "\treturn nil",
+			oldString:       "    return nil",
+			newString:       "    return err",
+			expectedContent: "\treturn err",
+			expectedSuccess: true,
+			description:     "Old uses 4 spaces, file uses 1 tab; fallback preserves the file's tab",
+		},
+		{
+			name:            "non-unique trimmed block still errors",
+			initialContent:  "\tx := 1\n\tx := 1",
+			oldString:       "\t\tx := 1",
+			newString:       "\t\tx := 9",
+			expectedContent: "\tx := 1\n\tx := 1",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Two trimmed matches: ambiguous, so the fallback refuses and the edit fails",
+		},
+		{
+			name:            "non-uniform indentation still errors",
+			initialContent:  "\tif a {\n      b()\n\t}",
+			oldString:       "\t\tif a {\n\t\t\tb()\n\t\t}",
+			newString:       "\t\tif a {\n\t\t\tc()\n\t\t}",
+			expectedContent: "\tif a {\n      b()\n\t}",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Inner line uses spaces while the rest uses tabs; shift is not uniform, so it fails",
+		},
+		{
+			name:            "literal text instead of tabs still errors",
+			initialContent:  "\t\t\tfoo()",
+			oldString:       "\ttttfoo()",
+			newString:       "\ttttbar()",
+			expectedContent: "\t\t\tfoo()",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Escape-conflated 'ttt' is content, not whitespace, so it correctly does not match",
 		},
 	}
 

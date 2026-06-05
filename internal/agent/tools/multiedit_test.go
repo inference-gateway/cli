@@ -256,6 +256,106 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	}
 }
 
+// TestMultiEditTool_Execute_FlexibleWhitespaceMatch verifies the indentation-tolerant fallback
+// works against the sequential accumulator and still aborts the whole batch on a non-uniform edit.
+func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
+	newCfg := func(dir string) *config.Config {
+		return &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Sandbox: config.SandboxConfig{Directories: []string{dir}},
+				Edit:    config.EditToolConfig{Enabled: true},
+			},
+		}
+	}
+
+	t.Run("second edit off-by-one tab against accumulator", func(t *testing.T) {
+		dir := t.TempDir()
+		testFile := filepath.Join(dir, "accumulator.go")
+		initial := "func f() {\n\ta := 1\n\tb := 2\n}\n"
+		if err := os.WriteFile(testFile, []byte(initial), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		tool := NewMultiEditToolWithRegistry(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
+		args := map[string]any{
+			"file_path": testFile,
+			"edits": []any{
+				map[string]any{"old_string": "\ta := 1", "new_string": "\ta := 10"},
+				map[string]any{"old_string": "\t\tb := 2", "new_string": "\t\tb := 20"},
+			},
+		}
+
+		result, err := tool.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if !result.Success {
+			t.Fatalf("expected success, got error: %s", result.Error)
+		}
+
+		multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+		if !ok {
+			t.Fatal("expected MultiEditToolResult in result data")
+		}
+		if multiEditResult.SuccessfulEdits != 2 {
+			t.Errorf("expected 2 successful edits, got %d", multiEditResult.SuccessfulEdits)
+		}
+		if multiEditResult.NormalizedEdits != 1 {
+			t.Errorf("expected 1 normalized edit, got %d", multiEditResult.NormalizedEdits)
+		}
+		if result.Metadata["whitespace_match"] == "" {
+			t.Errorf("expected whitespace_match metadata to be set, got %v", result.Metadata)
+		}
+
+		want := "func f() {\n\ta := 10\n\tb := 20\n}\n"
+		got, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Errorf("expected content:\n%q\ngot:\n%q", want, string(got))
+		}
+	})
+
+	t.Run("non-uniform second edit aborts the whole batch", func(t *testing.T) {
+		dir := t.TempDir()
+		testFile := filepath.Join(dir, "atomic.go")
+		initial := "\tfoo()\n\tif a {\n      b()\n\t}\n"
+		if err := os.WriteFile(testFile, []byte(initial), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		tool := NewMultiEditToolWithRegistry(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
+		args := map[string]any{
+			"file_path": testFile,
+			"edits": []any{
+				map[string]any{"old_string": "\tfoo()", "new_string": "\tbar()"},
+				map[string]any{"old_string": "\t\tif a {\n\t\t\tb()\n\t\t}", "new_string": "\t\tif a {\n\t\t\tc()\n\t\t}"},
+			},
+		}
+
+		result, err := tool.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected failure when the second edit cannot be matched uniformly")
+		}
+		if !strings.Contains(result.Error, "edit 2") {
+			t.Errorf("expected error to name 'edit 2', got: %s", result.Error)
+		}
+
+		got, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != initial {
+			t.Errorf("file must be unchanged on atomic abort.\nwant: %q\ngot:  %q", initial, string(got))
+		}
+	})
+}
+
 func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "multiedit_test")
 	if err != nil {
