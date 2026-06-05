@@ -450,6 +450,19 @@ func (t *ReadTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	return fmt.Sprintf("Read %s", fileName)
 }
 
+// FormatResultBody returns the file content for the collapsed preview.
+func (t *ReadTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return ""
+	}
+
+	readResult, ok := result.Data.(*domain.FileReadToolResult)
+	if !ok {
+		return ""
+	}
+	return strings.TrimRight(readResult.Content, "\n")
+}
+
 // FormatForUI formats the result for UI display
 func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {

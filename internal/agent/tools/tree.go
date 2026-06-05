@@ -552,6 +552,19 @@ func (t *TreeTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	return status
 }
 
+// FormatResultBody returns the rendered directory tree for the collapsed preview.
+func (t *TreeTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return ""
+	}
+
+	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	if !ok {
+		return ""
+	}
+	return strings.TrimRight(treeResult.Output, "\n")
+}
+
 // FormatForUI formats the result for UI display
 func (t *TreeTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {

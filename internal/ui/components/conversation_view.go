@@ -849,16 +849,7 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
-		content := cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
-
-		var helpText string
-		if cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
-			helpText = ""
-		} else {
-			helpText = "\n• " + cv.getToggleToolHint("collapse all tool calls")
-		}
-
-		return content + helpText
+		return cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -870,11 +861,11 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
-	hint := cv.getHintForEntry(entry)
-	if entry.ToolExecution != nil {
-		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		return content + "\n• " + hint
+	// Tool results own their themed status line, preview and expand hint.
+	if entry.ToolExecution != nil && cv.toolFormatter != nil {
+		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 	}
+	hint := cv.getHintForEntry(entry)
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)

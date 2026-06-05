@@ -439,6 +439,34 @@ func (t *BashTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	return "Command completed"
 }
 
+// FormatResultBody returns the command's primary output for the collapsed preview
+// and the full-on-failure view. Unlike FormatPreview it never truncates, and on a
+// non-zero exit it surfaces the exit code and error so failures are fully visible.
+func (t *BashTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return ""
+	}
+
+	bashResult, ok := result.Data.(*domain.BashToolResult)
+	if !ok {
+		return ""
+	}
+
+	output := strings.TrimRight(bashResult.Output, "\n")
+	if bashResult.ExitCode == 0 {
+		return output
+	}
+
+	header := fmt.Sprintf("exit %d", bashResult.ExitCode)
+	if bashResult.Error != "" {
+		header += ": " + bashResult.Error
+	}
+	if output == "" {
+		return header
+	}
+	return header + "\n" + output
+}
+
 // FormatForUI formats the result for UI display
 func (t *BashTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {

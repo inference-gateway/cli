@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -15,6 +15,41 @@ import (
 type ToolFormatterService struct {
 	toolRegistry  ToolRegistry
 	styleProvider *styles.Provider
+	hintFormatter HintProvider
+}
+
+// HintProvider resolves keybinding hints for tool result affordances.
+// It is satisfied by *hints.Formatter.
+type HintProvider interface {
+	GetKeyOnly(actionID string) string
+}
+
+// SetHintFormatter wires the keybinding hint resolver so the collapsed and expanded
+// views can show the "ctrl+o to expand/collapse" affordance. Nil is safe — the hint
+// is simply omitted.
+func (s *ToolFormatterService) SetHintFormatter(h HintProvider) {
+	s.hintFormatter = h
+}
+
+func (s *ToolFormatterService) toggleKey() string {
+	if s.hintFormatter == nil {
+		return ""
+	}
+	return s.hintFormatter.GetKeyOnly(config.ActionID(config.NamespaceTools, "toggle_tool_expansion"))
+}
+
+func (s *ToolFormatterService) expandHint() string {
+	if k := s.toggleKey(); k != "" {
+		return k + " to expand"
+	}
+	return ""
+}
+
+func (s *ToolFormatterService) collapseHint() string {
+	if k := s.toggleKey(); k != "" {
+		return k + " to collapse"
+	}
+	return ""
 }
 
 // ToolRegistry interface for accessing tools (implemented by tools.Registry)
@@ -82,45 +117,46 @@ func (s *ToolFormatterService) joinArgs(args []string) string {
 	return result
 }
 
-// FormatToolResultForUI formats tool execution results for UI display
-// Uses single-line format with colors (consolidated with live preview format)
+// FormatToolResultForUI formats the collapsed (default) tool result: a themed status
+// line followed by an indented dim output preview (first 3 lines on success, the full
+// output on failure) and a "+N lines · ctrl+o to expand" footer.
 func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	var statusIcon string
-	var statusText string
-	var iconColor string
-	var statusColor string
+	lines, more := previewLines(s.resultBody(result), result.Success, contentWidth(terminalWidth))
 
-	if result.Success {
-		statusIcon = icons.CheckMark
-		duration := result.Duration
-		statusText = fmt.Sprintf("completed in %s", s.formatDuration(duration))
-		iconColor = "success"
-		statusColor = "dim"
-	} else {
-		statusIcon = icons.CrossMark
-		duration := result.Duration
-		statusText = fmt.Sprintf("failed after %s", s.formatDuration(duration))
-		iconColor = "error"
-		statusColor = "error"
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, s.statusLine(result))
+
+	dim := s.styleProvider.GetThemeColor("dim")
+	for _, ln := range lines {
+		out = append(out, s.styleProvider.RenderWithColor("    "+ln, dim))
 	}
+	if footer := s.collapsedFooter(more); footer != "" {
+		out = append(out, s.styleProvider.RenderWithColor("    "+footer, dim))
+	}
+	return strings.Join(out, "\n")
+}
+
+// statusLine renders the compact "<icon> Name(args) · <duration>" header.
+func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult) string {
+	icon := icons.CheckMark
+	iconColor := "success"
+	if !result.Success {
+		icon = icons.CrossMark
+		iconColor = "error"
+	}
+
+	styledIcon := s.styleProvider.RenderWithColor(icon, s.styleProvider.GetThemeColor(iconColor))
+	styledDur := s.styleProvider.RenderWithColor("· "+formatDurationShort(result.Duration), s.styleProvider.GetThemeColor("dim"))
 
 	argsPreview := s.formatArgsPreview(result.Arguments)
-
-	styledIcon := s.styleProvider.RenderWithColor(statusIcon, s.styleProvider.GetThemeColor(iconColor))
-	styledStatus := s.styleProvider.RenderWithColor(statusText, s.styleProvider.GetThemeColor(statusColor))
-
-	var singleLine string
 	if argsPreview != "" && argsPreview != "{}" {
-		singleLine = fmt.Sprintf("%s %s(%s) %s", styledIcon, result.ToolName, argsPreview, styledStatus)
-	} else {
-		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledStatus)
+		return fmt.Sprintf("%s %s(%s) %s", styledIcon, result.ToolName, argsPreview, styledDur)
 	}
-
-	return singleLine
+	return fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledDur)
 }
 
 // formatArgsPreview formats arguments for compact preview display
@@ -154,29 +190,28 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
 	return preview
 }
 
-// formatDuration formats a duration in human-readable way
-func (s *ToolFormatterService) formatDuration(d time.Duration) string {
-	seconds := d.Seconds()
-	if seconds < 60 {
-		return fmt.Sprintf("%.1fs", seconds)
-	}
-	minutes := int(seconds / 60)
-	remainingSeconds := seconds - float64(minutes*60)
-	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
-}
-
-// FormatToolResultExpanded formats expanded tool execution results
+// FormatToolResultExpanded formats the expanded (ctrl+o) tool result: the tool's
+// existing detail tree, themed for consistency with the rest of the UI (accent+bold
+// tool-call line, dim connectors, accent field labels), with a dim collapse hint.
+// The underlying tree text is unchanged, so tool-specific bodies (diffs, raw output)
+// are preserved exactly.
 func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	tool, err := s.toolRegistry.GetTool(result.ToolName)
-	if err != nil {
-		return s.formatFallback(result, domain.FormatterLLM)
+	var tree string
+	if tool, err := s.toolRegistry.GetTool(result.ToolName); err != nil {
+		tree = s.formatFallback(result, domain.FormatterLLM)
+	} else {
+		tree = tool.FormatResult(result, domain.FormatterLLM)
 	}
 
-	return tool.FormatResult(result, domain.FormatterLLM)
+	themed := s.themeTreeLines(tree)
+	if hint := s.collapseHintLine(result); hint != "" {
+		themed += "\n" + hint
+	}
+	return themed
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption

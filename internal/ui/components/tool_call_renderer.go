@@ -471,13 +471,13 @@ func (r *ToolCallRenderer) renderBashOutput(tool *ToolRenderState, singleLine st
 
 	truncatedLines := tool.TotalOutputLines - len(tool.OutputBuffer)
 	if truncatedLines > 0 {
-		truncationText := fmt.Sprintf("  +%d more lines", truncatedLines)
+		truncationText := fmt.Sprintf("    +%d more lines", truncatedLines)
 		styledTruncation := r.styleProvider.RenderWithColor(truncationText, dimColor)
 		outputLines = append(outputLines, styledTruncation)
 	}
 
 	for _, line := range tool.OutputBuffer {
-		styledLine := r.styleProvider.RenderWithColor("  "+line, dimColor)
+		styledLine := r.styleProvider.RenderWithColor("    "+line, dimColor)
 		outputLines = append(outputLines, styledLine)
 	}
 
