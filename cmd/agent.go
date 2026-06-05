@@ -713,6 +713,10 @@ func (s *AgentSession) readApprovalResponses() {
 
 		s.approvalCh <- resp
 	}
+
+	if err := scanner.Err(); err != nil {
+		logger.Warn("Error reading approval responses from stdin", "error", err)
+	}
 }
 
 // executeToolCallsWithApproval executes tool calls, requesting approval for sensitive tools via stdout/stdin IPC.
@@ -1214,7 +1218,7 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 		return defaultModel, nil
 	}
 
-	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config agent set-model <model>'")
+	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config set agent.model <model>'")
 }
 
 func isModelAvailable(models []string, targetModel string) bool {

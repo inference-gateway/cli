@@ -552,11 +552,6 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
-	sandboxDirs := []string{".", "/tmp", ConfigDirName + "/tmp", ConfigDirName + "/skills"}
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		sandboxDirs = append(sandboxDirs, filepath.Join(homeDir, ConfigDirName, "skills"))
-	}
-
 	return &Config{
 		ContainerRuntime: ContainerRuntimeConfig{
 			Type: "docker",
@@ -622,7 +617,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: sandboxDirs,
+				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{
 					ConfigDirName + "/",
 					".git/",
@@ -971,6 +966,29 @@ func (c *Config) GetSandboxDirectories() []string {
 	return c.Tools.Sandbox.Directories
 }
 
+// MergeSandboxDirectories appends directories from extra that are not already
+// present, preserving order. Used to union the userspace (~/.infer) sandbox
+// allowlist into the active config so global directories are not lost when a
+// project config.yaml shadows the global one. Skills directories are reachable
+// via the isWithinSkillsDir carve-out when agent.skills.enabled is set; this is
+// for any other directory a user keeps allowed globally.
+func (c *Config) MergeSandboxDirectories(extra []string) {
+	seen := make(map[string]struct{}, len(c.Tools.Sandbox.Directories))
+	for _, dir := range c.Tools.Sandbox.Directories {
+		seen[dir] = struct{}{}
+	}
+	for _, dir := range extra {
+		if dir == "" {
+			continue
+		}
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+		c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories, dir)
+	}
+}
+
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
 }
@@ -1043,7 +1061,10 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	carveOut := isWithinSkillsDir(absPath) ||
+	// The skills carve-out is gated on agent.skills.enabled: when skills are off
+	// (the default) the directory is not whitelisted and falls through to the
+	// .infer/ protected-path check below. The tmp/plans carve-out stays unconditional.
+	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans")
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
@@ -1089,9 +1110,10 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 // isWithinSkillsDir reports whether absPath lives inside either the project
 // (./.infer/skills) or user-global (~/.infer/skills) skills directory. Feeds
-// the carveOut path in ValidatePathInSandbox so reads of SKILL.md and
-// references/*.md succeed even though the broader .infer/ directory is in
-// ProtectedPaths. File-level protections like *.env still apply.
+// the carveOut path in ValidatePathInSandbox - gated there on
+// agent.skills.enabled - so reads of SKILL.md and references/*.md succeed even
+// though the broader .infer/ directory is in ProtectedPaths. File-level
+// protections like *.env still apply.
 func isWithinSkillsDir(absPath string) bool {
 	dirs := make([]string, 0, 2)
 	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {

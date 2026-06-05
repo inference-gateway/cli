@@ -783,12 +783,11 @@ This allows sensitive values to be stored as environment variables while keeping
 
 ```bash
 # 1. Setup userspace defaults
-infer config --userspace agent set-model "deepseek/deepseek-v4-pro"
-infer config --userspace agent set-system "You are a helpful assistant"
+infer config set agent.model "deepseek/deepseek-v4-pro" --userspace
 
 # 2. Project-specific overrides
-infer config agent set-model "deepseek/deepseek-v4-pro"  # Project-specific model
-infer config tools bash enable  # Enable bash tools for this project
+infer config set agent.model "deepseek/deepseek-v4-pro"  # Project-specific model
+infer config set tools.bash.enabled true                 # Enable bash tools for this project
 
 # 3. Runtime overrides
 INFER_AGENT_VERBOSE_TOOLS=true infer chat  # Temporary verbose mode
@@ -814,14 +813,14 @@ The CLI validates configuration on startup and provides helpful error messages f
 ### Debugging
 
 ```bash
-# Enable verbose logging
-infer -v config show
+# Print the effective configuration (defaults + files merged + env)
+infer config get
 
-# Enable debug logging
-INFER_LOGGING_DEBUG=true infer config show
+# Print a single resolved value
+infer config get agent.model
 
-# Check which config file is being used
-infer config show | grep "Configuration file"
+# Enable debug logging while inspecting config
+INFER_LOGGING_DEBUG=true infer config get
 ```
 
 ---

@@ -41,7 +41,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 	if !s.toolService.IsToolEnabled(toolName) {
 		return func() tea.Msg {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config tools list' for available tools.", toolName),
+				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config get tools' for tool configuration.", toolName),
 				Sticky: false,
 			}
 		}
