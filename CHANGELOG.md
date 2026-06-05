@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.118.0](https://github.com/inference-gateway/cli/compare/v0.117.1...v0.118.0) (2026-06-05)
+
+### 🚀 Features
+
+* add file explorer panel with tree view, preview, and fuzzy finder ([#589](https://github.com/inference-gateway/cli/issues/589)) ([2b73fcc](https://github.com/inference-gateway/cli/commit/2b73fcc3df9f9838718307ee61cc8032a374dbea)), closes [#588](https://github.com/inference-gateway/cli/issues/588)
+* **cli:** adopt fang for styled help, errors, version and completions ([#592](https://github.com/inference-gateway/cli/issues/592)) ([b7f649e](https://github.com/inference-gateway/cli/commit/b7f649e78062a937449521dc910999ade2fee958))
+* **tui:** animate loading states and modernise progress/cursor styling ([#594](https://github.com/inference-gateway/cli/issues/594)) ([06057d7](https://github.com/inference-gateway/cli/commit/06057d7ecf0f3b1a9d2027cbdec6978d79f9353d))
+* **tui:** drive diff colours from the active theme ([#598](https://github.com/inference-gateway/cli/issues/598)) ([f279c1c](https://github.com/inference-gateway/cli/commit/f279c1c93e00853a27e9ad6a56325ec9ca0070cf))
+* modernize diff display and migrate Charm UI stack to v2 ([#576](https://github.com/inference-gateway/cli/issues/576)) ([6bf8ac6](https://github.com/inference-gateway/cli/commit/6bf8ac69dbc372449c2764fa4b52984ad33b8877))
+* **tui:** rebuild GitHub Action setup wizard with huh forms ([#597](https://github.com/inference-gateway/cli/issues/597)) ([c875e84](https://github.com/inference-gateway/cli/commit/c875e84454df42be8533c12eca1a1285973a63bb))
+* theme collapsed tool result previews ([#603](https://github.com/inference-gateway/cli/issues/603)) ([ffc2ee9](https://github.com/inference-gateway/cli/commit/ffc2ee939be37797cdb3cf8ba49a2e6065e28ffb))
+
+### 🐛 Bug Fixes
+
+* **pricing:** flag Pro-subscription Ollama Cloud models in model picker ([#604](https://github.com/inference-gateway/cli/issues/604)) ([5ec0298](https://github.com/inference-gateway/cli/commit/5ec029857e5a51c3af281854c495b58dfc6fafdb))
+* **tools:** make bash whitelist shell-aware to fix benign-command rejections ([#581](https://github.com/inference-gateway/cli/issues/581)) ([#605](https://github.com/inference-gateway/cli/issues/605)) ([6119f2a](https://github.com/inference-gateway/cli/commit/6119f2ae1f8aafdfce8ec336a88bac6803e19ea7))
+
+### ♻️ Code Refactoring
+
+* **tui:** migrate theme selector to bubbles/v2/list ([#596](https://github.com/inference-gateway/cli/issues/596)) ([a46079c](https://github.com/inference-gateway/cli/commit/a46079c33a3c3597367d2ab887f6c1501d343d07))
+* move git branch indicator to input view border ([#602](https://github.com/inference-gateway/cli/issues/602)) ([7132237](https://github.com/inference-gateway/cli/commit/7132237634c7d49c682cbc16338d83f0dcf1d0b3))
+* remove redundant comment ([8e3210d](https://github.com/inference-gateway/cli/commit/8e3210d2656361baf6337d85429117a6291a9aef))
+* **tui:** render help bar with bubbles/v2/help ([#595](https://github.com/inference-gateway/cli/issues/595)) ([5aed140](https://github.com/inference-gateway/cli/commit/5aed140887956cc1a7a09c3c2cf22a0ffb5b990b))
+* **cli:** render list commands with native lipgloss tables ([#593](https://github.com/inference-gateway/cli/issues/593)) ([28a0e55](https://github.com/inference-gateway/cli/commit/28a0e556cc18616f5dd0e9304cbeee5ed3f70edd))
+* **config:** replace bespoke config commands with generic get/set ([#601](https://github.com/inference-gateway/cli/issues/601)) ([c80321a](https://github.com/inference-gateway/cli/commit/c80321ae7a393c721c9d6518633889e0efc71baa)), closes [#600](https://github.com/inference-gateway/cli/issues/600)
+* separate git branch into own status bar row ([#591](https://github.com/inference-gateway/cli/issues/591)) ([9afbeb4](https://github.com/inference-gateway/cli/commit/9afbeb42bb2a1848424c4330056d78ba0a1374ce))
+
+### 💄 Styles
+
+* standardize log message capitalization ([e8ae466](https://github.com/inference-gateway/cli/commit/e8ae466d9c536268c54fa4b3db4e73e6603928e4))
+
+### 🔧 Build System
+
+* **deps:** bump modernc.org/sqlite from 1.50.1 to 1.51.0 in the gomod group ([#584](https://github.com/inference-gateway/cli/issues/584)) ([908cfc4](https://github.com/inference-gateway/cli/commit/908cfc4af7086b4f1b04016be7db1cfdf35f8452))
+* **deps:** bump the github-actions group with 3 updates ([#585](https://github.com/inference-gateway/cli/issues/585)) ([a14de3e](https://github.com/inference-gateway/cli/commit/a14de3ee96ee3f647933a18d201dbbffca64a2c8))
+* **deps:** upgrade fang to charm.land/fang/v2 v2.0.1 ([d1b861f](https://github.com/inference-gateway/cli/commit/d1b861f16951e652d23013ecc2deed03a5d1bfb5))
+
+### 👷 CI/CD
+
+* centralize claude.yml via reusable workflow ([#583](https://github.com/inference-gateway/cli/issues/583)) ([9a6839d](https://github.com/inference-gateway/cli/commit/9a6839dbd0c012bfcd23f86c26d35e96a5f39ada))
+* replace Nix build check with adl-cli recompute pattern ([#586](https://github.com/inference-gateway/cli/issues/586)) ([9c5f7cc](https://github.com/inference-gateway/cli/commit/9c5f7cca3851d068b88f692515212b8fc6f77da5)), closes [#585](https://github.com/inference-gateway/cli/issues/585) [#585](https://github.com/inference-gateway/cli/issues/585) [#585](https://github.com/inference-gateway/cli/issues/585)
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.148 -> 2.1.158 ([#582](https://github.com/inference-gateway/cli/issues/582)) ([5e8d0b5](https://github.com/inference-gateway/cli/commit/5e8d0b5f2130a5c4055758a0ef216a6ade98fdef))
+* **deps:** bump infer CLI v0.117.0 -> v0.117.1, infer-action v0.9.1 -> v0.11.1 ([#580](https://github.com/inference-gateway/cli/issues/580)) ([90ddcf3](https://github.com/inference-gateway/cli/commit/90ddcf30521e13491a43732ca86c1f420becd4b2))
+* **deps:** bump infer-action v0.11.1 -> v0.11.2 ([#587](https://github.com/inference-gateway/cli/issues/587)) ([56f2df8](https://github.com/inference-gateway/cli/commit/56f2df81265d60f457ffe8951fbd0e857e146b29))
+* regenerate keybindings from earlier features ([ff09192](https://github.com/inference-gateway/cli/commit/ff09192527ee4e4467f27daa1b9159764084de42))
+
 ## [0.117.1](https://github.com/inference-gateway/cli/compare/v0.117.0...v0.117.1) (2026-06-02)
 
 ### 🐛 Bug Fixes
