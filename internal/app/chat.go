@@ -2343,7 +2343,7 @@ jobs:
         uses: actions/checkout@v6.0.2
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.4.0
+        uses: inference-gateway/infer-action@v0.11.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"
@@ -2411,7 +2411,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.4.0
+        uses: inference-gateway/infer-action@v0.11.2
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"
