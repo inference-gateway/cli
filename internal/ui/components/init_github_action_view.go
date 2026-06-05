@@ -17,8 +17,8 @@ import (
 type wizardPhase int
 
 const (
-	phaseConfirm wizardPhase = iota // "do you already have a GitHub App?"
-	phaseDetails                    // App ID + (conditionally) private key
+	phaseConfirm wizardPhase = iota
+	phaseDetails
 )
 
 // InitGithubActionView drives the GitHub App setup wizard with huh forms. The
