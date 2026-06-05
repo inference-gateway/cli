@@ -119,8 +119,6 @@ func TestIsBashCommandWhitelisted_CommandSubstitution(t *testing.T) {
 		}
 	}
 
-	// Single-quoted substitution syntax is a literal string in bash, so it is
-	// safe and the wrapping command is judged on its own.
 	allowed := []string{
 		"echo '$(rm -rf /)'",
 		"gh issue create --body 'use $(x) verbatim'",
@@ -280,8 +278,8 @@ func TestStripBenignTrailingRedirections(t *testing.T) {
 		{"echo hi >&2", "echo hi"},
 		{"echo hi 2>&-", "echo hi"},
 		{"echo hi", "echo hi"},
-		{"echo /dev/null", "echo /dev/null"},                   // an arg, not a redirect
-		{"gh issue list > out.txt", "gh issue list > out.txt"}, // real file: kept
+		{"echo /dev/null", "echo /dev/null"},
+		{"gh issue list > out.txt", "gh issue list > out.txt"},
 		{"2>&1", ""},
 	}
 	for _, tt := range tests {
