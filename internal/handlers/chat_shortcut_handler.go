@@ -294,20 +294,7 @@ func (s *ChatShortcutHandler) handleReloadConfigSideEffect() tea.Msg {
 }
 
 func (s *ChatShortcutHandler) handleShowHelpSideEffect() tea.Msg {
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: s.handler.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Help displayed",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)()
+	return domain.TriggerHelpViewEvent{}
 }
 
 func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {

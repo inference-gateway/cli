@@ -289,6 +289,10 @@ type MCPServerStatusUpdateEvent struct {
 // TriggerGithubActionSetupEvent triggers the GitHub App setup flow
 type TriggerGithubActionSetupEvent struct{}
 
+// TriggerHelpViewEvent opens the full-screen, scrollable help overlay that
+// lists every slash command and keybinding in two tables.
+type TriggerHelpViewEvent struct{}
+
 // ApprovalSelectionChangedEvent signals that the approval selection index has changed
 // and the UI needs to refresh to show the new selection
 type ApprovalSelectionChangedEvent struct {
