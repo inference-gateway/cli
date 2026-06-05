@@ -3,8 +3,9 @@ package styles
 import (
 	"strings"
 
-	"charm.land/lipgloss/v2"
-	"github.com/inference-gateway/cli/internal/domain"
+	lipgloss "charm.land/lipgloss/v2"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Provider centralizes all styling logic and provides complete abstraction from Lipgloss.
@@ -93,8 +94,10 @@ func (p *Provider) RenderListItemWithDescription(title, description string, sele
 
 // Input styles
 
-// RenderInputField renders an input field with border
-func (p *Provider) RenderInputField(content string, width int, focused bool) string {
+// RenderInputField renders an input field with border. When branchLabel is
+// non-empty it is embedded in the top border, right-aligned, as a titled border
+// (e.g. "╭──────── ⎇ main ─╮"); pass "" for a plain border.
+func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel string) string {
 	theme := p.themeService.GetCurrentTheme()
 
 	borderColor := theme.GetBorderColor()
@@ -108,7 +111,75 @@ func (p *Provider) RenderInputField(content string, width int, focused bool) str
 		Padding(0, 1).
 		Width(width)
 
-	return style.Render(content)
+	rendered := style.Render(content)
+	if branchLabel == "" {
+		return rendered
+	}
+
+	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetDimColor())
+}
+
+// spliceBranchIntoTopBorder rebuilds the top border line of an already-rendered
+// rounded box so label sits near the right corner, styled distinctly from the
+// border. The label is truncated with an ellipsis when the box is narrow and
+// dropped entirely when there is no reasonable room for it. The rebuilt line
+// keeps the original measured width so the sides and bottom border stay aligned.
+func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor string) string {
+	lines := strings.Split(box, "\n")
+	if len(lines) == 0 {
+		return box
+	}
+
+	const (
+		corners       = 2 // ╭ + ╮
+		rightMargin   = 2 // dashes between label and the right corner
+		minLeftDashes = 1
+		minTitleWidth = 8  // below this, render a plain border instead
+		maxTitleWidth = 40 // cap so a long branch never dominates a wide box
+		spaces        = 2  // one space on each side of the label
+		ellipsis      = "..."
+	)
+
+	boxWidth := lipgloss.Width(lines[0])
+	budget := boxWidth - corners - rightMargin - minLeftDashes
+	if budget < minTitleWidth {
+		return box
+	}
+	if budget > maxTitleWidth {
+		budget = maxTitleWidth
+	}
+
+	label = " " + truncateBorderLabel(label, budget-spaces, ellipsis) + " "
+	labelWidth := lipgloss.Width(label)
+	leftDashes := max(boxWidth-corners-rightMargin-labelWidth, minLeftDashes)
+
+	lines[0] = p.RenderWithColor("╭"+strings.Repeat("─", leftDashes), borderColor) +
+		p.RenderWithColor(label, labelColor) +
+		p.RenderWithColor(strings.Repeat("─", rightMargin)+"╮", borderColor)
+
+	return strings.Join(lines, "\n")
+}
+
+// truncateBorderLabel shortens s to at most maxWidth display columns, appending
+// tail when it has to cut. It walks runes so multi-byte names are never split
+// mid-character and wide runes are accounted for.
+func truncateBorderLabel(s string, maxWidth int, tail string) string {
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+	target := max(maxWidth-lipgloss.Width(tail), 0)
+
+	var out []rune
+	width := 0
+	for _, r := range s {
+		rw := lipgloss.Width(string(r))
+		if width+rw > target {
+			break
+		}
+		out = append(out, r)
+		width += rw
+	}
+	return string(out) + tail
 }
 
 // RenderInputPlaceholder renders placeholder text

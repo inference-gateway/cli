@@ -1,12 +1,15 @@
 package components
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	require "github.com/stretchr/testify/require"
 
 	tea "charm.land/bubbletea/v2"
 
+	config "github.com/inference-gateway/cli/config"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
@@ -482,4 +485,80 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 	if iv.historySuggestion == firstSuggestion {
 		t.Error("Expected Tab to cycle to different suggestion")
 	}
+}
+
+// newInputViewWithBranch builds an InputView with the git branch cache pre-seeded
+// so getCurrentGitBranch returns without shelling out to git.
+func newInputViewWithBranch(t *testing.T, branch string) *InputView {
+	t.Helper()
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.gitBranchCache = branch
+	iv.gitBranchCacheTime = time.Now()
+	iv.gitBranchCacheTTL = 5 * time.Second
+	return iv
+}
+
+func TestInputView_BuildGitBranchLabel(t *testing.T) {
+	iv := newInputViewWithBranch(t, "main")
+	require.Equal(t, "⎇ main", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_DisabledByConfig(t *testing.T) {
+	iv := newInputViewWithBranch(t, "main")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+
+	require.Empty(t, iv.buildGitBranchLabel())
+}
+
+func TestInputView_RenderEmbedsBranchInTopBorder(t *testing.T) {
+	iv := newInputViewWithBranch(t, "feature/test-branch")
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "feature/test-branch")
+	require.Contains(t, topLine, "╮", "top border should keep its rounded right corner")
+}
+
+func TestInputView_RenderTruncatesLongBranchInBorder(t *testing.T) {
+	iv := newInputViewWithBranch(t, "feature/a-really-long-branch-name-that-keeps-going-and-going")
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "...")
+	require.NotContains(t, topLine, "going-and-going")
+}
+
+func TestInputView_RenderDropsBranchWhenTooNarrow(t *testing.T) {
+	iv := newInputViewWithBranch(t, "main")
+	iv.text = "hi"
+	iv.SetWidth(12)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.NotContains(t, topLine, "⎇")
+}
+
+func TestInputView_RenderOmitsBranchWhenDisabled(t *testing.T) {
+	iv := newInputViewWithBranch(t, "main")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+	iv.SetWidth(80)
+
+	require.NotContains(t, iv.Render(), "⎇")
+}
+
+func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
+	iv := newInputViewWithBranch(t, "main")
+	require.NotEmpty(t, iv.gitBranchCache)
+
+	_, _ = iv.Update(domain.BashCommandCompletedEvent{})
+
+	require.Empty(t, iv.gitBranchCache)
 }
