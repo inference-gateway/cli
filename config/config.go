@@ -634,7 +634,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"task", "make", "find",
 					},
 					Patterns: []string{
-						"^git status$",
+						"^git status( |$)",
 						"^git branch( --show-current)?( -[alrvd])?$",
 						"^git log",
 						"^git diff",
@@ -644,7 +644,8 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^gh auth status( |$)",
 						"^gh issue (create|edit|comment)( |$)",
 						"^gh pr create( |$)",
-						`^gh api [^ -][^ ]*( --paginate| --jq [^ ]+| -q [^ ]+)*$`,
+						"^gh search (issues|code|prs|repos|commits)( |$)",
+						`^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$`,
 					},
 				},
 				BackgroundShells: BackgroundShellsConfig{
@@ -1034,25 +1035,9 @@ func ResolveConfigDir() string {
 	return ConfigDirName
 }
 
-// IsBashCommandWhitelisted checks if a specific bash command is whitelisted
-func (c *Config) IsBashCommandWhitelisted(command string) bool {
-	command = strings.TrimSpace(command)
-
-	for _, allowed := range c.Tools.Bash.Whitelist.Commands {
-		if command == allowed || strings.HasPrefix(command, allowed+" ") {
-			return true
-		}
-	}
-
-	for _, pattern := range c.Tools.Bash.Whitelist.Patterns {
-		matched, err := regexp.MatchString(pattern, command)
-		if err == nil && matched {
-			return true
-		}
-	}
-
-	return false
-}
+// IsBashCommandWhitelisted lives in bash_whitelist.go, alongside the shell-aware
+// matching helpers (redirection stripping, compound-command splitting, and
+// command-substitution rejection) it relies on.
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {

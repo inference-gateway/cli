@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // BashTool handles bash command execution with security validation
@@ -375,24 +375,12 @@ func (t *BashTool) readPipeWithBatching(
 	}
 }
 
-// isCommandAllowed checks if a command is whitelisted
+// isCommandAllowed checks if a command is whitelisted. It delegates to
+// config.IsBashCommandWhitelisted so the Bash tool, the approval policy, and
+// agent auto-approval share one shell-aware matcher (redirection stripping,
+// compound-command splitting, command-substitution rejection).
 func (t *BashTool) isCommandAllowed(command string) bool {
-	command = strings.TrimSpace(command)
-
-	for _, allowed := range t.config.Tools.Bash.Whitelist.Commands {
-		if command == allowed || strings.HasPrefix(command, allowed+" ") {
-			return true
-		}
-	}
-
-	for _, pattern := range t.config.Tools.Bash.Whitelist.Patterns {
-		matched, err := regexp.MatchString(pattern, command)
-		if err == nil && matched {
-			return true
-		}
-	}
-
-	return false
+	return t.config.IsBashCommandWhitelisted(command)
 }
 
 // FormatResult formats tool execution results for different contexts
