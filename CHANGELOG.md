@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.119.0](https://github.com/inference-gateway/cli/compare/v0.118.0...v0.119.0) (2026-06-06)
+
+### 🚀 Features
+
+* add npm wrapper to install and run the CLI via npx ([#610](https://github.com/inference-gateway/cli/issues/610)) ([8f24fd5](https://github.com/inference-gateway/cli/commit/8f24fd513df4469381eeadf7d04e0345f9d4c8d2)), closes [inference-gateway/docs#182](https://github.com/inference-gateway/docs/issues/182)
+* **tools:** indentation-tolerant matching and stale-read detection for Edit/MultiEdit ([#608](https://github.com/inference-gateway/cli/issues/608)) ([14d7e98](https://github.com/inference-gateway/cli/commit/14d7e986888822b135eb88b4a098b201d07c5d15))
+
+### 🐛 Bug Fixes
+
+* **agent:** execute approved tools concurrently and freeze tickers on finish ([#609](https://github.com/inference-gateway/cli/issues/609)) ([a713306](https://github.com/inference-gateway/cli/commit/a713306f96b589b06ffea3fb3a83cf2ea7890d93))
+
+### 💄 Styles
+
+* replace em dashes with hyphens ([91a3746](https://github.com/inference-gateway/cli/commit/91a374688eda558a7ced92309055278727ad990b))
+
+### 🧹 Maintenance
+
+* **deps:** bump codex 0.133.0 -> 0.135.0 ([#607](https://github.com/inference-gateway/cli/issues/607)) ([86af5fb](https://github.com/inference-gateway/cli/commit/86af5fb30fee1537f9e2ac4b69413124bc7a95d6))
+* enable skills by default ([9440593](https://github.com/inference-gateway/cli/commit/9440593cb3e026dd8dd2f4cafd1cd45c2f7b26d6))
+* regenerate config ([991cd77](https://github.com/inference-gateway/cli/commit/991cd77b6ae6f5b0c2f228c0d86e3d151a84bd2f))
+
 ## [0.118.0](https://github.com/inference-gateway/cli/compare/v0.117.1...v0.118.0) (2026-06-05)
 
 ### 🚀 Features
