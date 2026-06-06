@@ -95,11 +95,17 @@ plugins:
         if [ -z "$NEW_HASH" ]; then echo "ERROR: could not extract vendorHash from nix build output"; exit 1; fi
         sed -i.bak "s|vendorHash = \"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\";|vendorHash = \"$NEW_HASH\";|" flake.nix && rm flake.nix.bak
         echo "Updated vendorHash to $NEW_HASH"
+        cp LICENSE npm/LICENSE
+        cp README.md npm/README.md
+
+  - - "@semantic-release/npm"
+    - pkgRoot: npm
 
   - - "@semantic-release/git"
     - assets:
         - CHANGELOG.md
         - flake.nix
+        - npm/package.json
       message: |
         chore(release): ${nextRelease.version} [skip ci]
 
@@ -114,7 +120,25 @@ plugins:
 
         ## 📦 Installation
 
-        ### Quick Install (Recommended)
+        ### npm / npx (Recommended)
+
+        Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+        ```bash
+        npx @inference-gateway/cli@<%= nextRelease.version %> --help
+        npx @inference-gateway/cli@<%= nextRelease.version %> chat
+        ```
+
+        Or install it globally:
+
+        ```bash
+        npm install -g @inference-gateway/cli@<%= nextRelease.version %>
+        infer --help
+        ```
+
+        > Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+        ### Quick Install (Install Script)
 
         Install the latest version using our install script:
 

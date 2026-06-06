@@ -1,0 +1,11 @@
+# Native binary fetched at install time
+infer
+infer.exe
+
+# Copied from repo root at publish time
+LICENSE
+README.md
+
+# Auth + deps
+.npmrc
+node_modules/

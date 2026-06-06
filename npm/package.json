@@ -1,0 +1,52 @@
+{
+  "name": "@inference-gateway/cli",
+  "version": "0.118.0",
+  "description": "A Git-first CLI coding agent that turns ideas, issues, and tasks into real code changes.",
+  "bin": {
+    "infer": "bin/run.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/install.js"
+  },
+  "files": [
+    "bin/run.js",
+    "bin/install.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "inference-gateway",
+    "cli",
+    "llm",
+    "ai",
+    "agent",
+    "chat",
+    "tui",
+    "a2a",
+    "mcp"
+  ],
+  "homepage": "https://github.com/inference-gateway/cli#readme",
+  "bugs": {
+    "url": "https://github.com/inference-gateway/cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inference-gateway/cli.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Inference Gateway",
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

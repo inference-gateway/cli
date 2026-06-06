@@ -66,7 +66,7 @@ An agentic command-line assistant that writes code, understands project context,
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
 - **GitHub Issue References (`#`)**: Type `#` in chat to open a dropdown of the current
   repo's open issues. Selecting one inserts a `#N` token that is highlighted in the input
-  and, on submit, expanded inline into the issue's title, body, and recent comments — so
+  and, on submit, expanded inline into the issue's title, body, and recent comments - so
   the agent works from full context without a redundant `gh issue view` lookup. Gracefully
   no-ops when `gh` is not installed or the repo has no remote.
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
@@ -85,6 +85,29 @@ An agentic command-line assistant that writes code, understands project context,
   with a separate configurable system prompt - off by default - [Learn more →](docs/heartbeat.md)
 
 ## Installation
+
+### Using npm/npx (Recommended)
+
+If you already have Node.js (>= 18), run the CLI with npx - no Go toolchain or manual
+download required. The matching native binary is fetched and cached on first use:
+
+```bash
+# Run without installing
+npx @inference-gateway/cli@latest --help
+npx @inference-gateway/cli@latest chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli
+infer --help
+```
+
+> **Not recommended for production.** For production or CI, prefer the
+> [install script](#using-install-script), [container image](#using-container-image), or
+> [building from source](#build-from-source). Prebuilt binaries cover Linux and macOS on
+> amd64/arm64 - on Windows, use WSL.
 
 ### Using Go Install
 
@@ -721,9 +744,9 @@ Prices are updated regularly to match current provider pricing.
 The model picker groups models into three categories you can filter with the
 `[1] All` / `[2] Free` / `[3] Paid` / `[4] Pro` tabs:
 
-- **Free** — no per-token cost (e.g. local Ollama, Gemma).
-- **Paid** — billed per token at the listed `$input/$output per MTok` rate.
-- **Pro** — gated behind a paid **Pro subscription** (some Ollama Cloud models).
+- **Free** - no per-token cost (e.g. local Ollama, Gemma).
+- **Paid** - billed per token at the listed `$input/$output per MTok` rate.
+- **Pro** - gated behind a paid **Pro subscription** (some Ollama Cloud models).
   These have no per-token price but are not free, so they are marked
   `pro subscription` instead of `free` to avoid the misleading label.
 

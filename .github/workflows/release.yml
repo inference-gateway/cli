@@ -15,6 +15,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      id-token: write
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v3.2.0
@@ -54,7 +55,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6.4.0
         with:
-          node-version: 'lts/*'
+          node-version: '24'
 
       - name: Cache npm global packages
         uses: actions/cache@v5.0.5
@@ -74,6 +75,7 @@ jobs:
             @semantic-release/exec@7.1.0 \
             @semantic-release/git@10.0.1 \
             @semantic-release/github@1.0.0 \
+            @semantic-release/npm@13.1.5 \
             conventional-changelog-conventionalcommits@9.1.0
 
       - name: Check for existing releases
@@ -98,5 +100,10 @@ jobs:
         if: steps.check_releases.outputs.create_initial == 'false'
         env:
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+          # Bootstrap: set the NPM_TOKEN secret for the first publish (package
+          # does not exist on npm yet). Once a trusted publisher is configured on
+          # npmjs.com, delete the secret and this resolves to empty so
+          # @semantic-release/npm falls back to OIDC (needs id-token: write above).
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           semantic-release

@@ -1,0 +1,8 @@
+# Generated / non-authored Markdown
+CHANGELOG.md
+AGENTS.md
+CLAUDE.md
+
+# npm wrapper: README.md and LICENSE are copied in from the repo root at
+# publish time (see npm/.gitignore); they are not authored here.
+npm/
