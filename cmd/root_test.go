@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestBashWhitelistEnvironmentVariables(t *testing.T) {
@@ -100,6 +102,80 @@ func TestBashWhitelistEnvironmentVariables(t *testing.T) {
 			assert.NoError(t, os.Unsetenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"))
 		})
 	}
+}
+
+func TestBashWhitelistAppendEnvironmentVariables(t *testing.T) {
+	whitelistEnv := []string{
+		"INFER_TOOLS_BASH_WHITELIST_COMMANDS",
+		"INFER_TOOLS_BASH_WHITELIST_PATTERNS",
+		"INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND",
+		"INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND",
+	}
+	clear := func() {
+		for _, k := range whitelistEnv {
+			assert.NoError(t, os.Unsetenv(k))
+		}
+	}
+	// Resolve against a config-free HOME so the base is the built-in default rather
+	// than a developer's ~/.infer/config.yaml.
+	setup := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("HOME", t.TempDir())
+		clear()
+		t.Cleanup(clear)
+	}
+
+	defaults := config.DefaultConfig().Tools.Bash.Whitelist
+	const defaultCommand = "task"                                 // present in the default command list
+	const defaultPattern = "^gh issue (create|edit|comment)( |$)" // present in the default pattern list
+
+	t.Run("append merges onto the built-in default", func(t *testing.T) {
+		setup(t)
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND", "helm,kubectl"))
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND", "^helm .*"))
+
+		initConfig()
+
+		commands := V.GetStringSlice("tools.bash.whitelist.commands")
+		assert.Contains(t, commands, defaultCommand, "default commands must be preserved")
+		assert.Subset(t, commands, []string{"helm", "kubectl"}, "appended commands must be present")
+
+		patterns := V.GetStringSlice("tools.bash.whitelist.patterns")
+		assert.Contains(t, patterns, defaultPattern, "default patterns must be preserved")
+		assert.Contains(t, patterns, "^helm .*", "appended pattern must be present")
+	})
+
+	t.Run("append builds on a replace override, not the default", func(t *testing.T) {
+		setup(t)
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS", "onlythis"))
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND", "extra"))
+
+		initConfig()
+
+		commands := V.GetStringSlice("tools.bash.whitelist.commands")
+		assert.Equal(t, []string{"onlythis", "extra"}, commands)
+		assert.NotContains(t, commands, defaultCommand, "a replace override discards the default base")
+	})
+
+	t.Run("no append leaves the default untouched", func(t *testing.T) {
+		setup(t)
+
+		initConfig()
+
+		assert.Equal(t, defaults.Commands, V.GetStringSlice("tools.bash.whitelist.commands"))
+		assert.Equal(t, defaults.Patterns, V.GetStringSlice("tools.bash.whitelist.patterns"))
+	})
+
+	t.Run("whitespace, newline and empty entries are trimmed", func(t *testing.T) {
+		setup(t)
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND", " helm , ,\nkubectl "))
+
+		initConfig()
+
+		commands := V.GetStringSlice("tools.bash.whitelist.commands")
+		assert.Subset(t, commands, []string{"helm", "kubectl"})
+		assert.NotContains(t, commands, "", "empty entries must be dropped")
+	})
 }
 
 func TestA2AAgentsEnvironmentVariable(t *testing.T) {

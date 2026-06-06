@@ -49,6 +49,21 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
+// parseDelimitedList splits a comma/newline-separated env value into trimmed,
+// non-empty entries. Used for the INFER_* list vars (a2a agents, bash whitelist
+// commands/patterns) that viper cannot parse generically.
+func parseDelimitedList(value string) []string {
+	var out []string
+	for _, item := range strings.FieldsFunc(value, func(c rune) bool {
+		return c == ',' || c == '\n'
+	}) {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 func initConfig() {
 	V = viper.New()
 	v := V
@@ -65,42 +80,15 @@ func initConfig() {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
-		var agents []string
-		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(agent); trimmed != "" {
-				agents = append(agents, trimmed)
-			}
-		}
-
-		v.Set("a2a.agents", agents)
+		v.Set("a2a.agents", parseDelimitedList(a2aAgents))
 	}
 
 	if whitelistCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"); whitelistCommands != "" {
-		var commands []string
-		for _, cmd := range strings.FieldsFunc(whitelistCommands, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(cmd); trimmed != "" {
-				commands = append(commands, trimmed)
-			}
-		}
-
-		v.Set("tools.bash.whitelist.commands", commands)
+		v.Set("tools.bash.whitelist.commands", parseDelimitedList(whitelistCommands))
 	}
 
 	if whitelistPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"); whitelistPatterns != "" {
-		var patterns []string
-		for _, pattern := range strings.FieldsFunc(whitelistPatterns, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(pattern); trimmed != "" {
-				patterns = append(patterns, trimmed)
-			}
-		}
-
-		v.Set("tools.bash.whitelist.patterns", patterns)
+		v.Set("tools.bash.whitelist.patterns", parseDelimitedList(whitelistPatterns))
 	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
@@ -112,6 +100,16 @@ func initConfig() {
 			fmt.Fprintf(os.Stderr, "Error reading config: %v\n", err)
 			os.Exit(1)
 		}
+	}
+
+	if appendCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND"); appendCommands != "" {
+		commands := append(v.GetStringSlice("tools.bash.whitelist.commands"), parseDelimitedList(appendCommands)...)
+		v.Set("tools.bash.whitelist.commands", commands)
+	}
+
+	if appendPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND"); appendPatterns != "" {
+		patterns := append(v.GetStringSlice("tools.bash.whitelist.patterns"), parseDelimitedList(appendPatterns)...)
+		v.Set("tools.bash.whitelist.patterns", patterns)
 	}
 
 	cfg, err := loadConfigFromViper()
