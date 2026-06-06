@@ -175,7 +175,7 @@ agent:
     working_dir_enabled: true
     git_context_refresh_turns: 10
   skills:
-    enabled: true
+    enabled: false
   verbose_tools: false
   max_turns: 50
   max_tokens: 8192
