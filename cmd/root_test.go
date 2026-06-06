@@ -9,6 +9,28 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
+// TestMain redirects the logger to a throwaway directory for the whole package.
+// Many tests here call initConfig(), which calls logger.Init; config.DefaultLogsPath
+// is relative (".infer/logs"), so without an override the logger would create
+// .infer/logs/ under the package working directory. No test asserts on logging.dir,
+// and tests that clear INFER_* env vars (e.g. root_defaults_test) chdir into their
+// own temp dir, so this override is safe and self-cleaning.
+func TestMain(m *testing.M) {
+	logDir, err := os.MkdirTemp("", "infer-cmd-test-logs")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("INFER_LOGGING_DIR", logDir); err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+
+	_ = os.RemoveAll(logDir)
+	_ = os.Unsetenv("INFER_LOGGING_DIR")
+	os.Exit(code)
+}
+
 func TestBashWhitelistEnvironmentVariables(t *testing.T) {
 	tests := []struct {
 		name             string
