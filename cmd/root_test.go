@@ -200,6 +200,101 @@ func TestBashWhitelistAppendEnvironmentVariables(t *testing.T) {
 	})
 }
 
+func TestBashWhitelistFlags(t *testing.T) {
+	whitelistEnv := []string{
+		"INFER_TOOLS_BASH_WHITELIST_COMMANDS",
+		"INFER_TOOLS_BASH_WHITELIST_PATTERNS",
+		"INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND",
+		"INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND",
+	}
+	whitelistFlags := []string{
+		"tools-bash-whitelist-commands",
+		"tools-bash-whitelist-patterns",
+		"tools-bash-whitelist-commands-append",
+		"tools-bash-whitelist-patterns-append",
+	}
+	reset := func() {
+		for _, k := range whitelistEnv {
+			assert.NoError(t, os.Unsetenv(k))
+		}
+		for _, f := range whitelistFlags {
+			assert.NoError(t, rootCmd.PersistentFlags().Set(f, ""))
+		}
+	}
+	// Resolve against a config-free HOME so the base is the built-in default, and
+	// reset the package-global flags before and after each case so they do not bleed.
+	setup := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("HOME", t.TempDir())
+		reset()
+		t.Cleanup(reset)
+	}
+	setFlag := func(t *testing.T, name, value string) {
+		t.Helper()
+		assert.NoError(t, rootCmd.PersistentFlags().Set(name, value))
+	}
+
+	defaults := config.DefaultConfig().Tools.Bash.Whitelist
+	const defaultCommand = "task"                                 // present in the default command list
+	const defaultPattern = "^gh issue (create|edit|comment)( |$)" // present in the default pattern list
+
+	t.Run("replace flag overrides the default", func(t *testing.T) {
+		setup(t)
+		setFlag(t, "tools-bash-whitelist-commands", "onlythis,andthis")
+
+		initConfig()
+
+		commands := V.GetStringSlice("tools.bash.whitelist.commands")
+		assert.Equal(t, []string{"onlythis", "andthis"}, commands)
+		assert.NotContains(t, commands, defaultCommand, "a replace flag discards the default base")
+	})
+
+	t.Run("append flag merges onto the default", func(t *testing.T) {
+		setup(t)
+		setFlag(t, "tools-bash-whitelist-commands-append", "helm,kubectl")
+		setFlag(t, "tools-bash-whitelist-patterns-append", "^helm .*")
+
+		initConfig()
+
+		commands := V.GetStringSlice("tools.bash.whitelist.commands")
+		assert.Contains(t, commands, defaultCommand, "default commands must be preserved")
+		assert.Subset(t, commands, []string{"helm", "kubectl"}, "appended commands must be present")
+
+		patterns := V.GetStringSlice("tools.bash.whitelist.patterns")
+		assert.Contains(t, patterns, defaultPattern, "default patterns must be preserved")
+		assert.Contains(t, patterns, "^helm .*", "appended pattern must be present")
+	})
+
+	t.Run("replace and append flags compose", func(t *testing.T) {
+		setup(t)
+		setFlag(t, "tools-bash-whitelist-commands", "base")
+		setFlag(t, "tools-bash-whitelist-commands-append", "extra")
+
+		initConfig()
+
+		assert.Equal(t, []string{"base", "extra"}, V.GetStringSlice("tools.bash.whitelist.commands"))
+	})
+
+	t.Run("env var takes precedence over the matching flag", func(t *testing.T) {
+		setup(t)
+		setFlag(t, "tools-bash-whitelist-commands", "fromflag")
+		assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS", "fromenv"))
+
+		initConfig()
+
+		assert.Equal(t, []string{"fromenv"}, V.GetStringSlice("tools.bash.whitelist.commands"))
+	})
+
+	t.Run("no flags leave the default untouched", func(t *testing.T) {
+		setup(t)
+
+		initConfig()
+
+		assert.Equal(t, defaults.Commands, V.GetStringSlice("tools.bash.whitelist.commands"))
+		assert.Equal(t, defaults.Patterns, V.GetStringSlice("tools.bash.whitelist.patterns"))
+	})
+}
+
 func TestA2AAgentsEnvironmentVariable(t *testing.T) {
 	tests := []struct {
 		name           string

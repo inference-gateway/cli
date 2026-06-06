@@ -45,6 +45,14 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().String("tools-bash-whitelist-commands", "",
+		"comma/newline-separated commands that replace the bash tool whitelist commands (overrides config; INFER_TOOLS_BASH_WHITELIST_COMMANDS takes precedence)")
+	rootCmd.PersistentFlags().String("tools-bash-whitelist-patterns", "",
+		"comma/newline-separated regex patterns that replace the bash tool whitelist patterns (overrides config; INFER_TOOLS_BASH_WHITELIST_PATTERNS takes precedence)")
+	rootCmd.PersistentFlags().String("tools-bash-whitelist-commands-append", "",
+		"comma/newline-separated commands appended to the resolved bash tool whitelist commands (INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND takes precedence)")
+	rootCmd.PersistentFlags().String("tools-bash-whitelist-patterns-append", "",
+		"comma/newline-separated regex patterns appended to the resolved bash tool whitelist patterns (INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND takes precedence)")
 
 	cobra.OnInitialize(initConfig)
 }
@@ -62,6 +70,50 @@ func parseDelimitedList(value string) []string {
 		}
 	}
 	return out
+}
+
+// resolveWhitelistOverride returns the override value for a bash whitelist list,
+// preferring the env var over the matching persistent flag (per the documented
+// flags < env layering). Empty means neither was provided.
+func resolveWhitelistOverride(flagName, envName string) string {
+	if env := os.Getenv(envName); env != "" {
+		return env
+	}
+	if val, err := rootCmd.PersistentFlags().GetString(flagName); err == nil {
+		return val
+	}
+	return ""
+}
+
+// applyBashWhitelistOverrides layers the bash tool whitelist commands/patterns
+// from flags and env vars onto the values already resolved from defaults and
+// config files. For each list the replace source overrides the resolved value,
+// then the append source merges onto it. Must run after ReadInConfig so the
+// append sees config-file values.
+func applyBashWhitelistOverrides(v *viper.Viper) {
+	lists := []struct {
+		key, replaceFlag, replaceEnv, appendFlag, appendEnv string
+	}{
+		{
+			"tools.bash.whitelist.commands",
+			"tools-bash-whitelist-commands", "INFER_TOOLS_BASH_WHITELIST_COMMANDS",
+			"tools-bash-whitelist-commands-append", "INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND",
+		},
+		{
+			"tools.bash.whitelist.patterns",
+			"tools-bash-whitelist-patterns", "INFER_TOOLS_BASH_WHITELIST_PATTERNS",
+			"tools-bash-whitelist-patterns-append", "INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND",
+		},
+	}
+
+	for _, l := range lists {
+		if replace := resolveWhitelistOverride(l.replaceFlag, l.replaceEnv); replace != "" {
+			v.Set(l.key, parseDelimitedList(replace))
+		}
+		if appended := resolveWhitelistOverride(l.appendFlag, l.appendEnv); appended != "" {
+			v.Set(l.key, append(v.GetStringSlice(l.key), parseDelimitedList(appended)...))
+		}
+	}
 }
 
 func initConfig() {
@@ -83,14 +135,6 @@ func initConfig() {
 		v.Set("a2a.agents", parseDelimitedList(a2aAgents))
 	}
 
-	if whitelistCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"); whitelistCommands != "" {
-		v.Set("tools.bash.whitelist.commands", parseDelimitedList(whitelistCommands))
-	}
-
-	if whitelistPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"); whitelistPatterns != "" {
-		v.Set("tools.bash.whitelist.patterns", parseDelimitedList(whitelistPatterns))
-	}
-
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
 	}
@@ -102,15 +146,7 @@ func initConfig() {
 		}
 	}
 
-	if appendCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND"); appendCommands != "" {
-		commands := append(v.GetStringSlice("tools.bash.whitelist.commands"), parseDelimitedList(appendCommands)...)
-		v.Set("tools.bash.whitelist.commands", commands)
-	}
-
-	if appendPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND"); appendPatterns != "" {
-		patterns := append(v.GetStringSlice("tools.bash.whitelist.patterns"), parseDelimitedList(appendPatterns)...)
-		v.Set("tools.bash.whitelist.patterns", patterns)
-	}
+	applyBashWhitelistOverrides(v)
 
 	cfg, err := loadConfigFromViper()
 	if err != nil {
