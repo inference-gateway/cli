@@ -297,14 +297,19 @@ func (c *Coordinator) progressStatusCmds(msg domain.ToolExecutionProgressEvent) 
 		return c.runningProgressCmds(msg)
 	case "completed", "failed":
 		c.SetActiveToolCallID("")
-		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    msg.Message,
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-				ToolName:   "",
-			}
-		}}
+		return []tea.Cmd{
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{History: c.conversationRepo.GetMessages()}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    msg.Message,
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+					ToolName:   "",
+				}
+			},
+		}
 	case "saving":
 		return []tea.Cmd{func() tea.Msg {
 			return domain.SetStatusEvent{
