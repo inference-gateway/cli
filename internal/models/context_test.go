@@ -219,8 +219,9 @@ func TestMistralFamilyContextWindow(t *testing.T) {
 	}
 }
 
-// TestMiscOpenWeightContextWindow covers GPT-OSS, MiniMax M2, GLM 4/5, and
-// Nemotron 3 - all served via ollama_cloud.
+// TestMiscOpenWeightContextWindow covers GPT-OSS, MiniMax M2/M3, GLM 4/5, and
+// Nemotron 3 - all served via ollama_cloud. MiniMax M2 is 204800 while M3
+// jumps to a 1M window, so the two must resolve to distinct matchers.
 func TestMiscOpenWeightContextWindow(t *testing.T) {
 	testModels := []struct {
 		model    string
@@ -232,6 +233,8 @@ func TestMiscOpenWeightContextWindow(t *testing.T) {
 		{"ollama_cloud/minimax-m2.1", 204800},
 		{"ollama_cloud/minimax-m2.5", 204800},
 		{"ollama_cloud/minimax-m2.7", 204800},
+		{"ollama_cloud/minimax-m3", 1000000},
+		{"ollama_cloud/minimax-m3.1", 1000000},
 		{"ollama_cloud/glm-4.6", 200000},
 		{"ollama_cloud/glm-4.7", 200000},
 		{"ollama_cloud/glm-5", 200000},
@@ -266,6 +269,38 @@ func TestQwenServedVariants(t *testing.T) {
 	for _, tc := range testModels {
 		if got := EstimateContextWindow(tc.model); got != tc.expected {
 			t.Errorf("Model %s: got %d, expected %d", tc.model, got, tc.expected)
+		}
+	}
+}
+
+// TestLookupContextWindow_MatchedFlag covers the matched bool that the session
+// rollover and auto-compaction gates rely on: known models report true, while
+// models with no matcher report false (returning the default fallback as the
+// size) so callers can disable context-based behavior instead of measuring
+// fullness against a wrong window. minimax-m2 (204800) and minimax-m3 (1M)
+// must resolve to their own distinct windows - the m2 pattern must not swallow
+// m3, which was the original ollama_cloud/minimax-m3 bug.
+func TestLookupContextWindow_MatchedFlag(t *testing.T) {
+	testCases := []struct {
+		model         string
+		expectedKnown bool
+		expectedSize  int
+	}{
+		{"ollama_cloud/minimax-m2", true, 204800},
+		{"ollama_cloud/minimax-m3", true, 1000000},
+		{"ollama_cloud/brand-new-model", false, 8192},
+		{"openai/gpt-4", false, 8192},
+		{"anthropic/claude-opus-4-7", true, 1000000},
+		{"moonshot/moonshot-v1-8k", true, 8192},
+	}
+
+	for _, tc := range testCases {
+		size, known := LookupContextWindow(tc.model)
+		if known != tc.expectedKnown {
+			t.Errorf("Model %s: known=%v, expected %v", tc.model, known, tc.expectedKnown)
+		}
+		if size != tc.expectedSize {
+			t.Errorf("Model %s: size=%d, expected %d", tc.model, size, tc.expectedSize)
 		}
 	}
 }

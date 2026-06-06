@@ -633,8 +633,8 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 		return ""
 	}
 
-	contextWindow := isb.estimateContextWindow(model)
-	if contextWindow == 0 {
+	contextWindow, known := models.LookupContextWindow(model)
+	if !known || contextWindow == 0 {
 		return ""
 	}
 
@@ -653,11 +653,6 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 	default:
 		return fmt.Sprintf("Context: %.1f%%", displayPercent)
 	}
-}
-
-// estimateContextWindow returns an estimated context window size based on model name
-func (isb *InputStatusBar) estimateContextWindow(model string) int {
-	return models.EstimateContextWindow(model)
 }
 
 // Bubble Tea interface

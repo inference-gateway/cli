@@ -461,13 +461,11 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 		Time:    time.Now(),
 	}))
-	// LastInputTokens above the 80% threshold for the unknown-model fallback
-	// (30000 * 80 / 100 = 24000) opens the rollover gate without needing a
-	// large conversation in the entries-only estimator.
-	require.NoError(t, repo.AddTokenUsage("unknown-tiny-model", 25000, 100, 25100))
+
+	require.NoError(t, repo.AddTokenUsage("moonshot/moonshot-v1-8k", 25000, 100, 25100))
 
 	mockModel := &mocks.FakeModelService{}
-	mockModel.GetCurrentModelReturns("unknown-tiny-model")
+	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")
 	stateManager := services.NewStateManager(false)
 	fakeRunner := &mocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })

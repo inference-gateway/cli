@@ -210,16 +210,13 @@ func TestShouldRollover_TokenTriggerFires(t *testing.T) {
 	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
-	// Use a model with a tiny context window so we can blow past 80% with a
-	// few messages. Default fallback is 8192 tokens; 80% = ~6553 tokens.
-	// Each large message ≈ 1000 tokens via the tokenizer's char-based estimate.
-	bigContent := strings.Repeat("token ", 2000) // ~2000 words ≈ many tokens
+	bigContent := strings.Repeat("token ", 2000)
 	for i := 0; i < 10; i++ {
 		addUserMessage(t, repo, bigContent, time.Now())
 	}
 
-	if !mgr.ShouldRollover("unknown-tiny-model") {
-		t.Error("large conversation should trigger token rollover against fallback context window")
+	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
+		t.Error("large conversation should trigger token rollover against known context window")
 	}
 }
 
@@ -231,13 +228,13 @@ func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
 	addUserMessage(t, repo, "hi", time.Now())
 
 	// Simulate the gateway reporting a large prompt_tokens value (system
-	// prompt + tool defs + history). Threshold for unknown-tiny-model is
+	// prompt + tool defs + history). Threshold for moonshot-v1-8k is
 	// 8192*80/100=6553 tokens.
-	if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
-	if !mgr.ShouldRollover("unknown-tiny-model") {
+	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
 		t.Error("LastInputTokens above threshold should trigger token rollover even when entries-only estimate is small")
 	}
 }
@@ -255,12 +252,36 @@ func TestShouldRollover_TokenTriggerDoesNotFireWhenLastInputBelowThreshold(t *te
 	// …but the gateway-reported count is well below the threshold. The
 	// gateway count must win - its number includes provider-specific
 	// reformatting and is what `/context` shows.
-	if err := repo.AddTokenUsage("unknown-tiny-model", 1000, 100, 1100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 1000, 100, 1100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
-	if mgr.ShouldRollover("unknown-tiny-model") {
+	if mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
 		t.Error("LastInputTokens below threshold should not trigger rollover, even if entries-only estimate is large")
+	}
+}
+
+// TestShouldRollover_TokenTriggerSkippedForUnknownModel verifies that a model
+// with no configured context window never trips the token trigger, no matter
+// how large the conversation or the gateway-reported token count. Otherwise the
+// session would roll over against the default fallback window every few messages
+// (this was the minimax-m3 bug, before that model was added to the registry).
+// The idle trigger is disabled here (idleMin=0) to isolate the token path.
+func TestShouldRollover_TokenTriggerSkippedForUnknownModel(t *testing.T) {
+	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
+	defer cleanup()
+
+	bigContent := strings.Repeat("token ", 2000)
+	for i := 0; i < 10; i++ {
+		addUserMessage(t, repo, bigContent, time.Now())
+	}
+	// A gateway-reported count far above any default-window threshold.
+	if err := repo.AddTokenUsage("ollama_cloud/some-unlisted-model", 500000, 100, 500100); err != nil {
+		t.Fatalf("AddTokenUsage: %v", err)
+	}
+
+	if mgr.ShouldRollover("ollama_cloud/some-unlisted-model") {
+		t.Error("model with no configured context window must not trigger token rollover")
 	}
 }
 
@@ -436,11 +457,11 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 	originalID := repo.GetCurrentConversationID()
 
 	addUserMessage(t, repo, "hi", time.Now())
-	if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
-	newID, fired := mgr.MaybeRollover(context.Background(), "unknown-tiny-model", "channel-test-group")
+	newID, fired := mgr.MaybeRollover(context.Background(), "moonshot/moonshot-v1-8k", "channel-test-group")
 	if !fired {
 		t.Fatal("MaybeRollover should have fired with LastInputTokens above threshold")
 	}
@@ -482,11 +503,11 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	if err := repo.AddMessage(hidden); err != nil {
 		t.Fatalf("AddMessage: %v", err)
 	}
-	if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
-	newID, fired := mgr.MaybeRollover(context.Background(), "unknown-tiny-model", "")
+	newID, fired := mgr.MaybeRollover(context.Background(), "moonshot/moonshot-v1-8k", "")
 	if fired {
 		t.Error("MaybeRollover must return fired=false when PerformRollover errors")
 	}
