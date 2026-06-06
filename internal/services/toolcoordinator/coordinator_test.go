@@ -3,11 +3,12 @@ package toolcoordinator
 import (
 	"testing"
 
+	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *mocksdomain.FakeStateManager, *mocksdomain.FakeDirectExecutionService) {
@@ -159,6 +160,30 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 		}
 	})
 
+	t.Run("completed status emits a history refresh", func(t *testing.T) {
+		c, _, _, _ := newCoordinatorForTest()
+
+		cmds := c.progressStatusCmds(domain.ToolExecutionProgressEvent{
+			ToolCallID: "tc-1",
+			Status:     "completed",
+			Message:    "done",
+		})
+
+		foundHistory := false
+		for _, cmd := range cmds {
+			if cmd == nil {
+				continue
+			}
+			if _, ok := cmd().(domain.UpdateHistoryEvent); ok {
+				foundHistory = true
+				break
+			}
+		}
+		if !foundHistory {
+			t.Errorf("expected an UpdateHistoryEvent cmd on completed status, got none")
+		}
+	})
+
 	t.Run("unknown status returns nil cmd when no channels active", func(t *testing.T) {
 		c, _, state, direct := newCoordinatorForTest()
 		state.GetChatSessionReturns(nil)
@@ -166,7 +191,7 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 		direct.PendingBashChannelReturns(nil)
 
 		cmd := c.HandleToolExecutionProgress(domain.ToolExecutionProgressEvent{
-			Status: "executing", // not in the recognized switch
+			Status: "executing",
 		})
 		if cmd != nil {
 			t.Errorf("expected nil cmd for unknown status with no channels, got %v", cmd)
