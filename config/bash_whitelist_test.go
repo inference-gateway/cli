@@ -221,7 +221,6 @@ func TestIsBashCommandWhitelisted_GhApiJq(t *testing.T) {
 func TestIsBashCommandWhitelisted_GhApiGraphql(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Use gh project subcommands (whitelisted) for project-board operations.
 	denied := []string{
 		"gh api graphql -f query='mutation { updateIssueIssueType }'",
 		`gh api graphql -f query="query { repository }"`,
@@ -236,10 +235,6 @@ func TestIsBashCommandWhitelisted_GhApiGraphql(t *testing.T) {
 		}
 	}
 
-	// Bare gh api graphql (no -f payload) is harmless — gh just prints help
-	// or an error — and happens to be matched by the REST GET-only pattern
-	// because "graphql" passes [^ -][^ ]* and no disallowed flags are present.
-	// The same applies with --paginate (no payload) and redirect suffixes.
 	allowed := []string{
 		"gh api graphql",
 		"gh api graphql --paginate",
