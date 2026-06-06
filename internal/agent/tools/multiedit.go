@@ -119,6 +119,16 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
+	if msg := staleReadError(t.registry, filePath); msg != "" {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MultiEdit",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     msg,
+		}, nil
+	}
+
 	editsInterface, ok := args["edits"]
 	if !ok {
 		return &domain.ToolExecutionResult{
@@ -180,6 +190,12 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 		Success:   true,
 		Duration:  time.Since(start),
 		Data:      multiEditResult,
+	}
+
+	if multiEditResult.NormalizedEdits > 0 {
+		result.Metadata = map[string]string{
+			"whitespace_match": fmt.Sprintf("leading indentation was normalized to match the file on %d edit(s)", multiEditResult.NormalizedEdits),
+		}
 	}
 
 	return result, nil
@@ -270,7 +286,6 @@ func (t *MultiEditTool) Validate(args map[string]any) error {
 		return fmt.Errorf("edits array must contain at least one edit operation")
 	}
 
-	// Validate each edit operation
 	_, err := t.parseEdits(editsArray)
 	if err != nil {
 		return err
@@ -312,24 +327,29 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 
 	var editResults []domain.EditOperationResult
 	successfulEdits := 0
+	normalizedEdits := 0
 
 	for i, edit := range edits {
-		if !strings.Contains(currentContent, edit.OldString) {
-			return nil, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, i+1)
+		effectiveOld, effectiveNew, normalized, err := t.resolveEdit(filePath, currentContent, edit, i)
+		if err != nil {
+			return nil, err
+		}
+		if normalized {
+			normalizedEdits++
 		}
 
 		var newContent string
 		var replacedCount int
 
 		if edit.ReplaceAll {
-			newContent = strings.ReplaceAll(currentContent, edit.OldString, edit.NewString)
-			replacedCount = strings.Count(currentContent, edit.OldString)
+			newContent = strings.ReplaceAll(currentContent, effectiveOld, effectiveNew)
+			replacedCount = strings.Count(currentContent, effectiveOld)
 		} else {
-			count := strings.Count(currentContent, edit.OldString)
+			count := strings.Count(currentContent, effectiveOld)
 			if count > 1 {
-				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, edit.OldString, filePath, count)
+				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, effectiveOld, filePath, count)
 			}
-			newContent = strings.Replace(currentContent, edit.OldString, edit.NewString, 1)
+			newContent = strings.Replace(currentContent, effectiveOld, effectiveNew, 1)
 			replacedCount = 1
 		}
 
@@ -337,11 +357,12 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 		successfulEdits++
 
 		editResults = append(editResults, domain.EditOperationResult{
-			OldString:     edit.OldString,
-			NewString:     edit.NewString,
-			ReplaceAll:    edit.ReplaceAll,
-			ReplacedCount: replacedCount,
-			Success:       true,
+			OldString:            effectiveOld,
+			NewString:            effectiveNew,
+			ReplaceAll:           edit.ReplaceAll,
+			ReplacedCount:        replacedCount,
+			Success:              true,
+			WhitespaceNormalized: normalized,
 		})
 	}
 
@@ -365,9 +386,29 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 		OriginalSize:    originalSize,
 		NewSize:         newSize,
 		BytesDifference: bytesDifference,
+		NormalizedEdits: normalizedEdits,
 	}
 
 	return result, nil
+}
+
+// resolveEdit determines the actual old/new strings to apply for a single edit against the
+// current (sequentially modified) content. It first tries an exact match, then — unless the
+// edit uses replace_all or strict_whitespace is set — the indentation-tolerant fallback.
+// normalized reports whether the fallback was used. A non-nil error means neither matched and
+// the whole MultiEdit must abort before any write.
+func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOperation, idx int) (effectiveOld, effectiveNew string, normalized bool, err error) {
+	if strings.Contains(currentContent, edit.OldString) {
+		return edit.OldString, edit.NewString, false, nil
+	}
+	if edit.ReplaceAll || t.config.Tools.Edit.StrictWhitespace {
+		return "", "", false, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, idx+1)
+	}
+	fm := findFlexibleMatch(currentContent, edit.OldString, edit.NewString)
+	if !fm.found {
+		return "", "", false, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, idx+1)
+	}
+	return fm.matchedBlock, fm.reindentedNew, true, nil
 }
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
@@ -384,7 +425,6 @@ func (t *MultiEditTool) validateFile(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// For new file creation, just ensure the directory exists
 			return nil
 		}
 		return fmt.Errorf("cannot access file %s: %w", path, err)
@@ -557,8 +597,12 @@ func (t *MultiEditTool) FormatPreview(result *domain.ToolExecutionResult) string
 	fileName := t.formatter.GetFileName(multiEditResult.FilePath)
 
 	if multiEditResult.FileModified {
-		return fmt.Sprintf("Applied %d/%d edits to %s (%d bytes difference)",
-			multiEditResult.SuccessfulEdits, multiEditResult.TotalEdits, fileName, multiEditResult.BytesDifference)
+		suffix := ""
+		if multiEditResult.NormalizedEdits > 0 {
+			suffix = fmt.Sprintf(" (%d whitespace-normalized)", multiEditResult.NormalizedEdits)
+		}
+		return fmt.Sprintf("Applied %d/%d edits to %s%s (%d bytes difference)",
+			multiEditResult.SuccessfulEdits, multiEditResult.TotalEdits, fileName, suffix, multiEditResult.BytesDifference)
 	}
 
 	return fmt.Sprintf("No changes needed in %s", fileName)

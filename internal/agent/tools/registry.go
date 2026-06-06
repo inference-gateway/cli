@@ -2,7 +2,10 @@ package tools
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
@@ -33,6 +36,8 @@ type Registry struct {
 	config             *config.Config
 	tools              map[string]domain.Tool
 	readToolUsed       bool
+	readFiles          map[string]fileReadSnapshot
+	readFilesMu        sync.Mutex
 	taskTracker        domain.A2ATaskTracker
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
@@ -54,6 +59,7 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		tools:              make(map[string]domain.Tool),
 		shellService:       shellService,
 		readToolUsed:       false,
+		readFiles:          make(map[string]fileReadSnapshot),
 		taskTracker:        taskTracker,
 		imageService:       imageService,
 		mcpManager:         mcpManager,
@@ -268,6 +274,41 @@ func (r *Registry) SetReadToolUsed() {
 // IsReadToolUsed returns whether the Read tool has been used
 func (r *Registry) IsReadToolUsed() bool {
 	return r.readToolUsed
+}
+
+// fileReadSnapshot captures a file's state the last time the agent read or wrote it, so a later
+// edit can detect that the file changed underneath it.
+type fileReadSnapshot struct {
+	modTime time.Time
+	size    int64
+}
+
+// RecordFileRead snapshots a file's modtime/size, keyed by its absolute path. Called when the
+// Read tool reads a file and refreshed after Edit/MultiEdit/Write so the agent's own writes do
+// not look like external modifications.
+func (r *Registry) RecordFileRead(path string, modTime time.Time, size int64) {
+	key := normalizeReadPath(path)
+	r.readFilesMu.Lock()
+	defer r.readFilesMu.Unlock()
+	r.readFiles[key] = fileReadSnapshot{modTime: modTime, size: size}
+}
+
+// LastReadInfo returns the snapshot recorded for path (by absolute path) and whether one exists.
+func (r *Registry) LastReadInfo(path string) (time.Time, int64, bool) {
+	key := normalizeReadPath(path)
+	r.readFilesMu.Lock()
+	defer r.readFilesMu.Unlock()
+	snap, ok := r.readFiles[key]
+	return snap.modTime, snap.size, ok
+}
+
+// normalizeReadPath resolves path to an absolute, cleaned form so read and edit sites agree on
+// the map key regardless of whether the model passed a relative or absolute path.
+func normalizeReadPath(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return filepath.Clean(path)
 }
 
 // GetA2ATaskTracker returns the task tracker instance

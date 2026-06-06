@@ -7,14 +7,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// MockReadToolTracker for testing read tool usage tracking
+type mockReadSnapshot struct {
+	modTime time.Time
+	size    int64
+}
+
+// MockReadToolTracker for testing read tool usage tracking and per-file read freshness.
 type MockReadToolTracker struct {
 	readToolUsed bool
+	readFiles    map[string]mockReadSnapshot
 }
 
 func (m *MockReadToolTracker) IsReadToolUsed() bool {
@@ -23,6 +30,18 @@ func (m *MockReadToolTracker) IsReadToolUsed() bool {
 
 func (m *MockReadToolTracker) SetReadToolUsed() {
 	m.readToolUsed = true
+}
+
+func (m *MockReadToolTracker) RecordFileRead(path string, modTime time.Time, size int64) {
+	if m.readFiles == nil {
+		m.readFiles = make(map[string]mockReadSnapshot)
+	}
+	m.readFiles[path] = mockReadSnapshot{modTime: modTime, size: size}
+}
+
+func (m *MockReadToolTracker) LastReadInfo(path string) (time.Time, int64, bool) {
+	s, ok := m.readFiles[path]
+	return s.modTime, s.size, ok
 }
 
 func TestEditTool_Definition(t *testing.T) {
@@ -1378,10 +1397,9 @@ func TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace(t *testing.T) {
 			initialContent:  "line1\nline2\n",
 			oldString:       "line1 ",
 			newString:       "replaced",
-			expectedContent: "line1\nline2\n",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has trailing space but file doesn't",
+			expectedContent: "replaced\nline2\n",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a trailing-space-only mismatch now applies, re-aligned to the file",
 		},
 		{
 			name:            "remove trailing tabs",
@@ -1456,20 +1474,18 @@ func TestEditTool_Execute_WhitespaceHandling_TabsVsSpaces(t *testing.T) {
 			initialContent:  "    func test() {",
 			oldString:       "\tfunc test() {",
 			newString:       "replaced",
-			expectedContent: "    func test() {",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has tab but file has spaces",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique tab-vs-spaces indent mismatch now applies",
 		},
 		{
 			name:            "spaces in old_string but tab in file",
 			initialContent:  "\tfunc test() {",
 			oldString:       "    func test() {",
 			newString:       "replaced",
-			expectedContent: "\tfunc test() {",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail when old_string has spaces but file has tab",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique spaces-vs-tab indent mismatch now applies",
 		},
 		{
 			name:            "exact tab match",
@@ -1496,10 +1512,9 @@ func TestEditTool_Execute_WhitespaceHandling_MixedIndentation(t *testing.T) {
 			initialContent:  "\t\tcode",
 			oldString:       "        code",
 			newString:       "replaced",
-			expectedContent: "\t\tcode",
-			expectedSuccess: false,
-			errorContains:   "old_string not found",
-			description:     "Should fail: file has 2 tabs, old_string has 8 spaces",
+			expectedContent: "replaced",
+			expectedSuccess: true,
+			description:     "Tolerant fallback: a unique 8-spaces-vs-2-tabs indent mismatch now applies",
 		},
 		{
 			name:            "remove indented line with exact match",
@@ -1580,6 +1595,173 @@ func TestEditTool_Execute_WhitespaceHandling_ComplexCombinations(t *testing.T) {
 	}
 
 	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_FlexibleWhitespaceMatch verifies the indentation-tolerant fallback:
+// edits whose content matches a unique block but whose leading whitespace differs now apply
+// (re-aligned to the file via a per-indent-level map), while ambiguous cases still error.
+func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "off-by-one tab is re-aligned to the file",
+			initialContent:  "\t\t\t\t\t\tx := 1",
+			oldString:       "\t\t\t\t\t\t\tx := 1",
+			newString:       "\t\t\t\t\t\t\tx := 2",
+			expectedContent: "\t\t\t\t\t\tx := 2",
+			expectedSuccess: true,
+			description:     "Model over-indented by one tab; fallback re-aligns to the file's 6 tabs",
+		},
+		{
+			name:            "over-indented multi-line block re-aligns",
+			initialContent:  "func f() {\n\tdenied := []string{\n\t\t\"a\",\n\t}\n}",
+			oldString:       "\t\tdenied := []string{\n\t\t\t\"a\",\n\t\t}",
+			newString:       "\t\tdenied := []string{\n\t\t\t\"b\",\n\t\t}",
+			expectedContent: "func f() {\n\tdenied := []string{\n\t\t\"b\",\n\t}\n}",
+			expectedSuccess: true,
+			description:     "Every old line over-indented by one tab; uniform shift re-aligns the whole block",
+		},
+		{
+			name:            "tabs vs spaces uniform substitution",
+			initialContent:  "\treturn nil",
+			oldString:       "    return nil",
+			newString:       "    return err",
+			expectedContent: "\treturn err",
+			expectedSuccess: true,
+			description:     "Old uses 4 spaces, file uses 1 tab; fallback preserves the file's tab",
+		},
+		{
+			name:            "struct with column-0 header re-aligns body",
+			initialContent:  "type User struct {\n\tID int\n\tName string\n}",
+			oldString:       "type User struct {\n\t\tID int\n\t\tName string\n\t}",
+			newString:       "type User struct {\n\t\tID int64\n\t\tName string\n\t}",
+			expectedContent: "type User struct {\n\tID int64\n\tName string\n}",
+			expectedSuccess: true,
+			description:     "Header at column 0, body over-indented; per-level map re-aligns the body to the file's 1 tab",
+		},
+		{
+			name:            "import block with column-0 header re-aligns body",
+			initialContent:  "import (\n\t\"fmt\"\n\t\"os\"\n)",
+			oldString:       "import (\n\t\t\"fmt\"\n\t\t\"os\"\n)",
+			newString:       "import (\n\t\t\"fmt\"\n\t\t\"errors\"\n)",
+			expectedContent: "import (\n\t\"fmt\"\n\t\"errors\"\n)",
+			expectedSuccess: true,
+			description:     "Column-0 import header with over-indented entries; body re-aligns to the file",
+		},
+		{
+			name:            "non-unique trimmed block still errors",
+			initialContent:  "\tx := 1\n\tx := 1",
+			oldString:       "\t\tx := 1",
+			newString:       "\t\tx := 9",
+			expectedContent: "\tx := 1\n\tx := 1",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Two trimmed matches: ambiguous, so the fallback refuses and the edit fails",
+		},
+		{
+			name:            "mixed file indentation is preserved",
+			initialContent:  "\tif a {\n      b()\n\t}",
+			oldString:       "\t\tif a {\n\t\t\tb()\n\t\t}",
+			newString:       "\t\tif a {\n\t\t\tc()\n\t\t}",
+			expectedContent: "\tif a {\n      c()\n\t}",
+			expectedSuccess: true,
+			description:     "File mixes tabs and spaces; each old indent maps consistently, so it applies and preserves the file's indentation",
+		},
+		{
+			name:            "inconsistent indent mapping still errors",
+			initialContent:  "\tfoo()\n\t\tbar()",
+			oldString:       "\t\tfoo()\n\t\tbar()",
+			newString:       "\t\tfoo()\n\t\tBAR()",
+			expectedContent: "\tfoo()\n\t\tbar()",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Same old indent (2 tabs) maps to two different file indents; ambiguous, so the fallback refuses",
+		},
+		{
+			name:            "literal text instead of tabs still errors",
+			initialContent:  "\t\t\tfoo()",
+			oldString:       "\ttttfoo()",
+			newString:       "\ttttbar()",
+			expectedContent: "\t\t\tfoo()",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Escape-conflated 'ttt' is content, not whitespace, so it correctly does not match",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_StaleRead verifies the Edit tool rejects edits when the file changed since
+// the agent last read it, and allows them when the recorded snapshot is still current.
+func TestEditTool_Execute_StaleRead(t *testing.T) {
+	tempDir := t.TempDir()
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Edit:    config.EditToolConfig{Enabled: true},
+		},
+	}
+
+	t.Run("rejects edit when file changed since read", func(t *testing.T) {
+		testFile := filepath.Join(tempDir, "stale.txt")
+		if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		tracker := &MockReadToolTracker{readToolUsed: true}
+		tracker.RecordFileRead(testFile, time.Now().Add(-time.Hour), int64(len("hello world")))
+
+		tool := NewEditToolWithRegistry(cfg, tracker)
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"file_path":  testFile,
+			"old_string": "hello",
+			"new_string": "hi",
+		})
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected stale-read rejection, got success")
+		}
+		if !strings.Contains(result.Error, "modified since you last read it") {
+			t.Errorf("expected stale-read error, got: %s", result.Error)
+		}
+		if content, _ := os.ReadFile(testFile); string(content) != "hello world" {
+			t.Errorf("file must be unchanged on stale-read rejection, got: %q", string(content))
+		}
+	})
+
+	t.Run("allows edit when snapshot is current", func(t *testing.T) {
+		testFile := filepath.Join(tempDir, "fresh.txt")
+		if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tracker := &MockReadToolTracker{readToolUsed: true}
+		tracker.RecordFileRead(testFile, info.ModTime(), info.Size())
+
+		tool := NewEditToolWithRegistry(cfg, tracker)
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"file_path":  testFile,
+			"old_string": "hello",
+			"new_string": "hi",
+		})
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if !result.Success {
+			t.Fatalf("expected success for a current snapshot, got: %s", result.Error)
+		}
+		if content, _ := os.ReadFile(testFile); string(content) != "hi world" {
+			t.Errorf("expected 'hi world', got: %q", string(content))
+		}
+	})
 }
 
 // editWhitespaceTest defines a whitespace handling test case

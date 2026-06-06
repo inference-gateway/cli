@@ -886,19 +886,20 @@ type FileWriteToolResult struct {
 
 // EditToolResult represents the result of an edit operation
 type EditToolResult struct {
-	FilePath        string `json:"file_path"`
-	OldString       string `json:"old_string"`
-	NewString       string `json:"new_string"`
-	ReplacedCount   int    `json:"replaced_count"`
-	ReplaceAll      bool   `json:"replace_all"`
-	FileModified    bool   `json:"file_modified"`
-	OriginalSize    int64  `json:"original_size"`
-	NewSize         int64  `json:"new_size"`
-	BytesDifference int64  `json:"bytes_difference"`
-	OriginalLines   int    `json:"original_lines"`
-	NewLines        int    `json:"new_lines"`
-	LinesDifference int    `json:"lines_difference"`
-	Diff            string `json:"diff,omitempty"`
+	FilePath             string `json:"file_path"`
+	OldString            string `json:"old_string"`
+	NewString            string `json:"new_string"`
+	ReplacedCount        int    `json:"replaced_count"`
+	ReplaceAll           bool   `json:"replace_all"`
+	FileModified         bool   `json:"file_modified"`
+	OriginalSize         int64  `json:"original_size"`
+	NewSize              int64  `json:"new_size"`
+	BytesDifference      int64  `json:"bytes_difference"`
+	OriginalLines        int    `json:"original_lines"`
+	NewLines             int    `json:"new_lines"`
+	LinesDifference      int    `json:"lines_difference"`
+	Diff                 string `json:"diff,omitempty"`
+	WhitespaceNormalized bool   `json:"whitespace_normalized,omitempty"`
 }
 
 // TreeToolResult represents the result of a tree operation
@@ -936,6 +937,7 @@ type MultiEditToolResult struct {
 	OriginalSize    int64                 `json:"original_size"`
 	NewSize         int64                 `json:"new_size"`
 	BytesDifference int64                 `json:"bytes_difference"`
+	NormalizedEdits int                   `json:"normalized_edits,omitempty"`
 }
 
 // EditOperationResult represents the result of a single edit operation within MultiEdit
@@ -946,6 +948,8 @@ type EditOperationResult struct {
 	ReplacedCount int    `json:"replaced_count"`
 	Success       bool   `json:"success"`
 	Error         string `json:"error,omitempty"`
+	// WhitespaceNormalized is true when this edit matched via the indentation-tolerant fallback.
+	WhitespaceNormalized bool `json:"whitespace_normalized,omitempty"`
 }
 
 // TodoItem represents a single todo item

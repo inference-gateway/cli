@@ -143,6 +143,7 @@ tools:
   edit:
     enabled: true
     require_approval: true # Edit operations require approval by default for security
+    strict_whitespace: false # When true, disable the indentation-tolerant fallback (byte-exact matching only)
   delete:
     enabled: true
     require_approval: true # Delete operations require approval by default for security
@@ -294,6 +295,7 @@ compact:
 - **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
+- **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 
 ### Compact Settings
 

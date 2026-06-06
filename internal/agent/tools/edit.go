@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // EditTool handles exact string replacements in files with strict safety rules
@@ -22,9 +23,13 @@ type EditTool struct {
 	formatter domain.CustomFormatter
 }
 
-// ReadToolTracker interface for tracking read tool usage
+// ReadToolTracker interface for tracking read tool usage and per-file read freshness.
 type ReadToolTracker interface {
 	IsReadToolUsed() bool
+	// RecordFileRead snapshots a file's modtime/size at the moment it was read (or written by us).
+	RecordFileRead(path string, modTime time.Time, size int64)
+	// LastReadInfo returns the snapshot recorded for path, and whether one exists.
+	LastReadInfo(path string) (modTime time.Time, size int64, known bool)
 }
 
 // NewEditTool creates a new edit tool
@@ -113,6 +118,16 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		}, nil
 	}
 
+	if msg := staleReadError(t.registry, filePath); msg != "" {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Edit",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     msg,
+		}, nil
+	}
+
 	oldString, ok := args["old_string"].(string)
 	if !ok {
 		return &domain.ToolExecutionResult{
@@ -169,6 +184,12 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		Success:   true,
 		Duration:  time.Since(start),
 		Data:      editResult,
+	}
+
+	if editResult.WhitespaceNormalized {
+		result.Metadata = map[string]string{
+			"whitespace_match": "leading indentation was normalized to match the file",
+		}
 	}
 
 	return result, nil
@@ -229,6 +250,28 @@ func (t *EditTool) IsEnabled() bool {
 	return t.enabled
 }
 
+// staleReadError returns a non-empty error message when filePath has been modified since the
+// agent last read (or wrote) it — an external change between the read and this edit. It returns
+// "" when the file is unchanged or was never read (no snapshot to compare against).
+func staleReadError(registry ReadToolTracker, filePath string) string {
+	if registry == nil {
+		return ""
+	}
+	recordedMod, recordedSize, known := registry.LastReadInfo(filePath)
+	if !known {
+		return ""
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return ""
+	}
+	if info.ModTime().After(recordedMod) || info.Size() != recordedSize {
+		return fmt.Sprintf("file %s was modified since you last read it (snapshot %s, now %s). Use the Read tool to read it again before editing.",
+			filePath, recordedMod.Format(time.RFC3339), info.ModTime().Format(time.RFC3339))
+	}
+	return ""
+}
+
 // executeEdit performs the actual edit operation
 func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*domain.EditToolResult, error) {
 	if err := t.validateFile(filePath); err != nil {
@@ -243,22 +286,29 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	originalContentStr := string(originalContent)
 	originalSize := int64(len(originalContent))
 
+	effectiveOld, effectiveNew := oldString, newString
+	whitespaceNormalized := false
 	if !strings.Contains(originalContentStr, oldString) {
-		return nil, t.createMatchError(originalContentStr, oldString, filePath)
+		fm, ok := t.resolveFlexibleMatch(originalContentStr, oldString, newString, replaceAll)
+		if !ok {
+			return nil, t.createMatchError(originalContentStr, oldString, filePath)
+		}
+		effectiveOld, effectiveNew = fm.matchedBlock, fm.reindentedNew
+		whitespaceNormalized = true
 	}
 
 	var newContent string
 	var replacedCount int
 
 	if replaceAll {
-		newContent = strings.ReplaceAll(originalContentStr, oldString, newString)
-		replacedCount = strings.Count(originalContentStr, oldString)
+		newContent = strings.ReplaceAll(originalContentStr, effectiveOld, effectiveNew)
+		replacedCount = strings.Count(originalContentStr, effectiveOld)
 	} else {
-		count := strings.Count(originalContentStr, oldString)
+		count := strings.Count(originalContentStr, effectiveOld)
 		if count > 1 {
-			return nil, fmt.Errorf("old_string '%s' is not unique in file %s (found %d occurrences). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", oldString, filePath, count)
+			return nil, fmt.Errorf("old_string '%s' is not unique in file %s (found %d occurrences). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", effectiveOld, filePath, count)
 		}
-		newContent = strings.Replace(originalContentStr, oldString, newString, 1)
+		newContent = strings.Replace(originalContentStr, effectiveOld, effectiveNew, 1)
 		replacedCount = 1
 	}
 
@@ -280,22 +330,34 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	diff := generateDiff(originalContentStr, newContent)
 
 	result := &domain.EditToolResult{
-		FilePath:        filePath,
-		OldString:       oldString,
-		NewString:       newString,
-		ReplacedCount:   replacedCount,
-		ReplaceAll:      replaceAll,
-		FileModified:    fileModified,
-		OriginalSize:    originalSize,
-		NewSize:         newSize,
-		BytesDifference: bytesDifference,
-		OriginalLines:   originalLines,
-		NewLines:        newLines,
-		LinesDifference: linesDifference,
-		Diff:            diff,
+		FilePath:             filePath,
+		OldString:            effectiveOld,
+		NewString:            effectiveNew,
+		ReplacedCount:        replacedCount,
+		ReplaceAll:           replaceAll,
+		FileModified:         fileModified,
+		OriginalSize:         originalSize,
+		NewSize:              newSize,
+		BytesDifference:      bytesDifference,
+		OriginalLines:        originalLines,
+		NewLines:             newLines,
+		LinesDifference:      linesDifference,
+		Diff:                 diff,
+		WhitespaceNormalized: whitespaceNormalized,
 	}
 
 	return result, nil
+}
+
+// resolveFlexibleMatch attempts the indentation-tolerant fallback for a single replacement.
+// It returns ok=false (so the caller surfaces the normal match error) when the fallback is
+// disabled (replace_all or strict_whitespace) or cannot find a unique, uniform match.
+func (t *EditTool) resolveFlexibleMatch(content, oldString, newString string, replaceAll bool) (flexMatchResult, bool) {
+	if replaceAll || t.config.Tools.Edit.StrictWhitespace {
+		return flexMatchResult{}, false
+	}
+	fm := findFlexibleMatch(content, oldString, newString)
+	return fm, fm.found
 }
 
 // countLines counts the number of lines in content
@@ -508,7 +570,11 @@ func (t *EditTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	}
 
 	if editResult.FileModified {
-		return fmt.Sprintf("Updated %s (%+d bytes, %+d lines)", fileName, editResult.BytesDifference, editResult.LinesDifference)
+		suffix := ""
+		if editResult.WhitespaceNormalized {
+			suffix = " (whitespace-normalized)"
+		}
+		return fmt.Sprintf("Updated %s%s (%+d bytes, %+d lines)", fileName, suffix, editResult.BytesDifference, editResult.LinesDifference)
 	}
 
 	return fmt.Sprintf("No changes needed in %s", fileName)

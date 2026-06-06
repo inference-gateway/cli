@@ -113,6 +113,7 @@ tools:
   edit:
     enabled: true
     require_approval: true
+    strict_whitespace: false
   delete:
     enabled: true
     require_approval: true

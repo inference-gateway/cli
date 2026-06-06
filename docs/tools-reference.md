@@ -183,7 +183,7 @@ Perform exact string replacements in files with security validation and preview 
 
 **Features:**
 
-- **Exact Matching**: Requires exact string matches for safety
+- **Indentation-Tolerant Matching**: Exact first; on a miss, a unique leading-whitespace match is re-indented (`strict_whitespace: true` disables)
 - **Preview Support**: Shows diff preview before applying changes
 - **Atomic Operations**: Either all changes succeed or none are applied
 - **Security Validation**: Respects path exclusions and file permissions
@@ -191,6 +191,7 @@ Perform exact string replacements in files with security validation and preview 
 **Security:**
 
 - **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Stale-Read Detection**: Rejects the edit if the file changed on disk since the agent last read it, and asks the model to re-read first
 - **Approval Required**: Edit operations require approval by default
 - **Path Exclusions**: Respects configured excluded paths
 - **Validation**: Validates file paths and prevents editing protected files
@@ -207,6 +208,7 @@ tools:
   edit:
     enabled: true
     require_approval: true  # Edit operations require approval for security
+    strict_whitespace: false  # When true, disable the indentation-tolerant fallback (byte-exact only)
 ```
 
 ---
@@ -227,12 +229,14 @@ Make multiple edits to a single file in atomic operations. All edits succeed or 
 
 - **Atomic Operations**: All edits succeed or none are applied
 - **Sequential Processing**: Edits are applied in the order provided
+- **Indentation-Tolerant Matching**: Each edit matches exactly first, then a unique leading-whitespace fallback (`tools.edit.strict_whitespace`)
 - **Preview Support**: Shows comprehensive diff preview
 - **Security Validation**: Respects all security restrictions
 
 **Security:**
 
 - **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Stale-Read Detection**: Rejects the edit if the file changed on disk since the agent last read it, and asks the model to re-read first
 - **Approval Required**: MultiEdit operations require approval by default
 - **Path Exclusions**: Respects configured excluded paths
 - **Validation**: Validates all edits before execution
