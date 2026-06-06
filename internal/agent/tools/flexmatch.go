@@ -2,50 +2,60 @@ package tools
 
 import "strings"
 
-// flexMatchResult is the outcome of a leading/trailing-whitespace-tolerant match. It is
-// produced by findFlexibleMatch and consumed by the Edit and MultiEdit tools as a fallback
-// after an exact strings.Contains match has failed.
+// flexMatchResult is the outcome of a leading-whitespace-tolerant match. It is produced by
+// findFlexibleMatch and consumed by the Edit and MultiEdit tools as a fallback after an exact
+// strings.Contains match has failed.
 type flexMatchResult struct {
 	// matchedBlock is the exact file bytes of the single matched window. Callers replace
 	// this (not the model's old_string) so the file's real indentation is preserved.
 	matchedBlock string
-	// reindentedNew is new_string re-indented to the file's base indentation.
+	// reindentedNew is new_string re-indented to the file's indentation.
 	reindentedNew string
-	// found is true only when exactly one window matched under a single uniform shift.
+	// found is true only when exactly one window matched under a consistent indent mapping.
 	found bool
+	// reason is a short human-readable explanation of the outcome, for debug logging.
+	reason string
 }
 
 // findFlexibleMatch attempts a whitespace-tolerant match of oldString within content. It is
 // intended ONLY as a fallback once an exact strings.Contains match has already failed, and it
-// deliberately refuses to guess: found is true only when exactly one block of file lines
-// matches oldString after trimming surrounding whitespace AND the indentation differs by a
-// single uniform shift that reproduces every matched line exactly. On found, matchedBlock holds
-// the exact file text to replace and reindentedNew holds newString re-aligned to the file's
-// indentation. Any ambiguity (zero or multiple candidate blocks, or a non-uniform shift)
-// returns found=false, and the caller must fall back to its existing error path.
+// deliberately refuses to guess: found is true only when exactly one block of file lines matches
+// oldString after trimming surrounding whitespace AND each distinct old-line indentation maps
+// consistently to a single file indentation across the block. On found, matchedBlock holds the
+// exact file text to replace and reindentedNew holds newString re-aligned to the file's
+// indentation (each new line's leading whitespace remapped via the same learned mapping). Any
+// ambiguity (zero or multiple candidate blocks, or a conflicting indent mapping) returns
+// found=false, and the caller must fall back to its existing error path.
 func findFlexibleMatch(content, oldString, newString string) flexMatchResult {
-	miss := flexMatchResult{}
-
 	oldLines := strings.Split(oldString, "\n")
 	fileLines := strings.Split(content, "\n")
 	if len(oldLines) > len(fileLines) {
-		return miss
+		return flexMatchResult{reason: "old_string has more lines than the file"}
 	}
 	if firstNonBlankIndex(oldLines) < 0 {
-		return miss // whitespace-only old_string: nothing meaningful to anchor on
+		return flexMatchResult{reason: "old_string is blank after trimming"}
 	}
 
 	firstIdx, count := countFlexWindows(fileLines, oldLines)
-	if count != 1 {
-		return miss
+	if count == 0 {
+		return flexMatchResult{reason: "no whitespace-insensitive match found"}
+	}
+	if count > 1 {
+		return flexMatchResult{reason: "ambiguous: multiple whitespace-insensitive matches"}
 	}
 
 	fileWin := fileLines[firstIdx : firstIdx+len(oldLines)]
-	block, reindented, ok := verifyUniformAndReindent(fileWin, oldLines, strings.Split(newString, "\n"))
+	indentMap, ok := buildIndentMap(oldLines, fileWin)
 	if !ok {
-		return miss
+		return flexMatchResult{reason: "inconsistent indentation mapping across the block"}
 	}
-	return flexMatchResult{matchedBlock: block, reindentedNew: reindented, found: true}
+
+	return flexMatchResult{
+		matchedBlock:  strings.Join(fileWin, "\n"),
+		reindentedNew: reindentNewLines(strings.Split(newString, "\n"), indentMap),
+		found:         true,
+		reason:        "matched with indentation normalized",
+	}
 }
 
 // countFlexWindows counts how many windows of fileLines equal oldLines once surrounding
@@ -84,54 +94,50 @@ func windowMatchesTrimmed(fileWin, trimmedOld []string) bool {
 	return true
 }
 
-// verifyUniformAndReindent confirms the indentation difference between the matched file window
-// and oldLines is a single uniform shift, then re-indents newLines with that same shift. ok is
-// false when the shift is not uniform — i.e. applying it to any non-blank old line fails to
-// reproduce the corresponding file line — in which case callers must not apply the edit. block
-// is the exact file window text; reindented is newString aligned to the file's indentation.
-func verifyUniformAndReindent(fileWin, oldLines, newLines []string) (block, reindented string, ok bool) {
-	k := firstNonBlankIndex(oldLines)
-	if k < 0 {
-		return "", "", false
-	}
-	oldBase := leadingWhitespace(oldLines[k])
-	fileBase := leadingWhitespace(fileWin[k])
-
+// buildIndentMap records how each distinct old-line indentation maps to the file's actual
+// indentation across the matched window, requiring the mapping to be consistent — the same old
+// indent must always correspond to the same file indent. ok is false on any conflict, which
+// signals the indentation relationship is ambiguous and the edit must not be applied. Blank
+// lines carry no indentation signal and are skipped.
+//
+// Deriving the mapping per distinct indent (rather than as a single uniform shift anchored on the
+// first line) is what lets a block whose header sits at column 0 — a Go struct/import/func — match:
+// the header maps "" -> "" while the body maps "\t\t" -> "\t", independently and consistently.
+func buildIndentMap(oldLines, fileWin []string) (map[string]string, bool) {
+	indentMap := make(map[string]string)
 	for j := range oldLines {
 		if strings.TrimSpace(oldLines[j]) == "" {
-			continue // blank lines carry no indentation signal
+			continue
 		}
-		got, prefixed := reindentLine(oldLines[j], oldBase, fileBase)
-		if !prefixed || strings.TrimRight(got, " \t\r") != strings.TrimRight(fileWin[j], " \t\r") {
-			return "", "", false
+		oldIndent := leadingWhitespace(oldLines[j])
+		fileIndent := leadingWhitespace(fileWin[j])
+		if existing, seen := indentMap[oldIndent]; seen && existing != fileIndent {
+			return nil, false
 		}
+		indentMap[oldIndent] = fileIndent
 	}
+	return indentMap, true
+}
 
+// reindentNewLines rewrites each new line's leading whitespace using the learned old->file indent
+// map, so new_string is emitted in the file's indentation style. A line whose exact indentation
+// was not observed in the matched window (or a blank line) is kept as the model wrote it, since
+// there is no learned mapping to apply to it.
+func reindentNewLines(newLines []string, indentMap map[string]string) string {
 	out := make([]string, len(newLines))
 	for j, line := range newLines {
 		if strings.TrimSpace(line) == "" {
 			out[j] = line
 			continue
 		}
-		// Lines sharing the old base indent are swapped to the file base; lines the model
-		// wrote at a shallower/different indent are kept verbatim (its explicit choice).
-		got, _ := reindentLine(line, oldBase, fileBase)
-		out[j] = got
+		indent := leadingWhitespace(line)
+		if fileIndent, ok := indentMap[indent]; ok {
+			out[j] = fileIndent + line[len(indent):]
+		} else {
+			out[j] = line
+		}
 	}
-
-	return strings.Join(fileWin, "\n"), strings.Join(out, "\n"), true
-}
-
-// reindentLine rewrites a line's leading whitespace by stripping the oldBase prefix and
-// prepending fileBase, preserving any indentation beyond the base and the remainder of the
-// line. prefixed is false when the line's leading whitespace does not start with oldBase (a
-// shallower or inconsistent indent); in that case the original line is returned unchanged.
-func reindentLine(line, oldBase, fileBase string) (result string, prefixed bool) {
-	lw := leadingWhitespace(line)
-	if !strings.HasPrefix(lw, oldBase) {
-		return line, false
-	}
-	return fileBase + lw[len(oldBase):] + line[len(lw):], true
+	return strings.Join(out, "\n")
 }
 
 // leadingWhitespace returns the run of spaces and tabs at the start of line.

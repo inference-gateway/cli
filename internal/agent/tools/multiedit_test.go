@@ -257,7 +257,7 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 }
 
 // TestMultiEditTool_Execute_FlexibleWhitespaceMatch verifies the indentation-tolerant fallback
-// works against the sequential accumulator and still aborts the whole batch on a non-uniform edit.
+// works against the sequential accumulator and still aborts the whole batch on an unmatched edit.
 func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 	newCfg := func(dir string) *config.Config {
 		return &config.Config{
@@ -318,7 +318,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 		}
 	})
 
-	t.Run("non-uniform second edit aborts the whole batch", func(t *testing.T) {
+	t.Run("second edit not found aborts the whole batch", func(t *testing.T) {
 		dir := t.TempDir()
 		testFile := filepath.Join(dir, "atomic.go")
 		initial := "\tfoo()\n\tif a {\n      b()\n\t}\n"
@@ -331,7 +331,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			"file_path": testFile,
 			"edits": []any{
 				map[string]any{"old_string": "\tfoo()", "new_string": "\tbar()"},
-				map[string]any{"old_string": "\t\tif a {\n\t\t\tb()\n\t\t}", "new_string": "\t\tif a {\n\t\t\tc()\n\t\t}"},
+				map[string]any{"old_string": "\t\tnonexistent := absent()", "new_string": "\t\tstillAbsent()"},
 			},
 		}
 
@@ -340,7 +340,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			t.Fatalf("Execute returned unexpected error: %v", err)
 		}
 		if result.Success {
-			t.Fatal("expected failure when the second edit cannot be matched uniformly")
+			t.Fatal("expected failure when the second edit cannot be matched")
 		}
 		if !strings.Contains(result.Error, "edit 2") {
 			t.Errorf("expected error to name 'edit 2', got: %s", result.Error)

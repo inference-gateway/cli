@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -132,11 +133,31 @@ func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.Cha
 
 	result, err := tool.Execute(ctx, args)
 
-	if toolCall.Name == "Read" && err == nil && result != nil && result.Success {
-		s.registry.SetReadToolUsed()
+	if err == nil && result != nil && result.Success {
+		switch toolCall.Name {
+		case "Read":
+			s.registry.SetReadToolUsed()
+			s.snapshotFile(args)
+		case "Edit", "MultiEdit", "Write":
+			s.snapshotFile(args)
+		}
 	}
 
 	return result, err
+}
+
+// snapshotFile records the current modtime/size of the file named in args so the Edit/MultiEdit
+// tools can detect later external modifications. Best-effort: missing/unstattable paths are skipped.
+func (s *LLMToolService) snapshotFile(args map[string]any) {
+	path, ok := args["file_path"].(string)
+	if !ok || path == "" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	s.registry.RecordFileRead(path, info.ModTime(), info.Size())
 }
 
 // IsToolEnabled checks if a tool is enabled

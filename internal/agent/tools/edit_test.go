@@ -7,14 +7,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// MockReadToolTracker for testing read tool usage tracking
+type mockReadSnapshot struct {
+	modTime time.Time
+	size    int64
+}
+
+// MockReadToolTracker for testing read tool usage tracking and per-file read freshness.
 type MockReadToolTracker struct {
 	readToolUsed bool
+	readFiles    map[string]mockReadSnapshot
 }
 
 func (m *MockReadToolTracker) IsReadToolUsed() bool {
@@ -23,6 +30,18 @@ func (m *MockReadToolTracker) IsReadToolUsed() bool {
 
 func (m *MockReadToolTracker) SetReadToolUsed() {
 	m.readToolUsed = true
+}
+
+func (m *MockReadToolTracker) RecordFileRead(path string, modTime time.Time, size int64) {
+	if m.readFiles == nil {
+		m.readFiles = make(map[string]mockReadSnapshot)
+	}
+	m.readFiles[path] = mockReadSnapshot{modTime: modTime, size: size}
+}
+
+func (m *MockReadToolTracker) LastReadInfo(path string) (time.Time, int64, bool) {
+	s, ok := m.readFiles[path]
+	return s.modTime, s.size, ok
 }
 
 func TestEditTool_Definition(t *testing.T) {
@@ -1579,8 +1598,8 @@ func TestEditTool_Execute_WhitespaceHandling_ComplexCombinations(t *testing.T) {
 }
 
 // TestEditTool_Execute_FlexibleWhitespaceMatch verifies the indentation-tolerant fallback:
-// edits whose content matches a unique block but whose leading whitespace differs by a uniform
-// shift now apply (re-aligned to the file), while ambiguous or non-uniform cases still error.
+// edits whose content matches a unique block but whose leading whitespace differs now apply
+// (re-aligned to the file via a per-indent-level map), while ambiguous cases still error.
 func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := createEditToolForWhitespaceTest(tempDir)
@@ -1614,6 +1633,24 @@ func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			description:     "Old uses 4 spaces, file uses 1 tab; fallback preserves the file's tab",
 		},
 		{
+			name:            "struct with column-0 header re-aligns body",
+			initialContent:  "type User struct {\n\tID int\n\tName string\n}",
+			oldString:       "type User struct {\n\t\tID int\n\t\tName string\n\t}",
+			newString:       "type User struct {\n\t\tID int64\n\t\tName string\n\t}",
+			expectedContent: "type User struct {\n\tID int64\n\tName string\n}",
+			expectedSuccess: true,
+			description:     "Header at column 0, body over-indented; per-level map re-aligns the body to the file's 1 tab",
+		},
+		{
+			name:            "import block with column-0 header re-aligns body",
+			initialContent:  "import (\n\t\"fmt\"\n\t\"os\"\n)",
+			oldString:       "import (\n\t\t\"fmt\"\n\t\t\"os\"\n)",
+			newString:       "import (\n\t\t\"fmt\"\n\t\t\"errors\"\n)",
+			expectedContent: "import (\n\t\"fmt\"\n\t\"errors\"\n)",
+			expectedSuccess: true,
+			description:     "Column-0 import header with over-indented entries; body re-aligns to the file",
+		},
+		{
 			name:            "non-unique trimmed block still errors",
 			initialContent:  "\tx := 1\n\tx := 1",
 			oldString:       "\t\tx := 1",
@@ -1624,14 +1661,23 @@ func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			description:     "Two trimmed matches: ambiguous, so the fallback refuses and the edit fails",
 		},
 		{
-			name:            "non-uniform indentation still errors",
+			name:            "mixed file indentation is preserved",
 			initialContent:  "\tif a {\n      b()\n\t}",
 			oldString:       "\t\tif a {\n\t\t\tb()\n\t\t}",
 			newString:       "\t\tif a {\n\t\t\tc()\n\t\t}",
-			expectedContent: "\tif a {\n      b()\n\t}",
+			expectedContent: "\tif a {\n      c()\n\t}",
+			expectedSuccess: true,
+			description:     "File mixes tabs and spaces; each old indent maps consistently, so it applies and preserves the file's indentation",
+		},
+		{
+			name:            "inconsistent indent mapping still errors",
+			initialContent:  "\tfoo()\n\t\tbar()",
+			oldString:       "\t\tfoo()\n\t\tbar()",
+			newString:       "\t\tfoo()\n\t\tBAR()",
+			expectedContent: "\tfoo()\n\t\tbar()",
 			expectedSuccess: false,
 			errorContains:   "old_string not found",
-			description:     "Inner line uses spaces while the rest uses tabs; shift is not uniform, so it fails",
+			description:     "Same old indent (2 tabs) maps to two different file indents; ambiguous, so the fallback refuses",
 		},
 		{
 			name:            "literal text instead of tabs still errors",
@@ -1646,6 +1692,76 @@ func TestEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 	}
 
 	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_StaleRead verifies the Edit tool rejects edits when the file changed since
+// the agent last read it, and allows them when the recorded snapshot is still current.
+func TestEditTool_Execute_StaleRead(t *testing.T) {
+	tempDir := t.TempDir()
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Edit:    config.EditToolConfig{Enabled: true},
+		},
+	}
+
+	t.Run("rejects edit when file changed since read", func(t *testing.T) {
+		testFile := filepath.Join(tempDir, "stale.txt")
+		if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		tracker := &MockReadToolTracker{readToolUsed: true}
+		tracker.RecordFileRead(testFile, time.Now().Add(-time.Hour), int64(len("hello world")))
+
+		tool := NewEditToolWithRegistry(cfg, tracker)
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"file_path":  testFile,
+			"old_string": "hello",
+			"new_string": "hi",
+		})
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected stale-read rejection, got success")
+		}
+		if !strings.Contains(result.Error, "modified since you last read it") {
+			t.Errorf("expected stale-read error, got: %s", result.Error)
+		}
+		if content, _ := os.ReadFile(testFile); string(content) != "hello world" {
+			t.Errorf("file must be unchanged on stale-read rejection, got: %q", string(content))
+		}
+	})
+
+	t.Run("allows edit when snapshot is current", func(t *testing.T) {
+		testFile := filepath.Join(tempDir, "fresh.txt")
+		if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tracker := &MockReadToolTracker{readToolUsed: true}
+		tracker.RecordFileRead(testFile, info.ModTime(), info.Size())
+
+		tool := NewEditToolWithRegistry(cfg, tracker)
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"file_path":  testFile,
+			"old_string": "hello",
+			"new_string": "hi",
+		})
+		if err != nil {
+			t.Fatalf("Execute returned unexpected error: %v", err)
+		}
+		if !result.Success {
+			t.Fatalf("expected success for a current snapshot, got: %s", result.Error)
+		}
+		if content, _ := os.ReadFile(testFile); string(content) != "hi world" {
+			t.Errorf("expected 'hi world', got: %q", string(content))
+		}
+	})
 }
 
 // editWhitespaceTest defines a whitespace handling test case

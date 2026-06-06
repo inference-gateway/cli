@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // EditTool handles exact string replacements in files with strict safety rules
@@ -22,9 +24,13 @@ type EditTool struct {
 	formatter domain.CustomFormatter
 }
 
-// ReadToolTracker interface for tracking read tool usage
+// ReadToolTracker interface for tracking read tool usage and per-file read freshness.
 type ReadToolTracker interface {
 	IsReadToolUsed() bool
+	// RecordFileRead snapshots a file's modtime/size at the moment it was read (or written by us).
+	RecordFileRead(path string, modTime time.Time, size int64)
+	// LastReadInfo returns the snapshot recorded for path, and whether one exists.
+	LastReadInfo(path string) (modTime time.Time, size int64, known bool)
 }
 
 // NewEditTool creates a new edit tool
@@ -110,6 +116,17 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 			Success:   false,
 			Duration:  time.Since(start),
 			Error:     "file_path parameter is required and must be a string",
+		}, nil
+	}
+
+	if msg := staleReadError(t.registry, filePath); msg != "" {
+		logger.Debug("Edit: rejected stale edit", "file", filePath)
+		return &domain.ToolExecutionResult{
+			ToolName:  "Edit",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     msg,
 		}, nil
 	}
 
@@ -235,6 +252,28 @@ func (t *EditTool) IsEnabled() bool {
 	return t.enabled
 }
 
+// staleReadError returns a non-empty error message when filePath has been modified since the
+// agent last read (or wrote) it — an external change between the read and this edit. It returns
+// "" when the file is unchanged or was never read (no snapshot to compare against).
+func staleReadError(registry ReadToolTracker, filePath string) string {
+	if registry == nil {
+		return ""
+	}
+	recordedMod, recordedSize, known := registry.LastReadInfo(filePath)
+	if !known {
+		return ""
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return ""
+	}
+	if info.ModTime().After(recordedMod) || info.Size() != recordedSize {
+		return fmt.Sprintf("file %s was modified since you last read it (snapshot %s, now %s). Use the Read tool to read it again before editing.",
+			filePath, recordedMod.Format(time.RFC3339), info.ModTime().Format(time.RFC3339))
+	}
+	return ""
+}
+
 // executeEdit performs the actual edit operation
 func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*domain.EditToolResult, error) {
 	if err := t.validateFile(filePath); err != nil {
@@ -251,8 +290,11 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 
 	effectiveOld, effectiveNew := oldString, newString
 	whitespaceNormalized := false
-	if !strings.Contains(originalContentStr, oldString) {
+	if strings.Contains(originalContentStr, oldString) {
+		logger.Debug("Edit: exact match", "file", filePath)
+	} else {
 		fm, ok := t.resolveFlexibleMatch(originalContentStr, oldString, newString, replaceAll)
+		logger.Debug("Edit: no exact match, flexible fallback", "file", filePath, "applied", ok, "reason", fm.reason)
 		if !ok {
 			return nil, t.createMatchError(originalContentStr, oldString, filePath)
 		}
@@ -282,6 +324,7 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 		}
 		fileModified = true
 	}
+	logger.Debug("Edit: applied", "file", filePath, "modified", fileModified, "whitespace_normalized", whitespaceNormalized, "replaced", replacedCount)
 
 	newSize := int64(len(newContent))
 	bytesDifference := newSize - originalSize
@@ -317,7 +360,7 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 // disabled (replace_all or strict_whitespace) or cannot find a unique, uniform match.
 func (t *EditTool) resolveFlexibleMatch(content, oldString, newString string, replaceAll bool) (flexMatchResult, bool) {
 	if replaceAll || t.config.Tools.Edit.StrictWhitespace {
-		return flexMatchResult{}, false
+		return flexMatchResult{reason: "flexible fallback disabled (replace_all or strict_whitespace)"}, false
 	}
 	fm := findFlexibleMatch(content, oldString, newString)
 	return fm, fm.found
