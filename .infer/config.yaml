@@ -87,7 +87,7 @@ tools:
         - make
         - find
       patterns:
-        - ^git status$
+        - ^git status( |$)
         - ^git branch( --show-current)?( -[alrvd])?$
         - ^git log
         - ^git diff
@@ -97,7 +97,8 @@ tools:
         - ^gh auth status( |$)
         - ^gh issue (create|edit|comment)( |$)
         - ^gh pr create( |$)
-        - ^gh api [^ -][^ ]*( --paginate| --jq [^ ]+| -q [^ ]+)*$
+        - ^gh search (issues|code|prs|repos|commits)( |$)
+        - ^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$
     background_shells:
       enabled: true
       max_concurrent: 5
@@ -172,7 +173,7 @@ agent:
     working_dir_enabled: true
     git_context_refresh_turns: 10
   skills:
-    enabled: true
+    enabled: false
   verbose_tools: false
   max_turns: 50
   max_tokens: 8192
