@@ -582,6 +582,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 		agent := NewEventDrivenAgent(
 			s,
+			s.config.GetAgentConfig(),
 			sessionCtx,
 			req,
 			&conversation,

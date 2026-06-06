@@ -7,6 +7,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -17,6 +18,7 @@ import (
 type EventDrivenAgent struct {
 	// Core dependencies
 	service        *AgentServiceImpl
+	cfg            *config.AgentConfig
 	stateMachine   domain.AgentStateMachine
 	agentCtx       *domain.AgentContext
 	eventPublisher *eventPublisher
@@ -54,6 +56,7 @@ type EventDrivenAgent struct {
 // NewEventDrivenAgent creates a new event-driven agent
 func NewEventDrivenAgent(
 	service *AgentServiceImpl,
+	cfg *config.AgentConfig,
 	ctx context.Context,
 	req *domain.AgentRequest,
 	conversation *[]sdk.Message,
@@ -72,7 +75,7 @@ func NewEventDrivenAgent(
 		ConversationRepo: service.conversationRepo,
 		ToolCalls:        nil,
 		Turns:            0,
-		MaxTurns:         service.config.GetAgentConfig().MaxTurns,
+		MaxTurns:         cfg.MaxTurns,
 		HasToolResults:   false,
 		ApprovalPolicy:   service.approvalPolicy,
 		Ctx:              ctx,
@@ -81,6 +84,7 @@ func NewEventDrivenAgent(
 
 	agent := &EventDrivenAgent{
 		service:        service,
+		cfg:            cfg,
 		stateMachine:   stateMachine,
 		agentCtx:       agentCtx,
 		eventPublisher: eventPublisher,
@@ -102,11 +106,6 @@ func NewEventDrivenAgent(
 // registerStateHandlers creates and registers all state handlers for the event-driven agent.
 // This method is called during agent initialization to set up the state handler registry.
 func (a *EventDrivenAgent) registerStateHandlers() {
-	maxConcurrentTools := 0
-	if a.service.config != nil {
-		maxConcurrentTools = a.service.config.GetAgentConfig().MaxConcurrentTools
-	}
-
 	ctx := &domain.StateContext{
 		StateMachine:           a.stateMachine,
 		AgentCtx:               a.agentCtx,
@@ -125,7 +124,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		BackgroundTaskRegistry: a.registry,
 		Provider:               a.provider,
 		Model:                  a.model,
-		MaxConcurrentTools:     maxConcurrentTools,
+		MaxConcurrentTools:     a.cfg.MaxConcurrentTools,
 		ToolExecutor:           &a.toolExecutor,
 		StartStreaming:         a.startStreaming,
 
