@@ -580,6 +580,11 @@ accept comma-separated or newline-separated values:
 - `INFER_TOOLS_BASH_WHITELIST_COMMANDS`: Comma-separated list of whitelisted commands
 - `INFER_TOOLS_BASH_WHITELIST_PATTERNS`: Comma-separated list of regex patterns for whitelisted commands
 
+> The matcher is shell-aware: each segment of a pipe/chain (`|`, `&&`, `||`, `;`) must be whitelisted,
+> file-write redirections (`>`, `>>`) and command substitution (`$(...)`) are blocked unless an anchored
+> pattern (`^...$`) allows the whole command, and benign redirects (`2>&1`, `>/dev/null`) are permitted.
+> See [Bash Tool restricted operators](tools-reference.md#bash-tool) for details.
+
 **Examples:**
 
 ```bash

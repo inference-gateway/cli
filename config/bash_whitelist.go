@@ -31,6 +31,12 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 //     command would carry an arbitrary tail.
 //   - Benign trailing redirections (2>&1, 2>/dev/null, …) are stripped per
 //     segment before matching.
+//   - A file-write redirection that survives stripping (>, >>, &>file) restricts
+//     its segment to whole-command pattern matching: the plain command list no
+//     longer applies and a prefix pattern (^git log) will not unlock it, so a
+//     whitelisted command cannot be turned into an arbitrary file write
+//     (echo secret > /etc/passwd). An anchored pattern (^…$) can still allow a
+//     specific redirect.
 //
 // It is the single source of truth consulted by the Bash tool, the approval
 // policy, and agent auto-approval, so all three agree on exactly what runs
@@ -62,6 +68,37 @@ func (c *Config) IsBashCommandWhitelisted(command string) bool {
 	return true
 }
 
+// BashWhitelistRejectionHint returns a short, actionable explanation when
+// command uses a restricted shell construct - command substitution or a
+// file-write redirection - so the model gets precise feedback instead of a bare
+// "not whitelisted". It returns "" when no special explanation applies; callers
+// should surface it only alongside an actual rejection.
+func BashWhitelistRejectionHint(command string) string {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return ""
+	}
+
+	if containsCommandSubstitution(command) {
+		return "command substitution ($(...), backticks, <(...), >(...)) is not permitted; " +
+			"run the inner command directly instead"
+	}
+
+	segments, ok := splitBashSegments(command)
+	if !ok {
+		return ""
+	}
+	for _, seg := range segments {
+		seg = stripBenignTrailingRedirections(strings.TrimSpace(seg))
+		if containsFileRedirect(seg) {
+			return "output redirection to a file ('>' or '>>') is restricted by default " +
+				"(benign forms like '2>&1' or '>/dev/null' are allowed); to permit this exact " +
+				"command, add an anchored regex (^...$) to tools.bash.whitelist.patterns"
+		}
+	}
+	return ""
+}
+
 // dangerousFindActionRe matches find(1) primaries that execute a command or
 // mutate the filesystem (-exec, -delete, …). A bare "find" is whitelisted for
 // read-only discovery, but these actions turn it into an arbitrary-command /
@@ -71,21 +108,35 @@ var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
 )
 
-// isSingleBashCommandAllowed matches one already-split, redirection-free command
-// against the configured command and pattern whitelists.
+// isSingleBashCommandAllowed matches one already-split segment (with benign
+// trailing redirections already stripped) against the configured command and
+// pattern whitelists. A segment that still carries a file-write redirection
+// (>, >>) bypasses the plain command list and is allowed only by a pattern that
+// matches the entire command, so a whitelisted command cannot smuggle in an
+// arbitrary write target.
 func (c *Config) isSingleBashCommandAllowed(command string) bool {
 	if (command == "find" || strings.HasPrefix(command, "find ")) &&
 		dangerousFindActionRe.MatchString(command) {
 		return false
 	}
 
-	for _, allowed := range c.Tools.Bash.Whitelist.Commands {
-		if command == allowed || strings.HasPrefix(command, allowed+" ") {
-			return true
+	hasFileRedirect := containsFileRedirect(command)
+
+	if !hasFileRedirect {
+		for _, allowed := range c.Tools.Bash.Whitelist.Commands {
+			if command == allowed || strings.HasPrefix(command, allowed+" ") {
+				return true
+			}
 		}
 	}
 
 	for _, pattern := range c.Tools.Bash.Whitelist.Patterns {
+		if hasFileRedirect {
+			if matchesEntirePattern(pattern, command) {
+				return true
+			}
+			continue
+		}
 		matched, err := regexp.MatchString(pattern, command)
 		if err == nil && matched {
 			return true
@@ -93,6 +144,15 @@ func (c *Config) isSingleBashCommandAllowed(command string) bool {
 	}
 
 	return false
+}
+
+// matchesEntirePattern reports whether pattern matches command in its entirety,
+// regardless of whether pattern carries its own anchors. It is used for segments
+// that contain a file-write redirection, where a mere prefix match (e.g. ^git
+// log against "git log > /etc/passwd") must not be enough to unlock the command.
+func matchesEntirePattern(pattern, command string) bool {
+	matched, err := regexp.MatchString(`\A(?:`+pattern+`)\z`, command)
+	return err == nil && matched
 }
 
 // stripBenignTrailingRedirections removes any run of trailing benign
@@ -157,6 +217,46 @@ func containsCommandSubstitution(command string) bool {
 				if i+1 < len(runes) && runes[i+1] == '(' {
 					return true
 				}
+			}
+		}
+	}
+
+	return false
+}
+
+// containsFileRedirect reports whether seg contains an unquoted output
+// redirection to a real file (>, >>, &>file, >&file). It is meant to run after
+// stripBenignTrailingRedirections, so any surviving unquoted '>' denotes a write
+// to the filesystem rather than a benign /dev/null or fd-duplication suffix. A
+// '>' inside single or double quotes is a literal argument and is ignored.
+func containsFileRedirect(seg string) bool {
+	var inSingle, inDouble bool
+	runes := []rune(seg)
+
+	for i := 0; i < len(runes); i++ {
+		ch := runes[i]
+		switch {
+		case inSingle:
+			if ch == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			switch ch {
+			case '\\':
+				i++ // backslash escapes the next char inside double quotes
+			case '"':
+				inDouble = false
+			}
+		default:
+			switch ch {
+			case '\\':
+				i++
+			case '\'':
+				inSingle = true
+			case '"':
+				inDouble = true
+			case '>':
+				return true
 			}
 		}
 	}

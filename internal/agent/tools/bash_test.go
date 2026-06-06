@@ -114,6 +114,13 @@ func TestBashTool_Validate(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "file redirect on whitelisted command is rejected",
+			args: map[string]any{
+				"command": "echo hello > /tmp/evil",
+			},
+			wantError: true,
+		},
+		{
 			name:      "missing command parameter",
 			args:      map[string]any{},
 			wantError: true,
@@ -134,6 +141,34 @@ func TestBashTool_Validate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantError %v", err, tt.wantError)
 			}
 		})
+	}
+}
+
+// TestBashTool_Validate_RedirectFeedback verifies a denied file-redirect command
+// returns actionable guidance (issue #560) rather than a bare "not whitelisted".
+func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo"},
+				},
+			},
+		},
+	}
+	tool := NewBashTool(cfg, nil)
+
+	err := tool.Validate(map[string]any{"command": "echo secret > /tmp/evil"})
+	if err == nil {
+		t.Fatal("expected an error for a file-redirect command")
+	}
+	if !strings.Contains(err.Error(), "redirection") {
+		t.Errorf("expected redirection guidance in error, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "tools.bash.whitelist.patterns") {
+		t.Errorf("expected the error to point at the whitelist patterns, got %q", err.Error())
 	}
 }
 
