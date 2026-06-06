@@ -761,25 +761,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 		time.Sleep(constants.AgentToolExecutionDelay)
 
 		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
-
-		status := "completed"
-		message := "Completed successfully"
-		var images []domain.ImageAttachment
-		if result.ToolExecution != nil {
-			if !result.ToolExecution.Success {
-				status = "failed"
-				message = "Execution failed"
-			}
-			images = result.ToolExecution.Images
-
-			if at.tool.Function.Name == "GetLatestScreenshot" && len(images) > 0 {
-				logger.Info("Publishing GetLatestScreenshot completion with images",
-					"imageCount", len(images),
-					"status", status)
-			}
-		}
-
-		eventPublisher.publishToolStatusChange(at.tool.ID, at.tool.Function.Name, status, message, images)
 		results[at.index] = result
 	}
 
@@ -810,19 +791,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 				time.Sleep(constants.AgentToolExecutionDelay)
 
 				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
-
-				status := "completed"
-				message := "Completed successfully"
-				var images []domain.ImageAttachment
-				if result.ToolExecution != nil {
-					if !result.ToolExecution.Success {
-						status = "failed"
-						message = "Execution failed"
-					}
-					images = result.ToolExecution.Images
-				}
-
-				eventPublisher.publishToolStatusChange(toolCall.ID, toolCall.Function.Name, status, message, images)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -891,8 +859,20 @@ func (s *AgentServiceImpl) executeToolInternal(
 	eventPublisher *eventPublisher,
 	wasApproved bool,
 	startTime time.Time,
-) domain.ConversationEntry {
+) (finalEntry domain.ConversationEntry) {
 	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
+
+	defer func() {
+		status, message := "completed", "Completed successfully"
+		var images []domain.ImageAttachment
+		if finalEntry.ToolExecution != nil {
+			if !finalEntry.ToolExecution.Success {
+				status, message = "failed", "Execution failed"
+			}
+			images = finalEntry.ToolExecution.Images
+		}
+		eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, status, message, images)
+	}()
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 

@@ -1109,6 +1109,67 @@ func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
 	}
 }
 
+// TestExecuteToolInternal_PublishesTerminalStatus guards the asymmetry that caused the
+// per-tool ticker to keep counting on the approval path: executeToolInternal must publish a
+// terminal "completed"/"failed" status itself (so the UI freezes the elapsed-time ticker),
+// rather than relying on executeToolCallsParallel to publish it externally — the approval path
+// calls executeToolInternal directly and bypasses that.
+func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
+	tests := []struct {
+		name           string
+		success        bool
+		expectedStatus string
+	}{
+		{name: "success publishes completed", success: true, expectedStatus: "completed"},
+		{name: "failure publishes failed", success: false, expectedStatus: "failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeToolService := &domainmocks.FakeToolService{}
+			fakeToolService.ExecuteToolReturns(&domain.ToolExecutionResult{
+				ToolName: "Read",
+				Success:  tt.success,
+			}, nil)
+
+			fakeRepo := &domainmocks.FakeConversationRepository{}
+			fakeRepo.FormatToolResultForLLMReturns("formatted result")
+
+			s := &AgentServiceImpl{
+				toolService:      fakeToolService,
+				conversationRepo: fakeRepo,
+			}
+
+			chatEvents := make(chan domain.ChatEvent, 32)
+			publisher := newEventPublisher("request-123", chatEvents)
+
+			tc := sdk.ChatCompletionMessageToolCall{
+				ID:       "call-1",
+				Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"},
+			}
+
+			entry := s.executeToolInternal(context.Background(), tc, publisher, true, time.Now())
+			require.NotNil(t, entry.ToolExecution)
+			assert.Equal(t, tt.success, entry.ToolExecution.Success)
+
+			// Drain published events; the LAST tool-status event must be terminal.
+			var lastStatus string
+		drain:
+			for {
+				select {
+				case event := <-chatEvents:
+					if progress, ok := event.(domain.ToolExecutionProgressEvent); ok {
+						lastStatus = progress.Status
+					}
+				default:
+					break drain
+				}
+			}
+			assert.Equal(t, tt.expectedStatus, lastStatus, "final tool status event should be terminal so the UI freezes the ticker")
+		})
+	}
+}
+
 func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		activeRequests: make(map[string]context.CancelFunc),
