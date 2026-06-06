@@ -16,7 +16,7 @@ func pushCfg() *Config {
 			Bash: BashToolConfig{
 				Enabled: true,
 				Whitelist: ToolWhitelistConfig{
-					Patterns: []string{
+					Commands: []string{
 						"^git push( --set-upstream)?( origin)? (feature|fix)/[a-zA-Z0-9/_.-]+$",
 					},
 				},
@@ -466,10 +466,10 @@ func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
 			Bash: BashToolConfig{
 				Enabled: true,
 				Whitelist: ToolWhitelistConfig{
-					Commands: []string{"echo"},
-					Patterns: []string{
-						`^echo hi > /tmp/out\.txt$`, // anchored: unlocks one exact redirect
-						`^git log`,                  // prefix pattern: must NOT unlock redirects
+					Commands: []string{
+						"^echo( |$)",
+						`^echo hi > /tmp/out\.txt$`, // anchored regex: unlocks one exact redirect
+						`^git log`,                  // prefix regex: must NOT unlock redirects
 					},
 				},
 			},
@@ -541,6 +541,35 @@ func TestContainsFileRedirect(t *testing.T) {
 		t.Run(tt.seg, func(t *testing.T) {
 			if got := containsFileRedirect(tt.seg); got != tt.want {
 				t.Errorf("containsFileRedirect(%q) = %v, want %v", tt.seg, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsBashEntryRegex(t *testing.T) {
+	tests := []struct {
+		entry string
+		want  bool
+	}{
+		// Bare tokens: exact match only
+		{"ls", false},
+		{"echo", false},
+		{"python3.11", false}, // lone '.' stays bare
+		{"git-lfs", false},    // lone '-' stays bare
+		{"make", false},
+		{"find", false},
+		// Regex entries
+		{"^git log", true}, // contains space + metachars
+		{"^gh issue (create|edit|comment)( |$)", true},
+		{"^git branch( --show-current)?$", true},
+		{`^echo hi > /tmp/out\.txt$`, true},
+		{"^git status( |$)", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.entry, func(t *testing.T) {
+			if got := isBashEntryRegex(tt.entry); got != tt.want {
+				t.Errorf("isBashEntryRegex(%q) = %v, want %v", tt.entry, got, tt.want)
 			}
 		})
 	}

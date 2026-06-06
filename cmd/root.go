@@ -46,13 +46,9 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().String("tools-bash-whitelist-commands", "",
-		"comma/newline-separated commands that replace the bash tool whitelist commands (overrides config; INFER_TOOLS_BASH_WHITELIST_COMMANDS takes precedence)")
-	rootCmd.PersistentFlags().String("tools-bash-whitelist-patterns", "",
-		"comma/newline-separated regex patterns that replace the bash tool whitelist patterns (overrides config; INFER_TOOLS_BASH_WHITELIST_PATTERNS takes precedence)")
+		"comma/newline-separated commands that replace the bash tool whitelist (overrides config; INFER_TOOLS_BASH_WHITELIST_COMMANDS takes precedence)")
 	rootCmd.PersistentFlags().String("tools-bash-whitelist-commands-append", "",
-		"comma/newline-separated commands appended to the resolved bash tool whitelist commands (INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND takes precedence)")
-	rootCmd.PersistentFlags().String("tools-bash-whitelist-patterns-append", "",
-		"comma/newline-separated regex patterns appended to the resolved bash tool whitelist patterns (INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND takes precedence)")
+		"comma/newline-separated commands appended to the resolved bash tool whitelist (INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND takes precedence)")
 
 	cobra.OnInitialize(initConfig)
 }
@@ -98,11 +94,6 @@ func applyBashWhitelistOverrides(v *viper.Viper) {
 			"tools.bash.whitelist.commands",
 			"tools-bash-whitelist-commands", "INFER_TOOLS_BASH_WHITELIST_COMMANDS",
 			"tools-bash-whitelist-commands-append", "INFER_TOOLS_BASH_WHITELIST_COMMANDS_APPEND",
-		},
-		{
-			"tools.bash.whitelist.patterns",
-			"tools-bash-whitelist-patterns", "INFER_TOOLS_BASH_WHITELIST_PATTERNS",
-			"tools-bash-whitelist-patterns-append", "INFER_TOOLS_BASH_WHITELIST_PATTERNS_APPEND",
 		},
 	}
 

@@ -18,8 +18,7 @@ func createTestRegistry() *Registry {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			WebFetch: config.WebFetchToolConfig{
@@ -53,8 +52,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			WebFetch: config.WebFetchToolConfig{
@@ -105,8 +103,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			WebFetch: config.WebFetchToolConfig{
@@ -140,8 +137,7 @@ func TestRegistry_GetTool(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			WebFetch: config.WebFetchToolConfig{
@@ -223,8 +219,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Bash: config.BashToolConfig{
 						Enabled: true,
 						Whitelist: config.ToolWhitelistConfig{
-							Commands: []string{"echo", "pwd", "ls"},
-							Patterns: []string{"^git status$"},
+							Commands: []string{"echo", "pwd", "ls", "^git status$"},
 						},
 					},
 					Read: config.ReadToolConfig{
@@ -253,8 +248,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Bash: config.BashToolConfig{
 						Enabled: true,
 						Whitelist: config.ToolWhitelistConfig{
-							Commands: []string{"echo", "pwd", "ls"},
-							Patterns: []string{"^git status$"},
+							Commands: []string{"echo", "pwd", "ls", "^git status$"},
 						},
 					},
 					Read: config.ReadToolConfig{
@@ -284,8 +278,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Bash: config.BashToolConfig{
 						Enabled: false,
 						Whitelist: config.ToolWhitelistConfig{
-							Commands: []string{"echo", "pwd", "ls"},
-							Patterns: []string{"^git status$"},
+							Commands: []string{"echo", "pwd", "ls", "^git status$"},
 						},
 					},
 					WebFetch: config.WebFetchToolConfig{
@@ -338,8 +331,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			Read: config.ReadToolConfig{
@@ -395,8 +387,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 			WebFetch: config.WebFetchToolConfig{
@@ -454,8 +445,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd", "ls"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"echo", "pwd", "ls", "^git status$"},
 				},
 			},
 		},

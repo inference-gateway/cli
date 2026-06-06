@@ -266,10 +266,15 @@ type QueryTaskToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// ToolWhitelistConfig contains whitelisted commands and patterns
+// ToolWhitelistConfig contains the whitelisted bash commands. Each entry is
+// classified at match time by config.isBashEntryRegex: a bare token (no space,
+// no regex metacharacter ^$*+?()[]{}|\.) is an exact match; anything else is a
+// Go regex (anchored-or-not is the caller's responsibility). The single list
+// replaces the historical commands/patterns split, which could be silently
+// clobbered cross-repo and which let a bare "ls" be re-interpreted as a regex
+// (matching false / lsof).
 type ToolWhitelistConfig struct {
 	Commands []string `yaml:"commands" mapstructure:"commands"`
-	Patterns []string `yaml:"patterns" mapstructure:"patterns"`
 }
 
 // SandboxConfig contains sandbox directory settings
@@ -630,17 +635,20 @@ func DefaultConfig() *Config { //nolint:funlen
 				Timeout: 120,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
-						"echo", "ls", "pwd", "tree",
-						"wc", "sort", "uniq", "head", "tail",
-						"task", "make", "find",
-					},
-					Patterns: []string{
+						// Regexes allow subcommands and args while keeping a bare token
+						// as an exact-only match (echo matches "echo" and "echo hi",
+						// but a bare "ls" never accidentally matches "false"/"lsof").
+						"^echo( |$)", "^ls( |$)", "^pwd( |$)", "^tree( |$)",
+						"^wc( |$)", "^sort( |$)", "^uniq( |$)", "^head( |$)", "^tail( |$)",
+						"^task( |$)", "^make( |$)", "^find( |$)",
+						// git helpers — regexes allow subcommands and args
 						"^git status( |$)",
 						"^git branch( --show-current)?( -[alrvd])?$",
 						"^git log",
 						"^git diff",
 						"^git remote( -v)?$",
 						"^git show",
+						// gh helpers — regexes allow subcommands and args
 						`^gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( |$)`,
 						"^gh auth status( |$)",
 						"^gh issue (create|edit|comment)( |$)",

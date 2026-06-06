@@ -78,8 +78,7 @@ func TestBashTool_Validate(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd"},
-					Patterns: []string{"^git status$"},
+					Commands: []string{"^echo( |$)", "^pwd( |$)", "^git status$"},
 				},
 			},
 		},
@@ -153,7 +152,7 @@ func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
+					Commands: []string{"^echo( |$)"},
 				},
 			},
 		},
@@ -167,8 +166,8 @@ func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 	if !strings.Contains(err.Error(), "redirection") {
 		t.Errorf("expected redirection guidance in error, got %q", err.Error())
 	}
-	if !strings.Contains(err.Error(), "tools.bash.whitelist.patterns") {
-		t.Errorf("expected the error to point at the whitelist patterns, got %q", err.Error())
+	if !strings.Contains(err.Error(), "tools.bash.whitelist.commands") {
+		t.Errorf("expected the error to point at the whitelist commands, got %q", err.Error())
 	}
 }
 
@@ -179,7 +178,7 @@ func TestBashTool_Execute(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
+					Commands: []string{"^echo( |$)"},
 				},
 			},
 		},
@@ -213,7 +212,7 @@ func TestBashTool_GitPushValidation(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Patterns: []string{
+					Commands: []string{
 						"^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$",
 						"^git push( --set-upstream)?( origin)? develop$",
 						"^git push( --set-upstream)?( origin)? staging$",
@@ -315,7 +314,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "printf"},
+					Commands: []string{"^echo( |$)", "^printf( |$)"},
 				},
 			},
 		},
@@ -402,8 +401,7 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
-					Patterns: []string{`^gh api [^ -][^ ]*( --jq [^ ]+)*$`},
+					Commands: []string{"^echo( |$)", `^gh api [^ -][^ ]*( --jq [^ ]+)*$`},
 				},
 			},
 		},

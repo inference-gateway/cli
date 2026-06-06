@@ -93,7 +93,7 @@ func BashWhitelistRejectionHint(command string) string {
 		if containsFileRedirect(seg) {
 			return "output redirection to a file ('>' or '>>') is restricted by default " +
 				"(benign forms like '2>&1' or '>/dev/null' are allowed); to permit this exact " +
-				"command, add an anchored regex (^...$) to tools.bash.whitelist.patterns"
+				"command, add an anchored regex (^...$) to tools.bash.whitelist.commands"
 		}
 	}
 	return ""
@@ -108,12 +108,28 @@ var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
 )
 
+// isBashEntryRegex reports whether entry should be treated as a regex (rather
+// than a bare-token exact match). A bare token must match the command exactly
+// (e.g. "gh" allows only "gh", never "gh issue list"). The classifier errs on
+// the side of calling it a regex when the entry contains a space or any standard
+// regex metacharacter (^ $ * + ? ( ) [ ] { } | \). Lone '.' and '-' stay bare
+// so that e.g. "python3.11" and "git-lfs" remain exact matches.
+func isBashEntryRegex(entry string) bool {
+	if strings.Contains(entry, " ") {
+		return true
+	}
+	return strings.ContainsAny(entry, "^$*+?()[]{}|\\")
+}
+
 // isSingleBashCommandAllowed matches one already-split segment (with benign
-// trailing redirections already stripped) against the configured command and
-// pattern whitelists. A segment that still carries a file-write redirection
-// (>, >>) bypasses the plain command list and is allowed only by a pattern that
-// matches the entire command, so a whitelisted command cannot smuggle in an
-// arbitrary write target.
+// trailing redirections already stripped) against the unified whitelist.
+// Each whitelist entry is classified as a bare token (exact match) or a regex
+// via isBashEntryRegex; regex entries are matched with regexp.MatchString.
+//
+// A segment that still carries a file-write redirection (>, >>) bypasses bare-
+// token matching entirely and is allowed only by a regex that matches the
+// entire command (via matchesEntirePattern), so a whitelisted command cannot
+// smuggle in an arbitrary write target.
 func (c *Config) isSingleBashCommandAllowed(command string) bool {
 	if (command == "find" || strings.HasPrefix(command, "find ")) &&
 		dangerousFindActionRe.MatchString(command) {
@@ -122,24 +138,23 @@ func (c *Config) isSingleBashCommandAllowed(command string) bool {
 
 	hasFileRedirect := containsFileRedirect(command)
 
-	if !hasFileRedirect {
-		for _, allowed := range c.Tools.Bash.Whitelist.Commands {
-			if command == allowed || strings.HasPrefix(command, allowed+" ") {
-				return true
-			}
-		}
-	}
-
-	for _, pattern := range c.Tools.Bash.Whitelist.Patterns {
-		if hasFileRedirect {
-			if matchesEntirePattern(pattern, command) {
+	for _, entry := range c.Tools.Bash.Whitelist.Commands {
+		if isBashEntryRegex(entry) && hasFileRedirect {
+			if matchesEntirePattern(entry, command) {
 				return true
 			}
 			continue
 		}
-		matched, err := regexp.MatchString(pattern, command)
-		if err == nil && matched {
-			return true
+
+		if isBashEntryRegex(entry) {
+			matched, err := regexp.MatchString(entry, command)
+			if err == nil && matched {
+				return true
+			}
+		} else if !hasFileRedirect {
+			if command == entry {
+				return true
+			}
 		}
 	}
 
