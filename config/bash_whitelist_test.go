@@ -417,3 +417,167 @@ func TestContainsCommandSubstitution(t *testing.T) {
 		}
 	}
 }
+
+// TestIsBashCommandWhitelisted_FileRedirectRestricted covers issue #560: a
+// whitelisted command (or non-anchored pattern) must not be usable to write to a
+// real file via > / >>. Benign redirects (2>&1, >/dev/null) remain allowed
+// because they are stripped before matching.
+func TestIsBashCommandWhitelisted_FileRedirectRestricted(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		"echo hi > /tmp/out",          // whitelisted command + file redirect
+		"echo hi >> /tmp/out",         // append redirect
+		"ls > out.txt",                // whitelisted command + file redirect
+		"git log > /etc/passwd",       // non-anchored pattern must not unlock it
+		"git status > /tmp/x",         // non-anchored pattern must not unlock it
+		"echo x &> out.txt",           // both streams to a file
+		"echo x >& out.txt",           // fd-dup form that targets a file
+		"tail -n 5 /var/log/x > leak", // whitelisted prefix + file redirect
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted (writes to a real file)", cmd)
+		}
+	}
+
+	allowed := []string{
+		"gh issue list >/dev/null",          // benign redirect, stripped
+		"git status 2>&1",                   // benign fd-dup, stripped
+		"gh issue list >/dev/null 2>&1",     // stacked benign redirects
+		`gh issue comment 5 --body "a > b"`, // '>' is inside quotes, not a redirect
+		"echo 'write > file'",               // single-quoted, not a redirect
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted (no real file write)", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandWhitelisted_PatternUnlocksRedirect verifies that a whitelist
+// pattern takes precedence over the redirect restriction, but only when it
+// matches the WHOLE command - a prefix pattern (^git log) must not unlock a
+// redirected variant.
+func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
+	cfg := &Config{
+		Tools: ToolsConfig{
+			Enabled: true,
+			Bash: BashToolConfig{
+				Enabled: true,
+				Whitelist: ToolWhitelistConfig{
+					Commands: []string{"echo"},
+					Patterns: []string{
+						`^echo hi > /tmp/out\.txt$`, // anchored: unlocks one exact redirect
+						`^git log`,                  // prefix pattern: must NOT unlock redirects
+					},
+				},
+			},
+		},
+	}
+
+	allowed := []string{
+		"echo hi > /tmp/out.txt", // matches the anchored redirect pattern
+		"echo hello",             // plain whitelisted command, no redirect
+		"git log",                // prefix pattern, no redirect
+		"git log --oneline -5",   // prefix pattern, no redirect
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted", cmd)
+		}
+	}
+
+	denied := []string{
+		"echo hi > /tmp/other.txt", // redirect pattern does not match this target
+		"echo bye > /tmp/out.txt",  // redirect pattern does not match this command
+		"git log > /etc/passwd",    // prefix pattern must not unlock a redirect
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandWhitelisted_PipePolicy documents the pipe behavior kept from
+// #581: every segment of a pipeline must be independently whitelisted. This is
+// what already blocks the issue #560 example "ls | xargs rm".
+func TestIsBashCommandWhitelisted_PipePolicy(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.IsBashCommandWhitelisted("ls | head") {
+		t.Error("expected \"ls | head\" to be whitelisted (both segments allowed)")
+	}
+	if !cfg.IsBashCommandWhitelisted("echo hi | wc -l") {
+		t.Error("expected \"echo hi | wc -l\" to be whitelisted (both segments allowed)")
+	}
+	if cfg.IsBashCommandWhitelisted("ls | xargs rm") {
+		t.Error("expected \"ls | xargs rm\" NOT to be whitelisted (xargs rm is not allowed)")
+	}
+	if cfg.IsBashCommandWhitelisted("ls | tee out.txt") {
+		t.Error("expected \"ls | tee out.txt\" NOT to be whitelisted (tee is not allowed)")
+	}
+}
+
+func TestContainsFileRedirect(t *testing.T) {
+	// containsFileRedirect runs after benign trailing redirects are stripped, so
+	// it only needs to recognize an unquoted '>' as a write to a real file.
+	tests := []struct {
+		seg  string
+		want bool
+	}{
+		{"echo hi > /tmp/out", true},
+		{"echo hi >> /tmp/out", true},
+		{"echo x &> out.txt", true},
+		{"echo x >& out.txt", true},
+		{"echo a>b", true},
+		{"ls", false},
+		{"git status", false},
+		{`gh issue comment 5 --body "a > b"`, false}, // double-quoted
+		{"echo 'a > b'", false},                      // single-quoted
+	}
+	for _, tt := range tests {
+		t.Run(tt.seg, func(t *testing.T) {
+			if got := containsFileRedirect(tt.seg); got != tt.want {
+				t.Errorf("containsFileRedirect(%q) = %v, want %v", tt.seg, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMatchesEntirePattern(t *testing.T) {
+	tests := []struct {
+		pattern string
+		command string
+		want    bool
+	}{
+		{`^echo hi > /tmp/out\.txt$`, "echo hi > /tmp/out.txt", true},
+		{`^echo hi > /tmp/out\.txt$`, "echo hi > /tmp/other.txt", false},
+		{`^git log`, "git log", true},                   // no anchor needed, whole string matches
+		{`^git log`, "git log > /etc/passwd", false},    // prefix only - not the whole command
+		{`^git log .*$`, "git log > /etc/passwd", true}, // author opted into the tail explicitly
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			if got := matchesEntirePattern(tt.pattern, tt.command); got != tt.want {
+				t.Errorf("matchesEntirePattern(%q, %q) = %v, want %v", tt.pattern, tt.command, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBashWhitelistRejectionHint(t *testing.T) {
+	if h := BashWhitelistRejectionHint("echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
+		t.Errorf("expected a redirection hint, got %q", h)
+	}
+	if h := BashWhitelistRejectionHint("echo $(whoami)"); !strings.Contains(h, "substitution") {
+		t.Errorf("expected a command-substitution hint, got %q", h)
+	}
+	if h := BashWhitelistRejectionHint("ls -la"); h != "" {
+		t.Errorf("expected no hint for a plain command, got %q", h)
+	}
+	if h := BashWhitelistRejectionHint("git status 2>&1"); h != "" {
+		t.Errorf("expected no hint for a benign redirect, got %q", h)
+	}
+}

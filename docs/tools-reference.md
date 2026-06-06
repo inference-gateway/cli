@@ -396,6 +396,35 @@ tools:
 - Commands are validated before execution
 - Supports both exact matches and regex patterns
 
+**Restricted operators:**
+
+The matcher is shell-aware, so a whitelisted command cannot be composed into something more
+dangerous:
+
+- **Pipes and chains** (`|`, `&&`, `||`, `;`) are split at the top level and **every segment must be
+  independently whitelisted**. `ls | head` is allowed only if both `ls` and `head` are; `ls | xargs rm`
+  is rejected because `xargs rm` is not.
+- **File-write redirections** (`>`, `>>`, `&>file`, `>&file`) are **blocked by default**, even for a
+  whitelisted command (`echo secret > /etc/passwd` is rejected). They are allowed only when a whitelist
+  **pattern** matches the *entire* command - a prefix pattern such as `^git log` will not unlock
+  `git log > file`.
+- **Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
+  stripped before matching and remain allowed.
+- **Command substitution** (`$(...)`, backticks, `<(...)`, `>(...)`) is always rejected.
+
+To deliberately allow a redirection, add an anchored pattern (`^...$`) that covers the whole command:
+
+```yaml
+tools:
+  bash:
+    whitelist:
+      patterns:
+        - ^echo .+ >> /var/log/app\.log$   # allow appending to one specific file
+```
+
+A rejected command returns explanatory feedback naming the restricted operator and how to whitelist
+it, and (when approval is enabled) still goes through the normal approval prompt.
+
 ---
 
 ## Web Tools

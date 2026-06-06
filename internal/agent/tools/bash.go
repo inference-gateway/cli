@@ -140,7 +140,7 @@ func (t *BashTool) Validate(args map[string]any) error {
 	}
 
 	if !t.isCommandAllowed(command) {
-		return fmt.Errorf("command not whitelisted: %s", command)
+		return t.notWhitelistedError(command)
 	}
 
 	return nil
@@ -170,10 +170,11 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	wasApproved := domain.IsToolApproved(ctx)
 
 	if !wasApproved && !t.isCommandAllowed(command) {
+		err := t.notWhitelistedError(command)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
-		result.Error = fmt.Sprintf("command not whitelisted: %s", command)
-		return result, fmt.Errorf("command not whitelisted: %s", command)
+		result.Error = err.Error()
+		return result, err
 	}
 
 	outputCallback := domain.GetBashOutputCallback(ctx)
@@ -381,6 +382,17 @@ func (t *BashTool) readPipeWithBatching(
 // compound-command splitting, command-substitution rejection).
 func (t *BashTool) isCommandAllowed(command string) bool {
 	return t.config.IsBashCommandWhitelisted(command)
+}
+
+// notWhitelistedError builds the rejection error for a non-whitelisted command,
+// appending actionable guidance when the command was blocked by a restricted
+// operator (file-write redirection or command substitution) so the model can
+// correct it rather than retrying blindly.
+func (t *BashTool) notWhitelistedError(command string) error {
+	if hint := config.BashWhitelistRejectionHint(command); hint != "" {
+		return fmt.Errorf("command not whitelisted: %s - %s", command, hint)
+	}
+	return fmt.Errorf("command not whitelisted: %s", command)
 }
 
 // FormatResult formats tool execution results for different contexts
