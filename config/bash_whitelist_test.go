@@ -221,28 +221,39 @@ func TestIsBashCommandWhitelisted_GhApiJq(t *testing.T) {
 func TestIsBashCommandWhitelisted_GhApiGraphql(t *testing.T) {
 	cfg := DefaultConfig()
 
-	allowed := []string{
+	// GraphQL commands with query/mutation payload (-f, -X) are NOT whitelisted
+	// because gh api graphql is always a POST and can execute arbitrary
+	// destructive mutations (deleteRef, mergePullRequest, deleteIssue, etc.)
+	// with no read/write distinction at the CLI surface. The only way to reach
+	// graphql with actual payload is through the approval prompt, preserving
+	// the principle that "gh api = no mutations without prompting."
+	// Use gh project subcommands (whitelisted) for project-board operations.
+	denied := []string{
 		"gh api graphql -f query='mutation { updateIssueIssueType }'",
 		`gh api graphql -f query="query { repository }"`,
 		"gh api graphql -f query=xxx -f id=123",
 		"gh api graphql --paginate -f query=xxx",
-		"gh api graphql",
 		"gh api graphql -X POST",
-		"gh api graphql 2>&1",
 		"gh api graphql -f query=xxx && echo done",
-	}
-	for _, cmd := range allowed {
-		if !cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected %q to be whitelisted", cmd)
-		}
-	}
-
-	denied := []string{
-		"gh api repos/o/r -f title=x",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
 			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		}
+	}
+
+	// Bare gh api graphql (no -f payload) is harmless — gh just prints help
+	// or an error — and happens to be matched by the REST GET-only pattern
+	// because "graphql" passes [^ -][^ ]* and no disallowed flags are present.
+	// The same applies with --paginate (no payload) and redirect suffixes.
+	allowed := []string{
+		"gh api graphql",
+		"gh api graphql --paginate",
+		"gh api graphql 2>&1",
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted", cmd)
 		}
 	}
 }
