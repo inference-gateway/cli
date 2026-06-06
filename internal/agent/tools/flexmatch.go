@@ -13,8 +13,6 @@ type flexMatchResult struct {
 	reindentedNew string
 	// found is true only when exactly one window matched under a consistent indent mapping.
 	found bool
-	// reason is a short human-readable explanation of the outcome, for debug logging.
-	reason string
 }
 
 // findFlexibleMatch attempts a whitespace-tolerant match of oldString within content. It is
@@ -27,34 +25,32 @@ type flexMatchResult struct {
 // ambiguity (zero or multiple candidate blocks, or a conflicting indent mapping) returns
 // found=false, and the caller must fall back to its existing error path.
 func findFlexibleMatch(content, oldString, newString string) flexMatchResult {
+	miss := flexMatchResult{}
+
 	oldLines := strings.Split(oldString, "\n")
 	fileLines := strings.Split(content, "\n")
 	if len(oldLines) > len(fileLines) {
-		return flexMatchResult{reason: "old_string has more lines than the file"}
+		return miss
 	}
 	if firstNonBlankIndex(oldLines) < 0 {
-		return flexMatchResult{reason: "old_string is blank after trimming"}
+		return miss
 	}
 
 	firstIdx, count := countFlexWindows(fileLines, oldLines)
-	if count == 0 {
-		return flexMatchResult{reason: "no whitespace-insensitive match found"}
-	}
-	if count > 1 {
-		return flexMatchResult{reason: "ambiguous: multiple whitespace-insensitive matches"}
+	if count != 1 {
+		return miss
 	}
 
 	fileWin := fileLines[firstIdx : firstIdx+len(oldLines)]
 	indentMap, ok := buildIndentMap(oldLines, fileWin)
 	if !ok {
-		return flexMatchResult{reason: "inconsistent indentation mapping across the block"}
+		return miss
 	}
 
 	return flexMatchResult{
 		matchedBlock:  strings.Join(fileWin, "\n"),
 		reindentedNew: reindentNewLines(strings.Split(newString, "\n"), indentMap),
 		found:         true,
-		reason:        "matched with indentation normalized",
 	}
 }
 

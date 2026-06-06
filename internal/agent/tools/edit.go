@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -120,7 +119,6 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	}
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
-		logger.Debug("Edit: rejected stale edit", "file", filePath)
 		return &domain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
@@ -290,11 +288,8 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 
 	effectiveOld, effectiveNew := oldString, newString
 	whitespaceNormalized := false
-	if strings.Contains(originalContentStr, oldString) {
-		logger.Debug("Edit: exact match", "file", filePath)
-	} else {
+	if !strings.Contains(originalContentStr, oldString) {
 		fm, ok := t.resolveFlexibleMatch(originalContentStr, oldString, newString, replaceAll)
-		logger.Debug("Edit: no exact match, flexible fallback", "file", filePath, "applied", ok, "reason", fm.reason)
 		if !ok {
 			return nil, t.createMatchError(originalContentStr, oldString, filePath)
 		}
@@ -324,7 +319,6 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 		}
 		fileModified = true
 	}
-	logger.Debug("Edit: applied", "file", filePath, "modified", fileModified, "whitespace_normalized", whitespaceNormalized, "replaced", replacedCount)
 
 	newSize := int64(len(newContent))
 	bytesDifference := newSize - originalSize
@@ -360,7 +354,7 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 // disabled (replace_all or strict_whitespace) or cannot find a unique, uniform match.
 func (t *EditTool) resolveFlexibleMatch(content, oldString, newString string, replaceAll bool) (flexMatchResult, bool) {
 	if replaceAll || t.config.Tools.Edit.StrictWhitespace {
-		return flexMatchResult{reason: "flexible fallback disabled (replace_all or strict_whitespace)"}, false
+		return flexMatchResult{}, false
 	}
 	fm := findFlexibleMatch(content, oldString, newString)
 	return fm, fm.found

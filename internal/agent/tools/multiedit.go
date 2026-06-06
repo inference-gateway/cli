@@ -9,7 +9,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
@@ -121,7 +120,6 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
-		logger.Debug("MultiEdit: rejected stale edit", "file", filePath)
 		return &domain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
@@ -401,15 +399,12 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 // the whole MultiEdit must abort before any write.
 func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOperation, idx int) (effectiveOld, effectiveNew string, normalized bool, err error) {
 	if strings.Contains(currentContent, edit.OldString) {
-		logger.Debug("MultiEdit: exact match", "file", filePath, "edit", idx+1)
 		return edit.OldString, edit.NewString, false, nil
 	}
 	if edit.ReplaceAll || t.config.Tools.Edit.StrictWhitespace {
-		logger.Debug("MultiEdit: no exact match, flexible fallback disabled", "file", filePath, "edit", idx+1)
 		return "", "", false, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, idx+1)
 	}
 	fm := findFlexibleMatch(currentContent, edit.OldString, edit.NewString)
-	logger.Debug("MultiEdit: no exact match, flexible fallback", "file", filePath, "edit", idx+1, "applied", fm.found, "reason", fm.reason)
 	if !fm.found {
 		return "", "", false, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, idx+1)
 	}
