@@ -102,6 +102,11 @@ func NewEventDrivenAgent(
 // registerStateHandlers creates and registers all state handlers for the event-driven agent.
 // This method is called during agent initialization to set up the state handler registry.
 func (a *EventDrivenAgent) registerStateHandlers() {
+	maxConcurrentTools := 0
+	if a.service.config != nil {
+		maxConcurrentTools = a.service.config.GetAgentConfig().MaxConcurrentTools
+	}
+
 	ctx := &domain.StateContext{
 		StateMachine:           a.stateMachine,
 		AgentCtx:               a.agentCtx,
@@ -120,6 +125,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		BackgroundTaskRegistry: a.registry,
 		Provider:               a.provider,
 		Model:                  a.model,
+		MaxConcurrentTools:     maxConcurrentTools,
 		ToolExecutor:           &a.toolExecutor,
 		StartStreaming:         a.startStreaming,
 

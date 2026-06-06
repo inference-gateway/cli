@@ -2,6 +2,7 @@ package states
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -10,10 +11,25 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
+// toolRound holds the per-round state for approving and executing a batch of
+// tool calls. Approval prompts are handled one at a time, but each approved
+// tool's execution is spawned immediately so executions overlap while the
+// remaining tools are still being approved. Results are recorded into
+// index-keyed slots and flushed to the conversation in tool-call order as each
+// contiguous prefix completes, so the UI surfaces each tool result as the user
+// approves the next one (the conversation validator requires tool-call order).
+type toolRound struct {
+	results []domain.ConversationEntry // indexed by tool position
+	ready   []bool                     // ready[i] set once results[i] is filled
+	flushed int                        // next slot index to flush, in order
+	wg      sync.WaitGroup             // tracks spawned executions
+	sem     chan struct{}              // bounds concurrent executions
+}
+
 // ApprovingToolsState handles events in the ApprovingTools state.
 //
-// This state manages sequential tool approval:
-//  1. MessageReceivedEvent → initializes tool processing queue, starts sequential approval
+// This state manages sequential tool approval with overlapping execution:
+//  1. MessageReceivedEvent → initializes the tool round, starts sequential approval
 //  2. AllToolsProcessedEvent → transitions to PostToolExecution
 //  3. ApprovalFailedEvent → handles approval failures
 type ApprovingToolsState struct {
@@ -43,10 +59,16 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 		*s.ctx.CurrentToolIndex = 0
 		*s.ctx.ToolResults = []domain.ConversationEntry{}
 
-		logger.Debug("starting sequential tool approval", "total_tools", len(*s.ctx.ToolsNeedingApproval))
+		round := &toolRound{
+			results: make([]domain.ConversationEntry, len(*s.ctx.ToolsNeedingApproval)),
+			ready:   make([]bool, len(*s.ctx.ToolsNeedingApproval)),
+			sem:     make(chan struct{}, s.maxConcurrent()),
+		}
+
+		logger.Debug("starting tool approval", "total_tools", len(*s.ctx.ToolsNeedingApproval))
 
 		s.ctx.WaitGroup.Add(1)
-		go s.processNextTool()
+		go s.processNextTool(round)
 
 	case domain.AllToolsProcessedEvent:
 		logger.Debug("all tools processed", "results", len(*s.ctx.ToolResults))
@@ -65,24 +87,24 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 	return nil
 }
 
-// processNextTool handles approval and execution of ONE tool sequentially.
-// Fast-exits if the session context was cancelled, mirroring the
-// drain-then-stop contract in CheckingQueue / PostToolExecution: the
-// remaining approval prompts are skipped and control returns to the state
-// machine, which will short-circuit to Completing.
-func (s *ApprovingToolsState) processNextTool() {
+// processNextTool requests approval for ONE tool, then — if approved — spawns
+// its execution in the background and immediately moves on to the next
+// approval prompt so executions overlap. Fast-exits if the session context was
+// cancelled, mirroring the drain-then-stop contract in CheckingQueue /
+// PostToolExecution: the remaining approval prompts are skipped and control
+// returns to the state machine via finishApprovals.
+func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	defer s.ctx.WaitGroup.Done()
 
 	if s.ctx.AgentCtx.Ctx.Err() != nil {
 		logger.Debug("session cancelled during approval loop", "err", s.ctx.AgentCtx.Ctx.Err())
-		s.ctx.Events <- domain.AllToolsProcessedEvent{}
+		s.finishApprovals(round)
 		return
 	}
 
-	tc := s.getNextToolForProcessing()
+	tc, idx := s.getNextToolForProcessing()
 	if tc == nil {
-		logger.Debug("all tools processed", "approved", len(*s.ctx.ToolResults))
-		s.ctx.Events <- domain.AllToolsProcessedEvent{}
+		s.finishApprovals(round)
 		return
 	}
 
@@ -96,9 +118,8 @@ func (s *ApprovingToolsState) processNextTool() {
 	}
 
 	if !approved {
-		s.handleToolRejection(*tc)
-		s.ctx.WaitGroup.Add(1)
-		go s.processNextTool()
+		s.completeSlot(round, idx, s.buildRejectionEntry(*tc))
+		s.continueToNextTool(round)
 		return
 	}
 
@@ -110,33 +131,136 @@ func (s *ApprovingToolsState) processNextTool() {
 	})
 
 	if s.shouldAutoApproveRemaining() {
-		s.executeAllRemainingTools(*tc)
-		s.ctx.Events <- domain.AllToolsProcessedEvent{}
+		s.spawnAllRemaining(round, idx, *tc)
+		s.finishApprovals(round)
 		return
 	}
 
-	s.executeSingleApprovedTool(*tc)
-
-	s.ctx.WaitGroup.Add(1)
-	go s.processNextTool()
+	s.spawnExecution(round, idx, *tc)
+	s.continueToNextTool(round)
 }
 
-// getNextToolForProcessing returns the next tool that needs processing
-func (s *ApprovingToolsState) getNextToolForProcessing() *sdk.ChatCompletionMessageToolCall {
+// continueToNextTool advances the sequential approval loop to the next tool.
+func (s *ApprovingToolsState) continueToNextTool(round *toolRound) {
+	s.ctx.WaitGroup.Add(1)
+	go s.processNextTool(round)
+}
+
+// getNextToolForProcessing returns the next tool that needs processing and its
+// position (used as the result slot index).
+func (s *ApprovingToolsState) getNextToolForProcessing() (*sdk.ChatCompletionMessageToolCall, int) {
 	s.ctx.Mutex.Lock()
 	defer s.ctx.Mutex.Unlock()
 
 	if *s.ctx.CurrentToolIndex >= len(*s.ctx.ToolsNeedingApproval) {
-		return nil
+		return nil, -1
 	}
 
-	tc := &(*s.ctx.ToolsNeedingApproval)[*s.ctx.CurrentToolIndex]
+	idx := *s.ctx.CurrentToolIndex
+	tc := &(*s.ctx.ToolsNeedingApproval)[idx]
 	*s.ctx.CurrentToolIndex++
-	return tc
+	return tc, idx
 }
 
-// handleToolRejection handles when a user rejects a tool call
-func (s *ApprovingToolsState) handleToolRejection(tc sdk.ChatCompletionMessageToolCall) {
+// spawnExecution runs an approved tool in the background, recording its result
+// in the round's slot. Concurrency is bounded by the round semaphore.
+func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall) {
+	round.wg.Add(1)
+	go func() {
+		defer round.wg.Done()
+		round.sem <- struct{}{}
+		defer func() { <-round.sem }()
+
+		logger.Debug("executing approved tool", "tool", tc.Function.Name)
+		s.completeSlot(round, idx, s.ctx.ExecuteToolInternal(tc, true))
+	}()
+}
+
+// spawnAllRemaining executes the just-approved tool and every remaining tool in
+// auto-accept mode. Each runs in the background (bounded by the semaphore);
+// results are collected in tool-call order.
+func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall) {
+	logger.Debug("auto-accept mode enabled, auto-approving all remaining tools")
+
+	s.spawnExecution(round, idx, tc)
+
+	s.ctx.Mutex.Lock()
+	start := *s.ctx.CurrentToolIndex
+	tools := *s.ctx.ToolsNeedingApproval
+	s.ctx.Mutex.Unlock()
+
+	for i := start; i < len(tools); i++ {
+		remaining := tools[i]
+		logger.Debug("auto-approving tool", "tool", remaining.Function.Name)
+
+		s.ctx.PublishChatEvent(domain.ToolApprovedEvent{
+			RequestID: s.ctx.Request.RequestID,
+			Timestamp: time.Now(),
+			ToolCall:  remaining,
+		})
+
+		s.spawnExecution(round, i, remaining)
+	}
+
+	s.ctx.Mutex.Lock()
+	*s.ctx.CurrentToolIndex = len(tools)
+	s.ctx.Mutex.Unlock()
+}
+
+// completeSlot records a finished tool result (an executed tool or a rejection)
+// in its slot and flushes any now-contiguous prefix of results. Flushing as
+// results complete - rather than batching at the end - lets the UI surface each
+// tool result as the user approves the next one, while still preserving
+// tool-call order for the conversation.
+func (s *ApprovingToolsState) completeSlot(round *toolRound, idx int, entry domain.ConversationEntry) {
+	s.ctx.Mutex.Lock()
+	defer s.ctx.Mutex.Unlock()
+
+	round.results[idx] = entry
+	round.ready[idx] = true
+	s.flushLocked(round)
+}
+
+// flushReady flushes the contiguous-ready prefix of results. Used after
+// WaitGroup.Wait to drain anything not yet flushed (e.g. on cancellation).
+func (s *ApprovingToolsState) flushReady(round *toolRound) {
+	s.ctx.Mutex.Lock()
+	defer s.ctx.Mutex.Unlock()
+	s.flushLocked(round)
+}
+
+// flushLocked appends every ready result starting at the flush cursor to the
+// conversation, storage, and ToolResults, in tool-call order. The caller must
+// hold s.ctx.Mutex.
+func (s *ApprovingToolsState) flushLocked(round *toolRound) {
+	for round.flushed < len(round.ready) && round.ready[round.flushed] {
+		entry := round.results[round.flushed]
+		round.flushed++
+
+		*s.ctx.ToolResults = append(*s.ctx.ToolResults, entry)
+		*s.ctx.AgentCtx.Conversation = append(*s.ctx.AgentCtx.Conversation, entry.Message)
+		if err := s.ctx.AddMessage(entry); err != nil {
+			logger.Error("failed to store tool result", "error", err)
+		}
+		s.ctx.AgentCtx.HasToolResults = true
+	}
+}
+
+// finishApprovals waits for every spawned execution to complete, drains any
+// remaining results, and signals the state machine. Results are flushed
+// incrementally by completeSlot as they complete; this final drain covers
+// gaps left by cancellation.
+func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
+	round.wg.Wait()
+	s.flushReady(round)
+
+	s.ctx.Events <- domain.AllToolsProcessedEvent{}
+}
+
+// buildRejectionEntry constructs the Tool-role result for a user-rejected tool
+// and publishes the rejection event. The entry is appended to the conversation
+// in order by the flush.
+func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
 	rejectionMessage := sdk.Message{
@@ -145,26 +269,16 @@ func (s *ApprovingToolsState) handleToolRejection(tc sdk.ChatCompletionMessageTo
 		ToolCallID: &tc.ID,
 	}
 
-	*s.ctx.AgentCtx.Conversation = append(*s.ctx.AgentCtx.Conversation, rejectionMessage)
-
-	rejectionEntry := domain.ConversationEntry{
-		Message: rejectionMessage,
-		Time:    time.Now(),
-	}
-
-	if err := s.ctx.AddMessage(rejectionEntry); err != nil {
-		logger.Error("failed to store tool rejection message", "error", err)
-	}
-
 	s.ctx.PublishChatEvent(domain.ToolRejectedEvent{
 		RequestID: s.ctx.Request.RequestID,
 		Timestamp: time.Now(),
 		ToolCall:  tc,
 	})
 
-	s.ctx.Mutex.Lock()
-	s.ctx.AgentCtx.HasToolResults = true
-	s.ctx.Mutex.Unlock()
+	return domain.ConversationEntry{
+		Message: rejectionMessage,
+		Time:    time.Now(),
+	}
 }
 
 // shouldAutoApproveRemaining checks if auto-accept mode is enabled
@@ -172,58 +286,13 @@ func (s *ApprovingToolsState) shouldAutoApproveRemaining() bool {
 	return s.ctx.GetAgentMode() == domain.AgentModeAutoAccept
 }
 
-// executeAllRemainingTools executes the current tool and all remaining tools in auto-accept mode
-func (s *ApprovingToolsState) executeAllRemainingTools(tc sdk.ChatCompletionMessageToolCall) {
-	logger.Debug("auto-accept mode enabled, auto-approving all remaining tools")
-
-	s.ctx.Mutex.Lock()
-	remainingTools := (*s.ctx.ToolsNeedingApproval)[*s.ctx.CurrentToolIndex:]
-	s.ctx.Mutex.Unlock()
-
-	for _, remainingTool := range remainingTools {
-		logger.Debug("auto-approving tool", "tool", remainingTool.Function.Name)
-
-		s.ctx.PublishChatEvent(domain.ToolApprovedEvent{
-			RequestID: s.ctx.Request.RequestID,
-			Timestamp: time.Now(),
-			ToolCall:  remainingTool,
-		})
-
-		result := s.ctx.ExecuteToolInternal(remainingTool, true)
-		s.appendToolResult(result)
+// maxConcurrent returns the bound on concurrently executing tools, clamped to
+// at least 1 so a missing/zero config value cannot deadlock the semaphore.
+func (s *ApprovingToolsState) maxConcurrent() int {
+	if s.ctx.MaxConcurrentTools < 1 {
+		return 1
 	}
-
-	result := s.ctx.ExecuteToolInternal(tc, true)
-	s.appendToolResult(result)
-
-	s.ctx.Mutex.Lock()
-	*s.ctx.CurrentToolIndex = len(*s.ctx.ToolsNeedingApproval)
-	s.ctx.Mutex.Unlock()
-}
-
-// executeSingleApprovedTool executes a single approved tool
-func (s *ApprovingToolsState) executeSingleApprovedTool(tc sdk.ChatCompletionMessageToolCall) {
-	logger.Debug("executing approved tool", "tool", tc.Function.Name)
-
-	result := s.ctx.ExecuteToolInternal(tc, true)
-	s.appendToolResult(result)
-}
-
-// appendToolResult appends a tool execution result to the conversation and storage
-func (s *ApprovingToolsState) appendToolResult(result domain.ConversationEntry) {
-	s.ctx.Mutex.Lock()
-	*s.ctx.ToolResults = append(*s.ctx.ToolResults, result)
-	s.ctx.Mutex.Unlock()
-
-	*s.ctx.AgentCtx.Conversation = append(*s.ctx.AgentCtx.Conversation, result.Message)
-
-	if err := s.ctx.AddMessage(result); err != nil {
-		logger.Error("failed to store tool result", "error", err)
-	}
-
-	s.ctx.Mutex.Lock()
-	s.ctx.AgentCtx.HasToolResults = true
-	s.ctx.Mutex.Unlock()
+	return s.ctx.MaxConcurrentTools
 }
 
 // handleApprovalFailure handles when approval fails (timeout, error, etc.)
