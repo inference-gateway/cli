@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.120.0](https://github.com/inference-gateway/cli/compare/v0.119.0...v0.120.0) (2026-06-06)
+
+### 🚀 Features
+
+* add gh api graphql and gh project subcommands to default bash whitelist ([#612](https://github.com/inference-gateway/cli/issues/612)) ([b0f8bf3](https://github.com/inference-gateway/cli/commit/b0f8bf34d3a32de23819c779258949fcf9d1dda3)), closes [#606](https://github.com/inference-gateway/cli/issues/606)
+* **tools:** restrict bash file-write redirects unless whitelisted by pattern ([#613](https://github.com/inference-gateway/cli/issues/613)) ([13b058a](https://github.com/inference-gateway/cli/commit/13b058afb638e75268cb4713ec490a5674974ab9)), closes [#581](https://github.com/inference-gateway/cli/issues/581) [#605](https://github.com/inference-gateway/cli/issues/605) [#581](https://github.com/inference-gateway/cli/issues/581) [#560](https://github.com/inference-gateway/cli/issues/560)
+
+### ♻️ Code Refactoring
+
+* **ci:** remove NPM_TOKEN - use trusted publisher ([843457c](https://github.com/inference-gateway/cli/commit/843457c23c3ab47ac6b66b267b24f3ac9a6eeb65))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.117.1 -> v0.119.0, infer-action v0.11.2 -> v0.11.4 ([#611](https://github.com/inference-gateway/cli/issues/611)) ([30a536b](https://github.com/inference-gateway/cli/commit/30a536b33ce51555adc87abfde50c1d0f3ba2e3e))
+* regenerate config ([93e3de0](https://github.com/inference-gateway/cli/commit/93e3de05697d36f007abf343e09f3a3e4c3b23db))
+
 ## [0.119.0](https://github.com/inference-gateway/cli/compare/v0.118.0...v0.119.0) (2026-06-06)
 
 ### 🚀 Features
