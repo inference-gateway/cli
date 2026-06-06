@@ -99,6 +99,7 @@ tools:
         - ^gh pr create( |$)
         - ^gh search (issues|code|prs|repos|commits)( |$)
         - ^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$
+        - ^gh project (item-add|item-edit|item-list|field-list|view|list)( |$)
     background_shells:
       enabled: true
       max_concurrent: 5
@@ -174,7 +175,7 @@ agent:
     working_dir_enabled: true
     git_context_refresh_turns: 10
   skills:
-    enabled: false
+    enabled: true
   verbose_tools: false
   max_turns: 50
   max_tokens: 8192
