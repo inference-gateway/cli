@@ -383,7 +383,7 @@ func TestOptimizeMessages_EdgeCases(t *testing.T) {
 // and tool definitions) crosses the threshold - even though the entries-only
 // estimate is far below it.
 func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
-	model := "fake-provider/unknown-tiny-model"
+	model := "moonshot/moonshot-v1-8k"
 
 	t.Run("fires when LastInputTokens above threshold", func(t *testing.T) {
 		repo := services.NewInMemoryConversationRepository(nil, nil)
@@ -448,6 +448,82 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 		assert.Equal(t, len(messages), len(result),
 			"messages should be returned unchanged when gate does not fire")
 	})
+}
+
+// TestOptimizeMessages_NoAutoCompactForUnknownModel verifies that a model with
+// no configured context window does not auto-compact (force=false), even when
+// the gateway-reported token count is huge. Without this guard the optimizer
+// would measure fullness against the default fallback window and summarize on
+// nearly every turn (this was the minimax-m3 bug, before that model was added
+// to the registry).
+func TestOptimizeMessages_NoAutoCompactForUnknownModel(t *testing.T) {
+	model := "ollama_cloud/some-unlisted-model"
+
+	repo := services.NewInMemoryConversationRepository(nil, nil)
+	require.NoError(t, repo.AddTokenUsage(model, 500000, 100, 500100))
+
+	mockClient := createMockSDKClient(t, "Summary text")
+	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		BufferSize:        2,
+		KeepFirstMessages: 2,
+		Client:            mockClient,
+		Config:            &config.Config{},
+		Tokenizer:         nil,
+		Repo:              repo,
+	})
+
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+		{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+		{Role: "user", Content: sdk.NewMessageContent("more")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, model, false)
+
+	assert.Equal(t, 0, mockClient.GenerateContentCallCount(),
+		"summarizer must not run for a model with no configured context window")
+	assert.Equal(t, len(messages), len(result),
+		"messages must be returned unchanged when the context window is unknown")
+}
+
+// TestOptimizeMessages_ForcedCompactWorksForUnknownModel verifies that a forced
+// compaction (manual /compact, or session rollover) still runs for a model with
+// no configured context window - only the automatic threshold path is gated.
+func TestOptimizeMessages_ForcedCompactWorksForUnknownModel(t *testing.T) {
+	model := "ollama_cloud/some-unlisted-model"
+
+	repo := services.NewInMemoryConversationRepository(nil, nil)
+
+	mockClient := createMockSDKClient(t, "Summary text")
+	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		BufferSize:        2,
+		KeepFirstMessages: 2,
+		Client:            mockClient,
+		Config:            &config.Config{},
+		Tokenizer:         nil,
+		Repo:              repo,
+	})
+
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+		{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+		{Role: "user", Content: sdk.NewMessageContent("more")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, model, true)
+
+	assert.Equal(t, 1, mockClient.GenerateContentCallCount(),
+		"forced compaction must run even when the context window is unknown")
+	assert.Less(t, len(result), len(messages),
+		"forced compaction should reduce the message count")
 }
 
 // Helper functions

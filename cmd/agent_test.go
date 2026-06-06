@@ -1286,7 +1286,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("AddMessage: %v", err)
 		}
-		if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
 			t.Fatalf("AddTokenUsage: %v", err)
 		}
 
@@ -1294,7 +1294,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 			config:           &config.Config{},
 			conversationRepo: repo,
 			sessionID:        originalID,
-			model:            "unknown-tiny-model",
+			model:            "moonshot/moonshot-v1-8k",
 			rolloverManager:  mgr,
 			groupKey:         "channel-test-group",
 			completedTurns:   7,
@@ -1343,7 +1343,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("AddMessage: %v", err)
 		}
-		if err := repo.AddTokenUsage("unknown-tiny-model", 7000, 100, 7100); err != nil {
+		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
 			t.Fatalf("AddTokenUsage: %v", err)
 		}
 
@@ -1351,7 +1351,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 			config:           &config.Config{},
 			conversationRepo: repo,
 			sessionID:        originalID,
-			model:            "unknown-tiny-model",
+			model:            "moonshot/moonshot-v1-8k",
 			rolloverManager:  mgr,
 		}
 

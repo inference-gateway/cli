@@ -106,7 +106,7 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	messageCount := c.repo.GetMessageCount()
 	currentModel := c.modelService.GetCurrentModel()
 
-	contextWindowSize := c.estimateContextWindow(currentModel)
+	contextWindowSize, windowKnown := models.LookupContextWindow(currentModel)
 
 	contextTokens := stats.LastInputTokens
 	estimated := false
@@ -130,8 +130,12 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	fmt.Fprintf(&output, "**API Requests:** %d\n", stats.RequestCount)
 	fmt.Fprintf(&output, "**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens)
 
-	if contextWindowSize > 0 && contextTokens > 0 {
+	switch {
+	case windowKnown && contextWindowSize > 0 && contextTokens > 0:
 		output.WriteString(c.formatContextUsage(contextTokens, contextWindowSize))
+	case !windowKnown:
+		output.WriteString("\n**Context Window:** unknown for this model - " +
+			"automatic compaction is disabled. Use `/compact` to compact manually.\n")
 	}
 
 	return ShortcutResult{
@@ -157,11 +161,6 @@ func (c *ContextShortcut) estimateCurrentContextSize() int {
 		sdkMessages = append(sdkMessages, entry.Message)
 	}
 	return c.tokenizer.EstimateMessagesTokens(sdkMessages)
-}
-
-// estimateContextWindow returns an estimated context window size based on model name
-func (c *ContextShortcut) estimateContextWindow(model string) int {
-	return models.EstimateContextWindow(model)
 }
 
 // formatContextUsage formats the context window usage information

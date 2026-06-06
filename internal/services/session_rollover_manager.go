@@ -183,7 +183,9 @@ func (m *SessionRolloverManager) idleTriggerFires(entries []domain.ConversationE
 }
 
 // tokenTriggerFires reports whether the conversation's estimated token count
-// crosses compact.auto_at percent of the model's context window.
+// crosses compact.auto_at percent of the model's context window. Returns false
+// when no context window is configured for the model, since there is no
+// meaningful threshold to compare against.
 //
 // Prefers the gateway-reported LastInputTokens from session stats: that value
 // is the authoritative count of what was actually sent (including system
@@ -196,9 +198,9 @@ func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.Conversation
 		autoAt = 80
 	}
 
-	contextWindow := models.EstimateContextWindow(model)
-	if contextWindow == 0 {
-		contextWindow = 30000
+	contextWindow, known := models.LookupContextWindow(model)
+	if !known {
+		return false
 	}
 	threshold := (contextWindow * autoAt) / 100
 
