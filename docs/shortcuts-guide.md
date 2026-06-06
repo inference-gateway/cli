@@ -76,11 +76,11 @@ session to another terminal or machine and continue it there. It pairs well with
 2. Run `/copy` to place the (now compact) session on the clipboard
 3. Paste it into another terminal or chat to continue the work
 
-By default `/copy` uses plain `text`; pass a format to override it — `/copy markdown` or
+By default `/copy` uses plain `text`; pass a format to override it - `/copy markdown` or
 `/copy json`. The shortcut shells out to your platform's native clipboard utility:
 
 - **macOS:** `pbcopy`
-- **Linux:** one of `wl-copy` (Wayland), `xclip`, or `xsel` (X11) — install at least one
+- **Linux:** one of `wl-copy` (Wayland), `xclip`, or `xsel` (X11) - install at least one
 - **Windows:** `clip`
 - **WSL:** `clip.exe` (writes to the Windows host clipboard)
 
@@ -90,11 +90,11 @@ If none of these utilities is available, `/copy` reports an error naming the one
 
 The `/voice` shortcut records audio from your microphone, transcribes it locally with
 [whisper.cpp](https://github.com/ggml-org/whisper.cpp), and places the transcription into the
-input field — ready to review and send. It is **disabled by default** and gated behind the
+input field - ready to review and send. It is **disabled by default** and gated behind the
 `speech_to_text.enabled` feature flag (see [Speech-to-Text](speech-to-text.md) for full setup).
 
 1. Enable it: set `speech_to_text.enabled: true` in `.infer/config.yaml`
-2. Type `/voice` and press Enter — recording starts immediately and stops a couple of
+2. Type `/voice` and press Enter - recording starts immediately and stops a couple of
    seconds after you go quiet (`speech_to_text.silence_timeout`), or at the
    `max_recording_seconds` cap, or pass an override like `/voice 8`
 3. The transcribed text appears in the input field; edit if needed and press Enter to send

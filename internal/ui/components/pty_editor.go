@@ -18,7 +18,7 @@ type ptyOutputMsg struct{ data []byte }
 // ptyExitMsg signals the editor child exited (or the PTY was closed).
 type ptyExitMsg struct{ err error }
 
-// vtTerm wraps the x/vt emulator. It isolates the (pre-release) dependency — to
+// vtTerm wraps the x/vt emulator. It isolates the (pre-release) dependency - to
 // swap emulators, change only this type. The emulator's Render() draws cells but
 // no visible cursor, so render() overlays a reverse-video block at the cursor
 // (vim relies on the terminal's hardware cursor, which we don't have in a pane).
@@ -51,7 +51,7 @@ func (t *vtTerm) closeEmulator() { _ = t.em.Close() }
 
 // forwardReplies pumps the emulator's query replies back to the child's PTY.
 // The emulator buffers replies in an unbuffered pipe, so without draining it the
-// first reply blocks the write that produced it — freezing the editor (and the
+// first reply blocks the write that produced it - freezing the editor (and the
 // whole UI) on a child that is itself waiting for our answer.
 func forwardReplies(term *vtTerm, w io.Writer) {
 	buf := make([]byte, 256)

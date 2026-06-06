@@ -26,7 +26,7 @@ type HelpCommand struct {
 
 // HelpViewImpl is a full-screen, scrollable overlay documenting every available
 // slash command and keybinding in two lipgloss tables. Both tables are sized to
-// the terminal width — long descriptions wrap rather than truncate — and the
+// the terminal width - long descriptions wrap rather than truncate - and the
 // whole view lives inside a viewport, so every row stays reachable even on a
 // narrow or short terminal. It is read-only: esc/q returns to the chat.
 type HelpViewImpl struct {
@@ -87,7 +87,7 @@ func (h *HelpViewImpl) SetWidth(width int) {
 
 // SetHeight sets the overlay height, reserving the bottom two lines for the
 // footer hint. The rendered tables depend only on width, so changing the height
-// just resizes the viewport window — no rebuild required.
+// just resizes the viewport window - no rebuild required.
 func (h *HelpViewImpl) SetHeight(height int) {
 	h.height = height
 	h.viewport.SetHeight(max(height-2, 1))
@@ -189,7 +189,7 @@ func (h *HelpViewImpl) renderCommandsTable(width int, accent, dim, border color.
 		rows = append(rows, [2]string{"/" + c.Name, c.Description})
 	}
 	if len(rows) == 0 {
-		rows = append(rows, [2]string{"—", "No commands available"})
+		rows = append(rows, [2]string{"-", "No commands available"})
 	}
 	return renderHelpTable(width, accent, dim, border, "Command", "Description", rows)
 }
@@ -200,7 +200,7 @@ func (h *HelpViewImpl) renderKeybindingsTable(width int, accent, dim, border col
 		rows = append(rows, [2]string{k.Key, k.Description})
 	}
 	if len(rows) == 0 {
-		rows = append(rows, [2]string{"—", "No keybindings available"})
+		rows = append(rows, [2]string{"-", "No keybindings available"})
 	}
 	return renderHelpTable(width, accent, dim, border, "Key", "Action", rows)
 }

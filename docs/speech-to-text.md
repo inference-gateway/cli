@@ -2,9 +2,9 @@
 
 The CLI can turn speech into text in two places:
 
-- **Chat mode** — the [`/voice`](shortcuts-guide.md#voice-shortcut) shortcut records your microphone,
+- **Chat mode** - the [`/voice`](shortcuts-guide.md#voice-shortcut) shortcut records your microphone,
   transcribes it, and drops the text into the input field.
-- **Channels mode** — inbound **Telegram voice messages** are transcribed to text before the agent
+- **Channels mode** - inbound **Telegram voice messages** are transcribed to text before the agent
   sees them, so you can talk to the agent from your phone.
 
 Both use a local [whisper.cpp](https://github.com/ggml-org/whisper.cpp) binary and run fully offline
@@ -22,7 +22,7 @@ Speech-to-text shells out to two external programs (no CGO is added to the `infe
 
 On Linux, `arecord` (ALSA) or `sox` can substitute for `ffmpeg` for microphone capture.
 
-If a required tool is missing, the CLI reports an actionable error naming what to install — it never
+If a required tool is missing, the CLI reports an actionable error naming what to install - it never
 fails silently.
 
 ## Enabling
@@ -69,7 +69,7 @@ Append `.en` (e.g. `base.en`) for English-only variants. You can also pass a ful
 
 ## Using `/voice` in chat
 
-1. Type `/voice` and press Enter — recording starts immediately.
+1. Type `/voice` and press Enter - recording starts immediately.
 2. Speak. Recording stops automatically about `silence_timeout` seconds after you
    go quiet (or at the `max_recording_seconds` cap, or `/voice 8` per-call), and the
    transcription lands in the input field. Set `silence_timeout: 0` to always record
@@ -87,9 +87,9 @@ When speech-to-text is disabled, voice messages are ignored (as before). See
 
 ## Troubleshooting
 
-- **"whisper binary not found"** — install whisper.cpp or set `speech_to_text.binary_path`.
-- **"ffmpeg not found"** — install ffmpeg or set `speech_to_text.ffmpeg_path`.
-- **No audio captured on macOS** — grant microphone permission to your terminal, and list devices
+- **"whisper binary not found"** - install whisper.cpp or set `speech_to_text.binary_path`.
+- **"ffmpeg not found"** - install ffmpeg or set `speech_to_text.ffmpeg_path`.
+- **No audio captured on macOS** - grant microphone permission to your terminal, and list devices
   with `ffmpeg -f avfoundation -list_devices true -i ""`, then set `input_device` to the index.
-- **Wrong language** — set `language` to the ISO code instead of relying on auto-detect.
-- **First `/voice` is slow** — the model downloads once; subsequent runs use the cache.
+- **Wrong language** - set `language` to the ISO code instead of relying on auto-detect.
+- **First `/voice` is slow** - the model downloads once; subsequent runs use the cache.

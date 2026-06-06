@@ -415,7 +415,7 @@ func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 }
 
 // handleShowExplorerSideEffect opens the file explorer panel. Unlike the diff
-// viewer, it has no git-repository gate — it browses the working directory via
+// viewer, it has no git-repository gate - it browses the working directory via
 // the filesystem, so it works in any directory (git or not).
 func (s *ChatShortcutHandler) handleShowExplorerSideEffect() tea.Msg {
 	if err := s.handler.stateManager.TransitionToView(domain.ViewStateExplorer); err != nil {

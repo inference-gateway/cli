@@ -87,7 +87,7 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 	return nil
 }
 
-// processNextTool requests approval for ONE tool, then — if approved — spawns
+// processNextTool requests approval for ONE tool, then - if approved - spawns
 // its execution in the background and immediately moves on to the next
 // approval prompt so executions overlap. Fast-exits if the session context was
 // cancelled, mirroring the drain-then-stop contract in CheckingQueue /

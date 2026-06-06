@@ -78,7 +78,7 @@ func (dr *DockerRuntime) createNetwork(ctx context.Context) error {
 // shared across sessions it may still be in use by another session's
 // containers, in which case removal is refused and we leave it in place
 // (keeping networkCreated set so a later call retries once the network frees
-// up). It is never an error to fail here — shutdown must not block.
+// up). It is never an error to fail here - shutdown must not block.
 func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
 	if !dr.networkCreated {
 		return nil

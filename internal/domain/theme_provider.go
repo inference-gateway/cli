@@ -136,7 +136,7 @@ func (t *DraculaTheme) GetDiffRemoveColor() string { return colors.DraculaDiffRe
 
 // CharmTheme is built on the official Charm palette (charmtone). It's the
 // modern, on-brand option that uses the same semantic tokens Crush ships
-// with — Sapphire as the primary blue, Cherry for errors, Julep for
+// with - Sapphire as the primary blue, Cherry for errors, Julep for
 // success, Smoke/Iron as neutrals over a Pepper base.
 type CharmTheme struct{}
 

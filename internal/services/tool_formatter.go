@@ -25,7 +25,7 @@ type HintProvider interface {
 }
 
 // SetHintFormatter wires the keybinding hint resolver so the collapsed and expanded
-// views can show the "ctrl+o to expand/collapse" affordance. Nil is safe — the hint
+// views can show the "ctrl+o to expand/collapse" affordance. Nil is safe - the hint
 // is simply omitted.
 func (s *ToolFormatterService) SetHintFormatter(h HintProvider) {
 	s.hintFormatter = h

@@ -772,7 +772,7 @@ func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
 		// mutating gh api must fall through to approval
 		"gh api repos/o/r/issues -X POST", "gh api repos/o/r/issues --method POST",
 		"gh api -X DELETE repos/o/r", "gh api repos/o/r -f title=x",
-		// env inspection leaks secrets (API keys, tokens) — must fall through to approval
+		// env inspection leaks secrets (API keys, tokens) - must fall through to approval
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {

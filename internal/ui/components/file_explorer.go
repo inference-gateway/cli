@@ -123,7 +123,7 @@ type FileExplorerImpl struct {
 	walking       bool
 	walkTruncated bool
 
-	// Edit mode — the user's real editor runs in a PTY rendered into the pane.
+	// Edit mode - the user's real editor runs in a PTY rendered into the pane.
 	editMode bool
 	editor   *ptyEditor
 
@@ -212,7 +212,7 @@ func (t *FileExplorerImpl) SetHeight(h int) { t.height = h }
 // HintText returns the footer hint for the current mode.
 func (t *FileExplorerImpl) HintText() string {
 	if t.editMode && t.editor != nil {
-		return "(editor) — :wq to save & return"
+		return "(editor) - :wq to save & return"
 	}
 	if t.findMode {
 		return "type to filter · ↑/↓ select · enter open · esc back to tree"
@@ -673,14 +673,14 @@ func (t *FileExplorerImpl) computePreview(rel string) string {
 		return t.styleProvider.RenderErrorText("Failed to read file: " + err.Error())
 	}
 	if info.Size() > explorerMaxPreviewBytes {
-		return t.styleProvider.RenderDimText("⊘ Binary or large file — not shown")
+		return t.styleProvider.RenderDimText("⊘ Binary or large file - not shown")
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return t.styleProvider.RenderErrorText("Failed to read file: " + err.Error())
 	}
 	if bytes.IndexByte(data, 0) >= 0 {
-		return t.styleProvider.RenderDimText("⊘ Binary or large file — not shown")
+		return t.styleProvider.RenderDimText("⊘ Binary or large file - not shown")
 	}
 	return diffview.Highlight(rel, string(data), t.chromaStyle(), true)
 }

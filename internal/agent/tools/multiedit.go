@@ -393,8 +393,8 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 }
 
 // resolveEdit determines the actual old/new strings to apply for a single edit against the
-// current (sequentially modified) content. It first tries an exact match, then — unless the
-// edit uses replace_all or strict_whitespace is set — the indentation-tolerant fallback.
+// current (sequentially modified) content. It first tries an exact match, then - unless the
+// edit uses replace_all or strict_whitespace is set - the indentation-tolerant fallback.
 // normalized reports whether the fallback was used. A non-nil error means neither matched and
 // the whole MultiEdit must abort before any write.
 func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOperation, idx int) (effectiveOld, effectiveNew string, normalized bool, err error) {

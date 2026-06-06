@@ -9,7 +9,7 @@ import (
 )
 
 // addressPoolExhaustedMsg is the daemon error emitted when Docker/Podman runs
-// out of predefined IPAM address pools — the signature of accumulated leaked
+// out of predefined IPAM address pools - the signature of accumulated leaked
 // networks from sessions that never cleaned up.
 const addressPoolExhaustedMsg = "all predefined address pools have been fully subnetted"
 

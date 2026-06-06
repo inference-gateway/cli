@@ -5,7 +5,7 @@ import (
 )
 
 // DiffShortcut opens the changes panel (interactive diff viewer). It is a pure
-// view trigger with no dependencies — the side effect transitions the UI to the
+// view trigger with no dependencies - the side effect transitions the UI to the
 // diff viewer, which loads working-tree changes itself.
 type DiffShortcut struct{}
 

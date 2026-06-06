@@ -115,7 +115,7 @@ func (r *Recorder) Record(ctx context.Context, maxSeconds int) (string, error) {
 			if runCtx.Err() != nil {
 				_ = os.Remove(out)
 				return "", fmt.Errorf("microphone recording timed out after %ds with no audio captured "+
-					"— grant microphone access to your terminal (macOS: System Settings > Privacy & Security > "+
+					"- grant microphone access to your terminal (macOS: System Settings > Privacy & Security > "+
 					"Microphone) and check speech_to_text.input_device", maxSeconds+recordGraceSeconds)
 			}
 			lastErr = runErr

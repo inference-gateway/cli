@@ -136,7 +136,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		_, ok := evt.(domain.AllToolsProcessedEvent)
 		assert.True(t, ok, "expected AllToolsProcessedEvent, got %T", evt)
 	case <-time.After(2 * time.Second):
-		t.Fatal("approved tools did not execute concurrently — execution appears serialized")
+		t.Fatal("approved tools did not execute concurrently - execution appears serialized")
 	}
 }
 
@@ -176,7 +176,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 // result is written to the conversation/storage as soon as it (and the
 // preceding results) finish, rather than being held until the whole batch
 // completes. Tool 2 blocks; tools 0 and 1 must be flushed while tool 2 is still
-// running — the previous batch-at-the-end behavior would time out here.
+// running - the previous batch-at-the-end behavior would time out here.
 func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	block := make(chan struct{})
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {

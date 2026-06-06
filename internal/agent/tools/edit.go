@@ -251,7 +251,7 @@ func (t *EditTool) IsEnabled() bool {
 }
 
 // staleReadError returns a non-empty error message when filePath has been modified since the
-// agent last read (or wrote) it — an external change between the read and this edit. It returns
+// agent last read (or wrote) it - an external change between the read and this edit. It returns
 // "" when the file is unchanged or was never read (no snapshot to compare against).
 func staleReadError(registry ReadToolTracker, filePath string) string {
 	if registry == nil {

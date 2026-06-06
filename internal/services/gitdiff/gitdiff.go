@@ -6,7 +6,7 @@
 // It deliberately returns raw before/after content rather than a preformatted
 // patch: the UI renders the diff via the diffview package, which computes the
 // line diff itself. The Source interface lives here (not in internal/domain) so
-// it does not trigger counterfeiter mock regeneration — the only consumer is
+// it does not trigger counterfeiter mock regeneration - the only consumer is
 // the diff viewer component, which can be tested with a hand-written fake.
 package gitdiff
 
@@ -77,7 +77,7 @@ type Source interface {
 	Unstage(path string) error
 	// Discard reverts a working-tree change: it restores a tracked file from the
 	// index (HEAD when nothing is staged) and deletes an untracked file. This is
-	// destructive — the discarded working-tree changes cannot be recovered.
+	// destructive - the discarded working-tree changes cannot be recovered.
 	Discard(fc FileChange) error
 	// WorktreePatch returns the unstaged (index→working tree) patch for a path,
 	// for hunk-level staging.

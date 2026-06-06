@@ -160,7 +160,7 @@ type DiffViewerImpl struct {
 	dirtyDiff   bool
 	resetScroll bool
 
-	// Patch (hunk-staging) mode — entered with `p` on a file.
+	// Patch (hunk-staging) mode - entered with `p` on a file.
 	patchMode    bool
 	patchFile    gitdiff.FilePatch
 	patchPath    string
@@ -170,7 +170,7 @@ type DiffViewerImpl struct {
 	hunkOffsets  []int
 	patchMsg     string
 
-	// Edit mode — entered with `v`: the user's real editor runs in a PTY,
+	// Edit mode - entered with `v`: the user's real editor runs in a PTY,
 	// rendered into the pane (see pty_editor.go).
 	editMode bool
 	editor   *ptyEditor
@@ -246,7 +246,7 @@ func (t *DiffViewerImpl) IsCancelled() bool { return t.cancel }
 // HintText returns the footer hint for the current mode (tree vs patch).
 func (t *DiffViewerImpl) HintText() string {
 	if t.editMode && t.editor != nil {
-		return "(vim) — :wq to save & return"
+		return "(vim) - :wq to save & return"
 	}
 	if t.confirmDiscard != nil {
 		return "discard " + t.confirmDiscard.Path + "?  y confirm · n cancel"
@@ -558,7 +558,7 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 // --- patch (hunk staging) mode ---
 
 // handlePatchKey handles keys while in patch mode: hunk navigation, applying the
-// current hunk (a/s stage a worktree hunk, u unstage a staged hunk — the
+// current hunk (a/s stage a worktree hunk, u unstage a staged hunk - the
 // direction follows whichever patch is loaded), scrolling, and esc to exit.
 func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.match(normalizeKey(msg.String()),
@@ -594,7 +594,7 @@ func (t *DiffViewerImpl) enterPatchCmd() tea.Cmd {
 	}
 	if fc.Status == gitdiff.StatusUntracked {
 		return func() tea.Msg {
-			return patchErrMsg{err: fmt.Errorf("untracked file — press a to stage it whole")}
+			return patchErrMsg{err: fmt.Errorf("untracked file - press a to stage it whole")}
 		}
 	}
 	path, staged, src := fc.Path, fc.Staged, t.source
@@ -662,7 +662,7 @@ func (t *DiffViewerImpl) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, t
 	}
 	t.patchFile = msg.patch
 	if len(msg.patch.Hunks) == 0 {
-		// Whole file staged/unstaged — leave patch mode and refresh the tree.
+		// Whole file staged/unstaged - leave patch mode and refresh the tree.
 		t.patchMode = false
 		t.dirtyDiff = true
 		return t, t.loadCmd()
@@ -936,7 +936,7 @@ func (t *DiffViewerImpl) View() tea.View {
 
 // Render lays out the full region: a full-height sidebar and divider on the
 // left, and on the right the diff pane with the (already-rendered) input row
-// stacked beneath it — so the input visibly shifts right of the sidebar. Pass
+// stacked beneath it - so the input visibly shifts right of the sidebar. Pass
 // "" for inputRow to render the diff pane at full height (no input).
 func (t *DiffViewerImpl) Render(inputRow string) string {
 	if t.width <= 0 || t.height <= 0 {
@@ -1102,7 +1102,7 @@ func (t *DiffViewerImpl) renderDiffPane(width, height int) string {
 
 // ensureDiff (re)renders the selected file's diff into the viewport, gated so
 // the git query + diff render only run when the selection, content (dirty), or
-// width actually changed — not on every frame.
+// width actually changed - not on every frame.
 func (t *DiffViewerImpl) ensureDiff(fc gitdiff.FileChange, width int) {
 	key := diffKey(fc)
 	if !t.dirtyDiff && key == t.diffPath && width == t.diffWidth {
@@ -1128,7 +1128,7 @@ func (t *DiffViewerImpl) computeDiff(fc gitdiff.FileChange, width int) string {
 	case err != nil:
 		return t.styleProvider.RenderErrorText("Failed to load diff: " + err.Error())
 	case isBinary:
-		return t.styleProvider.RenderDimText("⊘ Binary or large file — not shown")
+		return t.styleProvider.RenderDimText("⊘ Binary or large file - not shown")
 	}
 
 	info := DiffInfo{FilePath: fc.Path, OldContent: oldContent, NewContent: newContent}

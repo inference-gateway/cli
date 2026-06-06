@@ -1112,7 +1112,7 @@ func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
 // TestExecuteToolInternal_PublishesTerminalStatus guards the asymmetry that caused the
 // per-tool ticker to keep counting on the approval path: executeToolInternal must publish a
 // terminal "completed"/"failed" status itself (so the UI freezes the elapsed-time ticker),
-// rather than relying on executeToolCallsParallel to publish it externally — the approval path
+// rather than relying on executeToolCallsParallel to publish it externally - the approval path
 // calls executeToolInternal directly and bypasses that.
 func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 	tests := []struct {

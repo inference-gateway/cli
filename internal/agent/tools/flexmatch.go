@@ -91,13 +91,13 @@ func windowMatchesTrimmed(fileWin, trimmedOld []string) bool {
 }
 
 // buildIndentMap records how each distinct old-line indentation maps to the file's actual
-// indentation across the matched window, requiring the mapping to be consistent — the same old
+// indentation across the matched window, requiring the mapping to be consistent - the same old
 // indent must always correspond to the same file indent. ok is false on any conflict, which
 // signals the indentation relationship is ambiguous and the edit must not be applied. Blank
 // lines carry no indentation signal and are skipped.
 //
 // Deriving the mapping per distinct indent (rather than as a single uniform shift anchored on the
-// first line) is what lets a block whose header sits at column 0 — a Go struct/import/func — match:
+// first line) is what lets a block whose header sits at column 0 - a Go struct/import/func - match:
 // the header maps "" -> "" while the body maps "\t\t" -> "\t", independently and consistently.
 func buildIndentMap(oldLines, fileWin []string) (map[string]string, bool) {
 	indentMap := make(map[string]string)

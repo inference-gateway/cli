@@ -285,7 +285,7 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 }
 
 // defaultExpanded reports whether the tool at index should render expanded
-// before any explicit user choice — true for tools in defaultExpandedTools
+// before any explicit user choice - true for tools in defaultExpandedTools
 // (Edit/MultiEdit), so their diffs are visible without a keypress.
 func (cv *ConversationView) defaultExpanded(index int) bool {
 	if index < 0 || index >= len(cv.conversation) {
@@ -1110,7 +1110,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleMouseEvents processes mouse wheel events.
-// Bubble Tea v2 split MouseMsg into concrete types — wheel-up events arrive
+// Bubble Tea v2 split MouseMsg into concrete types - wheel-up events arrive
 // as MouseWheelMsg with Button == MouseWheelUp.
 func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
 	if wheel, ok := msg.(tea.MouseWheelMsg); ok {

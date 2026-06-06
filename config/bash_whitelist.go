@@ -6,7 +6,7 @@ import (
 )
 
 // benignTrailingRedirectRe matches a single trailing shell redirection that only
-// discards or merges output streams — it never writes to or reads from the
+// discards or merges output streams - it never writes to or reads from the
 // filesystem. Covered forms: output to /dev/null (>, >>, with an optional fd or
 // the &> "both streams" prefix) and file-descriptor duplications such as 2>&1 or
 // 2>&-. These are stripped before whitelist matching so that benign,
@@ -21,8 +21,8 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 // whitelist. It understands just enough shell structure to keep the policy
 // coherent rather than relying on naive prefix matching:
 //
-//   - Command substitution — $(...), `...`, and process substitution <(...) /
-//     >(...) — is rejected outright, because it can smuggle an arbitrary command
+//   - Command substitution - $(...), `...`, and process substitution <(...) /
+//     >(...) - is rejected outright, because it can smuggle an arbitrary command
 //     past an otherwise-whitelisted wrapper (e.g. echo $(rm -rf /)).
 //   - Compound commands (&&, ||, |, |&, ;, &, and newlines) are split at the top
 //     level, honoring quotes, and EVERY segment must be independently
@@ -66,7 +66,7 @@ func (c *Config) IsBashCommandWhitelisted(command string) bool {
 // mutate the filesystem (-exec, -delete, …). A bare "find" is whitelisted for
 // read-only discovery, but these actions turn it into an arbitrary-command /
 // delete vector, so a find invocation carrying one is not whitelisted (it falls
-// through to approval) — the same stance taken on command substitution.
+// through to approval) - the same stance taken on command substitution.
 var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
 )
