@@ -7,6 +7,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
@@ -66,6 +67,7 @@ func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAge
 
 	agent := &EventDrivenAgent{
 		service:          service,
+		cfg:              config.DefaultConfig().GetAgentConfig(),
 		stateMachine:     mocks.stateMachine,
 		agentCtx:         ctx,
 		eventPublisher:   eventPublisher,

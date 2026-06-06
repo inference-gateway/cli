@@ -103,6 +103,10 @@ type StateContext struct {
 	Provider               string
 	Model                  string
 
+	// MaxConcurrentTools bounds how many approved tools may execute concurrently
+	// while later tools are still being approved.
+	MaxConcurrentTools int
+
 	// Function callbacks
 	ToolExecutor   *func()
 	StartStreaming func()
