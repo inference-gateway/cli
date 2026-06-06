@@ -100,10 +100,5 @@ jobs:
         if: steps.check_releases.outputs.create_initial == 'false'
         env:
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
-          # Bootstrap: set the NPM_TOKEN secret for the first publish (package
-          # does not exist on npm yet). Once a trusted publisher is configured on
-          # npmjs.com, delete the secret and this resolves to empty so
-          # @semantic-release/npm falls back to OIDC (needs id-token: write above).
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           semantic-release
