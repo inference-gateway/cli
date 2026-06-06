@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.120.1](https://github.com/inference-gateway/cli/compare/v0.120.0...v0.120.1) (2026-06-06)
+
+### 🐛 Bug Fixes
+
+* **compact:** skip rollover/auto-compact for unknown context windows ([#615](https://github.com/inference-gateway/cli/issues/615)) ([12f88db](https://github.com/inference-gateway/cli/commit/12f88dba73c43b26a3d5f96f53757e6461dab714))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.119.0 -> v0.120.0, infer-action v0.11.4 -> v0.11.6 ([#614](https://github.com/inference-gateway/cli/issues/614)) ([6c1bf99](https://github.com/inference-gateway/cli/commit/6c1bf991316cf06c833ec7c7f81ef9369a0e17a0))
+
 ## [0.120.0](https://github.com/inference-gateway/cli/compare/v0.119.0...v0.120.0) (2026-06-06)
 
 ### 🚀 Features
