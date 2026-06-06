@@ -1152,7 +1152,6 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 			require.NotNil(t, entry.ToolExecution)
 			assert.Equal(t, tt.success, entry.ToolExecution.Success)
 
-			// Drain published events; the LAST tool-status event must be terminal.
 			var lastStatus string
 		drain:
 			for {
