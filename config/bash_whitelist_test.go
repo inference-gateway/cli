@@ -221,12 +221,6 @@ func TestIsBashCommandWhitelisted_GhApiJq(t *testing.T) {
 func TestIsBashCommandWhitelisted_GhApiGraphql(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// GraphQL commands with query/mutation payload (-f, -X) are NOT whitelisted
-	// because gh api graphql is always a POST and can execute arbitrary
-	// destructive mutations (deleteRef, mergePullRequest, deleteIssue, etc.)
-	// with no read/write distinction at the CLI surface. The only way to reach
-	// graphql with actual payload is through the approval prompt, preserving
-	// the principle that "gh api = no mutations without prompting."
 	// Use gh project subcommands (whitelisted) for project-board operations.
 	denied := []string{
 		"gh api graphql -f query='mutation { updateIssueIssueType }'",
