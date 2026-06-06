@@ -191,6 +191,7 @@ Perform exact string replacements in files with security validation and preview 
 **Security:**
 
 - **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Stale-Read Detection**: Rejects the edit if the file changed on disk since the agent last read it, and asks the model to re-read first
 - **Approval Required**: Edit operations require approval by default
 - **Path Exclusions**: Respects configured excluded paths
 - **Validation**: Validates file paths and prevents editing protected files
@@ -235,6 +236,7 @@ Make multiple edits to a single file in atomic operations. All edits succeed or 
 **Security:**
 
 - **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Stale-Read Detection**: Rejects the edit if the file changed on disk since the agent last read it, and asks the model to re-read first
 - **Approval Required**: MultiEdit operations require approval by default
 - **Path Exclusions**: Respects configured excluded paths
 - **Validation**: Validates all edits before execution
