@@ -218,6 +218,65 @@ func TestIsBashCommandWhitelisted_GhApiJq(t *testing.T) {
 	}
 }
 
+func TestIsBashCommandWhitelisted_GhApiGraphql(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		"gh api graphql -f query='mutation { updateIssueIssueType }'",
+		`gh api graphql -f query="query { repository }"`,
+		"gh api graphql -f query=xxx -f id=123",
+		"gh api graphql --paginate -f query=xxx",
+		"gh api graphql -X POST",
+		"gh api graphql -f query=xxx && echo done",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		}
+	}
+
+	allowed := []string{
+		"gh api graphql",
+		"gh api graphql --paginate",
+		"gh api graphql 2>&1",
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted", cmd)
+		}
+	}
+}
+
+func TestIsBashCommandWhitelisted_GhProject(t *testing.T) {
+	cfg := DefaultConfig()
+
+	allowed := []string{
+		"gh project item-add 7 --owner inference-gateway --url https://github.com/inference-gateway/cli/issues/123",
+		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Todo",
+		"gh project item-list 7 --owner inference-gateway",
+		"gh project field-list 7 --owner inference-gateway",
+		"gh project view 7 --owner inference-gateway",
+		"gh project list --owner inference-gateway",
+		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Done 2>&1",
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted", cmd)
+		}
+	}
+
+	denied := []string{
+		"gh project delete 7",
+		"gh project item-delete 7 --item-id PVTI_xxx",
+		"gh project unknown-subcommand",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		}
+	}
+}
+
 func TestIsBashCommandWhitelisted_FindActions(t *testing.T) {
 	cfg := DefaultConfig()
 

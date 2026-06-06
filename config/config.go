@@ -647,6 +647,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^gh pr create( |$)",
 						"^gh search (issues|code|prs|repos|commits)( |$)",
 						`^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$`,
+						"^gh project (item-add|item-edit|item-list|field-list|view|list)( |$)",
 					},
 				},
 				BackgroundShells: BackgroundShellsConfig{
