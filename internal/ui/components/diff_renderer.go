@@ -121,8 +121,7 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 	}
 
 	var out strings.Builder
-	icon := d.getFileIcon(filePath)
-	out.WriteString(d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent")))
+	out.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
 	out.WriteString("\n\n")
 	out.WriteString(d.styleProvider.RenderStyledText(" NEW FILE ", styles.StyleOptions{
 		Background: d.styleProvider.GetThemeColor("success"),
@@ -321,35 +320,8 @@ func (d *DiffRenderer) renderDiffStats(stats DiffStats) string {
 	return d.styleProvider.RenderDimText("Changes: ") + strings.Join(parts, " ")
 }
 
-func (d *DiffRenderer) getFileIcon(filePath string) string {
-	ext := strings.ToLower(filePath)
-	switch {
-	case strings.HasSuffix(ext, ".go"):
-		return "🐹"
-	case strings.HasSuffix(ext, ".js"), strings.HasSuffix(ext, ".ts"):
-		return "📜"
-	case strings.HasSuffix(ext, ".py"):
-		return "🐍"
-	case strings.HasSuffix(ext, ".md"):
-		return "📝"
-	case strings.HasSuffix(ext, ".json"), strings.HasSuffix(ext, ".yaml"), strings.HasSuffix(ext, ".yml"):
-		return "⚙️ "
-	case strings.HasSuffix(ext, ".html"), strings.HasSuffix(ext, ".css"):
-		return "🌐"
-	case strings.HasSuffix(ext, ".rs"):
-		return "🦀"
-	case strings.HasSuffix(ext, ".java"):
-		return "☕"
-	case strings.HasSuffix(ext, ".sh"), strings.HasSuffix(ext, ".bash"):
-		return "🔧"
-	default:
-		return "📄"
-	}
-}
-
 func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string {
-	icon := d.getFileIcon(filePath)
-	fileName := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
+	fileName := d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent"))
 
 	var content strings.Builder
 	content.WriteString(fileName)
