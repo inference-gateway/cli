@@ -483,7 +483,7 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 		model = c.modelService.GetCurrentModel()
 	}
 	if model == "" {
-		return "", fmt.Errorf("no model configured (use /switch to select a model)")
+		return "", fmt.Errorf("no model configured (use /model to select a model)")
 	}
 
 	slashIndex := strings.Index(model, "/")

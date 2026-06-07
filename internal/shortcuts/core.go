@@ -385,6 +385,13 @@ func (c *ExitShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 	}, nil
 }
 
+// ModelSwitchData contains data for temporary model switching
+type ModelSwitchData struct {
+	TargetModel   string
+	OriginalModel string
+	Prompt        string
+}
+
 // SwitchShortcut switches the active model
 type SwitchShortcut struct {
 	modelService domain.ModelService
@@ -394,10 +401,12 @@ func NewSwitchShortcut(modelService domain.ModelService) *SwitchShortcut {
 	return &SwitchShortcut{modelService: modelService}
 }
 
-func (c *SwitchShortcut) GetName() string               { return "switch" }
-func (c *SwitchShortcut) GetDescription() string        { return "Switch to a different model" }
-func (c *SwitchShortcut) GetUsage() string              { return "/switch" }
-func (c *SwitchShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
+func (c *SwitchShortcut) GetName() string { return "model" }
+func (c *SwitchShortcut) GetDescription() string {
+	return "Switch model or execute a prompt with a specific model"
+}
+func (c *SwitchShortcut) GetUsage() string              { return "/model [model-name] [prompt]" }
+func (c *SwitchShortcut) CanExecute(args []string) bool { return true }
 
 func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if len(args) == 0 {
@@ -409,18 +418,50 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	}
 
 	modelID := args[0]
-	if err := c.modelService.SelectModel(modelID); err != nil {
+
+	if len(args) == 1 {
+		if err := c.modelService.SelectModel(modelID); err != nil {
+			return ShortcutResult{
+				Output:  fmt.Sprintf("Failed to switch model: %v", err),
+				Success: false,
+			}, nil
+		}
+
 		return ShortcutResult{
-			Output:  fmt.Sprintf("Failed to switch model: %v", err),
+			Output:     fmt.Sprintf("Switched to model: %s", modelID),
+			Success:    true,
+			SideEffect: SideEffectSwitchModel,
+			Data:       modelID,
+		}, nil
+	}
+
+	// Temporarily switch model for a single prompt (2+ args)
+	prompt := strings.Join(args[1:], " ")
+
+	if err := c.modelService.ValidateModel(modelID); err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("Invalid model '%s': %v", modelID, err),
+			Success: false,
+		}, nil
+	}
+
+	originalModel := c.modelService.GetCurrentModel()
+	if originalModel == "" {
+		return ShortcutResult{
+			Output:  "No model currently selected",
 			Success: false,
 		}, nil
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("Switched to model: %s", modelID),
+		Output:     "",
 		Success:    true,
-		SideEffect: SideEffectSwitchModel,
-		Data:       modelID,
+		SideEffect: SideEffectSendMessageWithModel,
+		Data: ModelSwitchData{
+			TargetModel:   modelID,
+			OriginalModel: originalModel,
+			Prompt:        prompt,
+		},
 	}, nil
 }
 

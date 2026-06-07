@@ -144,6 +144,19 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 		{
 			Namespace:   config.NamespaceChat,
+			ID:          config.ActionID(config.NamespaceChat, "tab_key_handler"),
+			Keys:        []string{"tab"},
+			Description: "complete autocomplete or cycle history suggestion",
+			Category:    "chat",
+			Handler:     handleTabKey,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			Namespace:   config.NamespaceChat,
 			ID:          config.ActionID(config.NamespaceChat, "enter_key_handler"),
 			Keys:        []string{"enter"},
 			Description: "send message or insert newline",
@@ -867,6 +880,35 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	return app.SendMessage()
+}
+
+// handleTabKey handles Tab key press: routes to autocomplete when visible,
+// otherwise delegates to input view for history suggestion cycling.
+func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	autocomplete := app.GetAutocomplete()
+	if autocomplete != nil && autocomplete.IsVisible() {
+		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
+			if completion != "" {
+				cursorPos := autocomplete.GetCompletionCursorPos()
+				return func() tea.Msg {
+					return domain.AutocompleteCompleteEvent{
+						Completion:         completion,
+						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
+						CursorPos:          cursorPos,
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	inputView := app.GetInputView()
+	if inputView != nil {
+		if iv, ok := inputView.(*components.InputView); ok {
+			iv.TryHandleHistorySuggestionTab()
+		}
+	}
+	return nil
 }
 
 // handleImagePaste processes clipboard image data and adds it as an attachment

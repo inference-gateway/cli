@@ -479,7 +479,7 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 		input := "look at #"
 		ac.Update(input, len(input))
 		assert.True(t, ac.IsVisible())
-		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 		assert.True(t, handled)
 		assert.Equal(t, "look at #573 ", completion)
 		assert.Equal(t, 13, ac.GetCompletionCursorPos())
@@ -491,7 +491,7 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 		input := "look at #5 then something"
 		ac.Update(input, 10)
 		assert.True(t, ac.IsVisible())
-		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 		assert.True(t, handled)
 		assert.Equal(t, "look at #573 then something", completion)
 	})
@@ -546,7 +546,7 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 		input := "use /mai"
 		ac.Update(input, len(input))
 		assert.True(t, ac.IsVisible())
-		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 		assert.True(t, handled)
 		assert.Equal(t, "use /maintainer ", completion)
 		assert.False(t, ac.ShouldExecuteImmediately(),

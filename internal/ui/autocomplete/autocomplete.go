@@ -630,11 +630,15 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 		}
 		return true, ""
 
-	case "tab", "enter":
+	case "tab":
 		if a.selected >= len(a.filtered) {
 			return true, ""
 		}
 		return a.handleSelection()
+
+	case "enter":
+		a.visible = false
+		return false, ""
 
 	case "esc":
 		a.visible = false

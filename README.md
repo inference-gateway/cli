@@ -887,7 +887,7 @@ actions.
 - `/clear` - Clear conversation history
 - `/exit` - Exit chat session
 - `/help [shortcut]` - Show available shortcuts
-- `/switch` - Switch to different model
+- `/model` - Switch to different model
 - `/theme` - Switch chat theme
 - `/cost` - Show session cost breakdown with per-model details
 - `/compact` - Compact conversation
