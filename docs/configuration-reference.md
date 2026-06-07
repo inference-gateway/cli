@@ -311,6 +311,9 @@ compact:
 
 - **agent.model**: Default model for agent operations
 - **agent.system_prompt**: System prompt included with every agent session
+- **agent.system_prompt_plan**: System prompt used in plan mode (falls back to `system_prompt` when empty)
+- **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
+  actions) on top of full autonomy (falls back to `system_prompt` when empty)
 - **agent.system_reminders.enabled**: Enable/disable system reminders (default: true)
 - **agent.system_reminders.interval**: Number of messages between reminders (default: 10)
 - **agent.system_reminders.text**: Custom reminder text to provide contextual guidance
@@ -585,6 +588,13 @@ The Bash allow-list is **per agent mode** and configured in YAML. Set
 list for a mode is `mode.all.allow` unioned with that mode's list; anything
 unmatched is denied (it prompts for approval in chat, or is rejected with a
 reason in headless agent mode).
+
+The defaults are deliberately **explicit, non-destructive commands** - the
+read-only `gh` subcommands (`gh issue/pr/... list|view`, `gh project
+list|view|item-list|field-list`, `gh search`), not a raw `gh api <path>`
+wildcard. `gh api` is **not** auto-approved by default; prefer the structured
+subcommands, or add a narrowly-scoped `gh api` regex to a mode's `allow` if you
+genuinely need the raw API.
 
 The one exception to YAML-only configuration is an **append override** for the
 `mode.all` baseline, so CI (and `infer-action`) can add a few commands without

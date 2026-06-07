@@ -646,11 +646,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled: true,
 				Timeout: 120,
 				Mode: BashModesConfig{
-					// Baseline for EVERY mode: read-only / non-mutating commands.
-					// Each entry is matched against the whole command, so " .*" lets
-					// a command carry arguments. The clean-command guard still blocks
-					// substitution, pipes/chains, redirects, dangerous find actions,
-					// and printing an expanded $VAR (secret leak).
 					All: BashModeAllowConfig{Allow: []string{
 						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
 						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
@@ -661,21 +656,13 @@ func DefaultConfig() *Config { //nolint:funlen
 						`gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?`,
 						`gh auth status( .*)?`,
 						`gh search (issues|code|prs|repos|commits)( .*)?`,
-						`gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*`,
+						`gh project (list|view|item-list|field-list)( .*)?`,
 					}},
-					// Plan mode is read-only; it adds nothing beyond the baseline
-					// (and the Bash tool is filtered out of plan mode entirely).
 					Plan: BashModeAllowConfig{Allow: []string{}},
-					// Standard mode is the interactive default: baseline + GitHub
-					// writes. These publish, so the leak guard still applies.
 					Standard: BashModeAllowConfig{Allow: []string{
 						`gh issue (create|edit|comment)( .*)?`,
 						`gh pr create( .*)?`,
-						`gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?`,
 					}},
-					// Auto mode is full autonomy: ".*" allows any single command and
-					// skips the clean-command guard. This is what headless `infer
-					// agent` runs under; tighten it to a curated list for CI secrets.
 					Auto: BashModeAllowConfig{Allow: []string{`.*`}},
 				},
 				BackgroundShells: BackgroundShellsConfig{

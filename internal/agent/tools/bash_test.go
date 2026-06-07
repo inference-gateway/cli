@@ -395,7 +395,7 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Mode: config.BashModesConfig{
-					All: config.BashModeAllowConfig{Allow: []string{"^echo( |$)", `^gh api [^ -][^ ]*( --jq [^ ]+)*$`}},
+					All: config.BashModeAllowConfig{Allow: []string{"^echo( |$)", `^git log( --oneline)?$`}},
 				},
 			},
 		},
@@ -406,13 +406,13 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 		command   string
 		wantError bool
 	}{
-		{"gh api repos/o/r/issues 2>&1", false},
+		{"git log --oneline 2>&1", false},
 		{"echo hi && echo bye", true},
 		{"echo hi || echo failed", true},
 		{"echo a | echo b", true},
 		{"echo $(rm -rf /)", true},
 		{"echo hi && rm -rf /", true},
-		{"gh api repos/o/r -X POST", true},
+		{"git log --graph", true},
 	}
 	for _, tt := range tests {
 		err := tool.Validate(map[string]any{"command": tt.command})

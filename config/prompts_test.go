@@ -18,6 +18,7 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	cases := map[string]string{
 		"agent.system_prompt":                         cfg.Agent.SystemPrompt,
 		"agent.system_prompt_plan":                    cfg.Agent.SystemPromptPlan,
+		"agent.system_prompt_auto":                    cfg.Agent.SystemPromptAuto,
 		"agent.system_prompt_remote":                  cfg.Agent.SystemPromptRemote,
 		"agent.system_prompt_heartbeat":               cfg.Agent.SystemPromptHeartbeat,
 		"agent.system_reminders.reminder_text":        cfg.Agent.SystemReminders.ReminderText,

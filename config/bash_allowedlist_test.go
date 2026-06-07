@@ -29,12 +29,12 @@ func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
 	cfg := DefaultConfig()
 
 	allowed := []string{
-		"gh api repos/o/r/issues 2>&1",
+		"gh issue list 2>&1",
 		"gh issue list 2>/dev/null",
 		"gh issue list >/dev/null 2>&1",
 		"gh issue list 2>&1 >/dev/null",
 		"gh pr view 5 2>&1",
-		"gh api user --paginate 2>&1",
+		"gh issue list --state open 2>&1",
 		"gh issue list &>/dev/null",
 		"gh issue list 1>/dev/null",
 		"git status 2>&1",
@@ -46,7 +46,7 @@ func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
 	}
 
 	denied := []string{
-		"gh api repos/o/r/issues -X POST 2>&1",
+		"gh pr merge 5 2>&1",
 		"rm -rf / 2>&1",
 	}
 	for _, cmd := range denied {
@@ -186,93 +186,40 @@ func TestIsBashCommandAllowed_GhSearch(t *testing.T) {
 	}
 }
 
-func TestIsBashCommandAllowed_GhApiJq(t *testing.T) {
-	cfg := DefaultConfig()
-
-	allowed := []string{
-		`gh api repos/o/r --jq '.[] | .id'`,
-		`gh api repos/o/r --jq '.[] | select(.draft==false) | .title'`,
-		`gh api repos/o/r/issues -q '.[] | length'`,
-		`gh api repos/o/r/pulls --jq '.[] | {number, title}'`,
-		`gh api repos/o/r --jq ".[] | .name"`,
-		"gh api repos/o/r/issues --jq .[].title",
-		"gh api user --paginate",
-	}
-	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected read-only %q to be allowed", cmd)
-		}
-	}
-
-	denied := []string{
-		"gh api repos/o/r/issues -X POST",
-		"gh api repos/o/r/issues --method POST",
-		"gh api -X DELETE repos/o/r",
-		"gh api repos/o/r -f title=x",
-		`gh api repos/o/r/secrets -X POST -f value=$TOKEN`,
-	}
-	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected mutating %q NOT to be allowed", cmd)
-		}
-	}
-}
-
-func TestIsBashCommandAllowed_GhApiGraphql(t *testing.T) {
-	cfg := DefaultConfig()
-
-	denied := []string{
-		"gh api graphql -f query='mutation { updateIssueIssueType }'",
-		`gh api graphql -f query="query { repository }"`,
-		"gh api graphql -f query=xxx -f id=123",
-		"gh api graphql --paginate -f query=xxx",
-		"gh api graphql -X POST",
-		"gh api graphql -f query=xxx && echo done",
-	}
-	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected %q NOT to be allowed", cmd)
-		}
-	}
-
-	allowed := []string{
-		"gh api graphql",
-		"gh api graphql --paginate",
-		"gh api graphql 2>&1",
-	}
-	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected %q to be allowed", cmd)
-		}
-	}
-}
-
 func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	cfg := DefaultConfig()
 
-	allowed := []string{
-		"gh project item-add 7 --owner inference-gateway --url https://github.com/inference-gateway/cli/issues/123",
-		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Todo",
+	// Read-only project commands are in the mode.all baseline - allowed even in
+	// read-only plan mode.
+	reads := []string{
 		"gh project item-list 7 --owner inference-gateway",
 		"gh project field-list 7 --owner inference-gateway",
 		"gh project view 7 --owner inference-gateway",
 		"gh project list --owner inference-gateway",
-		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Done 2>&1",
 	}
-	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected %q to be allowed", cmd)
+	for _, mode := range []string{"plan", "standard"} {
+		for _, cmd := range reads {
+			if !cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected read-only %q to be allowed in %s mode", cmd, mode)
+			}
 		}
 	}
 
+	// Project writes and destructive actions are NOT auto-approved in any
+	// interactive mode - they fall through to approval.
 	denied := []string{
+		"gh project item-add 7 --owner inference-gateway --url https://github.com/inference-gateway/cli/issues/123",
+		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Todo",
+		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Done 2>&1",
 		"gh project delete 7",
 		"gh project item-delete 7 --item-id PVTI_xxx",
 		"gh project unknown-subcommand",
 	}
-	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, "standard") {
-			t.Errorf("expected %q NOT to be allowed", cmd)
+	for _, mode := range []string{"plan", "standard"} {
+		for _, cmd := range denied {
+			if cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected %q NOT to be allowed in %s mode", cmd, mode)
+			}
 		}
 	}
 }

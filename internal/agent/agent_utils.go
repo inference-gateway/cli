@@ -204,10 +204,11 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 		return ""
 	}
 	return "\n\nGITHUB OPERATIONS:\n" +
-		"Use the `gh` CLI via the Bash tool for all GitHub operations - issues, pull requests, " +
-		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
-		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. Prefer `gh api` " +
-		"over fetching api.github.com directly. " +
+		"Use the `gh` CLI via the Bash tool for GitHub operations - issues, pull requests, " +
+		"releases, and repository metadata (e.g. `gh issue view`, `gh pr create`, `gh repo view`). " +
+		"There is no built-in GitHub tool. Prefer the structured `gh` subcommands over the raw " +
+		"`gh api`: the subcommands are auto-approved, whereas `gh api` is not in the default " +
+		"allow-list and needs approval unless your config opts into it. " +
 		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain).\n\n" +
 		"BASH USAGE:\n" +
 		"The Bash tool already captures stdout, stderr, and the exit code. Do NOT append `2>&1`, " +
@@ -275,6 +276,10 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 	for _, e := range allow {
 		fmt.Fprintf(&b, "- %s\n", e)
 	}
+	b.WriteString("\nIf a command you need is NOT covered above, it will be denied (agent " +
+		"mode) or require approval (chat). Do NOT retry the same or a trivially reworded command " +
+		"hoping it passes - it will keep being denied. Instead, accomplish the goal with an " +
+		"allowed command, or stop and tell the user exactly what you need to run and why.\n")
 	return b.String()
 }
 
@@ -334,6 +339,9 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 		return prompts.SystemPrompt
 
 	case domain.AgentModeAutoAccept:
+		if prompts.SystemPromptAuto != "" {
+			return prompts.SystemPromptAuto
+		}
 		return prompts.SystemPrompt
 
 	case domain.AgentModeStandard:

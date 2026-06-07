@@ -74,7 +74,6 @@ tools:
           - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
           - gh auth status( .*)?
           - gh search (issues|code|prs|repos|commits)( .*)?
-          - gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*
       plan:
         allow: []
       standard:
