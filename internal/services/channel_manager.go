@@ -282,6 +282,10 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		logger.Error("error reading agent output", "error", err)
+	}
+
 	if err := cmd.Wait(); err != nil {
 		stderrStr := stderrBuf.String()
 		if stderrBuf.Len() > 0 {
