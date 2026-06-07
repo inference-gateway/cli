@@ -295,9 +295,27 @@ type SandboxConfig struct {
 	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
+// Approval-behaviour values for SafetyConfig.ApprovalBehaviour - they select HOW a
+// tool that needs approval is delivered (see SafetyConfig for full semantics).
+const (
+	ApprovalBehaviourPrompt = "prompt"
+	ApprovalBehaviourIPC    = "ipc"
+	ApprovalBehaviourBlock  = "block"
+)
+
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
+	// ApprovalBehaviour selects HOW a tool that needs approval is handled:
+	//   "prompt" (default): ask an interactive approver via whatever channel is
+	//       attached - a TUI prompt in chat, IPC under the channel-manager; if none
+	//       is reachable (CI/heartbeat) the action is blocked with a reason.
+	//   "ipc":   force stdin/stdout IPC approval; blocked if no IPC broker.
+	//   "block": reject immediately with a reason, never ask.
+	// It governs delivery only - whether a tool needs approval at all is decided by
+	// RequireApproval / the per-tool require_approval override / the per-mode bash
+	// allow-list. Resolve via ApprovalBehaviourFor; validated by Config.Validate.
+	ApprovalBehaviour string `yaml:"approval_behaviour" mapstructure:"approval_behaviour"`
 }
 
 // ExportConfig contains settings for export command
@@ -730,7 +748,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxJobs:         100,
 			},
 			Safety: SafetyConfig{
-				RequireApproval: true,
+				RequireApproval:   true,
+				ApprovalBehaviour: ApprovalBehaviourPrompt,
 			},
 		},
 		Image: ImageConfig{
@@ -936,6 +955,38 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	}
 
 	return globalApproval
+}
+
+// ApprovalBehaviourFor returns how an approval-requiring action should be
+// delivered for toolName: one of ApprovalBehaviourPrompt (default),
+// ApprovalBehaviourIPC, or ApprovalBehaviourBlock. It reads the global
+// tools.safety.approval_behaviour; toolName is reserved for a future per-tool
+// override. An empty or unrecognised value resolves to the safe default
+// (prompt). This decides HOW to handle an action that needs approval;
+// IsApprovalRequired decides WHETHER it does.
+func (c *Config) ApprovalBehaviourFor(toolName string) string {
+	switch c.Tools.Safety.ApprovalBehaviour {
+	case ApprovalBehaviourBlock, ApprovalBehaviourIPC, ApprovalBehaviourPrompt:
+		return c.Tools.Safety.ApprovalBehaviour
+	default:
+		return ApprovalBehaviourPrompt
+	}
+}
+
+// Validate checks cross-cutting config invariants after load so a typo fails fast
+// instead of silently falling back. It currently validates
+// tools.safety.approval_behaviour; extend it as new validated settings are added.
+func (c *Config) Validate() error {
+	switch c.Tools.Safety.ApprovalBehaviour {
+	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock:
+	default:
+		return fmt.Errorf(
+			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, or %q",
+			c.Tools.Safety.ApprovalBehaviour,
+			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock,
+		)
+	}
+	return nil
 }
 
 // IsA2AToolsEnabled checks if A2A tools should be enabled

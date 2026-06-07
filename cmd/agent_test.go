@@ -367,6 +367,81 @@ func TestExecuteToolCallsParallel(t *testing.T) {
 	}
 }
 
+// TestExecuteToolCalls_BlocksWhenNoApprover verifies the secure-by-default headless
+// behaviour: a tool that needs approval is blocked (not executed) when no approver
+// is reachable - approval_behaviour=block, or the default prompt with no broker.
+func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
+	for _, behaviour := range []string{config.ApprovalBehaviourBlock, config.ApprovalBehaviourPrompt} {
+		t.Run(behaviour, func(t *testing.T) {
+			mockToolService := &domainmocks.FakeToolService{}
+
+			cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 5}}
+			cfg.Tools.Safety.RequireApproval = true // Write needs approval
+			cfg.Tools.Safety.ApprovalBehaviour = behaviour
+
+			session := &AgentSession{
+				toolService:     mockToolService,
+				config:          cfg,
+				requireApproval: false, // no IPC broker (CI/heartbeat)
+			}
+
+			results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
+				{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{
+					Name: "Write", Arguments: `{"file_path":"x","content":"y"}`,
+				}},
+			})
+
+			if mockToolService.ExecuteToolCallCount() != 0 {
+				t.Errorf("blocked tool must not execute, but ExecuteTool was called %d times", mockToolService.ExecuteToolCallCount())
+			}
+			if len(results) != 1 {
+				t.Fatalf("expected 1 result, got %d", len(results))
+			}
+			if exec := results[0].ToolExecution; exec == nil || !exec.Rejected {
+				t.Errorf("expected a rejected/blocked tool result, got %+v", exec)
+			}
+			if !strings.Contains(results[0].Content, "Blocked") {
+				t.Errorf("expected a 'Blocked' reason, got %q", results[0].Content)
+			}
+		})
+	}
+}
+
+// TestExecuteToolCalls_IPCApprovalExecutesWhenApproved verifies that with an IPC
+// broker attached (--require-approval) and the default prompt behaviour, an
+// approval-requiring tool is delivered over IPC and runs once the user approves.
+func TestExecuteToolCalls_IPCApprovalExecutesWhenApproved(t *testing.T) {
+	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService.ExecuteToolReturns(&domain.ToolExecutionResult{ToolName: "Write", Success: true, Data: "ok"}, nil)
+
+	cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 5}}
+	cfg.Tools.Safety.RequireApproval = true
+	cfg.Tools.Safety.ApprovalBehaviour = config.ApprovalBehaviourPrompt
+
+	approvalCh := make(chan domain.ApprovalResponse, 1)
+	approvalCh <- domain.ApprovalResponse{Type: "approval_response", ToolCallID: "call_1", Approved: true}
+
+	session := &AgentSession{
+		toolService:     mockToolService,
+		config:          cfg,
+		requireApproval: true, // broker attached -> prompt resolves to IPC
+		approvalCh:      approvalCh,
+	}
+
+	results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
+		{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{
+			Name: "Write", Arguments: `{"file_path":"x","content":"y"}`,
+		}},
+	})
+
+	if mockToolService.ExecuteToolCallCount() != 1 {
+		t.Errorf("approved tool should execute once, got %d calls", mockToolService.ExecuteToolCallCount())
+	}
+	if len(results) != 1 || results[0].ToolExecution == nil || !results[0].ToolExecution.Success {
+		t.Errorf("expected a successful execution result, got %+v", results)
+	}
+}
+
 func TestProcessSyncResponseParallel(t *testing.T) {
 	tests := []struct {
 		name                  string

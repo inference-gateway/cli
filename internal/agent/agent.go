@@ -1186,6 +1186,14 @@ func (s *AgentServiceImpl) requestToolApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, error) {
+	if s.config != nil {
+		behaviour := s.config.ApprovalBehaviourFor(tc.Function.Name)
+		if config.ResolveApprovalDelivery(behaviour, false, true) == config.ApprovalBehaviourBlock {
+			logger.Info("tool blocked by approval_behaviour (chat)", "tool", tc.Function.Name, "behaviour", behaviour)
+			return false, nil
+		}
+	}
+
 	responseChan := make(chan domain.ApprovalAction, 1)
 
 	eventPublisher.chatEvents <- domain.ToolApprovalRequestedEvent{

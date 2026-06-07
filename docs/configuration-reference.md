@@ -191,6 +191,9 @@ tools:
     require_approval: false
   safety:
     require_approval: true
+    # How an action that needs approval is delivered: prompt (TUI in chat, IPC
+    # under the channel manager, else blocked), ipc (force IPC), or block (reject).
+    approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
   system_prompt: | # System prompt for agent sessions
@@ -296,7 +299,16 @@ compact:
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
   unrestricted.
-- **tools.safety.require_approval**: Prompt user before executing any command (default: true)
+- **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
+- **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
+  - `prompt` — ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
+    (Telegram); if none is reachable (CI/heartbeat) the action is **blocked** with a reason.
+  - `ipc` — force stdin/stdout IPC approval; blocked when no broker is attached.
+  - `block` — reject immediately with a reason, never ask.
+
+  The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
+  the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
+  (e.g. `tools.write.require_approval: false` plus a curated bash allow-list / the `mode.all` append override).
 - **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)

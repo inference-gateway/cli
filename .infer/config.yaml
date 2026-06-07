@@ -161,6 +161,7 @@ tools:
     max_jobs: 100
   safety:
     require_approval: true
+    approval_behaviour: prompt
 image:
   max_size: 5242880
   timeout: 30
