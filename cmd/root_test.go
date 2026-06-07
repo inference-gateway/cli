@@ -97,8 +97,6 @@ func TestBashWhitelistAppendEnvironmentVariables(t *testing.T) {
 			assert.NoError(t, os.Unsetenv(k))
 		}
 	}
-	// Resolve against a config-free HOME so the base is the built-in default rather
-	// than a developer's ~/.infer/config.yaml.
 	setup := func(t *testing.T) {
 		t.Helper()
 		t.Setenv("HOME", t.TempDir())
@@ -107,7 +105,7 @@ func TestBashWhitelistAppendEnvironmentVariables(t *testing.T) {
 	}
 
 	defaults := config.DefaultConfig().Tools.Bash.Whitelist
-	const defaultCommand = "^task( |$)" // present in the default command list (now a regex)
+	const defaultCommand = "^task( |$)"
 
 	t.Run("append merges onto the built-in default", func(t *testing.T) {
 		setup(t)
@@ -169,8 +167,6 @@ func TestBashWhitelistFlags(t *testing.T) {
 			assert.NoError(t, rootCmd.PersistentFlags().Set(f, ""))
 		}
 	}
-	// Resolve against a config-free HOME so the base is the built-in default, and
-	// reset the package-global flags before and after each case so they do not bleed.
 	setup := func(t *testing.T) {
 		t.Helper()
 		t.Setenv("HOME", t.TempDir())
@@ -183,7 +179,7 @@ func TestBashWhitelistFlags(t *testing.T) {
 	}
 
 	defaults := config.DefaultConfig().Tools.Bash.Whitelist
-	const defaultCommand = "^task( |$)" // present in the default command list (now a regex)
+	const defaultCommand = "^task( |$)"
 
 	t.Run("replace flag overrides the default", func(t *testing.T) {
 		setup(t)
