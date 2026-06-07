@@ -48,7 +48,7 @@ tools:
   Bash:
     description: |-
       Execute allowed bash commands securely. Only pre-approved
-      commands from the whitelist can be executed.
+      commands from the allowed can be executed.
   Read:
     description: |-
       Reads a file from the local filesystem. Always prefer reading
@@ -449,7 +449,7 @@ tools:
 
 ### WebFetch Tool
 
-Fetch content from whitelisted URLs or GitHub references using the format `example.com`.
+Fetch content from allowed URLs or GitHub references using the format `example.com`.
 
 **Configuration:**
 
@@ -457,7 +457,7 @@ Fetch content from whitelisted URLs or GitHub references using the format `examp
 tools:
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
       - github.com
     safety:

@@ -595,7 +595,7 @@ infer config set tools.write.enabled true
 # Configure tool settings
 infer config set tools.grep.backend ripgrep
 # List values are comma-separated and replace the whole list
-infer config set tools.web_fetch.whitelisted_domains "example.com,github.com"
+infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 ```
 
 **Customising Tool Descriptions:**

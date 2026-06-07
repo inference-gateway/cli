@@ -159,7 +159,7 @@ tools:
     require_approval: false
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
     safety:
       max_size: 8192 # 8KB

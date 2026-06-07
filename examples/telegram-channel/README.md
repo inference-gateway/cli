@@ -143,7 +143,7 @@ infer channels-manager
 
 ## Security
 
-- **Only whitelisted users can interact** - messages from unknown chat IDs are silently rejected
+- **Only allowed users can interact** - messages from unknown chat IDs are silently rejected
 - **Empty allowlist = reject all** - if you forget to set `allowed_users`, nobody can use the bot
 - **Never commit `.env`** - it contains your bot token and API keys
 - The `.env` file is in `.gitignore` by default

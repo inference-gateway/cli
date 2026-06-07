@@ -106,7 +106,7 @@ func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
 	})
 }
 
-func TestStandardApprovalPolicy_BashWhitelist(t *testing.T) {
+func TestStandardApprovalPolicy_BashAllowedList(t *testing.T) {
 	cfg := createTestConfig()
 	stateManager := &mocksdomain.FakeStateManager{}
 	stateManager.GetAgentModeReturns(domain.AgentModeStandard)

@@ -101,7 +101,7 @@ tools:
     require_approval: false
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
     safety:
       max_size: 8192
@@ -179,7 +179,7 @@ infer config set tools.enabled false
 infer config get tools
 infer config get tools -f json
 
-# Validate if a command is whitelisted (top-level tools command)
+# Validate if a command is allowed (top-level tools command)
 infer tools validate "ls"
 
 # Execute tools directly with JSON arguments
@@ -229,7 +229,7 @@ All commands support these global flags:
 
 ## Security Features
 
-- **Tool Whitelisting**: Only pre-approved commands can be executed
+- **Tool Allowed list**: Only pre-approved commands can be executed
 - **Approval Prompts**: Optional user confirmation before tool execution
 - **Path Exclusions**: Protect sensitive directories from tool access
 - **Tool-Specific Safety**: Configure approval requirements per tool

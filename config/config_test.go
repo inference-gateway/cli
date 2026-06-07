@@ -264,7 +264,7 @@ tools:
       retention_minutes: 60
   web_fetch:
     enabled: false
-    whitelisted_domains: []
+    allowed_domains: []
     safety:
       max_size: 8192
       timeout: 30

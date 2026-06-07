@@ -213,11 +213,11 @@ type TreeToolConfig struct {
 
 // WebFetchToolConfig contains fetch-specific tool settings
 type WebFetchToolConfig struct {
-	Enabled            bool              `yaml:"enabled" mapstructure:"enabled"`
-	WhitelistedDomains []string          `yaml:"whitelisted_domains" mapstructure:"whitelisted_domains"`
-	Safety             FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
-	Cache              FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
-	RequireApproval    *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled         bool              `yaml:"enabled" mapstructure:"enabled"`
+	AllowedDomains  []string          `yaml:"allowed_domains" mapstructure:"allowed_domains"`
+	Safety          FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	Cache           FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
+	RequireApproval *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebSearchToolConfig contains web search-specific tool settings
@@ -712,8 +712,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{false}[0],
 			},
 			WebFetch: WebFetchToolConfig{
-				Enabled:            true,
-				WhitelistedDomains: []string{"golang.org", "localhost"},
+				Enabled:        true,
+				AllowedDomains: []string{"golang.org", "localhost"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       10485760, // 10MB
 					Timeout:       30,       // 30 seconds
@@ -1067,7 +1067,7 @@ func ResolveConfigDir() string {
 }
 
 // IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
-// bash_whitelist.go, alongside the shell-aware clean-command guard (redirection
+// bash_allowedlist.go, alongside the shell-aware clean-command guard (redirection
 // stripping, compound-command splitting, command-substitution rejection) it
 // relies on.
 
