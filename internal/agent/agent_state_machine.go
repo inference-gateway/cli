@@ -3,7 +3,6 @@ package agent
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -228,17 +227,6 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 		"to", sm.currentState.String(),
 		"session_id", sessionID,
 		"request_id", ctx.RequestID)
-
-	if sm.stateManager != nil {
-		sm.stateManager.BroadcastEvent(domain.StateTransitionEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: ctx.RequestID,
-				Timestamp: time.Now(),
-			},
-			FromState: sm.previousState,
-			ToState:   sm.currentState,
-		})
-	}
 
 	return nil
 }

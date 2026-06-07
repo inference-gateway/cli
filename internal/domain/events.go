@@ -213,7 +213,7 @@ func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolApprovalRequestedEvent is used for standard tool approval workflow.
-// Computer-use tools use a separate pause/resume mechanism (ComputerUsePauseRequestedEvent).
+// Computer-use tools use a separate pause/resume mechanism.
 type ToolApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
@@ -223,28 +223,6 @@ type ToolApprovalRequestedEvent struct {
 
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ToolApprovedEvent is used for standard tool approval workflow.
-// Computer-use tools use a separate pause/resume mechanism.
-type ToolApprovedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ToolCall  sdk.ChatCompletionMessageToolCall
-}
-
-func (e ToolApprovedEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ToolRejectedEvent is used for standard tool approval workflow.
-// Computer-use tools use a separate pause/resume mechanism.
-type ToolRejectedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ToolCall  sdk.ChatCompletionMessageToolCall
-}
-
-func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolCancelledEvent is published when the conversation validator
 // synthesizes a Tool-role response for an assistant tool_call whose
@@ -261,34 +239,6 @@ type ToolCancelledEvent struct {
 
 func (e ToolCancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ToolApprovalClearedEvent is used for standard tool approval workflow.
-// Computer-use tools use a separate pause/resume mechanism.
-type ToolApprovalClearedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e ToolApprovalClearedEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolApprovalClearedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ComputerUsePauseRequestedEvent indicates user requested to pause computer-use execution
-type ComputerUsePauseRequestedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e ComputerUsePauseRequestedEvent) GetRequestID() string    { return e.RequestID }
-func (e ComputerUsePauseRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ComputerUseResumeRequestedEvent indicates user requested to resume computer-use execution
-type ComputerUseResumeRequestedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e ComputerUseResumeRequestedEvent) GetRequestID() string    { return e.RequestID }
-func (e ComputerUseResumeRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ComputerUsePausedEvent indicates computer-use execution has been paused
 type ComputerUsePausedEvent struct {
@@ -330,33 +280,6 @@ type PlanApprovalRequestedEvent struct {
 func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// PlanApprovedEvent indicates the user approved the plan
-type PlanApprovedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e PlanApprovedEvent) GetRequestID() string    { return e.RequestID }
-func (e PlanApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// PlanApprovedAndAutoAcceptEvent indicates the user approved the plan and wants to enable auto-accept
-type PlanApprovedAndAutoAcceptEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e PlanApprovedAndAutoAcceptEvent) GetRequestID() string    { return e.RequestID }
-func (e PlanApprovedAndAutoAcceptEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// PlanRejectedEvent indicates the user rejected the plan
-type PlanRejectedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e PlanRejectedEvent) GetRequestID() string    { return e.RequestID }
-func (e PlanRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // RefreshAutocompleteEvent is sent when autocomplete needs to refresh (e.g., after mode change)
 type RefreshAutocompleteEvent struct{}
 
@@ -373,18 +296,6 @@ type ShellDetachedEvent struct {
 
 func (e ShellDetachedEvent) GetRequestID() string    { return e.RequestID }
 func (e ShellDetachedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ShellOutputUpdateEvent contains new output from a background shell
-type ShellOutputUpdateEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	ShellID    string
-	NewOutput  string
-	TotalBytes int64
-}
-
-func (e ShellOutputUpdateEvent) GetRequestID() string    { return e.RequestID }
-func (e ShellOutputUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ShellCompletedEvent indicates a background shell finished successfully
 type ShellCompletedEvent struct {
@@ -474,16 +385,3 @@ type MessageEditSubmitEvent struct {
 
 func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ComputerUseScreenshotEvent is emitted when a screenshot is captured
-type ComputerUseScreenshotEvent struct {
-	RequestID string
-	Timestamp time.Time
-	Width     int
-	Height    int
-	Region    *ScreenRegion
-	ImageData string
-}
-
-func (e ComputerUseScreenshotEvent) GetRequestID() string    { return e.RequestID }
-func (e ComputerUseScreenshotEvent) GetTimestamp() time.Time { return e.Timestamp }

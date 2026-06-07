@@ -124,11 +124,6 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	}
 
 	logger.Debug("tool approved", "tool", tc.Function.Name)
-	s.ctx.PublishChatEvent(domain.ToolApprovedEvent{
-		RequestID: s.ctx.Request.RequestID,
-		Timestamp: time.Now(),
-		ToolCall:  *tc,
-	})
 
 	if s.shouldAutoApproveRemaining() {
 		s.spawnAllRemaining(round, idx, *tc)
@@ -192,12 +187,6 @@ func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sd
 	for i := start; i < len(tools); i++ {
 		remaining := tools[i]
 		logger.Debug("auto-approving tool", "tool", remaining.Function.Name)
-
-		s.ctx.PublishChatEvent(domain.ToolApprovedEvent{
-			RequestID: s.ctx.Request.RequestID,
-			Timestamp: time.Now(),
-			ToolCall:  remaining,
-		})
 
 		s.spawnExecution(round, i, remaining)
 	}
@@ -268,12 +257,6 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
 		ToolCallID: &tc.ID,
 	}
-
-	s.ctx.PublishChatEvent(domain.ToolRejectedEvent{
-		RequestID: s.ctx.Request.RequestID,
-		Timestamp: time.Now(),
-		ToolCall:  tc,
-	})
 
 	return domain.ConversationEntry{
 		Message: rejectionMessage,

@@ -47,13 +47,6 @@ type StartStreamingEvent struct{}
 
 func (e StartStreamingEvent) EventType() string { return "StartStreaming" }
 
-// ProcessNextToolEvent is triggered to process the next tool in the queue
-type ProcessNextToolEvent struct {
-	ToolIndex int
-}
-
-func (e ProcessNextToolEvent) EventType() string { return "ProcessNextTool" }
-
 // AllToolsProcessedEvent is triggered when all tools have been processed
 type AllToolsProcessedEvent struct{}
 
