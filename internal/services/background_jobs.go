@@ -100,7 +100,7 @@ func (m *BackgroundJobManager) runTitleGenerationWorker(ctx context.Context) {
 		case <-ticker.C:
 			if m.titleGenerator != nil {
 				if err := m.titleGenerator.ProcessPendingTitles(ctx); err != nil {
-					logger.Error("Error processing pending titles", "error", err)
+					logger.Error("error processing pending titles", "error", err)
 				}
 			}
 		}

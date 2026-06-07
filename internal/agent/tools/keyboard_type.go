@@ -116,7 +116,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 

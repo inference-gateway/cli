@@ -94,7 +94,7 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 
@@ -185,7 +185,7 @@ func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller displa
 
 	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
 	if err != nil {
-		logger.Warn("Failed to get screen dimensions, no scaling", "error", err)
+		logger.Warn("failed to get screen dimensions, no scaling", "error", err)
 		return x, y
 	}
 
@@ -219,7 +219,7 @@ func (t *MouseClickTool) storeFocusedApp(ctx context.Context, controller display
 
 	appID, err := focusManager.GetFrontmostApp(ctx)
 	if err != nil {
-		logger.Warn("Failed to get frontmost app after click", "error", err)
+		logger.Warn("failed to get frontmost app after click", "error", err)
 		return
 	}
 
@@ -229,18 +229,18 @@ func (t *MouseClickTool) storeFocusedApp(ctx context.Context, controller display
 func (t *MouseClickTool) broadcastClickEvent(x, y int) {
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		logger.Warn("Failed to get controller for click indicator", "error", err)
+		logger.Warn("failed to get controller for click indicator", "error", err)
 		return
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 
 	_, screenHeight, err := controller.GetScreenDimensions(context.Background())
 	if err != nil {
-		logger.Warn("Failed to get screen dimensions for click indicator", "error", err)
+		logger.Warn("failed to get screen dimensions for click indicator", "error", err)
 		screenHeight = 1117
 	}
 

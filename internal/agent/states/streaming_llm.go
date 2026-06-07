@@ -47,7 +47,7 @@ func (s *StreamingLLMState) Handle(event domain.AgentEvent) error {
 		s.ctx.AgentCtx.ToolCalls = e.ToolCalls
 
 		contentStr, _ := e.Message.Content.AsMessageContent0()
-		logger.Debug("Storing stream data",
+		logger.Debug("storing stream data",
 			"content_length", len(contentStr),
 			"reasoning_length", len(e.Reasoning))
 

@@ -93,10 +93,10 @@ func (w *SafeFileWriter) writeAtomically(targetPath, content string) error {
 	defer func() {
 		if tempFile != nil {
 			if err := tempFile.Close(); err != nil {
-				logger.Error("Failed to close temp file during cleanup", "path", tempPath, "error", err)
+				logger.Error("failed to close temp file during cleanup", "path", tempPath, "error", err)
 			}
 			if err := os.Remove(tempPath); err != nil {
-				logger.Error("Failed to remove temp file during cleanup", "path", tempPath, "error", err)
+				logger.Error("failed to remove temp file during cleanup", "path", tempPath, "error", err)
 			}
 		}
 	}()

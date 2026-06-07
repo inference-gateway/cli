@@ -83,7 +83,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 	adkClient := client.NewClient(agentURL)
 	response, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
-		logger.Error("Failed to fetch agent card", "agent_url", agentURL, "error", err)
+		logger.Error("failed to fetch agent card", "agent_url", agentURL, "error", err)
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to fetch agent card: %v", err))
 	}
 

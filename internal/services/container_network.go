@@ -60,7 +60,7 @@ func interpretNetworkRm(output string) (gone bool, inUse bool) {
 func pruneNetworks(ctx context.Context, bin, current string) {
 	out, err := exec.CommandContext(ctx, bin, "network", "ls", "--filter", "name="+InferNetworkPrefix, "--format", "{{.Name}}").Output()
 	if err != nil {
-		logger.Debug("Failed to list networks for pruning", "runtime", bin, "error", err)
+		logger.Debug("failed to list networks for pruning", "runtime", bin, "error", err)
 		return
 	}
 
@@ -69,9 +69,9 @@ func pruneNetworks(ctx context.Context, bin, current string) {
 		return
 	}
 
-	logger.Info("Pruning leaked container networks", "runtime", bin, "count", len(names))
+	logger.Info("pruning leaked container networks", "runtime", bin, "count", len(names))
 	args := append([]string{"network", "rm"}, names...)
 	if err := exec.CommandContext(ctx, bin, args...).Run(); err != nil {
-		logger.Debug("Some leaked networks could not be removed (likely in use)", "runtime", bin, "error", err)
+		logger.Debug("some leaked networks could not be removed (likely in use)", "runtime", bin, "error", err)
 	}
 }

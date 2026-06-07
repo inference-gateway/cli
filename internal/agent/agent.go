@@ -498,7 +498,7 @@ func (s *AgentServiceImpl) batchDrainQueue(
 
 	s.ensureConversationIntegrity(conversation, eventPublisher, messages[0].RequestID, true)
 
-	logger.Info("Batching queued messages into conversation",
+	logger.Info("batching queued messages into conversation",
 		"count", len(messages),
 		"oldest", messages[0].QueuedAt,
 		"newest", messages[len(messages)-1].QueuedAt)
@@ -1049,7 +1049,7 @@ func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.Conversat
 			}
 			if entry.ToolExecution.ToolName == "RequestPlanApproval" && entry.ToolExecution.Success {
 				planContent = extractPlanContent(entry.ToolExecution)
-				logger.Info("RequestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
+				logger.Info("requestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
 			}
 		}
 	}
@@ -1163,7 +1163,7 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
-			logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			logger.Warn("failed to create image content part", "index", i, "filename", img.Filename, "error", err)
 			continue
 		}
 		contentParts = append(contentParts, imagePart)

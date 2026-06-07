@@ -53,7 +53,7 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	logger.Info("Canceling background task", "task_id", taskID)
+	logger.Info("canceling background task", "task_id", taskID)
 
 	if s.taskTracker == nil {
 		return fmt.Errorf("task tracker not available")
@@ -65,9 +65,9 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 	}
 
 	if err := s.sendCancelToAgent(targetTask); err != nil {
-		logger.Error("Failed to send cancel to agent", "task_id", taskID, "error", err)
+		logger.Error("failed to send cancel to agent", "task_id", taskID, "error", err)
 	} else {
-		logger.Info("Successfully sent cancel request to agent", "task_id", taskID)
+		logger.Info("successfully sent cancel request to agent", "task_id", taskID)
 	}
 
 	if targetTask.CancelFunc != nil {
@@ -77,7 +77,7 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 	s.taskTracker.StopPolling(taskID)
 	s.taskTracker.RemoveTask(taskID)
 
-	logger.Info("Task cancelled successfully", "task_id", taskID)
+	logger.Info("task cancelled successfully", "task_id", taskID)
 	return nil
 }
 
@@ -90,13 +90,13 @@ func (s *BackgroundTaskService) sendCancelToAgent(task *domain.TaskPollingState)
 	})
 
 	if err != nil {
-		logger.Warn("Failed to query task status before canceling, proceeding with cancel anyway", "task_id", task.TaskID, "error", err)
+		logger.Warn("failed to query task status before canceling, proceeding with cancel anyway", "task_id", task.TaskID, "error", err)
 	} else if taskStatus != nil {
 		var currentTask adk.Task
 		if mapErr := mapToStruct(taskStatus.Result, &currentTask); mapErr == nil {
 			switch currentTask.Status.State {
 			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCancelled, adk.TaskStateRejected:
-				logger.Info("Task is already in terminal state, skipping cancel request",
+				logger.Info("task is already in terminal state, skipping cancel request",
 					"task_id", task.TaskID,
 					"state", currentTask.Status.State)
 				return nil
@@ -109,7 +109,7 @@ func (s *BackgroundTaskService) sendCancelToAgent(task *domain.TaskPollingState)
 	})
 
 	if err != nil {
-		logger.Error("ADK CancelTask returned error", "task_id", task.TaskID, "error", err)
+		logger.Error("aDK CancelTask returned error", "task_id", task.TaskID, "error", err)
 		return err
 	}
 

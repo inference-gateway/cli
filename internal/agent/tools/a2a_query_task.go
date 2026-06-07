@@ -112,7 +112,7 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 	queryParams := adk.TaskQueryParams{ID: taskID}
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
-		logger.Error("Failed to query task", "agent_url", agentURL, "task_id", taskID, "error", err)
+		logger.Error("failed to query task", "agent_url", agentURL, "task_id", taskID, "error", err)
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query task: %v", err))
 	}
 

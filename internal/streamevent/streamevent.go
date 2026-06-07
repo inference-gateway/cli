@@ -145,7 +145,7 @@ func EmitDebugEvent(eventType string, fields map[string]any) {
 func writeEvent(event map[string]any, label string) {
 	out, err := json.Marshal(event)
 	if err != nil {
-		logger.Error("Failed to marshal stream event", "label", label, "error", err)
+		logger.Error("failed to marshal stream event", "label", label, "error", err)
 		return
 	}
 
@@ -154,6 +154,6 @@ func writeEvent(event map[string]any, label string) {
 	writerMu.Unlock()
 
 	if _, werr := fmt.Fprintln(w, string(out)); werr != nil {
-		logger.Error("Failed to write stream event", "label", label, "error", werr)
+		logger.Error("failed to write stream event", "label", label, "error", werr)
 	}
 }

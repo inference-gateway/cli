@@ -237,10 +237,10 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Mo
 
 func (t *TaskManagerImpl) handleTaskCancelled(msg domain.TaskCancelledEvent) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
-		logger.Error("Task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
+		logger.Error("task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
 		// Even if cancellation failed, reload tasks to show current state
 	} else {
-		logger.Info("Task cancelled, reloading tasks", "task_id", msg.TaskID)
+		logger.Info("task cancelled, reloading tasks", "task_id", msg.TaskID)
 	}
 
 	// Reload tasks to reflect the canceled task in completed tasks list
@@ -411,14 +411,14 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 		err := t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
 
 		if err != nil {
-			logger.Error("Failed to cancel task", "task_id", task.TaskID, "error", err)
+			logger.Error("failed to cancel task", "task_id", task.TaskID, "error", err)
 			return domain.TaskCancelledEvent{
 				TaskID: task.TaskID,
 				Error:  err,
 			}
 		}
 
-		logger.Info("Task cancelled successfully", "task_id", task.TaskID)
+		logger.Info("task cancelled successfully", "task_id", task.TaskID)
 		return domain.TaskCancelledEvent{
 			TaskID: task.TaskID,
 			Error:  nil,

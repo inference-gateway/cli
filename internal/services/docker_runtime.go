@@ -48,7 +48,7 @@ func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
 		if !isAddressPoolExhausted(err.Error()) {
 			return err
 		}
-		logger.Warn("Docker network address pools exhausted; pruning leaked networks and retrying", "network", dr.networkName)
+		logger.Warn("docker network address pools exhausted; pruning leaked networks and retrying", "network", dr.networkName)
 		pruneNetworks(ctx, "docker", dr.networkName)
 		if err := dr.createNetwork(ctx); err != nil {
 			return err
@@ -56,14 +56,14 @@ func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
 	}
 
 	dr.networkCreated = true
-	logger.Info("Docker network ready", "session", dr.sessionID, "network", dr.networkName)
+	logger.Info("docker network ready", "session", dr.sessionID, "network", dr.networkName)
 	return nil
 }
 
 // createNetwork runs "docker network create", treating an "already exists" race
 // (another session created it first) as success.
 func (dr *DockerRuntime) createNetwork(ctx context.Context) error {
-	logger.Info("Creating Docker network", "session", dr.sessionID, "network", dr.networkName)
+	logger.Info("creating Docker network", "session", dr.sessionID, "network", dr.networkName)
 	output, err := exec.CommandContext(ctx, "docker", "network", "create", dr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
@@ -87,7 +87,7 @@ func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
 	output, err := exec.CommandContext(ctx, "docker", "network", "rm", dr.networkName).CombinedOutput()
 	if err == nil {
 		dr.networkCreated = false
-		logger.Info("Docker network removed successfully", "network", dr.networkName)
+		logger.Info("docker network removed successfully", "network", dr.networkName)
 		return nil
 	}
 
@@ -95,9 +95,9 @@ func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
 	case gone:
 		dr.networkCreated = false
 	case inUse:
-		logger.Debug("Docker network still in use by another session; leaving in place", "network", dr.networkName)
+		logger.Debug("docker network still in use by another session; leaving in place", "network", dr.networkName)
 	default:
-		logger.Warn("Failed to remove Docker network", "network", dr.networkName, "error", err, "output", string(output))
+		logger.Warn("failed to remove Docker network", "network", dr.networkName, "error", err, "output", string(output))
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (dr *DockerRuntime) RunContainer(ctx context.Context, opts domain.RunContai
 		args = append(args, opts.Args...)
 	}
 
-	logger.Debug("Running Docker container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
+	logger.Debug("running Docker container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()

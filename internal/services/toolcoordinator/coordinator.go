@@ -151,7 +151,7 @@ func (c *Coordinator) HandleToolApprovalRequested(msg domain.ToolApprovalRequest
 // HandleToolApprovalResponse processes the user's accept/reject decision and
 // forwards it to the waiting agent through the response channel.
 func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponseEvent) tea.Cmd {
-	logger.Info("Coordinator.HandleToolApprovalResponse called",
+	logger.Info("coordinator.HandleToolApprovalResponse called",
 		"action", msg.Action, "tool", msg.ToolCall.Function.Name)
 
 	c.updateToolApprovalStatus(msg.Action)
@@ -223,7 +223,7 @@ func (c *Coordinator) sendApprovalDecision(action domain.ApprovalAction) {
 	}
 	select {
 	case approvalState.ResponseChan <- action:
-		logger.Info("Sent approval action to agent", "action", action)
+		logger.Info("sent approval action to agent", "action", action)
 	default:
 		logger.Warn("failed to send approval - channel full or closed")
 	}
@@ -415,7 +415,7 @@ func (c *Coordinator) addPendingToolCall(call sdk.ChatCompletionMessageToolCall,
 		return
 	}
 	if err := updater.AddPendingToolCall(call, ch); err != nil {
-		logger.Error("Failed to add pending tool call", "error", err)
+		logger.Error("failed to add pending tool call", "error", err)
 	}
 }
 

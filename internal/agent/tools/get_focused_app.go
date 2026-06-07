@@ -57,7 +57,7 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 	defer func() {
 		if err := controller.Close(); err != nil {
-			logger.Debug("Failed to close display controller", "error", err)
+			logger.Debug("failed to close display controller", "error", err)
 		}
 	}()
 

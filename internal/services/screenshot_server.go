@@ -97,7 +97,7 @@ func (s *ScreenshotServer) Start() error {
 
 	go func() {
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			logger.Error("Screenshot server error", "error", err)
+			logger.Error("screenshot server error", "error", err)
 		}
 	}()
 
@@ -133,7 +133,7 @@ func (s *ScreenshotServer) Stop() error {
 
 	if s.buffer != nil {
 		if err := s.buffer.Cleanup(); err != nil {
-			logger.Warn("Failed to cleanup buffer", "error", err)
+			logger.Warn("failed to cleanup buffer", "error", err)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (s *ScreenshotServer) startCaptureLoop() {
 			return
 		case <-ticker.C:
 			if err := s.captureScreenshot(); err != nil {
-				logger.Warn("Screenshot capture failed", "error", err)
+				logger.Warn("screenshot capture failed", "error", err)
 			}
 		}
 	}
@@ -184,7 +184,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 
@@ -200,7 +200,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 
 	imgConfig, _, err := image.DecodeConfig(bytes.NewReader(imageBytes))
 	if err != nil {
-		logger.Warn("Failed to decode image config, using controller dimensions", "error", err)
+		logger.Warn("failed to decode image config, using controller dimensions", "error", err)
 	} else {
 		actualWidth := imgConfig.Width
 		actualHeight := imgConfig.Height
@@ -218,7 +218,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 
 	logicalWidth, logicalHeight, err := controller.GetScreenDimensions(s.captureCtx)
 	if err != nil {
-		logger.Warn("Failed to get logical dimensions", "error", err)
+		logger.Warn("failed to get logical dimensions", "error", err)
 	} else if width != logicalWidth || height != logicalHeight {
 		img = resizeImage(img, logicalWidth, logicalHeight)
 		width = logicalWidth
@@ -282,7 +282,7 @@ func (s *ScreenshotServer) handleGetLatest(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(screenshot); err != nil {
-		logger.Warn("Failed to encode screenshot response", "error", err)
+		logger.Warn("failed to encode screenshot response", "error", err)
 	}
 }
 
@@ -311,7 +311,7 @@ func (s *ScreenshotServer) handleGetRecent(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.Warn("Failed to encode screenshots response", "error", err)
+		logger.Warn("failed to encode screenshots response", "error", err)
 	}
 }
 
@@ -335,7 +335,7 @@ func (s *ScreenshotServer) handleGetStatus(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(status); err != nil {
-		logger.Warn("Failed to encode status response", "error", err)
+		logger.Warn("failed to encode status response", "error", err)
 	}
 }
 

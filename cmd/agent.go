@@ -214,7 +214,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 // session. Returns the group key (empty for literal UUIDs).
 func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionRolloverManager, sessionID, selectedModel string) string {
 	if sessionID == "" {
-		logger.Info("Starting agent session",
+		logger.Info("starting agent session",
 			"session_id", session.sessionID,
 			"model", selectedModel)
 		session.outputStatusMessage("info", "Starting new agent session", map[string]any{
@@ -234,7 +234,7 @@ func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionR
 
 	loaded, err := session.initializeSession(sessionID)
 	if err != nil {
-		logger.Warn("Failed to load session, starting fresh", "session_id", sessionID, "error", err)
+		logger.Warn("failed to load session, starting fresh", "session_id", sessionID, "error", err)
 		session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
 			"session_id": sessionID,
 			"error":      err.Error(),
@@ -243,7 +243,7 @@ func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionR
 	}
 
 	if loaded {
-		logger.Info("Resumed agent session", "session_id", sessionID, "messages", len(session.conversation))
+		logger.Info("resumed agent session", "session_id", sessionID, "messages", len(session.conversation))
 		session.outputStatusMessage("info", "Resumed agent session", map[string]any{
 			"session_id":    sessionID,
 			"message_count": len(session.conversation),
@@ -276,7 +276,7 @@ func (s *AgentSession) maybeRollover() {
 	s.sessionID = newID
 	s.conversation = nil
 	if _, err := s.initializeSession(newID); err != nil {
-		logger.Warn("Failed to reload session after rollover", "error", err, "session_id", newID)
+		logger.Warn("failed to reload session after rollover", "error", err, "session_id", newID)
 	}
 }
 
@@ -302,14 +302,14 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 		filename := match[1]
 
 		if err := s.fileService.ValidateFile(filename); err != nil {
-			logger.Warn("Skipping invalid file reference", "filename", filename, "error", err)
+			logger.Warn("skipping invalid file reference", "filename", filename, "error", err)
 			continue
 		}
 
 		if s.imageService != nil && s.imageService.IsImageFile(filename) {
 			imageAttachment, err := s.imageService.ReadImageFromFile(filename)
 			if err != nil {
-				logger.Warn("Failed to read image file", "filename", filename, "error", err)
+				logger.Warn("failed to read image file", "filename", filename, "error", err)
 				continue
 			}
 			result.images = append(result.images, *imageAttachment)
@@ -320,7 +320,7 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 
 		fileContent, err := s.fileService.ReadFile(filename)
 		if err != nil {
-			logger.Warn("Failed to read file", "filename", filename, "error", err)
+			logger.Warn("failed to read file", "filename", filename, "error", err)
 			continue
 		}
 
@@ -388,7 +388,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		s.injectSystemReminderIfDue(s.completedTurns + 1)
 
 		if err := s.executeTurn(); err != nil {
-			logger.Error("Turn execution failed", "error", err, "turn", s.completedTurns)
+			logger.Error("turn execution failed", "error", err, "turn", s.completedTurns)
 			return err
 		}
 
@@ -408,7 +408,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		consecutiveNoToolCalls++
 
 		if consecutiveNoToolCalls >= 2 {
-			logger.Info("Task appears complete (no more tool calls)", "turns", s.completedTurns)
+			logger.Info("task appears complete (no more tool calls)", "turns", s.completedTurns)
 			break
 		}
 
@@ -422,12 +422,12 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	}
 
 	if s.completedTurns >= s.maxTurns {
-		logger.Info("Maximum turns reached", "turns", s.completedTurns)
+		logger.Info("maximum turns reached", "turns", s.completedTurns)
 	}
 
 	s.waitForBackgroundTasks(monitorCtx)
 
-	logger.Info("Agent session completed", "turns", s.completedTurns)
+	logger.Info("agent session completed", "turns", s.completedTurns)
 	return nil
 }
 
@@ -444,10 +444,10 @@ func (s *AgentSession) waitForBackgroundTasks(ctx context.Context) {
 		return
 	}
 
-	logger.Info("Running final integration turn after background task drain",
+	logger.Info("running final integration turn after background task drain",
 		"injected", injected)
 	if err := s.executeTurn(); err != nil {
-		logger.Error("Final integration turn failed", "error", err)
+		logger.Error("final integration turn failed", "error", err)
 	}
 }
 
@@ -472,7 +472,7 @@ func (s *AgentSession) drainBackgroundResults(ctx context.Context) int {
 		s.outputMessage(msg)
 	}
 
-	logger.Info("Injected background task results into conversation", "count", len(drained))
+	logger.Info("injected background task results into conversation", "count", len(drained))
 	return len(drained)
 }
 
@@ -548,7 +548,7 @@ func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageC
 func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentPart {
 	textPart, err := sdk.NewTextContentPart(msg.Content)
 	if err != nil {
-		logger.Warn("Failed to create text content part", "error", err)
+		logger.Warn("failed to create text content part", "error", err)
 		return nil
 	}
 
@@ -558,7 +558,7 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
-			logger.Warn("Failed to create image content part", "filename", img.Filename, "error", err)
+			logger.Warn("failed to create image content part", "filename", img.Filename, "error", err)
 			continue
 		}
 		contentParts = append(contentParts, imagePart)
@@ -603,7 +603,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 				int(response.Usage.CompletionTokens),
 				int(response.Usage.TotalTokens),
 			); err != nil {
-				logger.Warn("Failed to track token usage", "error", err)
+				logger.Warn("failed to track token usage", "error", err)
 			}
 		}()
 	}
@@ -659,7 +659,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 		return []ConversationMessage{}
 	}
 
-	logger.Info("Executing tool calls in parallel", "count", len(toolCalls), "max_concurrent", s.config.Agent.MaxConcurrentTools)
+	logger.Info("executing tool calls in parallel", "count", len(toolCalls), "max_concurrent", s.config.Agent.MaxConcurrentTools)
 
 	results := make([]ConversationMessage, len(toolCalls))
 	semaphore := make(chan struct{}, s.config.Agent.MaxConcurrentTools)
@@ -675,7 +675,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 
 			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
 			if err != nil {
-				logger.Error("Tool execution failed", "tool", tc.Function.Name, "error", err)
+				logger.Error("tool execution failed", "tool", tc.Function.Name, "error", err)
 				errorResult := &domain.ToolExecutionResult{
 					ToolName: tc.Function.Name,
 					Success:  false,
@@ -717,7 +717,7 @@ func (s *AgentSession) readApprovalResponses() {
 
 		var resp domain.ApprovalResponse
 		if err := json.Unmarshal(line, &resp); err != nil {
-			logger.Warn("Failed to parse approval response from stdin", "error", err)
+			logger.Warn("failed to parse approval response from stdin", "error", err)
 			continue
 		}
 		if resp.Type != "approval_response" {
@@ -728,7 +728,7 @@ func (s *AgentSession) readApprovalResponses() {
 	}
 
 	if err := scanner.Err(); err != nil {
-		logger.Warn("Error reading approval responses from stdin", "error", err)
+		logger.Warn("error reading approval responses from stdin", "error", err)
 	}
 }
 
@@ -803,7 +803,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 		case resp := <-s.approvalCh:
 			approved = resp.Approved
 		case <-time.After(5 * time.Minute):
-			logger.Warn("Approval timeout for tool", "tool", tc.Function.Name)
+			logger.Warn("approval timeout for tool", "tool", tc.Function.Name)
 		}
 
 		if !approved {
@@ -880,11 +880,11 @@ func outputAgentError(message string) {
 	msg := domain.AgentErrorMessage{Type: "agent_error", Message: message}
 	out, err := json.Marshal(msg)
 	if err != nil {
-		logger.Error("Failed to marshal agent error", "error", err)
+		logger.Error("failed to marshal agent error", "error", err)
 		return
 	}
 	if _, werr := os.Stdout.Write(append(out, '\n')); werr != nil {
-		logger.Error("Failed to write agent error to stdout", "error", werr)
+		logger.Error("failed to write agent error to stdout", "error", werr)
 	}
 }
 
@@ -898,7 +898,7 @@ func (s *AgentSession) outputApprovalRequest(tc sdk.ChatCompletionMessageToolCal
 	}
 	output, err := json.Marshal(req)
 	if err != nil {
-		logger.Error("Failed to marshal approval request", "error", err)
+		logger.Error("failed to marshal approval request", "error", err)
 		return
 	}
 	fmt.Println(string(output))
@@ -1040,7 +1040,7 @@ func (s *AgentSession) addMessage(msg ConversationMessage) {
 
 		go func() {
 			if err := s.conversationRepo.AddMessage(entry); err != nil {
-				logger.Warn("Failed to persist agent message", "error", err, "role", msg.Role)
+				logger.Warn("failed to persist agent message", "error", err, "role", msg.Role)
 			}
 		}()
 	}
@@ -1075,7 +1075,7 @@ func (s *AgentSession) initializeSession(sessionID string) (bool, error) {
 		s.conversation = append(s.conversation, msg)
 	}
 
-	logger.Info("Loaded conversation history",
+	logger.Info("loaded conversation history",
 		"session_id", sessionID,
 		"message_count", len(entries))
 
@@ -1099,7 +1099,7 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 
 	output, err := json.Marshal(logMsg)
 	if err != nil {
-		logger.Error("Failed to marshal message", "error", err)
+		logger.Error("failed to marshal message", "error", err)
 		return
 	}
 
@@ -1160,7 +1160,7 @@ func (s *AgentSession) outputStatusMessage(messageType, message string, metadata
 
 	output, err := json.Marshal(statusMsg)
 	if err != nil {
-		logger.Error("Failed to marshal status message", "error", err)
+		logger.Error("failed to marshal status message", "error", err)
 		return
 	}
 

@@ -296,7 +296,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	mcpConfigPath := getEffectiveMCPConfigPath()
 	mcpConfig, err := config.LoadMCP(mcpConfigPath)
 	if err != nil {
-		logger.Warn("Failed to load MCP config, using defaults", "error", err, "path", mcpConfigPath)
+		logger.Warn("failed to load MCP config, using defaults", "error", err, "path", mcpConfigPath)
 		mcpConfig = config.DefaultMCPConfig()
 	}
 	cfg.MCP = *mcpConfig
@@ -304,7 +304,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	kbPath := getEffectiveKeybindingsConfigPath()
 	kbConfig, err := config.LoadKeybindings(kbPath)
 	if err != nil {
-		logger.Warn("Failed to load keybindings config, using defaults", "error", err, "path", kbPath)
+		logger.Warn("failed to load keybindings config, using defaults", "error", err, "path", kbPath)
 		kbConfig = config.DefaultKeybindingsConfig()
 	}
 	cfg.Chat.Keybindings = *kbConfig
@@ -314,7 +314,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	promptsPath := getEffectivePromptsConfigPath()
 	prompts, err := config.LoadPrompts(promptsPath)
 	if err != nil {
-		logger.Warn("Failed to load prompts config, using defaults", "error", err, "path", promptsPath)
+		logger.Warn("failed to load prompts config, using defaults", "error", err, "path", promptsPath)
 		prompts = config.DefaultPromptsConfig()
 	}
 	cfg.Prompts = *prompts
@@ -323,7 +323,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	channelsPath := getEffectiveChannelsConfigPath()
 	channelsCfg, err := config.LoadChannels(channelsPath)
 	if err != nil {
-		logger.Warn("Failed to load channels config, using defaults", "error", err, "path", channelsPath)
+		logger.Warn("failed to load channels config, using defaults", "error", err, "path", channelsPath)
 		channelsCfg = config.DefaultChannelsConfig()
 	}
 	cfg.Channels = *channelsCfg
@@ -332,7 +332,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	heartbeatPath := getEffectiveHeartbeatConfigPath()
 	heartbeatCfg, err := config.LoadHeartbeat(heartbeatPath)
 	if err != nil {
-		logger.Warn("Failed to load heartbeat config, using defaults", "error", err, "path", heartbeatPath)
+		logger.Warn("failed to load heartbeat config, using defaults", "error", err, "path", heartbeatPath)
 		heartbeatCfg = config.DefaultHeartbeatConfig()
 	}
 	cfg.Heartbeat = *heartbeatCfg
@@ -341,7 +341,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	cuPath := getEffectiveComputerUseConfigPath()
 	cuCfg, err := config.LoadComputerUse(cuPath)
 	if err != nil {
-		logger.Warn("Failed to load computer_use config, using defaults", "error", err, "path", cuPath)
+		logger.Warn("failed to load computer_use config, using defaults", "error", err, "path", cuPath)
 		cuCfg = config.DefaultComputerUseConfig()
 	}
 	cfg.ComputerUse = *cuCfg

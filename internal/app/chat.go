@@ -179,7 +179,7 @@ func NewChatApplication(
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
-		logger.Error("Failed to transition to initial view", "error", err)
+		logger.Error("failed to transition to initial view", "error", err)
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
@@ -543,12 +543,12 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 
 	if event.Connected && len(event.Tools) > 0 {
 		count := app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
-		logger.Debug("Registered MCP tools", "server", event.ServerName, "count", count)
+		logger.Debug("registered MCP tools", "server", event.ServerName, "count", count)
 	}
 
 	if !event.Connected {
 		count := app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
-		logger.Debug("Unregistered MCP tools", "server", event.ServerName, "count", count)
+		logger.Debug("unregistered MCP tools", "server", event.ServerName, "count", count)
 	}
 
 	if app.autocomplete != nil {
@@ -1050,7 +1050,7 @@ func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string)
 		Time:    time.Now(),
 	}
 	if err := app.conversationRepo.AddMessage(entry); err != nil {
-		logger.Error("Failed to add pull request creation message to conversation", "error", err)
+		logger.Error("failed to add pull request creation message to conversation", "error", err)
 	}
 
 	return tea.Batch(
@@ -1661,7 +1661,7 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 
 func (app *ChatApplication) clearFileSelectionState() {
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-		logger.Error("Failed to transition to chat view after file selection", "error", err)
+		logger.Error("failed to transition to chat view after file selection", "error", err)
 	}
 	app.stateManager.ClearFileSelectionState()
 }
@@ -2011,7 +2011,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	if err := app.inputView.AddToHistory(input); err != nil {
-		logger.Error("Failed to add input to history", "error", err)
+		logger.Error("failed to add input to history", "error", err)
 	}
 
 	app.inputView.ClearInput()
@@ -2021,7 +2021,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	for _, img := range images {
 		if img.SourcePath != "" {
 			if err := os.Remove(img.SourcePath); err != nil {
-				logger.Warn("Failed to clean up temporary image file %s: %v", img.SourcePath, err)
+				logger.Warn("failed to clean up temporary image file %s: %v", img.SourcePath, err)
 			}
 		}
 	}
@@ -2119,7 +2119,7 @@ func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReady
 	}
 
 	if err != nil {
-		logger.Error("Failed to delete messages during edit", "error", err)
+		logger.Error("failed to delete messages during edit", "error", err)
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to delete messages: %v", err),

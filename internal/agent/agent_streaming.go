@@ -72,7 +72,7 @@ func (a *EventDrivenAgent) startStreaming() {
 
 	events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
 	if err != nil {
-		logger.Error("Failed to create stream",
+		logger.Error("failed to create stream",
 			"error", err,
 			"turn", a.agentCtx.Turns,
 			"conversationLength", len(*a.agentCtx.Conversation),

@@ -40,7 +40,7 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
 func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
-	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
+	logger.Info("creating remote SSH session", "server", serverCfg.Name)
 
 	sendProgress := func(msg string) {
 		if progressCh != nil {
@@ -66,13 +66,13 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 
 	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL, progressCh); err != nil {
 		if closeErr := client.Close(); closeErr != nil {
-			logger.Warn("Failed to close SSH client after install error", "error", closeErr)
+			logger.Warn("failed to close SSH client after install error", "error", closeErr)
 		}
 		return nil, err
 	}
 
 	if err := ensureRemoteConfig(client, serverCfg, gatewayURL); err != nil {
-		logger.Warn("Failed to ensure remote config, continuing anyway", "error", err)
+		logger.Warn("failed to ensure remote config, continuing anyway", "error", err)
 	}
 
 	sendProgress("Starting remote terminal...")
@@ -80,7 +80,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 	session, err := NewSSHSession(client, serverCfg, gatewayURL, sessionID, sessionManager)
 	if err != nil {
 		if closeErr := client.Close(); closeErr != nil {
-			logger.Warn("Failed to close SSH client after session error", "error", closeErr)
+			logger.Warn("failed to close SSH client after session error", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
@@ -115,7 +115,7 @@ func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ 
 		commandPath = "infer"
 	}
 
-	logger.Info("Checking if infer config exists on remote server", "server", serverCfg.Name)
+	logger.Info("checking if infer config exists on remote server", "server", serverCfg.Name)
 
 	session, err := client.NewSession()
 	if err != nil {
@@ -131,11 +131,11 @@ func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ 
 
 	outputStr := string(output)
 	if len(outputStr) > 0 && outputStr[0] == 'e' {
-		logger.Info("Infer config already exists on remote server", "server", serverCfg.Name)
+		logger.Info("infer config already exists on remote server", "server", serverCfg.Name)
 		return nil
 	}
 
-	logger.Info("Infer config not found, running init...", "server", serverCfg.Name)
+	logger.Info("infer config not found, running init...", "server", serverCfg.Name)
 
 	session2, err := client.NewSession()
 	if err != nil {
@@ -149,7 +149,7 @@ func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ 
 		return fmt.Errorf("failed to initialize config: %w\nOutput: %s", err, string(initOutput))
 	}
 
-	logger.Info("Infer config initialized", "server", serverCfg.Name, "output", string(initOutput))
+	logger.Info("infer config initialized", "server", serverCfg.Name, "output", string(initOutput))
 	return nil
 }
 
@@ -197,10 +197,10 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 		uintptr(unsafe.Pointer(ws)),
 	)
 	if errno != 0 {
-		logger.Warn("Failed to set initial window size", "error", errno)
+		logger.Warn("failed to set initial window size", "error", errno)
 	}
 
-	logger.Info("PTY session started", "pid", s.cmd.Process.Pid, "size", fmt.Sprintf("%dx%d", cols, rows))
+	logger.Info("pTY session started", "pid", s.cmd.Process.Pid, "size", fmt.Sprintf("%dx%d", cols, rows))
 	return nil
 }
 
@@ -231,7 +231,7 @@ func (s *LocalPTYSession) Stop() error {
 func (s *LocalPTYSession) closePTYOnly() error {
 	if s.pty != nil {
 		if err := s.pty.Close(); err != nil {
-			logger.Warn("Failed to close PTY", "error", err)
+			logger.Warn("failed to close PTY", "error", err)
 		}
 		s.pty = nil
 	}
@@ -240,12 +240,12 @@ func (s *LocalPTYSession) closePTYOnly() error {
 
 func (s *LocalPTYSession) shutdownProcess() error {
 	pid := s.cmd.Process.Pid
-	logger.Info("Initiating graceful shutdown of PTY process", "pid", pid)
+	logger.Info("initiating graceful shutdown of PTY process", "pid", pid)
 
 	if s.pty != nil {
-		logger.Info("Closing PTY file descriptor", "pid", pid)
+		logger.Info("closing PTY file descriptor", "pid", pid)
 		if err := s.pty.Close(); err != nil {
-			logger.Warn("Failed to close PTY", "pid", pid, "error", err)
+			logger.Warn("failed to close PTY", "pid", pid, "error", err)
 		}
 		s.pty = nil
 	}
@@ -259,21 +259,21 @@ func (s *LocalPTYSession) shutdownProcess() error {
 		return nil
 	}
 
-	logger.Info("Process didn't exit after PTY close, sending SIGTERM", "pid", pid)
+	logger.Info("process didn't exit after PTY close, sending SIGTERM", "pid", pid)
 	if err := s.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		logger.Warn("Failed to send SIGTERM", "pid", pid, "error", err)
+		logger.Warn("failed to send SIGTERM", "pid", pid, "error", err)
 	}
 
 	if s.waitForExit(done, pid, 10*time.Second, "SIGTERM") {
 		return nil
 	}
 
-	logger.Warn("Process didn't exit after SIGTERM, sending SIGKILL", "pid", pid)
+	logger.Warn("process didn't exit after SIGTERM, sending SIGKILL", "pid", pid)
 	if err := s.cmd.Process.Kill(); err != nil {
-		logger.Warn("Failed to kill PTY process", "pid", pid, "error", err)
+		logger.Warn("failed to kill PTY process", "pid", pid, "error", err)
 	}
 	<-done
-	logger.Info("PTY process forcefully killed", "pid", pid)
+	logger.Info("pTY process forcefully killed", "pid", pid)
 
 	return nil
 }
@@ -282,9 +282,9 @@ func (s *LocalPTYSession) waitForExit(done chan error, pid int, timeout time.Dur
 	select {
 	case err := <-done:
 		if err != nil {
-			logger.Info("PTY process exited with error after "+stage, "pid", pid, "error", err)
+			logger.Info("pTY process exited with error after "+stage, "pid", pid, "error", err)
 		} else {
-			logger.Info("PTY process exited gracefully after "+stage, "pid", pid)
+			logger.Info("pTY process exited gracefully after "+stage, "pid", pid)
 		}
 		return true
 	case <-time.After(timeout):
@@ -306,7 +306,7 @@ func (s *LocalPTYSession) HandleConnection(conn *websocket.Conn) error {
 				continue
 			}
 			if _, err := s.pty.Write(data); err != nil {
-				logger.Error("PTY write error", "error", err)
+				logger.Error("pTY write error", "error", err)
 				return
 			}
 		}
@@ -321,7 +321,7 @@ func (s *LocalPTYSession) HandleConnection(conn *websocket.Conn) error {
 				return
 			}
 			if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-				logger.Error("WebSocket write error", "error", err)
+				logger.Error("webSocket write error", "error", err)
 				return
 			}
 		}
@@ -342,7 +342,7 @@ func (s *LocalPTYSession) handleControlMessage(data []byte) bool {
 	}
 	if msg.Type == "resize" {
 		if err := s.setWindowSize(msg.Cols, msg.Rows); err != nil {
-			logger.Warn("Failed to resize window", "error", err)
+			logger.Warn("failed to resize window", "error", err)
 		}
 		return true
 	}

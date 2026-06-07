@@ -118,7 +118,7 @@ func (w *BackgroundTasksWaiter) WaitAndDrain(ctx context.Context) []DrainedMessa
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	logger.Info("Waiting for pending background tasks to complete",
+	logger.Info("waiting for pending background tasks to complete",
 		"pending_a2a_tasks", len(w.registry.GetAllPollingTasks()),
 		"running_shells", w.registry.CountRunning(),
 		"max_wait_seconds", maxWaitSec)
@@ -127,7 +127,7 @@ func (w *BackgroundTasksWaiter) WaitAndDrain(ctx context.Context) []DrainedMessa
 		select {
 		case <-ticker.C:
 		case <-deadline.C:
-			logger.Warn("Timed out waiting for background tasks to complete",
+			logger.Warn("timed out waiting for background tasks to complete",
 				"pending_a2a_tasks", len(w.registry.GetAllPollingTasks()),
 				"running_shells", w.registry.CountRunning(),
 				"max_wait_seconds", maxWaitSec)
@@ -166,7 +166,7 @@ func (w *BackgroundTasksWaiter) drainQueue() []DrainedMessage {
 	}
 
 	if len(drained) > 0 {
-		logger.Info("Drained background task results from queue", "count", len(drained))
+		logger.Info("drained background task results from queue", "count", len(drained))
 	}
 	return drained
 }

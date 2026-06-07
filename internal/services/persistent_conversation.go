@@ -69,7 +69,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 	if hasExistingConversation && r.GetMessageCount() > 0 {
 		ctx := context.Background()
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("Failed to save current conversation before starting new one", "error", err, "conversation_id", existingConversationID)
+			logger.Warn("failed to save current conversation before starting new one", "error", err, "conversation_id", existingConversationID)
 		}
 	}
 
@@ -282,7 +282,7 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			defer cancel()
 
 			if err := r.titleGenerator.InvalidateTitle(ctx, conversationIDForInvalidation); err != nil {
-				logger.Warn("Failed to invalidate conversation title", "error", err, "conversationID", conversationIDForInvalidation)
+				logger.Warn("failed to invalidate conversation title", "error", err, "conversationID", conversationIDForInvalidation)
 			}
 		}()
 	}
@@ -299,7 +299,7 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 		defer cancel()
 
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("Failed to auto-save conversation", "error", err)
+			logger.Warn("failed to auto-save conversation", "error", err)
 			return err
 		}
 	}
@@ -350,7 +350,7 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 		defer cancel()
 
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
+			logger.Warn("failed to auto-save conversation after deleting messages", "error", err)
 			return err
 		}
 	}
@@ -414,7 +414,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 		defer cancel()
 
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("Failed to auto-save conversation after token usage", "error", err)
+			logger.Warn("failed to auto-save conversation after token usage", "error", err)
 			return err
 		}
 	}

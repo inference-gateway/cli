@@ -36,7 +36,7 @@ var statusCmd = &cobra.Command{
 		}
 		modelsResp, err := fetchModels(cfg)
 		if err != nil {
-			logger.Warn("Gateway unreachable", "error", err)
+			logger.Warn("gateway unreachable", "error", err)
 			fmt.Printf("Gateway Status: Unreachable (%v)\n", err)
 			fmt.Println("Models: Unable to connect")
 			return nil
@@ -67,7 +67,7 @@ func fetchModels(cfg *config.Config) (*struct {
 
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
-		logger.Error("ListModels API call failed", "error", err)
+		logger.Error("listModels API call failed", "error", err)
 		return nil, err
 	}
 

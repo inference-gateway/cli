@@ -214,7 +214,7 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 		sessionID = ctx.ConversationRepo.GetCurrentConversationID()
 	}
 
-	logger.Debug("State transition",
+	logger.Debug("state transition",
 		"from", sm.previousState.String(),
 		"to", sm.currentState.String(),
 		"session_id", sessionID,

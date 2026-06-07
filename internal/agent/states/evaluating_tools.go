@@ -37,7 +37,7 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 		completeToolCalls = make([]sdk.ChatCompletionMessageToolCall, 0, len(*s.ctx.CurrentToolCalls))
 		for _, tc := range *s.ctx.CurrentToolCalls {
 			completeToolCalls = append(completeToolCalls, *tc)
-			logger.Debug("Tool call", "tool", tc.Function.Name, "id", tc.ID)
+			logger.Debug("tool call", "tool", tc.Function.Name, "id", tc.ID)
 		}
 	}
 	s.ctx.PublishChatComplete(*s.ctx.CurrentReasoning, completeToolCalls, s.ctx.GetMetrics(s.ctx.Request.RequestID))
@@ -46,7 +46,7 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 	for _, toolCall := range *s.ctx.CurrentToolCalls {
 		if s.ctx.ShouldRequireApproval(toolCall, s.ctx.Request.IsChatMode) {
 			needsApproval = true
-			logger.Debug("Tool requires approval", "tool", toolCall.Function.Name)
+			logger.Debug("tool requires approval", "tool", toolCall.Function.Name)
 			break
 		}
 	}

@@ -106,7 +106,7 @@ func StartChatSession(cfg *config.Config) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if err := services.Shutdown(ctx); err != nil {
-				logger.Error("Error during shutdown", "error", err)
+				logger.Error("error during shutdown", "error", err)
 			}
 			close(shutdownComplete)
 		})
@@ -171,7 +171,7 @@ func StartChatSession(cfg *config.Config) error {
 		if screenshotServer != nil {
 			defer func() {
 				if err := screenshotServer.Stop(); err != nil {
-					logger.Error("Failed to stop screenshot server", "error", err)
+					logger.Error("failed to stop screenshot server", "error", err)
 				}
 			}()
 		}
@@ -184,7 +184,7 @@ func StartChatSession(cfg *config.Config) error {
 	if floatingWindowMgr != nil {
 		defer func() {
 			if err := floatingWindowMgr.Shutdown(); err != nil {
-				logger.Error("Failed to shutdown floating window", "error", err)
+				logger.Error("failed to shutdown floating window", "error", err)
 			}
 		}()
 	}
@@ -397,7 +397,7 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
 
 	if err := screenshotServer.Start(); err != nil {
-		logger.Warn("Failed to start screenshot server", "error", err)
+		logger.Warn("failed to start screenshot server", "error", err)
 		return nil
 	}
 
@@ -420,11 +420,11 @@ func forwardControlEventsToBubbleTea(program *tea.Program, eventBridge domain.Ev
 	for event := range subscription {
 		switch e := event.(type) {
 		case domain.ComputerUsePausedEvent:
-			logger.Debug("Forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
+			logger.Debug("forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
 			program.Send(e)
 
 		case domain.ComputerUseResumedEvent:
-			logger.Debug("Forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
+			logger.Debug("forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
 			program.Send(e)
 
 		default:

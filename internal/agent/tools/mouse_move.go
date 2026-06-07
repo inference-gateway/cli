@@ -109,7 +109,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 
@@ -228,7 +228,7 @@ func (t *MouseMoveTool) scaleCoordinates(ctx context.Context, controller display
 
 	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
 	if err != nil {
-		logger.Warn("Failed to get screen dimensions", "error", err)
+		logger.Warn("failed to get screen dimensions", "error", err)
 		return x, y
 	}
 
@@ -252,18 +252,18 @@ func (t *MouseMoveTool) broadcastMoveEvent(fromX, fromY, toX, toY int) {
 
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		logger.Warn("Failed to get controller for move indicator", "error", err)
+		logger.Warn("failed to get controller for move indicator", "error", err)
 		return
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
-			logger.Warn("Failed to close controller", "error", closeErr)
+			logger.Warn("failed to close controller", "error", closeErr)
 		}
 	}()
 
 	_, screenHeight, err := controller.GetScreenDimensions(context.Background())
 	if err != nil {
-		logger.Warn("Failed to get screen dimensions for move indicator", "error", err)
+		logger.Warn("failed to get screen dimensions for move indicator", "error", err)
 		screenHeight = 1117
 	}
 

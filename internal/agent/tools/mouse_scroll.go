@@ -101,7 +101,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 	defer func() {
 		if err := controller.Close(); err != nil {
-			logger.Debug("Failed to close display controller", "error", err)
+			logger.Debug("failed to close display controller", "error", err)
 		}
 	}()
 
@@ -131,7 +131,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 
 	message := fmt.Sprintf("Scrolled %s by %d clicks", scrollDir, clicksInt)
-	logger.Info("Mouse scroll executed", "direction", direction, "clicks", clicks)
+	logger.Info("mouse scroll executed", "direction", direction, "clicks", clicks)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "MouseScroll",

@@ -32,7 +32,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 
 	if cfg != nil && cfg.Chat.Keybindings.Enabled {
 		if err := registry.ApplyConfigOverrides(cfg.Chat.Keybindings); err != nil {
-			logger.Warn("Failed to apply keybinding overrides: %v", err)
+			logger.Warn("failed to apply keybinding overrides: %v", err)
 		}
 	}
 
@@ -360,7 +360,7 @@ func (r *Registry) ApplyConfigOverrides(cfg config.KeybindingsConfig) error {
 	for actionID, configBinding := range cfg.Bindings {
 		action, exists := r.actions[actionID]
 		if !exists {
-			logger.Warn("Unknown keybinding action '%s' in config, ignoring", actionID)
+			logger.Warn("unknown keybinding action '%s' in config, ignoring", actionID)
 			continue
 		}
 

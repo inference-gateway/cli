@@ -104,7 +104,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.started = true
 
-	logger.Info("Heartbeat service started",
+	logger.Info("heartbeat service started",
 		"interval", s.cfg.Interval.String(),
 		"initial_delay", s.cfg.InitialDelay.String(),
 	)
@@ -179,7 +179,7 @@ func (s *Service) fireGuarded() {
 		if errors.Is(err, context.Canceled) {
 			return
 		}
-		logger.Error("Heartbeat run failed", "error", err)
+		logger.Error("heartbeat run failed", "error", err)
 	}
 }
 
@@ -194,7 +194,7 @@ func (s *Service) fire(ctx context.Context) error {
 	}
 	args = append(args, s.cfg.Prompt)
 
-	logger.Info("Heartbeat tick - spawning agent",
+	logger.Info("heartbeat tick - spawning agent",
 		"session_id", sessionID,
 		"model", s.cfg.Model,
 	)
@@ -220,7 +220,7 @@ func (s *Service) fire(ctx context.Context) error {
 		if line == "" {
 			continue
 		}
-		logger.Info("Heartbeat agent output", "session_id", sessionID, "line", line)
+		logger.Info("heartbeat agent output", "session_id", sessionID, "line", line)
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -229,6 +229,6 @@ func (s *Service) fire(ctx context.Context) error {
 		}
 		return err
 	}
-	logger.Info("Heartbeat tick complete", "session_id", sessionID)
+	logger.Info("heartbeat tick complete", "session_id", sessionID)
 	return nil
 }
