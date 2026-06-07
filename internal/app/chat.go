@@ -239,7 +239,7 @@ func NewChatApplication(
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
-	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager)
+	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 

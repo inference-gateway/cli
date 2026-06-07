@@ -7,6 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -128,7 +129,7 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 	lines, more := previewLines(s.resultBody(result), result.Success, contentWidth(terminalWidth))
 
 	out := make([]string, 0, len(lines)+2)
-	out = append(out, s.statusLine(result))
+	out = append(out, s.statusLine(result, terminalWidth))
 
 	dim := s.styleProvider.GetThemeColor("dim")
 	for _, ln := range lines {
@@ -141,7 +142,7 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 }
 
 // statusLine renders the compact "<icon> Name(args) · <duration>" header.
-func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult) string {
+func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, terminalWidth int) string {
 	icon := icons.CheckMark
 	iconColor := "success"
 	if !result.Success {
@@ -152,15 +153,33 @@ func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult) st
 	styledIcon := s.styleProvider.RenderWithColor(icon, s.styleProvider.GetThemeColor(iconColor))
 	styledDur := s.styleProvider.RenderWithColor("· "+formatDurationShort(result.Duration), s.styleProvider.GetThemeColor("dim"))
 
-	argsPreview := s.formatArgsPreview(result.Arguments)
+	argsPreview := s.formatArgsPreview(result.Arguments, s.argsPreviewBudget(result.ToolName, terminalWidth))
 	if argsPreview != "" && argsPreview != "{}" {
 		return fmt.Sprintf("%s %s(%s) %s", styledIcon, result.ToolName, argsPreview, styledDur)
 	}
 	return fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledDur)
 }
 
-// formatArgsPreview formats arguments for compact preview display
-func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
+// argsPreviewBudget is the width available for the inline argument preview on the
+// collapsed status line, after reserving room for the icon, tool name, parentheses
+// and the trailing duration. It scales with the terminal width so long values (e.g.
+// bash commands) stay readable on wide terminals instead of being clipped to a fixed
+// cap; the full value is always available via ctrl+o.
+func (s *ToolFormatterService) argsPreviewBudget(toolName string, terminalWidth int) int {
+	const (
+		reserved = 18
+		minimum  = 50
+	)
+	budget := formatting.GetResponsiveWidth(terminalWidth) - len(toolName) - reserved
+	if budget < minimum {
+		return minimum
+	}
+	return budget
+}
+
+// formatArgsPreview formats arguments for a compact one-line preview, truncating
+// each value and the joined result to maxWidth (the collapsed status line's budget).
+func (s *ToolFormatterService) formatArgsPreview(args map[string]any, maxWidth int) string {
 	if len(args) == 0 {
 		return ""
 	}
@@ -173,21 +192,12 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
 
 	var argPairs []string
 	for _, key := range keys {
-		value := args[key]
-		// Truncate long values
-		valueStr := fmt.Sprintf("%v", value)
-		if len(valueStr) > 50 {
-			valueStr = valueStr[:47] + "..."
-		}
+		valueStr := strings.ReplaceAll(fmt.Sprintf("%v", args[key]), "\n", " ")
+		valueStr = formatting.TruncateText(valueStr, maxWidth)
 		argPairs = append(argPairs, fmt.Sprintf("%s=%s", key, valueStr))
 	}
 
-	preview := strings.Join(argPairs, ", ")
-	if len(preview) > 100 {
-		preview = preview[:97] + "..."
-	}
-
-	return preview
+	return formatting.TruncateText(strings.Join(argPairs, ", "), maxWidth)
 }
 
 // FormatToolResultExpanded formats the expanded (ctrl+o) tool result: the tool's
@@ -207,6 +217,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 		tree = tool.FormatResult(result, domain.FormatterLLM)
 	}
 
+	tree = wrapTreeLines(tree, formatting.GetResponsiveWidth(terminalWidth))
 	themed := s.themeTreeLines(tree)
 	if hint := s.collapseHintLine(result); hint != "" {
 		return themed + "\n" + hint

@@ -16,7 +16,7 @@ import (
 //
 // State Flow:
 //
-//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
+//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/BlockingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
 //
 // State Descriptions:
 //   - Idle: Agent is not executing, waiting for work
@@ -25,6 +25,7 @@ import (
 //   - PostStream: Processing LLM response, checking for tool calls or completion
 //   - EvaluatingTools: Determining if tool calls need approval
 //   - ApprovingTools: Waiting for user approval of tool calls (only in chat mode)
+//   - BlockingTools: Approval required but undeliverable (approval_behaviour=block); gated tools are rejected with a reason
 //   - ExecutingTools: Executing approved or auto-approved tool calls
 //   - PostToolExecution: Processing tool results, checking for completion or continuing
 //   - Completing: Finalizing the agent execution
@@ -125,6 +126,12 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 		},
 		nil)
 
+	sm.addTransition(domain.StateEvaluatingTools, domain.StateBlockingTools,
+		func(ctx *domain.AgentContext) bool {
+			return sm.needsApproval(ctx)
+		},
+		nil)
+
 	sm.addTransition(domain.StateEvaluatingTools, domain.StateExecutingTools,
 		func(ctx *domain.AgentContext) bool {
 			return !sm.needsApproval(ctx)
@@ -136,6 +143,8 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 	sm.addTransition(domain.StateApprovingTools, domain.StatePostToolExecution, nil, nil)
 
 	sm.addTransition(domain.StateApprovingTools, domain.StateCancelled, nil, nil)
+
+	sm.addTransition(domain.StateBlockingTools, domain.StatePostToolExecution, nil, nil)
 
 	sm.addTransition(domain.StateExecutingTools, domain.StatePostToolExecution, nil, nil)
 

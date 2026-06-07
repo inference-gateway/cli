@@ -3,6 +3,7 @@ package states
 import (
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -43,21 +44,35 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 	s.ctx.PublishChatComplete(*s.ctx.CurrentReasoning, completeToolCalls, s.ctx.GetMetrics(s.ctx.Request.RequestID))
 
 	needsApproval := false
+	allApprovalBlocked := true
 	for _, toolCall := range *s.ctx.CurrentToolCalls {
-		if s.ctx.ShouldRequireApproval(toolCall, s.ctx.Request.IsChatMode) {
-			needsApproval = true
+		if !s.ctx.ShouldRequireApproval(toolCall, s.ctx.Request.IsChatMode) {
+			continue
+		}
+		needsApproval = true
+		if s.approvalBlocked(toolCall) {
+			logger.Debug("tool requires approval but delivery is blocked", "tool", toolCall.Function.Name)
+		} else {
+			allApprovalBlocked = false
 			logger.Debug("tool requires approval", "tool", toolCall.Function.Name)
-			break
 		}
 	}
 
-	if needsApproval {
+	switch {
+	case needsApproval && allApprovalBlocked:
+		logger.Info("approval required but undeliverable, blocking tools", "tool_count", len(*s.ctx.CurrentToolCalls))
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateBlockingTools); err != nil {
+			logger.Error("failed to transition to blocking tools", "error", err)
+			return err
+		}
+		s.ctx.Events <- domain.MessageReceivedEvent{}
+	case needsApproval:
 		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateApprovingTools); err != nil {
 			logger.Error("failed to transition to approving tools", "error", err)
 			return err
 		}
 		s.ctx.Events <- domain.MessageReceivedEvent{}
-	} else {
+	default:
 		logger.Debug("no approval needed, executing tools")
 		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateExecutingTools); err != nil {
 			logger.Error("failed to transition to executing tools", "error", err)
@@ -69,4 +84,16 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 	}
 
 	return nil
+}
+
+// approvalBlocked reports whether a tool that needs approval cannot have that
+// approval delivered in this session (approval_behaviour resolves to block, e.g.
+// approval_behaviour=block, or =ipc with no broker). Such tools are routed to
+// BlockingTools instead of being prompted. Falls back to false (promptable) when
+// no delivery resolver is wired.
+func (s *EvaluatingToolsState) approvalBlocked(toolCall *sdk.ChatCompletionMessageToolCall) bool {
+	if s.ctx.ApprovalDelivery == nil {
+		return false
+	}
+	return s.ctx.ApprovalDelivery(toolCall) == config.ApprovalBehaviourBlock
 }

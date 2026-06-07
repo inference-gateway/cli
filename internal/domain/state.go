@@ -1190,6 +1190,10 @@ const (
 	StateEvaluatingTools
 	// StateApprovingTools indicates waiting for user approvals (sequential)
 	StateApprovingTools
+	// StateBlockingTools indicates approval is required but no approver is
+	// reachable (approval_behaviour resolves to block), so the gated tool calls
+	// are rejected with a reason instead of being prompted or executed.
+	StateBlockingTools
 	// StateExecutingTools indicates running tools (parallel)
 	StateExecutingTools
 	// StatePostToolExecution indicates after all tools complete
@@ -1218,6 +1222,8 @@ func (s AgentExecutionState) String() string {
 		return "EvaluatingTools"
 	case StateApprovingTools:
 		return "ApprovingTools"
+	case StateBlockingTools:
+		return "BlockingTools"
 	case StateExecutingTools:
 		return "ExecutingTools"
 	case StatePostToolExecution:

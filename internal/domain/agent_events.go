@@ -114,6 +114,7 @@ type StateContext struct {
 	// Helper methods - these will be implemented as methods that delegate to internal service
 	GetMetrics            func(requestID string) *ChatMetrics
 	ShouldRequireApproval func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool
+	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
 	AddMessage            func(entry ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -161,6 +162,75 @@ func (s *ToolFormatterService) themeTreeLine(line string, isFirst bool) string {
 		}
 	}
 	return styledPrefix + rest
+}
+
+// minTreeWrapWidth is the smallest content column we will wrap a tree field into.
+// On absurdly narrow terminals (or very deep nesting) we leave the line unwrapped
+// rather than dribble a few characters per row.
+const minTreeWrapWidth = 12
+
+// wrapTreeLines wraps each line of an expanded tool-result tree to width so long
+// values (Error messages, bash commands, ...) stay fully visible instead of being
+// clipped by the viewport. Continuation lines are hanging-indented under the field
+// value, preserving the tree's vertical connectors. It runs on the raw (pre-theme)
+// tree; themeTreeLines is applied afterwards and themes the wrapped lines correctly
+// (continuation lines have no field label, so they theme as body text).
+func wrapTreeLines(tree string, width int) string {
+	if width <= 0 {
+		return tree
+	}
+	lines := strings.Split(strings.TrimRight(tree, "\n"), "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, wrapTreeLine(line, width)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// wrapTreeLine wraps a single tree line, returning one or more lines.
+func wrapTreeLine(line string, width int) []string {
+	if utf8.RuneCountInString(line) <= width {
+		return []string{line}
+	}
+
+	prefix, rest := splitTreePrefix(line)
+	avail := width - utf8.RuneCountInString(prefix)
+	if avail < minTreeWrapWidth {
+		return []string{line}
+	}
+
+	parts := strings.Split(formatting.WrapText(rest, avail), "\n")
+	if len(parts) <= 1 {
+		return []string{line}
+	}
+
+	cont := treeContinuationIndent(prefix)
+	out := make([]string, 0, len(parts))
+	for i, p := range parts {
+		p = strings.TrimRight(p, " ")
+		if i == 0 {
+			out = append(out, prefix+p)
+		} else {
+			out = append(out, cont+p)
+		}
+	}
+	return out
+}
+
+// treeContinuationIndent turns a tree prefix into the indent used for wrapped
+// continuation lines: branch connectors (├ └ ─) become blanks, while vertical bars
+// that must keep flowing to later siblings (├ and │) are preserved as │.
+func treeContinuationIndent(prefix string) string {
+	var b strings.Builder
+	for _, r := range prefix {
+		switch r {
+		case '├', '│':
+			b.WriteRune('│')
+		default: // '└', '─', ' '
+			b.WriteRune(' ')
+		}
+	}
+	return b.String()
 }
 
 // splitTreePrefix separates the leading run of indent/connector runes from the rest.

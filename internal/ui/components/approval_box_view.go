@@ -1,25 +1,36 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
+
+// minApprovalSummaryWidth is the floor for the truncated tool-call summary so a
+// very narrow terminal still shows a usable amount of the pending call.
+const minApprovalSummaryWidth = 20
 
 type ApprovalBoxView struct {
 	width         int
 	styleProvider *styles.Provider
 	stateManager  domain.StateManager
+	toolFormatter domain.ToolFormatter
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.StateManager) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.StateManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,
 		stateManager:  stateManager,
+		toolFormatter: toolFormatter,
 	}
 }
 
@@ -40,7 +51,53 @@ func (av *ApprovalBoxView) Render() string {
 		return ""
 	}
 
-	return av.renderApprovalButtons(approvalState.SelectedIndex)
+	return av.renderApprovalBox(approvalState)
+}
+
+// renderApprovalBox frames the pending tool call and the action buttons in a
+// bordered box so the approval prompt is unmistakable and shows *what* is being
+// approved, instead of bare buttons floating above the input. The border uses the
+// accent colour to echo the focused input box directly below it.
+func (av *ApprovalBoxView) renderApprovalBox(state *domain.ApprovalUIState) string {
+	accentColor := av.styleProvider.GetThemeColor("accent")
+	dimColor := av.styleProvider.GetThemeColor("dim")
+
+	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)
+
+	summary := formatting.TruncateText(av.toolCallSummary(state.PendingToolCall), av.summaryBudget())
+	summaryStyled := av.styleProvider.RenderWithColor(summary, dimColor)
+
+	buttons := av.renderApprovalButtons(state.SelectedIndex)
+
+	content := strings.Join([]string{title, summaryStyled, buttons}, "\n")
+	return av.styleProvider.RenderBorderedBox(content, accentColor, 0, 1)
+}
+
+// toolCallSummary renders the pending call as "Name(arg=value, ...)" using the
+// shared tool formatter so it matches the conversation view. It degrades to
+// "Name(...)" when the formatter is unavailable or the arguments are unparseable.
+func (av *ApprovalBoxView) toolCallSummary(tc *sdk.ChatCompletionMessageToolCall) string {
+	name := tc.Function.Name
+	if av.toolFormatter == nil {
+		return fmt.Sprintf("%s(...)", name)
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return fmt.Sprintf("%s(...)", name)
+	}
+	return av.toolFormatter.FormatToolCall(name, args)
+}
+
+// summaryBudget is the display width available for the tool-call summary after
+// reserving room for the box border (2) and horizontal padding (2), plus a small
+// slack so the text never touches the right border.
+func (av *ApprovalBoxView) summaryBudget() int {
+	budget := av.width - 6
+	if budget < minApprovalSummaryWidth {
+		return minApprovalSummaryWidth
+	}
+	return budget
 }
 
 func (av *ApprovalBoxView) renderApprovalButtons(selectedIndex int) string {
@@ -53,7 +110,6 @@ func (av *ApprovalBoxView) renderApprovalButtons(selectedIndex int) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
 	highlightBg := av.styleProvider.GetThemeColor("selection_bg")
 
-	// Render buttons with highlighting for selected one
 	var approveStyled, rejectStyled, autoApproveStyled string
 	if selectedIndex == int(domain.ApprovalApprove) {
 		approveStyled = av.styleProvider.RenderStyledText("[ "+approveText+" ]", styles.StyleOptions{
@@ -85,7 +141,7 @@ func (av *ApprovalBoxView) renderApprovalButtons(selectedIndex int) string {
 		autoApproveStyled = av.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
 	}
 
-	return fmt.Sprintf("  %s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
+	return fmt.Sprintf("%s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
 }
 
 func (av *ApprovalBoxView) Init() tea.Cmd {
