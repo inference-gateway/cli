@@ -229,6 +229,13 @@ func isLightTheme(theme domain.Theme) bool {
 	return hexLuminance(theme.GetAssistantColor()) < 0.5
 }
 
+// themeIsDark reports whether the active theme is dark, defaulting to dark when no
+// theme is set. Used to pick the embedded editor's background.
+func themeIsDark(sp *styles.Provider) bool {
+	theme := sp.GetCurrentTheme()
+	return theme == nil || !isLightTheme(theme)
+}
+
 // hexLuminance returns the relative luminance of a "#RRGGBB" string in [0,1].
 // Anything unparseable returns 1 (treated as light text → dark theme path).
 func hexLuminance(hex string) float64 {

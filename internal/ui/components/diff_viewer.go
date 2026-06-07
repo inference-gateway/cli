@@ -518,7 +518,7 @@ func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
 		return nil
 	}
 	abs := filepath.Join(t.source.Workdir(), fc.Path)
-	editor, readCmd, err := startPTYEditor(abs, t.source.Workdir(), t.paneWidth, max(t.height-1, 1))
+	editor, readCmd, err := startPTYEditor(abs, t.source.Workdir(), t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
 	if err != nil {
 		t.patchMsg = "Failed to open editor: " + err.Error()
 		return nil
