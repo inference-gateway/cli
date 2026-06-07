@@ -77,6 +77,13 @@ User-visible config lives in `.infer/` (project) and/or `~/.infer/` (userspace),
 
 Env var override format: `INFER_<PATH_WITH_UNDERSCORES>` (dots → underscores). Example: `agent.model` → `INFER_AGENT_MODEL`.
 
+## After editing config behaviour
+
+When you change defaults, struct fields, validation, or any other behaviour in `config/config.go` (or any file under `config/` that affects generated output):
+
+1. **Re-generate the config files** by running `go run . init --overwrite`. This ensures the on-disk YAML files reflect the new defaults and schema.
+2. **Discard the `agents.yaml` diff.** `go run . init --overwrite` also regenerates `agents.yaml` — but that file contains user-curated A2A agent registrations. Overwriting it would nuke any agents the user has configured, so always `git checkout -- .infer/agents.yaml` (or restore it) before committing. The same applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, and `heartbeat.yaml` if they contain user data — use your judgement based on what you changed.
+
 ## Things to know that aren't obvious from the code
 
 - **Binary name is `infer`, module is `cli`**: `go install` produces `cli`; the Taskfile and Nix flake rename it to `infer`. macOS Nix builds also compile the Swift computer-use bridge under `internal/display/macos/ComputerUse/`.

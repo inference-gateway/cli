@@ -901,9 +901,11 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 
 	relSkill := filepath.Join(ConfigDirName, "skills", "demo", "SKILL.md")
 
-	t.Run("skills enabled: carve-out grants read access", func(t *testing.T) {
+	t.Run("skills enabled (default): carve-out grants read access", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.Agent.Skills.Enabled = true
+		if !cfg.Agent.Skills.Enabled {
+			t.Fatalf("expected skills enabled by default")
+		}
 
 		t.Run("user skills dir allowed", func(t *testing.T) {
 			if err := cfg.ValidatePathInSandbox(userSkill); err != nil {
@@ -952,11 +954,9 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		})
 	})
 
-	t.Run("skills disabled (default): carve-out is off, skills dir denied", func(t *testing.T) {
+	t.Run("skills disabled: carve-out is off, skills dir denied", func(t *testing.T) {
 		cfg := DefaultConfig()
-		if cfg.Agent.Skills.Enabled {
-			t.Fatalf("expected skills disabled by default")
-		}
+		cfg.Agent.Skills.Enabled = false
 
 		for _, p := range []string{userSkill, projectSkill, relSkill} {
 			if err := cfg.ValidatePathInSandbox(p); err == nil {

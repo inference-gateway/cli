@@ -377,8 +377,9 @@ type AgentContextConfig struct {
 
 // AgentSkillsConfig controls Agent Skills loading. Skills follow the
 // SKILL.md / YAML-frontmatter contract shared by the official spec, so existing skill folders drop
-// into .infer/skills/ unchanged. Disabled by default - when off, no
-// scan runs and nothing is injected into the system prompt.
+// into .infer/skills/ unchanged. Enabled by default - disable via
+// agent.skills.enabled=false in config. When off, no scan runs and
+// nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
 	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
@@ -775,7 +776,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				GitContextRefreshTurns: 10,
 			},
 			Skills: AgentSkillsConfig{
-				Enabled:        false,
+				Enabled:        true,
 				DisabledSkills: nil,
 			},
 			SystemPromptWithDefaults: true,
