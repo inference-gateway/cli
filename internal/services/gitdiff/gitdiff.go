@@ -75,6 +75,12 @@ type Source interface {
 	Stage(path string) error
 	// Unstage removes the path from the index.
 	Unstage(path string) error
+	// StageAll stages every working-tree change (`git add -A`): modifications,
+	// additions, deletions, and untracked files.
+	StageAll() error
+	// UnstageAll removes all paths from the index (`git reset -q HEAD`), leaving
+	// the working tree untouched.
+	UnstageAll() error
 	// Discard reverts a working-tree change: it restores a tracked file from the
 	// index (HEAD when nothing is staged) and deletes an untracked file. This is
 	// destructive - the discarded working-tree changes cannot be recovered.
@@ -198,6 +204,16 @@ func (g *gitSource) Unstage(path string) error {
 	}
 	// Fallback for git < 2.23 which lacks `git restore`.
 	_, err := g.run("reset", "-q", "HEAD", "--", path)
+	return err
+}
+
+func (g *gitSource) StageAll() error {
+	_, err := g.run("add", "-A")
+	return err
+}
+
+func (g *gitSource) UnstageAll() error {
+	_, err := g.run("reset", "-q", "HEAD")
 	return err
 }
 

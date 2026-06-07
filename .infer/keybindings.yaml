@@ -119,6 +119,12 @@ bindings:
     description: stage the selected file
     category: diff_viewer
     enabled: true
+  diff_viewer_stage_all:
+    keys:
+      - A
+    description: stage all files
+    category: diff_viewer
+    enabled: true
   diff_viewer_toggle:
     keys:
       - enter
@@ -130,6 +136,12 @@ bindings:
     keys:
       - u
     description: unstage the selected file
+    category: diff_viewer
+    enabled: true
+  diff_viewer_unstage_all:
+    keys:
+      - U
+    description: unstage all files
     category: diff_viewer
     enabled: true
   display_toggle_raw_format:

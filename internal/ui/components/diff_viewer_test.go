@@ -18,6 +18,8 @@ type fakeDiffSource struct {
 	diffs            map[string][2]string // path -> {old, new}
 	stageCalls       []string
 	unstageCalls     []string
+	stageAllCalls    int
+	unstageAllCalls  int
 	discardCalls     []string
 	worktreePatch    gitdiff.FilePatch
 	indexPatch       gitdiff.FilePatch
@@ -48,6 +50,9 @@ func (f *fakeDiffSource) Unstage(path string) error {
 	f.unstageCalls = append(f.unstageCalls, path)
 	return nil
 }
+
+func (f *fakeDiffSource) StageAll() error   { f.stageAllCalls++; return nil }
+func (f *fakeDiffSource) UnstageAll() error { f.unstageAllCalls++; return nil }
 
 func (f *fakeDiffSource) WorktreePatch(string) (gitdiff.FilePatch, error) {
 	return f.worktreePatch, nil
@@ -195,6 +200,41 @@ func TestDiffViewer_StageUnstage(t *testing.T) {
 	cmd()
 	if len(src.unstageCalls) != 1 || src.unstageCalls[0] != "a.go" {
 		t.Errorf("unstageCalls = %v, want [a.go]", src.unstageCalls)
+	}
+}
+
+func TestDiffViewer_StageUnstageAll(t *testing.T) {
+	src := &fakeDiffSource{
+		unstaged: []gitdiff.FileChange{
+			{Path: "a.go", Status: gitdiff.StatusModified},
+			{Path: "b.go", Status: gitdiff.StatusUntracked},
+		},
+		diffs: map[string][2]string{},
+	}
+	v := newTestDiffViewer(src)
+
+	// "A" stages everything in one shot - no selection required.
+	_, cmd := v.Update(tea.KeyPressMsg{Text: "A", Code: 'a', Mod: tea.ModShift})
+	if cmd == nil {
+		t.Fatal("'A' should produce a stage-all cmd")
+	}
+	cmd()
+	if src.stageAllCalls != 1 {
+		t.Errorf("stageAllCalls = %d, want 1", src.stageAllCalls)
+	}
+
+	// "U" unstages everything.
+	_, cmd = v.Update(tea.KeyPressMsg{Text: "U", Code: 'u', Mod: tea.ModShift})
+	if cmd == nil {
+		t.Fatal("'U' should produce an unstage-all cmd")
+	}
+	cmd()
+	if src.unstageAllCalls != 1 {
+		t.Errorf("unstageAllCalls = %d, want 1", src.unstageAllCalls)
+	}
+
+	if h := v.HintText(); !strings.Contains(h, "A stage all") || !strings.Contains(h, "U unstage all") {
+		t.Errorf("hint missing stage-all/unstage-all: %q", h)
 	}
 }
 

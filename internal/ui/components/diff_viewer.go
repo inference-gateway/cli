@@ -36,6 +36,8 @@ var (
 	actDiffToggle     = config.ActionID(config.NamespaceDiffViewer, "toggle")
 	actDiffStage      = config.ActionID(config.NamespaceDiffViewer, "stage")
 	actDiffUnstage    = config.ActionID(config.NamespaceDiffViewer, "unstage")
+	actDiffStageAll   = config.ActionID(config.NamespaceDiffViewer, "stage_all")
+	actDiffUnstageAll = config.ActionID(config.NamespaceDiffViewer, "unstage_all")
 	actDiffDiscard    = config.ActionID(config.NamespaceDiffViewer, "discard")
 	actDiffPatch      = config.ActionID(config.NamespaceDiffViewer, "patch")
 	actDiffEdit       = config.ActionID(config.NamespaceDiffViewer, "edit")
@@ -260,9 +262,10 @@ func (t *DiffViewerImpl) HintText() string {
 			t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
 			t.keymap.display(actDiffPatchApply), verb, t.keymap.display(actDiffCancel))
 	}
-	return fmt.Sprintf("%s/%s select · %s stage · %s unstage · %s discard · %s patch · %s edit · %s commit · %s back",
+	return fmt.Sprintf("%s/%s select · %s stage · %s stage all · %s unstage · %s unstage all · %s discard · %s patch · %s edit · %s commit · %s back",
 		t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
-		t.keymap.display(actDiffStage), t.keymap.display(actDiffUnstage),
+		t.keymap.display(actDiffStage), t.keymap.display(actDiffStageAll),
+		t.keymap.display(actDiffUnstage), t.keymap.display(actDiffUnstageAll),
 		t.keymap.display(actDiffDiscard), t.keymap.display(actDiffPatch),
 		t.keymap.display(actDiffEdit), t.keymap.display(actDiffCommit),
 		t.keymap.display(actDiffCancel))
@@ -357,7 +360,8 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch t.keymap.match(pressed,
 		actDiffNavUp, actDiffNavDown, actDiffToggle, actDiffExpand, actDiffCollapse,
-		actDiffStage, actDiffUnstage, actDiffDiscard, actDiffPatch, actDiffEdit, actDiffCommit,
+		actDiffStage, actDiffUnstage, actDiffStageAll, actDiffUnstageAll,
+		actDiffDiscard, actDiffPatch, actDiffEdit, actDiffCommit,
 		actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown, actDiffCancel) {
 	case actDiffCancel:
 		t.cancel = true
@@ -383,6 +387,10 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return t, t.stageCmd()
 	case actDiffUnstage:
 		return t, t.unstageCmd()
+	case actDiffStageAll:
+		return t, t.stageAllCmd()
+	case actDiffUnstageAll:
+		return t, t.unstageAllCmd()
 	case actDiffDiscard:
 		// Discard reverts working-tree changes, so it only applies to unstaged
 		// entries; on a staged file it is a no-op (unstage it first).
@@ -466,6 +474,31 @@ func (t *DiffViewerImpl) unstageCmd() tea.Cmd {
 	src := t.source
 	return func() tea.Msg {
 		if err := src.Unstage(path); err != nil {
+			return diffViewerLoadedMsg{err: err}
+		}
+		staged, unstaged, err := src.Changes()
+		return diffViewerLoadedMsg{staged: staged, unstaged: unstaged, err: err}
+	}
+}
+
+// stageAllCmd stages every change (`git add -A`), then reloads the tree. Unlike
+// stageCmd it needs no selection, so it works from anywhere in the panel.
+func (t *DiffViewerImpl) stageAllCmd() tea.Cmd {
+	src := t.source
+	return func() tea.Msg {
+		if err := src.StageAll(); err != nil {
+			return diffViewerLoadedMsg{err: err}
+		}
+		staged, unstaged, err := src.Changes()
+		return diffViewerLoadedMsg{staged: staged, unstaged: unstaged, err: err}
+	}
+}
+
+// unstageAllCmd unstages everything (`git reset -q HEAD`), then reloads the tree.
+func (t *DiffViewerImpl) unstageAllCmd() tea.Cmd {
+	src := t.source
+	return func() tea.Msg {
+		if err := src.UnstageAll(); err != nil {
 			return diffViewerLoadedMsg{err: err}
 		}
 		staged, unstaged, err := src.Changes()

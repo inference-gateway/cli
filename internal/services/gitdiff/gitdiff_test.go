@@ -345,6 +345,41 @@ func TestStageUnstage(t *testing.T) {
 	}
 }
 
+func TestStageUnstageAll(t *testing.T) {
+	repo := newTestRepo(t)
+	// Two kinds of change at once: a modified tracked file and a brand-new
+	// untracked file. `git add -A` must catch both.
+	writeFile(t, repo, "tracked.txt", "line1\nline2\nchanged\n")
+	writeFile(t, repo, "new.txt", "hello\n")
+	src := NewGitSource(repo)
+
+	if err := src.StageAll(); err != nil {
+		t.Fatalf("StageAll: %v", err)
+	}
+	staged, unstaged, _ := src.Changes()
+	for _, p := range []string{"tracked.txt", "new.txt"} {
+		if _, ok := findChange(staged, p); !ok {
+			t.Errorf("after StageAll, %s not in staged group", p)
+		}
+	}
+	if len(unstaged) != 0 {
+		t.Errorf("after StageAll, unstaged group should be empty, got %v", unstaged)
+	}
+
+	if err := src.UnstageAll(); err != nil {
+		t.Fatalf("UnstageAll: %v", err)
+	}
+	staged, unstaged, _ = src.Changes()
+	if len(staged) != 0 {
+		t.Errorf("after UnstageAll, staged group should be empty, got %v", staged)
+	}
+	for _, p := range []string{"tracked.txt", "new.txt"} {
+		if _, ok := findChange(unstaged, p); !ok {
+			t.Errorf("after UnstageAll, %s not in unstaged group", p)
+		}
+	}
+}
+
 func TestDiscard(t *testing.T) {
 	repo := newTestRepo(t)
 	src := NewGitSource(repo)

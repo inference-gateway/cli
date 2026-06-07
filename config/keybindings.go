@@ -374,6 +374,8 @@ func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
 	add("toggle", "toggle section/folder collapse", "enter", "space")
 	add("stage", "stage the selected file", "a")
 	add("unstage", "unstage the selected file", "u")
+	add("stage_all", "stage all files", "A")
+	add("unstage_all", "unstage all files", "U")
 	add("discard", "discard a file's working-tree changes", "d")
 	add("patch", "stage hunks (enter patch mode)", "p")
 	add("edit", "edit the selected file (vim mode)", "v")
