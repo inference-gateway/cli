@@ -45,14 +45,17 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().String("tools-bash-mode-all-allow-append", "",
+		"comma/newline-separated commands appended to the bash allow-list baseline "+
+			"(tools.bash.mode.all.allow); INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND takes precedence")
 
 	cobra.OnInitialize(initConfig)
 }
 
 // parseDelimitedList splits a comma/newline-separated env value into trimmed,
-// non-empty entries. Used for INFER_A2A_AGENTS, which viper cannot parse
-// generically. The bash allow-list is per-mode (tools.bash.mode.<mode>.allow)
-// and is config-file driven, so it needs no bespoke env/flag plumbing.
+// non-empty entries. Used for INFER_A2A_AGENTS and the bash allow-list append
+// override (tools.bash.mode.all.allow), neither of which viper can parse
+// generically into a slice from a single env var.
 func parseDelimitedList(value string) []string {
 	var out []string
 	for _, item := range strings.FieldsFunc(value, func(c rune) bool {
@@ -63,6 +66,43 @@ func parseDelimitedList(value string) []string {
 		}
 	}
 	return out
+}
+
+// resolveBashAllowOverride returns the override value for a bash allow-list,
+// preferring the env var over the matching persistent flag (per the documented
+// flags < env layering). Empty means neither was provided.
+func resolveBashAllowOverride(flagName, envName string) string {
+	if env := os.Getenv(envName); env != "" {
+		return env
+	}
+	if val, err := rootCmd.PersistentFlags().GetString(flagName); err == nil {
+		return val
+	}
+	return ""
+}
+
+// applyBashAllowAppends merges flag/env-supplied commands onto the bash
+// allow-list already resolved from defaults and config files. The config-file
+// list (tools.bash.mode.all.allow) is the every-mode baseline that bashAllowFor
+// unions into every mode, so appending here makes the extra commands auto-run in
+// standard, auto, and plan alike without touching the matcher. Must run after
+// ReadInConfig so the append sees config-file values; v.Set then wins over later
+// layers. The append never replaces the curated defaults — it only adds.
+func applyBashAllowAppends(v *viper.Viper) {
+	appends := []struct {
+		key, appendFlag, appendEnv string
+	}{
+		{
+			"tools.bash.mode.all.allow",
+			"tools-bash-mode-all-allow-append", "INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND",
+		},
+	}
+
+	for _, a := range appends {
+		if override := resolveBashAllowOverride(a.appendFlag, a.appendEnv); override != "" {
+			v.Set(a.key, append(v.GetStringSlice(a.key), parseDelimitedList(override)...))
+		}
+	}
 }
 
 func initConfig() {
@@ -94,6 +134,8 @@ func initConfig() {
 			os.Exit(1)
 		}
 	}
+
+	applyBashAllowAppends(v)
 
 	cfg, err := loadConfigFromViper()
 	if err != nil {

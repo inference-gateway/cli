@@ -579,12 +579,22 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 **Bash Tool Allow-List Configuration:**
 
-The Bash allow-list is **per agent mode** and configured in YAML (there are no
-bespoke env vars or flags for it). Set `tools.bash.mode.<mode>.allow` in
-`config.yaml`, where `<mode>` is `all` (baseline applied in every mode), `plan`,
-`standard`, or `auto`. The effective list for a mode is `mode.all.allow` unioned
-with that mode's list; anything unmatched is denied (it prompts for approval in
-chat, or is rejected with a reason in headless agent mode).
+The Bash allow-list is **per agent mode** and configured in YAML. Set
+`tools.bash.mode.<mode>.allow` in `config.yaml`, where `<mode>` is `all`
+(baseline applied in every mode), `plan`, `standard`, or `auto`. The effective
+list for a mode is `mode.all.allow` unioned with that mode's list; anything
+unmatched is denied (it prompts for approval in chat, or is rejected with a
+reason in headless agent mode).
+
+The one exception to YAML-only configuration is an **append override** for the
+`mode.all` baseline, so CI (and `infer-action`) can add a few commands without
+rewriting config or relaxing a mode to `.*`:
+
+- `INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND`: comma/newline-separated commands
+  appended to `tools.bash.mode.all.allow` (and therefore allowed in every mode).
+  Equivalent flag: `--tools-bash-mode-all-allow-append`; the env var wins when
+  both are set. **Append only** - it merges onto the curated defaults rather than
+  replacing them, and there is no replace override.
 
 > The matcher is shell-aware and matches each entry against the WHOLE command
 > (so a bare token matches only itself; use `( .*)?` to allow arguments). A
