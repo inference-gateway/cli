@@ -74,19 +74,18 @@ tools:
     timeout: 120
     whitelist:
       commands:
-        - echo
-        - ls
-        - pwd
-        - tree
-        - wc
-        - sort
-        - uniq
-        - head
-        - tail
-        - task
-        - make
-        - find
-      patterns:
+        - ^echo( |$)
+        - ^ls( |$)
+        - ^pwd( |$)
+        - ^tree( |$)
+        - ^wc( |$)
+        - ^sort( |$)
+        - ^uniq( |$)
+        - ^head( |$)
+        - ^tail( |$)
+        - ^task( |$)
+        - ^make( |$)
+        - ^find( |$)
         - ^git status( |$)
         - ^git branch( --show-current)?( -[alrvd])?$
         - ^git log

@@ -20,7 +20,7 @@ func createTestConfig() *config.Config {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"ls", "pwd", "echo"},
+					Commands: []string{"^ls( |$)", "^pwd( |$)", "^echo( |$)"},
 				},
 			},
 		},
@@ -148,9 +148,9 @@ func TestStandardApprovalPolicy_BashWhitelist(t *testing.T) {
 
 	t.Run("Invalid bash arguments default to require approval", func(t *testing.T) {
 		invalidArgs := []string{
-			`{}`,               // Missing command
-			`{"command": 123}`, // Wrong type
-			`invalid json`,     // Invalid JSON
+			`{}`,
+			`{"command": 123}`,
+			`invalid json`,
 		}
 
 		for _, args := range invalidArgs {
@@ -172,13 +172,11 @@ func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Tools check config for approval requirement", func(t *testing.T) {
-		// By default, all tools require approval (global setting is true)
 		tools := []string{"Read", "Write", "Edit", "Grep"}
 
 		for _, toolName := range tools {
 			toolCall := createToolCall(toolName, "{}")
 
-			// Should require approval based on global config
 			requiresApproval := policy.ShouldRequireApproval(ctx, toolCall, true)
 			configRequiresApproval := cfg.IsApprovalRequired(toolName)
 
@@ -195,7 +193,6 @@ func TestStandardApprovalPolicy_WithNilStateManager(t *testing.T) {
 		policy := NewStandardApprovalPolicy(createTestConfig(), nil)
 		ctx := context.Background()
 
-		// Should not panic with nil state manager
 		toolCall := createToolCall("Read", "{}")
 		_ = policy.ShouldRequireApproval(ctx, toolCall, true)
 	})
@@ -277,7 +274,6 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 		stateManager := &mocksdomain.FakeStateManager{}
 		ctx := context.Background()
 
-		// Test 1: Computer use tools bypass everything
 		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
 		policy := NewStandardApprovalPolicy(cfg, stateManager)
 
@@ -286,26 +282,22 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 			t.Error("Computer use tool should bypass all other rules")
 		}
 
-		// Test 2: Auto-accept bypasses remaining rules
 		stateManager.GetAgentModeReturns(domain.AgentModeAutoAccept)
 		bash := createToolCall("Bash", `{"command": "rm -rf /"}`)
 		if policy.ShouldRequireApproval(ctx, bash, true) {
 			t.Error("Auto-accept mode should bypass bash whitelist and config")
 		}
 
-		// Test 3: Non-chat mode bypasses bash whitelist and config
 		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
 		if policy.ShouldRequireApproval(ctx, bash, false) {
 			t.Error("Non-chat mode should bypass bash whitelist and config")
 		}
 
-		// Test 4: Bash whitelist bypasses config
 		whitelistedBash := createToolCall("Bash", `{"command": "ls"}`)
 		if policy.ShouldRequireApproval(ctx, whitelistedBash, true) {
 			t.Error("Whitelisted bash command should bypass config")
 		}
 
-		// Test 5: Config is final fallback
 		nonWhitelistedBash := createToolCall("Bash", `{"command": "rm"}`)
 		requiresApproval := policy.ShouldRequireApproval(ctx, nonWhitelistedBash, true)
 		if !requiresApproval {

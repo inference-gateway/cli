@@ -684,7 +684,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 						Whitelist: config.ToolWhitelistConfig{
 							Commands: func() []string {
 								if tt.isBashCommandWhitelisted {
-									return []string{"ls"}
+									return []string{"^ls( |$)"}
 								}
 								return []string{}
 							}(),

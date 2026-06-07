@@ -24,11 +24,16 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 //   - Command substitution - $(...), `...`, and process substitution <(...) /
 //     >(...) - is rejected outright, because it can smuggle an arbitrary command
 //     past an otherwise-whitelisted wrapper (e.g. echo $(rm -rf /)).
-//   - Compound commands (&&, ||, |, |&, ;, &, and newlines) are split at the top
-//     level, honoring quotes, and EVERY segment must be independently
-//     whitelisted. This both enables benign chains (gh issue view 5 && gh issue
-//     comment 5 ...) and closes the prefix-match hole where a whitelisted head
-//     command would carry an arbitrary tail.
+//   - Shell variable/parameter expansion ($VAR, ${VAR}) may be USED freely, but a
+//     command that prints (echo, printf) or publishes (gh issue/pr
+//     create|comment|edit) its arguments may not expand one - that would leak a
+//     secret's value (echo $AWS_SECRET_ACCESS_KEY). A single-quoted or
+//     backslash-escaped '$' is always a literal and stays allowed.
+//   - Only a SINGLE command is auto-whitelisted. Any top-level shell operator
+//     (&&, ||, |, |&, ;, &, or a newline) makes the whole command non-whitelisted
+//     so it falls through to approval. This keeps the policy simple and closes the
+//     prefix-match hole where a whitelisted head would carry an arbitrary tail
+//     (echo x | xargs rm); chains and pipelines are run one command at a time.
 //   - Benign trailing redirections (2>&1, 2>/dev/null, …) are stripped per
 //     segment before matching.
 //   - A file-write redirection that survives stripping (>, >>, &>file) restricts
@@ -56,20 +61,28 @@ func (c *Config) IsBashCommandWhitelisted(command string) bool {
 		return false
 	}
 
-	for _, seg := range segments {
-		seg = stripBenignTrailingRedirections(strings.TrimSpace(seg))
-		if seg == "" {
-			return false
-		}
-		if !c.isSingleBashCommandAllowed(seg) {
-			return false
-		}
+	if len(segments) != 1 {
+		return false
 	}
-	return true
+
+	seg := stripBenignTrailingRedirections(strings.TrimSpace(segments[0]))
+	if seg == "" {
+		return false
+	}
+
+	// Env-var leak guard: $VAR may be used freely, but a command that prints
+	// (echo/printf) or publishes (gh issue/pr create|comment|edit) its arguments
+	// must not expand one, or it would leak the value (echo $AWS_SECRET_ACCESS_KEY).
+	if outputCommandRe.MatchString(seg) && containsVariableExpansion(seg) {
+		return false
+	}
+
+	return c.isSingleBashCommandAllowed(seg)
 }
 
 // BashWhitelistRejectionHint returns a short, actionable explanation when
-// command uses a restricted shell construct - command substitution or a
+// command uses a restricted shell construct - command substitution, a
+// compound/piped command, an env-var leak (printing/publishing $VAR), or a
 // file-write redirection - so the model gets precise feedback instead of a bare
 // "not whitelisted". It returns "" when no special explanation applies; callers
 // should surface it only alongside an actual rejection.
@@ -88,13 +101,21 @@ func BashWhitelistRejectionHint(command string) string {
 	if !ok {
 		return ""
 	}
-	for _, seg := range segments {
-		seg = stripBenignTrailingRedirections(strings.TrimSpace(seg))
-		if containsFileRedirect(seg) {
-			return "output redirection to a file ('>' or '>>') is restricted by default " +
-				"(benign forms like '2>&1' or '>/dev/null' are allowed); to permit this exact " +
-				"command, add an anchored regex (^...$) to tools.bash.whitelist.commands"
-		}
+	if len(segments) != 1 {
+		return "only a single command is auto-approved; pipes and operators (|, &&, ||, ;, &) " +
+			"are not - run one command at a time instead of chaining them"
+	}
+
+	seg := stripBenignTrailingRedirections(strings.TrimSpace(segments[0]))
+	if outputCommandRe.MatchString(seg) && containsVariableExpansion(seg) {
+		return "a printing or publishing command (echo, printf, gh issue/pr create|comment|edit) " +
+			"may not expand an environment variable ($VAR) - it would leak the value; use single " +
+			"quotes for a literal '$' (echo '$HOME') or omit the variable"
+	}
+	if containsFileRedirect(seg) {
+		return "output redirection to a file ('>' or '>>') is restricted by default " +
+			"(benign forms like '2>&1' or '>/dev/null' are allowed); to permit this exact " +
+			"command, add an anchored regex (^...$) to tools.bash.whitelist.commands"
 	}
 	return ""
 }
@@ -106,6 +127,18 @@ func BashWhitelistRejectionHint(command string) string {
 // through to approval) - the same stance taken on command substitution.
 var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
+)
+
+// outputCommandRe matches a command whose effect is to emit its arguments where a
+// secret would become visible: echo/printf write to stdout (which the model
+// reads back), and the gh issue/pr subcommands publish to GitHub. Variable
+// expansion is allowed in general, but expanding one in such a command (echo
+// $TOKEN, gh issue comment --body $TOKEN) would leak the value, so a match here
+// combined with containsVariableExpansion blocks auto-whitelisting. It is
+// evaluated on the single command segment (after benign redirections are
+// stripped), so it sees the real command name.
+var outputCommandRe = regexp.MustCompile(
+	`^(echo|printf)( |$)|^gh (issue|pr) (create|comment|edit)( |$)`,
 )
 
 // isBashEntryRegex reports whether entry should be treated as a regex (rather
@@ -204,7 +237,7 @@ func containsCommandSubstitution(command string) bool {
 		case inDouble:
 			switch ch {
 			case '\\':
-				i++ // backslash escapes the next char inside double quotes
+				i++
 			case '"':
 				inDouble = false
 			case '`':
@@ -239,6 +272,86 @@ func containsCommandSubstitution(command string) bool {
 	return false
 }
 
+// containsVariableExpansion reports whether command performs shell parameter or
+// variable expansion - $NAME, ${...}, or a special parameter such as $1/$?/$@ -
+// outside single quotes. Single-quoted spans are literal in bash, so a '$' there
+// is ignored (echo '$HOME' prints the text verbatim and is safe). Inside double
+// quotes and when unquoted, '$NAME' expands, which would let an otherwise
+// read-only command leak environment variables (echo $AWS_SECRET_ACCESS_KEY), so
+// it is flagged. A backslash-escaped '$' is literal and ignored. Command
+// substitution ('$(') is handled by containsCommandSubstitution, so it is not
+// re-flagged here.
+func containsVariableExpansion(command string) bool {
+	var inSingle, inDouble bool
+	runes := []rune(command)
+
+	for i := 0; i < len(runes); i++ {
+		ch := runes[i]
+		switch {
+		case inSingle:
+			if ch == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			switch ch {
+			case '\\':
+				i++
+			case '"':
+				inDouble = false
+			case '$':
+				if isVariableExpansionStart(runes, i) {
+					return true
+				}
+			}
+		default:
+			switch ch {
+			case '\\':
+				i++
+			case '\'':
+				inSingle = true
+			case '"':
+				inDouble = true
+			case '$':
+				if isVariableExpansionStart(runes, i) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// isVariableExpansionStart reports whether the '$' at runes[i] begins a parameter
+// or variable expansion. It is true for "${...}" and for a '$' followed by a name
+// character ([A-Za-z0-9_]) or a special parameter (@ * # ? ! $ -). A '$' at end
+// of input, before whitespace/punctuation (a literal '$'), or before '(' (command
+// substitution, handled elsewhere) returns false.
+func isVariableExpansionStart(runes []rune, i int) bool {
+	if i+1 >= len(runes) {
+		return false
+	}
+	switch next := runes[i+1]; {
+	case next == '(':
+		return false
+	case next == '{':
+		return true
+	case isNameRune(next):
+		return true
+	default:
+		return strings.ContainsRune("@*#?!$-", next)
+	}
+}
+
+// isNameRune reports whether r can appear in a shell variable name or is a single
+// positional parameter ([A-Za-z0-9_]).
+func isNameRune(r rune) bool {
+	return r == '_' ||
+		(r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9')
+}
+
 // containsFileRedirect reports whether seg contains an unquoted output
 // redirection to a real file (>, >>, &>file, >&file). It is meant to run after
 // stripBenignTrailingRedirections, so any surviving unquoted '>' denotes a write
@@ -258,7 +371,7 @@ func containsFileRedirect(seg string) bool {
 		case inDouble:
 			switch ch {
 			case '\\':
-				i++ // backslash escapes the next char inside double quotes
+				i++
 			case '"':
 				inDouble = false
 			}

