@@ -278,52 +278,6 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 	}
 }
 
-// FormatToolArgumentsForApproval formats tool arguments for approval display
-// This delegates to individual tools if they have special formatting needs
-func (s *ToolFormatterService) FormatToolArgumentsForApproval(toolName string, args map[string]any) string {
-	tool, err := s.toolRegistry.GetTool(toolName)
-	if err != nil {
-		return s.formatGenericArguments(args)
-	}
-
-	if approvalFormatter, ok := tool.(ApprovalArgumentFormatter); ok {
-		return approvalFormatter.FormatArgumentsForApproval(args)
-	}
-
-	return s.formatGenericArguments(args)
-}
-
-// ApprovalArgumentFormatter interface for tools that need custom approval argument formatting
-type ApprovalArgumentFormatter interface {
-	FormatArgumentsForApproval(args map[string]any) string
-}
-
-// formatGenericArguments provides the default argument formatting for approval view
-func (s *ToolFormatterService) formatGenericArguments(args map[string]any) string {
-	if len(args) == 0 {
-		return ""
-	}
-
-	var result strings.Builder
-	result.WriteString("Arguments:\n")
-
-	keys := make([]string, 0, len(args))
-	for key := range args {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	for i, key := range keys {
-		value := args[key]
-		fmt.Fprintf(&result, "  • %s: %v", key, value)
-		if i < len(keys)-1 {
-			result.WriteString("\n")
-		}
-	}
-
-	return result.String()
-}
-
 // ShouldAlwaysExpandTool checks if a tool result should always be expanded
 func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
 	tool, err := s.toolRegistry.GetTool(toolName)

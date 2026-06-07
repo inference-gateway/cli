@@ -84,6 +84,10 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
 ) componentHeights {
+	if approvalBoxView != nil {
+		approvalBoxView.SetHeight(totalHeight)
+	}
+
 	heights := componentHeights{
 		headerHeight: 3,
 	}

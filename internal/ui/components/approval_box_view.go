@@ -18,8 +18,26 @@ import (
 // very narrow terminal still shows a usable amount of the pending call.
 const minApprovalSummaryWidth = 20
 
+// Diff-preview height bounds for the approval box. The preview is capped so a large
+// edit can't push the conversation/input off-screen (the box height is measured by
+// line count and subtracted from the layout). The cap tracks terminal height (~half)
+// within [minPreviewLines, maxPreviewLines], falling back to defaultPreviewLines
+// before the terminal height is known.
+const (
+	minPreviewLines     = 6
+	maxPreviewLines     = 30
+	defaultPreviewLines = 16
+
+	// diffBorderPadding is the box border (2) plus horizontal padding (2) reserved
+	// when sizing the diff to the available width; minDiffWidth keeps it usable on
+	// very narrow terminals.
+	diffBorderPadding = 4
+	minDiffWidth      = 20
+)
+
 type ApprovalBoxView struct {
 	width         int
+	height        int
 	styleProvider *styles.Provider
 	stateManager  domain.StateManager
 	toolFormatter domain.ToolFormatter
@@ -39,6 +57,7 @@ func (av *ApprovalBoxView) SetWidth(width int) {
 }
 
 func (av *ApprovalBoxView) SetHeight(height int) {
+	av.height = height
 }
 
 func (av *ApprovalBoxView) Render() string {
@@ -60,17 +79,108 @@ func (av *ApprovalBoxView) Render() string {
 // accent colour to echo the focused input box directly below it.
 func (av *ApprovalBoxView) renderApprovalBox(state *domain.ApprovalUIState) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
-	dimColor := av.styleProvider.GetThemeColor("dim")
 
 	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)
-
-	summary := formatting.TruncateText(av.toolCallSummary(state.PendingToolCall), av.summaryBudget())
-	summaryStyled := av.styleProvider.RenderWithColor(summary, dimColor)
-
+	body := av.renderBody(state.PendingToolCall)
 	buttons := av.renderApprovalButtons(state.SelectedIndex)
 
-	content := strings.Join([]string{title, summaryStyled, buttons}, "\n")
+	content := strings.Join([]string{title, body, buttons}, "\n")
 	return av.styleProvider.RenderBorderedBox(content, accentColor, 0, 1)
+}
+
+// renderBody renders what is being approved. For the file-mutating tools
+// (Edit/MultiEdit/Write) it shows a height-capped, theme-aware colored diff so the
+// user sees the change before approving; every other tool keeps the compact
+// "Name(arg=value, ...)" one-liner. It also falls back to the one-liner when the
+// arguments don't parse.
+func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) string {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err == nil {
+		if preview, ok := av.renderDiffPreview(tc.Function.Name, args); ok {
+			return preview
+		}
+	}
+	return av.renderSummary(tc)
+}
+
+// renderSummary renders the dim "Name(arg=value, ...)" one-liner used for every
+// non-diff tool, truncated to the available width.
+func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) string {
+	dimColor := av.styleProvider.GetThemeColor("dim")
+	summary := formatting.TruncateText(av.toolCallSummary(tc), av.summaryBudget())
+	return av.styleProvider.RenderWithColor(summary, dimColor)
+}
+
+// renderDiffPreview renders the file diff for the mutating tools using the shared,
+// theme-aware DiffRenderer (same package). The second return is false for any other
+// tool so the caller falls back to the one-liner summary. The diff is sized to the
+// box width and capped to a bounded number of lines (see capLines).
+//
+// The tool names are matched as literals on purpose: internal/agent/tools imports
+// this package for the diff renderer, so importing it back for its name constants
+// would create an import cycle.
+func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
+	renderer := NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth())
+
+	var rendered string
+	switch toolName {
+	case "Edit":
+		rendered = renderer.RenderEditToolArguments(args)
+	case "MultiEdit":
+		rendered = renderer.RenderMultiEditToolArguments(args)
+	case "Write":
+		rendered = renderer.RenderWriteToolArguments(args)
+	default:
+		return "", false
+	}
+
+	return av.capLines(rendered), true
+}
+
+// capLines bounds the preview height so a large edit can't blow out the layout: it
+// keeps the first previewLineLimit() lines and replaces the rest with a dim
+// "… N more lines" hint. The full diff still renders in the conversation after the
+// edit runs.
+func (av *ApprovalBoxView) capLines(s string) string {
+	body := strings.TrimRight(s, "\n")
+	lines := strings.Split(body, "\n")
+	limit := av.previewLineLimit()
+	if len(lines) <= limit {
+		return body
+	}
+
+	hidden := len(lines) - limit
+	hint := av.styleProvider.RenderDimText(
+		fmt.Sprintf("… %d more lines (full diff shown after approval)", hidden),
+	)
+	return strings.Join(lines[:limit], "\n") + "\n" + hint
+}
+
+// previewLineLimit is the max diff lines shown in the box: about half the terminal
+// height so the conversation and input keep room, bounded to
+// [minPreviewLines, maxPreviewLines]. It falls back to defaultPreviewLines before
+// the terminal height is known (height <= 0).
+func (av *ApprovalBoxView) previewLineLimit() int {
+	if av.height <= 0 {
+		return defaultPreviewLines
+	}
+	limit := av.height / 2
+	if limit < minPreviewLines {
+		return minPreviewLines
+	}
+	if limit > maxPreviewLines {
+		return maxPreviewLines
+	}
+	return limit
+}
+
+// diffWidth is the width available to the diff after the box border and padding.
+func (av *ApprovalBoxView) diffWidth() int {
+	w := av.width - diffBorderPadding
+	if w < minDiffWidth {
+		return minDiffWidth
+	}
+	return w
 }
 
 // toolCallSummary renders the pending call as "Name(arg=value, ...)" using the
