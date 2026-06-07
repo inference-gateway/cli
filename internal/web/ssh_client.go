@@ -43,7 +43,7 @@ func (c *SSHClient) Connect() error {
 
 	addr := net.JoinHostPort(c.server.RemoteHost, fmt.Sprintf("%d", c.server.RemotePort))
 
-	logger.Info("Connecting to SSH server",
+	logger.Info("connecting to SSH server",
 		"host", c.server.RemoteHost,
 		"port", c.server.RemotePort,
 		"user", c.server.RemoteUser)
@@ -56,14 +56,14 @@ func (c *SSHClient) Connect() error {
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, sshConfig)
 	if err != nil {
 		if closeErr := conn.Close(); closeErr != nil {
-			logger.Warn("Failed to close connection after SSH handshake failure", "error", closeErr)
+			logger.Warn("failed to close connection after SSH handshake failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to establish SSH connection: %w", err)
 	}
 
 	c.client = ssh.NewClient(sshConn, chans, reqs)
 
-	logger.Info("SSH connection established", "server", c.server.Name)
+	logger.Info("sSH connection established", "server", c.server.Name)
 	return nil
 }
 
@@ -84,7 +84,7 @@ func (c *SSHClient) NewSession() (*ssh.Session, error) {
 // Close closes the SSH connection
 func (c *SSHClient) Close() error {
 	if c.client != nil {
-		logger.Info("Closing SSH connection", "server", c.server.Name)
+		logger.Info("closing SSH connection", "server", c.server.Name)
 		return c.client.Close()
 	}
 	return nil
@@ -97,15 +97,15 @@ func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
 
 	signers, err = connectSSHAgent()
 	if err != nil {
-		logger.Warn("SSH agent not available, falling back to key files", "error", err)
+		logger.Warn("sSH agent not available, falling back to key files", "error", err)
 
 		signers, err = loadSSHKeysFromFiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load SSH keys: %w (tried SSH agent and key files)", err)
 		}
-		logger.Info("Loaded SSH keys from files", "keys_available", len(signers))
+		logger.Info("loaded SSH keys from files", "keys_available", len(signers))
 	} else {
-		logger.Info("SSH agent connected", "keys_available", len(signers))
+		logger.Info("sSH agent connected", "keys_available", len(signers))
 	}
 
 	if len(signers) == 0 {
@@ -117,12 +117,12 @@ func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
 		knownHostsPath := expandPath(c.cfg.KnownHostsPath)
 		hostKeyCallback, err = knownhosts.New(knownHostsPath)
 		if err != nil {
-			logger.Warn("Failed to load known_hosts, using insecure connection",
+			logger.Warn("failed to load known_hosts, using insecure connection",
 				"path", knownHostsPath,
 				"error", err)
 			hostKeyCallback = ssh.InsecureIgnoreHostKey()
 		} else {
-			logger.Info("Using known_hosts for host key verification", "path", knownHostsPath)
+			logger.Info("using known_hosts for host key verification", "path", knownHostsPath)
 		}
 	} else {
 		logger.Warn("no known_hosts path configured, using insecure connection")
@@ -155,7 +155,7 @@ func connectSSHAgent() ([]ssh.Signer, error) {
 	signers, err := agentClient.Signers()
 	if err != nil {
 		if closeErr := conn.Close(); closeErr != nil {
-			logger.Warn("Failed to close agent connection after error", "error", closeErr)
+			logger.Warn("failed to close agent connection after error", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to get signers from SSH agent: %w", err)
 	}
@@ -180,10 +180,10 @@ func loadSSHKeysFromFiles() ([]ssh.Signer, error) {
 	for _, keyFile := range keyFiles {
 		signer, err := loadPrivateKeyFile(keyFile)
 		if err != nil {
-			logger.Debug("Failed to load key file", "file", keyFile, "error", err)
+			logger.Debug("failed to load key file", "file", keyFile, "error", err)
 			continue
 		}
-		logger.Info("Loaded SSH key from file", "file", keyFile)
+		logger.Info("loaded SSH key from file", "file", keyFile)
 		signers = append(signers, signer)
 	}
 

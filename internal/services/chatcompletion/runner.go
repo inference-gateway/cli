@@ -375,11 +375,11 @@ func (r *Runner) restorePendingModel() {
 	r.pendingRestorationMu.Unlock()
 
 	if err := r.modelService.SelectModel(originalModel); err != nil {
-		logger.Error("Failed to restore original model", "model", originalModel, "error", err)
+		logger.Error("failed to restore original model", "model", originalModel, "error", err)
 		r.addModelRestorationWarning(originalModel)
 		return
 	}
-	logger.Debug("Successfully restored original model", "model", originalModel)
+	logger.Debug("successfully restored original model", "model", originalModel)
 }
 
 func (r *Runner) addModelRestorationWarning(originalModel string) {
@@ -391,7 +391,7 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 		Time: time.Now(),
 	}
 	if err := r.conversationRepo.AddMessage(warningEntry); err != nil {
-		logger.Error("Failed to add model restoration warning message", "error", err)
+		logger.Error("failed to add model restoration warning message", "error", err)
 	}
 }
 

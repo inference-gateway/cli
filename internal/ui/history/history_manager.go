@@ -84,7 +84,7 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 		hm.allHistory = append(hm.allHistory, command)
 
 		if err := hm.shellHistory.SaveToHistory(command); err != nil {
-			logger.Warn("Could not save to shell history", "error", err)
+			logger.Warn("could not save to shell history", "error", err)
 		}
 	}
 

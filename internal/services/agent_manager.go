@@ -83,7 +83,7 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 
 	if am.containerRuntime != nil && len(agentsToStart) > 0 {
 		if err := am.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Error("Failed to ensure container network; local agents cannot start", "session", am.sessionID, "error", err)
+			logger.Error("failed to ensure container network; local agents cannot start", "session", am.sessionID, "error", err)
 			for _, agent := range agentsToStart {
 				am.notifyStatus(agent.Name, domain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
 			}
@@ -98,7 +98,7 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 	}
 
 	if len(agentsToStart) > 0 {
-		logger.Info("Starting local agents in background", "count", len(agentsToStart))
+		logger.Info("starting local agents in background", "count", len(agentsToStart))
 	}
 
 	am.initializeExternalAgents(ctx)
@@ -118,7 +118,7 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 		am.externalAgents[agentName] = agentURL
 	}
 
-	logger.Info("Monitoring external agents", "count", len(am.externalAgents))
+	logger.Info("monitoring external agents", "count", len(am.externalAgents))
 
 	go am.monitorExternalAgents(ctx)
 }
@@ -139,10 +139,10 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 		cancel()
 
 		if err != nil {
-			logger.Warn("External agent not ready", "name", agentName, "url", agentURL, "error", err)
+			logger.Warn("external agent not ready", "name", agentName, "url", agentURL, "error", err)
 			am.notifyStatus(agentName, domain.AgentStateFailed, "Agent not reachable", agentURL, "")
 		} else {
-			logger.Info("External agent ready", "name", agentName, "url", agentURL)
+			logger.Info("external agent ready", "name", agentName, "url", agentURL)
 			am.notifyStatus(agentName, domain.AgentStateReady, "Ready (external)", agentURL, "")
 		}
 	}
@@ -166,7 +166,7 @@ func (am *AgentManager) extractAgentNameFromURL(url string) string {
 // startAgentAsync starts a single agent asynchronously with status updates
 func (am *AgentManager) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
 	if err := am.StartAgent(ctx, agent); err != nil {
-		logger.Warn("Failed to start agent", "name", agent.Name, "error", err)
+		logger.Warn("failed to start agent", "name", agent.Name, "error", err)
 		am.notifyStatus(agent.Name, domain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
 	}
 }
@@ -177,17 +177,17 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 		return fmt.Errorf("agent %s has run: true but no OCI image specified", agent.Name)
 	}
 
-	logger.Info("Starting agent container", "name", agent.Name, "image", agent.OCI)
+	logger.Info("starting agent container", "name", agent.Name, "image", agent.OCI)
 
 	if am.isAgentRunning(agent.Name) {
-		logger.Info("Agent container is already running", "name", agent.Name)
+		logger.Info("agent container is already running", "name", agent.Name)
 		am.notifyStatus(agent.Name, domain.AgentStateReady, "Already running", agent.URL, agent.OCI)
 		return nil
 	}
 
 	am.notifyStatus(agent.Name, domain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
 	if err := am.pullImage(ctx, agent.OCI); err != nil {
-		logger.Warn("Failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
+		logger.Warn("failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
 	}
 
 	am.notifyStatus(agent.Name, domain.AgentStateStarting, "Starting container", agent.URL, agent.OCI)
@@ -198,13 +198,13 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 	am.notifyStatus(agent.Name, domain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := am.waitForReady(ctx, agent); err != nil {
 		if stopErr := am.StopAgent(ctx, agent.Name); stopErr != nil {
-			logger.Warn("Failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
+			logger.Warn("failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
 		}
 		return fmt.Errorf("agent failed to become ready: %w", err)
 	}
 
 	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
-	logger.Info("Agent container started successfully", "name", agent.Name, "url", agent.URL)
+	logger.Info("agent container started successfully", "name", agent.Name, "url", agent.URL)
 	return nil
 }
 
@@ -212,7 +212,7 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 func (am *AgentManager) StopAgents(ctx context.Context) error {
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
-			logger.Warn("Failed to stop agent", "name", agentName, "error", err)
+			logger.Warn("failed to stop agent", "name", agentName, "error", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (am *AgentManager) StopAgents(ctx context.Context) error {
 
 	if am.containerRuntime != nil {
 		if err := am.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network during agent shutdown", "session", am.sessionID, "error", err)
+			logger.Warn("failed to cleanup network during agent shutdown", "session", am.sessionID, "error", err)
 		}
 	}
 
@@ -246,7 +246,7 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to stop agent container", "name", agentName, "error", err)
+		logger.Warn("failed to stop agent container", "name", agentName, "error", err)
 	}
 
 	delete(am.containers, agentName)
@@ -291,12 +291,12 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		}
 		artifactsPort := config.FindAvailablePort(artifactsBasePort)
 		args = append(args, "-p", fmt.Sprintf("%d:8081", artifactsPort))
-		logger.Info("Assigned artifacts port", "session", am.sessionID, "agent", agent.Name, "port", artifactsPort)
+		logger.Info("assigned artifacts port", "session", am.sessionID, "agent", agent.Name, "port", artifactsPort)
 	}
 
 	dotEnvVars, err := am.loadDotEnvFile()
 	if err != nil {
-		logger.Warn("Could not load .env file", "error", err)
+		logger.Warn("could not load .env file", "error", err)
 	}
 
 	env := agent.GetEnvironmentWithModel()
@@ -315,10 +315,10 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	for key := range env {
 		if value, exists := dotEnvVars[key]; exists {
 			resolvedEnv[key] = value
-			logger.Warn("Using .env value for variable", "key", key)
+			logger.Warn("using .env value for variable", "key", key)
 		} else if value, exists := os.LookupEnv(key); exists {
 			resolvedEnv[key] = value
-			logger.Warn("Using system environment value for variable", "key", key)
+			logger.Warn("using system environment value for variable", "key", key)
 		} else {
 			resolvedEnv[key] = env[key]
 		}
@@ -363,7 +363,7 @@ func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to read .env file: %w", err)
 	}
 
-	logger.Info("Loaded .env file", "path", dotEnvPath, "vars", len(envMap))
+	logger.Info("loaded .env file", "path", dotEnvPath, "vars", len(envMap))
 	return envMap, nil
 }
 
@@ -451,7 +451,7 @@ func (am *AgentManager) assignPort(agent config.AgentEntry) int {
 
 	port := am.determineAgentPort(agent)
 	am.assignedPorts[agent.Name] = port
-	logger.Info("Assigned agent port", "session", am.sessionID, "agent", agent.Name, "port", port)
+	logger.Info("assigned agent port", "session", am.sessionID, "agent", agent.Name, "port", port)
 	return port
 }
 

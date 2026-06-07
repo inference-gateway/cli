@@ -51,11 +51,11 @@ func (s *WebTerminalServer) Start() error {
 	logger.Info("checking embedded static files...")
 	if err := fs.WalkDir(staticFiles, ".", func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {
-			logger.Info("Embedded file found", "path", path)
+			logger.Info("embedded file found", "path", path)
 		}
 		return nil
 	}); err != nil {
-		logger.Warn("Failed to walk static files", "error", err)
+		logger.Warn("failed to walk static files", "error", err)
 	}
 
 	staticFS, err := fs.Sub(staticFiles, "static")
@@ -70,7 +70,7 @@ func (s *WebTerminalServer) Start() error {
 	mux.HandleFunc("/api/screenshots/", s.handleScreenshotProxy)
 	mux.HandleFunc("/ws", s.handleWebSocket)
 
-	logger.Info("HTTP routes registered",
+	logger.Info("hTTP routes registered",
 		"routes", []string{"/", "/static/", "/api/servers", "/api/screenshots/", "/ws"})
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Web.Host, s.cfg.Web.Port)
@@ -83,7 +83,7 @@ func (s *WebTerminalServer) Start() error {
 
 	go s.handleShutdown()
 
-	logger.Info("Web terminal server started", "url", fmt.Sprintf("http://%s", addr))
+	logger.Info("web terminal server started", "url", fmt.Sprintf("http://%s", addr))
 	fmt.Printf("\n🌐 Web terminal available at: http://%s\n", addr)
 	fmt.Printf("   Open this URL in your browser to access the terminal.\n\n")
 
@@ -97,7 +97,7 @@ func (s *WebTerminalServer) handleIndex(w http.ResponseWriter, r *http.Request) 
 	tmpl, err := template.ParseFS(templates, "templates/index.html")
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
-		logger.Error("Failed to parse template", "error", err)
+		logger.Error("failed to parse template", "error", err)
 		return
 	}
 
@@ -110,7 +110,7 @@ func (s *WebTerminalServer) handleIndex(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
-		logger.Error("Failed to execute template", "error", err)
+		logger.Error("failed to execute template", "error", err)
 	}
 }
 
@@ -144,13 +144,13 @@ func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request
 		"servers":     servers,
 		"ssh_enabled": s.cfg.Web.SSH.Enabled,
 	}); err != nil {
-		logger.Error("Failed to encode servers response", "error", err)
+		logger.Error("failed to encode servers response", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
 func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http.Request) {
-	logger.Info("Screenshot proxy handler called",
+	logger.Info("screenshot proxy handler called",
 		"method", r.Method,
 		"path", r.URL.Path,
 		"query", r.URL.RawQuery)
@@ -161,7 +161,7 @@ func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http
 	}
 
 	if sessionID == "" {
-		logger.Warn("Screenshot proxy: missing session_id", "path", r.URL.Path)
+		logger.Warn("screenshot proxy: missing session_id", "path", r.URL.Path)
 		http.Error(w, "Missing session_id", http.StatusBadRequest)
 		return
 	}
@@ -177,11 +177,11 @@ func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http
 		targetURL += "?" + r.URL.RawQuery
 	}
 
-	logger.Info("Proxying screenshot request", "session_id", sessionID, "target", targetURL)
+	logger.Info("proxying screenshot request", "session_id", sessionID, "target", targetURL)
 
 	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
-		logger.Error("Failed to create proxy request", "error", err)
+		logger.Error("failed to create proxy request", "error", err)
 		http.Error(w, "Proxy error", http.StatusInternalServerError)
 		return
 	}
@@ -195,13 +195,13 @@ func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(proxyReq)
 	if err != nil {
-		logger.Error("Proxy request failed", "error", err)
+		logger.Error("proxy request failed", "error", err)
 		http.Error(w, "Failed to fetch screenshot", http.StatusBadGateway)
 		return
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			logger.Warn("Failed to close response body", "error", err)
+			logger.Warn("failed to close response body", "error", err)
 		}
 	}()
 
@@ -214,7 +214,7 @@ func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http
 	w.WriteHeader(resp.StatusCode)
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		logger.Warn("Failed to copy response body", "error", err)
+		logger.Warn("failed to copy response body", "error", err)
 	}
 }
 
@@ -224,17 +224,17 @@ func (s *WebTerminalServer) handleInitMessage(conn *websocket.Conn, sessionID st
 	serverID = "local"
 
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
-		logger.Warn("Failed to set read deadline", "session_id", sessionID, "error", err)
+		logger.Warn("failed to set read deadline", "session_id", sessionID, "error", err)
 	}
 
 	msgType, data, err := conn.ReadMessage()
 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		logger.Warn("Failed to clear read deadline", "session_id", sessionID, "error", err)
+		logger.Warn("failed to clear read deadline", "session_id", sessionID, "error", err)
 	}
 
 	if err != nil {
-		logger.Warn("Failed to read init message, using defaults", "session_id", sessionID, "error", err)
+		logger.Warn("failed to read init message, using defaults", "session_id", sessionID, "error", err)
 		return
 	}
 
@@ -260,7 +260,7 @@ func (s *WebTerminalServer) handleInitMessage(conn *websocket.Conn, sessionID st
 	cols, rows = msg.Cols, msg.Rows
 	serverID = msg.ServerID
 
-	logger.Info("Session initialized",
+	logger.Info("session initialized",
 		"session_id", sessionID,
 		"server_id", serverID,
 		"cols", cols,
@@ -277,7 +277,7 @@ func (s *WebTerminalServer) handleInitMessage(conn *websocket.Conn, sessionID st
 	}
 
 	if writeErr := conn.WriteMessage(websocket.TextMessage, respData); writeErr != nil {
-		logger.Warn("Failed to send init response", "error", writeErr)
+		logger.Warn("failed to send init response", "error", writeErr)
 	}
 
 	return
@@ -286,17 +286,17 @@ func (s *WebTerminalServer) handleInitMessage(conn *websocket.Conn, sessionID st
 func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Error("WebSocket upgrade failed", "error", err)
+		logger.Error("webSocket upgrade failed", "error", err)
 		return
 	}
 	defer func() {
 		if err := conn.Close(); err != nil {
-			logger.Warn("Failed to close WebSocket connection", "error", err)
+			logger.Warn("failed to close WebSocket connection", "error", err)
 		}
 	}()
 
 	sessionID := uuid.New().String()
-	logger.Info("WebSocket connected", "remote", r.RemoteAddr, "session_id", sessionID)
+	logger.Info("webSocket connected", "remote", r.RemoteAddr, "session_id", sessionID)
 
 	cols, rows, serverID := s.handleInitMessage(conn, sessionID)
 
@@ -319,19 +319,19 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 	for msg := range progressCh {
 		progressMsg := fmt.Sprintf("\r\n\033[1;36m[Setup]\033[0m %s\r\n", msg)
 		if err := conn.WriteMessage(websocket.BinaryMessage, []byte(progressMsg)); err != nil {
-			logger.Warn("Failed to send progress message", "session_id", sessionID, "error", err)
+			logger.Warn("failed to send progress message", "session_id", sessionID, "error", err)
 		}
 	}
 
 	<-done
 
 	if handlerErr != nil {
-		logger.Error("Failed to create session",
+		logger.Error("failed to create session",
 			"error", handlerErr,
 			"server_id", serverID)
 		errMsg := fmt.Sprintf("Failed to start session: %v", handlerErr)
 		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
-			logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
+			logger.Warn("failed to write error message", "session_id", sessionID, "error", writeErr)
 		}
 		return
 	}
@@ -341,26 +341,26 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 	defer func() {
 		s.sessionManager.RemoveSession(sessionID)
 		if closeErr := handler.Close(); closeErr != nil {
-			logger.Warn("Failed to close session handler", "session_id", sessionID, "error", closeErr)
+			logger.Warn("failed to close session handler", "session_id", sessionID, "error", closeErr)
 		}
 	}()
 
 	if err := handler.Start(cols, rows); err != nil {
-		logger.Error("Failed to start session", "error", err)
+		logger.Error("failed to start session", "error", err)
 		errMsg := fmt.Sprintf("Failed to start terminal: %v", err)
 		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
-			logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
+			logger.Warn("failed to write error message", "session_id", sessionID, "error", writeErr)
 		}
 		return
 	}
 
-	logger.Info("Session started", "session_id", sessionID, "server_id", serverID)
+	logger.Info("session started", "session_id", sessionID, "server_id", serverID)
 
 	if err := handler.HandleConnection(conn); err != nil {
-		logger.Error("Connection error", "session_id", sessionID, "error", err)
+		logger.Error("connection error", "session_id", sessionID, "error", err)
 	}
 
-	logger.Info("WebSocket connection closed", "session_id", sessionID)
+	logger.Info("webSocket connection closed", "session_id", sessionID)
 }
 
 // findServerConfig finds server configuration by ID and handles error reporting
@@ -376,9 +376,9 @@ func (s *WebTerminalServer) findServerConfig(serverID, sessionID string, conn *w
 	}
 
 	errMsg := fmt.Sprintf("Server not found: %s", serverID)
-	logger.Error("Invalid server ID", "session_id", sessionID, "server_id", serverID)
+	logger.Error("invalid server ID", "session_id", sessionID, "server_id", serverID)
 	if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
-		logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
+		logger.Warn("failed to write error message", "session_id", sessionID, "error", writeErr)
 	}
 	return nil, false
 }
@@ -404,7 +404,7 @@ func (s *WebTerminalServer) handleShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.server.Shutdown(ctx); err != nil {
-		logger.Error("Server shutdown error", "error", err)
+		logger.Error("server shutdown error", "error", err)
 		fmt.Printf("Server shutdown error: %v\n", err)
 	}
 

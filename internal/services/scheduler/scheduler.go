@@ -128,19 +128,19 @@ func (s *Service) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	if err := s.LoadJobs(); err != nil {
-		logger.Error("Failed to load scheduled jobs", "error", err)
+		logger.Error("failed to load scheduled jobs", "error", err)
 	}
 
 	s.cron.Start()
 
 	if err := s.startWatcher(ctx); err != nil {
-		logger.Error("Schedule watcher failed to start; jobs will only be loaded once", "error", err)
+		logger.Error("schedule watcher failed to start; jobs will only be loaded once", "error", err)
 	}
 
 	s.mu.Lock()
 	jobCount := len(s.entryIDs)
 	s.mu.Unlock()
-	logger.Info("Scheduler started", "dir", s.store.Dir(), "jobs", jobCount)
+	logger.Info("scheduler started", "dir", s.store.Dir(), "jobs", jobCount)
 	return nil
 }
 
@@ -183,7 +183,7 @@ func (s *Service) Stop(ctx context.Context) error {
 func (s *Service) LoadJobs() error {
 	jobs, errs := s.store.List()
 	for _, e := range errs {
-		logger.Warn("Skipping invalid schedule file", "error", e)
+		logger.Warn("skipping invalid schedule file", "error", e)
 	}
 
 	s.mu.Lock()
@@ -195,7 +195,7 @@ func (s *Service) LoadJobs() error {
 
 	for _, job := range jobs {
 		if err := s.registerJob(job); err != nil {
-			logger.Warn("Failed to register scheduled job", "id", job.ID, "error", err)
+			logger.Warn("failed to register scheduled job", "id", job.ID, "error", err)
 		}
 	}
 	return nil
@@ -224,7 +224,7 @@ func (s *Service) registerJob(job *domain.ScheduledJob) error {
 	}
 	s.entryIDs[id] = eid
 	s.mu.Unlock()
-	logger.Info("Scheduled job registered", "id", id, "cron", job.CronExpression, "channel", job.Channel)
+	logger.Info("scheduled job registered", "id", id, "cron", job.CronExpression, "channel", job.Channel)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (s *Service) removeJob(id string) {
 	if eid, ok := s.entryIDs[id]; ok {
 		s.cron.Remove(eid)
 		delete(s.entryIDs, id)
-		logger.Info("Scheduled job removed", "id", id)
+		logger.Info("scheduled job removed", "id", id)
 	}
 }
 
@@ -245,7 +245,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	logger.Info("Firing scheduled job", "id", job.ID, "channel", job.Channel)
+	logger.Info("firing scheduled job", "id", job.ID, "channel", job.Channel)
 
 	now := time.Now().UTC()
 	job.LastRun = &now
@@ -253,7 +253,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 	ch := s.channelLookup(job.Channel)
 	if ch == nil {
 		job.LastError = fmt.Sprintf("channel %q is not registered", job.Channel)
-		logger.Error("Scheduled job: channel not found", "id", job.ID, "channel", job.Channel)
+		logger.Error("scheduled job: channel not found", "id", job.ID, "channel", job.Channel)
 		s.persistRun(&job)
 		return
 	}
@@ -270,7 +270,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 			Timestamp:   time.Now(),
 		}
 		if err := ch.Send(ctx, out); err != nil {
-			logger.Error("Failed to send scheduled-job output", "id", job.ID, "channel", job.Channel, "error", err)
+			logger.Error("failed to send scheduled-job output", "id", job.ID, "channel", job.Channel, "error", err)
 			if firstSendErr == nil {
 				firstSendErr = err
 			}
@@ -280,7 +280,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 	switch err := s.runAgent(ctx, job, sendFn); {
 	case err != nil:
 		job.LastError = err.Error()
-		logger.Error("Scheduled job execution failed", "id", job.ID, "error", err)
+		logger.Error("scheduled job execution failed", "id", job.ID, "error", err)
 		sendFn(fmt.Sprintf("⚠️ Scheduled task %q failed: %v", displayName(&job), err))
 	case firstSendErr != nil:
 		job.LastError = fmt.Sprintf("delivery to %s/%s failed: %v", job.Channel, job.RecipientID, firstSendErr)
@@ -290,9 +290,9 @@ func (s *Service) fire(job domain.ScheduledJob) {
 
 	if job.RunOnce {
 		if err := s.store.Delete(job.ID); err != nil {
-			logger.Warn("Failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
+			logger.Warn("failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
 		} else {
-			logger.Info("One-off scheduled job consumed and deleted", "id", job.ID)
+			logger.Info("one-off scheduled job consumed and deleted", "id", job.ID)
 		}
 		return
 	}
@@ -310,7 +310,7 @@ func (s *Service) persistRun(job *domain.ScheduledJob) {
 	current.LastRun = job.LastRun
 	current.LastError = job.LastError
 	if err := s.store.Save(current); err != nil {
-		logger.Warn("Failed to persist scheduled job run state", "id", job.ID, "error", err)
+		logger.Warn("failed to persist scheduled job run state", "id", job.ID, "error", err)
 	}
 }
 
@@ -470,11 +470,11 @@ func (s *Service) scheduleReload(id, path string) {
 	s.debounce[id] = time.AfterFunc(150*time.Millisecond, func() {
 		job, err := s.store.LoadFromPath(path)
 		if err != nil {
-			logger.Warn("Failed to reload schedule file", "id", id, "error", err)
+			logger.Warn("failed to reload schedule file", "id", id, "error", err)
 			return
 		}
 		if err := s.registerJob(job); err != nil {
-			logger.Warn("Failed to register reloaded schedule", "id", id, "error", err)
+			logger.Warn("failed to register reloaded schedule", "id", id, "error", err)
 		}
 	})
 }

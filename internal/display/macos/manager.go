@@ -87,7 +87,7 @@ func NewFloatingWindowManager(
 	if cfg.ComputerUse.Screenshot.ShowOverlay {
 		time.Sleep(200 * time.Millisecond)
 		if err := mgr.ShowBorderOverlay(); err != nil {
-			logger.Warn("Failed to show border overlay", "error", err)
+			logger.Warn("failed to show border overlay", "error", err)
 		}
 	}
 
@@ -100,11 +100,11 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 	mgr.appPath = appDir
 
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {
-		logger.Debug("Extracting ComputerUse.app from embedded binary", "path", appDir)
+		logger.Debug("extracting ComputerUse.app from embedded binary", "path", appDir)
 		if err := mgr.extractApp(appDir); err != nil {
 			return fmt.Errorf("failed to extract embedded app: %w", err)
 		}
-		logger.Info("ComputerUse.app extracted successfully", "path", appDir)
+		logger.Info("computerUse.app extracted successfully", "path", appDir)
 	}
 
 	position := mgr.cfg.ComputerUse.FloatingWindow.Position
@@ -136,7 +136,7 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			logger.Debug("ComputerUse stderr", "output", line)
+			logger.Debug("computerUse stderr", "output", line)
 		}
 	}()
 
@@ -202,7 +202,7 @@ func (mgr *FloatingWindowManager) forwardEvents() {
 		select {
 		case event := <-mgr.eventSub:
 			if err := mgr.writeEvent(event); err != nil {
-				logger.Warn("Failed to forward event to window", "error", err)
+				logger.Warn("failed to forward event to window", "error", err)
 			}
 
 		case <-mgr.stopForward:
@@ -221,7 +221,7 @@ func (mgr *FloatingWindowManager) monitorProcess() {
 
 	err := mgr.cmd.Wait()
 	if err != nil {
-		logger.Error("Swift process exited", "error", err)
+		logger.Error("swift process exited", "error", err)
 	}
 
 	if !mgr.enabled || !mgr.cfg.ComputerUse.FloatingWindow.RespawnOnClose {
@@ -237,7 +237,7 @@ func (mgr *FloatingWindowManager) respawnWindow() {
 	time.Sleep(1 * time.Second)
 
 	if err := mgr.launchWindow(); err != nil {
-		logger.Error("Failed to respawn floating window", "error", err)
+		logger.Error("failed to respawn floating window", "error", err)
 		return
 	}
 
@@ -255,7 +255,7 @@ func (mgr *FloatingWindowManager) restoreBorderOverlay() {
 
 	time.Sleep(200 * time.Millisecond)
 	if err := mgr.ShowBorderOverlay(); err != nil {
-		logger.Warn("Failed to show border overlay after respawn", "error", err)
+		logger.Warn("failed to show border overlay after respawn", "error", err)
 	} else {
 		logger.Info("border overlay restored after respawn")
 	}
@@ -305,7 +305,7 @@ func (mgr *FloatingWindowManager) shutdownProcess() error {
 func (mgr *FloatingWindowManager) sendTermSignal() error {
 	if err := mgr.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		if killErr := mgr.cmd.Process.Kill(); killErr != nil {
-			logger.Warn("Failed to kill Swift process", "error", killErr)
+			logger.Warn("failed to kill Swift process", "error", killErr)
 			return fmt.Errorf("failed to kill process: %w", killErr)
 		}
 	}
@@ -336,7 +336,7 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 			if len(jsonPreview) > 500 {
 				jsonPreview = jsonPreview[:500] + "..."
 			}
-			logger.Info("Sending GetLatestScreenshot completed event to Swift",
+			logger.Info("sending GetLatestScreenshot completed event to Swift",
 				"hasImages", len(progressEvent.Images) > 0,
 				"imageCount", len(progressEvent.Images),
 				"jsonLength", len(data),
@@ -345,7 +345,7 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 	}
 
 	if _, err := fmt.Fprintf(mgr.stdin, "%s\n", data); err != nil {
-		logger.Warn("Failed to write event to window", "error", err)
+		logger.Warn("failed to write event to window", "error", err)
 		return fmt.Errorf("failed to write to stdin: %w", err)
 	}
 
@@ -365,25 +365,25 @@ func (mgr *FloatingWindowManager) startPauseResumeListener() {
 		}
 
 		line := scanner.Text()
-		logger.Debug("Pause listener received line", "line", line)
+		logger.Debug("pause listener received line", "line", line)
 		if line == "" {
 			continue
 		}
 
 		var request PauseResumeRequest
 		if err := json.Unmarshal([]byte(line), &request); err != nil {
-			logger.Warn("Failed to parse pause/resume request", "error", err, "line", line)
+			logger.Warn("failed to parse pause/resume request", "error", err, "line", line)
 			continue
 		}
 
-		logger.Debug("Pause listener parsed request", "action", request.Action, "request_id", request.RequestID)
+		logger.Debug("pause listener parsed request", "action", request.Action, "request_id", request.RequestID)
 		mgr.handlePauseResumeRequest(request)
 	}
 
 	if err := scanner.Err(); err != nil {
 		mgr.pauseStopMutex.Lock()
 		if !mgr.pauseListenerStopped {
-			logger.Warn("Pause/resume listener error", "error", err)
+			logger.Warn("pause/resume listener error", "error", err)
 		}
 		mgr.pauseStopMutex.Unlock()
 	}
@@ -407,7 +407,7 @@ func (mgr *FloatingWindowManager) handlePauseResumeRequest(req PauseResumeReques
 		mgr.eventBridge.Publish(event)
 
 	default:
-		logger.Warn("Unknown pause/resume action", "action", req.Action)
+		logger.Warn("unknown pause/resume action", "action", req.Action)
 	}
 }
 

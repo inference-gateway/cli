@@ -65,7 +65,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		}
 	}
 
-	logger.Info("Starting channels-manager", "version", version)
+	logger.Info("starting channels-manager", "version", version)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -106,7 +106,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 	if hb != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := hb.Stop(stopCtx); err != nil {
-			logger.Error("Failed to stop heartbeat", "error", err)
+			logger.Error("failed to stop heartbeat", "error", err)
 		}
 		stopCancel()
 	}
@@ -114,7 +114,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 	if sched != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := sched.Stop(stopCtx); err != nil {
-			logger.Error("Failed to stop scheduler", "error", err)
+			logger.Error("failed to stop scheduler", "error", err)
 		}
 		stopCancel()
 	}
@@ -210,7 +210,7 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 		var transcriber channels.VoiceTranscriber
 		if cfg.SpeechToText.Enabled {
 			transcriber = stt.NewFileTranscriber(cfg.SpeechToText)
-			logger.Info("Speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
+			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}
 		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber)
 		cm.Register(telegramCh)

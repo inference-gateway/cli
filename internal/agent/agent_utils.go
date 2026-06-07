@@ -475,7 +475,7 @@ func (s *AgentServiceImpl) buildWorkingDirectoryInfo() string {
 
 	workingDir, err := os.Getwd()
 	if err != nil {
-		logger.Debug("Failed to get working directory: %v", err)
+		logger.Debug("failed to get working directory: %v", err)
 		return ""
 	}
 
@@ -548,7 +548,7 @@ func getGitRepositoryName() string {
 	cmd := exec.Command("git", "remote", "get-url", "origin")
 	output, err := cmd.Output()
 	if err != nil {
-		logger.Debug("Failed to get git remote URL: %v", err)
+		logger.Debug("failed to get git remote URL: %v", err)
 		return ""
 	}
 
@@ -564,7 +564,7 @@ func getGitRepositoryName() string {
 		return matches[1]
 	}
 
-	logger.Debug("Could not parse git repository name from URL: %s", remoteURL)
+	logger.Debug("could not parse git repository name from URL: %s", remoteURL)
 	return ""
 }
 
@@ -573,7 +573,7 @@ func getGitBranch() string {
 	cmd := exec.Command("git", "branch", "--show-current")
 	output, err := cmd.Output()
 	if err != nil {
-		logger.Debug("Failed to get current git branch: %v", err)
+		logger.Debug("failed to get current git branch: %v", err)
 		return ""
 	}
 
@@ -601,7 +601,7 @@ func getRecentCommits(count int) []string {
 	cmd := exec.Command("git", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
 	output, err := cmd.Output()
 	if err != nil {
-		logger.Debug("Failed to get recent commits: %v", err)
+		logger.Debug("failed to get recent commits: %v", err)
 		return nil
 	}
 

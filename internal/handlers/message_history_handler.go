@@ -52,7 +52,7 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 		restoreIndex := h.adjustRestoreIndex(entries, event.RestoreToIndex)
 
 		if err := h.conversationRepo.DeleteMessagesAfterIndex(restoreIndex); err != nil {
-			logger.Error("Failed to restore conversation", "error", err, "index", restoreIndex)
+			logger.Error("failed to restore conversation", "error", err, "index", restoreIndex)
 			return domain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     err,
@@ -71,7 +71,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		if event.MessageIndex >= len(entries) {
-			logger.Error("Invalid message index for edit", "index", event.MessageIndex)
+			logger.Error("invalid message index for edit", "index", event.MessageIndex)
 			return domain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("invalid message index: %d", event.MessageIndex),
@@ -81,7 +81,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 
 		msg := entries[event.MessageIndex]
 		if msg.Message.Role != sdk.User {
-			logger.Error("Cannot edit non-user message", "role", msg.Message.Role)
+			logger.Error("cannot edit non-user message", "role", msg.Message.Role)
 			return domain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("cannot edit %s message", msg.Message.Role),
@@ -124,13 +124,13 @@ func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.Conversation
 				break
 			}
 		}
-		logger.Info("Adjusted restore point to after tool responses",
+		logger.Info("adjusted restore point to after tool responses",
 			"newIndex", restoreIndex,
 			"toolResponsesFound", toolResponsesFound)
 	} else {
 		for restoreIndex > 0 && entries[restoreIndex].Message.Role == sdk.Tool {
 			restoreIndex--
-			logger.Info("Removed trailing tool message", "adjustedIndex", restoreIndex)
+			logger.Info("removed trailing tool message", "adjustedIndex", restoreIndex)
 		}
 	}
 
@@ -149,7 +149,7 @@ func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEnt
 
 		content, err := entry.Message.Content.AsMessageContent0()
 		if err != nil {
-			logger.Warn("Failed to extract message content", "error", err, "index", i)
+			logger.Warn("failed to extract message content", "error", err, "index", i)
 			continue
 		}
 

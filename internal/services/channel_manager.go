@@ -97,7 +97,7 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 		go func(name string, ch domain.Channel) {
 			if err := ch.Start(ctx, cm.inbox); err != nil {
 				if ctx.Err() == nil {
-					logger.Error("Channel stopped with error", "channel", name, "error", err)
+					logger.Error("channel stopped with error", "channel", name, "error", err)
 				}
 			}
 		}(name, ch)
@@ -134,7 +134,7 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 			return
 		case msg := <-cm.inbox:
 			if !cm.isAllowedUser(msg.ChannelName, msg.SenderID) {
-				logger.Warn("Rejected message from unauthorized user", "sender_id", msg.SenderID, "channel", msg.ChannelName)
+				logger.Warn("rejected message from unauthorized user", "sender_id", msg.SenderID, "channel", msg.ChannelName)
 				continue
 			}
 
@@ -176,14 +176,14 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 
 	sessionID := fmt.Sprintf("channel-%s-%s", msg.ChannelName, msg.SenderID)
 
-	logger.Info("Processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
+	logger.Info("processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
 
 	cm.mu.RLock()
 	ch, exists := cm.channels[msg.ChannelName]
 	cm.mu.RUnlock()
 
 	if !exists {
-		logger.Error("Channel not found for response routing", "channel", msg.ChannelName)
+		logger.Error("channel not found for response routing", "channel", msg.ChannelName)
 		return
 	}
 
@@ -195,12 +195,12 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 			Timestamp:   time.Now(),
 		}
 		if err := ch.Send(ctx, outMsg); err != nil {
-			logger.Error("Failed to send response", "channel", msg.ChannelName, "error", err)
+			logger.Error("failed to send response", "channel", msg.ChannelName, "error", err)
 		}
 	}
 
 	if err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn, ch); err != nil {
-		logger.Error("Agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
+		logger.Error("agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
 	}
 }
 
@@ -218,10 +218,10 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 	for _, img := range images {
 		imgPath, err := writeSessionImage(sessionID, img)
 		if err != nil {
-			logger.Error("Failed to write session image", "error", err)
+			logger.Error("failed to write session image", "error", err)
 			continue
 		}
-		logger.Info("Wrote session image", "path", imgPath, "base64_bytes", len(img.Data))
+		logger.Info("wrote session image", "path", imgPath, "base64_bytes", len(img.Data))
 		args = append(args, "--files", imgPath)
 	}
 
@@ -229,7 +229,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 
 	args = append(args, message)
 
-	logger.Info("Running agent subprocess", "args", args)
+	logger.Info("running agent subprocess", "args", args)
 
 	cmd := cm.execCommandFunc(ctx, os.Args[0], args...)
 	cmd.Env = os.Environ()
@@ -266,7 +266,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 		if cm.cfg.RequireApproval && stdinWriter != nil {
 			if req, ok := parseApprovalRequest(line); ok {
 				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn, ch); err != nil {
-					logger.Error("Approval handling failed", "error", err)
+					logger.Error("approval handling failed", "error", err)
 				}
 				continue
 			}
@@ -285,7 +285,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 	if err := cmd.Wait(); err != nil {
 		stderrStr := stderrBuf.String()
 		if stderrBuf.Len() > 0 {
-			logger.Error("Agent stderr output", "stderr", stderrStr)
+			logger.Error("agent stderr output", "stderr", stderrStr)
 		}
 		if !errorForwarded {
 			sendFn("❌ Agent failed: " + tailStderr(stderrStr, 500))
@@ -306,7 +306,7 @@ func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, send
 	if ac, ok := ch.(domain.ApprovalChannel); ok {
 		recipientID := strings.TrimPrefix(senderKey, ch.Name()+"-")
 		if err := ac.SendApproval(ctx, recipientID, req); err != nil {
-			logger.Error("Rich approval failed, falling back to text", "error", err)
+			logger.Error("rich approval failed, falling back to text", "error", err)
 			sendFn(formatApprovalPrompt(req))
 		}
 	} else {
@@ -323,7 +323,7 @@ func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, send
 	case <-time.After(5 * time.Minute):
 		resp.Approved = false
 		sendFn("⏱ Approval timed out - tool execution was automatically rejected.")
-		logger.Warn("Approval timeout", "tool", req.ToolName, "sender", senderKey)
+		logger.Warn("approval timeout", "tool", req.ToolName, "sender", senderKey)
 	case <-ctx.Done():
 		resp.Approved = false
 	}
@@ -561,10 +561,10 @@ func pruneSessionImages(sessionID string, retention int) {
 	for i := 0; i < toRemove; i++ {
 		path := filepath.Join(dir, files[i].Name())
 		if err := os.Remove(path); err != nil {
-			logger.Warn("Failed to prune session image", "path", path, "error", err)
+			logger.Warn("failed to prune session image", "path", path, "error", err)
 			continue
 		}
-		logger.Info("Pruned old session image", "path", path)
+		logger.Info("pruned old session image", "path", path)
 	}
 }
 

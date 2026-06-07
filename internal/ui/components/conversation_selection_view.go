@@ -129,7 +129,7 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 			c.selected = 0
 		}
 	} else {
-		logger.Error("ConversationSelector failed to load conversations", "error", msg.Error)
+		logger.Error("conversationSelector failed to load conversations", "error", msg.Error)
 	}
 
 	return c, nil
@@ -332,7 +332,7 @@ func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
 	if err := c.repo.DeleteSavedConversation(ctx, conv.ID); err != nil {
 		c.deleteError = err
 		c.confirmDelete = false
-		logger.Error("Failed to delete conversation", "error", err, "id", conv.ID)
+		logger.Error("failed to delete conversation", "error", err, "id", conv.ID)
 		return c, nil
 	}
 

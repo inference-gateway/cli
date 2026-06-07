@@ -51,12 +51,12 @@ func (i *RemoteInstaller) EnsureBinary() error {
 	}
 
 	if !autoInstall {
-		logger.Info("Auto-install disabled, skipping binary check", "server", i.server.Name)
+		logger.Info("auto-install disabled, skipping binary check", "server", i.server.Name)
 		return nil
 	}
 
 	i.sendProgress("Checking for infer binary on remote server...")
-	logger.Info("Checking if infer binary exists on remote server", "server", i.server.Name)
+	logger.Info("checking if infer binary exists on remote server", "server", i.server.Name)
 
 	exists, err := i.checkBinaryExists()
 	if err != nil {
@@ -65,19 +65,19 @@ func (i *RemoteInstaller) EnsureBinary() error {
 
 	if exists {
 		i.sendProgress("Infer binary found on remote server")
-		logger.Info("Infer binary already exists on remote server", "server", i.server.Name)
+		logger.Info("infer binary already exists on remote server", "server", i.server.Name)
 		return nil
 	}
 
 	i.sendProgress("Infer binary not found, starting installation...")
-	logger.Info("Infer binary not found, installing...", "server", i.server.Name)
+	logger.Info("infer binary not found, installing...", "server", i.server.Name)
 
 	if err := i.installBinary(); err != nil {
 		return fmt.Errorf("failed to install binary: %w", err)
 	}
 
 	i.sendProgress("Infer binary successfully installed")
-	logger.Info("Infer binary successfully installed", "server", i.server.Name)
+	logger.Info("infer binary successfully installed", "server", i.server.Name)
 	return nil
 }
 
@@ -98,11 +98,11 @@ func (i *RemoteInstaller) checkBinaryExists() (bool, error) {
 	output, err := session.CombinedOutput(cmd)
 
 	if err != nil {
-		logger.Info("Binary not found", "command", commandPath, "output", string(output))
+		logger.Info("binary not found", "command", commandPath, "output", string(output))
 		return false, nil
 	}
 
-	logger.Info("Binary found", "path", strings.TrimSpace(string(output)))
+	logger.Info("binary found", "path", strings.TrimSpace(string(output)))
 	return true, nil
 }
 
@@ -119,7 +119,7 @@ func (i *RemoteInstaller) installBinary() error {
 		i.sendProgress(fmt.Sprintf("Latest version: v%s", version))
 	}
 
-	logger.Info("Installing version using install script", "version", version, "server", i.server.Name)
+	logger.Info("installing version using install script", "version", version, "server", i.server.Name)
 
 	installDir := i.cfg.InstallDir
 	if i.server.InstallPath != "" {
@@ -135,7 +135,7 @@ echo "Binary installed to: %s/infer"
 `, version, version, installDir, installDir)
 
 	i.sendProgress(fmt.Sprintf("Downloading infer v%s (this may take a minute)...", version))
-	logger.Info("Running installation script", "server", i.server.Name)
+	logger.Info("running installation script", "server", i.server.Name)
 
 	session, err := i.sshClient.NewSession()
 	if err != nil {
@@ -148,7 +148,7 @@ echo "Binary installed to: %s/infer"
 		return fmt.Errorf("installation failed: %w\nOutput: %s", err, string(output))
 	}
 
-	logger.Info("Installation output", "output", string(output))
+	logger.Info("installation output", "output", string(output))
 
 	i.sendProgress("Verifying installation...")
 	session2, err := i.sshClient.NewSession()
@@ -163,7 +163,7 @@ echo "Binary installed to: %s/infer"
 		return fmt.Errorf("installation verification failed: %w\nOutput: %s", err, string(verifyOutput))
 	}
 
-	logger.Info("Installation verified", "version_output", string(verifyOutput))
+	logger.Info("installation verified", "version_output", string(verifyOutput))
 	i.sendProgress("Binary verified successfully")
 
 	i.sendProgress("Initializing configuration...")
@@ -176,9 +176,9 @@ echo "Binary installed to: %s/infer"
 	initCmd := fmt.Sprintf("%s/infer init --userspace", installDir)
 	initOutput, err := session3.CombinedOutput(initCmd)
 	if err != nil {
-		logger.Warn("Failed to initialize infer config, may need manual setup", "error", err, "output", string(initOutput))
+		logger.Warn("failed to initialize infer config, may need manual setup", "error", err, "output", string(initOutput))
 	} else {
-		logger.Info("Infer configuration initialized", "output", string(initOutput))
+		logger.Info("infer configuration initialized", "output", string(initOutput))
 	}
 
 	i.sendProgress("Configuring environment...")
@@ -198,7 +198,7 @@ fi`, i.gatewayURL)
 
 	envOutput, err := session4.CombinedOutput(envSetupCmd)
 	if err != nil {
-		logger.Warn("Failed to setup environment variables in profile", "error", err, "output", string(envOutput))
+		logger.Warn("failed to setup environment variables in profile", "error", err, "output", string(envOutput))
 	} else {
 		logger.Info("environment variables configured in user profile")
 	}
@@ -210,7 +210,7 @@ fi`, i.gatewayURL)
 func (i *RemoteInstaller) getLatestVersion() (string, error) {
 	apiURL := "https://api.github.com/repos/inference-gateway/cli/releases/latest"
 
-	logger.Info("Fetching latest version from GitHub", "url", apiURL)
+	logger.Info("fetching latest version from GitHub", "url", apiURL)
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -244,7 +244,7 @@ func (i *RemoteInstaller) getLatestVersion() (string, error) {
 
 	version := strings.TrimPrefix(release.TagName, "v")
 
-	logger.Info("Latest version detected", "version", version)
+	logger.Info("latest version detected", "version", version)
 
 	return version, nil
 }

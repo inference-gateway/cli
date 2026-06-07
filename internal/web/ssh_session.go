@@ -87,7 +87,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		if closeErr := session.Close(); closeErr != nil {
-			logger.Warn("Failed to close session after PTY request failure", "error", closeErr)
+			logger.Warn("failed to close session after PTY request failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to request PTY: %w", err)
 	}
@@ -95,7 +95,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		if closeErr := session.Close(); closeErr != nil {
-			logger.Warn("Failed to close session after stdin pipe failure", "error", closeErr)
+			logger.Warn("failed to close session after stdin pipe failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
@@ -104,7 +104,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		if closeErr := session.Close(); closeErr != nil {
-			logger.Warn("Failed to close session after stdout pipe failure", "error", closeErr)
+			logger.Warn("failed to close session after stdout pipe failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 	stderr, err := session.StderrPipe()
 	if err != nil {
 		if closeErr := session.Close(); closeErr != nil {
-			logger.Warn("Failed to close session after stderr pipe failure", "error", closeErr)
+			logger.Warn("failed to close session after stderr pipe failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
@@ -132,7 +132,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 			"%s %s 2>/dev/null'",
 		s.gatewayURL, commandPath, strings.Join(cmdArgs, " "))
 
-	logger.Info("Starting remote command",
+	logger.Info("starting remote command",
 		"command", cmd,
 		"server", s.server.Name,
 		"cols", cols,
@@ -140,7 +140,7 @@ func (s *SSHSession) Start(cols, rows int) error {
 
 	if err := session.Start(cmd); err != nil {
 		if closeErr := session.Close(); closeErr != nil {
-			logger.Warn("Failed to close session after command start failure", "error", closeErr)
+			logger.Warn("failed to close session after command start failure", "error", closeErr)
 		}
 		return fmt.Errorf("failed to start remote command: %w", err)
 	}
@@ -150,9 +150,9 @@ func (s *SSHSession) Start(cols, rows int) error {
 	go func() {
 		err := session.Wait()
 		if err != nil {
-			logger.Error("SSH session exited with error", "error", err, "server", s.server.Name)
+			logger.Error("sSH session exited with error", "error", err, "server", s.server.Name)
 		} else {
-			logger.Info("SSH session exited normally", "server", s.server.Name)
+			logger.Info("sSH session exited normally", "server", s.server.Name)
 		}
 		s.mu.Lock()
 		s.running = false
@@ -172,7 +172,7 @@ func (s *SSHSession) Resize(cols, rows int) error {
 		return fmt.Errorf("session not started")
 	}
 
-	logger.Info("Resizing terminal", "cols", cols, "rows", rows, "server", s.server.Name)
+	logger.Info("resizing terminal", "cols", cols, "rows", rows, "server", s.server.Name)
 
 	if err := s.session.WindowChange(rows, cols); err != nil {
 		return fmt.Errorf("failed to resize window: %w", err)
@@ -231,7 +231,7 @@ func (s *SSHSession) handleWebSocketInput(conn *websocket.Conn) error {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				logger.Info("WebSocket closed normally", "server", s.server.Name)
+				logger.Info("webSocket closed normally", "server", s.server.Name)
 				return nil
 			}
 			return fmt.Errorf("failed to read from websocket: %w", err)
@@ -268,7 +268,7 @@ func (s *SSHSession) handleTextMessage(data []byte) error {
 
 	if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
 		if err := s.Resize(msg.Cols, msg.Rows); err != nil {
-			logger.Warn("Failed to resize terminal", "error", err)
+			logger.Warn("failed to resize terminal", "error", err)
 		}
 		return nil
 	}
@@ -295,7 +295,7 @@ func (s *SSHSession) handleSSHOutput(conn *websocket.Conn) error {
 		n, err := output.Read(buf)
 		if err != nil {
 			if err == io.EOF {
-				logger.Info("SSH output stream closed", "server", s.server.Name)
+				logger.Info("sSH output stream closed", "server", s.server.Name)
 				return nil
 			}
 			return fmt.Errorf("failed to read from ssh output: %w", err)
@@ -318,13 +318,13 @@ func (s *SSHSession) handleScreenshotPortEscape(data []byte) {
 		return
 	}
 
-	logger.Info("Detected screenshot port from remote CLI",
+	logger.Info("detected screenshot port from remote CLI",
 		"port", port,
 		"server", s.server.Name)
 
 	localPort, err := s.SetupPortForwarding(port)
 	if err != nil {
-		logger.Error("Failed to set up port forwarding", "error", err)
+		logger.Error("failed to set up port forwarding", "error", err)
 		return
 	}
 
@@ -349,7 +349,7 @@ func (s *SSHSession) SetupPortForwarding(remotePort int) (int, error) {
 	// Create context for tunnel management
 	s.tunnelCtx, s.tunnelCancel = context.WithCancel(context.Background())
 
-	logger.Info("Setting up port forwarding",
+	logger.Info("setting up port forwarding",
 		"local_port", localPort,
 		"remote_port", remotePort,
 		"server", s.server.Name,
@@ -357,7 +357,7 @@ func (s *SSHSession) SetupPortForwarding(remotePort int) (int, error) {
 
 	if s.sessionManager != nil {
 		s.sessionManager.SetScreenshotPort(s.sessionID, localPort)
-		logger.Info("Registered screenshot port with session manager",
+		logger.Info("registered screenshot port with session manager",
 			"session_id", s.sessionID,
 			"local_port", localPort)
 	}
@@ -371,14 +371,14 @@ func (s *SSHSession) SetupPortForwarding(remotePort int) (int, error) {
 func (s *SSHSession) forwardConnections(listener net.Listener, remotePort int) {
 	defer func() {
 		if err := listener.Close(); err != nil {
-			logger.Warn("Failed to close listener", "error", err)
+			logger.Warn("failed to close listener", "error", err)
 		}
 	}()
 
 	for {
 		select {
 		case <-s.tunnelCtx.Done():
-			logger.Info("Port forwarding stopped", "server", s.server.Name)
+			logger.Info("port forwarding stopped", "server", s.server.Name)
 			return
 		default:
 		}
@@ -389,7 +389,7 @@ func (s *SSHSession) forwardConnections(listener net.Listener, remotePort int) {
 			case <-s.tunnelCtx.Done():
 				return
 			default:
-				logger.Error("Failed to accept local connection", "error", err)
+				logger.Error("failed to accept local connection", "error", err)
 				continue
 			}
 		}
@@ -404,21 +404,21 @@ func (s *SSHSession) handleForwardedConnection(localConn net.Conn, remotePort in
 	defer s.tunnelWg.Done()
 	defer func() {
 		if err := localConn.Close(); err != nil {
-			logger.Debug("Failed to close local connection", "error", err)
+			logger.Debug("failed to close local connection", "error", err)
 		}
 	}()
 
 	remoteAddr := fmt.Sprintf("localhost:%d", remotePort)
 	remoteConn, err := s.sshClient.client.Dial("tcp", remoteAddr)
 	if err != nil {
-		logger.Error("Failed to dial remote address through SSH",
+		logger.Error("failed to dial remote address through SSH",
 			"remote_addr", remoteAddr,
 			"error", err)
 		return
 	}
 	defer func() {
 		if err := remoteConn.Close(); err != nil {
-			logger.Debug("Failed to close remote connection", "error", err)
+			logger.Debug("failed to close remote connection", "error", err)
 		}
 	}()
 
@@ -428,14 +428,14 @@ func (s *SSHSession) handleForwardedConnection(localConn net.Conn, remotePort in
 	go func() {
 		defer wg.Done()
 		if _, err := io.Copy(remoteConn, localConn); err != nil {
-			logger.Debug("Copy from local to remote ended", "error", err)
+			logger.Debug("copy from local to remote ended", "error", err)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		if _, err := io.Copy(localConn, remoteConn); err != nil {
-			logger.Debug("Copy from remote to local ended", "error", err)
+			logger.Debug("copy from remote to local ended", "error", err)
 		}
 	}()
 
@@ -456,16 +456,16 @@ func (s *SSHSession) notifyWebUI(localPort int) {
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		logger.Error("Failed to marshal screenshot port message", "error", err)
+		logger.Error("failed to marshal screenshot port message", "error", err)
 		return
 	}
 
 	if err := s.ws.WriteMessage(websocket.TextMessage, data); err != nil {
-		logger.Error("Failed to send screenshot port to WebSocket", "error", err)
+		logger.Error("failed to send screenshot port to WebSocket", "error", err)
 		return
 	}
 
-	logger.Info("Notified WebUI of screenshot port", "local_port", localPort)
+	logger.Info("notified WebUI of screenshot port", "local_port", localPort)
 }
 
 // extractPortFromEscape extracts port number from escape sequence
@@ -487,7 +487,7 @@ func extractPortFromEscape(data []byte) (int, bool) {
 	portStr := string(data[searchStart : searchStart+endIdx])
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		logger.Warn("Failed to parse port from escape sequence", "port_str", portStr, "error", err)
+		logger.Warn("failed to parse port from escape sequence", "port_str", portStr, "error", err)
 		return 0, false
 	}
 
@@ -499,7 +499,7 @@ func (s *SSHSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	logger.Info("Closing SSH session", "server", s.server.Name)
+	logger.Info("closing SSH session", "server", s.server.Name)
 
 	s.cancel()
 
@@ -517,9 +517,9 @@ func (s *SSHSession) Close() error {
 		s.tunnelListener = nil
 	}
 
-	logger.Info("Waiting for active port forwarding connections to close", "server", s.server.Name)
+	logger.Info("waiting for active port forwarding connections to close", "server", s.server.Name)
 	s.tunnelWg.Wait()
-	logger.Info("All port forwarding connections closed", "server", s.server.Name)
+	logger.Info("all port forwarding connections closed", "server", s.server.Name)
 
 	if s.session != nil {
 		if err := s.session.Close(); err != nil {

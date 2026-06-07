@@ -52,7 +52,7 @@ func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*a
 	adkClient := client.NewClient(agentURL)
 	card, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
-		logger.Error("Failed to fetch agent card", "agent_url", agentURL, "error", err)
+		logger.Error("failed to fetch agent card", "agent_url", agentURL, "error", err)
 		return nil, err
 	}
 
@@ -99,7 +99,7 @@ func (s *A2AAgentService) GetConfiguredAgents() []string {
 
 	urls, err := config.GetAgentURLs(s.agentsPath)
 	if err != nil {
-		logger.Error("Failed to load agents from agents.yaml", "error", err)
+		logger.Error("failed to load agents from agents.yaml", "error", err)
 		return []string{}
 	}
 
@@ -113,7 +113,7 @@ func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAg
 	for _, url := range agentURLs {
 		card, err := s.GetAgentCard(ctx, url)
 		if err != nil {
-			logger.Error("Failed to fetch agent card", "url", url, "error", err)
+			logger.Error("failed to fetch agent card", "url", url, "error", err)
 			continue
 		}
 

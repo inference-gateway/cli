@@ -81,7 +81,7 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 		s.ctx.Events <- domain.MessageReceivedEvent{}
 
 	case domain.ApprovalFailedEvent:
-		logger.Error("Approval failed", "error", e.Error)
+		logger.Error("approval failed", "error", e.Error)
 		s.handleApprovalFailure(e.Error)
 	}
 	return nil
@@ -297,7 +297,7 @@ func (s *ApprovingToolsState) maxConcurrent() int {
 
 // handleApprovalFailure handles when approval fails (timeout, error, etc.)
 func (s *ApprovingToolsState) handleApprovalFailure(err error) {
-	logger.Error("Handling approval failure", "error", err)
+	logger.Error("handling approval failure", "error", err)
 
 	s.ctx.PublishChatEvent(domain.ChatErrorEvent{
 		RequestID: s.ctx.Request.RequestID,

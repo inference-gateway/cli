@@ -56,7 +56,7 @@ func (c *mcpClient) initializeClient(serverURL string) {
 		Name:    "inference-gateway-cli",
 		Version: "1.0.0",
 	})
-	logger.Debug("Initialized MCP client", "server", c.serverName, "url", serverURL)
+	logger.Debug("initialized MCP client", "server", c.serverName, "url", serverURL)
 }
 
 // DiscoverTools discovers tools from this MCP server
@@ -72,43 +72,43 @@ func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPD
 	serverCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	logger.Info("Attempting to discover tools from MCP server",
+	logger.Info("attempting to discover tools from MCP server",
 		"server", c.serverName,
 		"url", c.serverConfig.GetURL(),
 		"timeout", timeout)
 
 	c.mu.Lock()
 	if !c.isInitialized {
-		logger.Info("Initializing MCP client", "server", c.serverName)
+		logger.Info("initializing MCP client", "server", c.serverName)
 		initResp, err := c.client.Initialize(serverCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
-			logger.Error("Failed to initialize MCP client",
+			logger.Error("failed to initialize MCP client",
 				"server", c.serverName,
 				"error", err)
 			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
-		logger.Info("MCP client initialized successfully",
+		logger.Info("mCP client initialized successfully",
 			"server", c.serverName,
 			"serverInfo", initResp.ServerInfo)
 	}
 	c.mu.Unlock()
 
-	logger.Info("Listing tools from MCP server", "server", c.serverName)
+	logger.Info("listing tools from MCP server", "server", c.serverName)
 	toolsResp, err := c.client.ListTools(serverCtx, nil)
 	if err != nil {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
-		logger.Error("Failed to list tools from MCP server",
+		logger.Error("failed to list tools from MCP server",
 			"server", c.serverName,
 			"error", err)
 		return nil, fmt.Errorf("failed to list tools: %w", err)
 	}
 
-	logger.Info("Successfully retrieved tools from MCP server",
+	logger.Info("successfully retrieved tools from MCP server",
 		"server", c.serverName,
 		"toolCount", len(toolsResp.Tools))
 
@@ -190,22 +190,22 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	logger.Debug("Pinging MCP server", "server", c.serverName, "url", c.serverConfig.GetURL())
+	logger.Debug("pinging MCP server", "server", c.serverName, "url", c.serverConfig.GetURL())
 
 	c.mu.Lock()
 	if !c.isInitialized {
-		logger.Debug("Initializing MCP client for ping", "server", c.serverName)
+		logger.Debug("initializing MCP client for ping", "server", c.serverName)
 		_, err := c.client.Initialize(pingCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
-			logger.Warn("Failed to initialize MCP client during ping",
+			logger.Warn("failed to initialize MCP client during ping",
 				"server", c.serverName,
 				"error", err)
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
-		logger.Debug("MCP client initialized successfully for ping", "server", c.serverName)
+		logger.Debug("mCP client initialized successfully for ping", "server", c.serverName)
 	}
 	c.mu.Unlock()
 
@@ -214,13 +214,13 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
-		logger.Warn("MCP server ping failed",
+		logger.Warn("mCP server ping failed",
 			"server", c.serverName,
 			"error", err)
 		return fmt.Errorf("ping failed: %w", err)
 	}
 
-	logger.Debug("MCP server ping successful", "server", c.serverName)
+	logger.Debug("mCP server ping successful", "server", c.serverName)
 
 	c.mu.Lock()
 	c.isConnected = true
@@ -342,7 +342,7 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 	probeCtx, cancel := context.WithCancel(ctx)
 	m.probeCancel = cancel
 
-	logger.Info("Starting MCP liveness probes", "interval", interval, "client_count", len(m.clients))
+	logger.Info("starting MCP liveness probes", "interval", interval, "client_count", len(m.clients))
 	for _, client := range m.clients {
 		m.probeWg.Add(1)
 		go func(c *mcpClient) {
@@ -362,7 +362,7 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 					c.mu.RUnlock()
 
 					if isPermanentlyFailed {
-						logger.Info("Stopping health monitoring for permanently failed MCP server", "server", c.serverName)
+						logger.Info("stopping health monitoring for permanently failed MCP server", "server", c.serverName)
 						return
 					}
 
@@ -431,7 +431,7 @@ func (m *MCPManager) handleToolDiscovery(ctx context.Context, client *mcpClient,
 	m.toolCounts[client.serverName] = len(tools)
 	m.mu.Unlock()
 
-	logger.Info("MCP server tools discovered successfully",
+	logger.Info("mCP server tools discovered successfully",
 		"server", client.serverName,
 		"toolCount", len(tools))
 
@@ -448,7 +448,7 @@ func (m *MCPManager) handleDiscoveryFailure(client *mcpClient, maxRetries int, e
 	if retryCount >= maxRetries {
 		client.permanentlyFailed = true
 		client.mu.Unlock()
-		logger.Error("MCP server permanently failed after max retries",
+		logger.Error("mCP server permanently failed after max retries",
 			"server", client.serverName,
 			"retryAttempt", retryCount,
 			"maxRetries", maxRetries,
@@ -457,7 +457,7 @@ func (m *MCPManager) handleDiscoveryFailure(client *mcpClient, maxRetries int, e
 	}
 	client.mu.Unlock()
 
-	logger.Debug("MCP server health check failed (tool discovery failed)",
+	logger.Debug("mCP server health check failed (tool discovery failed)",
 		"server", client.serverName,
 		"retryAttempt", retryCount,
 		"maxRetries", maxRetries,
@@ -477,7 +477,7 @@ func (m *MCPManager) handlePing(ctx context.Context, client *mcpClient, maxRetri
 	client.lastAttemptTime = time.Now()
 	client.mu.Unlock()
 
-	logger.Debug("MCP server health check passed", "server", client.serverName)
+	logger.Debug("mCP server health check passed", "server", client.serverName)
 }
 
 // handlePingFailure handles ping failures and retry logic
@@ -490,7 +490,7 @@ func (m *MCPManager) handlePingFailure(client *mcpClient, maxRetries int, err er
 	if retryCount >= maxRetries {
 		client.permanentlyFailed = true
 		client.mu.Unlock()
-		logger.Error("MCP server permanently failed after max retries",
+		logger.Error("mCP server permanently failed after max retries",
 			"server", client.serverName,
 			"retryAttempt", retryCount,
 			"maxRetries", maxRetries,
@@ -500,7 +500,7 @@ func (m *MCPManager) handlePingFailure(client *mcpClient, maxRetries int, err er
 	}
 	client.mu.Unlock()
 
-	logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
+	logger.Warn("mCP server became unhealthy", "server", client.serverName, "error", err)
 	m.sendStatusUpdate(client.serverName, false)
 }
 
@@ -524,7 +524,7 @@ func (m *MCPManager) calculateBackoff(attempt int, baseInterval time.Duration) t
 		backoff = maxBackoff
 	}
 
-	logger.Debug("Calculated exponential backoff",
+	logger.Debug("calculated exponential backoff",
 		"attempt", attempt,
 		"baseInterval", baseInterval,
 		"backoff", backoff)
@@ -589,7 +589,7 @@ func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
 // sendStatusUpdateWithTools sends a status update event with discovered tools
 func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []domain.MCPDiscoveredTool) {
 	if m.statusChan == nil {
-		logger.Warn("Cannot send status update: status channel is nil", "server", serverName)
+		logger.Warn("cannot send status update: status channel is nil", "server", serverName)
 		return
 	}
 
@@ -606,9 +606,9 @@ func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool
 
 	select {
 	case m.statusChan <- event:
-		logger.Debug("MCP status update sent successfully", "server", serverName)
+		logger.Debug("mCP status update sent successfully", "server", serverName)
 	default:
-		logger.Warn("MCP status channel full, skipping update", "server", serverName)
+		logger.Warn("mCP status channel full, skipping update", "server", serverName)
 	}
 }
 
@@ -630,7 +630,7 @@ func (m *MCPManager) ClearToolCount(serverName string) {
 func (m *MCPManager) Close() error {
 	ctx := context.Background()
 	if err := m.StopServers(ctx); err != nil {
-		logger.Warn("Failed to stop MCP servers during close", "session", m.sessionID, "error", err)
+		logger.Warn("failed to stop MCP servers during close", "session", m.sessionID, "error", err)
 	}
 
 	m.mu.Lock()
@@ -653,14 +653,14 @@ func (m *MCPManager) Close() error {
 	m.mu.RLock()
 	for _, client := range m.clients {
 		if err := client.Close(); err != nil {
-			logger.Warn("Failed to close MCP client", "session", m.sessionID, "error", err)
+			logger.Warn("failed to close MCP client", "session", m.sessionID, "error", err)
 		}
 	}
 	m.mu.RUnlock()
 
 	if m.containerRuntime != nil {
 		if err := m.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network during MCP manager close", "session", m.sessionID, "error", err)
+			logger.Warn("failed to cleanup network during MCP manager close", "session", m.sessionID, "error", err)
 		}
 	}
 
@@ -690,7 +690,7 @@ func (m *MCPManager) StartServers(ctx context.Context) error {
 
 	if m.containerRuntime != nil {
 		if err := m.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Warn("Failed to create Docker network", "session", m.sessionID, "error", err)
+			logger.Warn("failed to create Docker network", "session", m.sessionID, "error", err)
 		}
 	}
 
@@ -700,7 +700,7 @@ func (m *MCPManager) StartServers(ctx context.Context) error {
 		go func(srv config.MCPServerEntry) {
 			defer wg.Done()
 			if err := m.StartServer(ctx, srv); err != nil {
-				logger.Warn("Failed to start MCP server",
+				logger.Warn("failed to start MCP server",
 					"session", m.sessionID,
 					"server", srv.Name,
 					"error", err,
@@ -720,21 +720,21 @@ func (m *MCPManager) StartServer(ctx context.Context, server config.MCPServerEnt
 	assignedPort := m.assignPort(server)
 
 	if m.isServerRunning(containerName) {
-		logger.Info("MCP server container already running", "session", m.sessionID, "server", server.Name, "port", assignedPort)
+		logger.Info("mCP server container already running", "session", m.sessionID, "server", server.Name, "port", assignedPort)
 		return nil
 	}
 
 	if err := m.pullImage(ctx, server.OCI); err != nil {
-		logger.Warn("Failed to pull image, using cached version", "session", m.sessionID, "image", server.OCI, "error", err)
+		logger.Warn("failed to pull image, using cached version", "session", m.sessionID, "image", server.OCI, "error", err)
 	}
 
-	logger.Info("Starting MCP server", "session", m.sessionID, "server", server.Name, "port", assignedPort)
+	logger.Info("starting MCP server", "session", m.sessionID, "server", server.Name, "port", assignedPort)
 
 	if err := m.startContainer(ctx, server, assignedPort); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	logger.Info("Waiting for MCP server to become ready", "session", m.sessionID, "server", server.Name)
+	logger.Info("waiting for MCP server to become ready", "session", m.sessionID, "server", server.Name)
 
 	if err := m.waitForReady(ctx, server, assignedPort); err != nil {
 		_ = m.stopContainer(ctx, containerName)
@@ -742,7 +742,7 @@ func (m *MCPManager) StartServer(ctx context.Context, server config.MCPServerEnt
 	}
 
 	fullURL := fmt.Sprintf("http://localhost:%d%s", assignedPort, m.getPath(server))
-	logger.Info("MCP server started successfully", "session", m.sessionID, "server", server.Name, "url", fullURL)
+	logger.Info("mCP server started successfully", "session", m.sessionID, "server", server.Name, "url", fullURL)
 
 	m.mu.Lock()
 	if client, exists := m.clients[server.Name]; exists {
@@ -764,9 +764,9 @@ func (m *MCPManager) StopServers(ctx context.Context) error {
 
 	for _, name := range containerNames {
 		if err := m.stopContainer(ctx, name); err != nil {
-			logger.Warn("Failed to stop MCP server container", "session", m.sessionID, "container", name, "error", err)
+			logger.Warn("failed to stop MCP server container", "session", m.sessionID, "container", name, "error", err)
 		} else {
-			logger.Info("Stopped MCP server container", "session", m.sessionID, "container", name)
+			logger.Info("stopped MCP server container", "session", m.sessionID, "container", name)
 		}
 		m.mu.Lock()
 		delete(m.containerIDs, name)
@@ -843,7 +843,7 @@ func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServer
 		args = append(args, server.Args...)
 	}
 
-	logger.Info("Starting MCP server container",
+	logger.Info("starting MCP server container",
 		"session", m.sessionID,
 		"server", server.Name,
 		"command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
@@ -874,7 +874,7 @@ func (m *MCPManager) stopContainer(ctx context.Context, containerName string) er
 
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerName)
 	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to stop container", "session", m.sessionID, "container", containerName, "error", err)
+		logger.Warn("failed to stop container", "session", m.sessionID, "container", containerName, "error", err)
 	}
 
 	return nil

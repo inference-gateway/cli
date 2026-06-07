@@ -50,7 +50,7 @@ func (sm *SessionManager) CreateSession(sessionID string) Session {
 	}
 
 	sm.sessions[sessionID] = entry
-	logger.Info("Session created", "id", sessionID, "total", len(sm.sessions))
+	logger.Info("session created", "id", sessionID, "total", len(sm.sessions))
 
 	return session
 }
@@ -75,10 +75,10 @@ func (sm *SessionManager) RemoveSession(sessionID string) {
 
 	if entry, exists := sm.sessions[sessionID]; exists {
 		if err := entry.session.Close(); err != nil {
-			logger.Warn("Error stopping session", "id", sessionID, "error", err)
+			logger.Warn("error stopping session", "id", sessionID, "error", err)
 		}
 		delete(sm.sessions, sessionID)
-		logger.Info("Session removed", "id", sessionID, "total", len(sm.sessions))
+		logger.Info("session removed", "id", sessionID, "total", len(sm.sessions))
 	}
 }
 
@@ -118,16 +118,16 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 
 	for _, sessionID := range toRemove {
 		if entry, exists := sm.sessions[sessionID]; exists {
-			logger.Info("Cleaning up inactive session", "id", sessionID, "inactive_duration", now.Sub(entry.lastActive), "threshold", inactiveThreshold)
+			logger.Info("cleaning up inactive session", "id", sessionID, "inactive_duration", now.Sub(entry.lastActive), "threshold", inactiveThreshold)
 			if err := entry.session.Close(); err != nil {
-				logger.Warn("Error stopping inactive session", "id", sessionID, "error", err)
+				logger.Warn("error stopping inactive session", "id", sessionID, "error", err)
 			}
 			delete(sm.sessions, sessionID)
 		}
 	}
 
 	if len(toRemove) > 0 {
-		logger.Info("Inactive sessions cleaned up", "count", len(toRemove), "remaining", len(sm.sessions), "threshold", inactiveThreshold)
+		logger.Info("inactive sessions cleaned up", "count", len(toRemove), "remaining", len(sm.sessions), "threshold", inactiveThreshold)
 	}
 }
 
@@ -149,7 +149,7 @@ func (sm *SessionManager) RegisterSession(sessionID string, session Session) {
 	}
 
 	sm.sessions[sessionID] = entry
-	logger.Info("Session registered", "id", sessionID, "total", len(sm.sessions))
+	logger.Info("session registered", "id", sessionID, "total", len(sm.sessions))
 }
 
 // SetScreenshotPort sets the local screenshot port for a session
@@ -162,11 +162,11 @@ func (sm *SessionManager) SetScreenshotPort(sessionID string, port int) {
 		entry.mu.Lock()
 		entry.screenshotPort = port
 		entry.mu.Unlock()
-		logger.Info("Screenshot port set for session",
+		logger.Info("screenshot port set for session",
 			"session_id", sessionID,
 			"port", port)
 	} else {
-		logger.Warn("Cannot set screenshot port: session not found",
+		logger.Warn("cannot set screenshot port: session not found",
 			"session_id", sessionID,
 			"port", port)
 	}
@@ -179,7 +179,7 @@ func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
 	sm.mu.RUnlock()
 
 	if !exists {
-		logger.Warn("Cannot get screenshot port: session not found",
+		logger.Warn("cannot get screenshot port: session not found",
 			"session_id", sessionID,
 			"total_sessions", len(sm.sessions))
 		return 0, false
@@ -190,12 +190,12 @@ func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
 	entry.mu.Unlock()
 
 	if port == 0 {
-		logger.Warn("Screenshot port not set for session",
+		logger.Warn("screenshot port not set for session",
 			"session_id", sessionID)
 		return 0, false
 	}
 
-	logger.Info("Retrieved screenshot port for session",
+	logger.Info("retrieved screenshot port for session",
 		"session_id", sessionID,
 		"port", port)
 
@@ -209,12 +209,12 @@ func (sm *SessionManager) Shutdown() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	logger.Info("Shutting down session manager", "active_sessions", len(sm.sessions))
+	logger.Info("shutting down session manager", "active_sessions", len(sm.sessions))
 
 	for sessionID, entry := range sm.sessions {
-		logger.Info("Stopping session", "id", sessionID)
+		logger.Info("stopping session", "id", sessionID)
 		if err := entry.session.Close(); err != nil {
-			logger.Warn("Error stopping session during shutdown", "id", sessionID, "error", err)
+			logger.Warn("error stopping session during shutdown", "id", sessionID, "error", err)
 		}
 	}
 

@@ -169,7 +169,7 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	oldState := sm.state.GetStateSnapshot()
 
 	if err := sm.state.TransitionToView(newView); err != nil {
-		logger.Error("Failed to transition view", "error", err, "newView", newView.String())
+		logger.Error("failed to transition view", "error", err, "newView", newView.String())
 		return err
 	}
 

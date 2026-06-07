@@ -84,7 +84,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 
 			if fileID, ok := msg.Metadata["photo_file_id"]; ok && fileID != "" {
 				if img, err := downloadTelegramPhoto(ctx, b, t.cfg.BotToken, fileID); err != nil {
-					logger.Error("Failed to download photo: %v", err)
+					logger.Error("failed to download photo: %v", err)
 				} else {
 					msg.Images = append(msg.Images, *img)
 				}
@@ -186,7 +186,7 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 	msg := update.Message
 
 	if msg.Video != nil {
-		logger.Warn("Skipping video message from %d", msg.Chat.ID)
+		logger.Warn("skipping video message from %d", msg.Chat.ID)
 		return nil
 	}
 
@@ -258,7 +258,7 @@ func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bo
 
 	text, err := t.transcribeVoice(ctx, b, fileID)
 	if err != nil {
-		logger.Error("Failed to transcribe voice message: %v", err)
+		logger.Error("failed to transcribe voice message: %v", err)
 		return false
 	}
 	if strings.TrimSpace(text) == "" {
@@ -340,7 +340,7 @@ func fetchTelegramFile(ctx context.Context, b *bot.Bot, token, fileID string) ([
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			logger.Error("Failed to close response body: %v", err)
+			logger.Error("failed to close response body: %v", err)
 		}
 	}()
 

@@ -117,7 +117,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		services.RuntimeType(cfg.ContainerRuntime.Type),
 	)
 	if err != nil {
-		logger.Warn("Failed to initialize container runtime, continuing without container support", "error", err)
+		logger.Warn("failed to initialize container runtime, continuing without container support", "error", err)
 	}
 
 	container := &ServiceContainer{
@@ -155,7 +155,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
 	agentsConfig, err := config.LoadAgents(agentsPath)
 	if err != nil {
-		logger.Warn("Failed to load agents configuration", "error", err)
+		logger.Warn("failed to load agents configuration", "error", err)
 		return
 	}
 
@@ -182,7 +182,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	ctx := context.Background()
 	if err := c.agentManager.StartAgents(ctx); err != nil {
-		logger.Warn("Failed to start agents in background", "error", err)
+		logger.Warn("failed to start agents in background", "error", err)
 	}
 }
 
@@ -205,7 +205,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		defer cancel()
 
 		if err := c.mcpManager.StartServers(ctx); err != nil {
-			logger.Warn("Some MCP servers failed to start", "error", err)
+			logger.Warn("some MCP servers failed to start", "error", err)
 		}
 	}()
 }
@@ -325,7 +325,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 	c.storage = storageBackend
 	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
 	c.conversationRepo = persistentRepo
-	logger.Info("Initialized conversation storage", "type", storageConfig.Type)
+	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
 	titleClient := c.createRawSDKClient()
 	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
@@ -352,11 +352,11 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	err error,
 ) {
 	if c.config.Storage.Enabled && storageConfig.Type != "memory" {
-		logger.Error("Storage backend initialization failed",
+		logger.Error("storage backend initialization failed",
 			"error", err,
 			"type", storageConfig.Type,
 			"enabled", c.config.Storage.Enabled)
-		logger.Error("Storage backend '%s' is not available. "+
+		logger.Error("storage backend '%s' is not available. "+
 			"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
 			storageConfig.Type)
 		panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
@@ -489,7 +489,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	configDir := c.config.GetConfigDir()
 	customShortcutClient := c.createRawSDKClient()
 	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
-		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
+		logger.Error("failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
 }
 
@@ -644,7 +644,7 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 	if retryConfig.Enabled {
 		originalOnRetry := retryConfig.OnRetry
 		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
-			logger.Error("Retrying HTTP request",
+			logger.Error("retrying HTTP request",
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
@@ -764,20 +764,20 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	if c.agentManager != nil && c.agentManager.IsRunning() {
 		logger.Info("shutting down agent containers...")
 		if err := c.agentManager.StopAgents(ctx); err != nil {
-			logger.Error("Failed to stop agent containers", "error", err)
+			logger.Error("failed to stop agent containers", "error", err)
 		}
 	}
 
 	if c.gatewayManager != nil && c.gatewayManager.IsRunning() {
 		if err := c.gatewayManager.Stop(ctx); err != nil {
-			logger.Error("Failed to stop gateway container", "error", err)
+			logger.Error("failed to stop gateway container", "error", err)
 			return err
 		}
 	}
 
 	if c.mcpManager != nil {
 		if err := c.mcpManager.Close(); err != nil {
-			logger.Error("Failed to close MCP manager", "error", err)
+			logger.Error("failed to close MCP manager", "error", err)
 		}
 	}
 

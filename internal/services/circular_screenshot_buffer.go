@@ -66,7 +66,7 @@ func (b *CircularScreenshotBuffer) Add(screenshot *domain.Screenshot) error {
 	b.screenshots[b.currentIndex] = screenshot
 
 	if err := b.writeToDisk(screenshot); err != nil {
-		logger.Warn("Failed to write screenshot to disk", "error", err, "screenshot_id", screenshot.ID)
+		logger.Warn("failed to write screenshot to disk", "error", err, "screenshot_id", screenshot.ID)
 	}
 
 	b.currentIndex = (b.currentIndex + 1) % b.maxSize

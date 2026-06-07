@@ -96,11 +96,11 @@ func (s *BackgroundShellService) DetachToBackground(
 			Command:   command,
 		}:
 		default:
-			logger.Warn("Event channel full, shell detached event dropped", "shell_id", shellID)
+			logger.Warn("event channel full, shell detached event dropped", "shell_id", shellID)
 		}
 	}
 
-	logger.Info("Shell detached to background", "shell_id", shellID, "command", command)
+	logger.Info("shell detached to background", "shell_id", shellID, "command", command)
 
 	return shellID, nil
 }
@@ -126,7 +126,7 @@ func (s *BackgroundShellService) monitorShell(_ context.Context, shell *domain.B
 		shell.ExitCode = &exitCode
 		shell.State = domain.ShellStateCompleted
 
-		logger.Info("Background shell completed", "shell_id", shell.ShellID, "duration", duration)
+		logger.Info("background shell completed", "shell_id", shell.ShellID, "duration", duration)
 		s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, duration, "")
 		if s.eventChannel != nil {
 			select {
@@ -138,7 +138,7 @@ func (s *BackgroundShellService) monitorShell(_ context.Context, shell *domain.B
 				Duration:  duration,
 			}:
 			default:
-				logger.Warn("Event channel full, shell completed event dropped", "shell_id", shell.ShellID)
+				logger.Warn("event channel full, shell completed event dropped", "shell_id", shell.ShellID)
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func (s *BackgroundShellService) handleShellFailure(shell *domain.BackgroundShel
 	shell.ExitCode = &exitCode
 	shell.State = domain.ShellStateFailed
 
-	logger.Error("Background shell failed", "shell_id", shell.ShellID, "error", err, "exit_code", exitCode)
+	logger.Error("background shell failed", "shell_id", shell.ShellID, "error", err, "exit_code", exitCode)
 	s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, time.Since(shell.StartedAt), err.Error())
 
 	if s.eventChannel == nil {
@@ -172,7 +172,7 @@ func (s *BackgroundShellService) handleShellFailure(shell *domain.BackgroundShel
 		ExitCode:  exitCode,
 	}:
 	default:
-		logger.Warn("Event channel full, shell failed event dropped", "shell_id", shell.ShellID)
+		logger.Warn("event channel full, shell failed event dropped", "shell_id", shell.ShellID)
 	}
 }
 
@@ -236,11 +236,11 @@ func (s *BackgroundShellService) CancelShell(shellID string) error {
 		return fmt.Errorf("shell is not running (state: %s)", shell.State)
 	}
 
-	logger.Info("Cancelling background shell", "shell_id", shellID)
+	logger.Info("cancelling background shell", "shell_id", shellID)
 
 	if shell.Cmd.Process != nil {
 		if err := shell.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			logger.Warn("Failed to send SIGTERM", "shell_id", shellID, "error", err)
+			logger.Warn("failed to send SIGTERM", "shell_id", shellID, "error", err)
 		}
 
 		done := make(chan struct{})
@@ -251,11 +251,11 @@ func (s *BackgroundShellService) CancelShell(shellID string) error {
 
 		select {
 		case <-done:
-			logger.Info("Shell exited gracefully", "shell_id", shellID)
+			logger.Info("shell exited gracefully", "shell_id", shellID)
 		case <-time.After(5 * time.Second):
-			logger.Warn("Shell did not exit gracefully, sending SIGKILL", "shell_id", shellID)
+			logger.Warn("shell did not exit gracefully, sending SIGKILL", "shell_id", shellID)
 			if err := shell.Cmd.Process.Kill(); err != nil {
-				logger.Error("Failed to kill shell", "shell_id", shellID, "error", err)
+				logger.Error("failed to kill shell", "shell_id", shellID, "error", err)
 			}
 		}
 	}
@@ -276,7 +276,7 @@ func (s *BackgroundShellService) CancelShell(shellID string) error {
 			ShellID:   shellID,
 		}:
 		default:
-			logger.Warn("Event channel full, shell cancelled event dropped", "shell_id", shellID)
+			logger.Warn("event channel full, shell cancelled event dropped", "shell_id", shellID)
 		}
 	}
 
@@ -353,7 +353,7 @@ func (s *BackgroundShellService) performCleanup() {
 	removed := s.shellTracker.Cleanup(retentionDuration)
 
 	if removed > 0 {
-		logger.Info("Cleaned up old background shells", "removed", removed, "retention", retentionDuration)
+		logger.Info("cleaned up old background shells", "removed", removed, "retention", retentionDuration)
 	}
 }
 
@@ -384,19 +384,19 @@ func (s *BackgroundShellService) killAllRunningShells() {
 	}
 
 	if runningCount > 0 {
-		logger.Info("Terminated running background shells", "count", runningCount)
+		logger.Info("terminated running background shells", "count", runningCount)
 	}
 }
 
 // terminateShell terminates a single background shell
 func (s *BackgroundShellService) terminateShell(shell *domain.BackgroundShell) {
-	logger.Info("Terminating background shell on exit", "shell_id", shell.ShellID, "command", shell.Command)
+	logger.Info("terminating background shell on exit", "shell_id", shell.ShellID, "command", shell.Command)
 
 	if shell.Cmd.Process != nil {
 		if err := shell.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			logger.Warn("Failed to send SIGTERM to shell", "shell_id", shell.ShellID, "error", err)
+			logger.Warn("failed to send SIGTERM to shell", "shell_id", shell.ShellID, "error", err)
 			if killErr := shell.Cmd.Process.Kill(); killErr != nil {
-				logger.Error("Failed to kill shell process", "shell_id", shell.ShellID, "error", killErr)
+				logger.Error("failed to kill shell process", "shell_id", shell.ShellID, "error", killErr)
 			}
 		}
 	}

@@ -48,7 +48,7 @@ func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
 		if !isAddressPoolExhausted(err.Error()) {
 			return err
 		}
-		logger.Warn("Podman network address pools exhausted; pruning leaked networks and retrying", "network", pr.networkName)
+		logger.Warn("podman network address pools exhausted; pruning leaked networks and retrying", "network", pr.networkName)
 		pruneNetworks(ctx, "podman", pr.networkName)
 		if err := pr.createNetwork(ctx); err != nil {
 			return err
@@ -56,14 +56,14 @@ func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
 	}
 
 	pr.networkCreated = true
-	logger.Info("Podman network ready", "session", pr.sessionID, "network", pr.networkName)
+	logger.Info("podman network ready", "session", pr.sessionID, "network", pr.networkName)
 	return nil
 }
 
 // createNetwork runs "podman network create", treating an "already exists" race
 // (another session created it first) as success.
 func (pr *PodmanRuntime) createNetwork(ctx context.Context) error {
-	logger.Info("Creating Podman network", "session", pr.sessionID, "network", pr.networkName)
+	logger.Info("creating Podman network", "session", pr.sessionID, "network", pr.networkName)
 	output, err := exec.CommandContext(ctx, "podman", "network", "create", pr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
@@ -87,7 +87,7 @@ func (pr *PodmanRuntime) CleanupNetwork(ctx context.Context) error {
 	output, err := exec.CommandContext(ctx, "podman", "network", "rm", pr.networkName).CombinedOutput()
 	if err == nil {
 		pr.networkCreated = false
-		logger.Info("Podman network removed successfully", "network", pr.networkName)
+		logger.Info("podman network removed successfully", "network", pr.networkName)
 		return nil
 	}
 
@@ -95,9 +95,9 @@ func (pr *PodmanRuntime) CleanupNetwork(ctx context.Context) error {
 	case gone:
 		pr.networkCreated = false
 	case inUse:
-		logger.Debug("Podman network still in use by another session; leaving in place", "network", pr.networkName)
+		logger.Debug("podman network still in use by another session; leaving in place", "network", pr.networkName)
 	default:
-		logger.Warn("Failed to remove Podman network", "network", pr.networkName, "error", err, "output", string(output))
+		logger.Warn("failed to remove Podman network", "network", pr.networkName, "error", err, "output", string(output))
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (pr *PodmanRuntime) RunContainer(ctx context.Context, opts domain.RunContai
 		args = append(args, opts.Args...)
 	}
 
-	logger.Debug("Running Podman container", "command", fmt.Sprintf("podman %s", strings.Join(args, " ")))
+	logger.Debug("running Podman container", "command", fmt.Sprintf("podman %s", strings.Join(args, " ")))
 
 	cmd := exec.CommandContext(ctx, "podman", args...)
 	output, err := cmd.CombinedOutput()

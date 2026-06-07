@@ -90,11 +90,11 @@ func (v *PathValidator) IsWritable(path string) bool {
 	removeErr := os.Remove(tempFile)
 
 	if closeErr != nil {
-		logger.Error("Failed to close temp file during writability test", "path", tempFile, "error", closeErr)
+		logger.Error("failed to close temp file during writability test", "path", tempFile, "error", closeErr)
 		return false
 	}
 	if removeErr != nil {
-		logger.Error("Failed to remove temp file during writability test", "path", tempFile, "error", removeErr)
+		logger.Error("failed to remove temp file during writability test", "path", tempFile, "error", removeErr)
 		return false
 	}
 	return true
@@ -156,7 +156,7 @@ func (v *PathValidator) canCreatePath(path string) bool {
 				return false
 			}
 			if err := os.RemoveAll(tempDir); err != nil {
-				logger.Error("Failed to cleanup temp directory during path creation test", "path", tempDir, "error", err)
+				logger.Error("failed to cleanup temp directory during path creation test", "path", tempDir, "error", err)
 				return false
 			}
 			return true

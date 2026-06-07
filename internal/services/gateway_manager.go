@@ -109,14 +109,14 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 
 	if err := gm.waitForReady(ctx); err != nil {
 		if stopErr := gm.Stop(ctx); stopErr != nil {
-			logger.Warn("Failed to stop gateway during error cleanup", "error", stopErr)
+			logger.Warn("failed to stop gateway during error cleanup", "error", stopErr)
 		}
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
 
 	gm.isRunning = true
 	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
-	logger.Info("Gateway binary started successfully", "url", gm.config.Gateway.URL)
+	logger.Info("gateway binary started successfully", "url", gm.config.Gateway.URL)
 	return nil
 }
 
@@ -126,7 +126,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		return fmt.Errorf("gateway OCI image not specified in configuration")
 	}
 
-	logger.Info("Starting gateway container", "image", gm.config.Gateway.OCI)
+	logger.Info("starting gateway container", "image", gm.config.Gateway.OCI)
 
 	if gm.isContainerRunning() {
 		logger.Info("gateway container is already running")
@@ -137,12 +137,12 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 	if gm.containerRuntime != nil {
 		if err := gm.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Warn("Failed to create Docker network", "session", gm.sessionID, "error", err)
+			logger.Warn("failed to create Docker network", "session", gm.sessionID, "error", err)
 		}
 	}
 
 	if err := gm.pullImage(ctx); err != nil {
-		logger.Warn("Failed to pull image, attempting to use local image", "error", err)
+		logger.Warn("failed to pull image, attempting to use local image", "error", err)
 		fmt.Println("• Could not pull latest image, using cached version")
 	}
 
@@ -160,7 +160,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 	if err := gm.waitForReady(ctx); err != nil {
 		if stopErr := gm.Stop(ctx); stopErr != nil {
-			logger.Warn("Failed to stop gateway during error cleanup", "error", stopErr)
+			logger.Warn("failed to stop gateway during error cleanup", "error", stopErr)
 		}
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
@@ -168,7 +168,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	gm.isRunning = true
 	actualURL := gm.GetGatewayURL()
 	fmt.Printf("• Gateway is ready at %s\n\n", actualURL)
-	logger.Info("Gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
+	logger.Info("gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 
 	if gm.containerRuntime != nil {
 		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network during gateway shutdown", "session", gm.sessionID, "error", err)
+			logger.Warn("failed to cleanup network during gateway shutdown", "session", gm.sessionID, "error", err)
 		}
 	}
 
@@ -200,10 +200,10 @@ func (gm *GatewayManager) stopBinary() error {
 		return nil
 	}
 
-	logger.Info("Stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
+	logger.Info("stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
 
 	if err := gm.binaryCmd.Process.Kill(); err != nil {
-		logger.Warn("Failed to kill binary process", "error", err)
+		logger.Warn("failed to kill binary process", "error", err)
 		return err
 	}
 
@@ -227,7 +227,7 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 
 	if gm.containerRuntime != nil {
 		if err := gm.containerRuntime.StopContainer(ctx, gm.containerID); err != nil {
-			logger.Warn("Failed to stop container", "session", gm.sessionID, "error", err)
+			logger.Warn("failed to stop container", "session", gm.sessionID, "error", err)
 		}
 	}
 
@@ -332,7 +332,7 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 
 	args = append(args, gm.config.Gateway.OCI)
 
-	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
+	logger.Info("starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, "docker", args...)
 
 	var outputBuf strings.Builder
@@ -464,7 +464,7 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	}
 
 	fmt.Println("• Gateway binary downloaded successfully")
-	logger.Info("Gateway binary installed successfully", "path", binaryPath)
+	logger.Info("gateway binary installed successfully", "path", binaryPath)
 	return binaryPath, nil
 }
 
@@ -576,7 +576,7 @@ func (gm *GatewayManager) determineGatewayPort() int {
 	}
 
 	gm.assignedPort = config.FindAvailablePort(basePort)
-	logger.Info("Assigned gateway port", "session", gm.sessionID, "port", gm.assignedPort)
+	logger.Info("assigned gateway port", "session", gm.sessionID, "port", gm.assignedPort)
 	return gm.assignedPort
 }
 

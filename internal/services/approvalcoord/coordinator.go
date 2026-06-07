@@ -75,7 +75,7 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 // plan and returns whatever cmds the orchestrator should run plus a restart
 // flag (true → orchestrator should kick a new ChatCompletionRunner.Start()).
 func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEvent) (tea.Cmd, bool) {
-	logger.Info("ApprovalCoordinator.HandlePlanApprovalResponse called", "action", msg.Action)
+	logger.Info("approvalCoordinator.HandlePlanApprovalResponse called", "action", msg.Action)
 
 	planApprovalState := s.stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
@@ -148,13 +148,13 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 // HandleComputerUsePaused cancels the in-flight request and marks state as
 // paused. No restart - the user will manually resume.
 func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd {
-	logger.Debug("ApprovalCoordinator.HandleComputerUsePaused called", "request_id", msg.RequestID)
-	logger.Info("Computer use execution paused", "request_id", msg.RequestID)
+	logger.Debug("approvalCoordinator.HandleComputerUsePaused called", "request_id", msg.RequestID)
+	logger.Info("computer use execution paused", "request_id", msg.RequestID)
 
 	if err := s.agentService.CancelRequest(msg.RequestID); err != nil {
-		logger.Error("Failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
+		logger.Error("failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
 	} else {
-		logger.Debug("Successfully cancelled request", "request_id", msg.RequestID)
+		logger.Debug("successfully cancelled request", "request_id", msg.RequestID)
 	}
 
 	s.stateManager.SetComputerUsePaused(true, msg.RequestID)
@@ -197,7 +197,7 @@ func (s *Service) addHiddenContinueMessage() {
 	const planContinuePrompt = "The plan has been approved. Please proceed with executing it step by step. Start by taking the first action required to implement the plan."
 
 	if err := s.addHiddenContinue(planContinuePrompt); err != nil {
-		logger.Error("Failed to add continue message to conversation", "error", err)
+		logger.Error("failed to add continue message to conversation", "error", err)
 		return
 	}
 	logger.Info("continue message added to conversation history")

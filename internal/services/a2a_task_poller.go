@@ -157,7 +157,7 @@ func (m *A2ATaskPoller) monitorSingleTask(ctx context.Context, taskID string, st
 			m.emitStatusUpdateEvent(statusUpdate)
 
 		case err := <-state.ErrorChan:
-			logger.Error("A2A task polling error",
+			logger.Error("a2A task polling error",
 				"agent_url", state.AgentURL,
 				"task_id", state.TaskID,
 				"error", err)
@@ -185,7 +185,7 @@ func (m *A2ATaskPoller) monitorSingleTask(ctx context.Context, taskID string, st
 
 func (m *A2ATaskPoller) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
 	if result == nil {
-		logger.Error("Received nil result in emitCompletionEvent",
+		logger.Error("received nil result in emitCompletionEvent",
 			"task_id", taskID)
 		return
 	}
@@ -201,7 +201,7 @@ func (m *A2ATaskPoller) emitCompletionEvent(taskID string, result *domain.ToolEx
 		select {
 		case m.eventChan <- event:
 		default:
-			logger.Warn("Failed to emit A2A completion event - channel full",
+			logger.Warn("failed to emit A2A completion event - channel full",
 				"task_id", taskID)
 		}
 	} else {
@@ -216,7 +216,7 @@ func (m *A2ATaskPoller) emitCompletionEvent(taskID string, result *domain.ToolEx
 		select {
 		case m.eventChan <- event:
 		default:
-			logger.Warn("Failed to emit A2A failure event - channel full",
+			logger.Warn("failed to emit A2A failure event - channel full",
 				"task_id", taskID)
 		}
 	}
@@ -240,7 +240,7 @@ func (m *A2ATaskPoller) emitSubmittedEvent(state *domain.TaskPollingState) {
 	select {
 	case m.eventChan <- event:
 	default:
-		logger.Warn("Failed to emit A2A submitted event - channel full",
+		logger.Warn("failed to emit A2A submitted event - channel full",
 			"task_id", state.TaskID)
 	}
 }
@@ -277,7 +277,7 @@ func (m *A2ATaskPoller) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate
 		select {
 		case m.eventChan <- inputRequiredEvent:
 		default:
-			logger.Warn("Failed to emit A2A input required event - channel full",
+			logger.Warn("failed to emit A2A input required event - channel full",
 				"task_id", update.TaskID)
 		}
 	}
@@ -304,7 +304,7 @@ func (m *A2ATaskPoller) emitErrorEvent(taskID string, err error) {
 	select {
 	case m.eventChan <- event:
 	default:
-		logger.Warn("Failed to emit A2A error event - channel full",
+		logger.Warn("failed to emit A2A error event - channel full",
 			"task_id", taskID)
 	}
 }
@@ -356,7 +356,7 @@ func (m *A2ATaskPoller) addResultToMessageQueue(taskID string, result *domain.To
 		select {
 		case m.eventChan <- event:
 		default:
-			logger.Warn("Failed to emit MessageQueued event - channel full",
+			logger.Warn("failed to emit MessageQueued event - channel full",
 				"task_id", taskID)
 		}
 	}

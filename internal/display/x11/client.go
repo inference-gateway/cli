@@ -62,12 +62,12 @@ func NewX11Client(display string) (*X11Client, error) {
 	}
 
 	if err != nil {
-		logger.Error("Failed to connect to X11 display", "display", display, "error", err)
+		logger.Error("failed to connect to X11 display", "display", display, "error", err)
 		return nil, fmt.Errorf("failed to connect to X11 display %s: %w", display, err)
 	}
 
 	if err := xtest.Init(xu.Conn()); err != nil {
-		logger.Error("Failed to initialize XTEST extension", "error", err)
+		logger.Error("failed to initialize XTEST extension", "error", err)
 		return nil, fmt.Errorf("failed to initialize XTEST extension: %w", err)
 	}
 
@@ -298,7 +298,7 @@ func (c *X11Client) TypeText(text string, delayMs int) error {
 
 		keycodes := keybind.StrToKeycodes(c.xu, keyInfo.keyStr)
 		if len(keycodes) == 0 {
-			logger.Debug("No keycode found for character", "char", string(char), "keyStr", keyInfo.keyStr)
+			logger.Debug("no keycode found for character", "char", string(char), "keyStr", keyInfo.keyStr)
 			continue
 		}
 

@@ -101,7 +101,7 @@ func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Co
 		return fmt.Errorf("failed to update conversation metadata: %w", err)
 	}
 
-	logger.Info("Generated title for conversation", "id", conversationID, "title", title)
+	logger.Info("generated title for conversation", "id", conversationID, "title", title)
 	return nil
 }
 
@@ -125,17 +125,17 @@ func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) e
 		return nil
 	}
 
-	logger.Info("Processing conversations for title generation", "count", len(conversations))
+	logger.Info("processing conversations for title generation", "count", len(conversations))
 
 	for _, conv := range conversations {
 		if err := g.GenerateTitleForConversation(ctx, conv.ID); err != nil {
-			logger.Error("Failed to generate title for conversation", "id", conv.ID, "error", err)
+			logger.Error("failed to generate title for conversation", "id", conv.ID, "error", err)
 			continue
 		}
 
 		select {
 		case <-ctx.Done():
-			logger.Info("Title generation cancelled", "processed", conv.ID)
+			logger.Info("title generation cancelled", "processed", conv.ID)
 			return ctx.Err()
 		default:
 			time.Sleep(100 * time.Millisecond)

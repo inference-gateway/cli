@@ -133,9 +133,9 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 		sessionID := ""
 		if persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
 			sessionID = persistentRepo.GetCurrentConversationID()
-			logger.Debug("Adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
+			logger.Debug("adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
 		} else {
-			logger.Debug("ConversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
+			logger.Debug("conversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
 		}
 		ctx = context.WithValue(ctx, domain.SessionIDKey, sessionID)
 
@@ -307,7 +307,7 @@ func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
 
 func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Msg {
 	if err := s.handler.stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
-		logger.Error("Failed to transition to conversation selection view", "error", err)
+		logger.Error("failed to transition to conversation selection view", "error", err)
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to show conversation selection: %v", err),
 			Sticky: false,
@@ -362,7 +362,7 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 
 func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 	if err := s.handler.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
-		logger.Error("Failed to transition to task management view", "error", err)
+		logger.Error("failed to transition to task management view", "error", err)
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to show task management: %v", err),
 			Sticky: false,
@@ -400,7 +400,7 @@ func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 	}
 
 	if err := s.handler.stateManager.TransitionToView(domain.ViewStateDiffViewer); err != nil {
-		logger.Error("Failed to transition to diff viewer view", "error", err)
+		logger.Error("failed to transition to diff viewer view", "error", err)
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to open changes panel: %v", err),
 			Sticky: false,
@@ -419,7 +419,7 @@ func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 // the filesystem, so it works in any directory (git or not).
 func (s *ChatShortcutHandler) handleShowExplorerSideEffect() tea.Msg {
 	if err := s.handler.stateManager.TransitionToView(domain.ViewStateExplorer); err != nil {
-		logger.Error("Failed to transition to explorer view", "error", err)
+		logger.Error("failed to transition to explorer view", "error", err)
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to open explorer: %v", err),
 			Sticky: false,
@@ -579,7 +579,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		logger.Info("Starting conversation compaction", "message_count", len(entries))
+		logger.Info("starting conversation compaction", "message_count", len(entries))
 
 		originalTitle := s.handler.conversationRepo.GetCurrentConversationTitle()
 
@@ -600,7 +600,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		logger.Info("Optimizing conversation", "model", currentModel, "message_count", len(messages))
+		logger.Info("optimizing conversation", "model", currentModel, "message_count", len(messages))
 
 		optimizedChan := make(chan []sdk.Message, 1)
 		go func() {
@@ -611,7 +611,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		var optimizedMessages []sdk.Message
 		select {
 		case optimizedMessages = <-optimizedChan:
-			logger.Info("Optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
+			logger.Info("optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
 		case <-time.After(70 * time.Second):
 			logger.Error("optimization timed out after 70 seconds")
 			return domain.SetStatusEvent{
@@ -631,7 +631,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		newTitle := fmt.Sprintf("Continued from %s", originalTitle)
 		if err := s.handler.conversationRepo.StartNewConversation(newTitle); err != nil {
-			logger.Error("Failed to start new conversation", "error", err)
+			logger.Error("failed to start new conversation", "error", err)
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 				Spinner:    false,
@@ -646,7 +646,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 				Time:    time.Now(),
 			}
 			if err := s.handler.conversationRepo.AddMessage(entry); err != nil {
-				logger.Error("Failed to add optimized message", "error", err)
+				logger.Error("failed to add optimized message", "error", err)
 			}
 		}
 
@@ -681,7 +681,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 
 	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("The issue contains %d image(s):", len(imageAttachments)))
 	if err != nil {
-		logger.Warn("Failed to create text content part", "error", err)
+		logger.Warn("failed to create text content part", "error", err)
 	} else {
 		contentParts = append(contentParts, textPart)
 	}
@@ -690,7 +690,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
-			logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			logger.Warn("failed to create image content part", "index", i, "filename", img.Filename, "error", err)
 			continue
 		}
 		contentParts = append(contentParts, imagePart)
@@ -752,7 +752,7 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 
 	switchData, ok := data.(shortcuts.ModelSwitchData)
 	if !ok {
-		logger.Error("Invalid model switch data type", "type", fmt.Sprintf("%T", data))
+		logger.Error("invalid model switch data type", "type", fmt.Sprintf("%T", data))
 		return domain.SetStatusEvent{
 			Message:    "Invalid model switch data",
 			Spinner:    false,
@@ -761,7 +761,7 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 	}
 
 	if err := s.handler.modelService.SelectModel(switchData.TargetModel); err != nil {
-		logger.Error("Failed to switch to temporary model", "model", switchData.TargetModel, "error", err)
+		logger.Error("failed to switch to temporary model", "model", switchData.TargetModel, "error", err)
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to switch to model '%s': %v", switchData.TargetModel, err),
 			Spinner:    false,
@@ -778,9 +778,9 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 	}
 
 	if err := s.handler.conversationRepo.AddMessage(userEntry); err != nil {
-		logger.Error("Failed to add message to conversation", "error", err)
+		logger.Error("failed to add message to conversation", "error", err)
 		if restoreErr := s.handler.modelService.SelectModel(switchData.OriginalModel); restoreErr != nil {
-			logger.Error("Failed to restore original model", "model", switchData.OriginalModel, "error", restoreErr)
+			logger.Error("failed to restore original model", "model", switchData.OriginalModel, "error", restoreErr)
 		}
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to add message: %v", err),

@@ -73,7 +73,7 @@ var statusTitlesCmd = &cobra.Command{
 		if storage != nil {
 			pending, err := storage.ListConversationsNeedingTitles(ctx, 100)
 			if err != nil {
-				logger.Warn("Failed to list conversations needing titles", "error", err)
+				logger.Warn("failed to list conversations needing titles", "error", err)
 				fmt.Printf("  Pending: Unable to retrieve (error: %v)\n", err)
 			} else {
 				fmt.Printf("  Pending: %d conversations need titles\n", len(pending))

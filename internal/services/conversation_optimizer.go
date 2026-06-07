@@ -146,7 +146,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 
 	optimized, err := co.smartOptimize(conversationMessages, model)
 	if err != nil {
-		logger.Error("Optimization failed", "error", err)
+		logger.Error("optimization failed", "error", err)
 		return messages
 	}
 	result := append(systemMessages, optimized...)
@@ -173,13 +173,13 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 	summaryStartIndex = co.adjustBoundaryForToolCallsAtStart(messages, summaryStartIndex)
 
 	if summaryStartIndex < co.keepFirstMessages {
-		logger.Info("Adjusting kept messages due to boundary moved back",
+		logger.Info("adjusting kept messages due to boundary moved back",
 			"original_keep", co.keepFirstMessages,
 			"adjusted_keep", summaryStartIndex)
 		result = make([]sdk.Message, summaryStartIndex)
 		copy(result, messages[:summaryStartIndex])
 	} else if summaryStartIndex > co.keepFirstMessages {
-		logger.Info("Adjusting kept messages due to boundary moved forward to include tool responses",
+		logger.Info("adjusting kept messages due to boundary moved forward to include tool responses",
 			"original_keep", co.keepFirstMessages,
 			"adjusted_keep", summaryStartIndex)
 		result = make([]sdk.Message, summaryStartIndex)
@@ -203,14 +203,14 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 		return nil, fmt.Errorf("model is required for conversation compaction")
 	}
 
-	logger.Info("Generating LLM summary for compaction", "model", model, "messages_to_summarize", len(messagesToSummarize))
+	logger.Info("generating LLM summary for compaction", "model", model, "messages_to_summarize", len(messagesToSummarize))
 	summary, err := co.GenerateLLMSummary(messagesToSummarize, model)
 	if err != nil {
-		logger.Error("Failed to generate LLM summary", "error", err)
+		logger.Error("failed to generate LLM summary", "error", err)
 		return nil, fmt.Errorf("failed to generate summary: %w", err)
 	}
 
-	logger.Info("LLM summary generated successfully", "summary_length", len(summary))
+	logger.Info("lLM summary generated successfully", "summary_length", len(summary))
 
 	if summary != "" {
 		wrappedSummary := formatting.WrapText(summary, 80)
@@ -260,7 +260,7 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 	}
 
 	if len(toolCallIDs) > 0 {
-		logger.Warn("Found unresolved tool calls at compaction boundary, moving boundary back",
+		logger.Warn("found unresolved tool calls at compaction boundary, moving boundary back",
 			"count", len(toolCallIDs),
 			"original_boundary", boundaryIndex,
 			"attempted_boundary", adjustedBoundary)
@@ -268,14 +268,14 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 			if messages[i].Role == "assistant" &&
 				messages[i].ToolCalls != nil &&
 				len(*messages[i].ToolCalls) > 0 {
-				logger.Info("Moving boundary back to exclude assistant message with incomplete tool calls",
+				logger.Info("moving boundary back to exclude assistant message with incomplete tool calls",
 					"new_boundary", i)
 				return i
 			}
 		}
 
 		if boundaryIndex > 1 {
-			logger.Warn("Could not find assistant message with tool calls, using boundary - 1",
+			logger.Warn("could not find assistant message with tool calls, using boundary - 1",
 				"new_boundary", boundaryIndex-1)
 			return boundaryIndex - 1
 		}
@@ -381,7 +381,7 @@ Keep the summary brief but informative (2-3 sentences max).`),
 	}
 
 	if response.Choices[0].FinishReason == sdk.Length {
-		logger.Warn("Summary truncated by max_tokens cap; consider raising compact.summary_max_tokens",
+		logger.Warn("summary truncated by max_tokens cap; consider raising compact.summary_max_tokens",
 			"max_tokens", maxTokens,
 			"summary_length", len(contentStr))
 	}

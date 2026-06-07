@@ -128,7 +128,7 @@ func (r *Registry) registerTools() {
 	if cfg.ComputerUse.Enabled {
 		displayProvider, err := display.DetectDisplay()
 		if err != nil {
-			logger.Warn("No compatible display platform detected, computer use tools will be disabled", "error", err)
+			logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
 		} else {
 			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
 			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
@@ -191,7 +191,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 
 	targetClient := r.mcpManager.GetClient(serverName)
 	if targetClient == nil {
-		logger.Warn("Could not find MCP client for server", "server", serverName)
+		logger.Warn("could not find MCP client for server", "server", serverName)
 		return 0
 	}
 
@@ -213,7 +213,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 		r.tools[fullToolName] = mcpTool
 		toolCount++
 
-		logger.Info("Dynamically registered MCP tool",
+		logger.Info("dynamically registered MCP tool",
 			"tool", fullToolName,
 			"server", serverName,
 			"description", tool.Description)
@@ -237,7 +237,7 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	}
 
 	if removedCount > 0 {
-		logger.Debug("Unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
+		logger.Debug("unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
 		r.mcpManager.ClearToolCount(serverName)
 	}
 
