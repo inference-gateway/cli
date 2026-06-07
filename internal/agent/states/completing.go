@@ -29,8 +29,21 @@ func (s *CompletingState) Name() domain.AgentExecutionState {
 	return domain.StateCompleting
 }
 
-// Handle processes events in Completing state
+// Handle processes events in Completing state. Completion is driven solely by
+// CompletionRequestedEvent (emitted right after the transition into Completing);
+// any other event is ignored so a stray wake-up cannot finalize the agent.
 func (s *CompletingState) Handle(event domain.AgentEvent) error {
+	switch event.(type) {
+	case domain.CompletionRequestedEvent:
+		return s.complete()
+	}
+	return nil
+}
+
+// complete performs the final queue check and finalizes the agent execution: if
+// messages were queued during completion it restarts the loop (CheckingQueue),
+// otherwise it publishes the final completion event and transitions to Idle.
+func (s *CompletingState) complete() error {
 	logger.Debug("completing state: finalizing agent execution",
 		"total_turns", s.ctx.AgentCtx.Turns,
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())

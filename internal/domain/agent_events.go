@@ -30,9 +30,13 @@ type StreamCompletedEvent struct {
 
 func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
 
-// ToolsCompletedEvent is triggered when all tools finish executing
+// ToolsCompletedEvent is triggered when all tools finish executing. Stop is set
+// when the results signal the loop should terminate (a rejected tool or a
+// successful RequestPlanApproval); the ExecutingTools state then routes to the
+// Stopped terminal instead of continuing to PostToolExecution.
 type ToolsCompletedEvent struct {
 	Results []ConversationEntry
+	Stop    bool
 }
 
 func (e ToolsCompletedEvent) EventType() string { return "ToolsCompleted" }

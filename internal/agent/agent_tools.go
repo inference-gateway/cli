@@ -13,7 +13,6 @@ func (a *EventDrivenAgent) executeTools() {
 
 	logger.Debug("executing tools", "tool_count", len(a.currentToolCalls))
 
-	// Convert map to slice
 	toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(a.currentToolCalls))
 	for _, tc := range a.currentToolCalls {
 		toolCallsSlice = append(toolCallsSlice, tc)
@@ -24,19 +23,14 @@ func (a *EventDrivenAgent) executeTools() {
 	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher, a.req.IsChatMode)
 	logger.Debug("tool execution completed", "result_count", len(toolResults))
 
-	// Handle tool results
-	if a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req) {
-		logger.Debug("tool results indicated stop (user rejection or error)")
-		_ = a.stateMachine.Transition(a.agentCtx, domain.StateStopped)
-		return
+	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
+
+	if !stop {
+		a.mu.Lock()
+		a.agentCtx.HasToolResults = true
+		a.mu.Unlock()
 	}
 
-	// Mark that we have tool results
-	a.mu.Lock()
-	a.agentCtx.HasToolResults = true
-	a.mu.Unlock()
-
-	// Emit tools completed event
-	logger.Debug("emitting tools completed event")
-	a.events <- domain.ToolsCompletedEvent{Results: toolResults}
+	logger.Debug("emitting tools completed event", "stop", stop)
+	a.events <- domain.ToolsCompletedEvent{Results: toolResults, Stop: stop}
 }

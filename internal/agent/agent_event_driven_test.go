@@ -469,6 +469,32 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, domain.StatePostToolExecution, toState)
 	})
+
+	t.Run("tools_completed_event_with_stop_transitions_to_stopped", func(t *testing.T) {
+		mocks := setupTestMocks()
+		ctx := createTestContext(mocks)
+		agent := createTestAgent(mocks, ctx)
+
+		event := domain.ToolsCompletedEvent{
+			Results: []domain.ConversationEntry{},
+			Stop:    true,
+		}
+
+		mocks.stateMachine.TransitionReturns(nil)
+
+		err := agent.stateHandlers[domain.StateExecutingTools].Handle(event)
+		assert.NoError(t, err)
+
+		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
+		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
+		assert.Equal(t, domain.StateStopped, toState)
+
+		select {
+		case ev := <-agent.events:
+			t.Errorf("expected no event on stop path, got %T", ev)
+		default:
+		}
+	})
 }
 
 func TestHandlePostToolExecutionState(t *testing.T) {

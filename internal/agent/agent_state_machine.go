@@ -147,6 +147,8 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 
 	sm.addTransition(domain.StateExecutingTools, domain.StatePostToolExecution, nil, nil)
 
+	sm.addTransition(domain.StateExecutingTools, domain.StateStopped, nil, nil)
+
 	sm.addTransition(domain.StatePostToolExecution, domain.StateCheckingQueue, nil, nil)
 
 	sm.addTransition(domain.StatePostToolExecution, domain.StateCompleting,
@@ -222,7 +224,7 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 		sessionID = ctx.ConversationRepo.GetCurrentConversationID()
 	}
 
-	logger.Debug("state transition",
+	logger.Info("state transition",
 		"from", sm.previousState.String(),
 		"to", sm.currentState.String(),
 		"session_id", sessionID,

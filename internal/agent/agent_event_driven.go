@@ -275,6 +275,11 @@ func (a *EventDrivenAgent) handleEvent(event domain.AgentEvent) {
 
 	currentState := a.stateMachine.GetCurrentState()
 
+	logger.Debug("dispatching event",
+		"event", event.EventType(),
+		"state", currentState.String(),
+		"request_id", a.req.RequestID)
+
 	handler, exists := a.stateHandlers[currentState]
 	if !exists {
 		logger.Error("no handler for state", "state", currentState.String())

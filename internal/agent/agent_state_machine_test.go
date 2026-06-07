@@ -514,3 +514,38 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 		})
 	}
 }
+
+// TestExecutingToolsToStoppedTransition is a regression test for the previously
+// unregistered ExecutingTools → Stopped transition. The executeTools goroutine
+// requests Stopped when a tool result signals stop (a rejected tool or a
+// successful RequestPlanApproval); that transition silently failed before, so
+// the loop was left parked in ExecutingTools. It must now succeed from
+// ExecutingTools - and only from there (no global loop to Stopped was added).
+func TestExecutingToolsToStoppedTransition(t *testing.T) {
+	stateManager := &mockdomain.FakeStateManager{}
+	sm := NewAgentStateMachine(stateManager)
+	ctx := createTestAgentContext()
+	*ctx.Conversation = []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}}
+	ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
+		{ID: "t", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
+	}
+
+	if err := sm.Transition(ctx, domain.StateStopped); err == nil {
+		t.Fatal("Idle → Stopped should fail (Stopped is not a global terminal)")
+	}
+
+	_ = sm.Transition(ctx, domain.StateCheckingQueue)
+	_ = sm.Transition(ctx, domain.StateStreamingLLM)
+	_ = sm.Transition(ctx, domain.StatePostStream)
+	_ = sm.Transition(ctx, domain.StateEvaluatingTools)
+	if err := sm.Transition(ctx, domain.StateExecutingTools); err != nil {
+		t.Fatalf("setup: reaching ExecutingTools should succeed, got: %v", err)
+	}
+
+	if err := sm.Transition(ctx, domain.StateStopped); err != nil {
+		t.Fatalf("ExecutingTools → Stopped should succeed, got error: %v", err)
+	}
+	if sm.GetCurrentState() != domain.StateStopped {
+		t.Errorf("expected state Stopped, got %s", sm.GetCurrentState())
+	}
+}
