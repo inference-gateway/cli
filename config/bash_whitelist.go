@@ -9,7 +9,7 @@ import (
 // discards or merges output streams - it never writes to or reads from the
 // filesystem. Covered forms: output to /dev/null (>, >>, with an optional fd or
 // the &> "both streams" prefix) and file-descriptor duplications such as 2>&1 or
-// 2>&-. These are stripped before whitelist matching so that benign,
+// 2>&-. These are stripped before allow-matching so that benign,
 // reliability-motivated suffixes (which some models append by habit) neither
 // break end-anchored patterns nor act as a policy escape hatch. A redirection to
 // a real file is intentionally NOT matched, so it stays in the command.
@@ -17,76 +17,82 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 	`\s*(?:&>>?\s*/dev/null|[0-9]*>>?\s*/dev/null|[0-9]*>&(?:[0-9]+|-))\s*$`,
 )
 
-// IsBashCommandWhitelisted reports whether command is permitted by the bash
-// whitelist. It understands just enough shell structure to keep the policy
-// coherent rather than relying on naive prefix matching:
+// bashAllowFor returns the effective bash allow-list for mode: the shared
+// mode.all baseline unioned with that mode's own entries. An unrecognized mode
+// (anything other than plan/standard/auto) gets just the baseline.
+func (c *Config) bashAllowFor(mode string) []string {
+	m := c.Tools.Bash.Mode
+	out := make([]string, 0, len(m.All.Allow)+4)
+	out = append(out, m.All.Allow...)
+	switch mode {
+	case "plan":
+		out = append(out, m.Plan.Allow...)
+	case "standard":
+		out = append(out, m.Standard.Allow...)
+	case "auto":
+		out = append(out, m.Auto.Allow...)
+	}
+	return out
+}
+
+// BashAllowedCommands returns the effective allow-list entries for mode. It is
+// used to surface the model's bash sandbox in the system prompt so the agent
+// knows up front what it may run unattended.
+func (c *Config) BashAllowedCommands(mode string) []string {
+	return c.bashAllowFor(mode)
+}
+
+// IsBashCommandAllowed reports whether command is auto-approved in the given
+// agent mode ("all", "plan", "standard", or "auto"). The model is a pure
+// allow-list with no separate deny list: anything the effective list does not
+// match is denied - in chat mode it falls through to user approval, in headless
+// agent mode it is rejected with a reason (see BashCommandRejectionHint).
 //
-//   - Command substitution - $(...), `...`, and process substitution <(...) /
-//     >(...) - is rejected outright, because it can smuggle an arbitrary command
-//     past an otherwise-whitelisted wrapper (e.g. echo $(rm -rf /)).
-//   - Shell variable/parameter expansion ($VAR, ${VAR}) may be USED freely, but a
-//     command that prints (echo, printf) or publishes (gh issue/pr
-//     create|comment|edit) its arguments may not expand one - that would leak a
-//     secret's value (echo $AWS_SECRET_ACCESS_KEY). A single-quoted or
-//     backslash-escaped '$' is always a literal and stays allowed.
-//   - Only a SINGLE command is auto-whitelisted. Any top-level shell operator
-//     (&&, ||, |, |&, ;, &, or a newline) makes the whole command non-whitelisted
-//     so it falls through to approval. This keeps the policy simple and closes the
-//     prefix-match hole where a whitelisted head would carry an arbitrary tail
-//     (echo x | xargs rm); chains and pipelines are run one command at a time.
-//   - Benign trailing redirections (2>&1, 2>/dev/null, …) are stripped per
-//     segment before matching.
-//   - A file-write redirection that survives stripping (>, >>, &>file) restricts
-//     its segment to whole-command pattern matching: the plain command list no
-//     longer applies and a prefix pattern (^git log) will not unlock it, so a
-//     whitelisted command cannot be turned into an arbitrary file write
-//     (echo secret > /etc/passwd). An anchored pattern (^…$) can still allow a
-//     specific redirect.
+//   - If the effective allow-list contains the sentinel ".*" the mode is
+//     UNRESTRICTED: any single command is allowed and the clean-command guard is
+//     skipped (full autonomy - this is what mode.auto / headless `infer agent`
+//     uses). Tighten mode.auto.allow to a curated list to re-enable the guard.
+//   - Otherwise the clean-command guard runs first and rejects, regardless of the
+//     list: command substitution ($(...), backticks, <()/>()), multi-command
+//     chains/pipelines (top-level &&, ||, |, ;, &, newline), a surviving
+//     file-write redirect (>, >>), dangerous find actions (-exec/-delete/...),
+//     and printing/publishing an expanded $VAR (echo/printf/gh ... $SECRET,
+//     which would leak the value).
+//   - The single clean command is then matched WHOLE against each allow entry
+//     (anchored as \A(?:entry)\z), so a bare "gh" allows only "gh" - an entry
+//     must opt into arguments explicitly (e.g. "gh issue.*").
 //
 // It is the single source of truth consulted by the Bash tool, the approval
 // policy, and agent auto-approval, so all three agree on exactly what runs
 // without prompting.
-func (c *Config) IsBashCommandWhitelisted(command string) bool {
+func (c *Config) IsBashCommandAllowed(command, mode string) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return false
 	}
 
-	if containsCommandSubstitution(command) {
-		return false
+	allow := c.bashAllowFor(mode)
+	if hasAllowAll(allow) {
+		return true
 	}
 
-	segments, ok := splitBashSegments(command)
+	seg, ok := cleanSingleCommand(command)
 	if !ok {
 		return false
 	}
 
-	if len(segments) != 1 {
-		return false
-	}
-
-	seg := stripBenignTrailingRedirections(strings.TrimSpace(segments[0]))
-	if seg == "" {
-		return false
-	}
-
-	// Env-var leak guard: $VAR may be used freely, but a command that prints
-	// (echo/printf) or publishes (gh issue/pr create|comment|edit) its arguments
-	// must not expand one, or it would leak the value (echo $AWS_SECRET_ACCESS_KEY).
-	if outputCommandRe.MatchString(seg) && containsVariableExpansion(seg) {
-		return false
-	}
-
-	return c.isSingleBashCommandAllowed(seg)
+	return matchesAnyAllow(seg, allow)
 }
 
-// BashWhitelistRejectionHint returns a short, actionable explanation when
-// command uses a restricted shell construct - command substitution, a
-// compound/piped command, an env-var leak (printing/publishing $VAR), or a
-// file-write redirection - so the model gets precise feedback instead of a bare
-// "not whitelisted". It returns "" when no special explanation applies; callers
-// should surface it only alongside an actual rejection.
-func BashWhitelistRejectionHint(command string) string {
+// BashCommandRejectionHint returns a short, actionable explanation when command
+// is rejected by the clean-command guard (substitution, a compound/piped command,
+// an env-var leak, a file-write redirect, or a dangerous find action), so the
+// model gets precise feedback it can act on rather than a bare "not allowed". It
+// returns "" when the command is simply not in the allow-list with no structural
+// reason - the bare message ("command not allowed: <cmd>") already tells the
+// model to try a different command. Callers surface it only alongside an actual
+// rejection.
+func BashCommandRejectionHint(command string) string {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return ""
@@ -99,7 +105,7 @@ func BashWhitelistRejectionHint(command string) string {
 
 	segments, ok := splitBashSegments(command)
 	if !ok {
-		return ""
+		return "the command has unbalanced quotes; fix the quoting and try again"
 	}
 	if len(segments) != 1 {
 		return "only a single command is auto-approved; pipes and operators (|, &&, ||, ;, &) " +
@@ -113,18 +119,93 @@ func BashWhitelistRejectionHint(command string) string {
 			"quotes for a literal '$' (echo '$HOME') or omit the variable"
 	}
 	if containsFileRedirect(seg) {
-		return "output redirection to a file ('>' or '>>') is restricted by default " +
-			"(benign forms like '2>&1' or '>/dev/null' are allowed); to permit this exact " +
-			"command, add an anchored regex (^...$) to tools.bash.whitelist.commands"
+		return "output redirection to a file ('>' or '>>') is not auto-approved " +
+			"(benign forms like '2>&1' or '>/dev/null' are allowed)"
 	}
+	if isDangerousFind(seg) {
+		return "find actions that execute or mutate (-exec, -delete, ...) are not auto-approved; " +
+			"use find for read-only discovery only"
+	}
+
 	return ""
 }
 
+// cleanSingleCommand validates that command is a single, side-effect-free shell
+// command suitable for whole-command allow-matching, returning the normalized
+// segment (benign trailing redirections stripped). ok is false - the command is
+// not auto-approvable regardless of the allow-list - when it uses command
+// substitution, chains/pipes more than one command, has unbalanced quoting,
+// writes to a file, runs a dangerous find action, or prints/publishes an
+// expanded environment variable.
+func cleanSingleCommand(command string) (seg string, ok bool) {
+	if containsCommandSubstitution(command) {
+		return "", false
+	}
+
+	segments, balanced := splitBashSegments(command)
+	if !balanced || len(segments) != 1 {
+		return "", false
+	}
+
+	seg = stripBenignTrailingRedirections(strings.TrimSpace(segments[0]))
+	if seg == "" {
+		return "", false
+	}
+
+	if outputCommandRe.MatchString(seg) && containsVariableExpansion(seg) {
+		return "", false
+	}
+	if containsFileRedirect(seg) {
+		return "", false
+	}
+	if isDangerousFind(seg) {
+		return "", false
+	}
+
+	return seg, true
+}
+
+// hasAllowAll reports whether the allow-list contains the "allow any command"
+// sentinel, which makes the mode unrestricted (and skips the clean-command
+// guard). ".*", "^.*$", ".+", and a few trivially-equivalent forms qualify.
+func hasAllowAll(allow []string) bool {
+	for _, entry := range allow {
+		switch strings.TrimSpace(entry) {
+		case ".*", "^.*$", "^.*", ".*$", ".+", "^.+$", "^.+", ".+$":
+			return true
+		}
+	}
+	return false
+}
+
+// matchesAnyAllow reports whether seg matches any allow entry as a WHOLE command.
+// Each entry is wrapped as \A(?:entry)\z so it must match the entire command - a
+// prefix match is never enough, and any anchors the entry already carries are
+// harmless. Invalid regexes are skipped rather than failing the whole check.
+func matchesAnyAllow(seg string, allow []string) bool {
+	for _, entry := range allow {
+		if entry == "" {
+			continue
+		}
+		matched, err := regexp.MatchString(`\A(?:`+entry+`)\z`, seg)
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
+// isDangerousFind reports whether seg is a find(1) invocation carrying a primary
+// that executes a command or mutates the filesystem (-exec, -delete, ...). A
+// bare "find" is fine for read-only discovery, but these actions turn it into an
+// arbitrary-command / delete vector.
+func isDangerousFind(seg string) bool {
+	return (seg == "find" || strings.HasPrefix(seg, "find ")) &&
+		dangerousFindActionRe.MatchString(seg)
+}
+
 // dangerousFindActionRe matches find(1) primaries that execute a command or
-// mutate the filesystem (-exec, -delete, …). A bare "find" is whitelisted for
-// read-only discovery, but these actions turn it into an arbitrary-command /
-// delete vector, so a find invocation carrying one is not whitelisted (it falls
-// through to approval) - the same stance taken on command substitution.
+// mutate the filesystem (-exec, -delete, ...).
 var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
 )
@@ -134,88 +215,12 @@ var dangerousFindActionRe = regexp.MustCompile(
 // reads back), and the gh issue/pr subcommands publish to GitHub. Variable
 // expansion is allowed in general, but expanding one in such a command (echo
 // $TOKEN, gh issue comment --body $TOKEN) would leak the value, so a match here
-// combined with containsVariableExpansion blocks auto-whitelisting. It is
-// evaluated on the single command segment (after benign redirections are
-// stripped), so it sees the real command name.
+// combined with containsVariableExpansion blocks auto-approval. It is evaluated
+// on the single command segment (after benign redirections are stripped), so it
+// sees the real command name.
 var outputCommandRe = regexp.MustCompile(
 	`^(echo|printf)( |$)|^gh (issue|pr) (create|comment|edit)( |$)`,
 )
-
-// isBashEntryRegex reports whether entry should be treated as a regex (rather
-// than a bare-token exact match). A bare token must match the command exactly
-// (e.g. "gh" allows only "gh", never "gh issue list"). The classifier errs on
-// the side of calling it a regex when the entry contains a space or any standard
-// regex metacharacter (^ $ * + ? ( ) [ ] { } | \). Lone '.' and '-' stay bare
-// so that e.g. "python3.11" and "git-lfs" remain exact matches.
-func isBashEntryRegex(entry string) bool {
-	if strings.Contains(entry, " ") {
-		return true
-	}
-	return strings.ContainsAny(entry, "^$*+?()[]{}|\\")
-}
-
-// isSingleBashCommandAllowed matches one already-split segment (with benign
-// trailing redirections already stripped) against the unified whitelist.
-// Each whitelist entry is classified as a bare token (exact match) or a regex
-// via isBashEntryRegex; regex entries are matched with regexp.MatchString.
-//
-// A segment that still carries a file-write redirection (>, >>) bypasses bare-
-// token matching entirely and is allowed only by a regex that matches the
-// entire command (via matchesEntirePattern), so a whitelisted command cannot
-// smuggle in an arbitrary write target.
-func (c *Config) isSingleBashCommandAllowed(command string) bool {
-	if (command == "find" || strings.HasPrefix(command, "find ")) &&
-		dangerousFindActionRe.MatchString(command) {
-		return false
-	}
-
-	hasFileRedirect := containsFileRedirect(command)
-
-	for _, entry := range c.Tools.Bash.Whitelist.Commands {
-		if isBashEntryRegex(entry) && hasFileRedirect {
-			if matchesEntirePattern(entry, command) {
-				return true
-			}
-			continue
-		}
-
-		if isBashEntryRegex(entry) {
-			matched, err := regexp.MatchString(entry, command)
-			if err == nil && matched {
-				return true
-			}
-		} else if !hasFileRedirect {
-			if command == entry {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// matchesEntirePattern reports whether pattern matches command in its entirety,
-// regardless of whether pattern carries its own anchors. It is used for segments
-// that contain a file-write redirection, where a mere prefix match (e.g. ^git
-// log against "git log > /etc/passwd") must not be enough to unlock the command.
-func matchesEntirePattern(pattern, command string) bool {
-	matched, err := regexp.MatchString(`\A(?:`+pattern+`)\z`, command)
-	return err == nil && matched
-}
-
-// stripBenignTrailingRedirections removes any run of trailing benign
-// redirections (see benignTrailingRedirectRe) from command, e.g. turning
-// "gh api repos/o/r > /dev/null 2>&1" into "gh api repos/o/r".
-func stripBenignTrailingRedirections(command string) string {
-	for {
-		loc := benignTrailingRedirectRe.FindStringIndex(command)
-		if loc == nil {
-			break
-		}
-		command = command[:loc[0]]
-	}
-	return strings.TrimSpace(command)
-}
 
 // containsCommandSubstitution reports whether command contains a shell construct
 // that executes a nested command: $(...), backticks, or process substitution
@@ -396,7 +401,7 @@ func containsFileRedirect(seg string) bool {
 // |, |&, ;, &, and newlines), honoring single quotes, double quotes, and
 // backslash escapes. Redirection operators (>, <, >&, &>) are deliberately NOT
 // split points and remain part of their segment. ok is false when quoting is
-// unbalanced, which the caller treats as not-whitelisted.
+// unbalanced, which the caller treats as not-allowed.
 func splitBashSegments(command string) (segments []string, ok bool) {
 	var cur strings.Builder
 	var inSingle, inDouble bool
@@ -495,4 +500,18 @@ func consumeAmpersand(runes []rune, i int, cur *strings.Builder, flush func()) i
 // duplication like "2>&1" rather than starting a background "&".
 func endsWithRedirectFD(s string) bool {
 	return strings.HasSuffix(strings.TrimRight(s, " \t"), ">")
+}
+
+// stripBenignTrailingRedirections removes any run of trailing benign
+// redirections (see benignTrailingRedirectRe) from command, e.g. turning
+// "gh api repos/o/r > /dev/null 2>&1" into "gh api repos/o/r".
+func stripBenignTrailingRedirections(command string) string {
+	for {
+		loc := benignTrailingRedirectRe.FindStringIndex(command)
+		if loc == nil {
+			break
+		}
+		command = command[:loc[0]]
+	}
+	return strings.TrimSpace(command)
 }

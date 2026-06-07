@@ -627,13 +627,26 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	return nil
 }
 
-func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecutionResult, error) {
+// executeToolCall runs a single tool. The agent mode is derived from
+// requireApproval (standard with IPC approval, auto otherwise) and carried on the
+// context so the Bash tool resolves the right per-mode allow-list. approved is
+// set only after an explicit IPC approval, marking the context so an off-list but
+// user-approved command is allowed to run.
+func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithSessionID(context.Background(), s.sessionID)
+	mode := domain.AgentModeAutoAccept
+	if s.requireApproval {
+		mode = domain.AgentModeStandard
+	}
+	ctx := domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), mode)
+	if approved {
+		ctx = domain.WithToolApproved(ctx)
+	}
+
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{
 		Name:      toolName,
 		Arguments: args,
@@ -660,7 +673,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
 			if err != nil {
 				logger.Error("Tool execution failed", "tool", tc.Function.Name, "error", err)
 				errorResult := &domain.ToolExecutionResult{
@@ -753,7 +766,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
 
-				result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+				result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
 				if err != nil {
 					results[idx] = ConversationMessage{
 						Role:       "tool",
@@ -809,7 +822,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 			continue
 		}
 
-		result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+		result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, true)
 		if err != nil {
 			results[ic.index] = ConversationMessage{
 				Role:       "tool",
@@ -847,7 +860,9 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		if !ok {
 			return true
 		}
-		if s.config.IsBashCommandWhitelisted(command) {
+		// --require-approval runs in standard mode; an off-list command falls
+		// through to IPC approval, an allowed one runs without prompting.
+		if s.config.IsBashCommandAllowed(command, "standard") {
 			return false
 		}
 	}

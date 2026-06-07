@@ -54,7 +54,7 @@ An agentic command-line assistant that writes code, understands project context,
   - [Learn more →](docs/features/conversation-versioning.md)
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
-- **Tool Execution**: LLMs can execute whitelisted commands and tools - [See all tools →](docs/tools-reference.md)
+- **Tool Execution**: LLMs can execute allowed commands and tools - [See all tools →](docs/tools-reference.md)
 - **Tool Approval System**: User approval workflow for sensitive operations with real-time diff visualization
 - **Agent Modes**: Three operational modes for different workflows:
   - **Standard Mode** (default): Normal operation with all configured tools and approval checks
@@ -566,7 +566,7 @@ summary of available tools. For detailed documentation, parameters, and examples
 
 | Tool | Purpose | Approval Required | Documentation |
 | ------ | --------- | ------------------- | --------------- |
-| **Bash** | Execute whitelisted shell commands | Optional | [Details](docs/tools-reference.md#bash-tool) |
+| **Bash** | Execute allowed shell commands | Optional | [Details](docs/tools-reference.md#bash-tool) |
 | **Read** | Read file contents with line ranges | No | [Details](docs/tools-reference.md#read-tool) |
 | **Write** | Write content to files | Yes | [Details](docs/tools-reference.md#write-tool) |
 | **Edit** | Exact string replacements in files | Yes | [Details](docs/tools-reference.md#edit-tool) |
@@ -609,8 +609,8 @@ misinterprets a default or when you want to nudge usage:
 tools:
   Bash:
     description: |-
-      Execute whitelisted bash commands securely. Only pre-approved
-      commands from the whitelist can be executed.
+      Execute allowed bash commands securely. Only pre-approved
+      commands from the allowed list can be executed.
   Read:
     description: |-
       Reads a file from the local filesystem. Always prefer reading

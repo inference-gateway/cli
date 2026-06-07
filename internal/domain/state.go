@@ -87,6 +87,20 @@ const (
 	AgentModeAutoAccept
 )
 
+// AllowedlistKey maps the agent mode to the bash allow-list mode key used in
+// config (tools.bash.mode.<key>.allow): AutoAccept -> "auto", Plan -> "plan",
+// Standard (and any unknown) -> "standard".
+func (m AgentMode) AllowedlistKey() string {
+	switch m {
+	case AgentModePlan:
+		return "plan"
+	case AgentModeAutoAccept:
+		return "auto"
+	default:
+		return "standard"
+	}
+}
+
 func (v ViewState) String() string {
 	switch v {
 	case ViewStateModelSelection:

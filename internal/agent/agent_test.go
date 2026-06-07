@@ -561,13 +561,13 @@ func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
 
 func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 	tests := []struct {
-		name                     string
-		toolCall                 *sdk.ChatCompletionMessageToolCall
-		isChatMode               bool
-		agentMode                domain.AgentMode
-		isApprovalRequired       bool
-		isBashCommandWhitelisted bool
-		expectedResult           bool
+		name                 string
+		toolCall             *sdk.ChatCompletionMessageToolCall
+		isChatMode           bool
+		agentMode            domain.AgentMode
+		isApprovalRequired   bool
+		isBashCommandAllowed bool
+		expectedResult       bool
 	}{
 		{
 			name: "auto_accept_mode_never_requires_approval",
@@ -596,30 +596,30 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			expectedResult:     false,
 		},
 		{
-			name: "bash_whitelisted_command_no_approval",
+			name: "bash_allowed_command_no_approval",
 			toolCall: &sdk.ChatCompletionMessageToolCall{
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Bash",
 					Arguments: `{"command": "ls -la"}`,
 				},
 			},
-			isChatMode:               true,
-			agentMode:                domain.AgentModeStandard,
-			isBashCommandWhitelisted: true,
-			expectedResult:           false,
+			isChatMode:           true,
+			agentMode:            domain.AgentModeStandard,
+			isBashCommandAllowed: true,
+			expectedResult:       false,
 		},
 		{
-			name: "bash_non_whitelisted_command_requires_approval",
+			name: "bash_disallowed_command_requires_approval",
 			toolCall: &sdk.ChatCompletionMessageToolCall{
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Bash",
 					Arguments: `{"command": "rm -rf /"}`,
 				},
 			},
-			isChatMode:               true,
-			agentMode:                domain.AgentModeStandard,
-			isBashCommandWhitelisted: false,
-			expectedResult:           true,
+			isChatMode:           true,
+			agentMode:            domain.AgentModeStandard,
+			isBashCommandAllowed: false,
+			expectedResult:       true,
 		},
 		{
 			name: "bash_invalid_json_requires_approval",
@@ -681,13 +681,13 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 						RequireApproval: tt.isApprovalRequired,
 					},
 					Bash: config.BashToolConfig{
-						Whitelist: config.ToolWhitelistConfig{
-							Commands: func() []string {
-								if tt.isBashCommandWhitelisted {
-									return []string{"^ls( |$)"}
+						Mode: config.BashModesConfig{
+							All: config.BashModeAllowConfig{Allow: func() []string {
+								if tt.isBashCommandAllowed {
+									return []string{"ls( .*)?"}
 								}
 								return []string{}
-							}(),
+							}()},
 						},
 					},
 				},

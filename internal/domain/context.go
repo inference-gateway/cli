@@ -5,7 +5,7 @@ type ContextKey string
 
 // ToolApprovedKey is the context key for user-approved tool executions
 // When this key is set to true in the context, it indicates that the tool
-// execution was explicitly approved by the user and should bypass whitelist validation
+// execution was explicitly approved by the user and should bypass allowed list validation
 const ToolApprovedKey ContextKey = "tool_approved"
 
 // BashOutputCallbackKey is the context key for bash output streaming callback
@@ -34,3 +34,9 @@ const SessionIDKey ContextKey = "session_id"
 // was invoked directly by the user (e.g., via !! command) rather than by the LLM
 // This allows tools to adjust behavior (e.g., skip coordinate scaling for mouse operations)
 const DirectExecutionKey ContextKey = "direct_execution"
+
+// AgentModeKey is the context key for the agent mode in effect for a tool
+// execution. The Bash tool reads it to resolve which per-mode allow-list
+// (tools.bash.mode.<key>.allow) governs the command. When unset, callers treat
+// it as standard mode.
+const AgentModeKey ContextKey = "agent_mode"

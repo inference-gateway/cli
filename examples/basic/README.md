@@ -49,20 +49,47 @@ tools:
   enabled: true
   bash:
     enabled: true
-    whitelist:
-      commands:
-        - ls
-        - pwd
-        - echo
-        - grep
-        - wc
-        - sort
-        - uniq
-      patterns:
-        - ^git status$
-        - ^git log --oneline -n [0-9]+$
-        - ^docker ps$
-        - ^kubectl get pods$
+    timeout: 120
+    mode:
+      all:
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - task( .*)?
+          - make( .*)?
+          - find( .*)?
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*
+      plan:
+        allow: []
+      standard:
+        allow:
+          - gh issue (create|edit|comment)( .*)?
+          - gh pr create( .*)?
+          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+      auto:
+        allow:
+          - .*
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
   read:
     enabled: true
     require_approval: false

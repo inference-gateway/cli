@@ -21,7 +21,7 @@ import (
 var toolsCmd = &cobra.Command{
 	Use:   "tools",
 	Short: "Run and inspect agent tools directly",
-	Long: `Run agent tools directly or check whether a bash command is whitelisted.
+	Long: `Run agent tools directly or check whether a bash command is allowed.
 
 These use the exact same execution and validation path as the agent, which makes
 them useful for debugging tool behavior and configuration.`,
@@ -59,7 +59,7 @@ Examples:
 
 var toolsValidateCmd = &cobra.Command{
 	Use:   "validate <command>",
-	Short: "Validate if a bash command is whitelisted",
+	Short: "Validate if a bash command is allowed",
 	Long:  `Check whether a specific bash command would be allowed to execute, without actually running it.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,7 +76,7 @@ func init() {
 	rootCmd.AddCommand(toolsCmd)
 }
 
-// ValidateTool validates if a command is whitelisted for execution
+// ValidateTool validates if a command is allowed for execution
 func ValidateTool(cfg *config.Config, command string) error {
 	if !cfg.Tools.Enabled {
 		fmt.Printf("%s\n", formatting.FormatErrorCLI("Tools are disabled"))
@@ -96,7 +96,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 		return nil
 	}
 
-	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is whitelisted: %s", command)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is allowed: %s", command)))
 	return nil
 }
 

@@ -368,7 +368,7 @@ Briefly inspect the project (build system, config files, existing docs) to groun
 func defaultPromptsToolsConfig() PromptsToolsConfig { //nolint:funlen
 	return PromptsToolsConfig{
 		Bash: PromptsToolDescription{
-			Description: `Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed. Each segment of a pipe or &&/||/; chain must itself be whitelisted, and file-write redirections (>, >>) and command substitution ($(...), backticks) are blocked unless an anchored whitelist pattern (^...$) explicitly allows them; benign redirects like 2>&1 or >/dev/null are fine.`,
+			Description: `Execute allowed bash commands securely. Only pre-approved commands from the allowed list can be executed. Each segment of a pipe or &&/||/; chain must itself be allowed, and file-write redirections (>, >>) and command substitution ($(...), backticks) are blocked unless an anchored whitelist pattern (^...$) explicitly allows them; benign redirects like 2>&1 or >/dev/null are fine.`,
 		},
 		BashOutput: PromptsToolDescription{
 			Description: `Retrieves output from a running or completed background bash shell. Returns only new output since the last read. Use this to monitor long-running commands that were moved to the background.`,

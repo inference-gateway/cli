@@ -77,8 +77,8 @@ func TestBashTool_Validate(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"^echo( |$)", "^pwd( |$)", "^git status$"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "pwd( .*)?", "git status( .*)?"}},
 				},
 			},
 		},
@@ -92,7 +92,7 @@ func TestBashTool_Validate(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name: "valid whitelisted command",
+			name: "valid allowed command",
 			args: map[string]any{
 				"command": "echo hello",
 			},
@@ -106,14 +106,14 @@ func TestBashTool_Validate(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "invalid command not whitelisted",
+			name: "invalid command not allowed",
 			args: map[string]any{
 				"command": "rm -rf /",
 			},
 			wantError: true,
 		},
 		{
-			name: "file redirect on whitelisted command is rejected",
+			name: "file redirect on allowed command is rejected",
 			args: map[string]any{
 				"command": "echo hello > /tmp/evil",
 			},
@@ -149,8 +149,8 @@ func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"^echo( |$)"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?"}},
 				},
 			},
 		},
@@ -164,9 +164,6 @@ func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 	if !strings.Contains(err.Error(), "redirection") {
 		t.Errorf("expected redirection guidance in error, got %q", err.Error())
 	}
-	if !strings.Contains(err.Error(), "tools.bash.whitelist.commands") {
-		t.Errorf("expected the error to point at the whitelist commands, got %q", err.Error())
-	}
 }
 
 func TestBashTool_Execute(t *testing.T) {
@@ -175,8 +172,8 @@ func TestBashTool_Execute(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"^echo( |$)"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?"}},
 				},
 			},
 		},
@@ -209,13 +206,13 @@ func TestBashTool_GitPushValidation(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{
 						"^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$",
 						"^git push( --set-upstream)?( origin)? develop$",
 						"^git push( --set-upstream)?( origin)? staging$",
 						"^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$",
-					},
+					}},
 				},
 			},
 		},
@@ -311,8 +308,8 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"^echo( |$)", "^printf( |$)"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "printf( .*)?"}},
 				},
 			},
 		},
@@ -388,7 +385,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 }
 
 // TestBashTool_Validate_RedirectionAndCompound confirms the tool delegates to
-// config.IsBashCommandWhitelisted: a benign redirection validates, while command
+// config.IsBashCommandAllowed: a benign redirection validates, while command
 // substitution and any compound or piped command are rejected by the
 // single-command policy - even when each segment would be allowed on its own.
 func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
@@ -397,8 +394,8 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"^echo( |$)", `^gh api [^ -][^ ]*( --jq [^ ]+)*$`},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"^echo( |$)", `^gh api [^ -][^ ]*( --jq [^ ]+)*$`}},
 				},
 			},
 		},

@@ -160,7 +160,7 @@ type ToolsConfig struct {
 type BashToolConfig struct {
 	Enabled          bool                   `yaml:"enabled" mapstructure:"enabled"`
 	Timeout          int                    `yaml:"timeout" mapstructure:"timeout"`
-	Whitelist        ToolWhitelistConfig    `yaml:"whitelist" mapstructure:"whitelist"`
+	Mode             BashModesConfig        `yaml:"mode" mapstructure:"mode"`
 	RequireApproval  *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	BackgroundShells BackgroundShellsConfig `yaml:"background_shells" mapstructure:"background_shells"`
 }
@@ -266,15 +266,27 @@ type QueryTaskToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// ToolWhitelistConfig contains the whitelisted bash commands. Each entry is
-// classified at match time by config.isBashEntryRegex: a bare token (no space,
-// no regex metacharacter ^$*+?()[]{}|\.) is an exact match; anything else is a
-// Go regex (anchored-or-not is the caller's responsibility). The single list
-// replaces the historical commands/patterns split, which could be silently
-// clobbered cross-repo and which let a bare "ls" be re-interpreted as a regex
-// (matching false / lsof).
-type ToolWhitelistConfig struct {
-	Commands []string `yaml:"commands" mapstructure:"commands"`
+// BashModeAllowConfig is the per-mode bash allow-list. Each entry is a Go regex
+// matched against the WHOLE command (anchored as \A(?:entry)\z), so a bare token
+// like "gh" matches only "gh" and never "gh issue list" - write "gh issue.*" to
+// allow arguments. The single sentinel ".*" (or "^.*$"/".+") means "allow any
+// single command" and additionally skips the clean-command guard, i.e. full
+// autonomy (used by mode.auto so headless `infer agent` can act unattended).
+type BashModeAllowConfig struct {
+	Allow []string `yaml:"allow" mapstructure:"allow"`
+}
+
+// BashModesConfig holds the bash allow-list for each agent mode. The effective
+// allow-list for a mode is mode.all.allow unioned with that mode's own list, so
+// "all" is the baseline shared by every mode (standard, plan, auto). A command
+// not matched by the effective list is default-denied: it falls through to
+// approval in chat mode, or is rejected with an actionable reason in headless
+// agent mode. There is no separate deny list - anything not allowed is denied.
+type BashModesConfig struct {
+	All      BashModeAllowConfig `yaml:"all" mapstructure:"all"`
+	Plan     BashModeAllowConfig `yaml:"plan" mapstructure:"plan"`
+	Standard BashModeAllowConfig `yaml:"standard" mapstructure:"standard"`
+	Auto     BashModeAllowConfig `yaml:"auto" mapstructure:"auto"`
 }
 
 // SandboxConfig contains sandbox directory settings
@@ -633,30 +645,38 @@ func DefaultConfig() *Config { //nolint:funlen
 			Bash: BashToolConfig{
 				Enabled: true,
 				Timeout: 120,
-				Whitelist: ToolWhitelistConfig{
-					Commands: []string{
-						// Regexes allow subcommands and args while keeping a bare token
-						// as an exact-only match (echo matches "echo" and "echo hi",
-						// but a bare "ls" never accidentally matches "false"/"lsof").
-						"^echo( |$)", "^ls( |$)", "^pwd( |$)", "^tree( |$)",
-						"^wc( |$)", "^sort( |$)", "^uniq( |$)", "^head( |$)", "^tail( |$)",
-						"^task( |$)", "^make( |$)", "^find( |$)",
-						// git helpers — regexes allow subcommands and args
-						"^git status( |$)",
-						"^git branch( --show-current)?( -[alrvd])?$",
-						"^git log",
-						"^git diff",
-						"^git remote( -v)?$",
-						"^git show",
-						// gh helpers — regexes allow subcommands and args
-						`^gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( |$)`,
-						"^gh auth status( |$)",
-						"^gh issue (create|edit|comment)( |$)",
-						"^gh pr create( |$)",
-						"^gh search (issues|code|prs|repos|commits)( |$)",
-						`^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$`,
-						"^gh project (item-add|item-edit|item-list|field-list|view|list)( |$)",
-					},
+				Mode: BashModesConfig{
+					// Baseline for EVERY mode: read-only / non-mutating commands.
+					// Each entry is matched against the whole command, so " .*" lets
+					// a command carry arguments. The clean-command guard still blocks
+					// substitution, pipes/chains, redirects, dangerous find actions,
+					// and printing an expanded $VAR (secret leak).
+					All: BashModeAllowConfig{Allow: []string{
+						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
+						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
+						`task( .*)?`, `make( .*)?`, `find( .*)?`,
+						`git status( .*)?`,
+						`git branch( --show-current)?( -[alrvd])?`,
+						`git log( .*)?`, `git diff( .*)?`, `git remote( -v)?`, `git show( .*)?`,
+						`gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?`,
+						`gh auth status( .*)?`,
+						`gh search (issues|code|prs|repos|commits)( .*)?`,
+						`gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*`,
+					}},
+					// Plan mode is read-only; it adds nothing beyond the baseline
+					// (and the Bash tool is filtered out of plan mode entirely).
+					Plan: BashModeAllowConfig{Allow: []string{}},
+					// Standard mode is the interactive default: baseline + GitHub
+					// writes. These publish, so the leak guard still applies.
+					Standard: BashModeAllowConfig{Allow: []string{
+						`gh issue (create|edit|comment)( .*)?`,
+						`gh pr create( .*)?`,
+						`gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?`,
+					}},
+					// Auto mode is full autonomy: ".*" allows any single command and
+					// skips the clean-command guard. This is what headless `infer
+					// agent` runs under; tighten it to a curated list for CI secrets.
+					Auto: BashModeAllowConfig{Allow: []string{`.*`}},
 				},
 				BackgroundShells: BackgroundShellsConfig{
 					Enabled:           true,
@@ -1046,9 +1066,10 @@ func ResolveConfigDir() string {
 	return ConfigDirName
 }
 
-// IsBashCommandWhitelisted lives in bash_whitelist.go, alongside the shell-aware
-// matching helpers (redirection stripping, compound-command splitting, and
-// command-substitution rejection) it relies on.
+// IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
+// bash_whitelist.go, alongside the shell-aware clean-command guard (redirection
+// stripping, compound-command splitting, command-substitution rejection) it
+// relies on.
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
@@ -1058,7 +1079,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	// The skills carve-out is gated on agent.skills.enabled: when skills are off
-	// (the default) the directory is not whitelisted and falls through to the
+	// (the default) the directory is not allowed and falls through to the
 	// .infer/ protected-path check below. The tmp/plans carve-out stays unconditional.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans")

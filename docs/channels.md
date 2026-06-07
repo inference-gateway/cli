@@ -256,7 +256,7 @@ This reuses the existing `tools.*.require_approval` configuration:
 
 | Tool      | Default                                           |
 |-----------|---------------------------------------------------|
-| Bash      | Requires approval (unless command is whitelisted) |
+| Bash      | Requires approval (unless command is allowed).    |
 | Write     | Requires approval                                 |
 | Edit      | Requires approval                                 |
 | Delete    | Requires approval                                 |
@@ -271,8 +271,9 @@ You can customize per-tool behavior in `.infer/config.yaml`:
 tools:
   bash:
     require_approval: true
-    whitelist:
-      commands: ["ls", "pwd", "git status"]
+    mode:
+      all:
+        allow: ["ls( .*)?", "pwd( .*)?", "git status( .*)?"]
   write:
     require_approval: true
   read:

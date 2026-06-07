@@ -221,6 +221,47 @@ tools:
   enabled: true
   bash:
     enabled: true
+    timeout: 120
+    mode:
+      all:
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - task( .*)?
+          - make( .*)?
+          - find( .*)?
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*
+      plan:
+        allow: []
+      standard:
+        allow:
+          - gh issue (create|edit|comment)( .*)?
+          - gh pr create( .*)?
+          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+      auto:
+        allow:
+          - .*
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
   web_fetch:
     enabled: false
     whitelisted_domains: []
@@ -240,11 +281,6 @@ tools:
       - "google"
       - "duckduckgo"
     timeout: 20
-  whitelist:
-    commands:
-      - "ls"
-      - "pwd"
-    patterns: []
   safety:
     require_approval: false
 
@@ -743,7 +779,7 @@ func writeViperConfigForTest(v *viper.Viper, indent int) error {
 	return nil
 }
 
-func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
+func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
 	allowed := []string{
@@ -759,8 +795,8 @@ func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
 		"gh api repos/o/r/issues --jq .[].title",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected %q to be whitelisted", cmd)
+		if !cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q to be allowed", cmd)
 		}
 	}
 
@@ -776,8 +812,8 @@ func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		if cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q NOT to be allowed", cmd)
 		}
 	}
 }
