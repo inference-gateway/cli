@@ -85,8 +85,8 @@ func TestA2AAgentsEnvironmentVariable(t *testing.T) {
 // CI (and infer-action) can add a few commands to the allow-list baseline without
 // rewriting tools.bash.mode.all.allow or shipping ".*".
 const (
-	bashAllowAppendEnv  = "INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND"
-	bashAllowAppendFlag = "tools-bash-mode-all-allow-append"
+	bashAllowAppendEnv  = "INFER_TOOLS_BASH_ALLOW_APPEND"
+	bashAllowAppendFlag = "tools-bash-allow-append"
 )
 
 // setBashAllowAppendFlag sets the persistent append flag and resets it after the

@@ -612,9 +612,9 @@ The one exception to YAML-only configuration is an **append override** for the
 `mode.all` baseline, so CI (and `infer-action`) can add a few commands without
 rewriting config or relaxing a mode to `.*`:
 
-- `INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND`: comma/newline-separated commands
+- `INFER_TOOLS_BASH_ALLOW_APPEND`: comma/newline-separated commands
   appended to `tools.bash.mode.all.allow` (and therefore allowed in every mode).
-  Equivalent flag: `--tools-bash-mode-all-allow-append`; the env var wins when
+  Equivalent flag: `--tools-bash-allow-append`; the env var wins when
   both are set. **Append only** - it merges onto the curated defaults rather than
   replacing them, and there is no replace override.
 

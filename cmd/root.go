@@ -45,9 +45,9 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().String("tools-bash-mode-all-allow-append", "",
-		"comma/newline-separated commands appended to the bash allow-list baseline "+
-			"(tools.bash.mode.all.allow); INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND takes precedence")
+	rootCmd.PersistentFlags().String("tools-bash-allow-append", "",
+		"comma/newline-separated commands added to the bash allow-list in every mode "+
+			"(standard, plan, auto); INFER_TOOLS_BASH_ALLOW_APPEND takes precedence")
 
 	cobra.OnInitialize(initConfig)
 }
@@ -94,7 +94,7 @@ func applyBashAllowAppends(v *viper.Viper) {
 	}{
 		{
 			"tools.bash.mode.all.allow",
-			"tools-bash-mode-all-allow-append", "INFER_TOOLS_BASH_MODE_ALL_ALLOW_APPEND",
+			"tools-bash-allow-append", "INFER_TOOLS_BASH_ALLOW_APPEND",
 		},
 	}
 
