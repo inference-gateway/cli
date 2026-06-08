@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -42,16 +43,16 @@ const (
 // the unstaged (working-tree) group. A path with both staged and unstaged edits
 // (porcelain "MM") yields one FileChange in each group, like VS Code.
 type FileChange struct {
-	Path     string // working-tree path (the new path for renames)
-	OrigPath string // rename/copy source path, else ""
+	Path     string
+	OrigPath string
 	Status   Status
-	Staged   bool // true → index/staged group, false → working-tree group
+	Staged   bool
 }
 
 // Hunk is one "@@ ... @@" section of a unified diff for a file.
 type Hunk struct {
-	Header string   // the "@@ -a,b +c,d @@" line (plus any trailing section heading)
-	Lines  []string // body lines, each prefixed with ' ', '+', '-' or '\'
+	Header string
+	Lines  []string
 }
 
 // FilePatch is a single file's unified diff, split into its preamble (the
@@ -75,6 +76,12 @@ type Source interface {
 	Stage(path string) error
 	// Unstage removes the path from the index.
 	Unstage(path string) error
+	// StageAll stages every working-tree change (`git add -A`): modifications,
+	// additions, deletions, and untracked files.
+	StageAll() error
+	// UnstageAll removes all paths from the index (`git reset -q HEAD`), leaving
+	// the working tree untouched.
+	UnstageAll() error
 	// Discard reverts a working-tree change: it restores a tracked file from the
 	// index (HEAD when nothing is staged) and deletes an untracked file. This is
 	// destructive - the discarded working-tree changes cannot be recovered.
@@ -88,6 +95,12 @@ type Source interface {
 	// ApplyHunk applies a single hunk to the index. reverse=false stages a
 	// worktree hunk; reverse=true unstages a staged hunk.
 	ApplyHunk(fp FilePatch, hunkIndex int, reverse bool) error
+	// ApplyLines applies only the selected change-lines of one hunk to the index.
+	// selected holds 0-based indices into the hunk's Lines slice ('+'/'-' lines
+	// only; others are ignored). reverse=false stages the selected worktree lines,
+	// reverse=true unstages the selected staged lines. Unselected changes are
+	// neutralized so they keep their prior staged/unstaged state.
+	ApplyLines(fp FilePatch, hunkIndex int, selected map[int]bool, reverse bool) error
 	// Workdir returns the repository working directory that change paths are
 	// relative to, for resolving an absolute path (e.g. to open in an editor).
 	Workdir() string
@@ -196,8 +209,17 @@ func (g *gitSource) Unstage(path string) error {
 	if _, err := g.run("restore", "--staged", "--", path); err == nil {
 		return nil
 	}
-	// Fallback for git < 2.23 which lacks `git restore`.
 	_, err := g.run("reset", "-q", "HEAD", "--", path)
+	return err
+}
+
+func (g *gitSource) StageAll() error {
+	_, err := g.run("add", "-A")
+	return err
+}
+
+func (g *gitSource) UnstageAll() error {
+	_, err := g.run("reset", "-q", "HEAD")
 	return err
 }
 
@@ -208,7 +230,6 @@ func (g *gitSource) Discard(fc FileChange) error {
 	if _, err := g.run("restore", "--", fc.Path); err == nil {
 		return nil
 	}
-	// Fallback for git < 2.23 which lacks `git restore`.
 	_, err := g.run("checkout", "--", fc.Path)
 	return err
 }
@@ -233,13 +254,33 @@ func (g *gitSource) ApplyHunk(fp FilePatch, hunkIndex int, reverse bool) error {
 	if hunkIndex < 0 || hunkIndex >= len(fp.Hunks) {
 		return fmt.Errorf("hunk index %d out of range (%d hunks)", hunkIndex, len(fp.Hunks))
 	}
-	// --recount lets git infer line counts from the patch body, so a single
-	// hunk applies cleanly even when sibling hunks are omitted.
 	args := []string{"apply", "--cached", "--recount"}
 	if reverse {
 		args = append(args, "--reverse")
 	}
 	return g.runStdin(buildSingleHunkPatch(fp, hunkIndex), args...)
+}
+
+func (g *gitSource) ApplyLines(fp FilePatch, hunkIndex int, selected map[int]bool, reverse bool) error {
+	if hunkIndex < 0 || hunkIndex >= len(fp.Hunks) {
+		return fmt.Errorf("hunk index %d out of range (%d hunks)", hunkIndex, len(fp.Hunks))
+	}
+	h := fp.Hunks[hunkIndex]
+	any := false
+	for i, l := range h.Lines {
+		if selected[i] && (firstByte(l) == '+' || firstByte(l) == '-') {
+			any = true
+			break
+		}
+	}
+	if !any {
+		return fmt.Errorf("no change lines selected")
+	}
+	args := []string{"apply", "--cached", "--recount"}
+	if reverse {
+		args = append(args, "--reverse")
+	}
+	return g.runStdin(buildLineSelectionPatch(fp, hunkIndex, selected, reverse), args...)
 }
 
 // parsePatch splits a `git diff` output into its preamble and hunks.
@@ -287,6 +328,189 @@ func buildSingleHunkPatch(fp FilePatch, idx int) string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+// firstByte returns the diff prefix of a patch line (' ' for an empty line).
+func firstByte(s string) byte {
+	if s == "" {
+		return ' '
+	}
+	return s[0]
+}
+
+// buildLineSelectionPatch assembles a single-hunk patch that contains only the
+// selected change-lines. Unselected changes are neutralized so they keep their
+// current state: when staging ('+'/'-' against the index), an unselected '+' is
+// dropped and an unselected '-' becomes context; when unstaging (reverse), the
+// roles flip. Combined with `git apply --recount`, the result applies cleanly.
+func buildLineSelectionPatch(fp FilePatch, idx int, selected map[int]bool, reverse bool) string {
+	h := fp.Hunks[idx]
+	var b strings.Builder
+	b.WriteString(fp.Preamble)
+	b.WriteByte('\n')
+	b.WriteString(h.Header)
+	b.WriteByte('\n')
+	for i, l := range h.Lines {
+		switch firstByte(l) {
+		case '+':
+			switch {
+			case selected[i]:
+				b.WriteString(l)
+			case reverse:
+				b.WriteByte(' ')
+				b.WriteString(l[1:])
+			default:
+				continue
+			}
+		case '-':
+			switch {
+			case selected[i]:
+				b.WriteString(l)
+			case !reverse:
+				b.WriteByte(' ')
+				b.WriteString(l[1:])
+			default:
+				continue
+			}
+		default:
+			b.WriteString(l)
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// SplitFilePatchHunk returns a copy of fp with hunk idx replaced by the smallest
+// independent hunks it can be broken into (see splitHunk). An out-of-range idx
+// returns fp unchanged.
+func SplitFilePatchHunk(fp FilePatch, idx int) FilePatch {
+	if idx < 0 || idx >= len(fp.Hunks) {
+		return fp
+	}
+	pieces := splitHunk(fp.Hunks[idx])
+	if len(pieces) <= 1 {
+		return fp
+	}
+	out := FilePatch{Preamble: fp.Preamble}
+	out.Hunks = append(out.Hunks, fp.Hunks[:idx]...)
+	out.Hunks = append(out.Hunks, pieces...)
+	out.Hunks = append(out.Hunks, fp.Hunks[idx+1:]...)
+	return out
+}
+
+// splitHunk breaks one hunk into the smallest independent hunks: one per run of
+// consecutive change ('+'/'-') lines, each carrying the context around it.
+// Context shared between two runs is duplicated into both pieces, which is safe
+// because pieces are applied one at a time. Each piece gets a correct
+// "@@ -a,b +c,d @@" header. A hunk with zero or one change run is returned as-is.
+func splitHunk(h Hunk) []Hunk {
+	oldStart, newStart, section := parseHunkHeader(h.Header)
+
+	oldAt := make([]int, len(h.Lines))
+	newAt := make([]int, len(h.Lines))
+	o, n := oldStart, newStart
+	for i, l := range h.Lines {
+		oldAt[i], newAt[i] = o, n
+		switch firstByte(l) {
+		case '+':
+			n++
+		case '-':
+			o++
+		case '\\':
+		default:
+			o++
+			n++
+		}
+	}
+
+	isChange := func(i int) bool {
+		b := firstByte(h.Lines[i])
+		return b == '+' || b == '-'
+	}
+	var runs [][2]int
+	for i := 0; i < len(h.Lines); {
+		if !isChange(i) {
+			i++
+			continue
+		}
+		j := i
+		for j+1 < len(h.Lines) && (isChange(j+1) || firstByte(h.Lines[j+1]) == '\\') {
+			j++
+		}
+		runs = append(runs, [2]int{i, j})
+		i = j + 1
+	}
+	if len(runs) <= 1 {
+		return []Hunk{h}
+	}
+
+	pieces := make([]Hunk, 0, len(runs))
+	for r := range runs {
+		lo := 0
+		if r > 0 {
+			lo = runs[r-1][1] + 1
+		}
+		hi := len(h.Lines) - 1
+		if r < len(runs)-1 {
+			hi = runs[r+1][0] - 1
+		}
+		sub := append([]string(nil), h.Lines[lo:hi+1]...)
+		oldLen, newLen := 0, 0
+		for _, l := range sub {
+			switch firstByte(l) {
+			case '+':
+				newLen++
+			case '-':
+				oldLen++
+			case '\\':
+			default:
+				oldLen++
+				newLen++
+			}
+		}
+		header := fmt.Sprintf("@@ -%s +%s @@%s",
+			fmtHunkRange(oldAt[lo], oldLen), fmtHunkRange(newAt[lo], newLen), section)
+		pieces = append(pieces, Hunk{Header: header, Lines: sub})
+	}
+	return pieces
+}
+
+// fmtHunkRange renders the "start,len" side of a hunk header, collapsing a
+// length of 1 to just "start" as git does.
+func fmtHunkRange(start, length int) string {
+	if length == 1 {
+		return strconv.Itoa(start)
+	}
+	return strconv.Itoa(start) + "," + strconv.Itoa(length)
+}
+
+// parseHunkHeader extracts the old/new start lines and the trailing section text
+// (everything after the closing "@@", including its leading space) from a
+// "@@ -a,b +c,d @@ section" header. Missing pieces yield zero values.
+func parseHunkHeader(h string) (oldStart, newStart int, section string) {
+	if !strings.HasPrefix(h, "@@ ") {
+		return 0, 0, ""
+	}
+	spec, section, found := strings.Cut(h[len("@@ "):], " @@")
+	if !found {
+		return 0, 0, ""
+	}
+	fields := strings.Fields(spec)
+	if len(fields) < 2 {
+		return 0, 0, ""
+	}
+	return parseStartNum(fields[0]), parseStartNum(fields[1]), section
+}
+
+// parseStartNum reads the start line from a hunk range token like "-12,4" or
+// "+12" (sign stripped, length after the comma ignored).
+func parseStartNum(s string) int {
+	s = strings.TrimLeft(s, "+-")
+	if i := strings.IndexByte(s, ','); i >= 0 {
+		s = s[:i]
+	}
+	n, _ := strconv.Atoi(s)
+	return n
 }
 
 func (g *gitSource) runStdin(stdin string, args ...string) error {

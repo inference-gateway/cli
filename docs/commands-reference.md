@@ -125,7 +125,7 @@ infer config set tools.safety.require_approval true
 
 # List values (comma-separated, replaces the whole list)
 infer config set tools.sandbox.directories ".,/tmp,/data"
-infer config set tools.web_fetch.whitelisted_domains "example.com,github.com"
+infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 
 # Write to userspace (~/.infer/config.yaml) instead of the project
 infer config set agent.model "openai/gpt-4o" --userspace
@@ -134,13 +134,13 @@ infer config set agent.model "openai/gpt-4o" --userspace
 > System prompts and per-tool descriptions live in `prompts.yaml` (e.g.
 > `prompts.agent.system_prompt`), which is edited directly rather than via `config set`.
 
-Tool *configuration* (enable/disable, whitelists, sandbox, backends, domains, approval) is done with
+Tool *configuration* (enable/disable, allowed, sandbox, backends, domains, approval) is done with
 `config get`/`config set` on the `tools.*` keys - see the examples above. To run a tool directly or
-check a command against the whitelist, use the top-level `infer tools` command below.
+check a command against the allowed list, use the top-level `infer tools` command below.
 
 ### `infer tools`
 
-Run agent tools directly or check whether a bash command is whitelisted, using the same execution and
+Run agent tools directly or check whether a bash command is allowed, using the same execution and
 validation path as the agent.
 
 **Subcommands:**
@@ -156,7 +156,7 @@ infer tools execute Bash '{"command":"ls -la"}'
 infer tools execute Read '{"file_path":"README.md"}'
 infer tools execute Tree '{"path":".", "max_depth":2}'
 
-# Validate a bash command against the whitelist
+# Validate a bash command against the allowed list
 infer tools validate "git status"
 ```
 

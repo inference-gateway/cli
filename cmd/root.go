@@ -45,8 +45,64 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().String("tools-bash-allow-append", "",
+		"comma/newline-separated commands added to the bash allow-list in every mode "+
+			"(standard, plan, auto); INFER_TOOLS_BASH_ALLOW_APPEND takes precedence")
 
 	cobra.OnInitialize(initConfig)
+}
+
+// parseDelimitedList splits a comma/newline-separated env value into trimmed,
+// non-empty entries. Used for INFER_A2A_AGENTS and the bash allow-list append
+// override (tools.bash.mode.all.allow), neither of which viper can parse
+// generically into a slice from a single env var.
+func parseDelimitedList(value string) []string {
+	var out []string
+	for _, item := range strings.FieldsFunc(value, func(c rune) bool {
+		return c == ',' || c == '\n'
+	}) {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+// resolveBashAllowOverride returns the override value for a bash allow-list,
+// preferring the env var over the matching persistent flag (per the documented
+// flags < env layering). Empty means neither was provided.
+func resolveBashAllowOverride(flagName, envName string) string {
+	if env := os.Getenv(envName); env != "" {
+		return env
+	}
+	if val, err := rootCmd.PersistentFlags().GetString(flagName); err == nil {
+		return val
+	}
+	return ""
+}
+
+// applyBashAllowAppends merges flag/env-supplied commands onto the bash
+// allow-list already resolved from defaults and config files. The config-file
+// list (tools.bash.mode.all.allow) is the every-mode baseline that bashAllowFor
+// unions into every mode, so appending here makes the extra commands auto-run in
+// standard, auto, and plan alike without touching the matcher. Must run after
+// ReadInConfig so the append sees config-file values; v.Set then wins over later
+// layers. The append never replaces the curated defaults — it only adds.
+func applyBashAllowAppends(v *viper.Viper) {
+	appends := []struct {
+		key, appendFlag, appendEnv string
+	}{
+		{
+			"tools.bash.mode.all.allow",
+			"tools-bash-allow-append", "INFER_TOOLS_BASH_ALLOW_APPEND",
+		},
+	}
+
+	for _, a := range appends {
+		if override := resolveBashAllowOverride(a.appendFlag, a.appendEnv); override != "" {
+			v.Set(a.key, append(v.GetStringSlice(a.key), parseDelimitedList(override)...))
+		}
+	}
 }
 
 func initConfig() {
@@ -65,42 +121,7 @@ func initConfig() {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
-		var agents []string
-		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(agent); trimmed != "" {
-				agents = append(agents, trimmed)
-			}
-		}
-
-		v.Set("a2a.agents", agents)
-	}
-
-	if whitelistCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"); whitelistCommands != "" {
-		var commands []string
-		for _, cmd := range strings.FieldsFunc(whitelistCommands, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(cmd); trimmed != "" {
-				commands = append(commands, trimmed)
-			}
-		}
-
-		v.Set("tools.bash.whitelist.commands", commands)
-	}
-
-	if whitelistPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"); whitelistPatterns != "" {
-		var patterns []string
-		for _, pattern := range strings.FieldsFunc(whitelistPatterns, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(pattern); trimmed != "" {
-				patterns = append(patterns, trimmed)
-			}
-		}
-
-		v.Set("tools.bash.whitelist.patterns", patterns)
+		v.Set("a2a.agents", parseDelimitedList(a2aAgents))
 	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
@@ -113,6 +134,8 @@ func initConfig() {
 			os.Exit(1)
 		}
 	}
+
+	applyBashAllowAppends(v)
 
 	cfg, err := loadConfigFromViper()
 	if err != nil {

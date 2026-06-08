@@ -160,7 +160,7 @@ type ToolsConfig struct {
 type BashToolConfig struct {
 	Enabled          bool                   `yaml:"enabled" mapstructure:"enabled"`
 	Timeout          int                    `yaml:"timeout" mapstructure:"timeout"`
-	Whitelist        ToolWhitelistConfig    `yaml:"whitelist" mapstructure:"whitelist"`
+	Mode             BashModesConfig        `yaml:"mode" mapstructure:"mode"`
 	RequireApproval  *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	BackgroundShells BackgroundShellsConfig `yaml:"background_shells" mapstructure:"background_shells"`
 }
@@ -213,11 +213,11 @@ type TreeToolConfig struct {
 
 // WebFetchToolConfig contains fetch-specific tool settings
 type WebFetchToolConfig struct {
-	Enabled            bool              `yaml:"enabled" mapstructure:"enabled"`
-	WhitelistedDomains []string          `yaml:"whitelisted_domains" mapstructure:"whitelisted_domains"`
-	Safety             FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
-	Cache              FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
-	RequireApproval    *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled         bool              `yaml:"enabled" mapstructure:"enabled"`
+	AllowedDomains  []string          `yaml:"allowed_domains" mapstructure:"allowed_domains"`
+	Safety          FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	Cache           FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
+	RequireApproval *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebSearchToolConfig contains web search-specific tool settings
@@ -266,10 +266,27 @@ type QueryTaskToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// ToolWhitelistConfig contains whitelisted commands and patterns
-type ToolWhitelistConfig struct {
-	Commands []string `yaml:"commands" mapstructure:"commands"`
-	Patterns []string `yaml:"patterns" mapstructure:"patterns"`
+// BashModeAllowConfig is the per-mode bash allow-list. Each entry is a Go regex
+// matched against the WHOLE command (anchored as \A(?:entry)\z), so a bare token
+// like "gh" matches only "gh" and never "gh issue list" - write "gh issue.*" to
+// allow arguments. The single sentinel ".*" (or "^.*$"/".+") means "allow any
+// single command" and additionally skips the clean-command guard, i.e. full
+// autonomy (used by mode.auto so headless `infer agent` can act unattended).
+type BashModeAllowConfig struct {
+	Allow []string `yaml:"allow" mapstructure:"allow"`
+}
+
+// BashModesConfig holds the bash allow-list for each agent mode. The effective
+// allow-list for a mode is mode.all.allow unioned with that mode's own list, so
+// "all" is the baseline shared by every mode (standard, plan, auto). A command
+// not matched by the effective list is default-denied: it falls through to
+// approval in chat mode, or is rejected with an actionable reason in headless
+// agent mode. There is no separate deny list - anything not allowed is denied.
+type BashModesConfig struct {
+	All      BashModeAllowConfig `yaml:"all" mapstructure:"all"`
+	Plan     BashModeAllowConfig `yaml:"plan" mapstructure:"plan"`
+	Standard BashModeAllowConfig `yaml:"standard" mapstructure:"standard"`
+	Auto     BashModeAllowConfig `yaml:"auto" mapstructure:"auto"`
 }
 
 // SandboxConfig contains sandbox directory settings
@@ -278,9 +295,27 @@ type SandboxConfig struct {
 	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
+// Approval-behaviour values for SafetyConfig.ApprovalBehaviour - they select HOW a
+// tool that needs approval is delivered (see SafetyConfig for full semantics).
+const (
+	ApprovalBehaviourPrompt = "prompt"
+	ApprovalBehaviourIPC    = "ipc"
+	ApprovalBehaviourBlock  = "block"
+)
+
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
+	// ApprovalBehaviour selects HOW a tool that needs approval is handled:
+	//   "prompt" (default): ask an interactive approver via whatever channel is
+	//       attached - a TUI prompt in chat, IPC under the channel-manager; if none
+	//       is reachable (CI/heartbeat) the action is blocked with a reason.
+	//   "ipc":   force stdin/stdout IPC approval; blocked if no IPC broker.
+	//   "block": reject immediately with a reason, never ask.
+	// It governs delivery only - whether a tool needs approval at all is decided by
+	// RequireApproval / the per-tool require_approval override / the per-mode bash
+	// allow-list. Resolve via ApprovalBehaviourFor; validated by Config.Validate.
+	ApprovalBehaviour string `yaml:"approval_behaviour" mapstructure:"approval_behaviour"`
 }
 
 // ExportConfig contains settings for export command
@@ -342,8 +377,9 @@ type AgentContextConfig struct {
 
 // AgentSkillsConfig controls Agent Skills loading. Skills follow the
 // SKILL.md / YAML-frontmatter contract shared by the official spec, so existing skill folders drop
-// into .infer/skills/ unchanged. Disabled by default - when off, no
-// scan runs and nothing is injected into the system prompt.
+// into .infer/skills/ unchanged. Enabled by default - disable via
+// agent.skills.enabled=false in config. When off, no scan runs and
+// nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
 	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
@@ -628,27 +664,22 @@ func DefaultConfig() *Config { //nolint:funlen
 			Bash: BashToolConfig{
 				Enabled: true,
 				Timeout: 120,
-				Whitelist: ToolWhitelistConfig{
-					Commands: []string{
-						"echo", "ls", "pwd", "tree",
-						"wc", "sort", "uniq", "head", "tail",
-						"task", "make", "find",
-					},
-					Patterns: []string{
-						"^git status( |$)",
-						"^git branch( --show-current)?( -[alrvd])?$",
-						"^git log",
-						"^git diff",
-						"^git remote( -v)?$",
-						"^git show",
-						`^gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( |$)`,
-						"^gh auth status( |$)",
-						"^gh issue (create|edit|comment)( |$)",
-						"^gh pr create( |$)",
-						"^gh search (issues|code|prs|repos|commits)( |$)",
-						`^gh api [^ -][^ ]*( --paginate| --jq (?:'[^']*'|"[^"]*"|[^ ]+)| -q (?:'[^']*'|"[^"]*"|[^ ]+))*$`,
-						"^gh project (item-add|item-edit|item-list|field-list|view|list)( |$)",
-					},
+				Mode: BashModesConfig{
+					All: BashModeAllowConfig{Allow: []string{
+						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
+						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
+						`task( .*)?`, `make( .*)?`, `find( .*)?`,
+						`git status( .*)?`,
+						`git branch( --show-current)?( -[alrvd])?`,
+						`git log( .*)?`, `git diff( .*)?`, `git remote( -v)?`, `git show( .*)?`,
+						`gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?`,
+						`gh auth status( .*)?`,
+						`gh search (issues|code|prs|repos|commits)( .*)?`,
+						`gh project (list|view|item-list|field-list)( .*)?`,
+					}},
+					Plan:     BashModeAllowConfig{Allow: []string{}},
+					Standard: BashModeAllowConfig{Allow: []string{}},
+					Auto:     BashModeAllowConfig{Allow: []string{`.*`}},
 				},
 				BackgroundShells: BackgroundShellsConfig{
 					Enabled:           true,
@@ -684,8 +715,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{false}[0],
 			},
 			WebFetch: WebFetchToolConfig{
-				Enabled:            true,
-				WhitelistedDomains: []string{"golang.org", "localhost"},
+				Enabled:        true,
+				AllowedDomains: []string{"golang.org", "localhost"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       10485760, // 10MB
 					Timeout:       30,       // 30 seconds
@@ -715,7 +746,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxJobs:         100,
 			},
 			Safety: SafetyConfig{
-				RequireApproval: true,
+				RequireApproval:   true,
+				ApprovalBehaviour: ApprovalBehaviourPrompt,
 			},
 		},
 		Image: ImageConfig{
@@ -741,7 +773,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				GitContextRefreshTurns: 10,
 			},
 			Skills: AgentSkillsConfig{
-				Enabled:        false,
+				Enabled:        true,
 				DisabledSkills: nil,
 			},
 			SystemPromptWithDefaults: true,
@@ -923,6 +955,38 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	return globalApproval
 }
 
+// ApprovalBehaviourFor returns how an approval-requiring action should be
+// delivered for toolName: one of ApprovalBehaviourPrompt (default),
+// ApprovalBehaviourIPC, or ApprovalBehaviourBlock. It reads the global
+// tools.safety.approval_behaviour; toolName is reserved for a future per-tool
+// override. An empty or unrecognised value resolves to the safe default
+// (prompt). This decides HOW to handle an action that needs approval;
+// IsApprovalRequired decides WHETHER it does.
+func (c *Config) ApprovalBehaviourFor(toolName string) string {
+	switch c.Tools.Safety.ApprovalBehaviour {
+	case ApprovalBehaviourBlock, ApprovalBehaviourIPC, ApprovalBehaviourPrompt:
+		return c.Tools.Safety.ApprovalBehaviour
+	default:
+		return ApprovalBehaviourPrompt
+	}
+}
+
+// Validate checks cross-cutting config invariants after load so a typo fails fast
+// instead of silently falling back. It currently validates
+// tools.safety.approval_behaviour; extend it as new validated settings are added.
+func (c *Config) Validate() error {
+	switch c.Tools.Safety.ApprovalBehaviour {
+	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock:
+	default:
+		return fmt.Errorf(
+			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, or %q",
+			c.Tools.Safety.ApprovalBehaviour,
+			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock,
+		)
+	}
+	return nil
+}
+
 // IsA2AToolsEnabled checks if A2A tools should be enabled
 // A2A tools are enabled when a2a.enabled is true, regardless of tools.enabled
 func (c *Config) IsA2AToolsEnabled() bool {
@@ -1038,9 +1102,10 @@ func ResolveConfigDir() string {
 	return ConfigDirName
 }
 
-// IsBashCommandWhitelisted lives in bash_whitelist.go, alongside the shell-aware
-// matching helpers (redirection stripping, compound-command splitting, and
-// command-substitution rejection) it relies on.
+// IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
+// bash_allowedlist.go, alongside the shell-aware clean-command guard (redirection
+// stripping, compound-command splitting, command-substitution rejection) it
+// relies on.
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
@@ -1050,7 +1115,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	// The skills carve-out is gated on agent.skills.enabled: when skills are off
-	// (the default) the directory is not whitelisted and falls through to the
+	// (the default) the directory is not allowed and falls through to the
 	// .infer/ protected-path check below. The tmp/plans carve-out stays unconditional.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans")

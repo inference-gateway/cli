@@ -570,17 +570,6 @@ func (sm *StateManager) ClearApprovalUIState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearApprovalUIState()
-
-	if sm.eventBridge != nil {
-		requestID := ""
-		if chatSession := sm.state.GetChatSession(); chatSession != nil {
-			requestID = chatSession.RequestID
-		}
-		sm.eventBridge.Publish(domain.ToolApprovalClearedEvent{
-			RequestID: requestID,
-			Timestamp: time.Now(),
-		})
-	}
 }
 
 // BroadcastEvent publishes an event to the EventBridge for floating window

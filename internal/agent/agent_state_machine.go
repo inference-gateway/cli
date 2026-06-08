@@ -3,7 +3,6 @@ package agent
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -16,7 +15,7 @@ import (
 //
 // State Flow:
 //
-//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
+//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/BlockingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
 //
 // State Descriptions:
 //   - Idle: Agent is not executing, waiting for work
@@ -25,6 +24,7 @@ import (
 //   - PostStream: Processing LLM response, checking for tool calls or completion
 //   - EvaluatingTools: Determining if tool calls need approval
 //   - ApprovingTools: Waiting for user approval of tool calls (only in chat mode)
+//   - BlockingTools: Approval required but undeliverable (approval_behaviour=block); gated tools are rejected with a reason
 //   - ExecutingTools: Executing approved or auto-approved tool calls
 //   - PostToolExecution: Processing tool results, checking for completion or continuing
 //   - Completing: Finalizing the agent execution
@@ -125,6 +125,12 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 		},
 		nil)
 
+	sm.addTransition(domain.StateEvaluatingTools, domain.StateBlockingTools,
+		func(ctx *domain.AgentContext) bool {
+			return sm.needsApproval(ctx)
+		},
+		nil)
+
 	sm.addTransition(domain.StateEvaluatingTools, domain.StateExecutingTools,
 		func(ctx *domain.AgentContext) bool {
 			return !sm.needsApproval(ctx)
@@ -137,7 +143,11 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 
 	sm.addTransition(domain.StateApprovingTools, domain.StateCancelled, nil, nil)
 
+	sm.addTransition(domain.StateBlockingTools, domain.StatePostToolExecution, nil, nil)
+
 	sm.addTransition(domain.StateExecutingTools, domain.StatePostToolExecution, nil, nil)
+
+	sm.addTransition(domain.StateExecutingTools, domain.StateStopped, nil, nil)
 
 	sm.addTransition(domain.StatePostToolExecution, domain.StateCheckingQueue, nil, nil)
 
@@ -214,22 +224,11 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 		sessionID = ctx.ConversationRepo.GetCurrentConversationID()
 	}
 
-	logger.Debug("state transition",
+	logger.Info("state transition",
 		"from", sm.previousState.String(),
 		"to", sm.currentState.String(),
 		"session_id", sessionID,
 		"request_id", ctx.RequestID)
-
-	if sm.stateManager != nil {
-		sm.stateManager.BroadcastEvent(domain.StateTransitionEvent{
-			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: ctx.RequestID,
-				Timestamp: time.Now(),
-			},
-			FromState: sm.previousState,
-			ToState:   sm.currentState,
-		})
-	}
 
 	return nil
 }

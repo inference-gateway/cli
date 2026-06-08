@@ -4,8 +4,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestResolveEditor(t *testing.T) {
@@ -49,7 +52,7 @@ func TestPTYEditor_SpawnRenderExit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e, readCmd, err := startPTYEditor(path, dir, 40, 10)
+	e, readCmd, err := startPTYEditor(path, dir, 40, 10, true)
 	if err != nil {
 		t.Skipf("PTY unavailable: %v", err)
 	}
@@ -91,5 +94,134 @@ func TestVTTerm_AnswersQueries(t *testing.T) {
 	}
 	if buf[n-1] != 'R' {
 		t.Errorf("expected a cursor-position report ending in 'R', got %q", buf[:n])
+	}
+}
+
+func TestEditorColorArgs(t *testing.T) {
+	dark := []string{"-c", "set background=dark", "-c", "syntax enable"}
+	light := []string{"-c", "set background=light", "-c", "syntax enable"}
+
+	tests := []struct {
+		bin  string
+		dark bool
+		want []string
+	}{
+		{"vim", true, dark},
+		{"nvim", true, dark},
+		{"/usr/bin/vim", true, dark},
+		{"gvim", true, dark},
+		{"vi", true, dark},
+		{"vim", false, light},
+		{"cat", true, nil},
+		{"code", true, nil},
+		{"nano", true, nil},
+		{"view", true, nil}, // read-only vim: not in the family, left untouched
+	}
+	for _, tt := range tests {
+		if got := editorColorArgs(tt.bin, tt.dark); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("editorColorArgs(%q, %v) = %v, want %v", tt.bin, tt.dark, got, tt.want)
+		}
+	}
+}
+
+func TestBuildEditorArgv(t *testing.T) {
+	// vim-family: color flags land between the editor's own args and the file,
+	// which stays last.
+	got := buildEditorArgv([]string{"nvim", "-p"}, "/tmp/f.go", true)
+	want := []string{"nvim", "-p", "-c", "set background=dark", "-c", "syntax enable", "/tmp/f.go"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("vim-family argv = %v, want %v", got, want)
+	}
+
+	// non-vim: no flags injected, file appended directly.
+	got = buildEditorArgv([]string{"nano"}, "/tmp/f.go", true)
+	want = []string{"nano", "/tmp/f.go"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("non-vim argv = %v, want %v", got, want)
+	}
+}
+
+// sgrColorRe matches an SGR foreground-color parameter (basic 30-37, bright 90-97,
+// or 256/truecolor 38;…) bounded by a CSI introducer/separator on each side.
+var sgrColorRe = regexp.MustCompile(`(\x1b\[|;)(3[0-7]|9[0-7]|38)(;|m)`)
+
+// TestPTYEditor_VimEmitsColor is the end-to-end guard: with the forced
+// background/syntax flags, a real vim editing a .go file must emit SGR color that
+// survives the emulator. Best-effort - skips when vim is unavailable (or -short) so
+// it never blocks minimal CI.
+func TestPTYEditor_VimEmitsColor(t *testing.T) {
+	if testing.Short() {
+		t.Skip("spawns vim; skipped in -short")
+	}
+	if _, err := exec.LookPath("vim"); err != nil {
+		t.Skip("vim not available")
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "vim")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.go")
+	src := "package main\n\n// a comment\nfunc main() { _ = \"hi\" }\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	e, readCmd, err := startPTYEditor(path, dir, 80, 24, true)
+	if err != nil {
+		t.Skipf("PTY unavailable: %v", err)
+	}
+	defer e.close()
+
+	// vim draws then idles waiting for input; the re-arming reader would block once
+	// it goes idle. Pump PTY output over a channel from a reader goroutine (which
+	// never touches the emulator), and feed the emulator only here in the main
+	// goroutine until a quiet period - so there is no concurrent emulator access.
+	out := make(chan []byte, 64)
+	done := make(chan struct{})
+	go func() {
+		for readCmd != nil {
+			o, ok := readCmd().(ptyOutputMsg)
+			if !ok {
+				return // ptyExitMsg
+			}
+			select {
+			case out <- o.data:
+				readCmd = e.readCmd()
+			case <-done:
+				return
+			}
+		}
+	}()
+	defer close(done)
+
+	got := false
+	quiet := time.NewTimer(800 * time.Millisecond)
+	defer quiet.Stop()
+	hard := time.After(4 * time.Second)
+loop:
+	for {
+		select {
+		case data := <-out:
+			e.term.write(data)
+			got = true
+			if !quiet.Stop() {
+				<-quiet.C
+			}
+			quiet.Reset(800 * time.Millisecond)
+		case <-quiet.C:
+			if got {
+				break loop // vim finished drawing
+			}
+			quiet.Reset(800 * time.Millisecond)
+		case <-hard:
+			break loop
+		}
+	}
+
+	if !got {
+		t.Skip("no PTY output from vim")
+	}
+	if rendered := e.View(80, 24); !sgrColorRe.MatchString(rendered) {
+		t.Errorf("expected vim to emit SGR color, found none in render:\n%q", rendered)
 	}
 }

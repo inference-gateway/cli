@@ -383,7 +383,7 @@ func (t *FileExplorerImpl) enterEditCmd() tea.Cmd {
 		return nil
 	}
 	abs := filepath.Join(t.root, rel)
-	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1))
+	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
 	if err != nil {
 		t.loadErr = fmt.Errorf("failed to open editor: %w", err)
 		return nil

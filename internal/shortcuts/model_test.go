@@ -3,6 +3,7 @@ package shortcuts
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -49,67 +50,108 @@ func (m *mockModelService) IsVisionModel(modelID string) bool {
 	return false
 }
 
-func TestModelShortcut_GetName(t *testing.T) {
+func TestSwitchShortcut_GetName(t *testing.T) {
 	modelService := &mockModelService{}
-	shortcut := NewModelShortcut(modelService)
+	shortcut := NewSwitchShortcut(modelService)
 
 	if shortcut.GetName() != "model" {
 		t.Errorf("Expected name 'model', got '%s'", shortcut.GetName())
 	}
 }
 
-func TestModelShortcut_GetUsage(t *testing.T) {
+func TestSwitchShortcut_GetUsage(t *testing.T) {
 	modelService := &mockModelService{}
-	shortcut := NewModelShortcut(modelService)
+	shortcut := NewSwitchShortcut(modelService)
 
-	expected := "/model <model-name> <prompt>"
+	expected := "/model [model-name] [prompt]"
 	if shortcut.GetUsage() != expected {
 		t.Errorf("Expected usage '%s', got '%s'", expected, shortcut.GetUsage())
 	}
 }
 
-func TestModelShortcut_CanExecute(t *testing.T) {
+func TestSwitchShortcut_CanExecute(t *testing.T) {
 	modelService := &mockModelService{}
-	shortcut := NewModelShortcut(modelService)
+	shortcut := NewSwitchShortcut(modelService)
 
 	tests := []struct {
-		name     string
-		args     []string
-		expected bool
+		name string
+		args []string
 	}{
-		{
-			name:     "valid args - model and prompt",
-			args:     []string{"claude-opus-4", "hello"},
-			expected: true,
-		},
-		{
-			name:     "valid args - model and multi-word prompt",
-			args:     []string{"claude-opus-4", "hello", "world", "test"},
-			expected: true,
-		},
-		{
-			name:     "invalid args - only model",
-			args:     []string{"claude-opus-4"},
-			expected: false,
-		},
-		{
-			name:     "invalid args - empty",
-			args:     []string{},
-			expected: false,
-		},
+		{name: "no args", args: []string{}},
+		{name: "model only", args: []string{"claude-opus-4"}},
+		{name: "model and prompt", args: []string{"claude-opus-4", "hello"}},
+		{name: "model and multi-word prompt", args: []string{"claude-opus-4", "hello", "world", "test"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := shortcut.CanExecute(tt.args)
-			if result != tt.expected {
-				t.Errorf("CanExecute() = %v, want %v", result, tt.expected)
+			if !result {
+				t.Errorf("CanExecute() = false, want true for args %v", tt.args)
 			}
 		})
 	}
 }
 
-func TestModelShortcut_Execute(t *testing.T) {
+func TestSwitchShortcut_Execute_NoArgs(t *testing.T) {
+	modelService := &mockModelService{
+		currentModel:    "claude-sonnet-4",
+		availableModels: []string{"claude-sonnet-4"},
+	}
+	shortcut := NewSwitchShortcut(modelService)
+
+	ctx := context.Background()
+	result, err := shortcut.Execute(ctx, []string{})
+
+	if err != nil {
+		t.Errorf("Execute() returned error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Execute() success = false, want true")
+	}
+
+	if result.SideEffect != SideEffectSwitchModel {
+		t.Errorf("Execute() side effect = %v, want %v", result.SideEffect, SideEffectSwitchModel)
+	}
+
+	if !strings.Contains(result.Output, "Select a model from the dropdown") {
+		t.Errorf("Execute() output = %q, want it to mention model dropdown", result.Output)
+	}
+}
+
+func TestSwitchShortcut_Execute_PermanentSwitch(t *testing.T) {
+	modelService := &mockModelService{
+		currentModel:    "claude-sonnet-4",
+		availableModels: []string{"claude-sonnet-4", "claude-opus-4"},
+	}
+	shortcut := NewSwitchShortcut(modelService)
+
+	ctx := context.Background()
+	result, err := shortcut.Execute(ctx, []string{"claude-opus-4"})
+
+	if err != nil {
+		t.Errorf("Execute() returned error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Execute() success = false, want true")
+	}
+
+	if result.SideEffect != SideEffectSwitchModel {
+		t.Errorf("Execute() side effect = %v, want %v", result.SideEffect, SideEffectSwitchModel)
+	}
+
+	if !strings.Contains(result.Output, "claude-opus-4") {
+		t.Errorf("Execute() output = %q, want it to mention claude-opus-4", result.Output)
+	}
+
+	if modelService.currentModel != "claude-opus-4" {
+		t.Errorf("currentModel = %q, want %q", modelService.currentModel, "claude-opus-4")
+	}
+}
+
+func TestSwitchShortcut_Execute_WithPrompt(t *testing.T) {
 	tests := []struct {
 		name           string
 		args           []string
@@ -145,14 +187,6 @@ func TestModelShortcut_Execute(t *testing.T) {
 			checkData:      false,
 		},
 		{
-			name:           "missing prompt error",
-			args:           []string{"claude-opus-4"},
-			currentModel:   "claude-sonnet-4",
-			wantSuccess:    false,
-			wantSideEffect: SideEffectNone,
-			checkData:      false,
-		},
-		{
 			name:           "no current model error",
 			args:           []string{"claude-opus-4", "test"},
 			currentModel:   "",
@@ -169,7 +203,7 @@ func TestModelShortcut_Execute(t *testing.T) {
 				availableModels: []string{"claude-opus-4", "claude-sonnet-4"},
 				validateErr:     tt.validateErr,
 			}
-			shortcut := NewModelShortcut(modelService)
+			shortcut := NewSwitchShortcut(modelService)
 
 			ctx := context.Background()
 			result, err := shortcut.Execute(ctx, tt.args)

@@ -167,11 +167,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	stateManager := svc.GetStateManager()
 	pricingService := svc.GetPricingService()
 
-	if requireApproval {
-		stateManager.SetAgentMode(domain.AgentModeStandard)
-	} else {
-		stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-	}
+	stateManager.SetAgentMode(domain.AgentModeStandard)
 
 	saveEnabled := !noSave
 
@@ -612,12 +608,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		return nil
 	}
 
-	var toolResults []ConversationMessage
-	if s.requireApproval {
-		toolResults = s.executeToolCallsWithApproval(response.ToolCalls)
-	} else {
-		toolResults = s.executeToolCallsParallel(response.ToolCalls)
-	}
+	toolResults := s.executeToolCalls(response.ToolCalls)
 
 	for _, result := range toolResults {
 		s.addMessage(result)
@@ -627,13 +618,23 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	return nil
 }
 
-func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecutionResult, error) {
+// executeToolCall runs a single tool. Headless always runs in standard mode (a
+// restricted allow-list); off-list/mutating actions are gated upstream by
+// approval_behaviour rather than by switching to the unrestricted auto mode. The
+// mode is carried on the context so the Bash tool resolves the right per-mode
+// allow-list. approved is set only after an explicit IPC approval, marking the
+// context so an off-list but user-approved command is allowed to run.
+func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithSessionID(context.Background(), s.sessionID)
+	ctx := domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), domain.AgentModeStandard)
+	if approved {
+		ctx = domain.WithToolApproved(ctx)
+	}
+
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{
 		Name:      toolName,
 		Arguments: args,
@@ -660,7 +661,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
 			if err != nil {
 				logger.Error("tool execution failed", "tool", tc.Function.Name, "error", err)
 				errorResult := &domain.ToolExecutionResult{
@@ -719,9 +720,56 @@ func (s *AgentSession) readApprovalResponses() {
 	}
 }
 
-// executeToolCallsWithApproval executes tool calls, requesting approval for sensitive tools via stdout/stdin IPC.
-// Non-approval tools run in parallel; approval-required tools run sequentially with user prompts.
-func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompletionMessageToolCall) []ConversationMessage {
+// toolResultMessage builds the conversation message for a finished tool call,
+// formatting either the successful result or the execution error.
+func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, result *domain.ToolExecutionResult, err error) ConversationMessage {
+	if err != nil {
+		return ConversationMessage{
+			Role:       "tool",
+			Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+			ToolCallID: tc.ID,
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName: tc.Function.Name,
+				Success:  false,
+				Error:    err.Error(),
+			},
+			Timestamp: time.Now(),
+		}
+	}
+	return ConversationMessage{
+		Role:          "tool",
+		Content:       s.formatToolResult(result),
+		ToolCallID:    tc.ID,
+		ToolExecution: result,
+		Timestamp:     time.Now(),
+	}
+}
+
+// toolRejectedMessage builds a non-executed tool message (rejected by the user or
+// blocked by policy) carrying a reason the model can act on.
+func (s *AgentSession) toolRejectedMessage(tc sdk.ChatCompletionMessageToolCall, content, errStr string) ConversationMessage {
+	return ConversationMessage{
+		Role:       "tool",
+		Content:    content,
+		ToolCallID: tc.ID,
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName: tc.Function.Name,
+			Success:  false,
+			Error:    errStr,
+			Rejected: true,
+		},
+		Timestamp: time.Now(),
+	}
+}
+
+// executeToolCalls runs a turn's tool calls. Tools that don't need approval run in
+// parallel; tools that do are handled per tools.safety.approval_behaviour (via
+// config.ResolveApprovalDelivery): delivered over IPC when an approval broker is
+// attached (--require-approval, e.g. the channel manager) or blocked with a reason
+// otherwise (CI/heartbeat). The agent is headless, so an interactive TUI prompt is
+// never an option here - require-approval/ipc without a broker resolve to block,
+// which is what keeps unattended runs from executing anything off the allow-list.
+func (s *AgentSession) executeToolCalls(toolCalls []sdk.ChatCompletionMessageToolCall) []ConversationMessage {
 	if len(toolCalls) == 0 {
 		return []ConversationMessage{}
 	}
@@ -732,9 +780,7 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 		index int
 		call  sdk.ChatCompletionMessageToolCall
 	}
-	var approvalRequired []indexedCall
-	var autoApproved []indexedCall
-
+	var approvalRequired, autoApproved []indexedCall
 	for i, tc := range toolCalls {
 		if s.isToolApprovalRequired(tc) {
 			approvalRequired = append(approvalRequired, indexedCall{i, tc})
@@ -744,96 +790,54 @@ func (s *AgentSession) executeToolCallsWithApproval(toolCalls []sdk.ChatCompleti
 	}
 
 	if len(autoApproved) > 0 {
-		semaphore := make(chan struct{}, s.config.Agent.MaxConcurrentTools)
-		var wg sync.WaitGroup
-		for _, ic := range autoApproved {
-			wg.Add(1)
-			go func(idx int, tc sdk.ChatCompletionMessageToolCall) {
-				defer wg.Done()
-				semaphore <- struct{}{}
-				defer func() { <-semaphore }()
-
-				result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
-				if err != nil {
-					results[idx] = ConversationMessage{
-						Role:       "tool",
-						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-						ToolCallID: tc.ID,
-						ToolExecution: &domain.ToolExecutionResult{
-							ToolName: tc.Function.Name,
-							Success:  false,
-							Error:    err.Error(),
-						},
-						Timestamp: time.Now(),
-					}
-					return
-				}
-				results[idx] = ConversationMessage{
-					Role:          "tool",
-					Content:       s.formatToolResult(result),
-					ToolCallID:    tc.ID,
-					ToolExecution: result,
-					Timestamp:     time.Now(),
-				}
-			}(ic.index, ic.call)
+		autoCalls := make([]sdk.ChatCompletionMessageToolCall, len(autoApproved))
+		for j, ic := range autoApproved {
+			autoCalls[j] = ic.call
 		}
-		wg.Wait()
+		autoResults := s.executeToolCallsParallel(autoCalls)
+		for j, ic := range autoApproved {
+			results[ic.index] = autoResults[j]
+		}
 	}
 
 	for _, ic := range approvalRequired {
-		tc := ic.call
-
-		s.outputApprovalRequest(tc)
-
-		approved := false
-		select {
-		case resp := <-s.approvalCh:
-			approved = resp.Approved
-		case <-time.After(5 * time.Minute):
-			logger.Warn("approval timeout for tool", "tool", tc.Function.Name)
-		}
-
-		if !approved {
-			results[ic.index] = ConversationMessage{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool '%s' was rejected by the user.", tc.Function.Name),
-				ToolCallID: tc.ID,
-				ToolExecution: &domain.ToolExecutionResult{
-					ToolName: tc.Function.Name,
-					Success:  false,
-					Error:    "tool execution rejected by user",
-					Rejected: true,
-				},
-				Timestamp: time.Now(),
-			}
-			continue
-		}
-
-		result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
-		if err != nil {
-			results[ic.index] = ConversationMessage{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-				ToolCallID: tc.ID,
-				ToolExecution: &domain.ToolExecutionResult{
-					ToolName: tc.Function.Name,
-					Success:  false,
-					Error:    err.Error(),
-				},
-				Timestamp: time.Now(),
-			}
-			continue
-		}
-		results[ic.index] = ConversationMessage{
-			Role:          "tool",
-			Content:       s.formatToolResult(result),
-			ToolCallID:    tc.ID,
-			ToolExecution: result,
-			Timestamp:     time.Now(),
-		}
+		results[ic.index] = s.deliverApprovalRequiredTool(ic.call)
 	}
 
 	return results
+}
+
+// deliverApprovalRequiredTool handles one tool call that needs approval per the
+// configured approval_behaviour: request IPC approval (and run it on approval), or
+// block it with an actionable reason when no approver is reachable.
+func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageToolCall) ConversationMessage {
+	behaviour := s.config.ApprovalBehaviourFor(tc.Function.Name)
+	if config.ResolveApprovalDelivery(behaviour, s.requireApproval, false) != config.ApprovalBehaviourIPC {
+		reason := fmt.Sprintf(
+			"Blocked: %q was not auto-approved and no approver is available in this run "+
+				"(tools.safety.approval_behaviour=%s). Do not retry the same call - use an allowed "+
+				"command or tool, or stop and tell the user exactly what you need and why.",
+			tc.Function.Name, behaviour)
+		logger.Info("tool blocked (no approver reachable)", "tool", tc.Function.Name, "behaviour", behaviour)
+		return s.toolRejectedMessage(tc, reason, reason)
+	}
+
+	s.outputApprovalRequest(tc)
+	approved := false
+	select {
+	case resp := <-s.approvalCh:
+		approved = resp.Approved
+	case <-time.After(5 * time.Minute):
+		logger.Warn("approval timeout for tool", "tool", tc.Function.Name)
+	}
+	if !approved {
+		return s.toolRejectedMessage(tc,
+			fmt.Sprintf("Tool '%s' was rejected by the user.", tc.Function.Name),
+			"tool execution rejected by user")
+	}
+
+	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, true)
+	return s.toolResultMessage(tc, result, err)
 }
 
 // isToolApprovalRequired checks if a tool requires user approval based on config.
@@ -847,7 +851,11 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		if !ok {
 			return true
 		}
-		if s.config.IsBashCommandWhitelisted(command) {
+		// Headless always runs in standard mode: an allowed command runs without
+		// approval; an off-list one needs approval and is then delivered per
+		// tools.safety.approval_behaviour (IPC when a broker is attached, else
+		// blocked) by deliverApprovalRequiredTool.
+		if s.config.IsBashCommandAllowed(command, "standard") {
 			return false
 		}
 	}

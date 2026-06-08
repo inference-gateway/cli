@@ -187,13 +187,14 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Mess
 		s.buildWorkingDirectoryInfo() +
 		s.buildGitContextInfo(currentTurn) +
 		s.buildGitHubGuidanceInfo() +
+		s.buildBashAllowInfo() +
 		s.buildToolsInfo() +
 		s.buildSkillsInfo() +
 		s.buildActiveSkillInfo(messages)
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
-// and away from shell habits that needlessly trip the Bash whitelist. There is
+// and away from shell habits that needlessly trip the Bash allowed list. There is
 // no built-in GitHub tool; `gh` (via Bash) covers issues, PRs, releases, and the
 // raw API with clearer errors and the standard credential chain. Emitted only
 // when Bash is enabled (otherwise the guidance is moot). Lives in the dynamic
@@ -203,17 +204,84 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 		return ""
 	}
 	return "\n\nGITHUB OPERATIONS:\n" +
-		"Use the `gh` CLI via the Bash tool for all GitHub operations - issues, pull requests, " +
-		"releases, repository metadata, and the raw API (e.g. `gh issue view`, `gh pr create`, " +
-		"`gh api repos/<owner>/<repo>/issues`). There is no built-in GitHub tool. Prefer `gh api` " +
-		"over fetching api.github.com directly. " +
+		"Use the `gh` CLI via the Bash tool for GitHub operations - issues, pull requests, " +
+		"releases, and repository metadata (e.g. `gh issue view`, `gh pr view`, `gh repo view`). " +
+		"There is no built-in GitHub tool. Prefer the structured `gh` subcommands over the raw " +
+		"`gh api`: the read-only subcommands are auto-approved, while writes (e.g. `gh issue " +
+		"create`, `gh pr create`) and the raw `gh api` need approval unless your config opts " +
+		"into them. " +
 		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain).\n\n" +
 		"BASH USAGE:\n" +
 		"The Bash tool already captures stdout, stderr, and the exit code. Do NOT append `2>&1`, " +
 		"`2>/dev/null`, or `|| echo ...` to commands - they are unnecessary and can cause an " +
-		"otherwise-allowed command to be rejected by the whitelist. Run one command per call; " +
-		"compound commands (with &&, ||, or |) are permitted only when every segment is " +
-		"independently whitelisted."
+		"otherwise-allowed command to be rejected. Run ONE command per call: pipes and operators " +
+		"(|, &&, ||, ;) are not auto-approved, so run each step as a separate call instead of " +
+		"chaining them. The commands auto-approved in the current mode are listed under BASH " +
+		"ALLOW-LIST below."
+}
+
+// buildBashAllowInfo lists the bash commands auto-approved in the active agent
+// mode so the model knows its sandbox up front. It reads the live mode (the same
+// one the approval check uses), so toggling auto/plan in chat updates it on the
+// next turn; in agent mode it is simply present from the start. Empty when the
+// Bash tool is disabled or filtered out of the current mode (e.g. plan mode). An
+// unrestricted mode (allow-list ".*") is described in prose rather than dumping a
+// meaningless pattern.
+func (s *AgentServiceImpl) buildBashAllowInfo() string {
+	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
+		return ""
+	}
+
+	mode := domain.AgentModeStandard
+	if s.stateManager != nil {
+		mode = s.stateManager.GetAgentMode()
+	}
+
+	// Skip when Bash is not callable in this mode (plan mode filters it out), so
+	// the prompt never advertises an allow-list for a tool the model cannot use.
+	bashAvailable := false
+	for _, def := range s.toolService.ListToolsForMode(mode) {
+		if def.Function.Name == "Bash" {
+			bashAvailable = true
+			break
+		}
+	}
+	if !bashAvailable {
+		return ""
+	}
+
+	modeKey := mode.AllowedlistKey()
+	allow := s.config.BashAllowedCommands(modeKey)
+
+	header := "\n\nBASH ALLOW-LIST (" + modeKey + " mode):\n"
+
+	for _, e := range allow {
+		switch strings.TrimSpace(e) {
+		case ".*", "^.*$", "^.*", ".*$", ".+", "^.+$", "^.+", ".+$":
+			return header + "This mode is unrestricted: any command runs via Bash without " +
+				"approval, including pipes, chains, redirects, and command substitution. " +
+				"Prefer one command per call for clear output, and never echo or publish a secret.\n"
+		}
+	}
+
+	if len(allow) == 0 {
+		return header + "No commands are auto-approved in this mode; every Bash command " +
+			"requires approval.\n"
+	}
+
+	var b strings.Builder
+	b.WriteString(header)
+	b.WriteString("These command patterns (regular expressions, matched against the WHOLE " +
+		"command) run without approval. Anything else requires approval (chat) or is rejected " +
+		"(agent mode). Run ONE command per call:\n")
+	for _, e := range allow {
+		fmt.Fprintf(&b, "- %s\n", e)
+	}
+	b.WriteString("\nIf a command you need is NOT covered above, it will be denied (agent " +
+		"mode) or require approval (chat). Do NOT retry the same or a trivially reworded command " +
+		"hoping it passes - it will keep being denied. Instead, accomplish the goal with an " +
+		"allowed command, or stop and tell the user exactly what you need to run and why.\n")
+	return b.String()
 }
 
 // buildToolsInfo lists the tools available to the model for the active agent
@@ -272,6 +340,9 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 		return prompts.SystemPrompt
 
 	case domain.AgentModeAutoAccept:
+		if prompts.SystemPromptAuto != "" {
+			return prompts.SystemPromptAuto
+		}
 		return prompts.SystemPrompt
 
 	case domain.AgentModeStandard:

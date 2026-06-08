@@ -63,10 +63,3 @@ type MoveIndicatorEvent struct {
 	ToY           int  `json:"ToY"`
 	MoveIndicator bool `json:"MoveIndicator"`
 }
-
-// StateTransitionEvent indicates the agent state machine has transitioned
-type StateTransitionEvent struct {
-	BaseChatEvent
-	FromState AgentExecutionState
-	ToState   AgentExecutionState
-}

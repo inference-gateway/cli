@@ -308,11 +308,9 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 	var originalContentStr string
 	var originalSize int64
 
-	// Check if file exists
 	originalContent, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// File doesn't exist - start with empty content for new file creation
 			originalContentStr = ""
 			originalSize = 0
 		} else {
@@ -827,13 +825,4 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		NewContent: currentContent,
 		Title:      "← Simulated diff preview →",
 	}
-}
-
-// FormatArgumentsForApproval formats arguments for approval display with diff preview
-func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
-	// Use colored diff renderer with default theme
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
-	diffRenderer := components.NewToolDiffRenderer(styleProvider)
-	return diffRenderer.RenderMultiEditToolArguments(args)
 }

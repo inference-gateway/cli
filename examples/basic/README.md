@@ -49,20 +49,48 @@ tools:
   enabled: true
   bash:
     enabled: true
-    whitelist:
-      commands:
-        - ls
-        - pwd
-        - echo
-        - grep
-        - wc
-        - sort
-        - uniq
-      patterns:
-        - ^git status$
-        - ^git log --oneline -n [0-9]+$
-        - ^docker ps$
-        - ^kubectl get pods$
+    timeout: 120
+    mode:
+      all:
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - task( .*)?
+          - make( .*)?
+          - find( .*)?
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+      plan:
+        allow: []
+      standard:
+        # opt-in: standard is baseline-only by default; these add GitHub writes
+        # (issue/pr create + project writes) so they run without per-action approval.
+        allow:
+          - gh issue (create|edit|comment)( .*)?
+          - gh pr create( .*)?
+          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+      auto:
+        allow:
+          - .*
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
   read:
     enabled: true
     require_approval: false
@@ -74,7 +102,7 @@ tools:
     require_approval: false
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
     safety:
       max_size: 8192
@@ -152,7 +180,7 @@ infer config set tools.enabled false
 infer config get tools
 infer config get tools -f json
 
-# Validate if a command is whitelisted (top-level tools command)
+# Validate if a command is allowed (top-level tools command)
 infer tools validate "ls"
 
 # Execute tools directly with JSON arguments
@@ -202,7 +230,7 @@ All commands support these global flags:
 
 ## Security Features
 
-- **Tool Whitelisting**: Only pre-approved commands can be executed
+- **Tool Allowed list**: Only pre-approved commands can be executed
 - **Approval Prompts**: Optional user confirmation before tool execution
 - **Path Exclusions**: Protect sensitive directories from tool access
 - **Tool-Specific Safety**: Configure approval requirements per tool

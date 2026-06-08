@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -77,9 +78,8 @@ func TestBashTool_Validate(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "pwd"},
-					Patterns: []string{"^git status$"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "pwd( .*)?", "git status( .*)?"}},
 				},
 			},
 		},
@@ -93,7 +93,7 @@ func TestBashTool_Validate(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name: "valid whitelisted command",
+			name: "valid allowed command",
 			args: map[string]any{
 				"command": "echo hello",
 			},
@@ -107,14 +107,14 @@ func TestBashTool_Validate(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "invalid command not whitelisted",
+			name: "invalid command not allowed",
 			args: map[string]any{
 				"command": "rm -rf /",
 			},
 			wantError: true,
 		},
 		{
-			name: "file redirect on whitelisted command is rejected",
+			name: "file redirect on allowed command is rejected",
 			args: map[string]any{
 				"command": "echo hello > /tmp/evil",
 			},
@@ -144,16 +144,14 @@ func TestBashTool_Validate(t *testing.T) {
 	}
 }
 
-// TestBashTool_Validate_RedirectFeedback verifies a denied file-redirect command
-// returns actionable guidance (issue #560) rather than a bare "not whitelisted".
 func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?"}},
 				},
 			},
 		},
@@ -167,9 +165,6 @@ func TestBashTool_Validate_RedirectFeedback(t *testing.T) {
 	if !strings.Contains(err.Error(), "redirection") {
 		t.Errorf("expected redirection guidance in error, got %q", err.Error())
 	}
-	if !strings.Contains(err.Error(), "tools.bash.whitelist.patterns") {
-		t.Errorf("expected the error to point at the whitelist patterns, got %q", err.Error())
-	}
 }
 
 func TestBashTool_Execute(t *testing.T) {
@@ -178,8 +173,8 @@ func TestBashTool_Execute(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?"}},
 				},
 			},
 		},
@@ -212,13 +207,13 @@ func TestBashTool_GitPushValidation(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Patterns: []string{
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{
 						"^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$",
 						"^git push( --set-upstream)?( origin)? develop$",
 						"^git push( --set-upstream)?( origin)? staging$",
 						"^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$",
-					},
+					}},
 				},
 			},
 		},
@@ -314,8 +309,8 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo", "printf"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "printf( .*)?", "seq( .*)?"}},
 				},
 			},
 		},
@@ -336,7 +331,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
 
 		args := map[string]any{
-			"command": "echo 'line 1' && echo 'line 2' && echo 'line 3'",
+			"command": `printf 'line 1\nline 2\nline 3\n'`,
 		}
 
 		result, err := tool.Execute(ctx, args)
@@ -368,7 +363,6 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		}
 	})
 
-	// Test without streaming callback (original behavior)
 	t.Run("works without streaming callback", func(t *testing.T) {
 		ctx := context.Background()
 
@@ -389,21 +383,78 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			t.Errorf("Expected successful execution, got error: %s", result.Error)
 		}
 	})
+
+	t.Run("coalesces large output into bounded callbacks", func(t *testing.T) {
+		const lineCount = 5000
+
+		var mu sync.Mutex
+		var calls int
+		var combined strings.Builder
+
+		callback := func(output string) {
+			mu.Lock()
+			calls++
+			combined.WriteString(output)
+			combined.WriteString("\n")
+			mu.Unlock()
+		}
+
+		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+
+		args := map[string]any{
+			"command": fmt.Sprintf("seq 1 %d", lineCount),
+		}
+
+		result, err := tool.Execute(ctx, args)
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+		if result == nil || !result.Success {
+			t.Fatalf("expected successful execution, got %+v", result)
+		}
+
+		mu.Lock()
+		gotCalls := calls
+		gotCombined := combined.String()
+		mu.Unlock()
+
+		if gotCalls == 0 {
+			t.Fatal("expected at least one callback")
+		}
+		if gotCalls >= 200 {
+			t.Errorf("expected %d lines to coalesce into far fewer callbacks, got %d", lineCount, gotCalls)
+		}
+
+		streamed := strings.Split(strings.TrimRight(gotCombined, "\n"), "\n")
+		if len(streamed) != lineCount {
+			t.Fatalf("expected %d streamed lines, got %d", lineCount, len(streamed))
+		}
+		if streamed[0] != "1" || streamed[len(streamed)-1] != fmt.Sprintf("%d", lineCount) {
+			t.Errorf("expected streamed lines 1..%d, got first=%q last=%q", lineCount, streamed[0], streamed[len(streamed)-1])
+		}
+
+		data, ok := result.Data.(*domain.BashToolResult)
+		if !ok {
+			t.Fatalf("expected result.Data to be *domain.BashToolResult, got %T", result.Data)
+		}
+		if got := strings.Count(data.Output, "\n"); got != lineCount {
+			t.Errorf("expected captured output to contain %d lines, got %d", lineCount, got)
+		}
+	})
 }
 
 // TestBashTool_Validate_RedirectionAndCompound confirms the tool delegates to
-// config.IsBashCommandWhitelisted: benign redirections and per-segment-allowed
-// compound commands validate, while command substitution and a non-whitelisted
-// segment are rejected.
+// config.IsBashCommandAllowed: a benign redirection validates, while command
+// substitution and any compound or piped command are rejected by the
+// single-command policy - even when each segment would be allowed on its own.
 func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"echo"},
-					Patterns: []string{`^gh api [^ -][^ ]*( --jq [^ ]+)*$`},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"^echo( |$)", `^git log( --oneline)?$`}},
 				},
 			},
 		},
@@ -414,12 +465,13 @@ func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {
 		command   string
 		wantError bool
 	}{
-		{"gh api repos/o/r/issues 2>&1", false},
-		{"echo hi && echo bye", false},
-		{"echo hi || echo failed", false},
+		{"git log --oneline 2>&1", false},
+		{"echo hi && echo bye", true},
+		{"echo hi || echo failed", true},
+		{"echo a | echo b", true},
 		{"echo $(rm -rf /)", true},
 		{"echo hi && rm -rf /", true},
-		{"gh api repos/o/r -X POST", true},
+		{"git log --graph", true},
 	}
 	for _, tt := range tests {
 		err := tool.Validate(map[string]any{"command": tt.command})

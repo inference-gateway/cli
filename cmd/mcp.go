@@ -104,8 +104,8 @@ func init() {
 
 	mcpAddCmd.Flags().String("description", "", "Description of the MCP server")
 	mcpAddCmd.Flags().Int("timeout", 0, "Connection timeout in seconds (overrides global)")
-	mcpAddCmd.Flags().StringSlice("include", []string{}, "Whitelist specific tools (comma-separated)")
-	mcpAddCmd.Flags().StringSlice("exclude", []string{}, "Blacklist specific tools (comma-separated)")
+	mcpAddCmd.Flags().StringSlice("include", []string{}, "Filter for allowed tools (comma-separated)")
+	mcpAddCmd.Flags().StringSlice("exclude", []string{}, "Filter for excluded tools (comma-separated)")
 	mcpAddCmd.Flags().Bool("enabled", true, "Enable the server immediately")
 	mcpAddCmd.Flags().Bool("run", false, "Auto-start this server in a container")
 	mcpAddCmd.Flags().String("oci", "", "OCI image to use (required if --run is true)")
@@ -115,8 +115,8 @@ func init() {
 	mcpUpdateCmd.Flags().String("url", "", "Update the server URL")
 	mcpUpdateCmd.Flags().String("description", "", "Update the description")
 	mcpUpdateCmd.Flags().Int("timeout", -1, "Update connection timeout (-1 = no change, 0 = use global)")
-	mcpUpdateCmd.Flags().StringSlice("include", []string{}, "Update whitelist (empty = no change)")
-	mcpUpdateCmd.Flags().StringSlice("exclude", []string{}, "Update blacklist (empty = no change)")
+	mcpUpdateCmd.Flags().StringSlice("include", []string{}, "Update filter for allowed tools (empty = no change)")
+	mcpUpdateCmd.Flags().StringSlice("exclude", []string{}, "Update filter for excluded tools (empty = no change)")
 	mcpUpdateCmd.Flags().Bool("enabled", true, "Enable/disable the server")
 
 	mcpCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")

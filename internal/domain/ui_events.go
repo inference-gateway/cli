@@ -76,14 +76,8 @@ type AutocompleteHideEvent struct{}
 
 // AutocompleteCompleteEvent is fired when a completion is selected
 type AutocompleteCompleteEvent struct {
-	Completion         string
-	ExecuteImmediately bool
-	CursorPos          int
-}
-
-// AutocompleteVisibilityCheckEvent requests autocomplete visibility state
-type AutocompleteVisibilityCheckEvent struct {
-	ResponseChan chan bool
+	Completion string
+	CursorPos  int
 }
 
 // UserInputEvent represents user input submission
@@ -117,14 +111,6 @@ type ConversationSelectedEvent struct {
 	ConversationID string
 }
 
-// InitializeConversationSelectionEvent indicates conversation selection view should be initialized
-type InitializeConversationSelectionEvent struct{}
-
-// FileSelectedEvent indicates file selection
-type FileSelectedEvent struct {
-	FilePath string
-}
-
 // FileSelectionRequestEvent requests file selection UI
 type FileSelectionRequestEvent struct{}
 
@@ -138,17 +124,6 @@ type ScrollRequestEvent struct {
 	ComponentID string
 	Direction   ScrollDirection
 	Amount      int
-}
-
-// FocusRequestEvent requests focus change
-type FocusRequestEvent struct {
-	ComponentID string
-}
-
-// ResizeEvent handles terminal resize
-type ResizeEvent struct {
-	Width  int
-	Height int
 }
 
 // DebugKeyEvent provides debug information about key presses
@@ -184,9 +159,6 @@ type TaskCancelledEvent struct {
 	Error  error
 }
 
-// InitializeA2ATaskManagementEvent indicates A2A task management view should be initialized
-type InitializeA2ATaskManagementEvent struct{}
-
 // Tool Execution Events
 
 // ToolExecutionStartedEvent indicates tool execution has started
@@ -218,12 +190,6 @@ type ToolApprovalResponseEvent struct {
 }
 
 // Plan Approval Events
-
-// ShowPlanApprovalEvent displays the plan approval modal
-type ShowPlanApprovalEvent struct {
-	PlanContent  string
-	ResponseChan chan PlanApprovalAction
-}
 
 // PlanApprovalResponseEvent captures the user's plan approval decision
 type PlanApprovalResponseEvent struct {
@@ -257,19 +223,6 @@ type AgentStatusUpdateEvent struct {
 	Message   string
 	URL       string
 	Image     string
-}
-
-// AgentReadyEvent indicates an agent has become ready
-type AgentReadyEvent struct {
-	AgentName   string
-	ReadyAgents int
-	TotalAgents int
-}
-
-// AgentErrorEvent indicates an agent has encountered an error
-type AgentErrorEvent struct {
-	AgentName string
-	Error     error
 }
 
 // MCP Server Status Events

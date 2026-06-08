@@ -18,6 +18,19 @@ import (
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
+// Streaming-output coalescing thresholds. readPipeWithBatching accumulates
+// command output and flushes it to the streaming callback at most once per
+// bashStreamFlushInterval (or sooner once bashStreamFlushBytes have piled up),
+// so a high-volume command (e.g. `git diff` on a large branch) emits a bounded
+// number of UI events instead of one per line. One event per line otherwise
+// stalls the TUI: every chunk makes a full Bubble Tea Update/View round-trip,
+// and the terminal completion event that clears the status bar queues behind
+// them. The full result output is captured separately and is unaffected.
+const (
+	bashStreamFlushInterval = 50 * time.Millisecond
+	bashStreamFlushBytes    = 64 * 1024
+)
+
 // BashTool handles bash command execution with security validation
 type BashTool struct {
 	config                 *config.Config
@@ -36,34 +49,17 @@ func NewBashTool(cfg *config.Config, backgroundShellService domain.BackgroundShe
 	}
 }
 
-// Definition returns the tool definition for the LLM
+// Definition returns the tool definition for the LLM. The command parameter is
+// intentionally not constrained by an enum: the set of auto-approved commands is
+// per-mode (and may be ".*"), so it cannot be expressed as a fixed schema. The
+// effective allow-list for the active mode is surfaced in the system prompt
+// instead; off-list commands still execute via approval (chat) or are rejected
+// with a reason (agent mode).
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
-	var allowedCommands []string
-
-	for _, cmd := range t.config.Tools.Bash.Whitelist.Commands {
-		allowedCommands = append(allowedCommands, cmd)
-		switch cmd {
-		case "ls":
-			allowedCommands = append(allowedCommands, "ls -l", "ls -la", "ls -a")
-		case "git":
-		case "grep":
-			allowedCommands = append(allowedCommands, "grep -r", "grep -n", "grep -i")
-		}
-	}
-
-	patternExamples := []string{
-		"git status",
-		"git log --oneline -n 5",
-		"git log --oneline -n 10",
-		"docker ps",
-		"kubectl get pods",
-	}
-	allowedCommands = append(allowedCommands, patternExamples...)
-
-	commandDescription := "The bash command to execute. Must be from the whitelist of allowed commands."
-	if len(allowedCommands) > 0 {
-		commandDescription += " Available commands include: " + strings.Join(allowedCommands, ", ")
-	}
+	commandDescription := "The bash command to execute. Run ONE command per call - " +
+		"pipes and operators (|, &&, ||, ;) are not auto-approved. Which commands run " +
+		"without approval depends on the current agent mode and is listed in the system " +
+		"prompt; anything off that list requires approval (chat) or is rejected (agent mode)."
 
 	description := t.config.Prompts.Tools.Bash.Description
 	return sdk.ChatCompletionTool{
@@ -77,7 +73,6 @@ func (t *BashTool) Definition() sdk.ChatCompletionTool {
 					"command": map[string]any{
 						"type":        "string",
 						"description": commandDescription,
-						"enum":        allowedCommands,
 					},
 					"format": map[string]any{
 						"type":        "string",
@@ -132,15 +127,17 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	return result, nil
 }
 
-// Validate checks if the bash tool arguments are valid
+// Validate checks the bash tool arguments. It has no agent-mode context, so the
+// allow-check uses standard mode (the interactive default, and what `infer tools
+// validate` reports). The authoritative, mode-aware gate is in executeBash.
 func (t *BashTool) Validate(args map[string]any) error {
 	command, ok := args["command"].(string)
 	if !ok {
 		return fmt.Errorf("command parameter is required and must be a string")
 	}
 
-	if !t.isCommandAllowed(command) {
-		return t.notWhitelistedError(command)
+	if !t.config.IsBashCommandAllowed(command, "standard") {
+		return t.notAllowedError(command, "standard")
 	}
 
 	return nil
@@ -168,9 +165,10 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	wasApproved := domain.IsToolApproved(ctx)
+	modeKey := domain.BashAllowModeKey(ctx)
 
-	if !wasApproved && !t.isCommandAllowed(command) {
-		err := t.notWhitelistedError(command)
+	if !wasApproved && !t.config.IsBashCommandAllowed(command, modeKey) {
+		err := t.notAllowedError(command, modeKey)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = err.Error()
@@ -350,6 +348,23 @@ func (t *BashTool) readPipeWithBatching(
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
+	var pending strings.Builder
+	var lastFlush time.Time
+
+	flush := func() {
+		if pending.Len() == 0 {
+			return
+		}
+		detachedMux.Lock()
+		isDetached := *detached
+		detachedMux.Unlock()
+		if !isDetached {
+			callback(strings.TrimRight(pending.String(), "\n"))
+		}
+		pending.Reset()
+		lastFlush = time.Now()
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -362,37 +377,32 @@ func (t *BashTool) readPipeWithBatching(
 		}
 		outputMux.Unlock()
 
-		detachedMux.Lock()
-		isDetached := *detached
-		detachedMux.Unlock()
+		pending.WriteString(line)
+		pending.WriteByte('\n')
 
-		if !isDetached {
-			callback(line)
+		if pending.Len() >= bashStreamFlushBytes || time.Since(lastFlush) >= bashStreamFlushInterval {
+			flush()
 		}
 	}
+
+	flush()
 
 	if err := scanner.Err(); err != nil {
 		logger.Debug("bash: scanner error", "error", err)
 	}
 }
 
-// isCommandAllowed checks if a command is whitelisted. It delegates to
-// config.IsBashCommandWhitelisted so the Bash tool, the approval policy, and
-// agent auto-approval share one shell-aware matcher (redirection stripping,
-// compound-command splitting, command-substitution rejection).
-func (t *BashTool) isCommandAllowed(command string) bool {
-	return t.config.IsBashCommandWhitelisted(command)
-}
-
-// notWhitelistedError builds the rejection error for a non-whitelisted command,
-// appending actionable guidance when the command was blocked by a restricted
-// operator (file-write redirection or command substitution) so the model can
-// correct it rather than retrying blindly.
-func (t *BashTool) notWhitelistedError(command string) error {
-	if hint := config.BashWhitelistRejectionHint(command); hint != "" {
-		return fmt.Errorf("command not whitelisted: %s - %s", command, hint)
+// notAllowedError builds the rejection error for a command that is not in the
+// bash allow-list for mode, appending the actionable hint from
+// config.BashCommandRejectionHint (run one command at a time, drop a redirect,
+// avoid leaking a $VAR, ...) so the model can correct course rather than retrying
+// blindly. The Bash tool, the approval policy, and agent auto-approval all share
+// config.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
+func (t *BashTool) notAllowedError(command, mode string) error {
+	if hint := config.BashCommandRejectionHint(command); hint != "" {
+		return fmt.Errorf("command not allowed: %s - %s", command, hint)
 	}
-	return fmt.Errorf("command not whitelisted: %s", command)
+	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode)
 }
 
 // FormatResult formats tool execution results for different contexts

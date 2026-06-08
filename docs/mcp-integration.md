@@ -178,8 +178,8 @@ Each server in the `servers` array supports:
 | `enabled` | ✅ | boolean | Enable/disable this server |
 | `timeout` | ❌ | integer | Override global timeout |
 | `description` | ❌ | string | Human-readable description |
-| `include_tools` | ❌ | array | Whitelist specific tools |
-| `exclude_tools` | ❌ | array | Blacklist specific tools |
+| `include_tools` | ❌ | array | Include specific tools |
+| `exclude_tools` | ❌ | array | Exclude specific tools |
 | `run` | ❌ | boolean | Auto-start server in OCI container (default: false) |
 | `host` | ❌ | string | Container host (default: localhost) |
 | `scheme` | ❌ | string | URL scheme (default: http) |
@@ -195,7 +195,7 @@ Each server in the `servers` array supports:
 
 ### Tool Filtering
 
-#### Include Tools (Whitelist)
+#### Include Tools
 
 When `include_tools` is specified, **only** these tools are exposed:
 
@@ -226,7 +226,7 @@ servers:
 
 #### Precedence
 
-- If `include_tools` is set, it takes precedence (strict whitelist)
+- If `include_tools` is set, it takes precedence (strict allowed list)
 - If only `exclude_tools` is set, all tools except excluded ones are available
 - If neither is set, all tools from the server are available
 

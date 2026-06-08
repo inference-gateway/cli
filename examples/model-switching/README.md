@@ -90,7 +90,7 @@ credits before starting.
 Paste your screenshot into the CLI, then type:
 
 ```text
-/model anthropic/claude-opus-4-5-20251101 [Image #1] Please analyze this shoe store and describe all
+/model anthropic/claude-opus-4-5-20251101 [Image 1] Please analyze this shoe store and describe all
 the issues you see. Be specific and comprehensive.
 ```
 
@@ -144,7 +144,7 @@ Before verification, reduce context size to save costs:
 After DeepSeek completes the enhancements, take a new screenshot and verify the fixes:
 
 ```text
-/model anthropic/claude-opus-4-5-20251101 [Image #2] Please review this updated shoe store and verify
+/model anthropic/claude-opus-4-5-20251101 [Image 2] Please review this updated shoe store and verify
 if all the previous issues have been properly fixed. What improvements do you see?
 ```
 

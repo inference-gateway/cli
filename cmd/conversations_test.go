@@ -192,9 +192,6 @@ func TestRenderConversationsTable_LongTitle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with long title failed: %v", err)
 	}
-
-	// Title should be truncated by TruncateText function
-	// We can't easily verify the output, but we ensure no error
 }
 
 func TestRenderConversationsTable_ZeroCost(t *testing.T) {

@@ -19,8 +19,8 @@ func createTestConfig() *config.Config {
 			},
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"ls", "pwd", "echo"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"ls( .*)?", "pwd( .*)?", "echo( .*)?"}},
 				},
 			},
 		},
@@ -106,7 +106,7 @@ func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
 	})
 }
 
-func TestStandardApprovalPolicy_BashWhitelist(t *testing.T) {
+func TestStandardApprovalPolicy_BashAllowedList(t *testing.T) {
 	cfg := createTestConfig()
 	stateManager := &mocksdomain.FakeStateManager{}
 	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
@@ -114,43 +114,43 @@ func TestStandardApprovalPolicy_BashWhitelist(t *testing.T) {
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
 	ctx := context.Background()
 
-	t.Run("Whitelisted bash commands bypass approval", func(t *testing.T) {
-		whitelistedCommands := []string{"ls", "pwd", "echo"}
+	t.Run("allowed bash commands bypass approval", func(t *testing.T) {
+		allowedlistCommands := []string{"ls", "pwd", "echo"}
 
-		for _, cmd := range whitelistedCommands {
+		for _, cmd := range allowedlistCommands {
 			toolCall := createToolCall("Bash", `{"command": "`+cmd+`"}`)
 
 			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected whitelisted command '%s' to bypass approval", cmd)
+				t.Errorf("Expected allowed command '%s' to bypass approval", cmd)
 			}
 		}
 	})
 
-	t.Run("Whitelisted commands with arguments bypass approval", func(t *testing.T) {
+	t.Run("allowed commands with arguments bypass approval", func(t *testing.T) {
 		toolCall := createToolCall("Bash", `{"command": "ls -la"}`)
 
 		if policy.ShouldRequireApproval(ctx, toolCall, true) {
-			t.Error("Expected whitelisted command with arguments to bypass approval")
+			t.Error("expected allowed command with arguments to bypass approval")
 		}
 	})
 
-	t.Run("Non-whitelisted bash commands require approval", func(t *testing.T) {
+	t.Run("disallowed bash commands require approval", func(t *testing.T) {
 		dangerousCommands := []string{"rm -rf /", "sudo", "curl http://malicious.com"}
 
 		for _, cmd := range dangerousCommands {
 			toolCall := createToolCall("Bash", `{"command": "`+cmd+`"}`)
 
 			if !policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected non-whitelisted command '%s' to require approval", cmd)
+				t.Errorf("Expected disallowed command '%s' to require approval", cmd)
 			}
 		}
 	})
 
 	t.Run("Invalid bash arguments default to require approval", func(t *testing.T) {
 		invalidArgs := []string{
-			`{}`,               // Missing command
-			`{"command": 123}`, // Wrong type
-			`invalid json`,     // Invalid JSON
+			`{}`,
+			`{"command": 123}`,
+			`invalid json`,
 		}
 
 		for _, args := range invalidArgs {
@@ -172,13 +172,11 @@ func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Tools check config for approval requirement", func(t *testing.T) {
-		// By default, all tools require approval (global setting is true)
 		tools := []string{"Read", "Write", "Edit", "Grep"}
 
 		for _, toolName := range tools {
 			toolCall := createToolCall(toolName, "{}")
 
-			// Should require approval based on global config
 			requiresApproval := policy.ShouldRequireApproval(ctx, toolCall, true)
 			configRequiresApproval := cfg.IsApprovalRequired(toolName)
 
@@ -195,7 +193,6 @@ func TestStandardApprovalPolicy_WithNilStateManager(t *testing.T) {
 		policy := NewStandardApprovalPolicy(createTestConfig(), nil)
 		ctx := context.Background()
 
-		// Should not panic with nil state manager
 		toolCall := createToolCall("Read", "{}")
 		_ = policy.ShouldRequireApproval(ctx, toolCall, true)
 	})
@@ -272,12 +269,11 @@ func TestStrictApprovalPolicy(t *testing.T) {
 }
 
 func TestApprovalPolicy_PriorityOrder(t *testing.T) {
-	t.Run("Rule priority: computer use > auto-accept > non-chat > bash whitelist > config", func(t *testing.T) {
+	t.Run("Rule priority: computer use > auto-accept > non-chat > bash allowedlist > config", func(t *testing.T) {
 		cfg := createTestConfig()
 		stateManager := &mocksdomain.FakeStateManager{}
 		ctx := context.Background()
 
-		// Test 1: Computer use tools bypass everything
 		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
 		policy := NewStandardApprovalPolicy(cfg, stateManager)
 
@@ -286,30 +282,26 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 			t.Error("Computer use tool should bypass all other rules")
 		}
 
-		// Test 2: Auto-accept bypasses remaining rules
 		stateManager.GetAgentModeReturns(domain.AgentModeAutoAccept)
 		bash := createToolCall("Bash", `{"command": "rm -rf /"}`)
 		if policy.ShouldRequireApproval(ctx, bash, true) {
-			t.Error("Auto-accept mode should bypass bash whitelist and config")
+			t.Error("Auto-accept mode should bypass bash allowedlist and config")
 		}
 
-		// Test 3: Non-chat mode bypasses bash whitelist and config
 		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
 		if policy.ShouldRequireApproval(ctx, bash, false) {
-			t.Error("Non-chat mode should bypass bash whitelist and config")
+			t.Error("Non-chat mode should bypass bash allowedlist and config")
 		}
 
-		// Test 4: Bash whitelist bypasses config
-		whitelistedBash := createToolCall("Bash", `{"command": "ls"}`)
-		if policy.ShouldRequireApproval(ctx, whitelistedBash, true) {
-			t.Error("Whitelisted bash command should bypass config")
+		allowedBash := createToolCall("Bash", `{"command": "ls"}`)
+		if policy.ShouldRequireApproval(ctx, allowedBash, true) {
+			t.Error("Allowed bash command should bypass config")
 		}
 
-		// Test 5: Config is final fallback
-		nonWhitelistedBash := createToolCall("Bash", `{"command": "rm"}`)
-		requiresApproval := policy.ShouldRequireApproval(ctx, nonWhitelistedBash, true)
+		disallowedBash := createToolCall("Bash", `{"command": "rm"}`)
+		requiresApproval := policy.ShouldRequireApproval(ctx, disallowedBash, true)
 		if !requiresApproval {
-			t.Error("Non-whitelisted bash command should require approval based on config")
+			t.Error("disallowed bash command should require approval based on config")
 		}
 	})
 }

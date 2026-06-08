@@ -87,6 +87,20 @@ const (
 	AgentModeAutoAccept
 )
 
+// AllowedlistKey maps the agent mode to the bash allow-list mode key used in
+// config (tools.bash.mode.<key>.allow): AutoAccept -> "auto", Plan -> "plan",
+// Standard (and any unknown) -> "standard".
+func (m AgentMode) AllowedlistKey() string {
+	switch m {
+	case AgentModePlan:
+		return "plan"
+	case AgentModeAutoAccept:
+		return "auto"
+	default:
+		return "standard"
+	}
+}
+
 func (v ViewState) String() string {
 	switch v {
 	case ViewStateModelSelection:
@@ -1176,6 +1190,10 @@ const (
 	StateEvaluatingTools
 	// StateApprovingTools indicates waiting for user approvals (sequential)
 	StateApprovingTools
+	// StateBlockingTools indicates approval is required but no approver is
+	// reachable (approval_behaviour resolves to block), so the gated tool calls
+	// are rejected with a reason instead of being prompted or executed.
+	StateBlockingTools
 	// StateExecutingTools indicates running tools (parallel)
 	StateExecutingTools
 	// StatePostToolExecution indicates after all tools complete
@@ -1204,6 +1222,8 @@ func (s AgentExecutionState) String() string {
 		return "EvaluatingTools"
 	case StateApprovingTools:
 		return "ApprovingTools"
+	case StateBlockingTools:
+		return "BlockingTools"
 	case StateExecutingTools:
 		return "ExecutingTools"
 	case StatePostToolExecution:

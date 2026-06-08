@@ -12,11 +12,14 @@ import (
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
-// 1. Computer use tools (mouse, keyboard) always bypass approval (background execution)
-// 2. Auto-accept mode bypasses all approval
-// 3. Non-chat mode bypasses approval
-// 4. Bash commands check whitelist (whitelisted commands bypass approval)
-// 5. Other tools check configuration (per-tool or global require_approval setting)
+//  1. Computer use tools (mouse, keyboard) always bypass approval (background execution)
+//  2. Auto-accept mode bypasses all approval
+//  3. Non-chat (headless agent) mode bypasses approval; there the Bash tool's own
+//     per-mode gate (executeBash) decides what runs
+//  4. Bash commands are governed by the per-mode allow-list (config.IsBashCommandAllowed):
+//     reached only in chat, non-auto mode, so allowed commands bypass approval and
+//     anything off-list prompts the user
+//  5. Other tools check configuration (per-tool or global require_approval setting)
 type StandardApprovalPolicy struct {
 	config       *config.Config
 	stateManager domain.StateManager
@@ -46,22 +49,26 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
-	// Rule 3: Non-chat mode bypasses approval
+	// Rule 3: Non-chat (headless agent) mode bypasses approval; there the Bash tool's
+	// own per-mode gate (executeBash) decides what runs, rejecting off-list commands.
 	if !isChatMode {
 		return false
 	}
 
-	// Rule 4: Bash commands check whitelist
+	// Rule 4: Bash is governed by the per-mode allow-list. Reached only in chat,
+	// non-auto mode (standard/plan), so allowed commands bypass approval and
+	// anything off-list prompts the user.
 	if toolCall.Function.Name == "Bash" {
-		return !p.isBashCommandWhitelisted(toolCall)
+		return !p.isBashCommandAllowed(toolCall)
 	}
 
 	// Rule 5: Check configuration (per-tool or global setting)
 	return p.config.IsApprovalRequired(toolCall.Function.Name)
 }
 
-// isBashCommandWhitelisted checks if a Bash tool command is in the whitelist
-func (p *StandardApprovalPolicy) isBashCommandWhitelisted(toolCall *sdk.ChatCompletionMessageToolCall) bool {
+// isBashCommandAllowed checks whether a Bash tool call's command is auto-approved
+// for the active agent mode via the per-mode allow-list.
+func (p *StandardApprovalPolicy) isBashCommandAllowed(toolCall *sdk.ChatCompletionMessageToolCall) bool {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 		return false
@@ -72,7 +79,16 @@ func (p *StandardApprovalPolicy) isBashCommandWhitelisted(toolCall *sdk.ChatComp
 		return false
 	}
 
-	return p.config.IsBashCommandWhitelisted(command)
+	return p.config.IsBashCommandAllowed(command, p.agentModeKey())
+}
+
+// agentModeKey resolves the bash allow-list mode key from the current agent mode,
+// defaulting to standard when no state manager is wired.
+func (p *StandardApprovalPolicy) agentModeKey() string {
+	if p.stateManager != nil {
+		return p.stateManager.GetAgentMode().AllowedlistKey()
+	}
+	return "standard"
 }
 
 // PermissiveApprovalPolicy is an alternative policy that bypasses all approval

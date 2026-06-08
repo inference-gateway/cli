@@ -182,8 +182,10 @@ func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionP
 func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEvent) (*ToolCallRenderer, tea.Cmd) {
 	if state, exists := r.tools[msg.ToolCallID]; exists {
 		if msg.Output != "" {
-			state.OutputBuffer = append(state.OutputBuffer, msg.Output)
-			state.TotalOutputLines++
+			for line := range strings.SplitSeq(strings.TrimSuffix(msg.Output, "\n"), "\n") {
+				state.OutputBuffer = append(state.OutputBuffer, line)
+				state.TotalOutputLines++
+			}
 			if len(state.OutputBuffer) > 7 {
 				state.OutputBuffer = state.OutputBuffer[len(state.OutputBuffer)-7:]
 			}

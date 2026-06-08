@@ -135,6 +135,15 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 			}
 			return a.service.approvalPolicy.ShouldRequireApproval(a.agentCtx.Ctx, toolCall, isChatMode)
 		},
+		ApprovalDelivery: func(toolCall *sdk.ChatCompletionMessageToolCall) string {
+			// This agent runs interactively (chat); no IPC broker is attached, so
+			// approval_behaviour=ipc has no approver and resolves to block too.
+			if a.service.config == nil {
+				return config.ApprovalBehaviourPrompt
+			}
+			behaviour := a.service.config.ApprovalBehaviourFor(toolCall.Function.Name)
+			return config.ResolveApprovalDelivery(behaviour, false, a.req.IsChatMode)
+		},
 		AddMessage: a.service.conversationRepo.AddMessage,
 		BatchDrainQueue: func() int {
 			return a.service.batchDrainQueue(a.agentCtx.Conversation, a.eventPublisher)
@@ -168,6 +177,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 	a.registerHandler(states.NewPostStreamState(ctx))
 	a.registerHandler(states.NewEvaluatingToolsState(ctx))
 	a.registerHandler(states.NewApprovingToolsState(ctx))
+	a.registerHandler(states.NewBlockingToolsState(ctx))
 	a.registerHandler(states.NewExecutingToolsState(ctx))
 	a.registerHandler(states.NewPostToolExecutionState(ctx))
 	a.registerHandler(states.NewCompletingState(ctx))
@@ -264,6 +274,11 @@ func (a *EventDrivenAgent) handleEvent(event domain.AgentEvent) {
 	defer a.mu.Unlock()
 
 	currentState := a.stateMachine.GetCurrentState()
+
+	logger.Debug("dispatching event",
+		"event", event.EventType(),
+		"state", currentState.String(),
+		"request_id", a.req.RequestID)
 
 	handler, exists := a.stateHandlers[currentState]
 	if !exists {

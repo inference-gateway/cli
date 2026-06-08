@@ -29,6 +29,13 @@ The project uses Go’s standard testing framework. Add or update focused tests 
 
 Use Conventional Commits as enforced by `.commitlintrc.json`: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`. Examples: `fix(cli): handle missing config file` or `docs: update mcp guide`. PRs should describe the change, include test results, link related issues, and include screenshots or terminal output when user-visible CLI behavior changes.
 
+## After Editing Config Behaviour
+
+When you change defaults, struct fields, validation, or any other behaviour in `config/config.go` (or any file under `config/` that affects generated output):
+
+1. **Re-generate the config files** by running `go run . init --overwrite`. This ensures the on-disk YAML files reflect the new defaults and schema.
+2. **Discard the `agents.yaml` diff.** `go run . init --overwrite` also regenerates `agents.yaml` — but that file contains user-curated A2A agent registrations. Overwriting it would nuke any agents the user has configured, so always `git checkout -- .infer/agents.yaml` (or restore it) before committing. The same applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, and `heartbeat.yaml` if they contain user data — use your judgement based on what you changed.
+
 ## Security & Configuration Tips
 
 Do not commit real secrets. Start from `.env.example` files and keep local credentials in `.env`. When changing tool execution, filesystem, MCP, or provider configuration behavior, review related docs under `docs/` and add tests for restrictive or failure cases.

@@ -347,6 +347,10 @@ func loadConfigFromViper() (*config.Config, error) {
 	cfg.ComputerUse = *cuCfg
 	applyComputerUseEnvOverrides(cfg)
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
 }
 

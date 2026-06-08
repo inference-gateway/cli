@@ -213,7 +213,7 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domai
 	return result, nil
 }
 
-// validateURL validates URL against security rules and whitelists
+// validateURL validates URL against security rules and allowed lists
 func (t *WebFetchTool) validateURL(url string) error {
 	if url == "" {
 		return fmt.Errorf("URL cannot be empty")
@@ -226,15 +226,15 @@ func (t *WebFetchTool) validateURL(url string) error {
 	return t.validateURLDomain(url)
 }
 
-// validateURLDomain checks if URL domain is in whitelist
+// validateURLDomain checks if URL domain is in allowed list
 func (t *WebFetchTool) validateURLDomain(url string) error {
-	for _, domain := range t.config.Tools.WebFetch.WhitelistedDomains {
+	for _, domain := range t.config.Tools.WebFetch.AllowedDomains {
 		if strings.Contains(url, domain) {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("domain not whitelisted")
+	return fmt.Errorf("domain not allowed")
 }
 
 // FormatResult formats tool execution results for different contexts

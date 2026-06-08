@@ -92,7 +92,7 @@ func TestFetchTool_Validate(t *testing.T) {
 			Enabled: true,
 			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
-				WhitelistedDomains: []string{
+				AllowedDomains: []string{
 					"api.github.com",
 					"httpbin.org",
 					"github.com",
@@ -109,7 +109,7 @@ func TestFetchTool_Validate(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name: "valid whitelisted URL",
+			name: "valid allowed URL",
 			args: map[string]any{
 				"url": "https://httpbin.org/json",
 			},
@@ -150,7 +150,7 @@ func TestFetchTool_Validate(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "non-whitelisted URL",
+			name: "disallowed URL",
 			args: map[string]any{
 				"url": "https://example.com/test",
 			},

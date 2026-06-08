@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -87,11 +88,44 @@ func resolveEditor() []string {
 	return []string{"vim"}
 }
 
+// editorColorArgs returns the flags that force on-screen syntax highlighting for
+// vim-family editors. A bare vim spawned with no vimrc can't detect the emulator's
+// background (it doesn't answer vim's OSC-11 query), so the default colorscheme
+// renders washed-out - looking like no highlighting at all. We pin the background to
+// the TUI theme and enable syntax. The flags run after the user's own vimrc (if any),
+// so they only force these two settings. Non-vim editors get nil (they do their own
+// highlighting, or don't accept `-c`).
+func editorColorArgs(editorBin string, dark bool) []string {
+	switch strings.ToLower(filepath.Base(editorBin)) {
+	case "vim", "nvim", "vi", "gvim", "mvim":
+		bg := "dark"
+		if !dark {
+			bg = "light"
+		}
+		return []string{"-c", "set background=" + bg, "-c", "syntax enable"}
+	}
+	return nil
+}
+
+// buildEditorArgv assembles the editor command line: the resolved editor (and its own
+// args), then the color flags for vim-family editors, then the file. It builds a fresh
+// slice so it never aliases resolveEditor's backing array.
+func buildEditorArgv(editor []string, absPath string, dark bool) []string {
+	flags := editorColorArgs(editor[0], dark)
+	argv := make([]string, 0, len(editor)+len(flags)+1)
+	argv = append(argv, editor...)
+	argv = append(argv, flags...)
+	argv = append(argv, absPath)
+	return argv
+}
+
 // startPTYEditor launches the resolved editor on absPath in a PTY sized
 // cols×rows (rooted at workdir) and returns the editor with its initial read cmd.
-func startPTYEditor(absPath, workdir string, cols, rows int) (*ptyEditor, tea.Cmd, error) {
+// dark selects the editor background (matching the active TUI theme) for vim-family
+// editors so their syntax colors read well against the pane.
+func startPTYEditor(absPath, workdir string, cols, rows int, dark bool) (*ptyEditor, tea.Cmd, error) {
 	cols, rows = max(cols, 1), max(rows, 1)
-	argv := append(resolveEditor(), absPath)
+	argv := buildEditorArgv(resolveEditor(), absPath, dark)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = workdir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")

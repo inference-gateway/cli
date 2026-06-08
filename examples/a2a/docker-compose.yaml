@@ -38,7 +38,7 @@ services:
         http://n8n-agent:8080
         http://documentation-agent:8080
         http://browser-agent:8080
-      INFER_TOOLS_WEB_FETCH_WHITELISTED_DOMAINS: |
+      INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS: |
         mock-agent
         google-calendar-agent
         n8n-agent

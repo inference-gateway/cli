@@ -680,12 +680,3 @@ func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		Title:      "← Test edit for diff verification →",
 	}
 }
-
-// FormatArgumentsForApproval formats arguments for approval display with diff preview
-func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
-	// Use colored diff renderer with default theme
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
-	diffRenderer := components.NewToolDiffRenderer(styleProvider)
-	return diffRenderer.RenderEditToolArguments(args)
-}

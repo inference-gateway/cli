@@ -144,6 +144,19 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 		{
 			Namespace:   config.NamespaceChat,
+			ID:          config.ActionID(config.NamespaceChat, "tab_key_handler"),
+			Keys:        []string{"tab"},
+			Description: "complete autocomplete or cycle history suggestion",
+			Category:    "chat",
+			Handler:     handleTabKey,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			Namespace:   config.NamespaceChat,
 			ID:          config.ActionID(config.NamespaceChat, "enter_key_handler"),
 			Keys:        []string{"enter"},
 			Description: "send message or insert newline",
@@ -842,9 +855,8 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
 					return domain.AutocompleteCompleteEvent{
-						Completion:         completion,
-						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
-						CursorPos:          cursorPos,
+						Completion: completion,
+						CursorPos:  cursorPos,
 					}
 				}
 			}
@@ -869,21 +881,49 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return app.SendMessage()
 }
 
+// handleTabKey handles Tab key press: routes to autocomplete when visible,
+// otherwise delegates to input view for history suggestion cycling.
+func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	autocomplete := app.GetAutocomplete()
+	if autocomplete != nil && autocomplete.IsVisible() {
+		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
+			if completion != "" {
+				cursorPos := autocomplete.GetCompletionCursorPos()
+				return func() tea.Msg {
+					return domain.AutocompleteCompleteEvent{
+						Completion: completion,
+						CursorPos:  cursorPos,
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	inputView := app.GetInputView()
+	if inputView != nil {
+		if iv, ok := inputView.(*components.InputView); ok {
+			iv.TryHandleHistorySuggestionTab()
+		}
+	}
+	return nil
+}
+
 // handleImagePaste processes clipboard image data and adds it as an attachment
-func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, inputView ui.InputComponent, imageData []byte) {
+func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, inputView ui.InputComponent, imageData []byte) bool {
 	timestamp := time.Now().Format("20060102-150405")
 	tmpDir := filepath.Join(app.GetConfigDir(), "tmp")
 
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
 		logger.Warn("failed to create %s/tmp directory: %v", app.GetConfigDir(), err)
-		return
+		return false
 	}
 
 	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("clipboard-image-%s.png", timestamp))
 
 	if err := os.WriteFile(tmpPath, imageData, 0644); err != nil {
 		logger.Warn("failed to save clipboard image to %s/tmp: %v", app.GetConfigDir(), err)
-		return
+		return false
 	}
 
 	cfg := app.GetConfig()
@@ -892,12 +932,13 @@ func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, i
 	imageAttachment, err := imageService.ReadImageFromFile(finalPath)
 	if err != nil {
 		logger.Warn("failed to read saved clipboard image: %v", err)
-		return
+		return false
 	}
 
 	imageAttachment.SourcePath = finalPath
 
 	inputView.AddImageAttachment(*imageAttachment)
+	return true
 }
 
 // applyImageOptimization applies image optimization if enabled in config
@@ -940,6 +981,37 @@ func optimizeClipboardImage(imagePath string, cfg config.ClipboardImageOptimizeC
 	return optimizer.OptimizeImage(imagePath)
 }
 
+// clipboardFlashDuration keeps a clipboard-action confirmation on screen long
+// enough to read but short enough to read as a flash (well under 3s). When a
+// spinner is active the loading indicator is restored within this window.
+const clipboardFlashDuration = 1500 * time.Millisecond
+
+// flashStatus shows a short, auto-dismissing status message. When a spinner is
+// active it saves and restores the status state so the loading indicator is not
+// interrupted (same approach as handleCycleAgentMode); otherwise it clears the
+// status line afterwards. Mirrors the double-esc sequence-hint behaviour.
+func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
+	statusView := app.GetStatusView()
+	if statusView != nil && statusView.IsShowingSpinner() {
+		return tea.Batch(
+			func() tea.Msg { return domain.SaveStatusStateEvent{} },
+			func() tea.Msg { return domain.SetStatusEvent{Message: message, Spinner: false} },
+			func() tea.Msg {
+				time.Sleep(clipboardFlashDuration)
+				return domain.RestoreStatusStateEvent{}
+			},
+		)
+	}
+
+	return tea.Batch(
+		func() tea.Msg { return domain.SetStatusEvent{Message: message, Spinner: false} },
+		func() tea.Msg {
+			time.Sleep(clipboardFlashDuration)
+			return domain.SetStatusEvent{Message: "", Spinner: false}
+		},
+	)
+}
+
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
@@ -950,7 +1022,9 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
-		handleImagePaste(app, imageService, inputView, imageData)
+		if handleImagePaste(app, imageService, inputView, imageData) {
+			return flashStatus(app, "Image pasted from clipboard")
+		}
 		return nil
 	}
 
@@ -971,7 +1045,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
 		if err == nil {
 			inputView.AddImageAttachment(*imageAttachment)
-			return nil
+			return flashStatus(app, "Image pasted from clipboard")
 		}
 	}
 
@@ -984,18 +1058,22 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
-	return nil
+	return flashStatus(app, "Text pasted from clipboard")
 }
 
 func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
-	if inputView != nil {
-		text := inputView.GetInput()
-		if text != "" {
-			clipboard.Write(clipboard.FmtText, []byte(text))
-		}
+	if inputView == nil {
+		return nil
 	}
-	return nil
+
+	text := inputView.GetInput()
+	if text == "" {
+		return nil
+	}
+
+	clipboard.Write(clipboard.FmtText, []byte(text))
+	return flashStatus(app, "Copied to clipboard")
 }
 
 func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -1754,17 +1832,19 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
 	cleanText = strings.Trim(cleanText, "[]")
 
-	if cleanText != "" {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		newText := text[:cursor] + cleanText + text[cursor:]
-		newCursor := cursor + len(cleanText)
-
-		inputView.SetText(newText)
-		inputView.SetCursor(newCursor)
+	if cleanText == "" {
+		return nil
 	}
 
-	return nil
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+	newText := text[:cursor] + cleanText + text[cursor:]
+	newCursor := cursor + len(cleanText)
+
+	inputView.SetText(newText)
+	inputView.SetCursor(newCursor)
+
+	return flashStatus(app, "Text pasted from clipboard")
 }
 
 // Approval handlers

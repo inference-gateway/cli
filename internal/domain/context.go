@@ -5,16 +5,20 @@ type ContextKey string
 
 // ToolApprovedKey is the context key for user-approved tool executions
 // When this key is set to true in the context, it indicates that the tool
-// execution was explicitly approved by the user and should bypass whitelist validation
+// execution was explicitly approved by the user and should bypass allowed list validation
 const ToolApprovedKey ContextKey = "tool_approved"
 
 // BashOutputCallbackKey is the context key for bash output streaming callback
-// When this key is set in the context, the bash tool will stream output line by line
-// through the callback function instead of waiting for the command to complete
+// When this key is set in the context, the bash tool streams output to the
+// callback as it runs instead of waiting for the command to complete
 const BashOutputCallbackKey ContextKey = "bash_output_callback"
 
-// BashOutputCallback is a function type for receiving streaming bash output
-type BashOutputCallback func(line string)
+// BashOutputCallback receives streaming bash output. Output is coalesced before
+// delivery, so a single invocation may carry several newline-joined lines (the
+// argument never has a trailing newline). This keeps the number of callbacks
+// bounded for high-volume commands; the full command output is captured
+// separately by the tool and is unaffected.
+type BashOutputCallback func(output string)
 
 // BashDetachChannelKey is the context key for the bash detach signal channel
 // When this key is set in the context, the bash tool can signal when a command
@@ -34,3 +38,9 @@ const SessionIDKey ContextKey = "session_id"
 // was invoked directly by the user (e.g., via !! command) rather than by the LLM
 // This allows tools to adjust behavior (e.g., skip coordinate scaling for mouse operations)
 const DirectExecutionKey ContextKey = "direct_execution"
+
+// AgentModeKey is the context key for the agent mode in effect for a tool
+// execution. The Bash tool reads it to resolve which per-mode allow-list
+// (tools.bash.mode.<key>.allow) governs the command. When unset, callers treat
+// it as standard mode.
+const AgentModeKey ContextKey = "agent_mode"

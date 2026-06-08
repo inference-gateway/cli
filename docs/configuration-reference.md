@@ -111,29 +111,30 @@ tools:
       - *.env
   bash:
     enabled: true
-    whitelist:
-      commands: # Exact command matches
-        - ls
-        - pwd
-        - echo
-        - wc
-        - sort
-        - uniq
-        - gh
-        - task
-        - docker ps
-        - kubectl get pods
-      patterns: # Regex patterns for more complex commands
-        - ^git branch( --show-current)?$
-        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
-        - ^git checkout [a-zA-Z0-9/_-]+
-        - ^git add [a-zA-Z0-9/_.-]+
-        - ^git diff+
-        - ^git remote -v$
-        - ^git status$
-        - ^git log --oneline -n [0-9]+$
-        - ^git commit -m ".+"$
-        - ^git push( --set-upstream)?( origin)?( [a-zA-Z0-9/_-]+)?$
+    # Per-mode allow-list (default-deny). The effective list for a mode is
+    # mode.all.allow unioned with that mode's own list. Each entry is a regex
+    # matched against the WHOLE command (so " .*" allows arguments and a bare
+    # token matches only itself). A clean-command guard still blocks command
+    # substitution, pipes/chains, file-write redirects, dangerous find, and
+    # leaking a $VAR - except in a mode whose list is the ".*" sentinel.
+    mode:
+      all: # baseline applied in every mode (read-only / non-mutating)
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - git status( .*)?
+          - git log( .*)?
+          - git diff( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+      plan: # read-only planning mode adds nothing
+        allow: []
+      standard: # interactive default: baseline only (same as plan)
+        allow: []
+      auto: # headless `infer agent`: full autonomy (commit/push/etc.). Replace
+        # ".*" with a curated list for CI with secrets so the guard re-applies.
+        allow:
+          - .*
   read:
     enabled: true
     require_approval: false
@@ -156,7 +157,7 @@ tools:
     require_approval: false
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
     safety:
       max_size: 8192 # 8KB
@@ -188,6 +189,9 @@ tools:
     require_approval: false
   safety:
     require_approval: true
+    # How an action that needs approval is delivered: prompt (TUI in chat, IPC
+    # under the channel manager, else blocked), ipc (force IPC), or block (reject).
+    approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
   system_prompt: | # System prompt for agent sessions
@@ -289,9 +293,20 @@ compact:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
 - **tools.sandbox.protected_paths**: Paths excluded from tool access for security (default: [".infer/", ".git/", "*.env"])
-- **tools.whitelist.commands**: List of allowed commands (supports arguments)
-- **tools.whitelist.patterns**: Regex patterns for complex command validation
-- **tools.safety.require_approval**: Prompt user before executing any command (default: true)
+- **tools.bash.mode.\<mode\>.allow**: Per-mode bash allow-list (regexes matched against the whole command). `<mode>` is one of `all`
+  (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
+  list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
+  unrestricted.
+- **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
+- **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
+  - `prompt` — ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
+    (Telegram); if none is reachable (CI/heartbeat) the action is **blocked** with a reason.
+  - `ipc` — force stdin/stdout IPC approval; blocked when no broker is attached.
+  - `block` — reject immediately with a reason, never ask.
+
+  The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
+  the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
+  (e.g. `tools.write.require_approval: false` plus a curated bash allow-list / the `mode.all` append override).
 - **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
@@ -306,6 +321,9 @@ compact:
 
 - **agent.model**: Default model for agent operations
 - **agent.system_prompt**: System prompt included with every agent session
+- **agent.system_prompt_plan**: System prompt used in plan mode (falls back to `system_prompt` when empty)
+- **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
+  actions) on top of full autonomy (falls back to `system_prompt` when empty)
 - **agent.system_reminders.enabled**: Enable/disable system reminders (default: true)
 - **agent.system_reminders.interval**: Number of messages between reminders (default: 10)
 - **agent.system_reminders.text**: Custom reminder text to provide contextual guidance
@@ -572,31 +590,57 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 - `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default:
   `true`)
 
-**Bash Tool Whitelist Configuration:**
+**Bash Tool Allow-List Configuration:**
 
-The Bash tool supports whitelisting commands and patterns for security. These environment variables
-accept comma-separated or newline-separated values:
+The Bash allow-list is **per agent mode** and configured in YAML. Set
+`tools.bash.mode.<mode>.allow` in `config.yaml`, where `<mode>` is `all`
+(baseline applied in every mode), `plan`, `standard`, or `auto`. The effective
+list for a mode is `mode.all.allow` unioned with that mode's list; anything
+unmatched is denied (it prompts for approval in chat, or is rejected with a
+reason in headless agent mode).
 
-- `INFER_TOOLS_BASH_WHITELIST_COMMANDS`: Comma-separated list of whitelisted commands
-- `INFER_TOOLS_BASH_WHITELIST_PATTERNS`: Comma-separated list of regex patterns for whitelisted commands
+The defaults are deliberately **explicit, non-destructive commands** - the
+read-only `gh` subcommands (`gh issue/pr/... list|view`, `gh project
+list|view|item-list|field-list`, `gh search`), not a raw `gh api <path>`
+wildcard. `gh api` is **not** auto-approved by default; prefer the structured
+subcommands, or add a narrowly-scoped `gh api` regex to a mode's `allow` if you
+genuinely need the raw API.
 
-> The matcher is shell-aware: each segment of a pipe/chain (`|`, `&&`, `||`, `;`) must be whitelisted,
-> file-write redirections (`>`, `>>`) and command substitution (`$(...)`) are blocked unless an anchored
-> pattern (`^...$`) allows the whole command, and benign redirects (`2>&1`, `>/dev/null`) are permitted.
+The one exception to YAML-only configuration is an **append override** for the
+`mode.all` baseline, so CI (and `infer-action`) can add a few commands without
+rewriting config or relaxing a mode to `.*`:
+
+- `INFER_TOOLS_BASH_ALLOW_APPEND`: comma/newline-separated commands
+  appended to `tools.bash.mode.all.allow` (and therefore allowed in every mode).
+  Equivalent flag: `--tools-bash-allow-append`; the env var wins when
+  both are set. **Append only** - it merges onto the curated defaults rather than
+  replacing them, and there is no replace override.
+
+> The matcher is shell-aware and matches each entry against the WHOLE command
+> (so a bare token matches only itself; use `( .*)?` to allow arguments). A
+> clean-command guard rejects command substitution (`$(...)`), pipes/chains
+> (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`), dangerous `find`
+> actions, and printing/publishing an expanded `$VAR` (secret leak); benign
+> redirects (`2>&1`, `>/dev/null`) are permitted. The single sentinel `.*`
+> (default for `auto`) means unrestricted and skips the guard.
 > See [Bash Tool restricted operators](tools-reference.md#bash-tool) for details.
 
-**Examples:**
+**Example (`config.yaml`):**
 
-```bash
-# Whitelist specific commands
-export INFER_TOOLS_BASH_WHITELIST_COMMANDS="gh,git,npm,task,make"
-
-# Whitelist command patterns (regex)
-export INFER_TOOLS_BASH_WHITELIST_PATTERNS="^gh .*,^git .*,^npm .*,^task .*"
-
-# Combined example for GitHub Actions
-export INFER_TOOLS_BASH_WHITELIST_COMMANDS="gh,git,npm"
-export INFER_TOOLS_BASH_WHITELIST_PATTERNS="^gh .*,^git .*,^npm (install|test|run).*"
+```yaml
+tools:
+  bash:
+    mode:
+      all:
+        allow:
+          - gh (issue|pr) (list|view)( .*)?
+          - git status( .*)?
+      standard: # opt-in: baseline-only by default; add writes here to skip approval
+        allow:
+          - gh pr create( .*)?
+      auto: # headless `infer agent`: full autonomy (commit, push, etc.)
+        allow:
+          - .*
 ```
 
 **Grep Tool Configuration:**

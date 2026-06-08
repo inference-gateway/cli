@@ -2,104 +2,35 @@ package cmd
 
 import (
 	"os"
+	"slices"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
-func TestBashWhitelistEnvironmentVariables(t *testing.T) {
-	tests := []struct {
-		name             string
-		commandsEnv      string
-		patternsEnv      string
-		expectedCommands []string
-		expectedPatterns []string
-	}{
-		{
-			name:             "Parse comma-separated commands",
-			commandsEnv:      "gh,git,npm",
-			patternsEnv:      "",
-			expectedCommands: []string{"gh", "git", "npm"},
-			expectedPatterns: nil,
-		},
-		{
-			name:             "Parse comma-separated patterns",
-			commandsEnv:      "",
-			patternsEnv:      "^gh .*,^git .*,^npm .*",
-			expectedCommands: nil,
-			expectedPatterns: []string{"^gh .*", "^git .*", "^npm .*"},
-		},
-		{
-			name:             "Parse both commands and patterns",
-			commandsEnv:      "gh,git",
-			patternsEnv:      "^gh .*,^git .*",
-			expectedCommands: []string{"gh", "git"},
-			expectedPatterns: []string{"^gh .*", "^git .*"},
-		},
-		{
-			name:             "Handle whitespace in values",
-			commandsEnv:      "gh, git , npm",
-			patternsEnv:      "^gh .* , ^git .* ",
-			expectedCommands: []string{"gh", "git", "npm"},
-			expectedPatterns: []string{"^gh .*", "^git .*"},
-		},
-		{
-			name:             "Handle newline separators",
-			commandsEnv:      "gh\ngit\nnpm",
-			patternsEnv:      "^gh .*\n^git .*",
-			expectedCommands: []string{"gh", "git", "npm"},
-			expectedPatterns: []string{"^gh .*", "^git .*"},
-		},
-		{
-			name:             "Handle empty values",
-			commandsEnv:      "",
-			patternsEnv:      "",
-			expectedCommands: nil,
-			expectedPatterns: nil,
-		},
-		{
-			name:             "Handle values with extra commas",
-			commandsEnv:      "gh,,git,",
-			patternsEnv:      ",^gh .*,,^git .*,",
-			expectedCommands: []string{"gh", "git"},
-			expectedPatterns: []string{"^gh .*", "^git .*"},
-		},
+// TestMain redirects the logger to a throwaway directory for the whole package.
+// Many tests here call initConfig(), which calls logger.Init; config.DefaultLogsPath
+// is relative (".infer/logs"), so without an override the logger would create
+// .infer/logs/ under the package working directory. No test asserts on logging.dir,
+// and tests that clear INFER_* env vars (e.g. root_defaults_test) chdir into their
+// own temp dir, so this override is safe and self-cleaning.
+func TestMain(m *testing.M) {
+	logDir, err := os.MkdirTemp("", "infer-cmd-test-logs")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("INFER_LOGGING_DIR", logDir); err != nil {
+		panic(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, os.Unsetenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"))
-			assert.NoError(t, os.Unsetenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"))
+	code := m.Run()
 
-			if tt.commandsEnv != "" {
-				assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS", tt.commandsEnv))
-			}
-			if tt.patternsEnv != "" {
-				assert.NoError(t, os.Setenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS", tt.patternsEnv))
-			}
-
-			initConfig()
-
-			if tt.expectedCommands != nil {
-				commands := V.GetStringSlice("tools.bash.whitelist.commands")
-				assert.Equal(t, tt.expectedCommands, commands, "Commands should match expected")
-			} else {
-				commands := V.GetStringSlice("tools.bash.whitelist.commands")
-				assert.NotNil(t, commands, "Commands should not be nil")
-			}
-
-			if tt.expectedPatterns != nil {
-				patterns := V.GetStringSlice("tools.bash.whitelist.patterns")
-				assert.Equal(t, tt.expectedPatterns, patterns, "Patterns should match expected")
-			} else {
-				patterns := V.GetStringSlice("tools.bash.whitelist.patterns")
-				assert.NotNil(t, patterns, "Patterns should not be nil")
-			}
-
-			assert.NoError(t, os.Unsetenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"))
-			assert.NoError(t, os.Unsetenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"))
-		})
-	}
+	_ = os.RemoveAll(logDir)
+	_ = os.Unsetenv("INFER_LOGGING_DIR")
+	os.Exit(code)
 }
 
 func TestA2AAgentsEnvironmentVariable(t *testing.T) {
@@ -148,4 +79,92 @@ func TestA2AAgentsEnvironmentVariable(t *testing.T) {
 			assert.NoError(t, os.Unsetenv("INFER_A2A_AGENTS"))
 		})
 	}
+}
+
+// bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so
+// CI (and infer-action) can add a few commands to the allow-list baseline without
+// rewriting tools.bash.mode.all.allow or shipping ".*".
+const (
+	bashAllowAppendEnv  = "INFER_TOOLS_BASH_ALLOW_APPEND"
+	bashAllowAppendFlag = "tools-bash-allow-append"
+)
+
+// setBashAllowAppendFlag sets the persistent append flag and resets it after the
+// test so its value can't leak into other tests sharing the global rootCmd.
+func setBashAllowAppendFlag(t *testing.T, value string) {
+	t.Helper()
+	require.NoError(t, rootCmd.PersistentFlags().Set(bashAllowAppendFlag, value))
+	t.Cleanup(func() { _ = rootCmd.PersistentFlags().Set(bashAllowAppendFlag, "") })
+}
+
+func TestBashAllowAppendOverride(t *testing.T) {
+	defaultAll := config.DefaultConfig().Tools.Bash.Mode.All.Allow
+
+	tests := []struct {
+		name         string
+		appendEnv    string
+		appendFlag   string
+		wantAppended []string
+	}{
+		{
+			name:         "env appends onto the mode.all baseline",
+			appendEnv:    "docker ps,kubectl get pods",
+			wantAppended: []string{"docker ps", "kubectl get pods"},
+		},
+		{
+			name:         "env trims whitespace, newlines and empty entries",
+			appendEnv:    "docker ps\n kubectl get pods ,,helm list",
+			wantAppended: []string{"docker ps", "kubectl get pods", "helm list"},
+		},
+		{
+			name:         "flag appends onto the mode.all baseline",
+			appendFlag:   "docker ps",
+			wantAppended: []string{"docker ps"},
+		},
+		{
+			name:         "env takes precedence over the flag",
+			appendEnv:    "docker ps",
+			appendFlag:   "should-be-ignored",
+			wantAppended: []string{"docker ps"},
+		},
+		{
+			name:         "no override leaves the baseline untouched",
+			wantAppended: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withHermeticEnv(t)
+			if tt.appendEnv != "" {
+				t.Setenv(bashAllowAppendEnv, tt.appendEnv)
+			}
+			if tt.appendFlag != "" {
+				setBashAllowAppendFlag(t, tt.appendFlag)
+			}
+
+			initConfig()
+
+			want := append(slices.Clone(defaultAll), tt.wantAppended...)
+			assert.Equal(t, want, Cfg.Tools.Bash.Mode.All.Allow)
+		})
+	}
+}
+
+// TestBashAllowAppendReachesMatcher proves the appended command is honored by the
+// single matcher (IsBashCommandAllowed), while an off-list command stays denied.
+// Only standard and plan exercise the append: mode.auto defaults to ".*" (allow-all),
+// so it would pass any command regardless of the baseline.
+func TestBashAllowAppendReachesMatcher(t *testing.T) {
+	withHermeticEnv(t)
+	t.Setenv(bashAllowAppendEnv, "docker ps")
+
+	initConfig()
+
+	for _, mode := range []string{"standard", "plan"} {
+		assert.True(t, Cfg.IsBashCommandAllowed("docker ps", mode),
+			"appended command should be allowed in %s mode via the mode.all baseline", mode)
+	}
+	assert.False(t, Cfg.IsBashCommandAllowed("docker rm -f box", "standard"),
+		"an off-list command must stay denied")
 }

@@ -221,9 +221,50 @@ tools:
   enabled: true
   bash:
     enabled: true
+    timeout: 120
+    mode:
+      all:
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - task( .*)?
+          - make( .*)?
+          - find( .*)?
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh project (list|view|item-list|field-list)( .*)?
+      plan:
+        allow: []
+      standard:
+        allow:
+          - gh issue (create|edit|comment)( .*)?
+          - gh pr create( .*)?
+          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+      auto:
+        allow:
+          - .*
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
   web_fetch:
     enabled: false
-    whitelisted_domains: []
+    allowed_domains: []
     safety:
       max_size: 8192
       timeout: 30
@@ -240,11 +281,6 @@ tools:
       - "google"
       - "duckduckgo"
     timeout: 20
-  whitelist:
-    commands:
-      - "ls"
-      - "pwd"
-    patterns: []
   safety:
     require_approval: false
 
@@ -743,41 +779,34 @@ func writeViperConfigForTest(v *viper.Viper, indent int) error {
 	return nil
 }
 
-func TestIsBashCommandWhitelisted_GhDefaults(t *testing.T) {
+func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
 	allowed := []string{
-		// read-only gh
 		"gh issue list", "gh issue view 5", "gh pr view 5", "gh pr diff",
 		"gh pr checks", "gh repo view", "gh run list", "gh release view v1",
 		"gh workflow view ci.yml", "gh auth status",
-		// targeted writes
-		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
-		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
-		// gh api GET (bare endpoint + read-only flags)
-		"gh api repos/o/r/issues", "gh api user --paginate",
-		"gh api repos/o/r/issues --jq .[].title",
+		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected %q to be whitelisted", cmd)
+		if !cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q to be allowed", cmd)
 		}
 	}
 
 	denied := []string{
-		// destructive gh
+		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
+		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
 		"gh pr merge 5", "gh repo delete o/r", "gh release create v1",
 		"gh release delete v1", "gh run cancel 5", "gh auth login",
 		"gh workflow run ci.yml", "gh issue delete 5", "gh pr close 5",
-		// mutating gh api must fall through to approval
-		"gh api repos/o/r/issues -X POST", "gh api repos/o/r/issues --method POST",
-		"gh api -X DELETE repos/o/r", "gh api repos/o/r -f title=x",
-		// env inspection leaks secrets (API keys, tokens) - must fall through to approval
+		"gh project item-add 7 --url u", "gh project item-edit 7 --field Status",
+		"gh api repos/o/r/issues -X POST",
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandWhitelisted(cmd) {
-			t.Errorf("expected %q NOT to be whitelisted", cmd)
+		if cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q NOT to be allowed", cmd)
 		}
 	}
 }
@@ -863,9 +892,11 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 
 	relSkill := filepath.Join(ConfigDirName, "skills", "demo", "SKILL.md")
 
-	t.Run("skills enabled: carve-out grants read access", func(t *testing.T) {
+	t.Run("skills enabled (default): carve-out grants read access", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.Agent.Skills.Enabled = true
+		if !cfg.Agent.Skills.Enabled {
+			t.Fatalf("expected skills enabled by default")
+		}
 
 		t.Run("user skills dir allowed", func(t *testing.T) {
 			if err := cfg.ValidatePathInSandbox(userSkill); err != nil {
@@ -914,11 +945,9 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		})
 	})
 
-	t.Run("skills disabled (default): carve-out is off, skills dir denied", func(t *testing.T) {
+	t.Run("skills disabled: carve-out is off, skills dir denied", func(t *testing.T) {
 		cfg := DefaultConfig()
-		if cfg.Agent.Skills.Enabled {
-			t.Fatalf("expected skills disabled by default")
-		}
+		cfg.Agent.Skills.Enabled = false
 
 		for _, p := range []string{userSkill, projectSkill, relSkill} {
 			if err := cfg.ValidatePathInSandbox(p); err == nil {

@@ -904,6 +904,9 @@ func (s *AgentServiceImpl) executeToolInternal(
 	}
 
 	execCtx := ctx
+	if s.stateManager != nil {
+		execCtx = domain.WithAgentMode(execCtx, s.stateManager.GetAgentMode())
+	}
 	if wasApproved {
 		execCtx = domain.WithToolApproved(execCtx)
 	}

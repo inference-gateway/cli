@@ -30,9 +30,13 @@ type StreamCompletedEvent struct {
 
 func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
 
-// ToolsCompletedEvent is triggered when all tools finish executing
+// ToolsCompletedEvent is triggered when all tools finish executing. Stop is set
+// when the results signal the loop should terminate (a rejected tool or a
+// successful RequestPlanApproval); the ExecutingTools state then routes to the
+// Stopped terminal instead of continuing to PostToolExecution.
 type ToolsCompletedEvent struct {
 	Results []ConversationEntry
+	Stop    bool
 }
 
 func (e ToolsCompletedEvent) EventType() string { return "ToolsCompleted" }
@@ -46,13 +50,6 @@ func (e CompletionRequestedEvent) EventType() string { return "CompletionRequest
 type StartStreamingEvent struct{}
 
 func (e StartStreamingEvent) EventType() string { return "StartStreaming" }
-
-// ProcessNextToolEvent is triggered to process the next tool in the queue
-type ProcessNextToolEvent struct {
-	ToolIndex int
-}
-
-func (e ProcessNextToolEvent) EventType() string { return "ProcessNextTool" }
 
 // AllToolsProcessedEvent is triggered when all tools have been processed
 type AllToolsProcessedEvent struct{}
@@ -114,6 +111,7 @@ type StateContext struct {
 	// Helper methods - these will be implemented as methods that delegate to internal service
 	GetMetrics            func(requestID string) *ChatMetrics
 	ShouldRequireApproval func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool
+	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
 	AddMessage            func(entry ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error)

@@ -47,8 +47,8 @@ usage patterns.
 tools:
   Bash:
     description: |-
-      Execute whitelisted bash commands securely. Only pre-approved
-      commands from the whitelist can be executed.
+      Execute allowed bash commands securely. Only pre-approved
+      commands from the allowed can be executed.
   Read:
     description: |-
       Reads a file from the local filesystem. Always prefer reading
@@ -371,7 +371,9 @@ tools:
 
 ### Bash Tool
 
-Execute whitelisted bash commands securely with validation against configured command patterns.
+Execute bash commands that match a per-mode allow-list. The model is **default-deny**: anything not
+matched is denied - it prompts for approval in chat, or is rejected with an actionable reason in
+headless agent mode.
 
 **Configuration:**
 
@@ -379,51 +381,46 @@ Execute whitelisted bash commands securely with validation against configured co
 tools:
   bash:
     enabled: true
-    whitelist:
-      commands:  # Exact command matches
-        - ls
-        - pwd
-        - git status
-      patterns:  # Regex patterns for complex commands
-        - ^git branch.*
-        - ^npm (install|test|run).*
-    require_approval: false  # Can be set to true for additional security
+    mode:
+      all:        # baseline applied in EVERY mode (read-only / non-mutating)
+        allow:
+          - ls( .*)?
+          - git status( .*)?
+          - gh (issue|pr) (list|view)( .*)?
+      plan:       # read-only planning mode adds nothing
+        allow: []
+      standard:   # interactive default: baseline only (same as plan)
+        allow: []
+      auto:       # headless `infer agent`: full autonomy (commit, push, etc.)
+        allow:
+          - .*
 ```
 
-**Security:**
+The effective allow-list for a mode is `mode.all.allow` unioned with that mode's own list. Each entry
+is a regex matched against the **whole** command (`\A(?:entry)\z`), so a bare token matches only
+itself (`gh` allows `gh`, never `gh issue list`) - use `( .*)?` to accept arguments. The single
+sentinel `.*` means **unrestricted** (any single command, guard skipped); it is the default for `auto`
+mode, which is how an autonomous `infer agent` commits and pushes. Tighten `mode.auto.allow` to a
+curated list for CI with secrets so the guard re-applies.
 
-- Only whitelisted commands and patterns can be executed
-- Commands are validated before execution
-- Supports both exact matches and regex patterns
+**Clean-command guard (every non-`.*` mode):**
 
-**Restricted operators:**
+A command is rejected before matching, regardless of the allow-list, when it:
 
-The matcher is shell-aware, so a whitelisted command cannot be composed into something more
-dangerous:
+- **Pipes or chains** (`|`, `|&`, `&&`, `||`, `;`, `&`, newline) - only a **single** command is
+  auto-approved, so `ls | head` is rejected even if both `ls` and `head` are allowed. Operators inside
+  quotes (a jq `'… | …'` or `--title "a && b"`) do not count.
+- **Writes to a file** (`>`, `>>`, `&>file`, `>&file`) - `echo secret > /etc/passwd` is rejected; this
+  cannot be unlocked by an allow entry.
+- Uses **command substitution** (`$(...)`, backticks, `<(...)`, `>(...)`).
+- Runs a **dangerous find action** (`find ... -exec`/`-delete`/…).
+- **Leaks a variable**: a printing/publishing command (`echo`, `printf`, `gh issue/pr
+  create|comment|edit`) may not expand `$VAR` - `echo $AWS_SECRET_ACCESS_KEY` is rejected, while
+  `ls $DIR` (a non-printing use) is allowed. A single-quoted or backslash-escaped `$` is literal.
 
-- **Pipes and chains** (`|`, `&&`, `||`, `;`) are split at the top level and **every segment must be
-  independently whitelisted**. `ls | head` is allowed only if both `ls` and `head` are; `ls | xargs rm`
-  is rejected because `xargs rm` is not.
-- **File-write redirections** (`>`, `>>`, `&>file`, `>&file`) are **blocked by default**, even for a
-  whitelisted command (`echo secret > /etc/passwd` is rejected). They are allowed only when a whitelist
-  **pattern** matches the *entire* command - a prefix pattern such as `^git log` will not unlock
-  `git log > file`.
-- **Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
-  stripped before matching and remain allowed.
-- **Command substitution** (`$(...)`, backticks, `<(...)`, `>(...)`) is always rejected.
-
-To deliberately allow a redirection, add an anchored pattern (`^...$`) that covers the whole command:
-
-```yaml
-tools:
-  bash:
-    whitelist:
-      patterns:
-        - ^echo .+ >> /var/log/app\.log$   # allow appending to one specific file
-```
-
-A rejected command returns explanatory feedback naming the restricted operator and how to whitelist
-it, and (when approval is enabled) still goes through the normal approval prompt.
+**Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
+stripped before matching and remain allowed. A rejected command returns explanatory feedback naming
+the reason, and (in chat) still goes through the normal approval prompt.
 
 ---
 
@@ -451,7 +448,7 @@ tools:
 
 ### WebFetch Tool
 
-Fetch content from whitelisted URLs or GitHub references using the format `example.com`.
+Fetch content from allowed URLs or GitHub references using the format `example.com`.
 
 **Configuration:**
 
@@ -459,7 +456,7 @@ Fetch content from whitelisted URLs or GitHub references using the format `examp
 tools:
   web_fetch:
     enabled: true
-    whitelisted_domains:
+    allowed_domains:
       - golang.org
       - github.com
     safety:

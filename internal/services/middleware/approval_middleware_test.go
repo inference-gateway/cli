@@ -23,8 +23,8 @@ func createTestConfig() *config.Config {
 			},
 			Bash: config.BashToolConfig{
 				Enabled: true,
-				Whitelist: config.ToolWhitelistConfig{
-					Commands: []string{"ls", "pwd", "echo"},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"ls", "pwd", "echo"}},
 				},
 			},
 		},
