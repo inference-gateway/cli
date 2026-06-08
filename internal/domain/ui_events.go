@@ -76,9 +76,8 @@ type AutocompleteHideEvent struct{}
 
 // AutocompleteCompleteEvent is fired when a completion is selected
 type AutocompleteCompleteEvent struct {
-	Completion         string
-	ExecuteImmediately bool
-	CursorPos          int
+	Completion string
+	CursorPos  int
 }
 
 // UserInputEvent represents user input submission

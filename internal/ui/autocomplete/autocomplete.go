@@ -30,29 +30,28 @@ type ShortcutRegistry interface {
 
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
-	suggestions              []ShortcutOption
-	filtered                 []ShortcutOption
-	selected                 int
-	visible                  bool
-	query                    string
-	theme                    ui.Theme
-	width                    int
-	height                   int
-	maxVisible               int
-	shortcutRegistry         ShortcutRegistry
-	skillsService            domain.SkillsService
-	stateManager             domain.StateManager
-	lastAgentMode            domain.AgentMode
-	toolService              domain.ToolService
-	modelService             domain.ModelService
-	pricingService           domain.PricingService
-	githubIssueService       domain.GitHubIssueService
-	completionMode           string
-	shouldExecuteImmediately bool
-	usageHint                string
-	splicePrefix             string
-	spliceSuffix             string
-	lastCompletionCursor     int
+	suggestions          []ShortcutOption
+	filtered             []ShortcutOption
+	selected             int
+	visible              bool
+	query                string
+	theme                ui.Theme
+	width                int
+	height               int
+	maxVisible           int
+	shortcutRegistry     ShortcutRegistry
+	skillsService        domain.SkillsService
+	stateManager         domain.StateManager
+	lastAgentMode        domain.AgentMode
+	toolService          domain.ToolService
+	modelService         domain.ModelService
+	pricingService       domain.PricingService
+	githubIssueService   domain.GitHubIssueService
+	completionMode       string
+	usageHint            string
+	splicePrefix         string
+	spliceSuffix         string
+	lastCompletionCursor int
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -653,11 +652,6 @@ func (a *AutocompleteImpl) IsVisible() bool {
 	return a.visible
 }
 
-// ShouldExecuteImmediately returns whether the last selected shortcut should execute immediately
-func (a *AutocompleteImpl) ShouldExecuteImmediately() bool {
-	return a.shouldExecuteImmediately
-}
-
 // spliceMidText reconstructs the input by inserting `selected` between
 // `prefix` and `suffix`, preserving the user's surrounding sentence. Adds a
 // trailing space only when the suffix doesn't already start with whitespace,
@@ -682,7 +676,6 @@ func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (strin
 func (a *AutocompleteImpl) handleSelection() (bool, string) {
 	selected := a.filtered[a.selected].Shortcut
 	usage := a.filtered[a.selected].Usage
-	a.shouldExecuteImmediately = false
 	a.lastCompletionCursor = 0
 
 	if a.completionMode == "issues" || a.completionMode == "skills-midtext" {
@@ -717,22 +710,18 @@ func (a *AutocompleteImpl) handleSelection() (bool, string) {
 		requiresArgs := strings.Contains(description, "<") || strings.Contains(description, "[")
 
 		if requiresArgs {
-			selected = selected + " "
-			a.shouldExecuteImmediately = false
 			a.usageHint = a.extractUsageHint(description)
 		} else {
-			a.shouldExecuteImmediately = true
 			a.usageHint = ""
 		}
 
+		selected = selected + " "
 		a.visible = false
 		return true, selected
 	}
 
 	if a.completionMode == "shortcuts" {
-		hasSubcommands := a.hasSubcommands(selected)
-
-		if hasSubcommands {
+		if a.hasSubcommands(selected) {
 			selected = selected + " "
 			shortcutName := strings.TrimPrefix(selected, "/")
 			shortcutName = strings.TrimSpace(shortcutName)
@@ -742,11 +731,9 @@ func (a *AutocompleteImpl) handleSelection() (bool, string) {
 			a.filterSuggestions()
 			a.visible = len(a.filtered) > 0
 			return true, selected
-		} else if a.isNoArgShortcut(selected) {
-			a.shouldExecuteImmediately = true
-		} else {
-			selected = selected + " "
 		}
+
+		selected = selected + " "
 	}
 
 	a.visible = false
@@ -772,28 +759,6 @@ func (a *AutocompleteImpl) hasSubcommands(shortcutName string) bool {
 				return len(subcommands) > 0
 			}
 			return false
-		}
-	}
-
-	return false
-}
-
-// isNoArgShortcut checks if a shortcut accepts no arguments
-func (a *AutocompleteImpl) isNoArgShortcut(shortcutName string) bool {
-	if a.shortcutRegistry == nil {
-		return false
-	}
-
-	name := shortcutName
-	if len(name) > 0 && name[0] == '/' {
-		name = name[1:]
-	}
-
-	shortcuts := a.shortcutRegistry.GetAll()
-	for _, s := range shortcuts {
-		if s.GetName() == name {
-			desc := s.GetDescription()
-			return !strings.Contains(desc, "<") && !strings.Contains(desc, "[")
 		}
 	}
 
@@ -1003,14 +968,12 @@ func (a *AutocompleteImpl) extractUsageHint(description string) string {
 		return ""
 	}
 
-	// Find the closing parenthesis
 	usageEnd := strings.Index(description[usageStart:], ")")
 	if usageEnd == -1 {
 		return ""
 	}
 
-	// Extract the usage part and clean it up
-	usagePart := description[usageStart+7 : usageStart+usageEnd] // +7 to skip "(usage:"
+	usagePart := description[usageStart+7 : usageStart+usageEnd]
 	return strings.TrimSpace(usagePart)
 }
 

@@ -549,7 +549,42 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 		assert.True(t, handled)
 		assert.Equal(t, "use /maintainer ", completion)
-		assert.False(t, ac.ShouldExecuteImmediately(),
-			"mid-text skill completion must NEVER execute on selection")
+	})
+}
+
+// TestAutocomplete_TabCompletesWithoutSubmitting locks in that Tab only
+// completes a suggestion (with a trailing space) and never auto-submits, even
+// for a no-arg shortcut. The user submits with a deliberate Enter afterwards.
+func TestAutocomplete_TabCompletesWithoutSubmitting(t *testing.T) {
+	noArgShortcut := &shortcutsmocks.FakeShortcut{}
+	noArgShortcut.GetNameReturns("clear")
+	noArgShortcut.GetDescriptionReturns("Clear screen")
+
+	mockRegistry := &uimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{noArgShortcut})
+
+	theme := &uimocks.FakeTheme{}
+	theme.GetDimColorReturns("#808080")
+	theme.GetAccentColorReturns("#FF00FF")
+
+	t.Run("no-arg shortcut completes with trailing space, no auto-submit", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.Update("/cle", 4)
+		assert.True(t, ac.IsVisible())
+
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+		assert.True(t, handled)
+		assert.Equal(t, "/clear ", completion,
+			"Tab must complete the shortcut text, not signal submission")
+	})
+
+	t.Run("completed shortcut does not re-open the popup", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.Update("/cle", 4)
+		_, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+
+		ac.Update(completion, len(completion))
+		assert.False(t, ac.IsVisible(),
+			"a fully completed no-arg shortcut must not re-show the dropdown")
 	})
 }

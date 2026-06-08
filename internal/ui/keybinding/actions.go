@@ -855,9 +855,8 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
 					return domain.AutocompleteCompleteEvent{
-						Completion:         completion,
-						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
-						CursorPos:          cursorPos,
+						Completion: completion,
+						CursorPos:  cursorPos,
 					}
 				}
 			}
@@ -892,9 +891,8 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
 					return domain.AutocompleteCompleteEvent{
-						Completion:         completion,
-						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
-						CursorPos:          cursorPos,
+						Completion: completion,
+						CursorPos:  cursorPos,
 					}
 				}
 			}
