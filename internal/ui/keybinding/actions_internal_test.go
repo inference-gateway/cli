@@ -78,7 +78,7 @@ func TestFlashStatusPreservesActiveSpinner(t *testing.T) {
 func TestFlashStatusClearsWhenIdle(t *testing.T) {
 	ctx := newFlashCtx(false, "")
 
-	batch, ok := flashStatus(ctx, "Text pasted")().(tea.BatchMsg)
+	batch, ok := flashStatus(ctx, "Text pasted from clipboard")().(tea.BatchMsg)
 	if !ok {
 		t.Fatal("expected flashStatus to return a tea.BatchMsg")
 	}
@@ -90,14 +90,14 @@ func TestFlashStatusClearsWhenIdle(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected the first command to be a SetStatusEvent, got %T", batch[0]())
 	}
-	if ev.Message != "Text pasted" {
-		t.Errorf("expected message %q, got %q", "Text pasted", ev.Message)
+	if ev.Message != "Text pasted from clipboard" {
+		t.Errorf("expected message %q, got %q", "Text pasted from clipboard", ev.Message)
 	}
 	// batch[1] clears the status line after clipboardFlashDuration; not executed.
 }
 
 // TestHandlePasteEventFlashesAndInserts verifies the bracketed-paste (Cmd+V)
-// path inserts the text and flashes a "Text pasted" confirmation.
+// path inserts the text and flashes a "Text pasted from clipboard" confirmation.
 func TestHandlePasteEventFlashesAndInserts(t *testing.T) {
 	ctx := newFlashCtx(false, "")
 	input := ctx.input.(*uimocks.FakeInputComponent)
@@ -122,8 +122,8 @@ func TestHandlePasteEventFlashesAndInserts(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", batch[0]())
 	}
-	if ev.Message != "Text pasted" {
-		t.Errorf("expected message %q, got %q", "Text pasted", ev.Message)
+	if ev.Message != "Text pasted from clipboard" {
+		t.Errorf("expected message %q, got %q", "Text pasted from clipboard", ev.Message)
 	}
 }
 

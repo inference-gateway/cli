@@ -1023,7 +1023,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
 		if handleImagePaste(app, imageService, inputView, imageData) {
-			return flashStatus(app, "Image attached")
+			return flashStatus(app, "Image pasted from clipboard")
 		}
 		return nil
 	}
@@ -1045,7 +1045,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
 		if err == nil {
 			inputView.AddImageAttachment(*imageAttachment)
-			return flashStatus(app, "Image attached")
+			return flashStatus(app, "Image pasted from clipboard")
 		}
 	}
 
@@ -1058,7 +1058,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
-	return flashStatus(app, "Text pasted")
+	return flashStatus(app, "Text pasted from clipboard")
 }
 
 func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -1844,7 +1844,7 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
-	return flashStatus(app, "Text pasted")
+	return flashStatus(app, "Text pasted from clipboard")
 }
 
 // Approval handlers

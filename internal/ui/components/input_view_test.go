@@ -114,6 +114,25 @@ func TestInputView_ClearInput(t *testing.T) {
 	}
 }
 
+func TestInputView_AddImageAttachmentTokenHasNoIssueRef(t *testing.T) {
+	iv := NewInputView(createMockModelService())
+
+	iv.AddImageAttachment(domain.ImageAttachment{})
+	iv.AddImageAttachment(domain.ImageAttachment{})
+
+	input := iv.GetInput()
+
+	if strings.Contains(input, "#") {
+		t.Errorf("image placeholder must not contain '#'; got %q", input)
+	}
+	if !strings.Contains(input, "[Image 1]") || !strings.Contains(input, "[Image 2]") {
+		t.Errorf("expected sequential [Image N] tokens, got %q", input)
+	}
+	if got := len(iv.GetImageAttachments()); got != 2 {
+		t.Errorf("expected 2 tracked attachments, got %d", got)
+	}
+}
+
 func TestInputView_SetPlaceholder(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)

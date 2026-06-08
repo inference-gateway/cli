@@ -587,7 +587,7 @@ func (iv *InputView) IsDisabled() bool {
 
 // AddImageAttachment adds an image attachment to the pending list
 func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
-	image.DisplayName = fmt.Sprintf("Image #%d", len(iv.imageAttachments)+1)
+	image.DisplayName = fmt.Sprintf("Image %d", len(iv.imageAttachments)+1)
 	iv.imageAttachments = append(iv.imageAttachments, image)
 
 	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
