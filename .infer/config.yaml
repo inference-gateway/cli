@@ -100,9 +100,7 @@ tools:
       plan:
         allow: []
       standard:
-        allow:
-          - gh issue (create|edit|comment)( .*)?
-          - gh pr create( .*)?
+        allow: []
       auto:
         allow:
           - .*

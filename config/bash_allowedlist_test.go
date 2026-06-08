@@ -121,7 +121,7 @@ func TestIsBashCommandAllowed_CommandSubstitution(t *testing.T) {
 
 	allowed := []string{
 		"echo '$(rm -rf /)'",
-		"gh issue create --body 'use $(x) verbatim'",
+		"gh issue list --search 'use $(x) verbatim'",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -134,9 +134,9 @@ func TestIsBashCommandAllowed_QuotedOperators(t *testing.T) {
 	cfg := DefaultConfig()
 
 	allowed := []string{
-		`gh issue create --title "a && b"`,
-		`gh issue comment 5 --body "x | y ; z"`,
-		`gh issue create --title "fix: a || b"`,
+		`gh issue list --search "a && b"`,
+		`gh issue list --search "x | y ; z"`,
+		`gh issue list --search "fix: a || b"`,
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -283,9 +283,6 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 		"echo ${AWS_SECRET_ACCESS_KEY}",
 		`echo "leak=$TOKEN"`,
 		"echo $HOME 2>&1",
-		"gh issue create --title x --body $TOKEN",
-		"gh issue comment 5 --body $SECRET",
-		"gh pr create --title x --body $TOKEN",
 	}
 	for _, cmd := range denied {
 		if cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -301,11 +298,45 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 		"tail $LOGFILE",
 		"git log --format=$FMT",
 		"find $DIR -name '*.go'",
-		`gh issue create --body 'see $HOME'`,
+		`gh issue list --search 'see $HOME'`,
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
 			t.Errorf("expected %q to be allowed (uses a var without printing its value)", cmd)
+		}
+	}
+}
+
+// TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn verifies the env-var
+// leak guard still blocks a publishing gh command that would expand a variable
+// even when the user opts gh writes back into standard mode. The default standard
+// list no longer carries these writes, so a custom config keeps explicit coverage
+// of the publish guard's gh handling.
+func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Tools.Bash.Mode.Standard.Allow = []string{
+		`gh issue (create|edit|comment)( .*)?`,
+		`gh pr create( .*)?`,
+	}
+
+	denied := []string{
+		"gh issue create --title x --body $TOKEN",
+		"gh issue comment 5 --body $SECRET",
+		"gh pr create --title x --body $TOKEN",
+	}
+	for _, cmd := range denied {
+		if cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q NOT to be allowed (publishes a variable's value)", cmd)
+		}
+	}
+
+	allowed := []string{
+		`gh issue create --body 'see $HOME'`,
+		`gh pr create --title x --body 'literal $HOME'`,
+	}
+	for _, cmd := range allowed {
+		if !cfg.IsBashCommandAllowed(cmd, "standard") {
+			t.Errorf("expected %q to be allowed (variable is single-quoted/literal)", cmd)
 		}
 	}
 }
@@ -391,7 +422,7 @@ func TestIsBashCommandAllowed_FileRedirectRestricted(t *testing.T) {
 		"gh issue list >/dev/null",
 		"git status 2>&1",
 		"gh issue list >/dev/null 2>&1",
-		`gh issue comment 5 --body "a > b"`,
+		`gh issue list --search "a > b"`,
 		"echo 'write > file'",
 	}
 	for _, cmd := range allowed {
@@ -475,22 +506,29 @@ func TestIsBashCommandAllowed_FullMatchExactness(t *testing.T) {
 
 // TestIsBashCommandAllowed_ModeResolution verifies the effective allow-list for a
 // mode is mode.all unioned with that mode's own list: baseline entries apply
-// everywhere, and a standard-only entry does not leak into plan mode.
+// everywhere, the default standard list adds nothing, and a mode-specific entry
+// does not leak into another mode.
 func TestIsBashCommandAllowed_ModeResolution(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// gh issue list is in the baseline (mode.all) - allowed in every mode.
 	for _, mode := range []string{"all", "plan", "standard", "auto"} {
 		if !cfg.IsBashCommandAllowed("gh issue list", mode) {
 			t.Errorf("baseline 'gh issue list' should be allowed in %s mode", mode)
 		}
 	}
-	// gh pr create is standard-only - allowed in standard, not in plan.
+
+	for _, mode := range []string{"plan", "standard"} {
+		if cfg.IsBashCommandAllowed("gh pr create --title x", mode) {
+			t.Errorf("'gh pr create' should NOT be auto-approved in %s mode (baseline only)", mode)
+		}
+	}
+
+	cfg.Tools.Bash.Mode.Standard.Allow = []string{`gh pr create( .*)?`}
 	if !cfg.IsBashCommandAllowed("gh pr create --title x", "standard") {
-		t.Error("gh pr create should be allowed in standard mode")
+		t.Error("gh pr create should be allowed in standard once added to standard.allow")
 	}
 	if cfg.IsBashCommandAllowed("gh pr create --title x", "plan") {
-		t.Error("gh pr create should NOT be allowed in plan mode (standard-only)")
+		t.Error("gh pr create should NOT leak into plan mode (standard-only)")
 	}
 }
 

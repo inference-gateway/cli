@@ -205,10 +205,11 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 	}
 	return "\n\nGITHUB OPERATIONS:\n" +
 		"Use the `gh` CLI via the Bash tool for GitHub operations - issues, pull requests, " +
-		"releases, and repository metadata (e.g. `gh issue view`, `gh pr create`, `gh repo view`). " +
+		"releases, and repository metadata (e.g. `gh issue view`, `gh pr view`, `gh repo view`). " +
 		"There is no built-in GitHub tool. Prefer the structured `gh` subcommands over the raw " +
-		"`gh api`: the subcommands are auto-approved, whereas `gh api` is not in the default " +
-		"allow-list and needs approval unless your config opts into it. " +
+		"`gh api`: the read-only subcommands are auto-approved, while writes (e.g. `gh issue " +
+		"create`, `gh pr create`) and the raw `gh api` need approval unless your config opts " +
+		"into them. " +
 		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain).\n\n" +
 		"BASH USAGE:\n" +
 		"The Bash tool already captures stdout, stderr, and the exit code. Do NOT append `2>&1`, " +

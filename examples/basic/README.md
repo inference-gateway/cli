@@ -77,6 +77,8 @@ tools:
       plan:
         allow: []
       standard:
+        # opt-in: standard is baseline-only by default; these add GitHub writes
+        # (issue/pr create + project writes) so they run without per-action approval.
         allow:
           - gh issue (create|edit|comment)( .*)?
           - gh pr create( .*)?

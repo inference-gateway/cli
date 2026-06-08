@@ -389,9 +389,8 @@ tools:
           - gh (issue|pr) (list|view)( .*)?
       plan:       # read-only planning mode adds nothing
         allow: []
-      standard:   # interactive default: baseline + GitHub writes
-        allow:
-          - gh pr create( .*)?
+      standard:   # interactive default: baseline only (same as plan)
+        allow: []
       auto:       # headless `infer agent`: full autonomy (commit, push, etc.)
         allow:
           - .*

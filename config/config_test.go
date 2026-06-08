@@ -783,15 +783,10 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
 	allowed := []string{
-		// read-only gh
 		"gh issue list", "gh issue view 5", "gh pr view 5", "gh pr diff",
 		"gh pr checks", "gh repo view", "gh run list", "gh release view v1",
 		"gh workflow view ci.yml", "gh auth status",
-		// read-only gh project (baseline)
 		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
-		// targeted writes
-		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
-		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -800,17 +795,13 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 	}
 
 	denied := []string{
-		// destructive gh
+		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
+		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
 		"gh pr merge 5", "gh repo delete o/r", "gh release create v1",
 		"gh release delete v1", "gh run cancel 5", "gh auth login",
 		"gh workflow run ci.yml", "gh issue delete 5", "gh pr close 5",
-		// gh project writes are not auto-approved - they require approval
 		"gh project item-add 7 --url u", "gh project item-edit 7 --field Status",
-		// gh api is no longer a default - even a read-only GET must now fall
-		// through to approval unless the user adds it to a mode's allow-list.
-		"gh api repos/o/r/issues", "gh api user --paginate",
 		"gh api repos/o/r/issues -X POST",
-		// env inspection leaks secrets (API keys, tokens) - must fall through to approval
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {

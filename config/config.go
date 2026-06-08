@@ -677,12 +677,9 @@ func DefaultConfig() *Config { //nolint:funlen
 						`gh search (issues|code|prs|repos|commits)( .*)?`,
 						`gh project (list|view|item-list|field-list)( .*)?`,
 					}},
-					Plan: BashModeAllowConfig{Allow: []string{}},
-					Standard: BashModeAllowConfig{Allow: []string{
-						`gh issue (create|edit|comment)( .*)?`,
-						`gh pr create( .*)?`,
-					}},
-					Auto: BashModeAllowConfig{Allow: []string{`.*`}},
+					Plan:     BashModeAllowConfig{Allow: []string{}},
+					Standard: BashModeAllowConfig{Allow: []string{}},
+					Auto:     BashModeAllowConfig{Allow: []string{`.*`}},
 				},
 				BackgroundShells: BackgroundShellsConfig{
 					Enabled:           true,

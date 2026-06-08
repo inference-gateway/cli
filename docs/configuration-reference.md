@@ -129,10 +129,8 @@ tools:
           - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
       plan: # read-only planning mode adds nothing
         allow: []
-      standard: # interactive default: baseline + GitHub writes
-        allow:
-          - gh issue (create|edit|comment)( .*)?
-          - gh pr create( .*)?
+      standard: # interactive default: baseline only (same as plan)
+        allow: []
       auto: # headless `infer agent`: full autonomy (commit/push/etc.). Replace
         # ".*" with a curated list for CI with secrets so the guard re-applies.
         allow:
@@ -637,7 +635,7 @@ tools:
         allow:
           - gh (issue|pr) (list|view)( .*)?
           - git status( .*)?
-      standard:
+      standard: # opt-in: baseline-only by default; add writes here to skip approval
         allow:
           - gh pr create( .*)?
       auto: # headless `infer agent`: full autonomy (commit, push, etc.)
