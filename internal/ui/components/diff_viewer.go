@@ -173,28 +173,22 @@ type DiffViewerImpl struct {
 	dirtyDiff   bool
 	resetScroll bool
 
-	// Patch (hunk-staging) mode - entered with `p` on a file. The view shows the
-	// whole file patch; a line cursor moves over its change ('+'/'-') lines and an
-	// optional range selection stages/unstages exactly the chosen lines.
 	patchMode      bool
 	patchFile      gitdiff.FilePatch
 	patchPath      string
 	patchStaged    bool
-	patchHunk      int // hunk under the cursor (derived from patchCursor)
+	patchHunk      int
 	patchContent   string
-	hunkOffsets    []int // rendered start line of each hunk
+	hunkOffsets    []int
 	patchMsg       string
 	patchRows      []patchLineRef
 	patchRowY      []int
 	patchCursor    int
 	patchSelAnchor int
 
-	// Edit mode - entered with `v`: the user's real editor runs in a PTY,
-	// rendered into the pane (see pty_editor.go).
 	editMode bool
 	editor   *ptyEditor
 
-	// confirmDiscard holds the file awaiting a y/n discard confirmation.
 	confirmDiscard *gitdiff.FileChange
 
 	loading bool
