@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.121.0](https://github.com/inference-gateway/cli/compare/v0.120.1...v0.121.0) (2026-06-08)
+
+### 🚀 Features
+
+* **config:** single-command bash whitelist + env-var leak guard ([#618](https://github.com/inference-gateway/cli/issues/618)) ([bea35ff](https://github.com/inference-gateway/cli/commit/bea35ff51253f23e595d445850f03f11eb19d1db))
+
+### ♻️ Code Refactoring
+
+* **logging:** turns all logging messages to start with lowercase ([fa73d31](https://github.com/inference-gateway/cli/commit/fa73d31e25694a6a39b854581044cc7e558595ca))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.120.0 -> v0.120.1, infer-action v0.11.6 -> v0.11.7 ([#616](https://github.com/inference-gateway/cli/issues/616)) ([c9c6b1d](https://github.com/inference-gateway/cli/commit/c9c6b1d91f573ef77848bf2ca2862b6fd944ce62))
+* remove redundant comments ([e2303f2](https://github.com/inference-gateway/cli/commit/e2303f239348e5c8854baa3b13ecdc7982e50575))
+
 ## [0.120.1](https://github.com/inference-gateway/cli/compare/v0.120.0...v0.120.1) (2026-06-06)
 
 ### 🐛 Bug Fixes
