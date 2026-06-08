@@ -262,13 +262,26 @@ func (t *DiffViewerImpl) HintText() string {
 			t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
 			t.keymap.display(actDiffPatchApply), verb, t.keymap.display(actDiffCancel))
 	}
-	return fmt.Sprintf("%s/%s select · %s stage · %s stage all · %s unstage · %s unstage all · %s discard · %s patch · %s edit · %s commit · %s back",
-		t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
-		t.keymap.display(actDiffStage), t.keymap.display(actDiffStageAll),
-		t.keymap.display(actDiffUnstage), t.keymap.display(actDiffUnstageAll),
-		t.keymap.display(actDiffDiscard), t.keymap.display(actDiffPatch),
-		t.keymap.display(actDiffEdit), t.keymap.display(actDiffCommit),
-		t.keymap.display(actDiffCancel))
+	fc := t.selectedFile()
+	stagedSel := fc != nil && fc.Staged
+
+	parts := []string{
+		fmt.Sprintf("%s/%s select", t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown)),
+		fmt.Sprintf("%s stage", t.keymap.display(actDiffStage)),
+		fmt.Sprintf("%s stage all", t.keymap.display(actDiffStageAll)),
+		fmt.Sprintf("%s unstage", t.keymap.display(actDiffUnstage)),
+		fmt.Sprintf("%s unstage all", t.keymap.display(actDiffUnstageAll)),
+	}
+	if !stagedSel {
+		parts = append(parts, fmt.Sprintf("%s discard", t.keymap.display(actDiffDiscard)))
+	}
+	parts = append(parts,
+		fmt.Sprintf("%s patch", t.keymap.display(actDiffPatch)),
+		fmt.Sprintf("%s edit", t.keymap.display(actDiffEdit)),
+		fmt.Sprintf("%s commit", t.keymap.display(actDiffCommit)),
+		fmt.Sprintf("%s back", t.keymap.display(actDiffCancel)),
+	)
+	return strings.Join(parts, " · ")
 }
 
 // PaneWidth returns the current diff-pane width (after SetWidth), so the caller

@@ -487,3 +487,25 @@ func TestDiffViewer_DiscardSkipsStaged(t *testing.T) {
 		t.Error("d on a staged file should not arm a discard (discard is for unstaged changes)")
 	}
 }
+
+func TestDiffViewer_HintHidesDiscardForStaged(t *testing.T) {
+	src := &fakeDiffSource{
+		staged:   []gitdiff.FileChange{{Path: "s.go", Status: gitdiff.StatusModified, Staged: true}},
+		unstaged: []gitdiff.FileChange{{Path: "u.go", Status: gitdiff.StatusModified, Staged: false}},
+		diffs:    map[string][2]string{},
+	}
+	v := newTestDiffViewer(src)
+
+	v.cursor = fileRowIndex(v, "s.go", true)
+	if h := v.HintText(); strings.Contains(h, "discard") {
+		t.Errorf("staged-file hint = %q, want no discard (discard can't act on a staged file)", h)
+	}
+	if h := v.HintText(); !strings.Contains(h, "patch") {
+		t.Errorf("staged-file hint = %q, want patch to remain (it unstages hunks)", h)
+	}
+
+	v.cursor = fileRowIndex(v, "u.go", false)
+	if h := v.HintText(); !strings.Contains(h, "discard") {
+		t.Errorf("unstaged-file hint = %q, want discard to be shown", h)
+	}
+}
