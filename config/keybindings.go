@@ -384,7 +384,11 @@ func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
 	add("scroll_down", "scroll the diff down", "pgdown", "pgdn")
 	add("halfpage_up", "scroll the diff up half a page", "ctrl+u")
 	add("halfpage_down", "scroll the diff down half a page", "ctrl+d")
-	add("patch_apply", "apply the current hunk", "a", "s", "u", "enter", "space")
+	add("patch_apply", "apply the selected lines / current hunk", "a", "u", "enter")
+	add("patch_select", "start/clear a line-range selection", "space", "v")
+	add("patch_split", "split the current hunk into smaller pieces", "s")
+	add("hunk_prev", "jump to the previous hunk", "[")
+	add("hunk_next", "jump to the next hunk", "]")
 	add("cancel", "close the changes panel / exit patch mode", "esc", "q")
 }
 

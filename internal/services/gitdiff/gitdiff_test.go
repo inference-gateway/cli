@@ -306,6 +306,157 @@ func TestApplyHunk_Reverse_Unstages(t *testing.T) {
 	}
 }
 
+func TestApplyLines_StagesOnlySelectedChange(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test")
+	writeNumberedFile(t, dir, "f.txt", 8)
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "init")
+
+	content := readFileLines(t, dir, "f.txt")
+	content[2] = "CHANGED3"
+	content[4] = "CHANGED5"
+	writeFileLines(t, dir, "f.txt", content)
+
+	src := NewGitSource(dir)
+	fp, err := src.WorktreePatch("f.txt")
+	if err != nil {
+		t.Fatalf("WorktreePatch: %v", err)
+	}
+	if len(fp.Hunks) != 1 {
+		t.Fatalf("expected the two edits to share one hunk, got %d", len(fp.Hunks))
+	}
+
+	sel := selectLines(fp.Hunks[0], "-line3", "+CHANGED3")
+	if err := src.ApplyLines(fp, 0, sel, false); err != nil {
+		t.Fatalf("ApplyLines: %v", err)
+	}
+
+	staged, unstaged, err := src.Changes()
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+	sfc, ok := findChange(staged, "f.txt")
+	if !ok {
+		t.Fatal("f.txt should be staged")
+	}
+	_, newC, _, err := src.Diff(sfc)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if !strings.Contains(newC, "CHANGED3") {
+		t.Errorf("staged content should include the selected edit CHANGED3:\n%s", newC)
+	}
+	if strings.Contains(newC, "CHANGED5") {
+		t.Errorf("staged content should NOT include the unselected edit CHANGED5:\n%s", newC)
+	}
+	if _, ok := findChange(unstaged, "f.txt"); !ok {
+		t.Error("f.txt should still have the unselected edit unstaged")
+	}
+}
+
+func TestApplyLines_Reverse_UnstagesOnlySelectedChange(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test")
+	writeNumberedFile(t, dir, "f.txt", 8)
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "init")
+
+	content := readFileLines(t, dir, "f.txt")
+	content[2] = "CHANGED3"
+	content[4] = "CHANGED5"
+	writeFileLines(t, dir, "f.txt", content)
+	runGit(t, dir, "add", "f.txt")
+
+	src := NewGitSource(dir)
+	fp, err := src.IndexPatch("f.txt")
+	if err != nil {
+		t.Fatalf("IndexPatch: %v", err)
+	}
+	if len(fp.Hunks) != 1 {
+		t.Fatalf("expected one staged hunk, got %d", len(fp.Hunks))
+	}
+
+	sel := selectLines(fp.Hunks[0], "-line3", "+CHANGED3")
+	if err := src.ApplyLines(fp, 0, sel, true); err != nil {
+		t.Fatalf("ApplyLines reverse: %v", err)
+	}
+
+	staged, unstaged, err := src.Changes()
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+	sfc, ok := findChange(staged, "f.txt")
+	if !ok {
+		t.Fatal("f.txt should still be staged (CHANGED5 remains)")
+	}
+	_, newC, _, err := src.Diff(sfc)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if !strings.Contains(newC, "CHANGED5") {
+		t.Errorf("staged content should still include CHANGED5:\n%s", newC)
+	}
+	if strings.Contains(newC, "CHANGED3") {
+		t.Errorf("staged content should no longer include the unstaged edit CHANGED3:\n%s", newC)
+	}
+	if _, ok := findChange(unstaged, "f.txt"); !ok {
+		t.Error("the unstaged edit (CHANGED3) should now appear as a working-tree change")
+	}
+}
+
+// selectLines returns the indices of the given verbatim patch lines within a
+// hunk, for selecting specific changes in ApplyLines tests.
+func selectLines(h Hunk, want ...string) map[int]bool {
+	sel := map[int]bool{}
+	for i, l := range h.Lines {
+		for _, w := range want {
+			if l == w {
+				sel[i] = true
+			}
+		}
+	}
+	return sel
+}
+
+func TestSplitHunk(t *testing.T) {
+	h := Hunk{
+		Header: "@@ -1,7 +1,7 @@ func foo()",
+		Lines: []string{
+			" line1", " line2",
+			"-line3", "+CHANGED3",
+			" line4",
+			"-line5", "+CHANGED5",
+			" line6", " line7",
+		},
+	}
+	pieces := splitHunk(h)
+	if len(pieces) != 2 {
+		t.Fatalf("expected 2 pieces, got %d", len(pieces))
+	}
+	if pieces[0].Header != "@@ -1,4 +1,4 @@ func foo()" {
+		t.Errorf("piece 0 header = %q, want @@ -1,4 +1,4 @@ func foo()", pieces[0].Header)
+	}
+	if pieces[1].Header != "@@ -4,4 +4,4 @@ func foo()" {
+		t.Errorf("piece 1 header = %q, want @@ -4,4 +4,4 @@ func foo()", pieces[1].Header)
+	}
+	if last := pieces[0].Lines[len(pieces[0].Lines)-1]; last != " line4" {
+		t.Errorf("piece 0 should end with shared context %q, got %q", " line4", last)
+	}
+	if pieces[1].Lines[0] != " line4" {
+		t.Errorf("piece 1 should start with shared context %q, got %q", " line4", pieces[1].Lines[0])
+	}
+
+	single := Hunk{Header: "@@ -1,3 +1,3 @@", Lines: []string{" a", "-b", "+B", " c"}}
+	if got := splitHunk(single); len(got) != 1 {
+		t.Errorf("single-run hunk should not split, got %d pieces", len(got))
+	}
+}
+
 func readFileLines(t *testing.T, dir, name string) []string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, name))
@@ -347,8 +498,6 @@ func TestStageUnstage(t *testing.T) {
 
 func TestStageUnstageAll(t *testing.T) {
 	repo := newTestRepo(t)
-	// Two kinds of change at once: a modified tracked file and a brand-new
-	// untracked file. `git add -A` must catch both.
 	writeFile(t, repo, "tracked.txt", "line1\nline2\nchanged\n")
 	writeFile(t, repo, "new.txt", "hello\n")
 	src := NewGitSource(repo)
@@ -384,7 +533,6 @@ func TestDiscard(t *testing.T) {
 	repo := newTestRepo(t)
 	src := NewGitSource(repo)
 
-	// A tracked file modified in the working tree → discard restores it.
 	writeFile(t, repo, "tracked.txt", "line1\nline2\nMODIFIED\n")
 	if err := src.Discard(FileChange{Path: "tracked.txt", Status: StatusModified}); err != nil {
 		t.Fatalf("Discard tracked: %v", err)
@@ -397,7 +545,6 @@ func TestDiscard(t *testing.T) {
 		t.Errorf("tracked.txt should have no unstaged changes after discard")
 	}
 
-	// An untracked file → discard deletes it.
 	writeFile(t, repo, "junk.txt", "temp\n")
 	if err := src.Discard(FileChange{Path: "junk.txt", Status: StatusUntracked}); err != nil {
 		t.Fatalf("Discard untracked: %v", err)

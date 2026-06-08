@@ -30,6 +30,7 @@ type fakeDiffSource struct {
 type applyCall struct {
 	hunkIndex int
 	reverse   bool
+	lines     map[int]bool // nil for a whole-hunk ApplyHunk; set for ApplyLines
 }
 
 func (f *fakeDiffSource) Changes() ([]gitdiff.FileChange, []gitdiff.FileChange, error) {
@@ -64,6 +65,11 @@ func (f *fakeDiffSource) IndexPatch(string) (gitdiff.FilePatch, error) {
 
 func (f *fakeDiffSource) ApplyHunk(_ gitdiff.FilePatch, hunkIndex int, reverse bool) error {
 	f.applyCalls = append(f.applyCalls, applyCall{hunkIndex: hunkIndex, reverse: reverse})
+	return nil
+}
+
+func (f *fakeDiffSource) ApplyLines(_ gitdiff.FilePatch, hunkIndex int, selected map[int]bool, reverse bool) error {
+	f.applyCalls = append(f.applyCalls, applyCall{hunkIndex: hunkIndex, reverse: reverse, lines: selected})
 	return nil
 }
 
@@ -113,7 +119,6 @@ func TestDiffViewer_TreeBuild(t *testing.T) {
 	if v.rows[1].kind != rowFile || v.rows[1].label != "a.go" {
 		t.Errorf("rows[1] = %+v, want file a.go", v.rows[1])
 	}
-	// Folder grouping inside Changes section.
 	folderFound := false
 	for _, r := range v.rows {
 		if r.kind == rowFolder && r.label == "dir" {
@@ -123,7 +128,6 @@ func TestDiffViewer_TreeBuild(t *testing.T) {
 	if !folderFound {
 		t.Errorf("expected a 'dir' folder row")
 	}
-	// First file should be auto-selected so a diff shows on open.
 	if v.cursor != 1 || v.selectedFilePath() != "a.go" {
 		t.Errorf("cursor=%d selected=%q, want first file a.go", v.cursor, v.selectedFilePath())
 	}
@@ -144,11 +148,11 @@ func TestDiffViewer_Navigation(t *testing.T) {
 	if v.cursor != start+1 {
 		t.Errorf("after down, cursor=%d want %d", v.cursor, start+1)
 	}
-	v.moveCursor(-100) // clamps to 0
+	v.moveCursor(-100)
 	if v.cursor != 0 {
 		t.Errorf("after clamp up, cursor=%d want 0", v.cursor)
 	}
-	v.moveCursor(100) // clamps to last
+	v.moveCursor(100)
 	if v.cursor != len(v.rows)-1 {
 		t.Errorf("after clamp down, cursor=%d want %d", v.cursor, len(v.rows)-1)
 	}
@@ -163,12 +167,12 @@ func TestDiffViewer_CollapseSection(t *testing.T) {
 	v := newTestDiffViewer(src)
 	full := len(v.rows)
 
-	v.cursor = 0 // staged section header
+	v.cursor = 0
 	v.toggleOrSelect()
 	if len(v.rows) != full-1 {
 		t.Errorf("after collapsing staged section, rows=%d want %d", len(v.rows), full-1)
 	}
-	v.toggleOrSelect() // re-expand (cursor re-anchored to the same section header)
+	v.toggleOrSelect()
 	if len(v.rows) != full {
 		t.Errorf("after re-expanding, rows=%d want %d", len(v.rows), full)
 	}
@@ -213,7 +217,6 @@ func TestDiffViewer_StageUnstageAll(t *testing.T) {
 	}
 	v := newTestDiffViewer(src)
 
-	// "A" stages everything in one shot - no selection required.
 	_, cmd := v.Update(tea.KeyPressMsg{Text: "A", Code: 'a', Mod: tea.ModShift})
 	if cmd == nil {
 		t.Fatal("'A' should produce a stage-all cmd")
@@ -223,7 +226,6 @@ func TestDiffViewer_StageUnstageAll(t *testing.T) {
 		t.Errorf("stageAllCalls = %d, want 1", src.stageAllCalls)
 	}
 
-	// "U" unstages everything.
 	_, cmd = v.Update(tea.KeyPressMsg{Text: "U", Code: 'u', Mod: tea.ModShift})
 	if cmd == nil {
 		t.Fatal("'U' should produce an unstage-all cmd")
@@ -318,7 +320,7 @@ func TestDiffViewer_PatchModeStage(t *testing.T) {
 		t.Errorf("patch render missing hunk 0 content:\n%s", out)
 	}
 
-	v.movePatchHunk(1)
+	v.jumpHunk(1)
 	if v.patchHunk != 1 {
 		t.Errorf("patchHunk = %d, want 1", v.patchHunk)
 	}
@@ -358,6 +360,114 @@ func TestDiffViewer_PatchModeUnstageDirection(t *testing.T) {
 	}
 }
 
+// multiChangeSource is an unstaged file whose single hunk holds two separate
+// edits, used to exercise line selection and splitting.
+func multiChangeSource() *fakeDiffSource {
+	return &fakeDiffSource{
+		unstaged: []gitdiff.FileChange{{Path: "main.go", Status: gitdiff.StatusModified}},
+		diffs:    map[string][2]string{},
+		worktreePatch: gitdiff.FilePatch{
+			Preamble: "diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go",
+			Hunks: []gitdiff.Hunk{{
+				Header: "@@ -1,7 +1,7 @@",
+				Lines:  []string{" ctx", "-old1", "+new1", " mid", "-old2", "+new2", " end"},
+			}},
+		},
+	}
+}
+
+func TestDiffViewer_PatchSelectionAppliesLines(t *testing.T) {
+	src := multiChangeSource()
+	v := newTestDiffViewer(src)
+	v.Update(v.enterPatchCmd()())
+	if !v.patchMode {
+		t.Fatal("expected patch mode")
+	}
+	// Change lines are at hunk-line indices 1,2,4,5.
+	if len(v.patchRows) != 4 {
+		t.Fatalf("patchRows = %d, want 4 change lines", len(v.patchRows))
+	}
+
+	// Select the first edit only (cursor row 0 -> 1, i.e. -old1/+new1).
+	v.togglePatchSelection()
+	v.movePatchCursor(1)
+	apply := v.applyPatchCmd()
+	if apply == nil {
+		t.Fatal("applyPatchCmd returned nil")
+	}
+	apply()
+
+	if len(src.applyCalls) != 1 {
+		t.Fatalf("applyCalls = %d, want 1", len(src.applyCalls))
+	}
+	call := src.applyCalls[0]
+	if call.lines == nil {
+		t.Fatal("expected a line-selection apply (ApplyLines), got a whole-hunk apply")
+	}
+	if call.reverse {
+		t.Error("an unstaged file stages forward (reverse=false)")
+	}
+	if !call.lines[1] || !call.lines[2] || call.lines[4] || call.lines[5] {
+		t.Errorf("selected lines = %v, want exactly {1,2}", call.lines)
+	}
+	if v.patchSelAnchor != -1 {
+		t.Error("selection should clear after applying")
+	}
+}
+
+func TestDiffViewer_PatchApplyWholeHunkWithoutSelection(t *testing.T) {
+	src := multiChangeSource()
+	v := newTestDiffViewer(src)
+	v.Update(v.enterPatchCmd()())
+
+	// No selection -> apply acts on the whole hunk under the cursor.
+	if cmd := v.applyPatchCmd(); cmd != nil {
+		cmd()
+	}
+	if len(src.applyCalls) != 1 {
+		t.Fatalf("applyCalls = %d, want 1", len(src.applyCalls))
+	}
+	if src.applyCalls[0].lines != nil {
+		t.Errorf("expected whole-hunk apply (lines nil), got %v", src.applyCalls[0].lines)
+	}
+}
+
+func TestDiffViewer_PatchSplitKey(t *testing.T) {
+	src := multiChangeSource()
+	v := newTestDiffViewer(src)
+	v.Update(v.enterPatchCmd()())
+	if len(v.patchFile.Hunks) != 1 {
+		t.Fatalf("hunks before split = %d, want 1", len(v.patchFile.Hunks))
+	}
+
+	v.Update(tea.KeyPressMsg{Text: "s", Code: 's'}) // patch_split
+	if len(v.patchFile.Hunks) != 2 {
+		t.Fatalf("hunks after split = %d, want 2 (one per edit)", len(v.patchFile.Hunks))
+	}
+}
+
+func TestDiffViewer_PatchSelectKeyAndEsc(t *testing.T) {
+	src := multiChangeSource()
+	v := newTestDiffViewer(src)
+	v.Update(v.enterPatchCmd()())
+
+	v.Update(tea.KeyPressMsg{Text: "v", Code: 'v'})
+	if v.patchSelAnchor < 0 {
+		t.Fatal("v should start a range selection")
+	}
+	v.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if v.patchSelAnchor >= 0 {
+		t.Error("esc should clear an active selection")
+	}
+	if !v.patchMode {
+		t.Error("esc should not exit patch mode while a selection was active")
+	}
+	v.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if v.patchMode {
+		t.Error("esc with no selection should exit patch mode")
+	}
+}
+
 func TestDiffViewer_EmptyState(t *testing.T) {
 	src := &fakeDiffSource{diffs: map[string][2]string{}}
 	v := newTestDiffViewer(src)
@@ -385,12 +495,10 @@ func TestDiffViewer_ConfigurableKeybinding(t *testing.T) {
 	v.Update(diffViewerLoadedMsg{unstaged: src.unstaged})
 	v.cursor = fileRowIndex(v, "a.go", false)
 
-	// The old default 'a' no longer stages after the rebinding.
 	if _, cmd := v.Update(tea.KeyPressMsg{Text: "a", Code: 'a'}); cmd != nil {
 		t.Error("default 'a' should no longer stage after rebinding stage->g")
 	}
 
-	// The rebound 'g' stages the selected file.
 	_, cmd := v.Update(tea.KeyPressMsg{Text: "g", Code: 'g'})
 	if cmd == nil {
 		t.Fatal("rebound 'g' should produce a stage cmd")
@@ -400,7 +508,6 @@ func TestDiffViewer_ConfigurableKeybinding(t *testing.T) {
 		t.Errorf("stageCalls = %v, want [a.go]", src.stageCalls)
 	}
 
-	// The footer hint reflects the user's binding.
 	if !strings.Contains(v.HintText(), "g stage") {
 		t.Errorf("hint = %q, want it to show 'g stage'", v.HintText())
 	}
@@ -412,8 +519,6 @@ func TestDiffViewer_EditKeyBound(t *testing.T) {
 		diffs:    map[string][2]string{},
 	}
 	v := newTestDiffViewer(src)
-	// The edit action is wired to the configurable key (default `v`); assert the
-	// binding without launching a real editor (that needs a PTY + a TTY editor).
 	if v.keymap.match("v", actDiffEdit) != actDiffEdit {
 		t.Errorf("default 'v' should be bound to the diff-viewer edit action")
 	}
@@ -444,7 +549,6 @@ func TestDiffViewer_DiscardConfirm(t *testing.T) {
 	v := newTestDiffViewer(src)
 	v.cursor = fileRowIndex(v, "a.go", false)
 
-	// `d` arms a confirmation; it must not discard yet.
 	v.Update(tea.KeyPressMsg{Text: "d", Code: 'd'})
 	if v.confirmDiscard == nil {
 		t.Fatal("pressing d should arm a discard confirmation")
@@ -456,13 +560,11 @@ func TestDiffViewer_DiscardConfirm(t *testing.T) {
 		t.Errorf("expected a discard prompt in the pane:\n%s", out)
 	}
 
-	// `n` cancels without discarding.
 	v.Update(tea.KeyPressMsg{Text: "n", Code: 'n'})
 	if v.confirmDiscard != nil || len(src.discardCalls) != 0 {
 		t.Errorf("n should cancel without discarding; calls=%v", src.discardCalls)
 	}
 
-	// `d` then `y` discards the file.
 	v.Update(tea.KeyPressMsg{Text: "d", Code: 'd'})
 	_, cmd := v.Update(tea.KeyPressMsg{Text: "y", Code: 'y'})
 	if cmd == nil {

@@ -29,25 +29,29 @@ const (
 // Configurable action IDs for the changes panel (defaults in
 // config.addDiffViewerBindings; users override them in keybindings.yaml).
 var (
-	actDiffNavUp      = config.ActionID(config.NamespaceDiffViewer, "nav_up")
-	actDiffNavDown    = config.ActionID(config.NamespaceDiffViewer, "nav_down")
-	actDiffCollapse   = config.ActionID(config.NamespaceDiffViewer, "collapse")
-	actDiffExpand     = config.ActionID(config.NamespaceDiffViewer, "expand")
-	actDiffToggle     = config.ActionID(config.NamespaceDiffViewer, "toggle")
-	actDiffStage      = config.ActionID(config.NamespaceDiffViewer, "stage")
-	actDiffUnstage    = config.ActionID(config.NamespaceDiffViewer, "unstage")
-	actDiffStageAll   = config.ActionID(config.NamespaceDiffViewer, "stage_all")
-	actDiffUnstageAll = config.ActionID(config.NamespaceDiffViewer, "unstage_all")
-	actDiffDiscard    = config.ActionID(config.NamespaceDiffViewer, "discard")
-	actDiffPatch      = config.ActionID(config.NamespaceDiffViewer, "patch")
-	actDiffEdit       = config.ActionID(config.NamespaceDiffViewer, "edit")
-	actDiffCommit     = config.ActionID(config.NamespaceDiffViewer, "commit")
-	actDiffScrollUp   = config.ActionID(config.NamespaceDiffViewer, "scroll_up")
-	actDiffScrollDown = config.ActionID(config.NamespaceDiffViewer, "scroll_down")
-	actDiffHalfUp     = config.ActionID(config.NamespaceDiffViewer, "halfpage_up")
-	actDiffHalfDown   = config.ActionID(config.NamespaceDiffViewer, "halfpage_down")
-	actDiffPatchApply = config.ActionID(config.NamespaceDiffViewer, "patch_apply")
-	actDiffCancel     = config.ActionID(config.NamespaceDiffViewer, "cancel")
+	actDiffNavUp       = config.ActionID(config.NamespaceDiffViewer, "nav_up")
+	actDiffNavDown     = config.ActionID(config.NamespaceDiffViewer, "nav_down")
+	actDiffCollapse    = config.ActionID(config.NamespaceDiffViewer, "collapse")
+	actDiffExpand      = config.ActionID(config.NamespaceDiffViewer, "expand")
+	actDiffToggle      = config.ActionID(config.NamespaceDiffViewer, "toggle")
+	actDiffStage       = config.ActionID(config.NamespaceDiffViewer, "stage")
+	actDiffUnstage     = config.ActionID(config.NamespaceDiffViewer, "unstage")
+	actDiffStageAll    = config.ActionID(config.NamespaceDiffViewer, "stage_all")
+	actDiffUnstageAll  = config.ActionID(config.NamespaceDiffViewer, "unstage_all")
+	actDiffDiscard     = config.ActionID(config.NamespaceDiffViewer, "discard")
+	actDiffPatch       = config.ActionID(config.NamespaceDiffViewer, "patch")
+	actDiffEdit        = config.ActionID(config.NamespaceDiffViewer, "edit")
+	actDiffCommit      = config.ActionID(config.NamespaceDiffViewer, "commit")
+	actDiffScrollUp    = config.ActionID(config.NamespaceDiffViewer, "scroll_up")
+	actDiffScrollDown  = config.ActionID(config.NamespaceDiffViewer, "scroll_down")
+	actDiffHalfUp      = config.ActionID(config.NamespaceDiffViewer, "halfpage_up")
+	actDiffHalfDown    = config.ActionID(config.NamespaceDiffViewer, "halfpage_down")
+	actDiffPatchApply  = config.ActionID(config.NamespaceDiffViewer, "patch_apply")
+	actDiffPatchSelect = config.ActionID(config.NamespaceDiffViewer, "patch_select")
+	actDiffPatchSplit  = config.ActionID(config.NamespaceDiffViewer, "patch_split")
+	actDiffHunkPrev    = config.ActionID(config.NamespaceDiffViewer, "hunk_prev")
+	actDiffHunkNext    = config.ActionID(config.NamespaceDiffViewer, "hunk_next")
+	actDiffCancel      = config.ActionID(config.NamespaceDiffViewer, "cancel")
 )
 
 // diffKeymap resolves pressed keys to configurable diff-panel action IDs and
@@ -101,6 +105,13 @@ type diffRow struct {
 	collapsed   bool
 	count       int
 	fc          gitdiff.FileChange
+}
+
+// patchLineRef locates one change ('+'/'-') line within the loaded patch by its
+// hunk index and its index into that hunk's Lines.
+type patchLineRef struct {
+	hunk int
+	line int
 }
 
 // diffViewerLoadedMsg carries the result of an async git status query.
@@ -162,15 +173,21 @@ type DiffViewerImpl struct {
 	dirtyDiff   bool
 	resetScroll bool
 
-	// Patch (hunk-staging) mode - entered with `p` on a file.
-	patchMode    bool
-	patchFile    gitdiff.FilePatch
-	patchPath    string
-	patchStaged  bool
-	patchHunk    int
-	patchContent string
-	hunkOffsets  []int
-	patchMsg     string
+	// Patch (hunk-staging) mode - entered with `p` on a file. The view shows the
+	// whole file patch; a line cursor moves over its change ('+'/'-') lines and an
+	// optional range selection stages/unstages exactly the chosen lines.
+	patchMode      bool
+	patchFile      gitdiff.FilePatch
+	patchPath      string
+	patchStaged    bool
+	patchHunk      int // hunk under the cursor (derived from patchCursor)
+	patchContent   string
+	hunkOffsets    []int // rendered start line of each hunk
+	patchMsg       string
+	patchRows      []patchLineRef
+	patchRowY      []int
+	patchCursor    int
+	patchSelAnchor int
 
 	// Edit mode - entered with `v`: the user's real editor runs in a PTY,
 	// rendered into the pane (see pty_editor.go).
@@ -194,15 +211,16 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 	vp.MouseWheelDelta = 3
 
 	return &DiffViewerImpl{
-		source:        source,
-		styleProvider: styleProvider,
-		themeService:  themeService,
-		diffRenderer:  NewDiffRenderer(styleProvider),
-		keymap:        diffKeymap{keys: config.ResolveNamespaceBindings(kb, config.NamespaceDiffViewer)},
-		collapsed:     make(map[string]bool),
-		viewport:      vp,
-		loading:       true,
-		dirtyDiff:     true,
+		source:         source,
+		styleProvider:  styleProvider,
+		themeService:   themeService,
+		diffRenderer:   NewDiffRenderer(styleProvider),
+		keymap:         diffKeymap{keys: config.ResolveNamespaceBindings(kb, config.NamespaceDiffViewer)},
+		collapsed:      make(map[string]bool),
+		viewport:       vp,
+		loading:        true,
+		dirtyDiff:      true,
+		patchSelAnchor: -1,
 	}
 }
 
@@ -234,6 +252,10 @@ func (t *DiffViewerImpl) Reset() {
 	t.patchHunk = 0
 	t.patchContent = ""
 	t.patchMsg = ""
+	t.patchRows = nil
+	t.patchRowY = nil
+	t.patchCursor = 0
+	t.patchSelAnchor = -1
 	if t.editor != nil {
 		t.editor.close()
 	}
@@ -254,13 +276,20 @@ func (t *DiffViewerImpl) HintText() string {
 		return "discard " + t.confirmDiscard.Path + "?  y confirm · n cancel"
 	}
 	if t.patchMode {
-		verb := "stage hunk"
+		action := "stage"
 		if t.patchStaged {
-			verb = "unstage hunk"
+			action = "unstage"
 		}
-		return fmt.Sprintf("%s/%s hunk · %s %s · %s back",
-			t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
-			t.keymap.display(actDiffPatchApply), verb, t.keymap.display(actDiffCancel))
+		unit, selectHint := "hunk", t.keymap.display(actDiffPatchSelect)+" select"
+		if t.patchSelAnchor >= 0 {
+			unit, selectHint = "lines", t.keymap.display(actDiffPatchSelect)+" clear"
+		}
+		return fmt.Sprintf("%s/%s line · %s · %s %s %s · %s split · %s/%s hunk · %s back",
+			t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown), selectHint,
+			t.keymap.display(actDiffPatchApply), action, unit,
+			t.keymap.display(actDiffPatchSplit),
+			t.keymap.display(actDiffHunkPrev), t.keymap.display(actDiffHunkNext),
+			t.keymap.display(actDiffCancel))
 	}
 	fc := t.selectedFile()
 	stagedSel := fc != nil && fc.Staged
@@ -603,22 +632,39 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- patch (hunk staging) mode ---
 
-// handlePatchKey handles keys while in patch mode: hunk navigation, applying the
-// current hunk (a/s stage a worktree hunk, u unstage a staged hunk - the
-// direction follows whichever patch is loaded), scrolling, and esc to exit.
+// handlePatchKey handles keys while in patch mode: the line cursor moves over
+// change lines; the select key starts/cancels a range selection; apply stages
+// (or unstages, following the loaded patch direction) the selection or, with no
+// selection, the whole hunk under the cursor; split breaks the hunk into pieces;
+// [ / ] jump hunks; esc clears a selection or exits. New-action candidates are
+// listed before apply so they win any shared key.
 func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.match(normalizeKey(msg.String()),
-		actDiffCancel, actDiffNavUp, actDiffNavDown, actDiffPatchApply,
-		actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown) {
+		actDiffCancel, actDiffNavUp, actDiffNavDown,
+		actDiffPatchSelect, actDiffPatchSplit, actDiffHunkPrev, actDiffHunkNext,
+		actDiffPatchApply, actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown) {
 	case actDiffCancel:
+		if t.patchSelAnchor >= 0 { // first esc cancels the selection, not the mode
+			t.patchSelAnchor = -1
+			t.rebuildPatchContent()
+			return t, nil
+		}
 		t.patchMode = false
 		t.dirtyDiff = true
 	case actDiffNavUp:
-		t.movePatchHunk(-1)
+		t.movePatchCursor(-1)
 	case actDiffNavDown:
-		t.movePatchHunk(1)
+		t.movePatchCursor(1)
+	case actDiffPatchSelect:
+		t.togglePatchSelection()
+	case actDiffPatchSplit:
+		t.splitPatchHunk()
+	case actDiffHunkPrev:
+		t.jumpHunk(-1)
+	case actDiffHunkNext:
+		t.jumpHunk(1)
 	case actDiffPatchApply:
-		return t, t.applyHunkCmd()
+		return t, t.applyPatchCmd()
 	case actDiffScrollUp:
 		t.viewport.ScrollUp(10)
 	case actDiffScrollDown:
@@ -693,7 +739,10 @@ func (t *DiffViewerImpl) handlePatchLoaded(msg patchLoadedMsg) (tea.Model, tea.C
 	t.patchPath = msg.path
 	t.patchStaged = msg.staged
 	t.patchHunk = 0
+	t.patchCursor = 0
+	t.patchSelAnchor = -1
 	t.patchMsg = ""
+	t.rebuildPatchRows()
 	t.rebuildPatchContent()
 	t.viewport.GotoTop()
 	return t, nil
@@ -713,45 +762,215 @@ func (t *DiffViewerImpl) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, t
 		t.dirtyDiff = true
 		return t, t.loadCmd()
 	}
-	t.patchHunk = clampInt(t.patchHunk, 0, len(msg.patch.Hunks)-1)
+	t.patchSelAnchor = -1
+	t.rebuildPatchRows() // change set may have shrunk; clamps the cursor
 	t.rebuildPatchContent()
+	t.scrollToCursor()
 	return t, t.loadCmd()
 }
 
-func (t *DiffViewerImpl) movePatchHunk(delta int) {
-	if len(t.patchFile.Hunks) == 0 {
-		return
+// rebuildPatchRows recomputes the flat list of change ('+'/'-') lines (the line
+// cursor's domain) from the loaded patch, clamps the cursor into range, and
+// re-derives the hunk under the cursor.
+func (t *DiffViewerImpl) rebuildPatchRows() {
+	t.patchRows = t.patchRows[:0]
+	for hi, h := range t.patchFile.Hunks {
+		for li, l := range h.Lines {
+			if isChangeLine(l) {
+				t.patchRows = append(t.patchRows, patchLineRef{hunk: hi, line: li})
+			}
+		}
 	}
-	t.patchHunk = clampInt(t.patchHunk+delta, 0, len(t.patchFile.Hunks)-1)
-	t.rebuildPatchContent()
-	t.viewport.GotoTop()
-	if t.patchHunk < len(t.hunkOffsets) {
-		t.viewport.ScrollDown(t.hunkOffsets[t.patchHunk])
+	t.patchCursor = clampInt(t.patchCursor, 0, max(len(t.patchRows)-1, 0))
+	t.syncPatchHunk()
+}
+
+// syncPatchHunk points patchHunk at the hunk holding the cursor's change line.
+func (t *DiffViewerImpl) syncPatchHunk() {
+	if t.patchCursor >= 0 && t.patchCursor < len(t.patchRows) {
+		t.patchHunk = t.patchRows[t.patchCursor].hunk
 	}
 }
 
-// rebuildPatchContent renders the full patch (all hunks) into the viewport,
-// marking the active hunk with a colored left bar, and records each hunk's start
-// line so navigation can scroll to it.
+// hunkRowRange returns the first and last patchRows indices that belong to the
+// given hunk (lo>hi when the hunk has no change rows).
+func (t *DiffViewerImpl) hunkRowRange(hunk int) (lo, hi int) {
+	lo, hi = -1, -2
+	for i, r := range t.patchRows {
+		if r.hunk == hunk {
+			if lo < 0 {
+				lo = i
+			}
+			hi = i
+		}
+	}
+	return lo, hi
+}
+
+// patchSelectionRange returns the inclusive [lo,hi] patchRows range currently
+// selected, or ok=false when no range selection is active.
+func (t *DiffViewerImpl) patchSelectionRange() (lo, hi int, ok bool) {
+	if t.patchSelAnchor < 0 || len(t.patchRows) == 0 {
+		return 0, 0, false
+	}
+	lo, hi = t.patchSelAnchor, t.patchCursor
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	return lo, hi, true
+}
+
+// movePatchCursor moves the line cursor over change lines. While a range
+// selection is active it stays within the anchor's hunk (ApplyLines is per-hunk).
+func (t *DiffViewerImpl) movePatchCursor(delta int) {
+	if len(t.patchRows) == 0 {
+		return
+	}
+	nc := clampInt(t.patchCursor+delta, 0, len(t.patchRows)-1)
+	if t.patchSelAnchor >= 0 {
+		lo, hi := t.hunkRowRange(t.patchRows[t.patchSelAnchor].hunk)
+		nc = clampInt(nc, lo, hi)
+	}
+	t.patchCursor = nc
+	t.syncPatchHunk()
+	t.rebuildPatchContent()
+	t.scrollToCursor()
+}
+
+// togglePatchSelection starts a range selection at the cursor, or cancels the
+// active one.
+func (t *DiffViewerImpl) togglePatchSelection() {
+	if t.patchSelAnchor >= 0 {
+		t.patchSelAnchor = -1
+	} else if len(t.patchRows) > 0 {
+		t.patchSelAnchor = t.patchCursor
+	}
+	t.rebuildPatchContent()
+}
+
+// jumpHunk moves the cursor to the first change line of the previous/next hunk.
+func (t *DiffViewerImpl) jumpHunk(delta int) {
+	if len(t.patchRows) == 0 {
+		return
+	}
+	target := clampInt(t.patchRows[t.patchCursor].hunk+delta, 0, len(t.patchFile.Hunks)-1)
+	for i, r := range t.patchRows {
+		if r.hunk == target {
+			t.patchCursor = i
+			break
+		}
+	}
+	t.patchSelAnchor = -1
+	t.syncPatchHunk()
+	t.rebuildPatchContent()
+	t.scrollToCursor()
+}
+
+// applyPatchCmd applies the active range selection (exact lines) or, when none
+// is active, the whole hunk under the cursor.
+func (t *DiffViewerImpl) applyPatchCmd() tea.Cmd {
+	if lo, hi, ok := t.patchSelectionRange(); ok {
+		return t.applyLinesCmd(lo, hi)
+	}
+	return t.applyHunkCmd()
+}
+
+// applyLinesCmd stages/unstages exactly the change lines in patchRows[lo:hi]
+// (restricted to the cursor row's hunk), following the loaded patch direction.
+func (t *DiffViewerImpl) applyLinesCmd(lo, hi int) tea.Cmd {
+	if lo < 0 || hi >= len(t.patchRows) || lo > hi {
+		return nil
+	}
+	hunk := t.patchRows[lo].hunk
+	selected := make(map[int]bool)
+	for i := lo; i <= hi; i++ {
+		if t.patchRows[i].hunk == hunk {
+			selected[t.patchRows[i].line] = true
+		}
+	}
+	fp, path, staged, src := t.patchFile, t.patchPath, t.patchStaged, t.source
+	t.patchSelAnchor = -1
+	return func() tea.Msg {
+		if err := src.ApplyLines(fp, hunk, selected, staged); err != nil {
+			return patchErrMsg{err: err}
+		}
+		var np gitdiff.FilePatch
+		var err error
+		if staged {
+			np, err = src.IndexPatch(path)
+		} else {
+			np, err = src.WorktreePatch(path)
+		}
+		return patchReloadedMsg{patch: np, err: err}
+	}
+}
+
+// splitPatchHunk breaks the hunk under the cursor into its smallest independent
+// pieces so they can be staged one at a time. The cursor keeps tracking the same
+// change line (now in a smaller hunk).
+func (t *DiffViewerImpl) splitPatchHunk() {
+	if t.patchHunk < 0 || t.patchHunk >= len(t.patchFile.Hunks) {
+		return
+	}
+	before := len(t.patchFile.Hunks)
+	t.patchFile = gitdiff.SplitFilePatchHunk(t.patchFile, t.patchHunk)
+	if len(t.patchFile.Hunks) == before {
+		t.patchMsg = "nothing to split - hunk has a single change"
+		return
+	}
+	t.patchMsg = ""
+	t.patchSelAnchor = -1
+	t.rebuildPatchRows()
+	t.rebuildPatchContent()
+	t.scrollToCursor()
+}
+
+// scrollToCursor keeps the cursor's change line on screen with a little context
+// above it. Overscroll is clamped by the viewport.
+func (t *DiffViewerImpl) scrollToCursor() {
+	if t.patchCursor < 0 || t.patchCursor >= len(t.patchRowY) {
+		return
+	}
+	t.viewport.GotoTop()
+	if y := t.patchRowY[t.patchCursor]; y > 3 {
+		t.viewport.ScrollDown(y - 3)
+	}
+}
+
+// rebuildPatchContent renders the full patch into the viewport: each hunk header
+// then its lines, with a left gutter that marks the cursor line (▶) and any
+// range-selected lines (▌). It records the rendered Y of every change line so the
+// cursor can be scrolled into view.
 func (t *DiffViewerImpl) rebuildPatchContent() {
 	t.hunkOffsets = t.hunkOffsets[:0]
+	t.patchRowY = ensureLen(t.patchRowY, len(t.patchRows))
 	accent := t.styleProvider.GetThemeColor("accent")
-	activeBar := t.styleProvider.RenderWithColor("▌ ", accent)
+	cursorGutter := t.styleProvider.RenderWithColorAndBold("▶ ", accent)
+	selGutter := t.styleProvider.RenderWithColor("▌ ", accent)
+	selLo, selHi, hasSel := t.patchSelectionRange()
 
 	var b strings.Builder
 	line := 0
-	for i, h := range t.patchFile.Hunks {
+	row := 0
+	for _, h := range t.patchFile.Hunks {
 		t.hunkOffsets = append(t.hunkOffsets, line)
-		bar := "  "
-		if i == t.patchHunk {
-			bar = activeBar
-		}
-		b.WriteString(bar)
+		b.WriteString("  ")
 		b.WriteString(t.styleProvider.RenderWithColorAndBold(h.Header, accent))
 		b.WriteByte('\n')
 		line++
 		for _, l := range h.Lines {
-			b.WriteString(bar)
+			gutter := "  "
+			if isChangeLine(l) {
+				switch {
+				case row == t.patchCursor:
+					gutter = cursorGutter
+				case hasSel && row >= selLo && row <= selHi:
+					gutter = selGutter
+				}
+				t.patchRowY[row] = line
+				row++
+			}
+			b.WriteString(gutter)
 			b.WriteString(t.colorPatchLine(l))
 			b.WriteByte('\n')
 			line++
@@ -759,6 +978,23 @@ func (t *DiffViewerImpl) rebuildPatchContent() {
 	}
 	t.patchContent = strings.TrimRight(b.String(), "\n")
 	t.viewport.SetContent(t.patchContent)
+}
+
+// isChangeLine reports whether a unified-diff line adds or removes content.
+func isChangeLine(l string) bool {
+	return l != "" && (l[0] == '+' || l[0] == '-')
+}
+
+// ensureLen returns s resized to n (reusing capacity, zeroing on grow).
+func ensureLen(s []int, n int) []int {
+	if cap(s) >= n {
+		s = s[:n]
+		for i := range s {
+			s[i] = 0
+		}
+		return s
+	}
+	return make([]int, n)
 }
 
 func (t *DiffViewerImpl) colorPatchLine(l string) string {
