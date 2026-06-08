@@ -27,7 +27,8 @@ on:
     types:
       - submitted
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   claude:
