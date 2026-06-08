@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -309,7 +310,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			Bash: config.BashToolConfig{
 				Enabled: true,
 				Mode: config.BashModesConfig{
-					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "printf( .*)?"}},
+					All: config.BashModeAllowConfig{Allow: []string{"echo( .*)?", "printf( .*)?", "seq( .*)?"}},
 				},
 			},
 		},
@@ -380,6 +381,64 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 
 		if !result.Success {
 			t.Errorf("Expected successful execution, got error: %s", result.Error)
+		}
+	})
+
+	t.Run("coalesces large output into bounded callbacks", func(t *testing.T) {
+		const lineCount = 5000
+
+		var mu sync.Mutex
+		var calls int
+		var combined strings.Builder
+
+		callback := func(output string) {
+			mu.Lock()
+			calls++
+			combined.WriteString(output)
+			combined.WriteString("\n")
+			mu.Unlock()
+		}
+
+		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+
+		args := map[string]any{
+			"command": fmt.Sprintf("seq 1 %d", lineCount),
+		}
+
+		result, err := tool.Execute(ctx, args)
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+		if result == nil || !result.Success {
+			t.Fatalf("expected successful execution, got %+v", result)
+		}
+
+		mu.Lock()
+		gotCalls := calls
+		gotCombined := combined.String()
+		mu.Unlock()
+
+		if gotCalls == 0 {
+			t.Fatal("expected at least one callback")
+		}
+		if gotCalls >= 200 {
+			t.Errorf("expected %d lines to coalesce into far fewer callbacks, got %d", lineCount, gotCalls)
+		}
+
+		streamed := strings.Split(strings.TrimRight(gotCombined, "\n"), "\n")
+		if len(streamed) != lineCount {
+			t.Fatalf("expected %d streamed lines, got %d", lineCount, len(streamed))
+		}
+		if streamed[0] != "1" || streamed[len(streamed)-1] != fmt.Sprintf("%d", lineCount) {
+			t.Errorf("expected streamed lines 1..%d, got first=%q last=%q", lineCount, streamed[0], streamed[len(streamed)-1])
+		}
+
+		data, ok := result.Data.(*domain.BashToolResult)
+		if !ok {
+			t.Fatalf("expected result.Data to be *domain.BashToolResult, got %T", result.Data)
+		}
+		if got := strings.Count(data.Output, "\n"); got != lineCount {
+			t.Errorf("expected captured output to contain %d lines, got %d", lineCount, got)
 		}
 	})
 }

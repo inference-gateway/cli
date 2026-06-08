@@ -18,6 +18,19 @@ import (
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
+// Streaming-output coalescing thresholds. readPipeWithBatching accumulates
+// command output and flushes it to the streaming callback at most once per
+// bashStreamFlushInterval (or sooner once bashStreamFlushBytes have piled up),
+// so a high-volume command (e.g. `git diff` on a large branch) emits a bounded
+// number of UI events instead of one per line. One event per line otherwise
+// stalls the TUI: every chunk makes a full Bubble Tea Update/View round-trip,
+// and the terminal completion event that clears the status bar queues behind
+// them. The full result output is captured separately and is unaffected.
+const (
+	bashStreamFlushInterval = 50 * time.Millisecond
+	bashStreamFlushBytes    = 64 * 1024
+)
+
 // BashTool handles bash command execution with security validation
 type BashTool struct {
 	config                 *config.Config
@@ -335,6 +348,23 @@ func (t *BashTool) readPipeWithBatching(
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
+	var pending strings.Builder
+	var lastFlush time.Time
+
+	flush := func() {
+		if pending.Len() == 0 {
+			return
+		}
+		detachedMux.Lock()
+		isDetached := *detached
+		detachedMux.Unlock()
+		if !isDetached {
+			callback(strings.TrimRight(pending.String(), "\n"))
+		}
+		pending.Reset()
+		lastFlush = time.Now()
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -347,14 +377,15 @@ func (t *BashTool) readPipeWithBatching(
 		}
 		outputMux.Unlock()
 
-		detachedMux.Lock()
-		isDetached := *detached
-		detachedMux.Unlock()
+		pending.WriteString(line)
+		pending.WriteByte('\n')
 
-		if !isDetached {
-			callback(line)
+		if pending.Len() >= bashStreamFlushBytes || time.Since(lastFlush) >= bashStreamFlushInterval {
+			flush()
 		}
 	}
+
+	flush()
 
 	if err := scanner.Err(); err != nil {
 		logger.Debug("bash: scanner error", "error", err)

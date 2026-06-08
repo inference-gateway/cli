@@ -9,12 +9,16 @@ type ContextKey string
 const ToolApprovedKey ContextKey = "tool_approved"
 
 // BashOutputCallbackKey is the context key for bash output streaming callback
-// When this key is set in the context, the bash tool will stream output line by line
-// through the callback function instead of waiting for the command to complete
+// When this key is set in the context, the bash tool streams output to the
+// callback as it runs instead of waiting for the command to complete
 const BashOutputCallbackKey ContextKey = "bash_output_callback"
 
-// BashOutputCallback is a function type for receiving streaming bash output
-type BashOutputCallback func(line string)
+// BashOutputCallback receives streaming bash output. Output is coalesced before
+// delivery, so a single invocation may carry several newline-joined lines (the
+// argument never has a trailing newline). This keeps the number of callbacks
+// bounded for high-volume commands; the full command output is captured
+// separately by the tool and is unaffected.
+type BashOutputCallback func(output string)
 
 // BashDetachChannelKey is the context key for the bash detach signal channel
 // When this key is set in the context, the bash tool can signal when a command
