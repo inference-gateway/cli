@@ -1,4 +1,4 @@
-FROM alpine:3.23.4
+FROM alpine:3.24.0
 
 LABEL org.opencontainers.image.title="Inference Gateway CLI"
 LABEL org.opencontainers.image.description="A powerful command-line interface for managing and interacting with the Inference Gateway. Provides interactive chat, autonomous agent capabilities, and extensive tool execution for AI models."
