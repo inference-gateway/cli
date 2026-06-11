@@ -18,8 +18,8 @@ type ModelViewMode int
 const (
 	ModelViewAll ModelViewMode = iota
 	ModelViewFree
-	ModelViewPaid
-	ModelViewPro
+	ModelViewPayAsYouGo
+	ModelViewSubscription
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -172,9 +172,9 @@ func (m *ModelSelectorImpl) handleViewSwitch(key string) {
 	case "2":
 		m.currentView = ModelViewFree
 	case "3":
-		m.currentView = ModelViewPaid
+		m.currentView = ModelViewPayAsYouGo
 	case "4":
-		m.currentView = ModelViewPro
+		m.currentView = ModelViewSubscription
 	}
 	m.selected = 0
 	m.applyFilters()
@@ -321,17 +321,17 @@ func (m *ModelSelectorImpl) applyFilters() {
 				baseModels = append(baseModels, model)
 			}
 		}
-	case ModelViewPaid:
+	case ModelViewPayAsYouGo:
 		baseModels = make([]string, 0)
 		for _, model := range m.models {
-			if !m.isModelFree(model) && !m.isModelPro(model) {
+			if !m.isModelFree(model) && !m.isModelSubscription(model) {
 				baseModels = append(baseModels, model)
 			}
 		}
-	case ModelViewPro:
+	case ModelViewSubscription:
 		baseModels = make([]string, 0)
 		for _, model := range m.models {
-			if m.isModelPro(model) {
+			if m.isModelSubscription(model) {
 				baseModels = append(baseModels, model)
 			}
 		}
@@ -353,14 +353,14 @@ func (m *ModelSelectorImpl) applyFilters() {
 }
 
 // isModelFree checks if a model is free (both input and output prices are 0.0).
-// Pro-subscription models are also $0/$0 but are not free, so they are excluded.
+// Subscription models are also $0/$0 but are not free, so they are excluded.
 // Returns false if pricing is disabled or not configured.
 func (m *ModelSelectorImpl) isModelFree(model string) bool {
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}
 
-	if m.isModelPro(model) {
+	if m.isModelSubscription(model) {
 		return false
 	}
 
@@ -370,9 +370,10 @@ func (m *ModelSelectorImpl) isModelFree(model string) bool {
 	return inputPrice == 0.0 && outputPrice == 0.0
 }
 
-// isModelPro reports whether a model is gated behind a paid Pro subscription.
+// isModelSubscription reports whether a model is gated behind a paid (flat-fee)
+// subscription rather than per-token billing.
 // Returns false if pricing is disabled or not configured.
-func (m *ModelSelectorImpl) isModelPro(model string) bool {
+func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}
@@ -414,21 +415,21 @@ func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
 
 	allStyle := "[1] All"
 	freeStyle := "[2] Free"
-	paidStyle := "[3] Paid"
-	proStyle := "[4] Pro"
+	paygStyle := "[3] Pay-as-you-go"
+	subscriptionStyle := "[4] Subscription"
 
 	switch m.currentView {
 	case ModelViewAll:
 		allStyle = m.styleProvider.RenderWithColor("[1] All", accentColor)
 	case ModelViewFree:
 		freeStyle = m.styleProvider.RenderWithColor("[2] Free", accentColor)
-	case ModelViewPaid:
-		paidStyle = m.styleProvider.RenderWithColor("[3] Paid", accentColor)
-	case ModelViewPro:
-		proStyle = m.styleProvider.RenderWithColor("[4] Pro", accentColor)
+	case ModelViewPayAsYouGo:
+		paygStyle = m.styleProvider.RenderWithColor("[3] Pay-as-you-go", accentColor)
+	case ModelViewSubscription:
+		subscriptionStyle = m.styleProvider.RenderWithColor("[4] Subscription", accentColor)
 	}
 
-	tabs := fmt.Sprintf("%s  %s  %s  %s", allStyle, freeStyle, paidStyle, proStyle)
+	tabs := fmt.Sprintf("%s  %s  %s  %s", allStyle, freeStyle, paygStyle, subscriptionStyle)
 	dimTabs := m.styleProvider.RenderDimText(tabs)
 	fmt.Fprintf(b, "%s\n", dimTabs)
 

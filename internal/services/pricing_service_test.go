@@ -259,9 +259,31 @@ func TestPricingService_OllamaCloudProDefaults(t *testing.T) {
 	}
 }
 
+// TestPricingService_MinimaxDefaults verifies the native MiniMax provider entries
+// resolve to MiniMax's pay-as-you-go standard rate and are not subscription-gated.
+func TestPricingService_MinimaxDefaults(t *testing.T) {
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	models := []string{
+		"minimax/MiniMax-M2",
+		"minimax/MiniMax-M2.1",
+		"minimax/MiniMax-M2.5",
+		"minimax/MiniMax-M2.7",
+		"minimax/MiniMax-M3",
+	}
+	for _, model := range models {
+		t.Run(model, func(t *testing.T) {
+			assert.InDelta(t, 0.30, service.GetInputPrice(model), 1e-9)
+			assert.InDelta(t, 1.20, service.GetOutputPrice(model), 1e-9)
+			assert.Equal(t, "$0.30/$1.20 per MTok", service.FormatModelPricing(model))
+			assert.False(t, service.RequiresPro(model), "native MiniMax models are pay-as-you-go, not subscription")
+		})
+	}
+}
+
 // TestFormatModelPricingLabel exercises the shared label helper that the model
 // view and autocomplete both use: it must suppress the misleading "free" token
-// for Pro models and keep the price for paid+Pro models.
+// for subscription models and keep the price for paid+subscription models.
 func TestFormatModelPricingLabel(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -271,10 +293,10 @@ func TestFormatModelPricingLabel(t *testing.T) {
 		expected     string
 	}{
 		{
-			name:     "default pro model shows pro marker, free suppressed",
+			name:     "default subscription model shows subscription marker, free suppressed",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-pro",
-			expected: "pro subscription",
+			expected: "subscription",
 		},
 		{
 			name:    "free non-pro model shows free",
@@ -295,13 +317,13 @@ func TestFormatModelPricingLabel(t *testing.T) {
 			expected: "$3.00/$15.00 per MTok",
 		},
 		{
-			name:    "paid and pro model shows both",
+			name:    "paid and subscription model shows both",
 			enabled: true,
-			model:   "paid-pro-model",
+			model:   "paid-subscription-model",
 			customPrices: map[string]config.CustomPricing{
-				"paid-pro-model": {InputPricePerMToken: 3.0, OutputPricePerMToken: 15.0, RequiresPro: true},
+				"paid-subscription-model": {InputPricePerMToken: 3.0, OutputPricePerMToken: 15.0, RequiresPro: true},
 			},
-			expected: "$3.00/$15.00 per MTok, pro subscription",
+			expected: "$3.00/$15.00 per MTok, subscription",
 		},
 		{
 			name:     "unknown model shows nothing",

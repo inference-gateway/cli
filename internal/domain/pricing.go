@@ -56,11 +56,12 @@ type PricingService interface {
 }
 
 // FormatModelPricingLabel builds a human-readable pricing/availability label for
-// a model, combining the per-token price with a Pro-subscription marker. A Pro
-// model has no per-token price ($0/$0 → "free"), which would be misleading, so
-// the bare "free" token is replaced by "pro subscription". A model that is
-// both priced and Pro keeps its price and gains the marker. Returns "" when
-// there is nothing to show (pricing disabled, no entry, and not Pro).
+// a model, combining the per-token price with a subscription marker. A
+// subscription model has no per-token price ($0/$0 → "free"), which would be
+// misleading, so the bare "free" token is replaced by "subscription". A model
+// that is both priced and subscription-gated keeps its price and gains the
+// marker. Returns "" when there is nothing to show (pricing disabled, no entry,
+// and not subscription-gated).
 func FormatModelPricingLabel(pricingService PricingService, model string) string {
 	if pricingService == nil {
 		return ""
@@ -70,12 +71,11 @@ func FormatModelPricingLabel(pricingService PricingService, model string) string
 	pricing := pricingService.FormatModelPricing(model)
 	requiresPro := pricingService.RequiresPro(model)
 
-	// Keep the price token, except suppress a Pro model's misleading "free".
 	if pricing != "" && (!requiresPro || pricing != "free") {
 		parts = append(parts, pricing)
 	}
 	if requiresPro {
-		parts = append(parts, "pro subscription")
+		parts = append(parts, "subscription")
 	}
 
 	return strings.Join(parts, ", ")
