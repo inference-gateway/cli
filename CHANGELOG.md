@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.121.1](https://github.com/inference-gateway/cli/compare/v0.121.0...v0.121.1) (2026-06-11)
+
+### 🔧 Build System
+
+* **deps:** bump alpine from 3.23.4 to 3.24.0 in the docker group ([#623](https://github.com/inference-gateway/cli/issues/623)) ([8284fbb](https://github.com/inference-gateway/cli/commit/8284fbb87cb717deea6b139aa3c0cf71b44a3b4e))
+* **deps:** bump the gomod group with 6 updates ([#624](https://github.com/inference-gateway/cli/issues/624)) ([aab867b](https://github.com/inference-gateway/cli/commit/aab867b8823a3e815aa0540a027c1fae457ae483))
+
+### 👷 CI/CD
+
+* centralize claude.yml via reusable workflow ([#622](https://github.com/inference-gateway/cli/issues/622)) ([be8e766](https://github.com/inference-gateway/cli/commit/be8e7668713509739800b862e0326ab9ae655a34))
+* use top level read permissions ([d7ae5a7](https://github.com/inference-gateway/cli/commit/d7ae5a774b0d5a6d3669f50b98a50e8a5a649e21))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.158 -> 2.1.161, claude-code-action v1.0.133 -> v1.0.135 ([#619](https://github.com/inference-gateway/cli/issues/619)) ([bc30480](https://github.com/inference-gateway/cli/commit/bc304803cb95472bb2d4de2270f602c0b148035d))
+* **deps:** bump infer CLI v0.120.1 -> v0.121.0 ([#620](https://github.com/inference-gateway/cli/issues/620)) ([fe16505](https://github.com/inference-gateway/cli/commit/fe16505438603d98b6f3736f4d85a89693a878ac))
+* **deps:** bump infer-action v0.11.7 -> v0.12.1 ([#621](https://github.com/inference-gateway/cli/issues/621)) ([7a3dae9](https://github.com/inference-gateway/cli/commit/7a3dae919a95fa506cf86759f64431d9d82e9ab9))
+* **deps:** update sdk to v1.17.0 and oapi-codegen/runtime to v1.4.1 ([4ccbe30](https://github.com/inference-gateway/cli/commit/4ccbe30857008377cc13ca1194665bb50682e452))
+
 ## [0.121.0](https://github.com/inference-gateway/cli/compare/v0.120.1...v0.121.0) (2026-06-08)
 
 ### 🚀 Features
