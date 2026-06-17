@@ -134,11 +134,11 @@ type PromptsAgentConfig struct {
 }
 
 type PromptsAgentRemindersConfig struct {
-	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
-	Interval       int    `yaml:"interval" mapstructure:"interval"`
-	ReminderText   string `yaml:"reminder_text" mapstructure:"reminder_text"`
-	WrapUpText     string `yaml:"wrap_up_text" mapstructure:"wrap_up_text"`
-	WrapUpThreshold int  `yaml:"wrap_up_threshold" mapstructure:"wrap_up_threshold"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Interval        int    `yaml:"interval" mapstructure:"interval"`
+	ReminderText    string `yaml:"reminder_text" mapstructure:"reminder_text"`
+	WrapUpText      string `yaml:"wrap_up_text" mapstructure:"wrap_up_text"`
+	WrapUpThreshold int    `yaml:"wrap_up_threshold" mapstructure:"wrap_up_threshold"`
 }
 
 type PromptsGitConfig struct {
