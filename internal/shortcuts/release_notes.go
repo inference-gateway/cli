@@ -3,6 +3,7 @@ package shortcuts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -82,20 +83,7 @@ func fetchReleaseNotesFromGH(version string) (string, error) {
 	cmd := exec.Command("gh", args...)
 	output, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			stderr := string(exitErr.Stderr)
-			if strings.Contains(stderr, "not found") || strings.Contains(stderr, "release not found") {
-				if version != "" {
-					return "", fmt.Errorf("release notes for version '%s' not found", version)
-				}
-				return "", fmt.Errorf("no releases found")
-			}
-			return "", fmt.Errorf("gh command failed: %s", stderr)
-		}
-		if strings.Contains(err.Error(), "executable file not found") {
-			return "", fmt.Errorf("gh CLI is not installed. Please install GitHub CLI (https://cli.github.com/) to use this shortcut")
-		}
-		return "", fmt.Errorf("failed to run gh: %w", err)
+		return "", handleGHError(err, version)
 	}
 
 	var release releaseData
@@ -104,6 +92,25 @@ func fetchReleaseNotesFromGH(version string) (string, error) {
 	}
 
 	return formatReleaseNotes(releaseDataToSection(release)), nil
+}
+
+// handleGHError processes errors from the gh CLI and returns user-friendly error messages.
+func handleGHError(err error, version string) error {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		stderr := string(exitErr.Stderr)
+		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "release not found") {
+			if version != "" {
+				return fmt.Errorf("release notes for version '%s' not found", version)
+			}
+			return fmt.Errorf("no releases found")
+		}
+		return fmt.Errorf("gh command failed: %s", stderr)
+	}
+	if strings.Contains(err.Error(), "executable file not found") {
+		return fmt.Errorf("gh CLI is not installed. Please install GitHub CLI (https://cli.github.com/) to use this shortcut")
+	}
+	return fmt.Errorf("failed to run gh: %w", err)
 }
 
 // releaseDataToSection converts a releaseData from the GitHub API into a changelogSection.
