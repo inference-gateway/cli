@@ -213,9 +213,9 @@ func findReleaseNotes(sections []changelogSection, targetVersion string) (change
 func formatReleaseNotes(section changelogSection) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("## Release %s", section.Version))
+	fmt.Fprintf(&b, "## Release %s", section.Version)
 	if section.Date != "" {
-		b.WriteString(fmt.Sprintf(" (%s)", section.Date))
+		fmt.Fprintf(&b, " (%s)", section.Date)
 	}
 	b.WriteString("\n\n")
 
