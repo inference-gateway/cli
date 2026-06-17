@@ -51,6 +51,7 @@ These shortcuts are available out of the box:
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
+- `/release-notes [version]` - Show release notes from CHANGELOG.md for a specific version or the latest release
 
 ### Project Initialization Shortcut
 
