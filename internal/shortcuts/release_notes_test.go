@@ -69,7 +69,6 @@ All notable changes to this project will be documented in this file.
 		t.Fatalf("expected 2 sections, got %d", len(sections))
 	}
 
-	// First section (latest)
 	if sections[0].Version != "0.121.1" {
 		t.Errorf("sections[0].Version = %q, want %q", sections[0].Version, "0.121.1")
 	}
@@ -80,7 +79,6 @@ All notable changes to this project will be documented in this file.
 		t.Errorf("sections[0].Body should contain 'fix a critical bug', got: %s", sections[0].Body)
 	}
 
-	// Second section
 	if sections[1].Version != "0.121.0" {
 		t.Errorf("sections[1].Version = %q, want %q", sections[1].Version, "0.121.0")
 	}
@@ -237,8 +235,6 @@ func TestExtractDate(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
-	// When a version is specified that doesn't exist in the changelog,
-	// the shortcut should return an error message.
 	s := NewReleaseNotesShortcut()
 	res, err := s.Execute(context.Background(), []string{"999.999.999"})
 	if err != nil {
@@ -253,7 +249,6 @@ func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_WithVersionArg(t *testing.T) {
-	// Test that the shortcut accepts a version argument
 	s := NewReleaseNotesShortcut()
 	if !s.CanExecute([]string{"0.121.0"}) {
 		t.Error("CanExecute with version arg should be true")

@@ -64,7 +64,6 @@ func (r *ReleaseNotesShortcut) Execute(_ context.Context, args []string) (Shortc
 				Success: false,
 			}, nil
 		}
-		// Fallback: show the first (latest) section
 		notes = sections[0]
 	}
 
@@ -117,16 +116,12 @@ func parseChangelog(content string) []changelogSection {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Match section headers like "## [0.121.1](https://...)" or "## [0.121.1]"
 		if strings.HasPrefix(line, "## [") {
-			// Save previous section
 			if current != nil {
 				current.Body = strings.TrimSpace(strings.Join(bodyLines, "\n"))
 				sections = append(sections, *current)
 			}
 
-			// Parse version and date from the header
-			// Format: "## [version](url) (date)" or "## [version] (date)"
 			headerContent := strings.TrimPrefix(line, "## ")
 			headerContent = strings.TrimPrefix(headerContent, "##")
 
@@ -147,7 +142,6 @@ func parseChangelog(content string) []changelogSection {
 		}
 	}
 
-	// Save the last section
 	if current != nil {
 		current.Body = strings.TrimSpace(strings.Join(bodyLines, "\n"))
 		sections = append(sections, *current)
@@ -158,7 +152,6 @@ func parseChangelog(content string) []changelogSection {
 
 // extractVersion extracts the version from a header like "[0.121.1](url) (date)"
 func extractVersion(header string) string {
-	// Find the version between brackets
 	start := strings.Index(header, "[")
 	if start == -1 {
 		return ""
@@ -193,7 +186,6 @@ func extractDate(header string) string {
 // findReleaseNotes finds the release notes for a specific version, or the latest
 func findReleaseNotes(sections []changelogSection, targetVersion string) (changelogSection, bool) {
 	if targetVersion == "" {
-		// Return the latest (first section)
 		if len(sections) > 0 {
 			return sections[0], true
 		}
