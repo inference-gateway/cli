@@ -200,8 +200,8 @@ func TestFormatReleaseNotes_NoDate(t *testing.T) {
 
 func TestExtractVersion(t *testing.T) {
 	tests := []struct {
-		header  string
-		want    string
+		header string
+		want   string
 	}{
 		{"[0.121.1](url) (2026-06-11)", "0.121.1"},
 		{"[0.121.0]", "0.121.0"},
