@@ -2,6 +2,7 @@ package shortcuts
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -30,133 +31,162 @@ func TestReleaseNotesShortcut_CanExecute(t *testing.T) {
 		t.Error("CanExecute([]) = false, want true")
 	}
 	if !s.CanExecute([]string{"0.121.0"}) {
-		t.Error("CanExecute([\"0.121.0\"]) = false, want true")
+		t.Error(`CanExecute(["0.121.0"]) = false, want true`)
 	}
 	if s.CanExecute([]string{"a", "b"}) {
-		t.Error("CanExecute([\"a\", \"b\"]) = true, want false")
+		t.Error(`CanExecute(["a", "b"]) = true, want false`)
 	}
 }
 
-func TestParseChangelog(t *testing.T) {
-	content := `# Changelog
+func TestReleaseNotesShortcut_Execute_Success(t *testing.T) {
+	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+		if version != "" {
+			t.Errorf("expected empty version for latest, got %q", version)
+		}
+		return "## Release 0.121.1 (2026-06-11)\n\n### 🐛 Bug Fixes\n\n* fix a critical bug\n", nil
+	})
 
-All notable changes to this project will be documented in this file.
-
-## [0.121.1](https://github.com/inference-gateway/cli/compare/v0.121.0...v0.121.1) (2026-06-11)
-
-### 🐛 Bug Fixes
-
-* fix a critical bug
-
-### 🧹 Maintenance
-
-* some maintenance work
-
-## [0.121.0](https://github.com/inference-gateway/cli/compare/v0.120.1...v0.121.0) (2026-06-08)
-
-### 🚀 Features
-
-* add a new feature
-
-### ♻️ Code Refactoring
-
-* refactor some code
-`
-
-	sections := parseChangelog(content)
-
-	if len(sections) != 2 {
-		t.Fatalf("expected 2 sections, got %d", len(sections))
+	res, err := s.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
-
-	if sections[0].Version != "0.121.1" {
-		t.Errorf("sections[0].Version = %q, want %q", sections[0].Version, "0.121.1")
+	if !res.Success {
+		t.Error("expected Success to be true")
 	}
-	if sections[0].Date != "2026-06-11" {
-		t.Errorf("sections[0].Date = %q, want %q", sections[0].Date, "2026-06-11")
+	if !strings.Contains(res.Output, "Release 0.121.1") {
+		t.Errorf("expected release header in output, got: %s", res.Output)
 	}
-	if !strings.Contains(sections[0].Body, "fix a critical bug") {
-		t.Errorf("sections[0].Body should contain 'fix a critical bug', got: %s", sections[0].Body)
-	}
-
-	if sections[1].Version != "0.121.0" {
-		t.Errorf("sections[1].Version = %q, want %q", sections[1].Version, "0.121.0")
-	}
-	if sections[1].Date != "2026-06-08" {
-		t.Errorf("sections[1].Date = %q, want %q", sections[1].Date, "2026-06-08")
-	}
-	if !strings.Contains(sections[1].Body, "add a new feature") {
-		t.Errorf("sections[1].Body should contain 'add a new feature', got: %s", sections[1].Body)
+	if !strings.Contains(res.Output, "fix a critical bug") {
+		t.Errorf("expected body content in output, got: %s", res.Output)
 	}
 }
 
-func TestParseChangelog_Empty(t *testing.T) {
-	sections := parseChangelog("")
-	if len(sections) != 0 {
-		t.Errorf("expected 0 sections for empty content, got %d", len(sections))
+func TestReleaseNotesShortcut_Execute_SpecificVersion(t *testing.T) {
+	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+		if version != "0.121.0" {
+			t.Errorf("expected version 0.121.0, got %q", version)
+		}
+		return "## Release 0.121.0 (2026-06-08)\n\n### 🚀 Features\n\n* add a new feature\n", nil
+	})
+
+	res, err := s.Execute(context.Background(), []string{"0.121.0"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
+	}
+	if !strings.Contains(res.Output, "Release 0.121.0") {
+		t.Errorf("expected release header in output, got: %s", res.Output)
 	}
 }
 
-func TestParseChangelog_NoSections(t *testing.T) {
-	content := `# Just a header
+func TestReleaseNotesShortcut_Execute_VersionWithVPrefix(t *testing.T) {
+	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+		if version != "0.121.0" {
+			t.Errorf("expected version 0.121.0 (v prefix stripped), got %q", version)
+		}
+		return "## Release 0.121.0\n\ncontent\n", nil
+	})
 
-Some text without any release sections.`
-	sections := parseChangelog(content)
-	if len(sections) != 0 {
-		t.Errorf("expected 0 sections, got %d", len(sections))
+	res, err := s.Execute(context.Background(), []string{"v0.121.0"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
 	}
 }
 
-func TestFindReleaseNotes_Latest(t *testing.T) {
-	sections := []changelogSection{
-		{Version: "0.121.1", Date: "2026-06-11", Body: "fixes"},
-		{Version: "0.121.0", Date: "2026-06-08", Body: "features"},
+func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
+	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+		return "", errors.New("release notes for version '999.999.999' not found")
+	})
+
+	res, err := s.Execute(context.Background(), []string{"999.999.999"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if res.Success {
+		t.Error("expected Success to be false when version is not found")
+	}
+	if !strings.Contains(res.Output, "not found") {
+		t.Errorf("expected 'not found' message, got: %s", res.Output)
+	}
+}
+
+func TestReleaseNotesShortcut_Execute_FetchError(t *testing.T) {
+	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+		return "", errors.New("network error")
+	})
+
+	res, err := s.Execute(context.Background(), []string{"0.121.0"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if res.Success {
+		t.Error("expected Success to be false on fetch error")
+	}
+	if !strings.Contains(res.Output, "Failed to fetch release notes") {
+		t.Errorf("expected fetch error message, got: %s", res.Output)
+	}
+}
+
+func TestReleaseNotesShortcut_Execute_WithVersionArg(t *testing.T) {
+	s := NewReleaseNotesShortcut()
+	if !s.CanExecute([]string{"0.121.0"}) {
+		t.Error("CanExecute with version arg should be true")
+	}
+	if !s.CanExecute([]string{"v0.121.0"}) {
+		t.Error("CanExecute with 'v' prefixed version arg should be true")
+	}
+}
+
+func TestReleaseDataToSection(t *testing.T) {
+	rd := releaseData{
+		Body:        "### 🐛 Bug Fixes\n\n* fix a critical bug\n",
+		TagName:     "v0.121.1",
+		PublishedAt: "2026-06-11T14:24:42Z",
 	}
 
-	section, found := findReleaseNotes(sections, "")
-	if !found {
-		t.Fatal("expected to find latest section")
-	}
+	section := releaseDataToSection(rd)
+
 	if section.Version != "0.121.1" {
-		t.Errorf("expected latest version 0.121.1, got %s", section.Version)
+		t.Errorf("Version = %q, want %q", section.Version, "0.121.1")
+	}
+	if section.Date != "2026-06-11" {
+		t.Errorf("Date = %q, want %q", section.Date, "2026-06-11")
+	}
+	if !strings.Contains(section.Body, "fix a critical bug") {
+		t.Errorf("Body should contain 'fix a critical bug', got: %s", section.Body)
 	}
 }
 
-func TestFindReleaseNotes_SpecificVersion(t *testing.T) {
-	sections := []changelogSection{
-		{Version: "0.121.1", Date: "2026-06-11", Body: "fixes"},
-		{Version: "0.121.0", Date: "2026-06-08", Body: "features"},
+func TestReleaseDataToSection_NoVPrefix(t *testing.T) {
+	rd := releaseData{
+		Body:        "content",
+		TagName:     "0.121.0",
+		PublishedAt: "2026-06-08T00:00:00Z",
 	}
 
-	section, found := findReleaseNotes(sections, "0.121.0")
-	if !found {
-		t.Fatal("expected to find version 0.121.0")
-	}
+	section := releaseDataToSection(rd)
+
 	if section.Version != "0.121.0" {
-		t.Errorf("expected version 0.121.0, got %s", section.Version)
+		t.Errorf("Version = %q, want %q", section.Version, "0.121.0")
 	}
 }
 
-func TestFindReleaseNotes_NotFound(t *testing.T) {
-	sections := []changelogSection{
-		{Version: "0.121.1", Body: "fixes"},
+func TestReleaseDataToSection_EmptyPublishedAt(t *testing.T) {
+	rd := releaseData{
+		Body:        "content",
+		TagName:     "v0.121.0",
+		PublishedAt: "",
 	}
 
-	_, found := findReleaseNotes(sections, "0.99.0")
-	if found {
-		t.Error("expected not to find version 0.99.0")
-	}
-}
+	section := releaseDataToSection(rd)
 
-func TestFindReleaseNotes_EmptySections(t *testing.T) {
-	_, found := findReleaseNotes(nil, "")
-	if found {
-		t.Error("expected not to find anything in nil sections")
-	}
-
-	_, found = findReleaseNotes([]changelogSection{}, "")
-	if found {
-		t.Error("expected not to find anything in empty sections")
+	if section.Date != "" {
+		t.Errorf("expected empty date for empty PublishedAt, got %q", section.Date)
 	}
 }
 
@@ -193,67 +223,5 @@ func TestFormatReleaseNotes_NoDate(t *testing.T) {
 	}
 	if strings.Contains(output, "()") {
 		t.Errorf("expected no empty parentheses for missing date, got: %s", output)
-	}
-}
-
-func TestExtractVersion(t *testing.T) {
-	tests := []struct {
-		header string
-		want   string
-	}{
-		{"[0.121.1](url) (2026-06-11)", "0.121.1"},
-		{"[0.121.0]", "0.121.0"},
-		{"no brackets here", ""},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		got := extractVersion(tt.header)
-		if got != tt.want {
-			t.Errorf("extractVersion(%q) = %q, want %q", tt.header, got, tt.want)
-		}
-	}
-}
-
-func TestExtractDate(t *testing.T) {
-	tests := []struct {
-		header string
-		want   string
-	}{
-		{"[0.121.1](url) (2026-06-11)", "2026-06-11"},
-		{"[0.121.0] (2026-06-08)", "2026-06-08"},
-		{"[0.121.0]", ""},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		got := extractDate(tt.header)
-		if got != tt.want {
-			t.Errorf("extractDate(%q) = %q, want %q", tt.header, got, tt.want)
-		}
-	}
-}
-
-func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
-	s := NewReleaseNotesShortcut()
-	res, err := s.Execute(context.Background(), []string{"999.999.999"})
-	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
-	}
-	if res.Success {
-		t.Error("expected Success to be false when version is not found")
-	}
-	if !strings.Contains(res.Output, "not found in CHANGELOG.md") {
-		t.Errorf("expected 'not found in CHANGELOG.md' message, got: %s", res.Output)
-	}
-}
-
-func TestReleaseNotesShortcut_Execute_WithVersionArg(t *testing.T) {
-	s := NewReleaseNotesShortcut()
-	if !s.CanExecute([]string{"0.121.0"}) {
-		t.Error("CanExecute with version arg should be true")
-	}
-	if !s.CanExecute([]string{"v0.121.0"}) {
-		t.Error("CanExecute with 'v' prefixed version arg should be true")
 	}
 }

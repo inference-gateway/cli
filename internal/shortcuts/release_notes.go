@@ -1,75 +1,59 @@
 package shortcuts
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
 )
 
-// ReleaseNotesShortcut displays release notes from the CHANGELOG.md file.
+// ReleaseNotesShortcut displays release notes from GitHub Releases.
 // It accepts an optional version argument to show notes for a specific release.
 // When no version is given, it shows the latest release notes.
-type ReleaseNotesShortcut struct{}
+type ReleaseNotesShortcut struct {
+	fetchFn func(version string) (string, error)
+}
 
-// NewReleaseNotesShortcut creates a new release-notes shortcut.
+// NewReleaseNotesShortcut creates a new release-notes shortcut that fetches
+// release notes from GitHub Releases using the gh CLI.
 func NewReleaseNotesShortcut() *ReleaseNotesShortcut {
-	return &ReleaseNotesShortcut{}
+	return &ReleaseNotesShortcut{
+		fetchFn: fetchReleaseNotesFromGH,
+	}
+}
+
+// newReleaseNotesShortcutWithFetch creates a release-notes shortcut with a
+// custom fetch function, used for testing.
+func newReleaseNotesShortcutWithFetch(fn func(version string) (string, error)) *ReleaseNotesShortcut {
+	return &ReleaseNotesShortcut{
+		fetchFn: fn,
+	}
 }
 
 func (r *ReleaseNotesShortcut) GetName() string { return "release-notes" }
 func (r *ReleaseNotesShortcut) GetDescription() string {
-	return "Show release notes from CHANGELOG.md for a specific version or the latest"
+	return "Show release notes from GitHub Releases for a specific version or the latest"
 }
 func (r *ReleaseNotesShortcut) GetUsage() string              { return "/release-notes [version]" }
 func (r *ReleaseNotesShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (r *ReleaseNotesShortcut) Execute(_ context.Context, args []string) (ShortcutResult, error) {
-	changelogPath := findChangelog()
-	if changelogPath == "" {
-		return ShortcutResult{
-			Output:  "CHANGELOG.md not found in the current or parent directories",
-			Success: false,
-		}, nil
-	}
-
-	content, err := os.ReadFile(changelogPath)
-	if err != nil {
-		return ShortcutResult{
-			Output:  fmt.Sprintf("Failed to read CHANGELOG.md: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	sections := parseChangelog(string(content))
-	if len(sections) == 0 {
-		return ShortcutResult{
-			Output:  "No release sections found in CHANGELOG.md",
-			Success: false,
-		}, nil
-	}
-
 	var targetVersion string
 	if len(args) > 0 {
 		targetVersion = strings.TrimPrefix(args[0], "v")
 	}
 
-	notes, found := findReleaseNotes(sections, targetVersion)
-	if !found {
-		if targetVersion != "" {
-			return ShortcutResult{
-				Output:  fmt.Sprintf("Release notes for version '%s' not found in CHANGELOG.md", targetVersion),
-				Success: false,
-			}, nil
-		}
-		notes = sections[0]
+	notes, err := r.fetchFn(targetVersion)
+	if err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("Failed to fetch release notes: %v", err),
+			Success: false,
+		}, nil
 	}
 
-	output := formatReleaseNotes(notes)
 	return ShortcutResult{
-		Output:  output,
+		Output:  notes,
 		Success: true,
 	}, nil
 }
@@ -81,124 +65,61 @@ type changelogSection struct {
 	Body    string
 }
 
-// findChangelog looks for CHANGELOG.md in the current directory or parent directories
-func findChangelog() string {
-	dir, err := os.Getwd()
+// releaseData represents the JSON output from gh release view --json body,tagName,publishedAt
+type releaseData struct {
+	Body        string `json:"body"`
+	TagName     string `json:"tagName"`
+	PublishedAt string `json:"publishedAt"`
+}
+
+// fetchReleaseNotesFromGH fetches release notes from GitHub Releases using the gh CLI.
+func fetchReleaseNotesFromGH(version string) (string, error) {
+	args := []string{"release", "view", "--json", "body,tagName,publishedAt"}
+	if version != "" {
+		args = append(args, "v"+version)
+	}
+
+	cmd := exec.Command("gh", args...)
+	output, err := cmd.Output()
 	if err != nil {
-		return ""
-	}
-
-	for {
-		candidate := filepath.Join(dir, "CHANGELOG.md")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-
-	return ""
-}
-
-// parseChangelog parses the CHANGELOG.md content into sections
-func parseChangelog(content string) []changelogSection {
-	var sections []changelogSection
-	scanner := bufio.NewScanner(strings.NewReader(content))
-
-	var current *changelogSection
-	var bodyLines []string
-	inSection := false
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.HasPrefix(line, "## [") {
-			if current != nil {
-				current.Body = strings.TrimSpace(strings.Join(bodyLines, "\n"))
-				sections = append(sections, *current)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr := string(exitErr.Stderr)
+			if strings.Contains(stderr, "not found") || strings.Contains(stderr, "release not found") {
+				if version != "" {
+					return "", fmt.Errorf("release notes for version '%s' not found", version)
+				}
+				return "", fmt.Errorf("no releases found")
 			}
-
-			headerContent := strings.TrimPrefix(line, "## ")
-			headerContent = strings.TrimPrefix(headerContent, "##")
-
-			version := extractVersion(headerContent)
-			date := extractDate(headerContent)
-
-			current = &changelogSection{
-				Version: version,
-				Date:    date,
-			}
-			bodyLines = nil
-			inSection = true
-			continue
+			return "", fmt.Errorf("gh command failed: %s", stderr)
 		}
-
-		if inSection && current != nil {
-			bodyLines = append(bodyLines, line)
+		if strings.Contains(err.Error(), "executable file not found") {
+			return "", fmt.Errorf("gh CLI is not installed. Please install GitHub CLI (https://cli.github.com/) to use this shortcut")
 		}
+		return "", fmt.Errorf("failed to run gh: %w", err)
 	}
 
-	if current != nil {
-		current.Body = strings.TrimSpace(strings.Join(bodyLines, "\n"))
-		sections = append(sections, *current)
+	var release releaseData
+	if err := json.Unmarshal(output, &release); err != nil {
+		return "", fmt.Errorf("failed to parse release data: %w", err)
 	}
 
-	return sections
+	return formatReleaseNotes(releaseDataToSection(release)), nil
 }
 
-// extractVersion extracts the version from a header like "[0.121.1](url) (date)"
-func extractVersion(header string) string {
-	start := strings.Index(header, "[")
-	if start == -1 {
-		return ""
-	}
-	end := strings.Index(header[start:], "]")
-	if end == -1 {
-		return ""
-	}
-	return header[start+1 : start+end]
-}
-
-// extractDate extracts the date from a header like "[0.121.1](url) (2026-06-11)"
-func extractDate(header string) string {
-	// Find the date in parentheses at the end
-	// Format: "... (2026-06-11)"
-	start := strings.LastIndex(header, "(")
-	if start == -1 {
-		return ""
-	}
-	end := strings.LastIndex(header, ")")
-	if end == -1 || end <= start {
-		return ""
-	}
-	date := header[start+1 : end]
-	// Only return if it looks like a date
-	if len(date) == 10 && date[4] == '-' && date[7] == '-' {
-		return date
-	}
-	return ""
-}
-
-// findReleaseNotes finds the release notes for a specific version, or the latest
-func findReleaseNotes(sections []changelogSection, targetVersion string) (changelogSection, bool) {
-	if targetVersion == "" {
-		if len(sections) > 0 {
-			return sections[0], true
-		}
-		return changelogSection{}, false
+// releaseDataToSection converts a releaseData from the GitHub API into a changelogSection.
+func releaseDataToSection(r releaseData) changelogSection {
+	date := ""
+	if len(r.PublishedAt) >= 10 {
+		date = r.PublishedAt[:10]
 	}
 
-	for _, section := range sections {
-		if section.Version == targetVersion {
-			return section, true
-		}
-	}
+	version := strings.TrimPrefix(r.TagName, "v")
 
-	return changelogSection{}, false
+	return changelogSection{
+		Version: version,
+		Date:    date,
+		Body:    strings.TrimSpace(r.Body),
+	}
 }
 
 // formatReleaseNotes formats a changelog section for display
