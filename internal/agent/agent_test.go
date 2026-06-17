@@ -474,7 +474,7 @@ func TestAgentServiceImpl_GetSystemReminderMessage(t *testing.T) {
 				config: cfg,
 			}
 
-			message := agentService.getSystemReminderMessage()
+			message := agentService.getSystemReminderMessage(0)
 
 			assert.Equal(t, sdk.User, message.Role)
 			content, err := message.Content.AsMessageContent0()

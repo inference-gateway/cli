@@ -222,6 +222,9 @@ agent:
     interval: 4
     reminder_text: |
       System reminder text for maintaining context
+    wrap_up_text: |
+      Wrap-up reminder text for final turns
+    wrap_up_threshold: 3
   verbose_tools: false
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 4096 # The maximum number of tokens that can be generated per request
@@ -327,6 +330,8 @@ compact:
 - **agent.system_reminders.enabled**: Enable/disable system reminders (default: true)
 - **agent.system_reminders.interval**: Number of messages between reminders (default: 10)
 - **agent.system_reminders.text**: Custom reminder text to provide contextual guidance
+- **agent.system_reminders.wrap_up_text**: Custom reminder text injected near the turn limit (when `max_turns - turns <= wrap_up_threshold`)
+- **agent.system_reminders.wrap_up_threshold**: Number of turns before `max_turns` at which the wrap-up reminder replaces the regular reminder (default: 0, disabled)
 - **agent.verbose_tools**: Enable verbose tool output (default: false)
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)

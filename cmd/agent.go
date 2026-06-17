@@ -1002,9 +1002,22 @@ func (s *AgentSession) injectSystemReminderIfDue(turn int) {
 	if turn <= 0 || turn%interval != 0 {
 		return
 	}
+
+	// Determine which reminder text to use: wrap-up text when within threshold,
+	// regular reminder text otherwise.
 	reminderText := reminders.ReminderText
+	isWrapUp := s.maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
+		(s.maxTurns-turn) <= reminders.WrapUpThreshold
+	if isWrapUp {
+		reminderText = reminders.WrapUpText
+	}
 	if reminderText == "" {
 		return
+	}
+
+	phase := "periodic"
+	if isWrapUp {
+		phase = "wrap_up"
 	}
 
 	s.addMessage(ConversationMessage{
@@ -1017,11 +1030,13 @@ func (s *AgentSession) injectSystemReminderIfDue(turn int) {
 	logger.Info("system reminder injected",
 		"turn", turn,
 		"interval", interval,
+		"phase", phase,
 		"reminder_chars", len(reminderText),
 	)
 	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
 		"turn":     turn,
 		"interval": interval,
+		"phase":    phase,
 	})
 }
 
