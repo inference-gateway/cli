@@ -748,7 +748,6 @@ func (s *AgentServiceImpl) getSystemReminderMessage(turns int) sdk.Message {
 	reminders := s.config.Prompts.Agent.SystemReminders
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 
-	// Check if we should use the wrap-up text instead of the regular reminder
 	if maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
 		(maxTurns-turns) <= reminders.WrapUpThreshold {
 		return sdk.Message{

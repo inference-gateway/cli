@@ -1003,8 +1003,6 @@ func (s *AgentSession) injectSystemReminderIfDue(turn int) {
 		return
 	}
 
-	// Determine which reminder text to use: wrap-up text when within threshold,
-	// regular reminder text otherwise.
 	reminderText := reminders.ReminderText
 	isWrapUp := s.maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
 		(s.maxTurns-turn) <= reminders.WrapUpThreshold

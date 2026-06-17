@@ -130,8 +130,6 @@ func TestInjectSystemReminderIfDue_DebugGateOff_NoStdoutButStillAppends(t *testi
 }
 
 func TestInjectSystemReminderIfDue_WrapUpTextUsedWithinThreshold(t *testing.T) {
-	// maxTurns=10, wrapUpThreshold=3, interval=2
-	// At turn 8: maxTurns(10) - turns(8) = 2 <= threshold(3) => wrap-up text
 	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
 	svc := &AgentServiceImpl{config: cfg}
 
@@ -151,8 +149,6 @@ func TestInjectSystemReminderIfDue_WrapUpTextUsedWithinThreshold(t *testing.T) {
 }
 
 func TestInjectSystemReminderIfDue_RegularTextUsedBeforeThreshold(t *testing.T) {
-	// maxTurns=10, wrapUpThreshold=3, interval=2
-	// At turn 4: maxTurns(10) - turns(4) = 6 > threshold(3) => regular reminder
 	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
 	svc := &AgentServiceImpl{config: cfg}
 
@@ -172,7 +168,6 @@ func TestInjectSystemReminderIfDue_RegularTextUsedBeforeThreshold(t *testing.T) 
 }
 
 func TestInjectSystemReminderIfDue_WrapUpTextEmptyFallsBackToRegular(t *testing.T) {
-	// When wrap_up_text is empty, behaviour is unchanged (regular reminder used)
 	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "", 3, 10)
 	svc := &AgentServiceImpl{config: cfg}
 
@@ -192,20 +187,15 @@ func TestInjectSystemReminderIfDue_WrapUpTextEmptyFallsBackToRegular(t *testing.
 }
 
 func TestInjectSystemReminderIfDue_WrapUpThresholdBoundary(t *testing.T) {
-	// maxTurns=10, wrapUpThreshold=3, interval=2
-	// At turn 6: maxTurns(10) - turns(6) = 4 > threshold(3) => regular reminder
-	// At turn 8: maxTurns(10) - turns(8) = 2 <= threshold(3) => wrap-up text
 	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
 	svc := &AgentServiceImpl{config: cfg}
 
-	// Turn 6: outside threshold (10-6=4 > 3)
 	conv := []sdk.Message{}
 	injected := svc.injectSystemReminderIfDue(6, &conv)
 	assert.True(t, injected)
 	content, _ := conv[0].Content.AsMessageContent0()
 	assert.Equal(t, "regular reminder", content, "turn 6 is outside threshold, must use regular text")
 
-	// Turn 8: inside threshold (10-8=2 <= 3)
 	conv2 := []sdk.Message{}
 	injected2 := svc.injectSystemReminderIfDue(8, &conv2)
 	assert.True(t, injected2)
