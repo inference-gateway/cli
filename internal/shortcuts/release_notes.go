@@ -13,7 +13,7 @@ import (
 // It accepts an optional version argument to show notes for a specific release.
 // When no version is given, it shows the latest release notes.
 type ReleaseNotesShortcut struct {
-	fetchFn func(version string) (string, error)
+	fetchFn func(ctx context.Context, version string) (string, error)
 }
 
 // NewReleaseNotesShortcut creates a new release-notes shortcut that fetches
@@ -26,11 +26,13 @@ func NewReleaseNotesShortcut() *ReleaseNotesShortcut {
 
 // newReleaseNotesShortcutWithFetch creates a release-notes shortcut with a
 // custom fetch function, used for testing.
-func newReleaseNotesShortcutWithFetch(fn func(version string) (string, error)) *ReleaseNotesShortcut {
+func newReleaseNotesShortcutWithFetch(fn func(ctx context.Context, version string) (string, error)) *ReleaseNotesShortcut {
 	return &ReleaseNotesShortcut{
 		fetchFn: fn,
 	}
 }
+
+const releaseRepo = "inference-gateway/cli"
 
 func (r *ReleaseNotesShortcut) GetName() string { return "release-notes" }
 func (r *ReleaseNotesShortcut) GetDescription() string {
@@ -39,13 +41,13 @@ func (r *ReleaseNotesShortcut) GetDescription() string {
 func (r *ReleaseNotesShortcut) GetUsage() string              { return "/release-notes [version]" }
 func (r *ReleaseNotesShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
-func (r *ReleaseNotesShortcut) Execute(_ context.Context, args []string) (ShortcutResult, error) {
+func (r *ReleaseNotesShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	var targetVersion string
 	if len(args) > 0 {
 		targetVersion = strings.TrimPrefix(args[0], "v")
 	}
 
-	notes, err := r.fetchFn(targetVersion)
+	notes, err := r.fetchFn(ctx, targetVersion)
 	if err != nil {
 		return ShortcutResult{
 			Output:  fmt.Sprintf("Failed to fetch release notes: %v", err),
@@ -74,13 +76,13 @@ type releaseData struct {
 }
 
 // fetchReleaseNotesFromGH fetches release notes from GitHub Releases using the gh CLI.
-func fetchReleaseNotesFromGH(version string) (string, error) {
-	args := []string{"release", "view", "--json", "body,tagName,publishedAt"}
+func fetchReleaseNotesFromGH(ctx context.Context, version string) (string, error) {
+	args := []string{"release", "view", "--repo", releaseRepo, "--json", "body,tagName,publishedAt"}
 	if version != "" {
 		args = append(args, "v"+version)
 	}
 
-	cmd := exec.Command("gh", args...)
+	cmd := exec.CommandContext(ctx, "gh", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", handleGHError(err, version)
@@ -107,7 +109,7 @@ func handleGHError(err error, version string) error {
 		}
 		return fmt.Errorf("gh command failed: %s", stderr)
 	}
-	if strings.Contains(err.Error(), "executable file not found") {
+	if errors.Is(err, exec.ErrNotFound) {
 		return fmt.Errorf("gh CLI is not installed. Please install GitHub CLI (https://cli.github.com/) to use this shortcut")
 	}
 	return fmt.Errorf("failed to run gh: %w", err)

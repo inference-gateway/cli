@@ -39,7 +39,7 @@ func TestReleaseNotesShortcut_CanExecute(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_Success(t *testing.T) {
-	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+	s := newReleaseNotesShortcutWithFetch(func(_ context.Context, version string) (string, error) {
 		if version != "" {
 			t.Errorf("expected empty version for latest, got %q", version)
 		}
@@ -62,7 +62,7 @@ func TestReleaseNotesShortcut_Execute_Success(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_SpecificVersion(t *testing.T) {
-	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+	s := newReleaseNotesShortcutWithFetch(func(_ context.Context, version string) (string, error) {
 		if version != "0.121.0" {
 			t.Errorf("expected version 0.121.0, got %q", version)
 		}
@@ -82,7 +82,7 @@ func TestReleaseNotesShortcut_Execute_SpecificVersion(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_VersionWithVPrefix(t *testing.T) {
-	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+	s := newReleaseNotesShortcutWithFetch(func(_ context.Context, version string) (string, error) {
 		if version != "0.121.0" {
 			t.Errorf("expected version 0.121.0 (v prefix stripped), got %q", version)
 		}
@@ -99,7 +99,7 @@ func TestReleaseNotesShortcut_Execute_VersionWithVPrefix(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
-	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+	s := newReleaseNotesShortcutWithFetch(func(_ context.Context, version string) (string, error) {
 		return "", errors.New("release notes for version '999.999.999' not found")
 	})
 
@@ -116,7 +116,7 @@ func TestReleaseNotesShortcut_Execute_VersionNotFound(t *testing.T) {
 }
 
 func TestReleaseNotesShortcut_Execute_FetchError(t *testing.T) {
-	s := newReleaseNotesShortcutWithFetch(func(version string) (string, error) {
+	s := newReleaseNotesShortcutWithFetch(func(_ context.Context, version string) (string, error) {
 		return "", errors.New("network error")
 	})
 
@@ -223,5 +223,11 @@ func TestFormatReleaseNotes_NoDate(t *testing.T) {
 	}
 	if strings.Contains(output, "()") {
 		t.Errorf("expected no empty parentheses for missing date, got: %s", output)
+	}
+}
+
+func TestReleaseRepoConst(t *testing.T) {
+	if releaseRepo != "inference-gateway/cli" {
+		t.Errorf("releaseRepo = %q, want %q", releaseRepo, "inference-gateway/cli")
 	}
 }
