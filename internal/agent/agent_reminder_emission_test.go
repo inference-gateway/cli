@@ -30,6 +30,26 @@ func remindersOnlyConfig(enabled bool, interval int, text string) *config.Config
 	}
 }
 
+// remindersWithWrapUpConfig returns a config with wrap-up reminder settings.
+func remindersWithWrapUpConfig(enabled bool, interval int, reminderText, wrapUpText string, wrapUpThreshold int, maxTurns int) *config.Config {
+	return &config.Config{
+		Agent: config.AgentConfig{
+			MaxTurns: maxTurns,
+		},
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemReminders: config.PromptsAgentRemindersConfig{
+					Enabled:         enabled,
+					Interval:        interval,
+					ReminderText:    reminderText,
+					WrapUpText:      wrapUpText,
+					WrapUpThreshold: wrapUpThreshold,
+				},
+			},
+		},
+	}
+}
+
 // withDebugStreamWriter wires a buffer + forces the streamevent debug
 // gate on for the lifetime of t.
 func withDebugStreamWriter(t *testing.T) *bytes.Buffer {
@@ -107,4 +127,88 @@ func TestInjectSystemReminderIfDue_DebugGateOff_NoStdoutButStillAppends(t *testi
 	assert.True(t, injected, "reminder still injected into conversation regardless of stream gate")
 	require.Len(t, conv, 1, "conversation still gets the message")
 	assert.Empty(t, buf.String(), "but no stream event when debug gate is off")
+}
+
+func TestInjectSystemReminderIfDue_WrapUpTextUsedWithinThreshold(t *testing.T) {
+	// maxTurns=10, wrapUpThreshold=3, interval=2
+	// At turn 8: maxTurns(10) - turns(8) = 2 <= threshold(3) => wrap-up text
+	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
+	svc := &AgentServiceImpl{config: cfg}
+
+	buf := withDebugStreamWriter(t)
+
+	conv := []sdk.Message{}
+	injected := svc.injectSystemReminderIfDue(8, &conv)
+
+	assert.True(t, injected, "interval 2 with turn 8 must fire")
+	require.Len(t, conv, 1, "reminder must be appended to conversation")
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Equal(t, "wrap up now!", content, "wrap-up text must be used within threshold")
+
+	var event map[string]any
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
+	assert.Equal(t, "wrap_up", event["phase"], "stream event must indicate wrap_up phase")
+}
+
+func TestInjectSystemReminderIfDue_RegularTextUsedBeforeThreshold(t *testing.T) {
+	// maxTurns=10, wrapUpThreshold=3, interval=2
+	// At turn 4: maxTurns(10) - turns(4) = 6 > threshold(3) => regular reminder
+	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
+	svc := &AgentServiceImpl{config: cfg}
+
+	buf := withDebugStreamWriter(t)
+
+	conv := []sdk.Message{}
+	injected := svc.injectSystemReminderIfDue(4, &conv)
+
+	assert.True(t, injected, "interval 2 with turn 4 must fire")
+	require.Len(t, conv, 1, "reminder must be appended to conversation")
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Equal(t, "regular reminder", content, "regular reminder text must be used before threshold")
+
+	var event map[string]any
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
+	assert.Equal(t, "periodic", event["phase"], "stream event must indicate periodic phase")
+}
+
+func TestInjectSystemReminderIfDue_WrapUpTextEmptyFallsBackToRegular(t *testing.T) {
+	// When wrap_up_text is empty, behaviour is unchanged (regular reminder used)
+	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "", 3, 10)
+	svc := &AgentServiceImpl{config: cfg}
+
+	buf := withDebugStreamWriter(t)
+
+	conv := []sdk.Message{}
+	injected := svc.injectSystemReminderIfDue(8, &conv)
+
+	assert.True(t, injected, "interval 2 with turn 8 must fire")
+	require.Len(t, conv, 1, "reminder must be appended to conversation")
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Equal(t, "regular reminder", content, "regular reminder text must be used when wrap_up_text is empty")
+
+	var event map[string]any
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event))
+	assert.Equal(t, "periodic", event["phase"], "stream event must indicate periodic phase when wrap_up_text is empty")
+}
+
+func TestInjectSystemReminderIfDue_WrapUpThresholdBoundary(t *testing.T) {
+	// maxTurns=10, wrapUpThreshold=3, interval=2
+	// At turn 6: maxTurns(10) - turns(6) = 4 > threshold(3) => regular reminder
+	// At turn 8: maxTurns(10) - turns(8) = 2 <= threshold(3) => wrap-up text
+	cfg := remindersWithWrapUpConfig(true, 2, "regular reminder", "wrap up now!", 3, 10)
+	svc := &AgentServiceImpl{config: cfg}
+
+	// Turn 6: outside threshold (10-6=4 > 3)
+	conv := []sdk.Message{}
+	injected := svc.injectSystemReminderIfDue(6, &conv)
+	assert.True(t, injected)
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Equal(t, "regular reminder", content, "turn 6 is outside threshold, must use regular text")
+
+	// Turn 8: inside threshold (10-8=2 <= 3)
+	conv2 := []sdk.Message{}
+	injected2 := svc.injectSystemReminderIfDue(8, &conv2)
+	assert.True(t, injected2)
+	content2, _ := conv2[0].Content.AsMessageContent0()
+	assert.Equal(t, "wrap up now!", content2, "turn 8 is inside threshold, must use wrap-up text")
 }

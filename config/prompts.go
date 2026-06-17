@@ -50,6 +50,12 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemReminders.Interval == 0 {
 		loaded.Agent.SystemReminders.Interval = defaults.Agent.SystemReminders.Interval
 	}
+	if loaded.Agent.SystemReminders.WrapUpText == "" {
+		loaded.Agent.SystemReminders.WrapUpText = defaults.Agent.SystemReminders.WrapUpText
+	}
+	if loaded.Agent.SystemReminders.WrapUpThreshold == 0 {
+		loaded.Agent.SystemReminders.WrapUpThreshold = defaults.Agent.SystemReminders.WrapUpThreshold
+	}
 	if loaded.Git.CommitMessage.SystemPrompt == "" {
 		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
 	}
@@ -128,9 +134,11 @@ type PromptsAgentConfig struct {
 }
 
 type PromptsAgentRemindersConfig struct {
-	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
-	Interval     int    `yaml:"interval" mapstructure:"interval"`
-	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
+	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
+	Interval       int    `yaml:"interval" mapstructure:"interval"`
+	ReminderText   string `yaml:"reminder_text" mapstructure:"reminder_text"`
+	WrapUpText     string `yaml:"wrap_up_text" mapstructure:"wrap_up_text"`
+	WrapUpThreshold int  `yaml:"wrap_up_threshold" mapstructure:"wrap_up_threshold"`
 }
 
 type PromptsGitConfig struct {
