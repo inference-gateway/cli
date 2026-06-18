@@ -51,7 +51,7 @@ These shortcuts are available out of the box:
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
-- `/release-notes [version]` - Show release notes from GitHub Releases for a specific version or the latest release (requires the [GitHub CLI `gh`](https://cli.github.com/) to be installed and authenticated)
+- `/release-notes [version]` - Show GitHub release notes for a version or the latest (requires the `gh` CLI installed and authenticated)
 
 ### Project Initialization Shortcut
 

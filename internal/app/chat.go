@@ -2333,7 +2333,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
 
       - name: Run Infer Agent
         uses: inference-gateway/infer-action@v0.11.2
@@ -2399,7 +2399,7 @@ jobs:
             ${{ github.event.repository.name }}
 
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
         with:
           token: ${{ steps.app_token.outputs.token }}
 
