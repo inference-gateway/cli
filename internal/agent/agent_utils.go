@@ -724,12 +724,31 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// shouldInjectSystemReminder checks if a system reminder should be injected
+// isWithinWrapUpThreshold returns true when the agent is within the wrap-up
+// window (maxTurns > 0 && wrap_up_text != "" && wrap_up_threshold > 0 &&
+// (maxTurns - turns) <= wrap_up_threshold). This predicate is shared by
+// shouldInjectSystemReminder, getSystemReminderMessage, and
+// injectSystemReminderIfDue so the phase label and text selection stay in sync.
+func (s *AgentServiceImpl) isWithinWrapUpThreshold(turns int) bool {
+	reminders := s.config.Prompts.Agent.SystemReminders
+	maxTurns := s.config.GetAgentConfig().MaxTurns
+	return maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
+		(maxTurns-turns) <= reminders.WrapUpThreshold
+}
+
+// shouldInjectSystemReminder checks if a system reminder should be injected.
+// Regular reminders fire at the configured interval. When the agent is within
+// the wrap-up threshold (wrap_up_threshold) of max_turns, the wrap-up
+// reminder fires regardless of the interval gate so it never silently misses.
 func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 	reminders := s.config.Prompts.Agent.SystemReminders
 
 	if !reminders.Enabled {
 		return false
+	}
+
+	if s.isWithinWrapUpThreshold(turns) {
+		return true
 	}
 
 	interval := reminders.Interval
@@ -740,9 +759,21 @@ func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 	return turns > 0 && turns%interval == 0
 }
 
-// getSystemReminderMessage returns the system reminder message to inject
-func (s *AgentServiceImpl) getSystemReminderMessage() sdk.Message {
-	reminderText := s.config.Prompts.Agent.SystemReminders.ReminderText
+// getSystemReminderMessage returns the system reminder message to inject.
+// When the agent is within the wrap-up threshold (max_turns > 0 && wrap_up_text != ""
+// && (max_turns - turns) <= wrap_up_threshold), the wrap-up text is used instead
+// of the regular reminder_text.
+func (s *AgentServiceImpl) getSystemReminderMessage(turns int) sdk.Message {
+	reminders := s.config.Prompts.Agent.SystemReminders
+
+	if s.isWithinWrapUpThreshold(turns) {
+		return sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(reminders.WrapUpText),
+		}
+	}
+
+	reminderText := reminders.ReminderText
 	if reminderText == "" {
 		reminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
@@ -767,7 +798,7 @@ func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Mess
 		return false
 	}
 
-	msg := s.getSystemReminderMessage()
+	msg := s.getSystemReminderMessage(turns)
 	*conv = append(*conv, msg)
 
 	if s.conversationRepo != nil {
@@ -783,15 +814,21 @@ func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Mess
 
 	reminderText, _ := msg.Content.AsMessageContent0()
 	interval := s.config.Prompts.Agent.SystemReminders.Interval
+	phase := "periodic"
+	if s.isWithinWrapUpThreshold(turns) {
+		phase = "wrap_up"
+	}
 	logger.Debug("system reminder injected",
 		"turn", turns,
 		"interval", interval,
+		"phase", phase,
 		"reminder_chars", len(reminderText),
 		"text_preview", truncateString(reminderText, 80),
 	)
 	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
 		"turn":     turns,
 		"interval": interval,
+		"phase":    phase,
 	})
 	return true
 }

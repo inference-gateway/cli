@@ -413,6 +413,14 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 			cfg.Prompts.Agent.SystemReminders.Interval = n
 		}
 	}
+	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_TEXT"); v != "" {
+		cfg.Prompts.Agent.SystemReminders.WrapUpText = v
+	}
+	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_THRESHOLD"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Prompts.Agent.SystemReminders.WrapUpThreshold = n
+		}
+	}
 }
 
 // applyKeybindingEnvOverrides walks INFER_CHAT_KEYBINDINGS_BINDINGS_*

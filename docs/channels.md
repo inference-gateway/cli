@@ -342,6 +342,9 @@ agent:
   system_reminders:
     enabled: true
     interval: 4  # inject every N turns
+    wrap_up_text: |
+      Wrap up and commit your work before the session ends.
+    wrap_up_threshold: 3  # inject wrap_up_text when max_turns - turns <= 3
 ```
 
 Or via environment:
@@ -349,6 +352,8 @@ Or via environment:
 ```bash
 export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED=true
 export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL=4
+export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_TEXT="Wrap up and commit your work"
+export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_THRESHOLD=3
 ```
 
 ## Adding a Custom Channel
