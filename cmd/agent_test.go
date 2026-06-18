@@ -1234,6 +1234,24 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		}
 	})
 
+	t.Run("no-op on turn 0", func(t *testing.T) {
+		s := newSession(true, 2, "x")
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(0)
+
+		if len(s.conversation) != 0 {
+			t.Errorf("expected no messages, got %d", len(s.conversation))
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no stream event, got %q", buf.String())
+		}
+	})
+}
+
+func TestInjectSystemReminderIfDueWrapUp(t *testing.T) {
 	newWrapUpSession := func(enabled bool, interval int, reminderText, wrapUpText string, wrapUpThreshold int, maxTurns int) *AgentSession {
 		return &AgentSession{
 			config: &config.Config{
@@ -1338,22 +1356,6 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		}
 		if s.conversation[0].Content != "regular reminder" {
 			t.Errorf("expected regular text fallback, got %q", s.conversation[0].Content)
-		}
-	})
-
-	t.Run("no-op on turn 0", func(t *testing.T) {
-		s := newSession(true, 2, "x")
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(0)
-
-		if len(s.conversation) != 0 {
-			t.Errorf("expected no messages, got %d", len(s.conversation))
-		}
-		if buf.Len() != 0 {
-			t.Errorf("expected no stream event, got %q", buf.String())
 		}
 	})
 }
