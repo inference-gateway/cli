@@ -1006,8 +1006,6 @@ func (s *AgentSession) injectSystemReminderIfDue(turn int) {
 		interval = 4
 	}
 
-	// Wrap-up reminder fires regardless of interval. Regular reminders still
-	// gate on the interval check.
 	if !isWrapUp {
 		if turn <= 0 || turn%interval != 0 {
 			return

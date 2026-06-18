@@ -1258,11 +1258,8 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 	}
 
 	t.Run("wrap-up fires within threshold even when turn is not an interval boundary", func(t *testing.T) {
-		// interval=4, wrap_up_threshold=1, maxTurns=10: wrap-up window is turn 9-10.
-		// Turn 10 is a multiple of 4, but turn 9 is not. Both should fire (wrap_up).
 		s := newWrapUpSession(true, 4, "regular reminder", "wrap up now!", 1, 10)
 
-		// turn 9: not a multiple of 4, but inside wrap-up window (maxTurns-turn=1 <= threshold=1)
 		var buf bytes.Buffer
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
@@ -1284,8 +1281,6 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 	})
 
 	t.Run("wrap-up fires when wrap_up_threshold < interval", func(t *testing.T) {
-		// interval=5, wrap_up_threshold=1, maxTurns=10: wrap-up window is turn 9-10.
-		// Turn 9 is NOT a multiple of 5, so the old logic would silently miss it.
 		s := newWrapUpSession(true, 5, "regular reminder", "wrap up now!", 1, 10)
 
 		var buf bytes.Buffer
@@ -1307,7 +1302,7 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
 
-		s.injectSystemReminderIfDue(8) // maxTurns-turn=2 <= threshold=3
+		s.injectSystemReminderIfDue(8)
 		if len(s.conversation) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(s.conversation))
 		}
@@ -1322,7 +1317,7 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
 
-		s.injectSystemReminderIfDue(4) // maxTurns-turn=6 > threshold=3
+		s.injectSystemReminderIfDue(4)
 		if len(s.conversation) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(s.conversation))
 		}
@@ -1337,7 +1332,7 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
 
-		s.injectSystemReminderIfDue(8) // inside threshold but wrap_up_text is empty
+		s.injectSystemReminderIfDue(8)
 		if len(s.conversation) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(s.conversation))
 		}

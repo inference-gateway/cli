@@ -747,7 +747,6 @@ func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 		return false
 	}
 
-	// Within the wrap-up window? Fire regardless of interval.
 	if s.isWithinWrapUpThreshold(turns) {
 		return true
 	}
