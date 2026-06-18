@@ -1,4 +1,4 @@
-schema-version = "1.12.0"
+schema-version = "1.13.0"
 
 [vars]
 GOPATH = "$HOME/go"
@@ -32,7 +32,7 @@ ripgrep.version = "^15.1.0"
 markdownlint-cli.pkg-path = "markdownlint-cli"
 markdownlint-cli.version = "^0.48.0"
 docker.pkg-path = "docker"
-docker.version = "^29.5.1"
+docker.version = "^29.5.2"
 docker-compose.pkg-path = "docker-compose"
 docker-compose.version = "^5.1.4"
 gopls.pkg-path = "gopls"
