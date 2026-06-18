@@ -990,22 +990,31 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 // the internal version, so this command would otherwise never see reminders
 // even with the env vars set. Same gate (Enabled + turn%interval), same
 // streamevent shape, so downstream observers can't tell the two callers apart.
+// The wrap-up reminder fires regardless of the interval gate so it never
+// silently misses when wrap_up_threshold < interval.
 func (s *AgentSession) injectSystemReminderIfDue(turn int) {
 	reminders := s.config.Prompts.Agent.SystemReminders
 	if !reminders.Enabled {
 		return
 	}
+
+	isWrapUp := s.maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
+		(s.maxTurns-turn) <= reminders.WrapUpThreshold
+
 	interval := reminders.Interval
 	if interval <= 0 {
 		interval = 4
 	}
-	if turn <= 0 || turn%interval != 0 {
-		return
+
+	// Wrap-up reminder fires regardless of interval. Regular reminders still
+	// gate on the interval check.
+	if !isWrapUp {
+		if turn <= 0 || turn%interval != 0 {
+			return
+		}
 	}
 
 	reminderText := reminders.ReminderText
-	isWrapUp := s.maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
-		(s.maxTurns-turn) <= reminders.WrapUpThreshold
 	if isWrapUp {
 		reminderText = reminders.WrapUpText
 	}

@@ -329,7 +329,7 @@ compact:
   actions) on top of full autonomy (falls back to `system_prompt` when empty)
 - **agent.system_reminders.enabled**: Enable/disable system reminders (default: true)
 - **agent.system_reminders.interval**: Number of messages between reminders (default: 10)
-- **agent.system_reminders.text**: Custom reminder text to provide contextual guidance
+- **agent.system_reminders.reminder_text**: Custom reminder text to provide contextual guidance
 - **agent.system_reminders.wrap_up_text**: Custom reminder text injected near the turn limit (when `max_turns - turns <= wrap_up_threshold`)
 - **agent.system_reminders.wrap_up_threshold**: Number of turns before `max_turns` at which the wrap-up reminder replaces the regular reminder (default: 0, disabled)
 - **agent.verbose_tools**: Enable verbose tool output (default: false)

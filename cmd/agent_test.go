@@ -1234,6 +1234,118 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		}
 	})
 
+	newWrapUpSession := func(enabled bool, interval int, reminderText, wrapUpText string, wrapUpThreshold int, maxTurns int) *AgentSession {
+		return &AgentSession{
+			config: &config.Config{
+				Agent: config.AgentConfig{
+					MaxTurns: maxTurns,
+				},
+				Prompts: config.PromptsConfig{
+					Agent: config.PromptsAgentConfig{
+						SystemReminders: config.PromptsAgentRemindersConfig{
+							Enabled:         enabled,
+							Interval:        interval,
+							ReminderText:    reminderText,
+							WrapUpText:      wrapUpText,
+							WrapUpThreshold: wrapUpThreshold,
+						},
+					},
+				},
+			},
+			maxTurns:     maxTurns,
+			conversation: []ConversationMessage{},
+		}
+	}
+
+	t.Run("wrap-up fires within threshold even when turn is not an interval boundary", func(t *testing.T) {
+		// interval=4, wrap_up_threshold=1, maxTurns=10: wrap-up window is turn 9-10.
+		// Turn 10 is a multiple of 4, but turn 9 is not. Both should fire (wrap_up).
+		s := newWrapUpSession(true, 4, "regular reminder", "wrap up now!", 1, 10)
+
+		// turn 9: not a multiple of 4, but inside wrap-up window (maxTurns-turn=1 <= threshold=1)
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(9)
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message at turn 9, got %d", len(s.conversation))
+		}
+		if s.conversation[0].Content != "wrap up now!" {
+			t.Errorf("expected wrap-up text at turn 9, got %q", s.conversation[0].Content)
+		}
+		var event map[string]any
+		if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if event["phase"] != "wrap_up" {
+			t.Errorf("phase = %v, want wrap_up", event["phase"])
+		}
+	})
+
+	t.Run("wrap-up fires when wrap_up_threshold < interval", func(t *testing.T) {
+		// interval=5, wrap_up_threshold=1, maxTurns=10: wrap-up window is turn 9-10.
+		// Turn 9 is NOT a multiple of 5, so the old logic would silently miss it.
+		s := newWrapUpSession(true, 5, "regular reminder", "wrap up now!", 1, 10)
+
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(9)
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message when wrap_up_threshold < interval, got %d", len(s.conversation))
+		}
+		if s.conversation[0].Content != "wrap up now!" {
+			t.Errorf("expected wrap-up text, got %q", s.conversation[0].Content)
+		}
+	})
+
+	t.Run("wrap-up uses wrap_up_text within threshold", func(t *testing.T) {
+		s := newWrapUpSession(true, 2, "regular reminder", "wrap up now!", 3, 10)
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(8) // maxTurns-turn=2 <= threshold=3
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(s.conversation))
+		}
+		if s.conversation[0].Content != "wrap up now!" {
+			t.Errorf("expected wrap-up text, got %q", s.conversation[0].Content)
+		}
+	})
+
+	t.Run("regular text used before wrap-up threshold", func(t *testing.T) {
+		s := newWrapUpSession(true, 2, "regular reminder", "wrap up now!", 3, 10)
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(4) // maxTurns-turn=6 > threshold=3
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(s.conversation))
+		}
+		if s.conversation[0].Content != "regular reminder" {
+			t.Errorf("expected regular text before threshold, got %q", s.conversation[0].Content)
+		}
+	})
+
+	t.Run("wrap-up empty falls back to regular text", func(t *testing.T) {
+		s := newWrapUpSession(true, 2, "regular reminder", "", 3, 10)
+		var buf bytes.Buffer
+		t.Cleanup(streamevent.SetWriter(&buf))
+		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
+
+		s.injectSystemReminderIfDue(8) // inside threshold but wrap_up_text is empty
+		if len(s.conversation) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(s.conversation))
+		}
+		if s.conversation[0].Content != "regular reminder" {
+			t.Errorf("expected regular text fallback, got %q", s.conversation[0].Content)
+		}
+	})
+
 	t.Run("no-op on turn 0", func(t *testing.T) {
 		s := newSession(true, 2, "x")
 		var buf bytes.Buffer

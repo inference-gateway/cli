@@ -724,12 +724,32 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// shouldInjectSystemReminder checks if a system reminder should be injected
+// isWithinWrapUpThreshold returns true when the agent is within the wrap-up
+// window (maxTurns > 0 && wrap_up_text != "" && wrap_up_threshold > 0 &&
+// (maxTurns - turns) <= wrap_up_threshold). This predicate is shared by
+// shouldInjectSystemReminder, getSystemReminderMessage, and
+// injectSystemReminderIfDue so the phase label and text selection stay in sync.
+func (s *AgentServiceImpl) isWithinWrapUpThreshold(turns int) bool {
+	reminders := s.config.Prompts.Agent.SystemReminders
+	maxTurns := s.config.GetAgentConfig().MaxTurns
+	return maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
+		(maxTurns-turns) <= reminders.WrapUpThreshold
+}
+
+// shouldInjectSystemReminder checks if a system reminder should be injected.
+// Regular reminders fire at the configured interval. When the agent is within
+// the wrap-up threshold (wrap_up_threshold) of max_turns, the wrap-up
+// reminder fires regardless of the interval gate so it never silently misses.
 func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 	reminders := s.config.Prompts.Agent.SystemReminders
 
 	if !reminders.Enabled {
 		return false
+	}
+
+	// Within the wrap-up window? Fire regardless of interval.
+	if s.isWithinWrapUpThreshold(turns) {
+		return true
 	}
 
 	interval := reminders.Interval
@@ -746,10 +766,8 @@ func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 // of the regular reminder_text.
 func (s *AgentServiceImpl) getSystemReminderMessage(turns int) sdk.Message {
 	reminders := s.config.Prompts.Agent.SystemReminders
-	maxTurns := s.config.GetAgentConfig().MaxTurns
 
-	if maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
-		(maxTurns-turns) <= reminders.WrapUpThreshold {
+	if s.isWithinWrapUpThreshold(turns) {
 		return sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(reminders.WrapUpText),
@@ -797,12 +815,8 @@ func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Mess
 
 	reminderText, _ := msg.Content.AsMessageContent0()
 	interval := s.config.Prompts.Agent.SystemReminders.Interval
-	maxTurns := s.config.GetAgentConfig().MaxTurns
-	reminders := s.config.Prompts.Agent.SystemReminders
-	isWrapUp := maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
-		(maxTurns-turns) <= reminders.WrapUpThreshold
 	phase := "periodic"
-	if isWrapUp {
+	if s.isWithinWrapUpThreshold(turns) {
 		phase = "wrap_up"
 	}
 	logger.Debug("system reminder injected",
