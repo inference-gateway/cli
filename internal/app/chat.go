@@ -1527,6 +1527,9 @@ func (app *ChatApplication) handleExplorerView(msg tea.Msg) []tea.Cmd {
 }
 
 func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
+	if app.fileExplorer.IsDone() {
+		return app.handleExplorerSubmit(cmds)
+	}
 	if !app.fileExplorer.IsCancelled() {
 		return cmds
 	}
@@ -1544,6 +1547,56 @@ func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
 	})
+	return cmds
+}
+
+// handleExplorerSubmit runs when the explorer signals IsDone (the user pressed
+// the submit key with annotations captured). It reads the selections, builds a
+// structured prompt via FormatAnnotations, transitions back to the chat view,
+// and injects the prompt into the input field for the user to review and send.
+func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
+	sels := app.fileExplorer.Selections()
+	if len(sels) == 0 {
+		// No annotations captured — treat as a plain close.
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			return []tea.Cmd{tea.Quit}
+		}
+		if iv, ok := app.inputView.(*components.InputView); ok {
+			iv.SetDisabled(false)
+			iv.ClearCustomHint()
+		}
+		app.focusedComponent = app.inputView
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
+		})
+		return cmds
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	prompt := components.FormatAnnotations(cwd, sels)
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetDisabled(false)
+		iv.ClearCustomHint()
+	}
+	app.focusedComponent = app.inputView
+
+	cmds = append(cmds,
+		func() tea.Msg { return domain.SetInputEvent{Text: prompt} },
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Injected %d annotated snippet(s) — review and press Enter", len(sels)),
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)
 	return cmds
 }
 

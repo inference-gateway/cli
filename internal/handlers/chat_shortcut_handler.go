@@ -427,7 +427,7 @@ func (s *ChatShortcutHandler) handleShowExplorerSideEffect() tea.Msg {
 	}
 
 	return domain.SetStatusEvent{
-		Message:    "Explorer - ↑/↓ select · →/← expand/collapse · / find · v open · esc back",
+		Message:    "Explorer - ↑/↓ select · →/← expand/collapse · / find · s select · v open · esc back",
 		Spinner:    false,
 		StatusType: domain.StatusDefault,
 	}
