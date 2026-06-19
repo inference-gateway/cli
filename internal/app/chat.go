@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,6 +31,10 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
+
+// actChatFocusAttachments is the chat-namespace action that moves key focus to
+// the snippet attachments tree below the input.
+var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attachments")
 
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
@@ -87,6 +92,8 @@ type ChatApplication struct {
 	fileExplorer         *components.FileExplorerImpl
 	helpView             *components.HelpViewImpl
 
+	snippetAttachmentsView *components.SnippetAttachmentsView
+
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
 	fileSelectionHandler    *components.FileSelectionHandler
@@ -98,8 +105,17 @@ type ChatApplication struct {
 	// Current active component for key handling
 	focusedComponent ui.InputComponent
 
+	// Pending snippet attachments captured in the file explorer, shown as a tree
+	// below the input and sent (then cleared) with the next chat message.
+	pendingSnippets    []components.SnippetSelection
+	attachmentsFocused bool
+
 	// Key binding system
 	keyBindingManager *keybinding.KeyBindingManager
+
+	// Resolved chat-namespace keybindings (actionID -> keys), used for the
+	// snippet-attachments focus shim that runs ahead of the key binding manager.
+	chatKeys map[string][]string
 
 	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
@@ -239,6 +255,8 @@ func NewChatApplication(
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
+	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
+	app.chatKeys = config.ResolveNamespaceBindings(app.config.Chat.Keybindings, config.NamespaceChat)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
@@ -683,6 +701,17 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 		return app.handleMessageHistoryKeys(keyMsg)
 	}
 
+	// Snippet-attachments focus shim: while the tree is focused it captures all
+	// keys (except ctrl+c, which must still quit); otherwise the focus key moves
+	// focus into the tree when there are attachments to manage.
+	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
+		return app.handleAttachmentsKeys(keyMsg)
+	}
+	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
+		app.attachmentsFocused = true
+		return nil
+	}
+
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)
 
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
@@ -694,6 +723,48 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 	}
 
 	return cmds
+}
+
+// matchesFocusAttachments reports whether the pressed key is bound to the
+// chat-namespace focus-attachments action.
+func (app *ChatApplication) matchesFocusAttachments(keyMsg tea.KeyMsg) bool {
+	return slices.Contains(app.chatKeys[actChatFocusAttachments], keyMsg.String())
+}
+
+// handleAttachmentsKeys interprets keys while the snippet attachments tree holds
+// focus: navigate, remove one, clear all, or leave. All keys are consumed.
+func (app *ChatApplication) handleAttachmentsKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+	if app.matchesFocusAttachments(keyMsg) { // focus key toggles focus back off
+		app.attachmentsFocused = false
+		return nil
+	}
+	switch keyMsg.String() {
+	case "up", "k":
+		app.snippetAttachmentsView.MoveCursor(-1)
+	case "down", "j":
+		app.snippetAttachmentsView.MoveCursor(1)
+	case "d", "x", "backspace", "delete":
+		app.removeFocusedSnippet()
+	case "c":
+		app.pendingSnippets = nil
+		app.attachmentsFocused = false
+	case "esc", "q":
+		app.attachmentsFocused = false
+	}
+	return nil
+}
+
+// removeFocusedSnippet drops the snippet under the tree cursor, leaving focus
+// only while attachments remain.
+func (app *ChatApplication) removeFocusedSnippet() {
+	idx := app.snippetAttachmentsView.SelectedIndex()
+	if idx < 0 || idx >= len(app.pendingSnippets) {
+		return
+	}
+	app.pendingSnippets = append(app.pendingSnippets[:idx], app.pendingSnippets[idx+1:]...)
+	if len(app.pendingSnippets) == 0 {
+		app.attachmentsFocused = false
+	}
 }
 
 func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
@@ -1543,6 +1614,7 @@ func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
 		iv.ClearCustomHint()
 	}
 	app.focusedComponent = app.inputView
+	app.attachmentsFocused = false
 
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
@@ -1550,33 +1622,13 @@ func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
 	return cmds
 }
 
-// handleExplorerSubmit runs when the explorer signals IsDone (the user pressed
-// the submit key with annotations captured). It reads the selections, builds a
-// structured prompt via FormatAnnotations, transitions back to the chat view,
-// and injects the prompt into the input field for the user to review and send.
+// handleExplorerSubmit runs when the explorer closes normally (IsDone). It
+// carries any captured selections into the pending attachments shown as a tree
+// below the chat input (their content is sent with the next message), then
+// returns to the chat view.
 func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
 	sels := app.fileExplorer.Selections()
-	if len(sels) == 0 {
-		// No annotations captured — treat as a plain close.
-		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-			return []tea.Cmd{tea.Quit}
-		}
-		if iv, ok := app.inputView.(*components.InputView); ok {
-			iv.SetDisabled(false)
-			iv.ClearCustomHint()
-		}
-		app.focusedComponent = app.inputView
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
-		})
-		return cmds
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = "."
-	}
-	prompt := components.FormatAnnotations(cwd, sels)
+	app.pendingSnippets = append(app.pendingSnippets, sels...)
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
@@ -1586,17 +1638,15 @@ func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
 		iv.ClearCustomHint()
 	}
 	app.focusedComponent = app.inputView
+	app.attachmentsFocused = false
 
-	cmds = append(cmds,
-		func() tea.Msg { return domain.SetInputEvent{Text: prompt} },
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Injected %d annotated snippet(s) — review and press Enter", len(sels)),
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)
+	status := ""
+	if len(sels) > 0 {
+		status = fmt.Sprintf("%d snippet(s) attached — sent with your next message", len(sels))
+	}
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{Message: status, Spinner: false, StatusType: domain.StatusDefault}
+	})
 	return cmds
 }
 
@@ -1637,6 +1687,8 @@ func (app *ChatApplication) renderChatInterface() string {
 		QueuedMessages: queuedMessages,
 	}
 
+	app.syncSnippetAttachmentsView()
+
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
@@ -1649,9 +1701,34 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.queueBoxView,
 		app.todoBoxView,
 		app.approvalBoxView,
+		app.snippetAttachmentsView,
 	)
 
 	return chatInterface
+}
+
+// syncSnippetAttachmentsView pushes the current pending snippets and focus state
+// into the attachments view before each render.
+func (app *ChatApplication) syncSnippetAttachmentsView() {
+	if app.snippetAttachmentsView == nil {
+		return
+	}
+	app.snippetAttachmentsView.SetData(app.pendingSnippets)
+	app.snippetAttachmentsView.SetFocusHint(app.focusAttachmentsKeyLabel())
+	if app.attachmentsFocused {
+		app.snippetAttachmentsView.Focus()
+	} else {
+		app.snippetAttachmentsView.Blur()
+	}
+}
+
+// focusAttachmentsKeyLabel returns the primary key bound to the focus-attachments
+// action, for display in the attachments tree header ("" when unbound).
+func (app *ChatApplication) focusAttachmentsKeyLabel() string {
+	if ks := app.chatKeys[actChatFocusAttachments]; len(ks) > 0 {
+		return ks[0]
+	}
+	return ""
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -2050,13 +2127,19 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 
 	input := strings.TrimSpace(app.inputView.GetInput())
 	images := app.inputView.GetImageAttachments()
+	editing := app.stateManager.IsEditingMessage()
 
-	if input == "" && len(images) == 0 {
+	// Pending snippet attachments can be sent on their own (empty input) on the
+	// normal send path, but must never turn an empty message edit into a submit.
+	hasSnippets := len(app.pendingSnippets) > 0 && !editing
+	if input == "" && len(images) == 0 && !hasSnippets {
 		return nil
 	}
 
-	if err := app.inputView.AddToHistory(input); err != nil {
-		logger.Error("failed to add input to history", "error", err)
+	if input != "" {
+		if err := app.inputView.AddToHistory(input); err != nil {
+			logger.Error("failed to add input to history", "error", err)
+		}
 	}
 
 	app.inputView.ClearInput()
@@ -2071,7 +2154,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 	}
 
-	if app.stateManager.IsEditingMessage() {
+	if editing {
 		editState := app.stateManager.GetMessageEditState()
 
 		app.stateManager.ClearMessageEditState()
@@ -2090,12 +2173,48 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 	}
 
+	content := input
+	if augmented, appended := app.augmentWithSnippets(input); appended {
+		content = augmented
+		app.pendingSnippets = nil
+		app.attachmentsFocused = false
+	}
+
 	return func() tea.Msg {
 		return domain.UserInputEvent{
-			Content: input,
+			Content: content,
 			Images:  images,
 		}
 	}
+}
+
+// augmentWithSnippets appends the pending snippet attachments (selected lines
+// only, via FormatAnnotations) to the outgoing message content. It is skipped
+// for slash/bash commands, which must not carry a trailing code blob — their
+// attachments are preserved for the next regular message. Returns the content
+// to send and whether snippets were appended.
+func (app *ChatApplication) augmentWithSnippets(input string) (string, bool) {
+	if len(app.pendingSnippets) == 0 || isCommandInput(input) {
+		return input, false
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	block := components.FormatAnnotations(cwd, app.pendingSnippets)
+	if block == "" {
+		return input, false
+	}
+	if input == "" {
+		return block, true
+	}
+	return input + "\n\n" + block, true
+}
+
+// isCommandInput reports whether the message is a slash command or a bash (!)
+// invocation routed by the message processor rather than sent to the model.
+func isCommandInput(input string) bool {
+	return strings.HasPrefix(input, "/") || strings.HasPrefix(input, "!")
 }
 
 // ToggleToolResultExpansion toggles tool result expansion

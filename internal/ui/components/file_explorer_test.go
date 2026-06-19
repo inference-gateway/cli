@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -441,6 +442,58 @@ func TestExplorer_PreviewCursorMovement(t *testing.T) {
 	}
 }
 
+// TestExplorer_PreviewCursorKeepsSelectionInView guards the keep-in-view scroll
+// behavior on a file taller than the preview pane: moving the cursor must scroll
+// only as far as needed (cursor tracked at the bottom edge), NOT pin the cursor
+// line to the top (the original bug, which scrolled the anchored selection off
+// the top so its ▌ gutter markers were never rendered).
+func TestExplorer_PreviewCursorKeepsSelectionInView(t *testing.T) {
+	root := t.TempDir()
+	var sb strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	writeTestFile(t, filepath.Join(root, "tall.go"), sb.String())
+
+	e := newTestExplorer(t, root)
+	e.SetHeight(8) // force a short pane (well under the 40-line file); h is read back below
+	selectFileForPreview(t, e, "tall.go")
+	e.Render("") // apply the short height to the viewport
+
+	h := e.viewport.Height()
+	if h <= 0 || h >= e.previewLines {
+		t.Fatalf("test needs a pane shorter than the file: height=%d previewLines=%d", h, e.previewLines)
+	}
+
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at the top line
+	anchor := e.selAnchor
+
+	// Drive the cursor to a mid-file line: far enough below the fold to scroll,
+	// but well clear of the bottom clamp (where pin-to-top and keep-in-view would
+	// coincide at maxYOffset and the test couldn't tell them apart).
+	target := e.previewLines / 2
+	for i := 0; i < target; i++ {
+		e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	}
+	e.Render("")
+
+	top := e.viewport.YOffset()
+	if got := e.previewCursor; got != top+h-1 {
+		t.Fatalf("cursor not kept at bottom of view: cursor=%d YOffset=%d height=%d", got, top, h)
+	}
+	if top == e.previewCursor {
+		t.Fatalf("YOffset pinned to cursor (old bug): YOffset=%d cursor=%d", top, e.previewCursor)
+	}
+	lo, hi, ok := e.previewSelectionRange()
+	if !ok || lo != anchor {
+		t.Fatalf("selection range = (%d,%d,%v), want lo=%d", lo, hi, ok, anchor)
+	}
+	if hi < top || hi > top+h-1 {
+		t.Fatalf("selection cursor end hi=%d outside visible window [%d,%d)", hi, top, top+h)
+	}
+}
+
 func TestExplorer_ToggleRangeSelection(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\nd\ne\n")
@@ -584,29 +637,57 @@ func TestExplorer_MultipleSelectionsAcrossFiles(t *testing.T) {
 	}
 }
 
-func TestExplorer_SubmitSetsDone(t *testing.T) {
+func TestExplorer_EnterAttachesSelection(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
 	e := newTestExplorer(t, root)
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Submit with no selections → no-op.
+	// Enter attaches the current range immediately (no annotation required),
+	// stays in select mode, and does NOT close the explorer.
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at line 1
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // extend to line 2
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if e.IsDone() {
-		t.Fatal("submit with no selections should not set done")
+
+	sels := e.Selections()
+	if len(sels) != 1 {
+		t.Fatalf("Enter should attach one selection, got %d", len(sels))
 	}
+	if sels[0].StartLine != 1 || sels[0].EndLine != 2 {
+		t.Fatalf("attached range = %d-%d, want 1-2", sels[0].StartLine, sels[0].EndLine)
+	}
+	if sels[0].Annotation != "" {
+		t.Fatalf("Enter-attached snippet should carry no annotation, got %q", sels[0].Annotation)
+	}
+	if e.IsDone() {
+		t.Fatal("Enter should not close the explorer")
+	}
+	if !e.selectMode {
+		t.Fatal("Enter should stay in select mode so more ranges can be captured")
+	}
+}
 
-	// Annotate one range.
+func TestExplorer_CloseCarriesSelections(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
-	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
-	e.Update(tea.KeyPressMsg{Text: "z", Code: 'z'})
-	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // attach a range
 
-	// Now submit.
-	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	// q closes the explorer normally (done), carrying selections to chat.
+	e.Update(tea.KeyPressMsg{Text: "q", Code: 'q'})
 	if !e.IsDone() {
-		t.Fatal("submit with selections should set done=true")
+		t.Fatal("q should close the explorer (done) so selections are carried")
+	}
+	if e.IsCancelled() {
+		t.Fatal("q should not discard (cancel) the selections")
+	}
+	if len(e.Selections()) != 1 {
+		t.Fatalf("carried selections = %d, want 1", len(e.Selections()))
 	}
 }
 
@@ -686,22 +767,27 @@ func TestExplorer_FormatAnnotations(t *testing.T) {
 	out := FormatAnnotations(root, sels)
 
 	checks := []string{
-		"# Code annotations",
-		"main.go",
+		"main.go (lines 3-5):",
 		"```go",
-		"func main()",
-		"Lines 3-5: refactor to use early returns",
+		"func main() {",
+		"println(\"hi\")",
+		"note: refactor to use early returns",
 	}
 	for _, want := range checks {
 		if !strings.Contains(out, want) {
 			t.Errorf("FormatAnnotations output missing %q\n--- output ---\n%s", want, out)
 		}
 	}
+	// Only the selected lines (3-5) are emitted — not the whole file.
+	if strings.Contains(out, "package main") {
+		t.Errorf("output should not include non-selected line 1 (package main)\n--- output ---\n%s", out)
+	}
 }
 
-func TestExplorer_FormatAnnotationsLargeFileWindows(t *testing.T) {
+func TestExplorer_FormatAnnotationsLargeFileSelectedLinesOnly(t *testing.T) {
 	root := t.TempDir()
-	// File larger than explorerMaxPreviewBytes so the windowed path is taken.
+	// A large file: the formatter must still emit ONLY the selected lines, never
+	// the whole file or a context window.
 	content := strings.Repeat("line\n", explorerMaxPreviewBytes/5+10)
 	writeTestFile(t, filepath.Join(root, "big.txt"), content)
 
@@ -710,16 +796,18 @@ func TestExplorer_FormatAnnotationsLargeFileWindows(t *testing.T) {
 	}
 	out := FormatAnnotations(root, sels)
 
-	if !strings.Contains(out, "Lines 10-12") {
-		t.Errorf("windowed output should reference lines 10-12\n--- output ---\n%s", out)
+	if !strings.Contains(out, "big.txt (lines 10-12):") {
+		t.Errorf("output should head the snippet with the file + range\n--- output ---\n%s", out)
 	}
-	if !strings.Contains(out, "fix this") {
-		t.Errorf("windowed output should contain annotation\n--- output ---\n%s", out)
+	if !strings.Contains(out, "note: fix this") {
+		t.Errorf("output should contain the note\n--- output ---\n%s", out)
 	}
-	// Should NOT include the full file (no line 1 with the full file block).
-	// The windowed path emits "### Lines" headers; the full-file path does not.
-	if !strings.Contains(out, "### Lines") {
-		t.Errorf("windowed output should use ### Lines header\n--- output ---\n%s", out)
+	if strings.Contains(out, "### Lines") || strings.Contains(out, "(context ") {
+		t.Errorf("the old windowed/context format must be gone\n--- output ---\n%s", out)
+	}
+	// Exactly the 3 selected lines are emitted (not the whole file).
+	if got := strings.Count(out, "line\n"); got != 3 {
+		t.Errorf("expected exactly 3 selected lines, got %d\n--- output ---\n%s", got, out)
 	}
 }
 

@@ -100,6 +100,12 @@ func addChatBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "chat",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceChat, "focus_attachments")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+g"},
+		Description: "focus the attached-snippets tree below the input (↑/↓ move · d remove · c clear · esc done)",
+		Category:    "chat",
+		Enabled:     &enabled,
+	}
 }
 
 func addDisplayBindings(bindings map[string]KeyBindingEntry) {

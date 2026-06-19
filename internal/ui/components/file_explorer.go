@@ -34,7 +34,6 @@ const (
 	explorerMaxPreviewBytes = 1 << 20 // 1 MiB; larger files are not previewed
 	explorerMaxFindFiles    = 50000   // cap on the fuzzy-finder candidate walk
 	explorerMaxFindResults  = 200     // cap on displayed fuzzy matches
-	explorerAnnotateContext = 5       // context lines around a snippet in large files
 )
 
 // gitignoreDefaults are always-ignored entries, matching internal/agent/tools/tree.go.
@@ -146,8 +145,8 @@ type FileExplorerImpl struct {
 	// Select mode - line-range selection + annotation within the preview pane.
 	// The preview cursor (previewCursor) is a 0-indexed line within the current
 	// file; selAnchor (-1 = none) marks the other end of an inclusive range.
-	// Captured ranges accumulate in selections and are injected into the chat
-	// on submit (done = true).
+	// Captured ranges accumulate in selections; closing the explorer (done) hands
+	// them to the chat, where they appear as attachments until the next message.
 	selectMode    bool
 	previewCursor int
 	previewLines  int
@@ -157,8 +156,8 @@ type FileExplorerImpl struct {
 	annotateInput string
 
 	loadErr error
-	done    bool
-	cancel  bool
+	done    bool // explorer closed normally (esc/q) — carry selections to chat
+	cancel  bool // discard everything (ctrl+c)
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
@@ -252,13 +251,13 @@ func (t *FileExplorerImpl) HintText() string {
 		return "(editor) - :wq to save & return"
 	}
 	if t.annotateMode {
-		return "(annotate) type instruction · enter confirm · esc cancel"
+		return "(annotate) type note (optional) · enter confirm · esc cancel"
 	}
 	if t.selectMode {
-		return fmt.Sprintf("(select) %s/%s move · %s range · %s annotate · %s submit · esc back",
+		return fmt.Sprintf("(select) %s/%s move · %s range · %s attach · %s note · esc back",
 			t.keymap.display(actExpNavUp), t.keymap.display(actExpNavDown),
-			t.keymap.display(actExpToggleSelect), t.keymap.display(actExpAnnotate),
-			t.keymap.display(actExpSubmit))
+			t.keymap.display(actExpToggleSelect), t.keymap.display(actExpSubmit),
+			t.keymap.display(actExpAnnotate))
 	}
 	if t.findMode {
 		return "type to filter · ↑/↓ select · enter open · esc back to tree"
@@ -327,7 +326,8 @@ func (t *FileExplorerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		actExpOpen, actExpFind, actExpToggleHidden, actExpSelect,
 		actExpScrollUp, actExpScrollDown, actExpHalfUp, actExpHalfDown, actExpCancel) {
 	case actExpCancel:
-		t.cancel = true
+		// esc/q closes the explorer, carrying any captured selections to chat.
+		t.done = true
 	case actExpNavUp:
 		t.moveCursor(-1)
 	case actExpNavDown:
@@ -616,7 +616,7 @@ func (t *FileExplorerImpl) enterSelectMode() {
 }
 
 // exitSelectMode returns to tree navigation, clearing the active range anchor.
-// Captured selections are preserved so they can still be submitted.
+// Captured selections are preserved so they are still carried to chat on close.
 func (t *FileExplorerImpl) exitSelectMode() {
 	t.selectMode = false
 	t.selAnchor = -1
@@ -644,13 +644,31 @@ func (t *FileExplorerImpl) previewSelectionRange() (lo, hi int, ok bool) {
 }
 
 // movePreviewCursor moves the line cursor within the preview, clamping to the
-// file's line count and scrolling the viewport to keep the cursor visible.
+// file's line count and scrolling the viewport only as far as needed to keep
+// the cursor within the visible window. Leaving YOffset untouched while the
+// cursor is already on-screen keeps an anchored selection's gutter markers
+// visible instead of scrolling them off the top.
 func (t *FileExplorerImpl) movePreviewCursor(delta int) {
 	if t.previewLines <= 0 {
 		return
 	}
 	t.previewCursor = clampInt(t.previewCursor+delta, 0, t.previewLines-1)
-	t.viewport.SetYOffset(t.previewCursor)
+
+	height := t.viewport.Height()
+	if height <= 0 {
+		// No render has sized the viewport yet; fall back to the simple pin.
+		t.viewport.SetYOffset(t.previewCursor)
+		return
+	}
+
+	top := t.viewport.YOffset()
+	switch {
+	case t.previewCursor < top:
+		t.viewport.SetYOffset(t.previewCursor)
+	case t.previewCursor > top+height-1:
+		t.viewport.SetYOffset(t.previewCursor - height + 1)
+	}
+	// else: cursor already visible — leave YOffset unchanged.
 }
 
 func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -664,11 +682,11 @@ func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		actExpSubmit, actExpCancel) {
 	case actExpCancel:
 		// esc exits select mode (preserving selections); q (or any other cancel
-		// binding) closes the explorer entirely.
+		// binding) closes the explorer, carrying captured selections to chat.
 		if pressed == "esc" {
 			t.exitSelectMode()
 		} else {
-			t.cancel = true
+			t.done = true
 		}
 	case actExpNavUp:
 		t.movePreviewCursor(-1)
@@ -688,9 +706,9 @@ func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		t.annotateMode = true
 		t.annotateInput = ""
 	case actExpSubmit:
-		if len(t.selections) > 0 {
-			t.done = true
-		}
+		// Attach the current range immediately (annotation optional); stay in
+		// select mode so the user can capture more ranges before closing.
+		t.attachCurrentSelection()
 	}
 	return t, nil
 }
@@ -722,10 +740,10 @@ func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	return t, nil
 }
 
-// confirmAnnotation stores the current range + typed instruction as a
-// SnippetSelection and exits annotate mode. Line numbers are converted from
-// 0-indexed to 1-indexed inclusive.
-func (t *FileExplorerImpl) confirmAnnotation() {
+// attachSelection captures the current range (or the single cursor line when no
+// anchor is set) as a SnippetSelection carrying the given note. Line numbers are
+// converted from 0-indexed to 1-indexed inclusive; the anchor is then cleared.
+func (t *FileExplorerImpl) attachSelection(note string) {
 	lo, hi, ok := t.previewSelectionRange()
 	if !ok {
 		lo = t.previewCursor
@@ -735,37 +753,43 @@ func (t *FileExplorerImpl) confirmAnnotation() {
 		File:       t.selectedFilePath(),
 		StartLine:  lo + 1,
 		EndLine:    hi + 1,
-		Annotation: t.annotateInput,
+		Annotation: note,
 	})
-	t.annotateMode = false
-	t.annotateInput = ""
 	t.selAnchor = -1
 }
 
+// attachCurrentSelection captures the current range with no note (the Enter
+// path); the user can still add an optional note via the annotate key first.
+func (t *FileExplorerImpl) attachCurrentSelection() { t.attachSelection("") }
+
+// confirmAnnotation stores the current range + typed note as a SnippetSelection
+// and exits annotate mode.
+func (t *FileExplorerImpl) confirmAnnotation() {
+	t.attachSelection(t.annotateInput)
+	t.annotateMode = false
+	t.annotateInput = ""
+}
+
 // Selections returns the annotated line ranges captured during select mode.
-// The app reads this on submit (IsDone) to build the LLM context.
+// The app reads this when the explorer closes (IsDone) and carries them into
+// chat as attachments sent with the next message.
 func (t *FileExplorerImpl) Selections() []SnippetSelection {
 	return t.selections
 }
 
-// FormatAnnotations builds a structured, LLM-ready prompt from a set of
-// annotated snippet selections. Selections are grouped by file (deduping
-// file reads). When a file fits under explorerMaxPreviewBytes the full file
-// is included once in a fenced block; larger files instead include each
-// snippet with a small context window (±explorerAnnotateContext lines).
+// FormatAnnotations builds an LLM-ready context block from a set of snippet
+// selections. Selections are grouped by file (deduping file reads). Only the
+// selected line ranges are emitted — never the whole file — each as a fenced
+// block headed by `<file> (lines X-Y):`, optionally followed by a `note:` line
+// when the user attached an instruction.
 //
 // The output format is:
 //
-//	# Code annotations
-//
-//	## <file>
+//	<file> (lines <start>-<end>):
 //	```<ext>
-//	<full file or windowed snippet>
+//	<the selected lines, raw>
 //	```
-//
-//	### Lines <start>-<end>: <annotation>
-//
-//	(and repeats per selection)
+//	note: <annotation>   (only when an annotation was attached)
 //
 // This is a pure function (no receiver state) so it is independently
 // unit-testable.
@@ -785,63 +809,43 @@ func FormatAnnotations(root string, sels []SnippetSelection) string {
 	}
 
 	var b strings.Builder
-	b.WriteString("# Code annotations\n\nThe following snippets were selected in the file explorer and annotated with instructions. Apply each instruction to the highlighted lines.\n")
+	b.WriteString("The following code snippets were attached from the file explorer as context:\n")
 
 	for _, file := range fileOrder {
-		sels := byFile[file]
-		fmt.Fprintf(&b, "\n## %s\n", file)
-
 		abs := filepath.Join(root, file)
 		data, err := os.ReadFile(abs)
+		ext := snippetExt(file)
 		if err != nil {
-			fmt.Fprintf(&b, "(file unavailable: %s)\n", err)
-			for _, s := range sels {
-				b.WriteString(formatAnnotationMeta(s))
+			for _, s := range byFile[file] {
+				fmt.Fprintf(&b, "\n%s (lines %d-%d): file unavailable: %s\n", file, s.StartLine, s.EndLine, err)
+				if s.Annotation != "" {
+					fmt.Fprintf(&b, "note: %s\n", s.Annotation)
+				}
 			}
 			continue
 		}
-
 		allLines := strings.Split(string(data), "\n")
-		ext := snippetExt(file)
-
-		if len(data) <= explorerMaxPreviewBytes {
-			// Include the full file once, then list annotations as references.
-			b.WriteString("```" + ext + "\n")
-			for i, line := range allLines {
-				fmt.Fprintf(&b, "%-*d │ %s\n", lineNumWidth(len(allLines)), i+1, line)
-			}
-			b.WriteString("```\n\n")
-			for _, s := range sels {
-				b.WriteString(formatAnnotationMeta(s))
-			}
-		} else {
-			// Large file: include each snippet with a context window.
-			for _, s := range sels {
-				lo := clampInt(s.StartLine-1-explorerAnnotateContext, 0, len(allLines)-1)
-				hi := clampInt(s.EndLine-1+explorerAnnotateContext, 0, len(allLines)-1)
-				fmt.Fprintf(&b, "### Lines %d-%d (context %d-%d)\n", s.StartLine, s.EndLine, lo+1, hi+1)
-				b.WriteString("```" + ext + "\n")
-				for i := lo; i <= hi; i++ {
-					marker := "  "
-					if i >= s.StartLine-1 && i <= s.EndLine-1 {
-						marker = "▶ "
-					}
-					fmt.Fprintf(&b, "%s%-*d │ %s\n", marker, lineNumWidth(hi+1), i+1, allLines[i])
-				}
-				b.WriteString("```\n")
-				b.WriteString(formatAnnotationMeta(s))
-			}
+		for _, s := range byFile[file] {
+			appendSnippetBlock(&b, file, allLines, ext, s)
 		}
 	}
 	return b.String()
 }
 
-// formatAnnotationMeta emits the instruction line for a selection.
-func formatAnnotationMeta(s SnippetSelection) string {
-	if s.Annotation == "" {
-		return fmt.Sprintf("- Lines %d-%d (no annotation)\n", s.StartLine, s.EndLine)
+// appendSnippetBlock writes one snippet (the selected lines only) as a fenced
+// block headed by the file + 1-indexed inclusive range, plus an optional note.
+func appendSnippetBlock(b *strings.Builder, file string, allLines []string, ext string, s SnippetSelection) {
+	lo := clampInt(s.StartLine-1, 0, len(allLines)-1)
+	hi := clampInt(s.EndLine-1, 0, len(allLines)-1)
+	fmt.Fprintf(b, "\n%s (lines %d-%d):\n```%s\n", file, s.StartLine, s.EndLine, ext)
+	for i := lo; i <= hi; i++ {
+		b.WriteString(allLines[i])
+		b.WriteByte('\n')
 	}
-	return fmt.Sprintf("- Lines %d-%d: %s\n", s.StartLine, s.EndLine, s.Annotation)
+	b.WriteString("```\n")
+	if s.Annotation != "" {
+		fmt.Fprintf(b, "note: %s\n", s.Annotation)
+	}
 }
 
 // snippetExt returns the fenced-code extension for a file path.
@@ -851,20 +855,6 @@ func snippetExt(file string) string {
 		return ""
 	}
 	return ext
-}
-
-// lineNumWidth returns the number of digits needed to render n (for aligning
-// line-number gutters).
-func lineNumWidth(n int) int {
-	if n <= 0 {
-		return 1
-	}
-	w := 0
-	for n > 0 {
-		n /= 10
-		w++
-	}
-	return w
 }
 
 // --- tree model ---
