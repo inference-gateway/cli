@@ -2129,8 +2129,6 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	images := app.inputView.GetImageAttachments()
 	editing := app.stateManager.IsEditingMessage()
 
-	// Pending snippet attachments can be sent on their own (empty input) on the
-	// normal send path, but must never turn an empty message edit into a submit.
 	hasSnippets := len(app.pendingSnippets) > 0 && !editing
 	if input == "" && len(images) == 0 && !hasSnippets {
 		return nil
