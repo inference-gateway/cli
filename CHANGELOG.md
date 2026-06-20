@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.122.0](https://github.com/inference-gateway/cli/compare/v0.121.1...v0.122.0) (2026-06-20)
+
+### 🚀 Features
+
+* **shortcuts:** add /release-notes shortcut to display changelog entries ([#634](https://github.com/inference-gateway/cli/issues/634)) ([4d0d0bf](https://github.com/inference-gateway/cli/commit/4d0d0bf7529f1dad14dff366ae5845356ca1b08f)), closes [#518](https://github.com/inference-gateway/cli/issues/518)
+* **explorer:** add snippet selection and annotation for targeted refactoring ([#637](https://github.com/inference-gateway/cli/issues/637)) ([7e619f9](https://github.com/inference-gateway/cli/commit/7e619f91d48fab1086015f0c7863c8553cc95b74)), closes [#599](https://github.com/inference-gateway/cli/issues/599)
+* add wrap-up reminders for agent mode ([#628](https://github.com/inference-gateway/cli/issues/628)) ([#635](https://github.com/inference-gateway/cli/issues/635)) ([f5d95a5](https://github.com/inference-gateway/cli/commit/f5d95a567654e73f7ac0160f43e0f21a24f90c05))
+* **skills:** scan .agents/skills as a third skill location ([#640](https://github.com/inference-gateway/cli/issues/640)) ([6e422b9](https://github.com/inference-gateway/cli/commit/6e422b95033589f0dd1bab56975cd92e811ff7c7)), closes [#639](https://github.com/inference-gateway/cli/issues/639) [#639](https://github.com/inference-gateway/cli/issues/639)
+
+### ♻️ Code Refactoring
+
+* **pricing:** add MiniMax models and update subscription terminology ([8df84e7](https://github.com/inference-gateway/cli/commit/8df84e7b387a912a8d95fee0768da3843455436a))
+
+### 🔧 Build System
+
+* **deps:** bump alpine from 3.24.0 to 3.24.1 in the docker group ([#630](https://github.com/inference-gateway/cli/issues/630)) ([4d2160e](https://github.com/inference-gateway/cli/commit/4d2160ea27ce49c93e500b131ece8dade5bae26d))
+* **deps:** bump inference-gateway/.github/.github/workflows/infer.yml from 0.8.0 to 0.10.3 in the github-actions group across 1 directory ([#633](https://github.com/inference-gateway/cli/issues/633)) ([913304d](https://github.com/inference-gateway/cli/commit/913304dc19549348fe270ba2e1f1881c6baa5778))
+* **deps:** bump the gomod group with 4 updates ([#629](https://github.com/inference-gateway/cli/issues/629)) ([b73f4d3](https://github.com/inference-gateway/cli/commit/b73f4d3df2728c299f2a579e7eb47e25c3e59c23))
+
+### 👷 CI/CD
+
+* **infer:** centralize infer.yml + sync .infer config ([#638](https://github.com/inference-gateway/cli/issues/638)) ([86d0c18](https://github.com/inference-gateway/cli/commit/86d0c1878a0976133476e702c7afe62280e80879))
+* **deps:** upgrade actions/checkout from v6.0.3 to v7.0.0 across workflows ([7befc6c](https://github.com/inference-gateway/cli/commit/7befc6c61015cb04bbfe92ab3a313caaf8a4956d))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.161 -> 2.1.170, claude-code-action v1.0.135 -> v1.0.142 ([#626](https://github.com/inference-gateway/cli/issues/626)) ([9edfb85](https://github.com/inference-gateway/cli/commit/9edfb85f37d66125b9dcdab0ae5ced2a91f75292))
+* **deps:** bump claude-code 2.1.170 -> 2.1.177, claude-code-action v1.0.142 -> v1.0.150 ([#632](https://github.com/inference-gateway/cli/issues/632)) ([c81923f](https://github.com/inference-gateway/cli/commit/c81923fbf6b328bf72bf1ef070fd806e1e2d8eaa))
+* **deps:** bump claude-code-action v1.0.150 -> v1.0.152 ([#636](https://github.com/inference-gateway/cli/issues/636)) ([1d58889](https://github.com/inference-gateway/cli/commit/1d58889f9a398d26dfb1365b623e6e0857cef139))
+* **deps:** bump infer CLI v0.121.0 -> v0.121.1, infer-action v0.12.1 -> v0.13.1 ([#627](https://github.com/inference-gateway/cli/issues/627)) ([c231a03](https://github.com/inference-gateway/cli/commit/c231a03da3a3e5b6ad9e011063e559d16747becb))
+* bump schema version to 1.13.0 and update docker version to 29.5.2 ([287b1bb](https://github.com/inference-gateway/cli/commit/287b1bb841018560441e030151e13b356befdc15))
+
 ## [0.121.1](https://github.com/inference-gateway/cli/compare/v0.121.0...v0.121.1) (2026-06-11)
 
 ### 🔧 Build System
