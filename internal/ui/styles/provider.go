@@ -531,6 +531,16 @@ func (p *Provider) GetWidth(s string) int {
 	return lipgloss.Width(s)
 }
 
+// ClampToSize hard-truncates s to width columns and height rows (ANSI-aware) so a
+// frame containing an over-wide or over-tall line cannot wrap and corrupt the inline
+// (non-alt-screen) render. MaxWidth/MaxHeight truncate rather than pad or wrap.
+func (p *Provider) ClampToSize(s string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return s
+	}
+	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(s)
+}
+
 // Custom rendering - for complex styling needs
 
 // RenderWithColor renders text with a specific hex color

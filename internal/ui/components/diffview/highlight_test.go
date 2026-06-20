@@ -28,6 +28,28 @@ func TestHighlight_NoLineNumbers(t *testing.T) {
 	}
 }
 
+// TestHighlight_ExpandsTabs guards that tabs are expanded to spaces. A literal
+// tab is measured as 0 cells by ansi.StringWidth but rendered as a tab stop by
+// the terminal; left in place it overflows the fixed-width preview pane and
+// corrupts the explorer layout. Both the plain fallback and the highlighted path
+// must be tab-free.
+func TestHighlight_ExpandsTabs(t *testing.T) {
+	indent := strings.Repeat(" ", defaultTabWidth)
+
+	plain := Highlight("x.go", "\tone\n\t\ttwo", nil, false)
+	if strings.Contains(plain, "\t") {
+		t.Fatalf("plain path left a literal tab: %q", plain)
+	}
+	if plain != indent+"one\n"+indent+indent+"two" {
+		t.Fatalf("tabs not expanded to %d spaces: %q", defaultTabWidth, plain)
+	}
+
+	styled := Highlight("main.go", "\tx := 1", chromastyles.Get("github-dark"), false)
+	if strings.Contains(styled, "\t") {
+		t.Fatalf("highlighted path left a literal tab: %q", styled)
+	}
+}
+
 // TestHighlight_MultilineConstructPreservesLineCount guards the whole-file
 // tokenise-then-split approach: a multi-line raw string must not collapse or
 // add lines (a per-line tokeniser would mis-handle it).

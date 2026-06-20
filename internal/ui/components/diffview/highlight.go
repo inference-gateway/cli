@@ -31,6 +31,7 @@ func selectLexer(path, content string) chroma.Lexer {
 // plain (uncolored) content, so it never returns an error string.
 func Highlight(path, content string, style *chroma.Style, lineNumbers bool) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\t", strings.Repeat(" ", defaultTabWidth))
 	content = strings.TrimSuffix(content, "\n")
 
 	lines, ok := highlightToLines(path, content, style)

@@ -1069,15 +1069,18 @@ func (t *FileExplorerImpl) Render(inputRow string) string {
 	sidebar := t.renderSidebar(t.sidebarWidth, t.height)
 	divider := t.renderDivider(t.height)
 
+	var out string
 	if inputRow == "" {
 		pane := t.renderPane(t.paneWidth, t.height)
-		return t.styleProvider.JoinHorizontal(sidebar, divider, pane)
+		out = t.styleProvider.JoinHorizontal(sidebar, divider, pane)
+	} else {
+		regionHeight := max(t.height-t.styleProvider.GetHeight(inputRow), 1)
+		pane := t.renderPane(t.paneWidth, regionHeight)
+		chatColumn := t.styleProvider.JoinVertical(pane, inputRow)
+		out = t.styleProvider.JoinHorizontal(sidebar, divider, chatColumn)
 	}
 
-	regionHeight := max(t.height-t.styleProvider.GetHeight(inputRow), 1)
-	pane := t.renderPane(t.paneWidth, regionHeight)
-	chatColumn := t.styleProvider.JoinVertical(pane, inputRow)
-	return t.styleProvider.JoinHorizontal(sidebar, divider, chatColumn)
+	return t.styleProvider.ClampToSize(out, t.width, t.height)
 }
 
 func (t *FileExplorerImpl) renderDivider(height int) string {
