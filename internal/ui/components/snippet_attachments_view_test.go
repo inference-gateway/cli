@@ -50,16 +50,13 @@ func TestSnippetAttachments_RendersFilesAndRanges(t *testing.T) {
 
 func TestSnippetAttachments_GroupsByFileAndMapsIndex(t *testing.T) {
 	v := newTestSnippetView()
-	// App order interleaves files; the display groups them, but SelectedIndex
-	// must map back to the original app-slice index for correct removal.
 	v.SetData([]SnippetSelection{
-		{File: "a.go", StartLine: 1, EndLine: 1}, // app idx 0
-		{File: "b.go", StartLine: 2, EndLine: 2}, // app idx 1
-		{File: "a.go", StartLine: 9, EndLine: 9}, // app idx 2
+		{File: "a.go", StartLine: 1, EndLine: 1},
+		{File: "b.go", StartLine: 2, EndLine: 2},
+		{File: "a.go", StartLine: 9, EndLine: 9},
 	})
 	v.Focus()
 
-	// Display order groups a.go's two ranges first (idx 0, 2), then b.go (idx 1).
 	if got := v.SelectedIndex(); got != 0 {
 		t.Fatalf("cursor 0 SelectedIndex = %d, want 0 (a.go:1)", got)
 	}
@@ -71,11 +68,11 @@ func TestSnippetAttachments_GroupsByFileAndMapsIndex(t *testing.T) {
 	if got := v.SelectedIndex(); got != 1 {
 		t.Fatalf("cursor 2 SelectedIndex = %d, want 1 (b.go:2)", got)
 	}
-	v.MoveCursor(5) // clamp at the end
+	v.MoveCursor(5)
 	if got := v.SelectedIndex(); got != 1 {
 		t.Fatalf("over-move SelectedIndex = %d, want 1 (clamped)", got)
 	}
-	v.MoveCursor(-99) // clamp at the start
+	v.MoveCursor(-99)
 	if got := v.SelectedIndex(); got != 0 {
 		t.Fatalf("under-move SelectedIndex = %d, want 0 (clamped)", got)
 	}
@@ -89,8 +86,8 @@ func TestSnippetAttachments_SetDataClampsCursor(t *testing.T) {
 		{File: "a.go", StartLine: 3, EndLine: 3},
 	})
 	v.Focus()
-	v.MoveCursor(2) // cursor → 2
-	// Shrink the list; cursor must clamp back into range.
+	v.MoveCursor(2)
+
 	v.SetData([]SnippetSelection{{File: "a.go", StartLine: 1, EndLine: 1}})
 	if got := v.SelectedIndex(); got != 0 {
 		t.Fatalf("after shrink SelectedIndex = %d, want 0", got)

@@ -701,9 +701,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 		return app.handleMessageHistoryKeys(keyMsg)
 	}
 
-	// Snippet-attachments focus shim: while the tree is focused it captures all
-	// keys (except ctrl+c, which must still quit); otherwise the focus key moves
-	// focus into the tree when there are attachments to manage.
 	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
 		return app.handleAttachmentsKeys(keyMsg)
 	}

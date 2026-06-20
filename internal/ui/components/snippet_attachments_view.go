@@ -20,11 +20,11 @@ const maxVisibleSnippetRows = 10
 type SnippetAttachmentsView struct {
 	styleProvider *styles.Provider
 	width         int
-	snippets      []SnippetSelection // copy of the app's pending list (app order)
-	order         []int              // display order: indices into snippets, grouped by file
+	snippets      []SnippetSelection
+	order         []int
 	focused       bool
-	cursor        int    // position within order
-	focusHint     string // key label shown in the unfocused header (e.g. "ctrl+e")
+	cursor        int 
+	focusHint     string
 }
 
 // NewSnippetAttachmentsView creates an empty attachments view.
@@ -85,7 +85,7 @@ func (v *SnippetAttachmentsView) GetHeight() int {
 	if len(lines) == 0 {
 		return 0
 	}
-	return len(lines) + 2 // rounded border adds a top and bottom line
+	return len(lines) + 2
 }
 
 // Render returns the framed tree, or "" when there are no attachments.
