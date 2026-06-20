@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.122.2](https://github.com/inference-gateway/cli/compare/v0.122.1...v0.122.2) (2026-06-20)
+
+### 👷 CI/CD
+
+* **release:** attach binaries before publish for immutable releases ([#643](https://github.com/inference-gateway/cli/issues/643)) ([d3f66f7](https://github.com/inference-gateway/cli/commit/d3f66f7d48bd2b655ebb5fe1b941bd3dd8b27503))
+
 ## [0.122.1](https://github.com/inference-gateway/cli/compare/v0.122.0...v0.122.1) (2026-06-20)
 
 ### 🐛 Bug Fixes
