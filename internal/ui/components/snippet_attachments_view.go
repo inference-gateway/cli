@@ -105,7 +105,7 @@ func (v *SnippetAttachmentsView) contentLines() []string {
 	}
 	accent := v.styleProvider.GetThemeColor("accent")
 	dim := v.styleProvider.GetThemeColor("dim")
-	inner := max(v.width-4, 8) // border (2) + horizontal padding (2)
+	inner := max(v.width-4, 8)
 
 	lines := []string{v.styleProvider.RenderWithColorAndBold(truncateRunes(v.headerText(), inner), accent)}
 
