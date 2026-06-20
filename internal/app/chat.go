@@ -731,7 +731,7 @@ func (app *ChatApplication) matchesFocusAttachments(keyMsg tea.KeyMsg) bool {
 // handleAttachmentsKeys interprets keys while the snippet attachments tree holds
 // focus: navigate, remove one, clear all, or leave. All keys are consumed.
 func (app *ChatApplication) handleAttachmentsKeys(keyMsg tea.KeyMsg) []tea.Cmd {
-	if app.matchesFocusAttachments(keyMsg) { // focus key toggles focus back off
+	if app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = false
 		return nil
 	}
