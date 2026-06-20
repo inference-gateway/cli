@@ -964,7 +964,7 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 // configured sandbox dirs (parity with .infer/skills), while non-skills paths
 // under .agents and lookalike siblings stay denied.
 func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
-	sandboxDir := t.TempDir() // an unrelated, explicitly-allowed sandbox dir
+	sandboxDir := t.TempDir()
 
 	agentsSkill, err := filepath.Abs(filepath.Join(AgentsDirName, "skills", "demo", "SKILL.md"))
 	if err != nil {

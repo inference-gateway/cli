@@ -198,16 +198,13 @@ func TestPrecedence_AgentsMiddleScope(t *testing.T) {
 	agentsDir := t.TempDir()
 	userDir := t.TempDir()
 
-	// Present in all three scopes -> project wins.
 	writeSkill(t, projDir, "all-three", validSkillBody("all-three", "Project version."))
 	writeSkill(t, agentsDir, "all-three", validSkillBody("all-three", "Agents version."))
 	writeSkill(t, userDir, "all-three", validSkillBody("all-three", "User version."))
 
-	// Present in agents and user only -> agents wins over user.
 	writeSkill(t, agentsDir, "agents-and-user", validSkillBody("agents-and-user", "Agents version."))
 	writeSkill(t, userDir, "agents-and-user", validSkillBody("agents-and-user", "User version."))
 
-	// Scope-exclusive skills load tagged with their own scope.
 	writeSkill(t, agentsDir, "agents-only", validSkillBody("agents-only", "Only in .agents scope."))
 	writeSkill(t, userDir, "user-only", validSkillBody("user-only", "Only in user scope."))
 
