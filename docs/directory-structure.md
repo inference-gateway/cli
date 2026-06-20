@@ -53,6 +53,7 @@ for the full precedence rules.
 │   ├── shells.yaml
 │   ├── export.yaml
 │   └── a2a.yaml
+├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 ├── .gitignore            # ignores the runtime-generated files below
 │
 │   # --- created at runtime, not by `infer init` ---
@@ -63,6 +64,10 @@ for the full precedence rules.
 ├── bin/                  # downloaded gateway binary (binary mode)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 └── history               # chat input history (one entry per line)
+
+.agents/                  # open-standard project layer (cross-tool skills)
+└── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
+    └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
 
 ~/.infer/                 # userspace layer - same set of config files,
                           # plus one extra:
@@ -98,6 +103,9 @@ them exist in both layers (project and userspace).
 - **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`,
   `/agents` shortcuts plus any you add. Drop new YAML files into
   `shortcuts/`. See [Shortcuts Guide](shortcuts-guide.md).
+- **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
+  into the cross-tool `.agents/skills/` open standard) to extend the agent.
+  See [Skills](skills.md).
 - **`.gitignore`** - pre-populated to exclude the runtime-generated files
   below.
 

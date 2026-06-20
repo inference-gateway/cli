@@ -190,6 +190,72 @@ func TestPrecedence_ProjectOverridesUser(t *testing.T) {
 	require.Equal(t, domain.SkillScopeUser, byName["user-only"].Scope)
 }
 
+// TestPrecedence_AgentsMiddleScope locks in the three-way precedence introduced
+// for the .agents/skills open standard: project > agents > user, first match
+// wins on a name collision.
+func TestPrecedence_AgentsMiddleScope(t *testing.T) {
+	projDir := t.TempDir()
+	agentsDir := t.TempDir()
+	userDir := t.TempDir()
+
+	// Present in all three scopes -> project wins.
+	writeSkill(t, projDir, "all-three", validSkillBody("all-three", "Project version."))
+	writeSkill(t, agentsDir, "all-three", validSkillBody("all-three", "Agents version."))
+	writeSkill(t, userDir, "all-three", validSkillBody("all-three", "User version."))
+
+	// Present in agents and user only -> agents wins over user.
+	writeSkill(t, agentsDir, "agents-and-user", validSkillBody("agents-and-user", "Agents version."))
+	writeSkill(t, userDir, "agents-and-user", validSkillBody("agents-and-user", "User version."))
+
+	// Scope-exclusive skills load tagged with their own scope.
+	writeSkill(t, agentsDir, "agents-only", validSkillBody("agents-only", "Only in .agents scope."))
+	writeSkill(t, userDir, "user-only", validSkillBody("user-only", "Only in user scope."))
+
+	s := newWithScopes(enabledCfg(), []scopedDir{
+		{dir: projDir, scope: domain.SkillScopeProject},
+		{dir: agentsDir, scope: domain.SkillScopeAgents},
+		{dir: userDir, scope: domain.SkillScopeUser},
+	})
+	require.NoError(t, s.Load(context.Background()))
+
+	got := s.List()
+	require.Len(t, got, 4)
+
+	byName := map[string]domain.Skill{}
+	for _, sk := range got {
+		byName[sk.Name] = sk
+	}
+
+	require.Equal(t, "Project version.", byName["all-three"].Description)
+	require.Equal(t, domain.SkillScopeProject, byName["all-three"].Scope)
+
+	require.Equal(t, "Agents version.", byName["agents-and-user"].Description)
+	require.Equal(t, domain.SkillScopeAgents, byName["agents-and-user"].Scope)
+
+	require.Equal(t, domain.SkillScopeAgents, byName["agents-only"].Scope)
+	require.Equal(t, domain.SkillScopeUser, byName["user-only"].Scope)
+}
+
+// TestSearchScopes_Order guards the scan order that the precedence dedup relies
+// on: project (.infer/skills), then the open-standard .agents/skills, then
+// user-global (~/.infer/skills).
+func TestSearchScopes_Order(t *testing.T) {
+	scopes := searchScopes()
+
+	require.GreaterOrEqual(t, len(scopes), 2)
+	require.Equal(t, domain.SkillScopeProject, scopes[0].scope)
+	require.Equal(t, filepath.Join(config.ConfigDirName, skillsSubdir), scopes[0].dir)
+
+	require.Equal(t, domain.SkillScopeAgents, scopes[1].scope)
+	require.Equal(t, filepath.Join(config.AgentsDirName, skillsSubdir), scopes[1].dir)
+
+	if home, err := os.UserHomeDir(); err == nil {
+		require.Len(t, scopes, 3)
+		require.Equal(t, domain.SkillScopeUser, scopes[2].scope)
+		require.Equal(t, filepath.Join(home, config.ConfigDirName, skillsSubdir), scopes[2].dir)
+	}
+}
+
 func TestDisabledFilter(t *testing.T) {
 	tmp := t.TempDir()
 	writeSkill(t, tmp, "alpha", validSkillBody("alpha", "First."))

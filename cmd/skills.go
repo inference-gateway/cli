@@ -20,10 +20,11 @@ var skillsCmd = &cobra.Command{
 
 Skills are folders containing a SKILL.md file with YAML frontmatter (name,
 description). The format matches the contract shared by the official spec, so existing skill folders authored for
-any of them can be dropped into .infer/skills/ unchanged.
+any of them can be dropped into .infer/skills/ (or the .agents/skills/ open standard) unchanged.
 
-Locations scanned (project precedes user-global on name collision):
+Locations scanned (highest precedence first; first match wins on name collision):
   - .infer/skills/<name>/SKILL.md       (project)
+  - .agents/skills/<name>/SKILL.md      (open standard)
   - ~/.infer/skills/<name>/SKILL.md     (user-global)
 
 Skills are enabled by default - disable via agent.skills.enabled=false in config or
@@ -34,11 +35,11 @@ the enable flag so you can verify discovery.`,
 var skillsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List discovered skills",
-	Long: `List discovered Agent Skills from .infer/skills/ and ~/.infer/skills/.
+	Long: `List discovered Agent Skills from .infer/skills/, .agents/skills/, and ~/.infer/skills/.
 
-Output includes each skill's name, scope (project / user), one-line description,
-and the absolute path to its SKILL.md. Validation errors for skipped skills are
-shown so you can fix authoring mistakes.`,
+Output includes each skill's name, scope (project / agents / user), one-line
+description, and the absolute path to its SKILL.md. Validation errors for
+skipped skills are shown so you can fix authoring mistakes.`,
 	RunE: listSkills,
 }
 

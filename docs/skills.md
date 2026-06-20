@@ -2,7 +2,8 @@
 
 Skills are reusable, model-readable instruction folders that the agent loads
 on demand. The Inference Gateway CLI uses the **same on-disk format** as per standard, so a folder
-authored for any of those tools drops into `.infer/skills/` unchanged.
+authored for any of those tools drops into `.infer/skills/` (or the
+`.agents/skills/` open standard) unchanged.
 
 ## Format
 
@@ -41,13 +42,18 @@ failures even though the CLI ignores them.
 
 ## Locations
 
-The CLI scans two directories:
+The CLI scans three directories, in precedence order (first match wins on a
+`name` collision):
 
-- Project-local: `.infer/skills/<name>/SKILL.md`
-- User-global: `~/.infer/skills/<name>/SKILL.md`
+1. Project-local: `.infer/skills/<name>/SKILL.md`
+2. Open standard: `.agents/skills/<name>/SKILL.md`
+3. User-global: `~/.infer/skills/<name>/SKILL.md`
 
-Project skills override user-global skills with the same `name` - useful for
-overriding a personal default with a per-project variant.
+`.agents/skills/` is the emerging cross-tool convention (Claude Code, Gemini
+CLI, Codex CLI), so a repo that ships skills there works without moving them
+into `.infer/skills/`. A project's `.infer/skills/` still wins over both the
+open-standard and user-global locations - useful for overriding a personal or
+shared default with a per-project variant.
 
 ## Enabling
 
@@ -180,7 +186,7 @@ The on-disk contract is intentionally identical to:
 - OpenAI Codex CLI - <https://simonwillison.net/2025/Dec/12/openai-skills/>
 
 Folders from `github.com/anthropics/skills` and `github.com/google/skills`
-work without modification when copied into `.infer/skills/`.
+work without modification when copied into `.infer/skills/` or `.agents/skills/`.
 
 ## Out of scope (for now)
 

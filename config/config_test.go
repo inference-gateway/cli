@@ -957,6 +957,57 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 	})
 }
 
+// TestValidatePathInSandbox_AgentsSkillsCarveOut covers the .agents/skills open
+// standard. Unlike .infer/, the .agents/ directory is not in ProtectedPaths, so
+// the carve-out is only observable against a *restrictive* sandbox: with skills
+// enabled, .agents/skills/** must be readable even though it sits outside the
+// configured sandbox dirs (parity with .infer/skills), while non-skills paths
+// under .agents and lookalike siblings stay denied.
+func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
+	sandboxDir := t.TempDir() // an unrelated, explicitly-allowed sandbox dir
+
+	agentsSkill, err := filepath.Abs(filepath.Join(AgentsDirName, "skills", "demo", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("failed to resolve .agents skill path: %v", err)
+	}
+	relAgentsSkill := filepath.Join(AgentsDirName, "skills", "demo", "SKILL.md")
+	agentsRef := filepath.Join(AgentsDirName, "skills", "demo", "references", "guide.md")
+	agentsNonSkill := filepath.Join(AgentsDirName, "config.yaml")
+	agentsLookalike := filepath.Join(AgentsDirName, "skills-evil", "demo", "SKILL.md")
+
+	t.Run("skills enabled: .agents/skills carved out of a restrictive sandbox", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Tools.Sandbox.Directories = []string{sandboxDir}
+		if !cfg.Agent.Skills.Enabled {
+			t.Fatalf("expected skills enabled by default")
+		}
+
+		for _, p := range []string{agentsSkill, relAgentsSkill, agentsRef} {
+			if err := cfg.ValidatePathInSandbox(p); err != nil {
+				t.Fatalf("expected %s allowed via carve-out, got %v", p, err)
+			}
+		}
+
+		for _, p := range []string{agentsNonSkill, agentsLookalike} {
+			if err := cfg.ValidatePathInSandbox(p); err == nil {
+				t.Fatalf("expected %s denied (not a skills path, outside sandbox)", p)
+			}
+		}
+	})
+
+	t.Run("skills disabled: .agents/skills denied by the restrictive sandbox", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Tools.Sandbox.Directories = []string{sandboxDir}
+		cfg.Agent.Skills.Enabled = false
+
+		for _, p := range []string{agentsSkill, relAgentsSkill} {
+			if err := cfg.ValidatePathInSandbox(p); err == nil {
+				t.Fatalf("expected %s denied while skills are disabled", p)
+			}
+		}
+	})
+}
+
 // TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
 // the config dir: sensitive config files are denied wholesale, while the
 // operational subdirs (tmp, plans) stay reachable - except for files that match
