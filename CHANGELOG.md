@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.122.1](https://github.com/inference-gateway/cli/compare/v0.122.0...v0.122.1) (2026-06-20)
+
+### 🐛 Bug Fixes
+
+* **explorer:** stop render corruption from grapheme-width desync ([#642](https://github.com/inference-gateway/cli/issues/642)) ([0fab137](https://github.com/inference-gateway/cli/commit/0fab137c7103df48a8189cc59e284c2190f521ad))
+
 ## [0.122.0](https://github.com/inference-gateway/cli/compare/v0.121.1...v0.122.0) (2026-06-20)
 
 ### 🚀 Features
