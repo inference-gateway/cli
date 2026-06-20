@@ -8,8 +8,161 @@ permissions:
   contents: read
 
 jobs:
-  create_release:
+  version:
+    name: Compute Version
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.published }}
+      new_release_version: ${{ steps.semantic.outputs.version }}
+    steps:
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v3.2.0
+        id: app_token
+        with:
+          client-id: ${{ secrets.BOT_GH_APP_ID }}
+          private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
+
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app_token.outputs.token }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24.15.0'
+
+      - name: Cache npm global packages
+        uses: actions/cache@v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-global-${{ hashFiles('**/release.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-global-
+
+      - name: Install semantic-release dependencies
+        run: |
+          npm install -g \
+            semantic-release@25.0.2 \
+            @semantic-release/commit-analyzer@13.0.1 \
+            @semantic-release/release-notes-generator@14.1.0 \
+            @semantic-release/changelog@6.0.3 \
+            @semantic-release/exec@7.1.0 \
+            @semantic-release/git@10.0.1 \
+            @semantic-release/github@12.0.8 \
+            @semantic-release/npm@13.1.5 \
+            conventional-changelog-conventionalcommits@9.1.0
+
+      - name: Check for existing releases
+        id: check_releases
+        env:
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          if [ -z "$(gh release list --limit 1)" ]; then
+            echo "create_initial=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "create_initial=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create initial release
+        if: steps.check_releases.outputs.create_initial == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release"
+
+      - name: Compute next version (dry-run)
+        id: semantic
+        if: steps.check_releases.outputs.create_initial == 'false'
+        env:
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          semantic-release --dry-run
+
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: version
+    if: needs.version.outputs.new_release_published == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            cgo: "1"
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            cgo: "1"
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            cgo: "1"
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            cgo: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build binary (Linux portable - pure Go, no CGO dependencies)
+        if: matrix.goos == 'linux'
+        run: |
+          docker run --rm \
+            -v "$PWD":/workspace \
+            -w /workspace \
+            -e CGO_ENABLED=0 \
+            golang:1.26-alpine3.23 \
+            sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
+
+      - name: Computer Use App (macOS only)
+        if: matrix.goos == 'darwin'
+        run: |
+          cd internal/display/macos/ComputerUse
+          ./build.sh
+          cd ../../../..
+
+      - name: Build binary (macOS with CGO for clipboard image support)
+        if: matrix.goos == 'darwin'
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+        run: |
+          go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 1
+
+  release:
     name: Create Release
+    needs:
+      - version
+      - build
+    if: needs.version.outputs.new_release_published == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -68,37 +221,135 @@ jobs:
       - name: Install semantic-release dependencies
         run: |
           npm install -g \
-            semantic-release@25.0.2 \
+            semantic-release@25.0.5 \
             @semantic-release/commit-analyzer@13.0.1 \
             @semantic-release/release-notes-generator@14.1.0 \
             @semantic-release/changelog@6.0.3 \
             @semantic-release/exec@7.1.0 \
             @semantic-release/git@10.0.1 \
-            @semantic-release/github@1.0.0 \
+            @semantic-release/github@12.0.8 \
             @semantic-release/npm@13.1.5 \
             conventional-changelog-conventionalcommits@9.1.0
 
-      - name: Check for existing releases
-        id: check_releases
-        env:
-          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
-        run: |
-          if [ -z "$(gh release list --limit 1)" ]; then
-            echo "create_initial=true" >> $GITHUB_OUTPUT
-          else
-            echo "create_initial=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
 
-      - name: Create initial release
-        if: steps.check_releases.outputs.create_initial == 'true'
-        env:
-          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare and sign release artifacts
         run: |
-          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release"
+          cd dist
+          chmod +x infer-*
+          sha256sum infer-* > checksums.txt
+          cosign sign-blob --yes checksums.txt --bundle checksums.txt.sigstore.json
+
+      - name: Verify all assets present
+        run: |
+          cd dist
+          missing=0
+          for f in \
+            infer-linux-amd64 \
+            infer-linux-arm64 \
+            infer-darwin-amd64 \
+            infer-darwin-arm64 \
+            checksums.txt \
+            checksums.txt.sigstore.json; do
+            if [ ! -f "$f" ]; then
+              echo "::error::missing release asset: $f"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "refusing to publish an incomplete immutable release"
+            exit 1
+          fi
+          ls -la
 
       - name: Semantic Release
-        if: steps.check_releases.outputs.create_initial == 'false'
         env:
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           semantic-release
+
+  container:
+    name: Push Container Images
+    needs:
+      - version
+      - build
+      - release
+    if: needs.version.outputs.new_release_published == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Install task
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: 3.48.0
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.1.0
+        with:
+          version: latest
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION="${{ needs.version.outputs.new_release_version }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          {
+            echo "version=$VERSION"
+            echo "commit=$COMMIT"
+            echo "date=$DATE"
+          } >> "$GITHUB_OUTPUT"
+          echo "Using version: $VERSION"
+
+          if [[ "$VERSION" =~ -rc ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "This is a prerelease - will NOT tag as latest"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "This is a stable release - will tag as latest"
+          fi
+
+      - name: Push container images
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          DATE: ${{ steps.version.outputs.date }}
+          PUSH_LATEST: ${{ steps.version.outputs.is_prerelease == 'false' }}
+        run: |
+          task container:push
