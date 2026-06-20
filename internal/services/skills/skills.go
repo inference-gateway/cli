@@ -165,11 +165,14 @@ type scopedDir struct {
 	scope domain.SkillScope
 }
 
-// searchScopes returns project-first then user-global. Project precedence is
-// implemented by the caller via the `seen` map.
+// searchScopes returns the skill directories in precedence order: project
+// (.infer/skills), then the open-standard .agents/skills, then user-global
+// (~/.infer/skills). Precedence is implemented by the caller via the `seen`
+// map (first match wins on name collision).
 func searchScopes() []scopedDir {
 	scopes := []scopedDir{
 		{dir: filepath.Join(config.ConfigDirName, skillsSubdir), scope: domain.SkillScopeProject},
+		{dir: filepath.Join(config.AgentsDirName, skillsSubdir), scope: domain.SkillScopeAgents},
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		scopes = append(scopes, scopedDir{

@@ -23,7 +23,7 @@ type SnippetAttachmentsView struct {
 	snippets      []SnippetSelection
 	order         []int
 	focused       bool
-	cursor        int 
+	cursor        int
 	focusHint     string
 }
 

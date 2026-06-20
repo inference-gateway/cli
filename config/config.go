@@ -12,6 +12,7 @@ import (
 
 const (
 	ConfigDirName     = ".infer"
+	AgentsDirName     = ".agents" // open-standard skills dir (.agents/skills/), scanned project-relative only
 	ConfigFileName    = "config.yaml"
 	GitignoreFileName = ".gitignore"
 	LogsDirName       = "logs"
@@ -1161,16 +1162,20 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
 }
 
-// isWithinSkillsDir reports whether absPath lives inside either the project
-// (./.infer/skills) or user-global (~/.infer/skills) skills directory. Feeds
+// isWithinSkillsDir reports whether absPath lives inside one of the skills
+// directories: the project (./.infer/skills), the open-standard
+// (./.agents/skills), or the user-global (~/.infer/skills) location. Feeds
 // the carveOut path in ValidatePathInSandbox - gated there on
 // agent.skills.enabled - so reads of SKILL.md and references/*.md succeed even
 // though the broader .infer/ directory is in ProtectedPaths. File-level
 // protections like *.env still apply.
 func isWithinSkillsDir(absPath string) bool {
-	dirs := make([]string, 0, 2)
+	dirs := make([]string, 0, 3)
 	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
 		dirs = append(dirs, projectDir)
+	}
+	if agentsDir, err := filepath.Abs(filepath.Join(AgentsDirName, "skills")); err == nil {
+		dirs = append(dirs, agentsDir)
 	}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, filepath.Join(homeDir, ConfigDirName, "skills"))
