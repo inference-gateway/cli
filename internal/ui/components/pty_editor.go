@@ -50,6 +50,20 @@ func (t *vtTerm) readReply(p []byte) (int, error) { return t.em.Read(p) }
 // closeEmulator unblocks readReply so the reply-forwarding goroutine can exit.
 func (t *vtTerm) closeEmulator() { _ = t.em.Close() }
 
+// stopReplies unblocks the reply-forwarding goroutine's blocked Read by closing the
+// emulator's input pipe, which returns EOF. We close the pipe directly rather than
+// calling em.Close because Close also writes the emulator's `closed` flag, which that
+// same goroutine reads inside Read — an unsynchronized access the race detector flags.
+// The io.Pipe gives the writer-close ↔ Read-EOF happens-before; the em.Close fallback
+// only runs if the emulator's pipe type ever changes, so close() never hangs.
+func (t *vtTerm) stopReplies() {
+	if pw, ok := t.em.InputPipe().(*io.PipeWriter); ok {
+		_ = pw.CloseWithError(io.EOF)
+		return
+	}
+	_ = t.em.Close()
+}
+
 // forwardReplies pumps the emulator's query replies back to the child's PTY.
 // The emulator buffers replies in an unbuffered pipe, so without draining it the
 // first reply blocks the write that produced it - freezing the editor (and the
@@ -71,11 +85,12 @@ func forwardReplies(term *vtTerm, w io.Writer) {
 // diff pane. Output is streamed via a re-arming read command; key input is
 // re-encoded and written to the PTY; the pane size drives the PTY window size.
 type ptyEditor struct {
-	pty  *os.File
-	cmd  *exec.Cmd
-	term *vtTerm
-	cols int
-	rows int
+	pty        *os.File
+	cmd        *exec.Cmd
+	term       *vtTerm
+	cols       int
+	rows       int
+	readerDone chan struct{}
 }
 
 // resolveEditor returns the editor argv: $VISUAL, then $EDITOR, else vim.
@@ -134,8 +149,11 @@ func startPTYEditor(absPath, workdir string, cols, rows int, dark bool) (*ptyEdi
 	if err != nil {
 		return nil, nil, err
 	}
-	e := &ptyEditor{pty: f, cmd: cmd, term: newVTTerm(cols, rows), cols: cols, rows: rows}
-	go forwardReplies(e.term, f)
+	e := &ptyEditor{pty: f, cmd: cmd, term: newVTTerm(cols, rows), cols: cols, rows: rows, readerDone: make(chan struct{})}
+	go func() {
+		defer close(e.readerDone)
+		forwardReplies(e.term, f)
+	}()
 	return e, e.readCmd(), nil
 }
 
@@ -180,15 +198,21 @@ func (e *ptyEditor) View(width, height int) string {
 	return e.term.render()
 }
 
-// close kills the child and closes the PTY (unblocking any in-flight read) and
-// the emulator (unblocking the reply-forwarding goroutine).
+// close kills the child and closes the PTY (unblocking the in-flight output read and
+// any reply write), then unblocks the reply-forwarding goroutine via the emulator's
+// input pipe and waits for it to exit. Closing the pipe (rather than the emulator)
+// avoids racing the emulator's `closed` flag against that goroutine's Read; joining on
+// readerDone ensures no emulator access outlives close.
 func (e *ptyEditor) close() {
-	e.term.closeEmulator()
 	if e.cmd != nil && e.cmd.Process != nil {
 		_ = e.cmd.Process.Kill()
 	}
 	if e.pty != nil {
 		_ = e.pty.Close()
+	}
+	e.term.stopReplies()
+	if e.readerDone != nil {
+		<-e.readerDone
 	}
 	if e.cmd != nil {
 		_ = e.cmd.Wait()
