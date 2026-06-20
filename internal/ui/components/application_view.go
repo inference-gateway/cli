@@ -43,20 +43,21 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	snippetAttachments *SnippetAttachmentsView,
 ) string {
 	width, height := data.Width, data.Height
 
-	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView)
+	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments)
 
 	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, heights)
+		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments, heights)
 
 	header := r.renderHeader(data, width)
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, width, heights.statusHeight)
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments, width, heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }
@@ -68,6 +69,7 @@ type componentHeights struct {
 	queueBoxHeight       int
 	todoBoxHeight        int
 	approvalBoxHeight    int
+	attachmentsHeight    int
 	backgroundTasksLines int
 	conversationHeight   int
 	inputHeight          int
@@ -83,6 +85,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	snippetAttachments *SnippetAttachmentsView,
 ) componentHeights {
 	if approvalBoxView != nil {
 		approvalBoxView.SetHeight(totalHeight)
@@ -105,6 +108,10 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.todoBoxHeight = todoBoxView.GetHeight()
 	}
 
+	if snippetAttachments != nil {
+		heights.attachmentsHeight = snippetAttachments.GetHeight()
+	}
+
 	if approvalBoxView != nil {
 		approvalContent := approvalBoxView.Render()
 		if approvalContent != "" {
@@ -119,7 +126,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
 		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.backgroundTasksLines
+		heights.attachmentsHeight - heights.backgroundTasksLines
 	heights.conversationHeight = ui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = ui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = ui.CalculateStatusHeight(adjustedHeight)
@@ -143,6 +150,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	snippetAttachments *SnippetAttachmentsView,
 	heights componentHeights,
 ) {
 	conversationWidth := formatting.GetResponsiveWidth(width)
@@ -171,6 +179,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 		todoBoxView.SetWidth(width)
 	}
 
+	if snippetAttachments != nil {
+		snippetAttachments.SetWidth(width)
+	}
+
 	if approvalBoxView != nil {
 		approvalBoxView.SetWidth(width)
 	}
@@ -197,6 +209,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	snippetAttachments *SnippetAttachmentsView,
 	width, statusHeight int,
 ) []string {
 	components := []string{header, "", conversationArea}
@@ -208,6 +221,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendStatusView(components, statusView, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
 	components = append(components, inputArea)
+	components = r.appendSnippetAttachments(components, snippetAttachments)
 	components = r.appendAutocomplete(components, autocomplete)
 	components = r.appendInputStatusBar(components, inputView, inputStatusBar)
 	components = r.appendHelpBar(components, helpBar, width)
@@ -237,6 +251,20 @@ func (r *ApplicationViewRenderer) appendTodoBox(
 	if todoBoxView != nil && todoBoxView.HasTodos() {
 		if todoBoxContent := todoBoxView.Render(); todoBoxContent != "" {
 			components = append(components, todoBoxContent)
+		}
+	}
+	return components
+}
+
+// appendSnippetAttachments appends the snippet attachments tree (file + line
+// ranges) directly below the input when any snippet is pending.
+func (r *ApplicationViewRenderer) appendSnippetAttachments(
+	components []string,
+	snippetAttachments *SnippetAttachmentsView,
+) []string {
+	if snippetAttachments != nil {
+		if content := snippetAttachments.Render(); content != "" {
+			components = append(components, content)
 		}
 	}
 	return components

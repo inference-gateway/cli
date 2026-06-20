@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -357,5 +358,484 @@ func TestExplorer_OversizedPreviewPlaceholder(t *testing.T) {
 	e := newTestExplorer(t, root)
 	if out := e.computePreview("big.txt"); !strings.Contains(out, "Binary or large file") {
 		t.Fatalf("expected oversized placeholder, got %q", out)
+	}
+}
+
+// selectFileForPreview positions the explorer cursor on rel and renders once so
+// the preview pane (and previewLines) is populated. Returns the explorer for
+// chaining.
+func selectFileForPreview(t *testing.T, e *FileExplorerImpl, rel string) *FileExplorerImpl {
+	t.Helper()
+	e.cursor = mustRowIndex(t, e, rel)
+	e.selectedKey = rel
+	e.dirtyPreview = true
+	e.Render("") // triggers ensurePreview → sets previewLines
+	return e
+}
+
+func TestExplorer_EnterSelectMode(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "main.go"), "package main\n\nfunc main() {}\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "main.go")
+
+	if e.previewLines <= 0 {
+		t.Fatalf("previewLines = %d, want > 0", e.previewLines)
+	}
+
+	e.enterSelectMode()
+	if !e.selectMode {
+		t.Fatal("enterSelectMode should set selectMode=true")
+	}
+	if e.selAnchor != -1 {
+		t.Fatalf("selAnchor = %d, want -1", e.selAnchor)
+	}
+	if e.previewCursor < 0 || e.previewCursor >= e.previewLines {
+		t.Fatalf("previewCursor = %d, want in [0,%d]", e.previewCursor, e.previewLines-1)
+	}
+}
+
+func TestExplorer_EnterSelectModeNoFile(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "main.go"), "package main\n")
+	e := newTestExplorer(t, root)
+
+	// No file selected (cursor on a dir or nothing).
+	e.enterSelectMode()
+	if e.selectMode {
+		t.Fatal("enterSelectMode should be a no-op when no file is previewed")
+	}
+}
+
+func TestExplorer_PreviewCursorMovement(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\nd\ne\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	// Move down a few lines.
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	if e.previewCursor != 2 {
+		t.Fatalf("after 2x nav_down previewCursor = %d, want 2", e.previewCursor)
+	}
+
+	// Move back up.
+	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'})
+	if e.previewCursor != 1 {
+		t.Fatalf("after nav_up previewCursor = %d, want 1", e.previewCursor)
+	}
+
+	// Clamp at bottom.
+	e.previewCursor = e.previewLines - 1
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	if e.previewCursor != e.previewLines-1 {
+		t.Fatalf("nav_down at bottom: previewCursor = %d, want %d", e.previewCursor, e.previewLines-1)
+	}
+
+	// Clamp at top.
+	e.previewCursor = 0
+	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'})
+	if e.previewCursor != 0 {
+		t.Fatalf("nav_up at top: previewCursor = %d, want 0", e.previewCursor)
+	}
+}
+
+// TestExplorer_PreviewCursorKeepsSelectionInView guards the keep-in-view scroll
+// behavior on a file taller than the preview pane: moving the cursor must scroll
+// only as far as needed (cursor tracked at the bottom edge), NOT pin the cursor
+// line to the top (the original bug, which scrolled the anchored selection off
+// the top so its ▌ gutter markers were never rendered).
+func TestExplorer_PreviewCursorKeepsSelectionInView(t *testing.T) {
+	root := t.TempDir()
+	var sb strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	writeTestFile(t, filepath.Join(root, "tall.go"), sb.String())
+
+	e := newTestExplorer(t, root)
+	e.SetHeight(8) // force a short pane (well under the 40-line file); h is read back below
+	selectFileForPreview(t, e, "tall.go")
+	e.Render("") // apply the short height to the viewport
+
+	h := e.viewport.Height()
+	if h <= 0 || h >= e.previewLines {
+		t.Fatalf("test needs a pane shorter than the file: height=%d previewLines=%d", h, e.previewLines)
+	}
+
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at the top line
+	anchor := e.selAnchor
+
+	// Drive the cursor to a mid-file line: far enough below the fold to scroll,
+	// but well clear of the bottom clamp (where pin-to-top and keep-in-view would
+	// coincide at maxYOffset and the test couldn't tell them apart).
+	target := e.previewLines / 2
+	for i := 0; i < target; i++ {
+		e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	}
+	e.Render("")
+
+	top := e.viewport.YOffset()
+	if got := e.previewCursor; got != top+h-1 {
+		t.Fatalf("cursor not kept at bottom of view: cursor=%d YOffset=%d height=%d", got, top, h)
+	}
+	if top == e.previewCursor {
+		t.Fatalf("YOffset pinned to cursor (old bug): YOffset=%d cursor=%d", top, e.previewCursor)
+	}
+	lo, hi, ok := e.previewSelectionRange()
+	if !ok || lo != anchor {
+		t.Fatalf("selection range = (%d,%d,%v), want lo=%d", lo, hi, ok, anchor)
+	}
+	if hi < top || hi > top+h-1 {
+		t.Fatalf("selection cursor end hi=%d outside visible window [%d,%d)", hi, top, top+h)
+	}
+}
+
+func TestExplorer_ToggleRangeSelection(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\nd\ne\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	// Anchor at line 0.
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // toggle_select (space)
+	if e.selAnchor != 0 {
+		t.Fatalf("after toggle_select selAnchor = %d, want 0", e.selAnchor)
+	}
+
+	// Move cursor to line 2.
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+
+	lo, hi, ok := e.previewSelectionRange()
+	if !ok || lo != 0 || hi != 2 {
+		t.Fatalf("previewSelectionRange = (%d,%d,%v), want (0,2,true)", lo, hi, ok)
+	}
+
+	// Toggle again clears the anchor.
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	if e.selAnchor != -1 {
+		t.Fatalf("after second toggle selAnchor = %d, want -1", e.selAnchor)
+	}
+	_, _, ok = e.previewSelectionRange()
+	if ok {
+		t.Fatal("previewSelectionRange should report no selection after clear")
+	}
+}
+
+func TestExplorer_AnnotateConfirmStoresSelection(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\nd\ne\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	// Anchor at line 0, move to line 1.
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+
+	// Enter annotate mode.
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	if !e.annotateMode {
+		t.Fatal("annotate key should enter annotate mode")
+	}
+
+	// Type the instruction.
+	e.Update(tea.KeyPressMsg{Text: "r", Code: 'r'})
+	e.Update(tea.KeyPressMsg{Text: "e", Code: 'e'})
+	e.Update(tea.KeyPressMsg{Text: "f", Code: 'f'})
+	if e.annotateInput != "ref" {
+		t.Fatalf("annotateInput = %q, want ref", e.annotateInput)
+	}
+
+	// Confirm with enter.
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if e.annotateMode {
+		t.Fatal("enter should exit annotate mode")
+	}
+	sels := e.Selections()
+	if len(sels) != 1 {
+		t.Fatalf("Selections = %d, want 1", len(sels))
+	}
+	s := sels[0]
+	if s.File != "f.go" {
+		t.Errorf("File = %q, want f.go", s.File)
+	}
+	if s.StartLine != 1 || s.EndLine != 2 {
+		t.Errorf("StartLine/EndLine = %d/%d, want 1/2 (1-indexed inclusive)", s.StartLine, s.EndLine)
+	}
+	if s.Annotation != "ref" {
+		t.Errorf("Annotation = %q, want ref", s.Annotation)
+	}
+}
+
+func TestExplorer_AnnotateEscapeDiscards(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'}) // annotate
+	e.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if e.annotateMode {
+		t.Fatal("esc should exit annotate mode")
+	}
+	if len(e.Selections()) != 0 {
+		t.Fatalf("Selections = %d, want 0 after esc discard", len(e.Selections()))
+	}
+	// Anchor is retained so the user can retry.
+	if e.selAnchor < 0 {
+		t.Fatal("selAnchor should be retained after annotate esc")
+	}
+}
+
+func TestExplorer_MultipleSelectionsAcrossFiles(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "a.go"), "a\nb\nc\n")
+	writeTestFile(t, filepath.Join(root, "b.go"), "d\ne\nf\n")
+	e := newTestExplorer(t, root)
+
+	// File A: select+annotate lines 1-2.
+	selectFileForPreview(t, e, "a.go")
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	e.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	// Exit select mode, then navigate to file B (tree nav).
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})  // exit select mode
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // nav_down in tree
+
+	// File B: select+annotate line 1.
+	selectFileForPreview(t, e, "b.go")
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	e.Update(tea.KeyPressMsg{Text: "y", Code: 'y'})
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	sels := e.Selections()
+	if len(sels) != 2 {
+		t.Fatalf("Selections = %d, want 2", len(sels))
+	}
+	if sels[0].File != "a.go" || sels[1].File != "b.go" {
+		t.Fatalf("Files = %q,%q want a.go,b.go", sels[0].File, sels[1].File)
+	}
+	if sels[0].Annotation != "x" || sels[1].Annotation != "y" {
+		t.Fatalf("Annotations = %q,%q want x,y", sels[0].Annotation, sels[1].Annotation)
+	}
+}
+
+func TestExplorer_EnterAttachesSelection(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	// Enter attaches the current range immediately (no annotation required),
+	// stays in select mode, and does NOT close the explorer.
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at line 1
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // extend to line 2
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	sels := e.Selections()
+	if len(sels) != 1 {
+		t.Fatalf("Enter should attach one selection, got %d", len(sels))
+	}
+	if sels[0].StartLine != 1 || sels[0].EndLine != 2 {
+		t.Fatalf("attached range = %d-%d, want 1-2", sels[0].StartLine, sels[0].EndLine)
+	}
+	if sels[0].Annotation != "" {
+		t.Fatalf("Enter-attached snippet should carry no annotation, got %q", sels[0].Annotation)
+	}
+	if e.IsDone() {
+		t.Fatal("Enter should not close the explorer")
+	}
+	if !e.selectMode {
+		t.Fatal("Enter should stay in select mode so more ranges can be captured")
+	}
+}
+
+func TestExplorer_CloseCarriesSelections(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // attach a range
+
+	// q closes the explorer normally (done), carrying selections to chat.
+	e.Update(tea.KeyPressMsg{Text: "q", Code: 'q'})
+	if !e.IsDone() {
+		t.Fatal("q should close the explorer (done) so selections are carried")
+	}
+	if e.IsCancelled() {
+		t.Fatal("q should not discard (cancel) the selections")
+	}
+	if len(e.Selections()) != 1 {
+		t.Fatalf("carried selections = %d, want 1", len(e.Selections()))
+	}
+}
+
+func TestExplorer_EscExitsSelectMode(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "a\nb\nc\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor a range
+	e.selections = append(e.selections, SnippetSelection{File: "f.go", StartLine: 1, EndLine: 1, Annotation: "prior"})
+
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if e.selectMode {
+		t.Fatal("esc should exit select mode")
+	}
+	if e.IsCancelled() {
+		t.Fatal("esc in select mode should not cancel the explorer")
+	}
+	if len(e.selections) != 1 {
+		t.Fatalf("selections should be preserved after esc, got %d", len(e.selections))
+	}
+}
+
+func TestExplorer_PreviewHighlightRender(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "line1\nline2\nline3\nline4\nline5\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+
+	// Select lines 2-3 (0-indexed 1-2).
+	e.previewCursor = 1
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at 1
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // cursor → 2
+
+	out := e.Render("")
+	if !strings.Contains(out, "▌") {
+		t.Fatal("select-mode render should contain the ▌ selection gutter marker")
+	}
+	if !strings.Contains(out, "▶") {
+		t.Fatal("select-mode render should contain the ▶ cursor gutter marker")
+	}
+}
+
+func TestExplorer_AnnotateModeRenderSmoke(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "f.go"), "line1\nline2\nline3\n")
+	e := newTestExplorer(t, root)
+	selectFileForPreview(t, e, "f.go")
+	e.enterSelectMode()
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	e.Update(tea.KeyPressMsg{Text: "r", Code: 'r'})
+
+	if !e.annotateMode {
+		t.Fatal("should be in annotate mode")
+	}
+	out := e.Render("")
+	if !strings.Contains(out, "Annotate") {
+		t.Fatalf("annotate-mode render should contain 'Annotate' prompt, got %q", out)
+	}
+	if !strings.Contains(out, "r") {
+		t.Fatal("annotate-mode render should show typed text")
+	}
+}
+
+func TestExplorer_FormatAnnotations(t *testing.T) {
+	root := t.TempDir()
+	content := "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\n"
+	writeTestFile(t, filepath.Join(root, "main.go"), content)
+
+	sels := []SnippetSelection{
+		{File: "main.go", StartLine: 3, EndLine: 5, Annotation: "refactor to use early returns"},
+	}
+	out := FormatAnnotations(root, sels)
+
+	checks := []string{
+		"main.go (lines 3-5):",
+		"```go",
+		"func main() {",
+		"println(\"hi\")",
+		"note: refactor to use early returns",
+	}
+	for _, want := range checks {
+		if !strings.Contains(out, want) {
+			t.Errorf("FormatAnnotations output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	// Only the selected lines (3-5) are emitted — not the whole file.
+	if strings.Contains(out, "package main") {
+		t.Errorf("output should not include non-selected line 1 (package main)\n--- output ---\n%s", out)
+	}
+}
+
+func TestExplorer_FormatAnnotationsLargeFileSelectedLinesOnly(t *testing.T) {
+	root := t.TempDir()
+	// A large file: the formatter must still emit ONLY the selected lines, never
+	// the whole file or a context window.
+	content := strings.Repeat("line\n", explorerMaxPreviewBytes/5+10)
+	writeTestFile(t, filepath.Join(root, "big.txt"), content)
+
+	sels := []SnippetSelection{
+		{File: "big.txt", StartLine: 10, EndLine: 12, Annotation: "fix this"},
+	}
+	out := FormatAnnotations(root, sels)
+
+	if !strings.Contains(out, "big.txt (lines 10-12):") {
+		t.Errorf("output should head the snippet with the file + range\n--- output ---\n%s", out)
+	}
+	if !strings.Contains(out, "note: fix this") {
+		t.Errorf("output should contain the note\n--- output ---\n%s", out)
+	}
+	if strings.Contains(out, "### Lines") || strings.Contains(out, "(context ") {
+		t.Errorf("the old windowed/context format must be gone\n--- output ---\n%s", out)
+	}
+	// Exactly the 3 selected lines are emitted (not the whole file).
+	if got := strings.Count(out, "line\n"); got != 3 {
+		t.Errorf("expected exactly 3 selected lines, got %d\n--- output ---\n%s", got, out)
+	}
+}
+
+func TestExplorer_FormatAnnotationsMultiFileAndMissing(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "a.go"), "a\nb\nc\n")
+	writeTestFile(t, filepath.Join(root, "b.go"), "d\ne\nf\n")
+
+	sels := []SnippetSelection{
+		{File: "a.go", StartLine: 1, EndLine: 2, Annotation: "first"},
+		{File: "b.go", StartLine: 2, EndLine: 3, Annotation: "second"},
+		{File: "gone.go", StartLine: 1, EndLine: 1, Annotation: "missing"},
+	}
+	out := FormatAnnotations(root, sels)
+
+	if !strings.Contains(out, "a.go") || !strings.Contains(out, "b.go") {
+		t.Errorf("output should list both files\n--- output ---\n%s", out)
+	}
+	if !strings.Contains(out, "first") || !strings.Contains(out, "second") {
+		t.Errorf("output should contain both annotations\n--- output ---\n%s", out)
+	}
+	if !strings.Contains(out, "unavailable") {
+		t.Errorf("output should mention the missing file\n--- output ---\n%s", out)
+	}
+}
+
+func TestExplorer_FormatAnnotationsEmpty(t *testing.T) {
+	if out := FormatAnnotations(t.TempDir(), nil); out != "" {
+		t.Fatalf("FormatAnnotations(nil) = %q, want empty", out)
 	}
 }

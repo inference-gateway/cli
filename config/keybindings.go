@@ -100,6 +100,12 @@ func addChatBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "chat",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceChat, "focus_attachments")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+g"},
+		Description: "focus the attached-snippets tree below the input (↑/↓ move · d remove · c clear · esc done)",
+		Category:    "chat",
+		Enabled:     &enabled,
+	}
 }
 
 func addDisplayBindings(bindings map[string]KeyBindingEntry) {
@@ -413,6 +419,10 @@ func addExplorerBindings(bindings map[string]KeyBindingEntry) {
 	add("open", "open the selected file in your editor", "v")
 	add("find", "open the fuzzy file finder", "/")
 	add("toggle_hidden", "show/hide hidden and ignored files", ".")
+	add("select", "enter line-selection mode on the previewed file", "s")
+	add("toggle_select", "start/clear a line-range selection", "space", "v")
+	add("annotate", "annotate the selected range with an instruction", "a")
+	add("submit", "submit annotations and inject into chat", "enter")
 	add("scroll_up", "scroll the preview up", "pgup")
 	add("scroll_down", "scroll the preview down", "pgdown", "pgdn")
 	add("halfpage_up", "scroll the preview up half a page", "ctrl+u")
