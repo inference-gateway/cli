@@ -647,7 +647,7 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 		output.WriteString("\n")
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider)
+		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.getActualDiffInfo(result)
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
@@ -655,7 +655,7 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 		output.WriteString("\n")
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider)
+		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Simulated diff preview →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))

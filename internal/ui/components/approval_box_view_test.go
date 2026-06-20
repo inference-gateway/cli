@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -184,5 +186,94 @@ func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
 	}
 	if !strings.Contains(out, "/x/y.txt") {
 		t.Errorf("expected the diff preview to render the file path, got:\n%s", out)
+	}
+}
+
+// contextSnippet is a 9-line block with a single changed middle line, so a diff
+// renders one hunk whose context width (2 vs 3 lines) is observable: at 2 lines
+// only charlie/delta and foxtrot/golf survive; at 3 lines bravo/hotel show too.
+const (
+	oldContextSnippet = "alpha\nbravo\ncharlie\ndelta\necho_OLD\nfoxtrot\ngolf\nhotel\nindia"
+	newContextSnippet = "alpha\nbravo\ncharlie\ndelta\necho_NEW\nfoxtrot\ngolf\nhotel\nindia"
+)
+
+// TestApprovalBox_EditDiffUsesTwoContextLines asserts the snippet-fallback path
+// (the target file does not exist, so old_string/new_string are diffed directly)
+// is tightened to 2 context lines: the 2 nearest unchanged lines on each side
+// remain while the 3rd-out lines (and beyond) are trimmed.
+func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
+	// "/x/y.txt" does not exist -> editDiff falls back to a snippet diff.
+	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
+
+	sm := &domainmocks.FakeStateManager{}
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(120)
+	av.SetHeight(60) // previewLineLimit -> 30; the small diff is not capped
+	out := stripANSI(av.Render())
+
+	for _, want := range []string{"charlie", "delta", "foxtrot", "golf", "echo_NEW"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected the Edit approval diff to keep 2 context lines incl %q:\n%s", want, out)
+		}
+	}
+	for _, absent := range []string{"bravo", "hotel", "alpha", "india"} {
+		if strings.Contains(out, absent) {
+			t.Fatalf("expected the Edit approval diff to trim context beyond 2 lines, but %q is present:\n%s", absent, out)
+		}
+	}
+}
+
+// TestApprovalBox_MultiEditKeepsThreeContext locks in that only Edit was tightened:
+// the MultiEdit approval preview still renders the default 3 context lines (so the
+// 3rd-out lines bravo/hotel remain visible).
+func TestApprovalBox_MultiEditKeepsThreeContext(t *testing.T) {
+	args := fmt.Sprintf(`{"file_path":"/x/y.txt","edits":[{"old_string":%q,"new_string":%q}]}`, oldContextSnippet, newContextSnippet)
+
+	sm := &domainmocks.FakeStateManager{}
+	sm.GetApprovalUIStateReturns(approvalStateWith("MultiEdit", args, domain.ApprovalApprove))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(120)
+	av.SetHeight(60)
+	out := stripANSI(av.Render())
+
+	for _, want := range []string{"bravo", "hotel", "echo_NEW"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected the MultiEdit approval diff to keep the default 3 context lines incl %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestApprovalBox_EditDiffShowsFileContext asserts that for a real file, the Edit
+// approval preview diffs against the actual file content so the 2 context lines
+// are real neighbouring file lines around the change (not just the old_string),
+// and that context beyond 2 lines is trimmed.
+func TestApprovalBox_EditDiffShowsFileContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "f.txt")
+	content := "line1\nline2\nline3\nTARGET\nline5\nline6\nline7\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	args := fmt.Sprintf(`{"file_path":%q,"old_string":"TARGET","new_string":"CHANGED"}`, path)
+
+	sm := &domainmocks.FakeStateManager{}
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(120)
+	av.SetHeight(60)
+	out := stripANSI(av.Render())
+
+	for _, want := range []string{"line2", "line3", "CHANGED", "line5", "line6"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected the Edit approval diff to show 2 lines of file context incl %q:\n%s", want, out)
+		}
+	}
+	for _, absent := range []string{"line1", "line7"} {
+		if strings.Contains(out, absent) {
+			t.Fatalf("expected file context beyond 2 lines to be trimmed, but %q is present:\n%s", absent, out)
+		}
 	}
 }

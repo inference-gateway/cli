@@ -125,7 +125,7 @@ func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]an
 	var rendered string
 	switch toolName {
 	case "Edit":
-		rendered = renderer.RenderEditToolArguments(args)
+		rendered = renderer.SetContextLines(InlineDiffContextLines).RenderEditToolArguments(args)
 	case "MultiEdit":
 		rendered = renderer.RenderMultiEditToolArguments(args)
 	case "Write":

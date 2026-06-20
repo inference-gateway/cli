@@ -120,6 +120,41 @@ func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
 	}
 }
 
+// TestDiffRenderer_SetContextLines verifies the opt-in context-line override:
+// the default keeps diffview's 3 lines of context around a change, while
+// SetContextLines(2) trims to the 2 nearest unchanged lines on each side.
+func TestDiffRenderer_SetContextLines(t *testing.T) {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+
+	before := "alpha\nbravo\ncharlie\ndelta\necho_OLD\nfoxtrot\ngolf\nhotel\nindia\n"
+	after := "alpha\nbravo\ncharlie\ndelta\necho_NEW\nfoxtrot\ngolf\nhotel\nindia\n"
+	info := DiffInfo{FilePath: "f.txt", OldContent: before, NewContent: after}
+
+	def := stripANSI(NewDiffRenderer(styleProvider).RenderDiff(info))
+	for _, want := range []string{"bravo", "hotel", "echo_NEW"} {
+		if !strings.Contains(def, want) {
+			t.Fatalf("default render should keep 3 context lines incl %q:\n%s", want, def)
+		}
+	}
+
+	r := NewDiffRenderer(styleProvider)
+	if got := r.SetContextLines(2); got != r {
+		t.Fatalf("SetContextLines should return the same renderer for chaining")
+	}
+	ctx2 := stripANSI(r.RenderDiff(info))
+	for _, want := range []string{"charlie", "delta", "foxtrot", "golf", "echo_NEW"} {
+		if !strings.Contains(ctx2, want) {
+			t.Fatalf("2-context render should still contain %q:\n%s", want, ctx2)
+		}
+	}
+	for _, absent := range []string{"bravo", "hotel"} {
+		if strings.Contains(ctx2, absent) {
+			t.Fatalf("2-context render should trim the 3rd context line %q:\n%s", absent, ctx2)
+		}
+	}
+}
+
 func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)

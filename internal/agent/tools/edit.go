@@ -461,8 +461,8 @@ func generateDiff(oldContent, newContent string) string {
 		return ""
 	}
 
-	contextBefore := 3
-	contextAfter := 3
+	contextBefore := components.InlineDiffContextLines
+	contextAfter := components.InlineDiffContextLines
 	startLine := firstChanged - contextBefore
 	if startLine < 0 {
 		startLine = 0
@@ -612,7 +612,7 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		output.WriteString("\n")
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider)
+		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Edits applied →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))

@@ -10,6 +10,12 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// InlineDiffContextLines is the unchanged-context line count shown above/below
+// each change in the *inline* diffs: the Edit approval preview and the post-run
+// Edit/MultiEdit diffs in the conversation. The full /diff viewer keeps the wider
+// diffview default so it stays a full-file review surface.
+const InlineDiffContextLines = 2
+
 // DiffRenderer is a thin adapter that preserves the legacy public surface
 // (RenderEditToolArguments / RenderMultiEditToolArguments / RenderWriteToolArguments
 // / RenderDiff / RenderColoredDiff) and delegates the actual diff rendering
@@ -18,6 +24,7 @@ import (
 type DiffRenderer struct {
 	styleProvider *styles.Provider
 	width         int
+	contextLines  int // 0 keeps diffview's default (3); >0 overrides it
 }
 
 // DiffInfo carries the inputs for a single diff render.
@@ -42,7 +49,15 @@ func NewToolDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
 // DiffView can pick a width-adaptive layout (split when >= 160 cols).
 func (d *DiffRenderer) SetWidth(w int) *DiffRenderer { d.width = w; return d }
 
-// RenderEditToolArguments renders Edit tool arguments as a snippet diff.
+// SetContextLines overrides the number of unchanged context lines shown above and
+// below each change. Pass 0 (the default) to keep the diffview default. Returns
+// the renderer for chaining.
+func (d *DiffRenderer) SetContextLines(n int) *DiffRenderer { d.contextLines = n; return d }
+
+// RenderEditToolArguments renders Edit tool arguments as a diff. When the target
+// file can be read and old_string is found in it, it diffs the real file content
+// so the configured context lines surround the change with actual neighbouring
+// file lines; otherwise it falls back to a snippet diff of old_string vs new_string.
 func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	filePath, _ := args["file_path"].(string)
 	oldString, _ := args["old_string"].(string)
@@ -57,7 +72,7 @@ func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 		out.WriteString("\n")
 	}
 	out.WriteString("\n")
-	out.WriteString(d.snippetDiff(filePath, oldString, newString))
+	out.WriteString(d.editDiff(filePath, oldString, newString, replaceAll))
 	return out.String()
 }
 
@@ -174,6 +189,42 @@ func (d *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
 
 // --- internals ---
 
+// editDiff renders an Edit as a diff with surrounding file context. When the
+// target file is readable and contains old_string, it diffs the real file
+// (before) against the file with the replacement applied (after), so the
+// renderer's context lines come from the actual file around the change. It falls
+// back to a snippet diff (old_string vs new_string) when the file can't be read
+// or old_string isn't found verbatim (e.g. a whitespace-flexible match).
+func (d *DiffRenderer) editDiff(filePath, oldString, newString string, replaceAll bool) string {
+	if before, after, ok := editFileContents(filePath, oldString, newString, replaceAll); ok {
+		return d.buildDiffView(filePath, before, after).String()
+	}
+	return d.snippetDiff(filePath, oldString, newString)
+}
+
+// editFileContents reads the target file and applies the replacement, returning
+// the before/after file content. ok is false (so the caller falls back to a
+// snippet diff) when old_string is empty, the file can't be read, or old_string
+// isn't found verbatim.
+func editFileContents(filePath, oldString, newString string, replaceAll bool) (before, after string, ok bool) {
+	if oldString == "" {
+		return "", "", false
+	}
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", "", false
+	}
+	before = string(content)
+	if !strings.Contains(before, oldString) {
+		return "", "", false
+	}
+	after = strings.Replace(before, oldString, newString, 1)
+	if replaceAll {
+		after = strings.ReplaceAll(before, oldString, newString)
+	}
+	return before, after, true
+}
+
 func (d *DiffRenderer) snippetDiff(filePath, oldString, newString string) string {
 	return d.buildDiffView(filePath, ensureTrailingNL(oldString), ensureTrailingNL(newString)).String()
 }
@@ -190,6 +241,9 @@ func (d *DiffRenderer) buildDiffView(filePath, before, after string) *diffview.D
 		Before(filePath, before).
 		After(filePath, after).
 		Style(d.diffStyle())
+	if d.contextLines > 0 {
+		dv = dv.ContextLines(d.contextLines)
+	}
 	if d.width > 0 {
 		dv = dv.Width(d.width)
 	}
