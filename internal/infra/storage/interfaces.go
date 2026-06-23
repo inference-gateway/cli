@@ -110,6 +110,9 @@ type StorageConfig struct {
 
 	// JSONL specific configuration
 	Jsonl JsonlStorageConfig `json:"jsonl,omitempty" yaml:"jsonl,omitempty"`
+
+	// D1 specific configuration
+	D1 D1Config `json:"d1,omitempty" yaml:"d1,omitempty"`
 }
 
 // SQLiteConfig contains SQLite-specific configuration
@@ -140,4 +143,14 @@ type RedisConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `json:"path" yaml:"path"`
+}
+
+// D1Config contains Cloudflare D1-specific configuration. D1 is SQLite exposed
+// over an HTTP query API, so the driver writes the same schema as SQLite but
+// over the network instead of a local file handle.
+type D1Config struct {
+	AccountID  string `json:"account_id" yaml:"account_id"`
+	DatabaseID string `json:"database_id" yaml:"database_id"`
+	APIToken   string `json:"api_token" yaml:"api_token"`
+	BaseURL    string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 }

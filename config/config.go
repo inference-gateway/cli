@@ -497,6 +497,7 @@ const (
 	StorageTypePostgres StorageType = "postgres"
 	StorageTypeRedis    StorageType = "redis"
 	StorageTypeJsonl    StorageType = "jsonl"
+	StorageTypeD1       StorageType = "d1"
 )
 
 // StorageConfig contains storage backend configuration
@@ -507,6 +508,7 @@ type StorageConfig struct {
 	Postgres PostgresStorageConfig `yaml:"postgres,omitempty" mapstructure:"postgres,omitempty"`
 	Redis    RedisStorageConfig    `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
 	Jsonl    JsonlStorageConfig    `yaml:"jsonl,omitempty" mapstructure:"jsonl,omitempty"`
+	D1       D1StorageConfig       `yaml:"d1,omitempty" mapstructure:"d1,omitempty"`
 }
 
 // SQLiteStorageConfig contains SQLite-specific configuration
@@ -535,6 +537,16 @@ type RedisStorageConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `yaml:"path" mapstructure:"path"`
+}
+
+// D1StorageConfig contains Cloudflare D1-specific configuration. D1 is SQLite
+// over an HTTP query API; the api_token is a secret and is normally injected
+// via INFER_STORAGE_D1_API_TOKEN rather than written to the config file.
+type D1StorageConfig struct {
+	AccountID  string `yaml:"account_id" mapstructure:"account_id"`
+	DatabaseID string `yaml:"database_id" mapstructure:"database_id"`
+	APIToken   string `yaml:"api_token" mapstructure:"api_token"`
+	BaseURL    string `yaml:"base_url,omitempty" mapstructure:"base_url,omitempty"`
 }
 
 // A2AAgentInfo contains information about an A2A agent connection
@@ -810,6 +822,12 @@ func DefaultConfig() *Config { //nolint:funlen
 				Port:     6379,
 				Password: "",
 				DB:       0,
+			},
+			D1: D1StorageConfig{
+				AccountID:  "",
+				DatabaseID: "",
+				APIToken:   "",
+				BaseURL:    "https://api.cloudflare.com/client/v4",
 			},
 		},
 		Conversation: ConversationConfig{
