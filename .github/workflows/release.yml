@@ -272,6 +272,10 @@ jobs:
       - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+          GIT_AUTHOR_NAME: ${{ steps.app_token.outputs.app-slug }}[bot]
+          GIT_AUTHOR_EMAIL: ${{ steps.get_user_id.outputs.user_id }}+${{ steps.app_token.outputs.app-slug }}[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: ${{ steps.app_token.outputs.app-slug }}[bot]
+          GIT_COMMITTER_EMAIL: ${{ steps.get_user_id.outputs.user_id }}+${{ steps.app_token.outputs.app-slug }}[bot]@users.noreply.github.com
         run: |
           semantic-release
 
