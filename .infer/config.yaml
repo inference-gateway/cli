@@ -207,6 +207,11 @@ storage:
     db: 0
   jsonl:
     path: .infer/conversations
+  d1:
+    account_id: ""
+    database_id: ""
+    api_token: ""
+    base_url: https://api.cloudflare.com/client/v4
 conversation:
   title_generation:
     enabled: true

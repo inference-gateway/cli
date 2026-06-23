@@ -52,6 +52,16 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				Database: cfg.Storage.Redis.DB,
 			},
 		}
+	case "d1":
+		return StorageConfig{
+			Type: "d1",
+			D1: D1Config{
+				AccountID:  cfg.Storage.D1.AccountID,
+				DatabaseID: cfg.Storage.D1.DatabaseID,
+				APIToken:   cfg.Storage.D1.APIToken,
+				BaseURL:    cfg.Storage.D1.BaseURL,
+			},
+		}
 	case "jsonl":
 		path := cfg.Storage.Jsonl.Path
 		if !filepath.IsAbs(path) {
@@ -86,6 +96,8 @@ func NewStorage(config StorageConfig) (ConversationStorage, error) {
 		return NewPostgresStorage(config.Postgres)
 	case "redis":
 		return NewRedisStorage(config.Redis)
+	case "d1":
+		return NewD1Storage(config.D1)
 	case "jsonl":
 		return NewJsonlStorage(config.Jsonl)
 	case "memory":

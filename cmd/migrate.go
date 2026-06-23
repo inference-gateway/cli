@@ -20,9 +20,10 @@ var migrateCmd = &cobra.Command{
 This command applies any pending migrations to your database. Migrations are tracked
 in the schema_migrations table to ensure they are only applied once.
 
-The command automatically detects your database backend (SQLite, PostgreSQL, JSONL, Redis, Memory)
-and applies the appropriate migrations. Note that JSONL, Redis, and Memory storage backends
-do not require migrations as they do not use a relational schema.`,
+The command automatically detects your database backend (SQLite, PostgreSQL, Cloudflare D1, JSONL,
+Redis, Memory) and applies the appropriate migrations. Note that JSONL, Redis, and Memory storage
+backends do not require migrations as they do not use a relational schema; Cloudflare D1 creates its
+schema automatically on connect.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		status, _ := cmd.Flags().GetBool("status")
 		if status {
@@ -58,6 +59,10 @@ func runMigrations() error {
 		fmt.Printf("%s PostgreSQL database migrations are up to date\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		fmt.Println("   All migrations have been applied automatically")
 		return nil
+	case *storage.D1Storage:
+		fmt.Printf("%s Cloudflare D1 database migrations are up to date\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+		fmt.Println("   The schema is created automatically on connect")
+		return nil
 	case *storage.JsonlStorage:
 		fmt.Println("JSONL storage does not require migrations")
 		return nil
@@ -89,6 +94,9 @@ func showMigrationStatus() error {
 		return showSQLiteMigrationStatus(s)
 	case *storage.PostgresStorage:
 		return showPostgresMigrationStatus(s)
+	case *storage.D1Storage:
+		fmt.Println("Cloudflare D1 storage applies its schema automatically on connect")
+		return nil
 	case *storage.JsonlStorage:
 		fmt.Println("JSONL storage does not require migrations")
 		return nil
