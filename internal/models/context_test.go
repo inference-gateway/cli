@@ -50,6 +50,8 @@ func TestClaudeContextWindow(t *testing.T) {
 		expected int
 	}{
 		{"anthropic/claude-opus-4-7", 1000000},
+		{"claude-fable-5", 1000000},
+		{"anthropic/claude-fable-5", 1000000},
 		{"anthropic/claude-sonnet-4-6", 200000},
 		{"anthropic/claude-opus-4-6", 200000},
 		{"anthropic/claude-opus-4-5-20251101", 200000},
