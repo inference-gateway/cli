@@ -19,7 +19,6 @@ func TestClaudeUsageToCompletionUsage(t *testing.T) {
 
 	got := u.toCompletionUsage()
 
-	// Cache tokens fold into prompt_tokens: 100 + 30 + 50 = 180.
 	if got.PromptTokens != 180 {
 		t.Errorf("PromptTokens = %d, want 180", got.PromptTokens)
 	}
@@ -80,8 +79,6 @@ func TestTransformMessageResultEmitsUsageChunk(t *testing.T) {
 func TestTransformMessageResultNilUsageEmitsZeroUsage(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	// A result without a usage object must still emit a (zero) usage chunk so the
-	// downstream request counter increments and a session_stats line is produced.
 	events := c.transformMessage(ClaudeCodeMessage{Type: "result"})
 	if len(events) != 2 {
 		t.Fatalf("got %d events, want 2", len(events))

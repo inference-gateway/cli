@@ -388,7 +388,6 @@ func TestPricingService_ClaudeCodeModelDefaults(t *testing.T) {
 	}
 	service := NewPricingService(cfg)
 
-	// Sonnet 4.5 is $3/$15 per MTok in the default table.
 	inputCost, outputCost, totalCost := service.CalculateCost("anthropic/claude-sonnet-4-5-20250929", 1_000_000, 1_000_000)
 	assert.InDelta(t, 3.00, inputCost, 0.01)
 	assert.InDelta(t, 15.00, outputCost, 0.01)

@@ -141,9 +141,6 @@ func (c *ClaudeCodeClient) buildArgs(model string) []string {
 	permissionMode := c.getPermissionMode()
 	maxTurns := c.config.MaxTurns
 
-	// The claude CLI expects a bare model id; strip any provider prefix
-	// (e.g. "anthropic/claude-opus-4-5" -> "claude-opus-4-5") so Claude Code
-	// mode can share the anthropic/-prefixed ids used by gateway mode and the
 	// pricing table.
 	if idx := strings.LastIndex(model, "/"); idx != -1 {
 		model = model[idx+1:]
@@ -393,9 +390,6 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 		return events
 
 	case "result":
-		// The result message carries the invocation's cumulative usage. Emit it
-		// as an OpenAI-style usage chunk (always, even when Claude omits usage, so
-		// the downstream request counter still increments) ahead of message_stop.
 		usage := &ClaudeUsage{}
 		if msg.Usage != nil {
 			usage = msg.Usage
