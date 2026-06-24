@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.123.0](https://github.com/inference-gateway/cli/compare/v0.122.2...v0.123.0) (2026-06-24)
+
+### 🚀 Features
+
+* **storage:** add Cloudflare D1 conversation storage driver ([#646](https://github.com/inference-gateway/cli/issues/646)) ([b6785ae](https://github.com/inference-gateway/cli/commit/b6785ae878bf89476f0d044f56170871bb4bda89)), closes [#645](https://github.com/inference-gateway/cli/issues/645)
+* **claude-code:** surface token usage and cost in headless mode ([#650](https://github.com/inference-gateway/cli/issues/650)) ([4e4f846](https://github.com/inference-gateway/cli/commit/4e4f8460d755ac4fbefad694069b3a9db23a19e4)), closes [#649](https://github.com/inference-gateway/cli/issues/649)
+
+### 🐛 Bug Fixes
+
+* set git identity for semantic release ([a03ed0b](https://github.com/inference-gateway/cli/commit/a03ed0b10c4d8aac31918c1eb6650b1690bf509b))
+
+### ♻️ Code Refactoring
+
+* tighten inline diff context to 2 lines ([adcc17b](https://github.com/inference-gateway/cli/commit/adcc17b8bb7f026dabd60e3bc2a9400077e62349))
+
+### 🔧 Build System
+
+* **deps:** bump the github-actions group with 3 updates ([#648](https://github.com/inference-gateway/cli/issues/648)) ([92784cd](https://github.com/inference-gateway/cli/commit/92784cd43247fa0d62d1af52a21f0339e1669d92))
+* **deps:** bump the gomod group with 3 updates ([#647](https://github.com/inference-gateway/cli/issues/647)) ([a319eeb](https://github.com/inference-gateway/cli/commit/a319eebbabfd8ca5119ff5b9aa387ca77cd24fa5))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.121.1 -> v0.122.2, infer-action v0.15.1 -> v0.15.4 ([#644](https://github.com/inference-gateway/cli/issues/644)) ([6befa6f](https://github.com/inference-gateway/cli/commit/6befa6feab30fb28aeb59168d6dbe885ce79f5a6))
+
 ## [0.122.2](https://github.com/inference-gateway/cli/compare/v0.122.1...v0.122.2) (2026-06-20)
 
 ### 👷 CI/CD
