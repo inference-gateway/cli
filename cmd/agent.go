@@ -154,7 +154,13 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	selectedModel, err := selectModel(models, modelFlag, cfg.Agent.Model)
+	defaultModel := cfg.Agent.Model
+	if cfg.IsClaudeCodeMode() {
+		modelFlag = services.CanonicalClaudeModelID(modelFlag)
+		defaultModel = services.CanonicalClaudeModelID(defaultModel)
+	}
+
+	selectedModel, err := selectModel(models, modelFlag, defaultModel)
 	if err != nil {
 		return err
 	}

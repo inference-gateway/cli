@@ -73,12 +73,14 @@ func (c *ClaudeCodeClient) GenerateContent(
 		return nil, err
 	}
 
-	content, toolCallsMap, err := c.processEvents(eventChan)
+	content, toolCallsMap, usage, err := c.processEvents(eventChan)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.buildResponse(content, toolCallsMap), nil
+	response := c.buildResponse(content, toolCallsMap)
+	response.Usage = usage
+	return response, nil
 }
 
 // GenerateContentStream makes a streaming request to Claude Code CLI
@@ -138,6 +140,10 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 func (c *ClaudeCodeClient) buildArgs(model string) []string {
 	permissionMode := c.getPermissionMode()
 	maxTurns := c.config.MaxTurns
+
+	if idx := strings.LastIndex(model, "/"); idx != -1 {
+		model = model[idx+1:]
+	}
 
 	args := []string{
 		"--output-format", "stream-json",
@@ -284,6 +290,31 @@ func (c *ClaudeCodeClient) createDeltaEvent(delta map[string]any) sdk.SSEvent {
 	return sdk.SSEvent{Event: &eventType, Data: &responseBytes}
 }
 
+// createUsageEvent builds a usage-bearing chat.completion.chunk. It carries a
+// single empty-delta choice (a no-op for the sync content/tool accumulator, and
+// required by the chat TUI consumer which only reads Usage inside its choices
+// loop) plus the top-level usage object that both consumers read.
+func (c *ClaudeCodeClient) createUsageEvent(usage *sdk.CompletionUsage) sdk.SSEvent {
+	streamResponse := map[string]any{
+		"id":      "chatcmpl-" + fmt.Sprintf("%d", time.Now().UnixNano()),
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   "",
+		"choices": []map[string]any{
+			{"delta": map[string]any{}, "index": 0},
+		},
+		"usage": map[string]any{
+			"prompt_tokens":     usage.PromptTokens,
+			"completion_tokens": usage.CompletionTokens,
+			"total_tokens":      usage.TotalTokens,
+		},
+	}
+
+	responseBytes, _ := json.Marshal(streamResponse)
+	eventType := sdk.SSEventEvent("content_block_delta")
+	return sdk.SSEvent{Event: &eventType, Data: &responseBytes}
+}
+
 func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent {
 	var events []sdk.SSEvent
 
@@ -358,12 +389,16 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 		return events
 
 	case "result":
+		usage := &ClaudeUsage{}
+		if msg.Usage != nil {
+			usage = msg.Usage
+		}
 		doneBytes := []byte("done")
-		eventType := sdk.SSEventEvent("message_stop")
-		return []sdk.SSEvent{{
-			Event: &eventType,
-			Data:  &doneBytes,
-		}}
+		stopType := sdk.SSEventEvent("message_stop")
+		return []sdk.SSEvent{
+			c.createUsageEvent(usage.toCompletionUsage()),
+			{Event: &stopType, Data: &doneBytes},
+		}
 
 	case "user":
 		var toolResultMsg ToolResultMessage
@@ -465,10 +500,32 @@ type ClaudeCodeMessage struct {
 	SessionID string          `json:"session_id,omitempty"`
 
 	// Result fields
-	TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
-	IsError      bool    `json:"is_error,omitempty"`
-	DurationMS   int     `json:"duration_ms,omitempty"`
-	NumTurns     int     `json:"num_turns,omitempty"`
+	TotalCostUSD float64      `json:"total_cost_usd,omitempty"`
+	IsError      bool         `json:"is_error,omitempty"`
+	DurationMS   int          `json:"duration_ms,omitempty"`
+	NumTurns     int          `json:"num_turns,omitempty"`
+	Usage        *ClaudeUsage `json:"usage,omitempty"`
+}
+
+// ClaudeUsage is Anthropic's token breakdown as reported on the result message.
+type ClaudeUsage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+}
+
+// toCompletionUsage maps Anthropic's token breakdown onto the SDK's
+// prompt/completion shape. The SDK usage type has no cache fields, so cache
+// tokens fold into prompt_tokens - matching how the gateway reports a single
+// prompt_tokens count for cached input.
+func (u *ClaudeUsage) toCompletionUsage() *sdk.CompletionUsage {
+	prompt := u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+	return &sdk.CompletionUsage{
+		PromptTokens:     prompt,
+		CompletionTokens: u.OutputTokens,
+		TotalTokens:      prompt + u.OutputTokens,
+	}
 }
 
 // filterEnv removes a specific environment variable from the env slice
@@ -485,18 +542,37 @@ func filterEnv(env []string, key string) []string {
 	return filtered
 }
 
-// processEvents processes SSE events and accumulates content and tool calls
-func (c *ClaudeCodeClient) processEvents(eventChan <-chan sdk.SSEvent) (string, map[string]*sdk.ChatCompletionMessageToolCall, error) {
+// processEvents processes SSE events and accumulates content, tool calls, and
+// the usage carried by the final usage chunk.
+func (c *ClaudeCodeClient) processEvents(eventChan <-chan sdk.SSEvent) (string, map[string]*sdk.ChatCompletionMessageToolCall, *sdk.CompletionUsage, error) {
 	var content strings.Builder
 	toolCallsMap := make(map[string]*sdk.ChatCompletionMessageToolCall)
+	var usage *sdk.CompletionUsage
 
 	for event := range eventChan {
+		if event.Data != nil {
+			if u := parseChunkUsage(*event.Data); u != nil {
+				usage = u
+			}
+		}
 		if err := c.handleEvent(event, &content, toolCallsMap); err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 	}
 
-	return content.String(), toolCallsMap, nil
+	return content.String(), toolCallsMap, usage, nil
+}
+
+// parseChunkUsage extracts a top-level usage object from a chat.completion.chunk
+// payload, returning nil when the chunk carries no usage (content/tool deltas).
+func parseChunkUsage(data []byte) *sdk.CompletionUsage {
+	var chunk struct {
+		Usage *sdk.CompletionUsage `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &chunk); err != nil {
+		return nil
+	}
+	return chunk.Usage
 }
 
 // handleEvent processes a single SSE event

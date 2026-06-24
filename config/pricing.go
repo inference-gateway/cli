@@ -44,6 +44,13 @@ func GetDefaultPricingConfig() PricingConfig {
 // Prices are based on publicly available pricing as of December 2024.
 // Users can override these in their config files.
 var DefaultModelPricing = map[string]ModelPricing{
+	"anthropic/claude-opus-4-8": {
+		Provider:             "anthropic",
+		Model:                "claude-opus-4-8",
+		InputPricePerMToken:  5.00,
+		OutputPricePerMToken: 25.00,
+		Currency:             "USD",
+	},
 	"anthropic/claude-opus-4-7": {
 		Provider:             "anthropic",
 		Model:                "claude-opus-4-7",

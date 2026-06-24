@@ -18,7 +18,8 @@ const DefaultContextWindow = 8192
 // model families that aren't served are intentionally omitted to keep the list
 // small and the View output truthful.
 var ContextMatchers = []ModelMatcher{
-	{Patterns: []string{"claude-opus-4-7"}, ContextWindow: 1000000},
+	{Patterns: []string{"fable"}, ContextWindow: 1000000},
+	{Patterns: []string{"claude-opus-4-7", "claude-opus-4-8"}, ContextWindow: 1000000},
 	{Patterns: []string{"claude-opus-4", "claude-sonnet-4", "claude-haiku-4"}, ContextWindow: 200000},
 	{Patterns: []string{"claude"}, ContextWindow: 200000},
 	{Patterns: []string{"gemini-3"}, ContextWindow: 1048576},
