@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.123.1](https://github.com/inference-gateway/cli/compare/v0.123.0...v0.123.1) (2026-06-24)
+
+### 🐛 Bug Fixes
+
+* **agent:** report failed bash exit code + stderr to the model ([#651](https://github.com/inference-gateway/cli/issues/651)) ([967cb90](https://github.com/inference-gateway/cli/commit/967cb90270cc8065bc77d7697852cb90f0bf76a5))
+
+### 🧹 Maintenance
+
+* update infer cli to v0.123.0 ([209531e](https://github.com/inference-gateway/cli/commit/209531e85d4c5280db488983daef1c4e7a1634bf))
+
 ## [0.123.0](https://github.com/inference-gateway/cli/compare/v0.122.2...v0.123.0) (2026-06-24)
 
 ### 🚀 Features
