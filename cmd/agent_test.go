@@ -226,6 +226,33 @@ func TestBuildSDKMessages(t *testing.T) {
 	}
 }
 
+func TestFormatToolResult_FailedWithEmptyErrorSurfacesData(t *testing.T) {
+	session := &AgentSession{}
+
+	result := &domain.ToolExecutionResult{
+		ToolName: "Bash",
+		Success:  false,
+		Data: &domain.BashToolResult{
+			Command:  "gh search code foo --path bar",
+			Output:   "unknown flag: --path",
+			Error:    "exit status 1",
+			ExitCode: 1,
+		},
+	}
+
+	out := session.formatToolResult(result)
+
+	if !strings.HasPrefix(out, "Tool execution failed:") {
+		t.Fatalf("expected the failure prefix, got %q", out)
+	}
+	if strings.TrimSpace(strings.TrimPrefix(out, "Tool execution failed:")) == "" {
+		t.Fatal("expected a non-empty failure body, got a bare envelope")
+	}
+	if !strings.Contains(out, "unknown flag: --path") {
+		t.Errorf("expected the body to surface the command output, got %q", out)
+	}
+}
+
 func TestExecuteToolCallsParallel(t *testing.T) {
 	tests := []struct {
 		name              string
