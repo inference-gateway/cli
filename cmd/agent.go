@@ -154,7 +154,16 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	selectedModel, err := selectModel(models, modelFlag, cfg.Agent.Model)
+	// Claude Code mode accepts bare Claude ids for back-compat; normalize them to
+	// the anthropic/-prefixed canonical form so they validate against the model
+	// list and resolve in the pricing table for session cost.
+	defaultModel := cfg.Agent.Model
+	if cfg.IsClaudeCodeMode() {
+		modelFlag = services.CanonicalClaudeModelID(modelFlag)
+		defaultModel = services.CanonicalClaudeModelID(defaultModel)
+	}
+
+	selectedModel, err := selectModel(models, modelFlag, defaultModel)
 	if err != nil {
 		return err
 	}

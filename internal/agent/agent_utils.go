@@ -702,7 +702,8 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 }
 
 // parseProvider parses provider and model name from model string
-// In Claude Code mode, models don't have a provider prefix, so we return "claude" as the provider
+// Claude Code mode uses anthropic/-prefixed ids (like gateway mode); the bare
+// fallback returns "claude" only for legacy un-prefixed inputs.
 func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	if s.config != nil {
 		cfg := s.config.GetAgentConfig()
