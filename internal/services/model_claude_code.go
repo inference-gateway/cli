@@ -28,6 +28,7 @@ func NewClaudeCodeModelService() domain.ModelService {
 // adapter strips the prefix before invoking the claude CLI.
 func (s *ClaudeCodeModelService) ListModels(ctx context.Context) ([]string, error) {
 	return []string{
+		"anthropic/claude-opus-4-8",
 		"anthropic/claude-opus-4-7",
 		"anthropic/claude-opus-4-6",
 		"anthropic/claude-opus-4-5-20251101",
