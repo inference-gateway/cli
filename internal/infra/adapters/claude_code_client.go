@@ -141,7 +141,6 @@ func (c *ClaudeCodeClient) buildArgs(model string) []string {
 	permissionMode := c.getPermissionMode()
 	maxTurns := c.config.MaxTurns
 
-	// pricing table.
 	if idx := strings.LastIndex(model, "/"); idx != -1 {
 		model = model[idx+1:]
 	}
