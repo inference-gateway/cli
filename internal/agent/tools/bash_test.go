@@ -201,6 +201,41 @@ func TestBashTool_Execute(t *testing.T) {
 	}
 }
 
+func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"ls( .*)?"}},
+				},
+			},
+		},
+	}
+
+	tool := NewBashTool(cfg, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "ls /no/such/path/xyz-12345",
+	})
+	if err != nil {
+		t.Fatalf("Execute() returned a Go error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("expected Success=false for a non-zero exit")
+	}
+	if result.Error == "" {
+		t.Fatal("expected a non-empty result.Error so the model sees why the command failed")
+	}
+	if !strings.Contains(result.Error, "exit status") {
+		t.Errorf("expected result.Error to include the exit status, got %q", result.Error)
+	}
+	if !strings.Contains(result.Error, "No such") {
+		t.Errorf("expected result.Error to include the command's stderr, got %q", result.Error)
+	}
+}
+
 func TestBashTool_GitPushValidation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{

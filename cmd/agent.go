@@ -909,7 +909,13 @@ func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) stri
 	}
 
 	if !result.Success {
-		return fmt.Sprintf("Tool execution failed: %s", result.Error)
+		detail := result.Error
+		if detail == "" && result.Data != nil {
+			if b, err := json.Marshal(result.Data); err == nil {
+				detail = string(b)
+			}
+		}
+		return fmt.Sprintf("Tool execution failed: %s", detail)
 	}
 
 	resultBytes, err := json.Marshal(result)

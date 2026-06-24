@@ -122,6 +122,12 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	if err != nil {
 		result.Error = err.Error()
+	} else if !success {
+		detail := strings.TrimSpace(bashResult.Output)
+		if detail == "" {
+			detail = bashResult.Error
+		}
+		result.Error = fmt.Sprintf("exit status %d: %s", bashResult.ExitCode, detail)
 	}
 
 	return result, nil
