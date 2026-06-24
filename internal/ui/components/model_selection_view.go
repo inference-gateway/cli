@@ -370,10 +370,14 @@ func (m *ModelSelectorImpl) isModelFree(model string) bool {
 	return inputPrice == 0.0 && outputPrice == 0.0
 }
 
-// isModelSubscription reports whether a model is gated behind a paid (flat-fee)
-// subscription rather than per-token billing.
-// Returns false if pricing is disabled or not configured.
+// isModelSubscription reports whether a model is accessed via a flat-fee
+// subscription rather than per-token billing. All models are subscription in
+// Claude Code mode; otherwise it follows the pricing table's RequiresPro flag.
 func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
+	if m.config != nil && m.config.IsClaudeCodeMode() {
+		return true
+	}
+
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}
