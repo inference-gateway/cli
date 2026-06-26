@@ -91,9 +91,6 @@ func (p *SubagentPoller) checkForNewSubagents(ctx context.Context) {
 		return
 	}
 	for _, state := range p.tracker.GetAllSubagents() {
-		// Monitor any tracked subagent not already being watched - including
-		// one that already completed (its result is buffered on ResultChan),
-		// so fast subagents are still surfaced and cleaned up rather than leaked.
 		p.mu.RLock()
 		_, monitoring := p.activeMonitors[state.ID]
 		p.mu.RUnlock()
