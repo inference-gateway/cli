@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -90,7 +89,7 @@ func createEnvExample(cmd *cobra.Command) error {
 	// Check if .env.example already exists
 	if !overwrite {
 		if _, err := os.Stat(envExamplePath); err == nil {
-			return fmt.Errorf("%s %s already exists (use --overwrite to replace)", envExampleFileName, envExamplePath)
+			return fmt.Errorf("%s already exists (use --overwrite to replace)", envExamplePath)
 		}
 	}
 
@@ -107,27 +106,23 @@ func createEnvExample(cmd *cobra.Command) error {
 	fmt.Println("  Edit .env and add your API keys")
 	fmt.Println("")
 
-	// Check if .gitignore exists, if not create one with .env entry
-	gitignorePath := filepath.Join(config.ConfigDirName, config.GitignoreFileName)
+	// Check if root .gitignore exists, if not create one with .env entry
+	gitignorePath := config.GitignoreFileName
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
-		// Check if there's a root .gitignore
-		rootGitignore := config.GitignoreFileName
-		if _, err := os.Stat(rootGitignore); os.IsNotExist(err) {
-			gitignoreContent := "# Inference Gateway\n.env\n"
-			if err := os.WriteFile(rootGitignore, []byte(gitignoreContent), 0644); err != nil {
-				return fmt.Errorf("failed to create .gitignore file: %w", err)
-			}
-			fmt.Printf("%s Created .gitignore with .env entry\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-		} else if err == nil {
-			// .gitignore exists, check if .env is already in it
-			data, err := os.ReadFile(rootGitignore)
-			if err == nil && !strings.Contains(string(data), ".env") {
-				f, err := os.OpenFile(rootGitignore, os.O_APPEND|os.O_WRONLY, 0644)
-				if err == nil {
-					_, _ = f.WriteString("\n# Inference Gateway\n.env\n")
-					f.Close()
-					fmt.Printf("%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-				}
+		gitignoreContent := "# Inference Gateway\n.env\n"
+		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
+			return fmt.Errorf("failed to create .gitignore file: %w", err)
+		}
+		fmt.Printf("%s Created .gitignore with .env entry\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	} else if err == nil {
+		// .gitignore exists, check if .env is already in it
+		data, err := os.ReadFile(gitignorePath)
+		if err == nil && !strings.Contains(string(data), ".env") {
+			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+			if err == nil {
+				_, _ = f.WriteString("\n# Inference Gateway\n.env\n")
+				f.Close()
+				fmt.Printf("%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 			}
 		}
 	}
