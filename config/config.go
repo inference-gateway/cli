@@ -365,6 +365,7 @@ type WebConfig struct {
 	Port                  int               `yaml:"port" mapstructure:"port"`
 	Host                  string            `yaml:"host" mapstructure:"host"`
 	SessionInactivityMins int               `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
+	Tmux                  bool              `yaml:"tmux" mapstructure:"tmux"`
 	SSH                   WebSSHConfig      `yaml:"ssh" mapstructure:"ssh"`
 	Servers               []SSHServerConfig `yaml:"servers" mapstructure:"servers"`
 }
@@ -786,7 +787,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Agent: AgentToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
-				Mode:            "headless",
+				Mode:            "interactive",
 				Wait:            true,
 				MaxParallel:     4,
 				MaxDepth:        1,
@@ -928,6 +929,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Port:                  3000,
 			Host:                  "localhost",
 			SessionInactivityMins: 5,
+			Tmux:                  false,
 			SSH: WebSSHConfig{
 				Enabled:        false,
 				UseSSHConfig:   true,

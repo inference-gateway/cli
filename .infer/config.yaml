@@ -161,7 +161,7 @@ tools:
   agent:
     enabled: true
     require_approval: true
-    mode: headless
+    mode: interactive
     wait: true
     max_parallel: 4
     max_depth: 1
@@ -294,6 +294,7 @@ web:
   port: 3000
   host: localhost
   session_inactivity_mins: 5
+  tmux: false
   ssh:
     enabled: false
     use_ssh_config: true

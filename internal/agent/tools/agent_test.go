@@ -12,8 +12,10 @@ import (
 
 func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Helper()
-	t.Setenv("INFER_SUBAGENT_DEPTH", "") // run at depth 0
-	return NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Agent.Mode = "headless"
+	return NewAgentTool(cfg, utils.NewSubagentTracker())
 }
 
 func TestAgentTool_Definition(t *testing.T) {
