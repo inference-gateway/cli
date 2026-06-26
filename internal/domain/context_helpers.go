@@ -138,6 +138,18 @@ func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	return context.WithValue(ctx, SessionIDKey, sessionID)
 }
 
+// WithModel returns a new context carrying the model in effect for the current
+// agent turn. The Agent tool reads it so subagents inherit the parent's model.
+func WithModel(ctx context.Context, model string) context.Context {
+	return context.WithValue(ctx, ModelKey, model)
+}
+
+// GetModel retrieves the model from the context, or "" if not set.
+func GetModel(ctx context.Context) string {
+	model, _ := ctx.Value(ModelKey).(string)
+	return model
+}
+
 // GetSessionID retrieves the session ID from context
 // Returns empty string if the key is not set or if the value is not a string
 func GetSessionID(ctx context.Context) string {

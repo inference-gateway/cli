@@ -539,6 +539,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
+	sessionCtx = domain.WithModel(sessionCtx, req.Model)
 	sc := &sessionCancel{
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),

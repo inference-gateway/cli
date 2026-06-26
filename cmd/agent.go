@@ -242,11 +242,30 @@ func writeSubagentResultFile(path string, s *AgentSession, runErr error) {
 	}
 }
 
-// finalAssistantContent returns the content of the last assistant message with
-// non-empty content, or "" when none exists.
+// finalAssistantContent returns the subagent's substantive answer: the last
+// non-empty assistant message that appears BEFORE the first internal
+// verification prompt. The loop appends an "anything else?" turn whose answer is
+// a trivial "task complete" confirmation - harvesting that instead of the real
+// result is what we avoid here. Falls back to the last assistant message overall.
 func (s *AgentSession) finalAssistantContent() string {
-	for i := len(s.conversation) - 1; i >= 0; i-- {
-		m := s.conversation[i]
+	limit := len(s.conversation)
+	for i, m := range s.conversation {
+		if m.Internal && m.Role == "user" {
+			limit = i
+			break
+		}
+	}
+	if content := lastAssistantBefore(s.conversation, limit); content != "" {
+		return content
+	}
+	return lastAssistantBefore(s.conversation, len(s.conversation))
+}
+
+// lastAssistantBefore returns the last non-empty assistant message content in
+// conversation[:limit], or "" if none.
+func lastAssistantBefore(conversation []ConversationMessage, limit int) string {
+	for i := limit - 1; i >= 0; i-- {
+		m := conversation[i]
 		if m.Role == "assistant" && strings.TrimSpace(m.Content) != "" {
 			return m.Content
 		}
@@ -680,7 +699,7 @@ func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*d
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), domain.AgentModeStandard)
+	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), domain.AgentModeStandard), s.model)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
 	}

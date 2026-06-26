@@ -162,8 +162,9 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 	}
 
 	parentSession := domain.GetSessionID(ctx)
+	parentModel := domain.GetModel(ctx)
 	for i := range specs {
-		specs[i].Model = t.resolveModel(specs[i].Model)
+		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
 
 	if wait {
@@ -278,24 +279,37 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	if mode == domain.SubagentModeInteractive {
 		return t.executeInteractive(ctx, spec, sessionID)
 	}
+	resultFile := subagentResultFilePath(sessionID)
+	_ = os.Remove(resultFile)
+	defer func() { _ = os.Remove(resultFile) }()
+
 	res, err := t.runHeadless(ctx, agentrunner.Options{
 		BinaryPath: t.binary,
 		SessionID:  sessionID,
 		Prompt:     spec.Description,
 		Model:      spec.Model,
 		Files:      spec.Files,
+		ResultFile: resultFile,
 		ExtraEnv:   []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)},
 	})
-	if err != nil {
-		return res.FinalAssistant, err
+	// Prefer the result file's harvested answer (it skips the subagent's trailing
+	// "task complete" verification turn); fall back to the streamed final message.
+	answer := res.FinalAssistant
+	if rf, ok := readSubagentResultFile(resultFile); ok {
+		if rf.FinalAssistant != "" {
+			answer = rf.FinalAssistant
+		}
+		if err == nil && !rf.Success && rf.Error != "" {
+			err = fmt.Errorf("%s", rf.Error)
+		}
 	}
-	return res.FinalAssistant, nil
+	return answer, err
 }
 
 // executeInteractive launches the subagent in a tmux pane and harvests its
 // result from the --result-file the subagent writes on exit.
 func (t *AgentTool) executeInteractive(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, error) {
-	resultFile := filepath.Join(os.TempDir(), "infer-subagent-"+sessionID+".json")
+	resultFile := subagentResultFilePath(sessionID)
 	_ = os.Remove(resultFile)
 
 	command := t.buildPaneCommand(spec, sessionID, resultFile)
@@ -346,6 +360,25 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) e
 	// Best-effort pane title; ignore errors (older tmux / no title support).
 	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-T", title).Run()
 	return nil
+}
+
+// subagentResultFilePath is the temp path a subagent writes its outcome to.
+func subagentResultFilePath(sessionID string) string {
+	return filepath.Join(os.TempDir(), "infer-subagent-"+sessionID+".json")
+}
+
+// readSubagentResultFile reads and parses a subagent result file without
+// waiting. Returns ok=false when the file is absent or malformed.
+func readSubagentResultFile(path string) (domain.SubagentResultFile, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return domain.SubagentResultFile{}, false
+	}
+	var rf domain.SubagentResultFile
+	if err := json.Unmarshal(data, &rf); err != nil {
+		return domain.SubagentResultFile{}, false
+	}
+	return rf, true
 }
 
 // harvestResultFile waits for the subagent's result file to appear, then reads
@@ -415,11 +448,18 @@ func (t *AgentTool) resolveWait(args map[string]any) bool {
 	return t.config.Tools.Agent.Wait
 }
 
-func (t *AgentTool) resolveModel(taskModel string) string {
+// resolveModel picks the subagent model: explicit per-task override, else the
+// configured tools.agent.model, else the parent turn's model (so subagents
+// inherit the model the user is already using). An empty result would make the
+// subagent process fail with "no model specified".
+func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 	if taskModel != "" {
 		return taskModel
 	}
-	return t.config.Tools.Agent.Model
+	if t.config.Tools.Agent.Model != "" {
+		return t.config.Tools.Agent.Model
+	}
+	return parentModel
 }
 
 func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *domain.ToolExecutionResult {

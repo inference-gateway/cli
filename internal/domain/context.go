@@ -44,3 +44,8 @@ const DirectExecutionKey ContextKey = "direct_execution"
 // (tools.bash.mode.<key>.allow) governs the command. When unset, callers treat
 // it as standard mode.
 const AgentModeKey ContextKey = "agent_mode"
+
+// ModelKey is the context key for the model in effect for the current agent
+// turn. The Agent tool reads it so spawned subagents inherit the parent's model
+// by default (otherwise the subagent process would fail with "no model specified").
+const ModelKey ContextKey = "model"
