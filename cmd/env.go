@@ -141,7 +141,9 @@ func ensureEnvInGitignore() error {
 	if err != nil {
 		return fmt.Errorf("failed to open .gitignore: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := f.WriteString("\n# Inference Gateway\n.env\n"); err != nil {
 		return fmt.Errorf("failed to write to .gitignore: %w", err)
