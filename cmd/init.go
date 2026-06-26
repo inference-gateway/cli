@@ -41,7 +41,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-		a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
+		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
 		channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
@@ -56,6 +56,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		mcpShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
+		envShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "env.yaml")
 		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
 		skillsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
@@ -74,6 +75,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
+		envShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "env.yaml")
 		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
 		skillsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "skills.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
@@ -87,7 +89,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -132,6 +134,10 @@ plans/
 		return fmt.Errorf("failed to create Export shortcuts file: %w", err)
 	}
 
+	if err := createEnvShortcutsFile(envShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Env shortcuts file: %w", err)
+	}
+
 	if err := createA2AShortcutsFile(a2aShortcutsPath); err != nil {
 		return fmt.Errorf("failed to create A2A shortcuts file: %w", err)
 	}
@@ -174,6 +180,23 @@ plans/
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
+	envExampleCreated := false
+	envExamplePath := envExampleFileName
+	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
+		content := envExampleContent()
+		if err := os.WriteFile(envExamplePath, []byte(content), 0644); err != nil {
+			fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
+		} else {
+			envExampleCreated = true
+		}
+	}
+
+	if envExampleCreated {
+		if err := ensureEnvInGitignore(); err != nil {
+			fmt.Printf("%s Warning: failed to add .env to .gitignore: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
+		}
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -199,6 +222,9 @@ plans/
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
+	if envExampleCreated {
+		fmt.Printf("   Created: %s\n", envExamplePath)
+	}
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
@@ -653,6 +679,31 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(exportShortcutsContent), 0644)
+}
+
+// createEnvShortcutsFile creates the Env shortcuts YAML file that wraps `infer env`,
+// so typing `/env` in chat mode runs the env command.
+func createEnvShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	envShortcutsContent := `---
+# Env Shortcuts
+# Generate a .env.example file with all provider API environment variables
+#
+# Usage:
+# - /env - Generate a .env.example file with provider API keys
+
+shortcuts:
+  - name: env
+    description: "Generate a .env.example file with provider API keys"
+    command: infer
+    args:
+      - env
+`
+
+	return os.WriteFile(path, []byte(envShortcutsContent), 0644)
 }
 
 // createA2AShortcutsFile creates the A2A shortcuts YAML file
