@@ -372,23 +372,30 @@ func (t *AgentTool) buildPaneCommand(spec AgentTaskSpec, sessionID, resultFile s
 }
 
 // launchTmuxPane opens a new tmux pane/window running command. It returns once
-// the pane is created; the pane keeps running the subagent.
+// the pane is created; the pane keeps running the subagent and, via
+// remain-on-exit, stays open after it finishes so its output remains readable.
 func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) error {
-	var args []string
-	switch t.config.Tools.Agent.Interactive.Layout {
+	args := []string{"split-window", "-v"}
+	switch strings.TrimSpace(t.config.Tools.Agent.Interactive.Layout) {
 	case "horizontal":
 		args = []string{"split-window", "-h"}
 	case "window":
 		args = []string{"new-window"}
-	default:
-		args = []string{"split-window", "-v"}
 	}
-	args = append(args, command)
-	if err := exec.CommandContext(ctx, "tmux", args...).Run(); err != nil {
+	// -P -F prints the new pane id so we can target it precisely.
+	args = append(args, "-P", "-F", "#{pane_id}", command)
+	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
+	if err != nil {
 		return err
 	}
-	// Best-effort pane title; ignore errors (older tmux / no title support).
-	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-T", title).Run()
+	paneID := strings.TrimSpace(string(out))
+	if paneID == "" {
+		return nil
+	}
+	// Keep the pane open after the subagent exits, and label it. Best-effort:
+	// older tmux may not support a per-pane remain-on-exit / title.
+	_ = exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", paneID, "remain-on-exit", "on").Run()
+	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-t", paneID, "-T", title).Run()
 	return nil
 }
 
