@@ -14,13 +14,15 @@ import (
 // envExampleFileName is the name of the .env.example file
 const envExampleFileName = ".env.example"
 
-// envVars is the list of all provider API environment variables
+// envVars is the list of all provider API environment variables.
+// Empty-string entries produce blank-line separators in the output,
+// grouping search-related keys separately from provider API keys.
 var envVars = []string{
 	"GOOGLE_SEARCH_API_KEY",
 	"GOOGLE_SEARCH_ENGINE_ID",
-	"",
+	"", // --- search providers ---
 	"DUCKDUCKGO_SEARCH_API_KEY",
-	"",
+	"", // --- LLM providers ---
 	"ANTHROPIC_API_KEY",
 	"CLOUDFLARE_API_KEY",
 	"COHERE_API_KEY",
@@ -133,8 +135,11 @@ func ensureEnvInGitignore() error {
 	if err != nil {
 		return fmt.Errorf("failed to read .gitignore: %w", err)
 	}
-	if strings.Contains(string(data), ".env") {
-		return nil
+	// Check if .env is already listed (exact line match, trimmed)
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == ".env" {
+			return nil
+		}
 	}
 
 	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
