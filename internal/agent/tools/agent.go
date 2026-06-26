@@ -245,10 +245,12 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 				state.Status = domain.SubagentFailed
 			}
 			state.ResultChan <- &domain.ToolExecutionResult{
-				ToolName: "Agent",
-				Success:  sub.Success,
-				Error:    sub.Error,
-				Data:     sub,
+				ToolName:  "Agent",
+				Arguments: map[string]any{"label": sub.Label, "session_id": state.SessionID},
+				Success:   sub.Success,
+				Error:     sub.Error,
+				Duration:  time.Since(state.StartedAt),
+				Data:      sub,
 			}
 		}(spec, state)
 
