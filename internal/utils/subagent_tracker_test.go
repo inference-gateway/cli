@@ -3,7 +3,7 @@ package utils
 import (
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestSubagentTracker_AddGetRemove(t *testing.T) {
