@@ -87,6 +87,7 @@ tools:
           - task( .*)?
           - make( .*)?
           - find( .*)?
+          - sleep( .*)?
           - git status( .*)?
           - git branch( --show-current)?( -[alrvd])?
           - git log( .*)?
