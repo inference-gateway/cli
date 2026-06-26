@@ -48,7 +48,7 @@ func envExampleContent() string {
 		if v == "" {
 			sb.WriteString("\n")
 		} else {
-			sb.WriteString(fmt.Sprintf("%s=\n", v))
+			fmt.Fprintf(&sb, "%s=\n", v)
 		}
 	}
 
@@ -106,7 +106,18 @@ func createEnvExample(cmd *cobra.Command) error {
 	fmt.Println("  Edit .env and add your API keys")
 	fmt.Println("")
 
-	// Check if root .gitignore exists, if not create one with .env entry
+	// Ensure .env is in .gitignore
+	if err := ensureEnvInGitignore(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureEnvInGitignore ensures that .env is listed in the root .gitignore file.
+// If .gitignore doesn't exist, it creates one with .env entry.
+// If .gitignore exists but doesn't contain .env, it appends it.
+func ensureEnvInGitignore() error {
 	gitignorePath := config.GitignoreFileName
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
 		gitignoreContent := "# Inference Gateway\n.env\n"
@@ -114,18 +125,27 @@ func createEnvExample(cmd *cobra.Command) error {
 			return fmt.Errorf("failed to create .gitignore file: %w", err)
 		}
 		fmt.Printf("%s Created .gitignore with .env entry\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-	} else if err == nil {
-		// .gitignore exists, check if .env is already in it
-		data, err := os.ReadFile(gitignorePath)
-		if err == nil && !strings.Contains(string(data), ".env") {
-			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
-			if err == nil {
-				_, _ = f.WriteString("\n# Inference Gateway\n.env\n")
-				f.Close()
-				fmt.Printf("%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-			}
-		}
+		return nil
 	}
 
+	// .gitignore exists, check if .env is already in it
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		return fmt.Errorf("failed to read .gitignore: %w", err)
+	}
+	if strings.Contains(string(data), ".env") {
+		return nil
+	}
+
+	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open .gitignore: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString("\n# Inference Gateway\n.env\n"); err != nil {
+		return fmt.Errorf("failed to write to .gitignore: %w", err)
+	}
+	fmt.Printf("%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	return nil
 }
