@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // subagentTracker implements domain.SubagentTracker with a flat map guarded by
