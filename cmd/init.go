@@ -173,6 +173,18 @@ plans/
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
+	// Create .env.example with provider API keys (non-fatal if it already exists)
+	envExampleCreated := false
+	envExamplePath := envExampleFileName
+	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
+		content := envExampleContent()
+		if err := os.WriteFile(envExamplePath, []byte(content), 0644); err != nil {
+				fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
+		} else {
+				envExampleCreated = true
+		}
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -198,6 +210,9 @@ plans/
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
+	if envExampleCreated {
+			fmt.Printf("   Created: %s\n", envExamplePath)
+	}
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
