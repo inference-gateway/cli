@@ -23,6 +23,7 @@ Initialize a new project with Inference Gateway CLI. This creates:
 - `.infer/` directory with:
   - `config.yaml` - Main configuration file for the project
   - `.gitignore` - Ensures sensitive files are not committed to version control
+- `.env.example` - Template with all provider API environment variables (if not already exists)
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
 
@@ -40,6 +41,37 @@ infer init --overwrite
 
 # Initialize userspace configuration (global fallback)
 infer init --userspace
+```
+
+### `infer env`
+
+Generate a `.env.example` file in the current directory with all the different provider API
+environment variables needed by the Inference Gateway. This is a convenient shortcut so you
+don't need to remember which providers are available or what environment variables to set.
+
+If `.env.example` already exists, the command will error. Use `--overwrite` to replace it.
+
+If no `.gitignore` exists in the project root, one is created with `.env` added to it.
+
+**Options:**
+
+- `--overwrite`: Overwrite `.env.example` if it already exists
+
+**Examples:**
+
+```bash
+# Create .env.example with all provider API keys
+infer env
+
+# Overwrite existing .env.example
+infer env --overwrite
+```
+
+**Next steps after creation:**
+
+```bash
+cp .env.example .env
+# Edit .env and add your API keys
 ```
 
 ---
