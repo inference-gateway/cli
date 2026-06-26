@@ -11,12 +11,9 @@
 package heartbeat
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +23,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 
 // ExecCommandFn matches exec.CommandContext. Exposed for tests.
@@ -183,49 +181,32 @@ func (s *Service) fireGuarded() {
 	}
 }
 
-// fire spawns a single `infer agent --heartbeat` subprocess and
-// streams its stdout to the logger. Each fire gets a fresh UUID
-// session ID so no context carries between ticks.
+// fire spawns a single `infer agent --heartbeat` subprocess (via the shared
+// agentrunner) and streams its stdout to the logger. Each fire gets a fresh
+// UUID session ID so no context carries between ticks.
 func (s *Service) fire(ctx context.Context) error {
 	sessionID := uuid.New().String()
-	args := []string{"agent", "--heartbeat", "--session-id", sessionID}
-	if s.cfg.Model != "" {
-		args = append(args, "--model", s.cfg.Model)
-	}
-	args = append(args, s.cfg.Prompt)
-
 	logger.Info("heartbeat tick - spawning agent",
 		"session_id", sessionID,
 		"model", s.cfg.Model,
 	)
 
-	cmd := s.execCmd(ctx, s.binaryPath, args...)
-	cmd.Env = os.Environ()
-
-	stdout, err := cmd.StdoutPipe()
+	res, err := agentrunner.Run(ctx, agentrunner.Options{
+		BinaryPath: s.binaryPath,
+		Exec:       s.execCmd,
+		SessionID:  sessionID,
+		Prompt:     s.cfg.Prompt,
+		Model:      s.cfg.Model,
+		Heartbeat:  true,
+		OnLine: func(line []byte) {
+			if msg := strings.TrimSpace(string(line)); msg != "" {
+				logger.Info("heartbeat agent output", "session_id", sessionID, "line", msg)
+			}
+		},
+	})
 	if err != nil {
-		return fmt.Errorf("stdout pipe: %w", err)
-	}
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start agent: %w", err)
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		logger.Info("heartbeat agent output", "session_id", sessionID, "line", line)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		if stderrBuf.Len() > 0 {
-			return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderrBuf.String()))
+		if res.Stderr != "" {
+			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))
 		}
 		return err
 	}

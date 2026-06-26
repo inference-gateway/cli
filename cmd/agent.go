@@ -57,7 +57,8 @@ Examples:
 		requireApproval, _ := cmd.Flags().GetBool("require-approval")
 		heartbeat, _ := cmd.Flags().GetBool("heartbeat")
 		remote, _ := cmd.Flags().GetBool("remote")
-		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat, remote)
+		resultFile, _ := cmd.Flags().GetString("result-file")
+		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat, remote, resultFile)
 	},
 }
 
@@ -103,7 +104,7 @@ type AgentSession struct {
 	requestCount          int
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool) (err error) {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool, resultFile string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			outputAgentError(fmt.Sprintf("agent panic: %v", r))
@@ -207,7 +208,50 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.maybeRollover()
 
-	return session.execute(taskDescription, files)
+	err = session.execute(taskDescription, files)
+	if resultFile != "" {
+		writeSubagentResultFile(resultFile, session, err)
+	}
+	return err
+}
+
+// writeSubagentResultFile atomically writes the session's final assistant
+// message and outcome to path, for a parent Agent tool to harvest when the
+// subagent runs detached (e.g. in a tmux pane whose stdout the parent doesn't own).
+func writeSubagentResultFile(path string, s *AgentSession, runErr error) {
+	rf := domain.SubagentResultFile{
+		FinalAssistant: s.finalAssistantContent(),
+		Success:        runErr == nil,
+		SessionID:      s.sessionID,
+	}
+	if runErr != nil {
+		rf.Error = runErr.Error()
+	}
+	data, mErr := json.Marshal(rf)
+	if mErr != nil {
+		logger.Warn("failed to marshal subagent result file", "error", mErr)
+		return
+	}
+	tmp := path + ".tmp"
+	if wErr := os.WriteFile(tmp, data, 0o644); wErr != nil {
+		logger.Warn("failed to write subagent result file", "error", wErr)
+		return
+	}
+	if rErr := os.Rename(tmp, path); rErr != nil {
+		logger.Warn("failed to finalize subagent result file", "error", rErr)
+	}
+}
+
+// finalAssistantContent returns the content of the last assistant message with
+// non-empty content, or "" when none exists.
+func (s *AgentSession) finalAssistantContent() string {
+	for i := len(s.conversation) - 1; i >= 0; i-- {
+		m := s.conversation[i]
+		if m.Role == "assistant" && strings.TrimSpace(m.Content) != "" {
+			return m.Content
+		}
+	}
+	return ""
 }
 
 // resolveAndLoadSession resolves --session-id through the rollover manager
@@ -1278,5 +1322,6 @@ func init() {
 	agentCmd.Flags().Bool("require-approval", false, "Enable IPC-based tool approval via stdin/stdout (used by channel manager)")
 	agentCmd.Flags().Bool("heartbeat", false, "Run with the heartbeat system prompt (used by the heartbeat service)")
 	agentCmd.Flags().Bool("remote", false, "Run with the remote-control system prompt (used by the channels-manager daemon)")
+	agentCmd.Flags().String("result-file", "", "Write the final assistant message and outcome as JSON to this path on exit (used by the Agent tool to harvest detached subagents)")
 	rootCmd.AddCommand(agentCmd)
 }

@@ -157,6 +157,17 @@ tools:
     enabled: false
     require_approval: true
     max_jobs: 100
+  agent:
+    enabled: true
+    require_approval: true
+    mode: headless
+    wait: false
+    max_parallel: 4
+    max_depth: 1
+    interactive:
+      multiplexer: tmux
+      layout: vertical
+      fallback: headless
   safety:
     require_approval: true
     approval_behaviour: prompt

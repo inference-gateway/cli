@@ -20,6 +20,17 @@ type FakeBackgroundTaskRegistry struct {
 	addReturnsOnCall map[int]struct {
 		result1 error
 	}
+	AddSubagentStub        func(*domain.SubagentState) error
+	addSubagentMutex       sync.RWMutex
+	addSubagentArgsForCall []struct {
+		arg1 *domain.SubagentState
+	}
+	addSubagentReturns struct {
+		result1 error
+	}
+	addSubagentReturnsOnCall map[int]struct {
+		result1 error
+	}
 	AddTaskStub        func(string, string)
 	addTaskMutex       sync.RWMutex
 	addTaskArgsForCall []struct {
@@ -59,6 +70,16 @@ type FakeBackgroundTaskRegistry struct {
 		result1 int
 	}
 	countRunningReturnsOnCall map[int]struct {
+		result1 int
+	}
+	CountRunningSubagentsStub        func() int
+	countRunningSubagentsMutex       sync.RWMutex
+	countRunningSubagentsArgsForCall []struct {
+	}
+	countRunningSubagentsReturns struct {
+		result1 int
+	}
+	countRunningSubagentsReturnsOnCall map[int]struct {
 		result1 int
 	}
 	GetStub        func(string) *domain.BackgroundShell
@@ -122,6 +143,16 @@ type FakeBackgroundTaskRegistry struct {
 	}
 	getAllPollingTasksReturnsOnCall map[int]struct {
 		result1 []string
+	}
+	GetAllSubagentsStub        func() []*domain.SubagentState
+	getAllSubagentsMutex       sync.RWMutex
+	getAllSubagentsArgsForCall []struct {
+	}
+	getAllSubagentsReturns struct {
+		result1 []*domain.SubagentState
+	}
+	getAllSubagentsReturnsOnCall map[int]struct {
+		result1 []*domain.SubagentState
 	}
 	GetContextForTaskStub        func(string) string
 	getContextForTaskMutex       sync.RWMutex
@@ -188,6 +219,17 @@ type FakeBackgroundTaskRegistry struct {
 	}
 	getPollingTasksForContextReturnsOnCall map[int]struct {
 		result1 []string
+	}
+	GetSubagentStub        func(string) *domain.SubagentState
+	getSubagentMutex       sync.RWMutex
+	getSubagentArgsForCall []struct {
+		arg1 string
+	}
+	getSubagentReturns struct {
+		result1 *domain.SubagentState
+	}
+	getSubagentReturnsOnCall map[int]struct {
+		result1 *domain.SubagentState
 	}
 	GetTasksForContextStub        func(string) []string
 	getTasksForContextMutex       sync.RWMutex
@@ -264,6 +306,17 @@ type FakeBackgroundTaskRegistry struct {
 	removeContextMutex       sync.RWMutex
 	removeContextArgsForCall []struct {
 		arg1 string
+	}
+	RemoveSubagentStub        func(string) error
+	removeSubagentMutex       sync.RWMutex
+	removeSubagentArgsForCall []struct {
+		arg1 string
+	}
+	removeSubagentReturns struct {
+		result1 error
+	}
+	removeSubagentReturnsOnCall map[int]struct {
+		result1 error
 	}
 	RemoveTaskStub        func(string)
 	removeTaskMutex       sync.RWMutex
@@ -342,6 +395,67 @@ func (fake *FakeBackgroundTaskRegistry) AddReturnsOnCall(i int, result1 error) {
 		})
 	}
 	fake.addReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagent(arg1 *domain.SubagentState) error {
+	fake.addSubagentMutex.Lock()
+	ret, specificReturn := fake.addSubagentReturnsOnCall[len(fake.addSubagentArgsForCall)]
+	fake.addSubagentArgsForCall = append(fake.addSubagentArgsForCall, struct {
+		arg1 *domain.SubagentState
+	}{arg1})
+	stub := fake.AddSubagentStub
+	fakeReturns := fake.addSubagentReturns
+	fake.recordInvocation("AddSubagent", []interface{}{arg1})
+	fake.addSubagentMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagentCallCount() int {
+	fake.addSubagentMutex.RLock()
+	defer fake.addSubagentMutex.RUnlock()
+	return len(fake.addSubagentArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagentCalls(stub func(*domain.SubagentState) error) {
+	fake.addSubagentMutex.Lock()
+	defer fake.addSubagentMutex.Unlock()
+	fake.AddSubagentStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagentArgsForCall(i int) *domain.SubagentState {
+	fake.addSubagentMutex.RLock()
+	defer fake.addSubagentMutex.RUnlock()
+	argsForCall := fake.addSubagentArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagentReturns(result1 error) {
+	fake.addSubagentMutex.Lock()
+	defer fake.addSubagentMutex.Unlock()
+	fake.AddSubagentStub = nil
+	fake.addSubagentReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) AddSubagentReturnsOnCall(i int, result1 error) {
+	fake.addSubagentMutex.Lock()
+	defer fake.addSubagentMutex.Unlock()
+	fake.AddSubagentStub = nil
+	if fake.addSubagentReturnsOnCall == nil {
+		fake.addSubagentReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.addSubagentReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
@@ -566,6 +680,59 @@ func (fake *FakeBackgroundTaskRegistry) CountRunningReturnsOnCall(i int, result1
 		})
 	}
 	fake.countRunningReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningSubagents() int {
+	fake.countRunningSubagentsMutex.Lock()
+	ret, specificReturn := fake.countRunningSubagentsReturnsOnCall[len(fake.countRunningSubagentsArgsForCall)]
+	fake.countRunningSubagentsArgsForCall = append(fake.countRunningSubagentsArgsForCall, struct {
+	}{})
+	stub := fake.CountRunningSubagentsStub
+	fakeReturns := fake.countRunningSubagentsReturns
+	fake.recordInvocation("CountRunningSubagents", []interface{}{})
+	fake.countRunningSubagentsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningSubagentsCallCount() int {
+	fake.countRunningSubagentsMutex.RLock()
+	defer fake.countRunningSubagentsMutex.RUnlock()
+	return len(fake.countRunningSubagentsArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningSubagentsCalls(stub func() int) {
+	fake.countRunningSubagentsMutex.Lock()
+	defer fake.countRunningSubagentsMutex.Unlock()
+	fake.CountRunningSubagentsStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningSubagentsReturns(result1 int) {
+	fake.countRunningSubagentsMutex.Lock()
+	defer fake.countRunningSubagentsMutex.Unlock()
+	fake.CountRunningSubagentsStub = nil
+	fake.countRunningSubagentsReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningSubagentsReturnsOnCall(i int, result1 int) {
+	fake.countRunningSubagentsMutex.Lock()
+	defer fake.countRunningSubagentsMutex.Unlock()
+	fake.CountRunningSubagentsStub = nil
+	if fake.countRunningSubagentsReturnsOnCall == nil {
+		fake.countRunningSubagentsReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.countRunningSubagentsReturnsOnCall[i] = struct {
 		result1 int
 	}{result1}
 }
@@ -901,6 +1068,59 @@ func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasksReturnsOnCall(i int, r
 	}
 	fake.getAllPollingTasksReturnsOnCall[i] = struct {
 		result1 []string
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetAllSubagents() []*domain.SubagentState {
+	fake.getAllSubagentsMutex.Lock()
+	ret, specificReturn := fake.getAllSubagentsReturnsOnCall[len(fake.getAllSubagentsArgsForCall)]
+	fake.getAllSubagentsArgsForCall = append(fake.getAllSubagentsArgsForCall, struct {
+	}{})
+	stub := fake.GetAllSubagentsStub
+	fakeReturns := fake.getAllSubagentsReturns
+	fake.recordInvocation("GetAllSubagents", []interface{}{})
+	fake.getAllSubagentsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetAllSubagentsCallCount() int {
+	fake.getAllSubagentsMutex.RLock()
+	defer fake.getAllSubagentsMutex.RUnlock()
+	return len(fake.getAllSubagentsArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetAllSubagentsCalls(stub func() []*domain.SubagentState) {
+	fake.getAllSubagentsMutex.Lock()
+	defer fake.getAllSubagentsMutex.Unlock()
+	fake.GetAllSubagentsStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetAllSubagentsReturns(result1 []*domain.SubagentState) {
+	fake.getAllSubagentsMutex.Lock()
+	defer fake.getAllSubagentsMutex.Unlock()
+	fake.GetAllSubagentsStub = nil
+	fake.getAllSubagentsReturns = struct {
+		result1 []*domain.SubagentState
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetAllSubagentsReturnsOnCall(i int, result1 []*domain.SubagentState) {
+	fake.getAllSubagentsMutex.Lock()
+	defer fake.getAllSubagentsMutex.Unlock()
+	fake.GetAllSubagentsStub = nil
+	if fake.getAllSubagentsReturnsOnCall == nil {
+		fake.getAllSubagentsReturnsOnCall = make(map[int]struct {
+			result1 []*domain.SubagentState
+		})
+	}
+	fake.getAllSubagentsReturnsOnCall[i] = struct {
+		result1 []*domain.SubagentState
 	}{result1}
 }
 
@@ -1267,6 +1487,67 @@ func (fake *FakeBackgroundTaskRegistry) GetPollingTasksForContextReturnsOnCall(i
 	}
 	fake.getPollingTasksForContextReturnsOnCall[i] = struct {
 		result1 []string
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagent(arg1 string) *domain.SubagentState {
+	fake.getSubagentMutex.Lock()
+	ret, specificReturn := fake.getSubagentReturnsOnCall[len(fake.getSubagentArgsForCall)]
+	fake.getSubagentArgsForCall = append(fake.getSubagentArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.GetSubagentStub
+	fakeReturns := fake.getSubagentReturns
+	fake.recordInvocation("GetSubagent", []interface{}{arg1})
+	fake.getSubagentMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagentCallCount() int {
+	fake.getSubagentMutex.RLock()
+	defer fake.getSubagentMutex.RUnlock()
+	return len(fake.getSubagentArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagentCalls(stub func(string) *domain.SubagentState) {
+	fake.getSubagentMutex.Lock()
+	defer fake.getSubagentMutex.Unlock()
+	fake.GetSubagentStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagentArgsForCall(i int) string {
+	fake.getSubagentMutex.RLock()
+	defer fake.getSubagentMutex.RUnlock()
+	argsForCall := fake.getSubagentArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagentReturns(result1 *domain.SubagentState) {
+	fake.getSubagentMutex.Lock()
+	defer fake.getSubagentMutex.Unlock()
+	fake.GetSubagentStub = nil
+	fake.getSubagentReturns = struct {
+		result1 *domain.SubagentState
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) GetSubagentReturnsOnCall(i int, result1 *domain.SubagentState) {
+	fake.getSubagentMutex.Lock()
+	defer fake.getSubagentMutex.Unlock()
+	fake.GetSubagentStub = nil
+	if fake.getSubagentReturnsOnCall == nil {
+		fake.getSubagentReturnsOnCall = make(map[int]struct {
+			result1 *domain.SubagentState
+		})
+	}
+	fake.getSubagentReturnsOnCall[i] = struct {
+		result1 *domain.SubagentState
 	}{result1}
 }
 
@@ -1691,6 +1972,67 @@ func (fake *FakeBackgroundTaskRegistry) RemoveContextArgsForCall(i int) string {
 	defer fake.removeContextMutex.RUnlock()
 	argsForCall := fake.removeContextArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagent(arg1 string) error {
+	fake.removeSubagentMutex.Lock()
+	ret, specificReturn := fake.removeSubagentReturnsOnCall[len(fake.removeSubagentArgsForCall)]
+	fake.removeSubagentArgsForCall = append(fake.removeSubagentArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.RemoveSubagentStub
+	fakeReturns := fake.removeSubagentReturns
+	fake.recordInvocation("RemoveSubagent", []interface{}{arg1})
+	fake.removeSubagentMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagentCallCount() int {
+	fake.removeSubagentMutex.RLock()
+	defer fake.removeSubagentMutex.RUnlock()
+	return len(fake.removeSubagentArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagentCalls(stub func(string) error) {
+	fake.removeSubagentMutex.Lock()
+	defer fake.removeSubagentMutex.Unlock()
+	fake.RemoveSubagentStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagentArgsForCall(i int) string {
+	fake.removeSubagentMutex.RLock()
+	defer fake.removeSubagentMutex.RUnlock()
+	argsForCall := fake.removeSubagentArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagentReturns(result1 error) {
+	fake.removeSubagentMutex.Lock()
+	defer fake.removeSubagentMutex.Unlock()
+	fake.RemoveSubagentStub = nil
+	fake.removeSubagentReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) RemoveSubagentReturnsOnCall(i int, result1 error) {
+	fake.removeSubagentMutex.Lock()
+	defer fake.removeSubagentMutex.Unlock()
+	fake.RemoveSubagentStub = nil
+	if fake.removeSubagentReturnsOnCall == nil {
+		fake.removeSubagentReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.removeSubagentReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeBackgroundTaskRegistry) RemoveTask(arg1 string) {

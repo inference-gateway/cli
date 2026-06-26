@@ -268,7 +268,7 @@ tools:
        - Supports full regex syntax (e.g., "log.*Error", "function\s+\w+")
        - Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
        - Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
-       - Use Task tool for open-ended searches requiring multiple rounds
+       - Use the Agent tool for open-ended searches requiring multiple rounds
        - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\{\}` to find `any` in Go code)
        - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \{[\s\S]*?field`, use `multiline: true`
   Tree:
@@ -375,8 +375,23 @@ tools:
       For one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.
 
       The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.
+  Agent:
+    description: |-
+      Spawn local subagents - each an autonomous "infer agent" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
+
+      Provide either 'tasks' (an array of {description, label?, model?} objects) to run several subagents at once, or 'description' for a single subagent.
+
+      Modes:
+      - headless (default): the subagent runs in the background.
+      - interactive: the subagent runs in a live tmux pane you can watch (falls back to headless when not inside tmux).
+
+      Result delivery:
+      - By default (wait=false) the tool returns IMMEDIATELY and you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll or wait manually; just continue and the results will appear in the conversation.
+      - Set wait=true to block until all subagents finish and receive their aggregated results in one response (classic fan-out / fan-in).
+
+      Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.
   A2A_QueryAgent:
-    description: Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Task tool instead.
+    description: Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.
   A2A_QueryTask:
     description: 'Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification.'
   A2A_SubmitTask:

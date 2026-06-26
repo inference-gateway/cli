@@ -1,13 +1,10 @@
 package scheduler
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +15,7 @@ import (
 	uuid "github.com/google/uuid"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 
 	fsnotify "github.com/fsnotify/fsnotify"
 	cron "github.com/robfig/cron/v3"
@@ -314,45 +312,24 @@ func (s *Service) persistRun(job *domain.ScheduledJob) {
 	}
 }
 
-// runAgent spawns `infer agent --session-id <new-uuid> <prompt>` and forwards
-// each formatted assistant line through sendFn.
+// runAgent spawns `infer agent --session-id <new-uuid> <prompt>` (via the shared
+// agentrunner) and forwards each formatted assistant line through sendFn.
 func (s *Service) runAgent(ctx context.Context, job domain.ScheduledJob, sendFn func(string)) error {
-	sessionID := uuid.New().String()
-	args := []string{"agent", "--session-id", sessionID}
-	if job.Model != "" {
-		args = append(args, "--model", job.Model)
-	}
-	args = append(args, job.Prompt)
-
-	cmd := s.execCmd(ctx, s.binaryPath, args...)
-	cmd.Env = os.Environ()
-
-	stdout, err := cmd.StdoutPipe()
+	res, err := agentrunner.Run(ctx, agentrunner.Options{
+		BinaryPath: s.binaryPath,
+		Exec:       s.execCmd,
+		SessionID:  uuid.New().String(),
+		Prompt:     job.Prompt,
+		Model:      job.Model,
+		OnLine: func(line []byte) {
+			if msg := formatAgentLine(line); msg != "" {
+				sendFn(msg)
+			}
+		},
+	})
 	if err != nil {
-		return fmt.Errorf("stdout pipe: %w", err)
-	}
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start agent: %w", err)
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-		if msg := formatAgentLine(line); msg != "" {
-			sendFn(msg)
-		}
-	}
-
-	if err := cmd.Wait(); err != nil {
-		if stderrBuf.Len() > 0 {
-			return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderrBuf.String()))
+		if res.Stderr != "" {
+			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))
 		}
 		return err
 	}

@@ -515,6 +515,13 @@ func isDomainEvent(msg tea.Msg) bool {
 		domain.A2ATaskInputRequiredEvent:
 		return true
 
+	// Local subagents (Agent tool)
+	case domain.SubagentSubmittedEvent,
+		domain.SubagentStatusUpdateEvent,
+		domain.SubagentCompletedEvent,
+		domain.SubagentFailedEvent:
+		return true
+
 	// Other domain events
 	case domain.MessageQueuedEvent,
 		domain.ToolCancelledEvent,

@@ -88,6 +88,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.WebFetch, &defaults.WebFetch)
 	mergeToolDescription(&loaded.WebSearch, &defaults.WebSearch)
 	mergeToolDescription(&loaded.Schedule, &defaults.Schedule)
+	mergeToolDescription(&loaded.Agent, &defaults.Agent)
 	mergeToolDescription(&loaded.A2AQueryAgent, &defaults.A2AQueryAgent)
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
 	mergeToolDescription(&loaded.A2ASubmitTask, &defaults.A2ASubmitTask)
@@ -193,6 +194,7 @@ type PromptsToolsConfig struct {
 	WebFetch            PromptsToolDescription `yaml:"WebFetch" mapstructure:"WebFetch"`
 	WebSearch           PromptsToolDescription `yaml:"WebSearch" mapstructure:"WebSearch"`
 	Schedule            PromptsToolDescription `yaml:"Schedule" mapstructure:"Schedule"`
+	Agent               PromptsToolDescription `yaml:"Agent" mapstructure:"Agent"`
 	A2AQueryAgent       PromptsToolDescription `yaml:"A2A_QueryAgent" mapstructure:"A2A_QueryAgent"`
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
 	A2ASubmitTask       PromptsToolDescription `yaml:"A2A_SubmitTask" mapstructure:"A2A_SubmitTask"`
@@ -482,7 +484,7 @@ If you want to create a new file, use:
 			Description: `Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.`,
 		},
 		Grep: PromptsToolDescription{
-			Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use Task tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+			Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use the Agent tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		},
 		Tree: PromptsToolDescription{
 			Description: `Display directory structure in a tree format, similar to the Unix tree command`,
@@ -591,8 +593,23 @@ For one-off jobs, build a cron expression that pinpoints the exact moment (use t
 
 The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.`,
 		},
+		Agent: PromptsToolDescription{
+			Description: `Spawn local subagents - each an autonomous "infer agent" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
+
+Provide either 'tasks' (an array of {description, label?, model?} objects) to run several subagents at once, or 'description' for a single subagent.
+
+Modes:
+- headless (default): the subagent runs in the background.
+- interactive: the subagent runs in a live tmux pane you can watch (falls back to headless when not inside tmux).
+
+Result delivery:
+- By default (wait=false) the tool returns IMMEDIATELY and you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll or wait manually; just continue and the results will appear in the conversation.
+- Set wait=true to block until all subagents finish and receive their aggregated results in one response (classic fan-out / fan-in).
+
+Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.`,
+		},
 		A2AQueryAgent: PromptsToolDescription{
-			Description: `Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Task tool instead.`,
+			Description: `Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.`,
 		},
 		A2AQueryTask: PromptsToolDescription{
 			Description: `Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification.`,

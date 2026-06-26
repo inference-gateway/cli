@@ -566,10 +566,19 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		go poller.Start(sessionCtx)
 	}
 
+	var subagentPoller *services.SubagentPoller
+	if s.bgRegistry != nil {
+		subagentPoller = services.NewSubagentPoller(s.bgRegistry, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
+		go subagentPoller.Start(sessionCtx)
+	}
+
 	go func() {
 		defer func() {
 			if poller != nil {
 				poller.Stop()
+			}
+			if subagentPoller != nil {
+				subagentPoller.Stop()
 			}
 			close(chatEvents)
 			s.sessionMux.Lock()
@@ -595,6 +604,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 		if poller != nil {
 			poller.SetAgentEventChannel(agent.Events())
+		}
+		if subagentPoller != nil {
+			subagentPoller.SetAgentEventChannel(agent.Events())
 		}
 
 		agent.Start()

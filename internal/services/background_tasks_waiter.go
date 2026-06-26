@@ -29,16 +29,18 @@ type DrainedMessage struct {
 //
 // This is the batch-mode counterpart to chat mode's CheckingQueueState.
 type BackgroundTasksWaiter struct {
-	cfg          *config.Config
-	registry     domain.BackgroundTaskRegistry
-	messageQueue domain.MessageQueue
-	poller       *A2ATaskPoller
-	enabled      bool
+	cfg            *config.Config
+	registry       domain.BackgroundTaskRegistry
+	messageQueue   domain.MessageQueue
+	poller         *A2ATaskPoller
+	subagentPoller *SubagentPoller
+	enabled        bool
 }
 
-// NewBackgroundTasksWaiter constructs a waiter. If A2A tools are disabled or
-// either of the underlying services is nil, the returned waiter is a no-op
-// for every method, so callers can use it unconditionally.
+// NewBackgroundTasksWaiter constructs a waiter. If both A2A tools and the Agent
+// tool are disabled, or either of the underlying services is nil, the returned
+// waiter is a no-op for every method, so callers can use it unconditionally.
+// A poller is started per enabled producer (A2A tasks and/or local subagents).
 func NewBackgroundTasksWaiter(
 	cfg *config.Config,
 	sessionID string,
@@ -52,36 +54,47 @@ func NewBackgroundTasksWaiter(
 		messageQueue: messageQueue,
 	}
 
-	if !cfg.IsA2AToolsEnabled() || registry == nil || messageQueue == nil {
+	if registry == nil || messageQueue == nil {
 		return w
 	}
 
-	w.enabled = true
-	w.poller = NewA2ATaskPoller(
-		registry,
-		nil,
-		messageQueue,
-		sessionID,
-		conversationRepo,
-	)
+	if cfg.IsA2AToolsEnabled() {
+		w.enabled = true
+		w.poller = NewA2ATaskPoller(registry, nil, messageQueue, sessionID, conversationRepo)
+	}
+
+	if cfg.IsAgentToolEnabled() {
+		w.enabled = true
+		w.subagentPoller = NewSubagentPoller(registry, nil, messageQueue, sessionID, conversationRepo)
+	}
 
 	return w
 }
 
-// Start launches the A2A polling goroutine. No-op if A2A is disabled.
+// Start launches the background polling goroutines. No-op when disabled.
 func (w *BackgroundTasksWaiter) Start(ctx context.Context) {
 	if !w.enabled {
 		return
 	}
-	go w.poller.Start(ctx)
+	if w.poller != nil {
+		go w.poller.Start(ctx)
+	}
+	if w.subagentPoller != nil {
+		go w.subagentPoller.Start(ctx)
+	}
 }
 
-// Stop terminates the A2A polling goroutine. No-op if A2A is disabled.
+// Stop terminates the background polling goroutines. No-op when disabled.
 func (w *BackgroundTasksWaiter) Stop() {
 	if !w.enabled {
 		return
 	}
-	w.poller.Stop()
+	if w.poller != nil {
+		w.poller.Stop()
+	}
+	if w.subagentPoller != nil {
+		w.subagentPoller.Stop()
+	}
 }
 
 // HasPendingTasks reports whether any background work is still in flight.

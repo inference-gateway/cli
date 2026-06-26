@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -147,6 +148,14 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleA2ATaskFailedEvent(m)
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
+	case domain.SubagentSubmittedEvent:
+		return h.HandleSubagentSubmittedEvent(m)
+	case domain.SubagentStatusUpdateEvent:
+		return h.HandleSubagentStatusUpdateEvent(m)
+	case domain.SubagentCompletedEvent:
+		return h.HandleSubagentCompletedEvent(m)
+	case domain.SubagentFailedEvent:
+		return h.HandleSubagentFailedEvent(m)
 	case domain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
 	case domain.ToolCancelledEvent:
@@ -350,6 +359,56 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 	_ domain.MessageQueuedEvent,
 ) tea.Cmd {
 	return h.handleMessageQueued()
+}
+
+// HandleSubagentSubmittedEvent surfaces a "running" status for a dispatched subagent.
+func (h *ChatHandler) HandleSubagentSubmittedEvent(msg domain.SubagentSubmittedEvent) tea.Cmd {
+	return h.subagentStatus(fmt.Sprintf("Subagent %s running...", labelOrID(msg.Label, msg.SubagentID)), true)
+}
+
+// HandleSubagentStatusUpdateEvent surfaces a subagent progress update.
+func (h *ChatHandler) HandleSubagentStatusUpdateEvent(msg domain.SubagentStatusUpdateEvent) tea.Cmd {
+	message := msg.Message
+	if message == "" {
+		message = fmt.Sprintf("Subagent %s: %s", labelOrID(msg.Label, msg.SubagentID), msg.Status)
+	}
+	return h.subagentStatus(message, true)
+}
+
+// HandleSubagentCompletedEvent surfaces subagent completion. The result itself
+// lands in the conversation via the queued message.
+func (h *ChatHandler) HandleSubagentCompletedEvent(msg domain.SubagentCompletedEvent) tea.Cmd {
+	return h.subagentStatus(fmt.Sprintf("Subagent %s completed", labelOrID(msg.Label, msg.SubagentID)), false)
+}
+
+// HandleSubagentFailedEvent surfaces subagent failure.
+func (h *ChatHandler) HandleSubagentFailedEvent(msg domain.SubagentFailedEvent) tea.Cmd {
+	return h.subagentStatus(fmt.Sprintf("Subagent %s failed", labelOrID(msg.Label, msg.SubagentID)), false)
+}
+
+// subagentStatus emits a status line and re-arms the chat event listener so the
+// event loop keeps pumping (these events arrive on the chat event channel).
+func (h *ChatHandler) subagentStatus(message string, spinner bool) tea.Cmd {
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    message,
+				Spinner:    spinner,
+				StatusType: domain.StatusProcessing,
+			}
+		},
+	}
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
+	}
+	return tea.Sequence(cmds...)
+}
+
+func labelOrID(label, id string) string {
+	if label != "" {
+		return label
+	}
+	return id
 }
 
 func (h *ChatHandler) HandleToolCancelledEvent(

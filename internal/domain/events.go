@@ -202,6 +202,55 @@ type A2ATaskInputRequiredEvent struct {
 func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// SubagentSubmittedEvent indicates a local subagent was dispatched
+type SubagentSubmittedEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	SubagentID string
+	Label      string
+}
+
+func (e SubagentSubmittedEvent) GetRequestID() string    { return e.RequestID }
+func (e SubagentSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// SubagentStatusUpdateEvent indicates a local subagent status update
+type SubagentStatusUpdateEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	SubagentID string
+	Label      string
+	Status     string
+	Message    string
+}
+
+func (e SubagentStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
+func (e SubagentStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// SubagentCompletedEvent indicates a local subagent completed successfully
+type SubagentCompletedEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	SubagentID string
+	Label      string
+	Result     ToolExecutionResult
+}
+
+func (e SubagentCompletedEvent) GetRequestID() string    { return e.RequestID }
+func (e SubagentCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// SubagentFailedEvent indicates a local subagent failed
+type SubagentFailedEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	SubagentID string
+	Label      string
+	Result     ToolExecutionResult
+	Error      string
+}
+
+func (e SubagentFailedEvent) GetRequestID() string    { return e.RequestID }
+func (e SubagentFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
 // MessageQueuedEvent indicates a message was received from the queue and stored
 type MessageQueuedEvent struct {
 	RequestID string

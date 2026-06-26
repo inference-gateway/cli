@@ -558,10 +558,11 @@ type A2ATaskTracker interface {
 type BackgroundTaskRegistry interface {
 	A2ATaskTracker
 	ShellTracker
+	SubagentTracker
 
 	// HasPending reports whether *any* background work is still in flight,
 	// regardless of type. True when there is at least one A2A task being
-	// polled OR at least one running background shell.
+	// polled, one running background shell, OR one running local subagent.
 	HasPending() bool
 }
 
