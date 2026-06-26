@@ -95,9 +95,9 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
 	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
 	tool.interactiveAvailable = func() bool { return false }
-	tool.launchPane = func(ctx context.Context, title, command string) error {
+	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")
-		return nil
+		return "", nil
 	}
 	var headlessUsed bool
 	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {

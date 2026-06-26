@@ -63,7 +63,7 @@ type AgentTool struct {
 	// Injection points for tests; default to real implementations.
 	runHeadless          func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
 	interactiveAvailable func() bool
-	launchPane           func(ctx context.Context, title, command string) error
+	launchPane           func(ctx context.Context, title, command string) (string, error)
 }
 
 // NewAgentTool creates the Agent tool. tracker must be the session's
@@ -336,45 +336,71 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	return answer, err
 }
 
-// executeInteractive launches the subagent in a tmux pane and harvests its
-// result from the --result-file the subagent writes on exit.
-func (t *AgentTool) executeInteractive(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, error) {
-	resultFile := subagentResultFilePath(sessionID)
-	_ = os.Remove(resultFile)
-
-	command := t.buildPaneCommand(spec, sessionID, resultFile)
+// executeInteractive launches a live `infer chat` subagent in a tmux pane and
+// types the task into it via stdin (tmux send-keys). It is fire-and-watch:
+// `infer chat` is interactive and gives no completion signal, so there is no
+// automatic result harvest - the user watches and drives the side-chat.
+func (t *AgentTool) executeInteractive(ctx context.Context, spec AgentTaskSpec, _ string) (string, error) {
 	title := spec.Label
 	if title == "" {
 		title = "subagent"
 	}
-	if err := t.launchPane(ctx, title, command); err != nil {
+	paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec))
+	if err != nil {
 		return "", fmt.Errorf("failed to open tmux pane: %w", err)
 	}
-	return harvestResultFile(ctx, resultFile)
+	if err := t.sendTaskToPane(ctx, paneID, spec.Description); err != nil {
+		logger.Warn("failed to send task to interactive subagent pane", "pane", paneID, "error", err)
+	}
+	return fmt.Sprintf("Launched an interactive chat subagent in tmux pane %s and typed in the task: %q. Watch and interact with it in the pane.", paneID, spec.Description), nil
 }
 
-// buildPaneCommand assembles the shell command run inside the tmux pane.
-func (t *AgentTool) buildPaneCommand(spec AgentTaskSpec, sessionID, resultFile string) string {
-	parts := []string{
-		fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1),
-		shellQuote(t.binary), "agent",
-		"--session-id", shellQuote(sessionID),
-		"--result-file", shellQuote(resultFile),
-	}
+// buildChatPaneCommand assembles the shell command run inside the tmux pane: a
+// live `infer chat` using the parent model (via INFER_AGENT_MODEL so no model
+// dropdown appears) plus the depth guard.
+func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec) string {
+	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	if spec.Model != "" {
-		parts = append(parts, "--model", shellQuote(spec.Model))
+		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
-	for _, f := range spec.Files {
-		parts = append(parts, "--files", shellQuote(f))
-	}
-	parts = append(parts, shellQuote(spec.Description))
+	parts = append(parts, shellQuote(t.binary), "chat")
 	return strings.Join(parts, " ")
+}
+
+// sendTaskToPane waits for the chat TUI to be ready, then types the task into
+// the pane and presses Enter (via tmux send-keys).
+func (t *AgentTool) sendTaskToPane(ctx context.Context, paneID, task string) error {
+	if paneID == "" {
+		return nil
+	}
+	t.waitForPaneReady(ctx, paneID)
+	if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "-l", task).Run(); err != nil {
+		return err
+	}
+	return exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "Enter").Run()
+}
+
+// waitForPaneReady polls the pane content until the chat input prompt appears
+// (or a timeout), so the task isn't typed before the TUI is listening.
+func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
+		if err == nil && strings.Contains(string(out), "Type your message") {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // launchTmuxPane opens a new tmux pane/window running command. It returns once
 // the pane is created; the pane keeps running the subagent and, via
 // remain-on-exit, stays open after it finishes so its output remains readable.
-func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) error {
+func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (string, error) {
 	args := []string{"split-window", "-v"}
 	switch strings.TrimSpace(t.config.Tools.Agent.Interactive.Layout) {
 	case "horizontal":
@@ -386,17 +412,17 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) e
 	args = append(args, "-P", "-F", "#{pane_id}", command)
 	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
 	if err != nil {
-		return err
+		return "", err
 	}
 	paneID := strings.TrimSpace(string(out))
 	if paneID == "" {
-		return nil
+		return "", nil
 	}
 	// Keep the pane open after the subagent exits, and label it. Best-effort:
 	// older tmux may not support a per-pane remain-on-exit / title.
 	_ = exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", paneID, "remain-on-exit", "on").Run()
 	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-t", paneID, "-T", title).Run()
-	return nil
+	return paneID, nil
 }
 
 // subagentResultFilePath is the temp path a subagent writes its outcome to.
@@ -416,31 +442,6 @@ func readSubagentResultFile(path string) (domain.SubagentResultFile, bool) {
 		return domain.SubagentResultFile{}, false
 	}
 	return rf, true
-}
-
-// harvestResultFile waits for the subagent's result file to appear, then reads
-// and parses it. Honors ctx cancellation.
-func harvestResultFile(ctx context.Context, path string) (string, error) {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if data, err := os.ReadFile(path); err == nil {
-			var rf domain.SubagentResultFile
-			if jErr := json.Unmarshal(data, &rf); jErr != nil {
-				return "", fmt.Errorf("malformed subagent result file: %w", jErr)
-			}
-			_ = os.Remove(path)
-			if !rf.Success && rf.Error != "" {
-				return rf.FinalAssistant, fmt.Errorf("%s", rf.Error)
-			}
-			return rf.FinalAssistant, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-ticker.C:
-		}
-	}
 }
 
 // Validate checks the tool arguments.
