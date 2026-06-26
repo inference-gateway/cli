@@ -109,11 +109,6 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 						"type":        "string",
 						"description": "Shorthand for a single subagent task (alternative to tasks)",
 					},
-					"mode": map[string]any{
-						"type":        "string",
-						"description": "headless (background) or interactive (live tmux pane). Defaults to config.",
-						"enum":        []string{"headless", "interactive"},
-					},
 					"wait": map[string]any{
 						"type":        "boolean",
 						"description": "If true (default), block until all subagents finish and return aggregated results. If false, dispatch and get notified on completion.",
@@ -142,7 +137,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	mode := t.resolveMode(args)
+	mode := t.resolveMode()
 	wait := t.resolveWait(args)
 
 	var notes []string
@@ -466,12 +461,14 @@ func (t *AgentTool) maxParallel() int {
 	return 1
 }
 
-func (t *AgentTool) resolveMode(args map[string]any) string {
-	if m, ok := args["mode"].(string); ok && m != "" {
-		return m
-	}
-	if t.config.Tools.Agent.Mode != "" {
-		return t.config.Tools.Agent.Mode
+// resolveMode returns the subagent surface from config (tools.agent.mode).
+// Mode is an environment decision (interactive needs a tmux session), not a
+// per-task LLM choice, so it is config-driven and intentionally NOT an LLM
+// parameter - otherwise the model overrides the operator's config.
+func (t *AgentTool) resolveMode() string {
+	mode := strings.TrimSpace(t.config.Tools.Agent.Mode)
+	if mode == domain.SubagentModeInteractive {
+		return domain.SubagentModeInteractive
 	}
 	return domain.SubagentModeHeadless
 }

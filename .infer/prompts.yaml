@@ -381,9 +381,7 @@ tools:
 
       Provide either 'tasks' (an array of {description, label?, model?} objects) to run several subagents at once, or 'description' for a single subagent.
 
-      Modes:
-      - headless (default): the subagent runs in the background.
-      - interactive: the subagent runs in a live tmux pane you can watch (falls back to headless when not inside tmux).
+      The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
       Result delivery:
       - By default (wait=true) the tool BLOCKS until all subagents finish and returns their aggregated results in one response (classic fan-out / fan-in); their live progress is shown while you wait.

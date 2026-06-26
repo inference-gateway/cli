@@ -90,7 +90,10 @@ func TestAgentTool_SyncFanOut(t *testing.T) {
 }
 
 func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
-	tool := newTestAgentTool(t)
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) error {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")
@@ -102,7 +105,7 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 		return agentrunner.Result{FinalAssistant: "ok"}, nil
 	}
 
-	args := map[string]any{"wait": true, "mode": "interactive", "description": "do x"}
+	args := map[string]any{"wait": true, "description": "do x"}
 	if _, err := tool.Execute(context.Background(), args); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -112,13 +115,14 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 }
 
 func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Tools.Agent.Interactive.Fallback = "error"
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Agent.Mode = "interactive"
+	cfg.Tools.Agent.Interactive.Fallback = "error"
 	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
 	tool.interactiveAvailable = func() bool { return false }
 
-	args := map[string]any{"wait": true, "mode": "interactive", "description": "do x"}
+	args := map[string]any{"wait": true, "description": "do x"}
 	res, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
