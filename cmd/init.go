@@ -179,9 +179,9 @@ plans/
 	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
 		content := envExampleContent()
 		if err := os.WriteFile(envExamplePath, []byte(content), 0644); err != nil {
-				fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
+			fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
 		} else {
-				envExampleCreated = true
+			envExampleCreated = true
 		}
 	}
 
@@ -211,7 +211,7 @@ plans/
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
 	if envExampleCreated {
-			fmt.Printf("   Created: %s\n", envExamplePath)
+		fmt.Printf("   Created: %s\n", envExamplePath)
 	}
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
