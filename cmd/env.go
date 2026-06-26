@@ -88,14 +88,12 @@ func createEnvExample(cmd *cobra.Command) error {
 
 	envExamplePath := envExampleFileName
 
-	// Check if .env.example already exists
 	if !overwrite {
 		if _, err := os.Stat(envExamplePath); err == nil {
 			return fmt.Errorf("%s already exists (use --overwrite to replace)", envExamplePath)
 		}
 	}
 
-	// Create .env.example
 	content := envExampleContent()
 	if err := os.WriteFile(envExamplePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to create %s file: %w", envExampleFileName, err)
@@ -130,12 +128,10 @@ func ensureEnvInGitignore() error {
 		return nil
 	}
 
-	// .gitignore exists, check if .env is already in it
 	data, err := os.ReadFile(gitignorePath)
 	if err != nil {
 		return fmt.Errorf("failed to read .gitignore: %w", err)
 	}
-	// Check if .env is already listed (exact line match, trimmed)
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.TrimSpace(line) == ".env" {
 			return nil

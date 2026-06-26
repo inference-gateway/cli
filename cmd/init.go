@@ -179,9 +179,6 @@ plans/
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
-	// Create .env.example with provider API keys (non-fatal if it already exists).
-	// Note: --overwrite does NOT affect .env.example; it is always created only
-	// when absent, to avoid silently overwriting a user's customized file.
 	envExampleCreated := false
 	envExamplePath := envExampleFileName
 	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
@@ -193,7 +190,6 @@ plans/
 		}
 	}
 
-	// Ensure .env is in the root .gitignore (same safety as `infer env`)
 	if envExampleCreated {
 		if err := ensureEnvInGitignore(); err != nil {
 			fmt.Printf("%s Warning: failed to add .env to .gitignore: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)

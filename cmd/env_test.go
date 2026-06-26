@@ -11,17 +11,14 @@ import (
 func TestEnvExampleContent(t *testing.T) {
 	content := envExampleContent()
 
-	// Check that it contains the header
 	if !strings.Contains(content, "# Inference Gateway Environment Variables") {
 		t.Errorf("envExampleContent() should contain header")
 	}
 
-	// Check that it contains the cp hint
 	if !strings.Contains(content, "cp .env.example .env") {
 		t.Errorf("envExampleContent() should contain cp hint")
 	}
 
-	// Check that it contains all expected provider API keys
 	expectedVars := []string{
 		"ANTHROPIC_API_KEY=",
 		"OPENAI_API_KEY=",
@@ -50,7 +47,7 @@ func TestEnvExampleContent(t *testing.T) {
 func TestCreateEnvExample(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupFiles     map[string]string // files to create before test
+		setupFiles     map[string]string
 		overwrite      bool
 		wantErr        bool
 		errContains    string
@@ -102,7 +99,6 @@ func TestCreateEnvExample(t *testing.T) {
 				t.Fatalf("failed to change to temp dir: %v", err)
 			}
 
-			// Setup pre-existing files
 			for path, content := range tt.setupFiles {
 				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 					t.Fatalf("failed to create setup file %s: %v", path, err)
@@ -166,7 +162,6 @@ func TestCreateEnvExampleCreatesGitignore(t *testing.T) {
 		t.Fatalf("createEnvExample() error = %v", err)
 	}
 
-	// Check that .gitignore was created with .env entry
 	gitignoreContent, err := os.ReadFile(".gitignore")
 	if err != nil {
 		t.Fatalf("expected .gitignore to be created, but got error: %v", err)
@@ -194,7 +189,6 @@ func TestCreateEnvExampleWithExistingGitignore(t *testing.T) {
 		t.Fatalf("failed to change to temp dir: %v", err)
 	}
 
-	// Create a .gitignore without .env
 	if err := os.WriteFile(".gitignore", []byte("*.log\n"), 0644); err != nil {
 		t.Fatalf("failed to create .gitignore: %v", err)
 	}
@@ -208,7 +202,6 @@ func TestCreateEnvExampleWithExistingGitignore(t *testing.T) {
 		t.Fatalf("createEnvExample() error = %v", err)
 	}
 
-	// Check that .env was added to .gitignore
 	gitignoreContent, err := os.ReadFile(".gitignore")
 	if err != nil {
 		t.Fatalf("expected .gitignore to exist, but got error: %v", err)
@@ -222,7 +215,6 @@ func TestCreateEnvExampleWithExistingGitignore(t *testing.T) {
 func TestEnvExampleContentFormat(t *testing.T) {
 	content := envExampleContent()
 
-	// Each line should either be empty, a comment, or a KEY= format
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
