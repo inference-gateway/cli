@@ -603,8 +603,8 @@ Modes:
 - interactive: the subagent runs in a live tmux pane you can watch (falls back to headless when not inside tmux).
 
 Result delivery:
-- By default (wait=false) the tool returns IMMEDIATELY and you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll or wait manually; just continue and the results will appear in the conversation.
-- Set wait=true to block until all subagents finish and receive their aggregated results in one response (classic fan-out / fan-in).
+- By default (wait=true) the tool BLOCKS until all subagents finish and returns their aggregated results in one response (classic fan-out / fan-in); their live progress is shown while you wait.
+- Set wait=false to instead dispatch and continue immediately; you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll, the results appear in the conversation.
 
 Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.`,
 		},

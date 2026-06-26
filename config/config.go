@@ -787,7 +787,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
 				Mode:            "headless",
-				Wait:            false,
+				Wait:            true,
 				MaxParallel:     4,
 				MaxDepth:        1,
 				Interactive: AgentInteractiveConfig{

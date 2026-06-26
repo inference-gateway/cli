@@ -91,9 +91,9 @@ func (p *SubagentPoller) checkForNewSubagents(ctx context.Context) {
 		return
 	}
 	for _, state := range p.tracker.GetAllSubagents() {
-		if state.Status != domain.SubagentRunning {
-			continue
-		}
+		// Monitor any tracked subagent not already being watched - including
+		// one that already completed (its result is buffered on ResultChan),
+		// so fast subagents are still surfaced and cleaned up rather than leaked.
 		p.mu.RLock()
 		_, monitoring := p.activeMonitors[state.ID]
 		p.mu.RUnlock()
@@ -154,7 +154,12 @@ func (p *SubagentPoller) finish(state *domain.SubagentState, result *domain.Tool
 		result = &domain.ToolExecutionResult{ToolName: "Agent", Success: false, Error: "subagent produced no result"}
 	}
 
-	p.addResultToMessageQueue(state, result)
+	// Silent (synchronous wait-all) subagents are tracked only to drive the
+	// live tree; the Agent tool returns their aggregated result directly, so
+	// don't also inject it onto the conversation queue.
+	if !state.Silent {
+		p.addResultToMessageQueue(state, result)
+	}
 	p.emitCompletion(state, result)
 	_ = p.tracker.RemoveSubagent(state.ID)
 }

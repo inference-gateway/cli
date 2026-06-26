@@ -162,7 +162,7 @@ tools:
     enabled: true
     require_approval: true
     mode: headless
-    wait: false
+    wait: true
     max_parallel: 4
     max_depth: 1
     interactive:

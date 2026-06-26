@@ -36,6 +36,10 @@ type SubagentState struct {
 	CancelFunc  context.CancelFunc
 	ResultChan  chan *ToolExecutionResult
 	ErrorChan   chan error
+	// Silent suppresses injecting the result onto the conversation queue. Used
+	// by synchronous (wait-all) runs where the tool returns the aggregated
+	// result directly - the subagent is tracked only to drive the live tree.
+	Silent bool
 }
 
 // SubagentResultFile is the JSON written by `infer agent --result-file` on exit

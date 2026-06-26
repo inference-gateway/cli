@@ -116,7 +116,7 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 					},
 					"wait": map[string]any{
 						"type":        "boolean",
-						"description": "If true, block until all subagents finish and return aggregated results. If false (default), dispatch and get notified on completion.",
+						"description": "If true (default), block until all subagents finish and return aggregated results. If false, dispatch and get notified on completion.",
 					},
 				},
 			},
@@ -179,13 +179,46 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 	results := make([]AgentSubResult, len(specs))
 	var wg sync.WaitGroup
 	for i, spec := range specs {
+		// Track each subagent (silent: visibility only) so the live tree shows
+		// it running while we block here for the aggregated result.
+		state := &domain.SubagentState{
+			ID:          uuid.New().String(),
+			Label:       spec.Label,
+			Description: spec.Description,
+			Model:       spec.Model,
+			Mode:        mode,
+			SessionID:   newSubagentSessionID(parentSession),
+			Status:      domain.SubagentRunning,
+			StartedAt:   time.Now(),
+			Silent:      true,
+			ResultChan:  make(chan *domain.ToolExecutionResult, 1),
+			ErrorChan:   make(chan error, 1),
+		}
+		_ = t.tracker.AddSubagent(state)
+
 		wg.Add(1)
-		go func(i int, spec AgentTaskSpec) {
+		go func(i int, spec AgentTaskSpec, state *domain.SubagentState) {
 			defer wg.Done()
-			sessionID := newSubagentSessionID(parentSession)
-			answer, err := t.executeOne(ctx, spec, sessionID, mode)
-			results[i] = toSubResult(spec, sessionID, answer, err)
-		}(i, spec)
+			answer, err := t.executeOne(ctx, spec, state.SessionID, mode)
+			sub := toSubResult(spec, state.SessionID, answer, err)
+			results[i] = sub
+			state.Status = domain.SubagentCompleted
+			if !sub.Success {
+				state.Status = domain.SubagentFailed
+			}
+			// Signal the poller so the tree row flips to done/failed and is
+			// cleaned up (Silent => no duplicate conversation message).
+			select {
+			case state.ResultChan <- &domain.ToolExecutionResult{
+				ToolName: "Agent",
+				Success:  sub.Success,
+				Error:    sub.Error,
+				Duration: time.Since(state.StartedAt),
+				Data:     sub,
+			}:
+			default:
+			}
+		}(i, spec, state)
 	}
 	wg.Wait()
 
