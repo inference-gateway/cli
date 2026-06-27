@@ -57,6 +57,17 @@ type FakeApprovalCoordinator struct {
 		result1 tea.Cmd
 		result2 bool
 	}
+	HandleUserQuestionRequestedStub        func(domain.UserQuestionRequestedEvent) tea.Cmd
+	handleUserQuestionRequestedMutex       sync.RWMutex
+	handleUserQuestionRequestedArgsForCall []struct {
+		arg1 domain.UserQuestionRequestedEvent
+	}
+	handleUserQuestionRequestedReturns struct {
+		result1 tea.Cmd
+	}
+	handleUserQuestionRequestedReturnsOnCall map[int]struct {
+		result1 tea.Cmd
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -309,6 +320,67 @@ func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseReturnsOnCall(i i
 		result1 tea.Cmd
 		result2 bool
 	}{result1, result2}
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequested(arg1 domain.UserQuestionRequestedEvent) tea.Cmd {
+	fake.handleUserQuestionRequestedMutex.Lock()
+	ret, specificReturn := fake.handleUserQuestionRequestedReturnsOnCall[len(fake.handleUserQuestionRequestedArgsForCall)]
+	fake.handleUserQuestionRequestedArgsForCall = append(fake.handleUserQuestionRequestedArgsForCall, struct {
+		arg1 domain.UserQuestionRequestedEvent
+	}{arg1})
+	stub := fake.HandleUserQuestionRequestedStub
+	fakeReturns := fake.handleUserQuestionRequestedReturns
+	fake.recordInvocation("HandleUserQuestionRequested", []interface{}{arg1})
+	fake.handleUserQuestionRequestedMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedCallCount() int {
+	fake.handleUserQuestionRequestedMutex.RLock()
+	defer fake.handleUserQuestionRequestedMutex.RUnlock()
+	return len(fake.handleUserQuestionRequestedArgsForCall)
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedCalls(stub func(domain.UserQuestionRequestedEvent) tea.Cmd) {
+	fake.handleUserQuestionRequestedMutex.Lock()
+	defer fake.handleUserQuestionRequestedMutex.Unlock()
+	fake.HandleUserQuestionRequestedStub = stub
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedArgsForCall(i int) domain.UserQuestionRequestedEvent {
+	fake.handleUserQuestionRequestedMutex.RLock()
+	defer fake.handleUserQuestionRequestedMutex.RUnlock()
+	argsForCall := fake.handleUserQuestionRequestedArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedReturns(result1 tea.Cmd) {
+	fake.handleUserQuestionRequestedMutex.Lock()
+	defer fake.handleUserQuestionRequestedMutex.Unlock()
+	fake.HandleUserQuestionRequestedStub = nil
+	fake.handleUserQuestionRequestedReturns = struct {
+		result1 tea.Cmd
+	}{result1}
+}
+
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedReturnsOnCall(i int, result1 tea.Cmd) {
+	fake.handleUserQuestionRequestedMutex.Lock()
+	defer fake.handleUserQuestionRequestedMutex.Unlock()
+	fake.HandleUserQuestionRequestedStub = nil
+	if fake.handleUserQuestionRequestedReturnsOnCall == nil {
+		fake.handleUserQuestionRequestedReturnsOnCall = make(map[int]struct {
+			result1 tea.Cmd
+		})
+	}
+	fake.handleUserQuestionRequestedReturnsOnCall[i] = struct {
+		result1 tea.Cmd
+	}{result1}
 }
 
 func (fake *FakeApprovalCoordinator) Invocations() map[string][][]interface{} {

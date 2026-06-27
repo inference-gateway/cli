@@ -49,3 +49,9 @@ const AgentModeKey ContextKey = "agent_mode"
 // turn. The Agent tool reads it so spawned subagents inherit the parent's model
 // by default (otherwise the subagent process would fail with "no model specified").
 const ModelKey ContextKey = "model"
+
+// UserQuestionBrokerKey is the context key for the interactive question broker.
+// It is injected only on the chat path (where a TUI event loop exists), so the
+// AskUserQuestion tool sees a nil broker on headless/no-TTY runs and degrades
+// gracefully instead of blocking forever.
+const UserQuestionBrokerKey ContextKey = "user_question_broker"

@@ -9,6 +9,21 @@ import (
 )
 
 type FakeStateManager struct {
+	AdvanceUserQuestionStub        func() bool
+	advanceUserQuestionMutex       sync.RWMutex
+	advanceUserQuestionArgsForCall []struct {
+	}
+	advanceUserQuestionReturns struct {
+		result1 bool
+	}
+	advanceUserQuestionReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	AppendUserQuestionOtherTextStub        func(string)
+	appendUserQuestionOtherTextMutex       sync.RWMutex
+	appendUserQuestionOtherTextArgsForCall []struct {
+		arg1 string
+	}
 	AreAllAgentsReadyStub        func() bool
 	areAllAgentsReadyMutex       sync.RWMutex
 	areAllAgentsReadyArgsForCall []struct {
@@ -19,10 +34,24 @@ type FakeStateManager struct {
 	areAllAgentsReadyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	BackspaceUserQuestionOtherTextStub        func()
+	backspaceUserQuestionOtherTextMutex       sync.RWMutex
+	backspaceUserQuestionOtherTextArgsForCall []struct {
+	}
 	BroadcastEventStub        func(domain.ChatEvent)
 	broadcastEventMutex       sync.RWMutex
 	broadcastEventArgsForCall []struct {
 		arg1 domain.ChatEvent
+	}
+	BuildUserQuestionAnswersStub        func() []domain.UserQuestionAnswer
+	buildUserQuestionAnswersMutex       sync.RWMutex
+	buildUserQuestionAnswersArgsForCall []struct {
+	}
+	buildUserQuestionAnswersReturns struct {
+		result1 []domain.UserQuestionAnswer
+	}
+	buildUserQuestionAnswersReturnsOnCall map[int]struct {
+		result1 []domain.UserQuestionAnswer
 	}
 	ClearAgentReadinessStub        func()
 	clearAgentReadinessMutex       sync.RWMutex
@@ -55,6 +84,10 @@ type FakeStateManager struct {
 	ClearPlanApprovalUIStateStub        func()
 	clearPlanApprovalUIStateMutex       sync.RWMutex
 	clearPlanApprovalUIStateArgsForCall []struct {
+	}
+	ClearUserQuestionUIStateStub        func()
+	clearUserQuestionUIStateMutex       sync.RWMutex
+	clearUserQuestionUIStateArgsForCall []struct {
 	}
 	CompleteCurrentToolStub        func(*domain.ToolExecutionResult) error
 	completeCurrentToolMutex       sync.RWMutex
@@ -260,6 +293,16 @@ type FakeStateManager struct {
 	getToolExecutionReturnsOnCall map[int]struct {
 		result1 *domain.ToolExecutionSession
 	}
+	GetUserQuestionUIStateStub        func() *domain.UserQuestionUIState
+	getUserQuestionUIStateMutex       sync.RWMutex
+	getUserQuestionUIStateArgsForCall []struct {
+	}
+	getUserQuestionUIStateReturns struct {
+		result1 *domain.UserQuestionUIState
+	}
+	getUserQuestionUIStateReturnsOnCall map[int]struct {
+		result1 *domain.UserQuestionUIState
+	}
 	InitializeAgentReadinessStub        func(int)
 	initializeAgentReadinessMutex       sync.RWMutex
 	initializeAgentReadinessArgsForCall []struct {
@@ -368,6 +411,16 @@ type FakeStateManager struct {
 	setTodosArgsForCall []struct {
 		arg1 []domain.TodoItem
 	}
+	SetUserQuestionOptionCursorStub        func(int)
+	setUserQuestionOptionCursorMutex       sync.RWMutex
+	setUserQuestionOptionCursorArgsForCall []struct {
+		arg1 int
+	}
+	SetUserQuestionOtherActiveStub        func(bool)
+	setUserQuestionOtherActiveMutex       sync.RWMutex
+	setUserQuestionOtherActiveArgsForCall []struct {
+		arg1 bool
+	}
 	SetupApprovalUIStateStub        func(*sdk.ChatCompletionMessageToolCall, chan domain.ApprovalAction)
 	setupApprovalUIStateMutex       sync.RWMutex
 	setupApprovalUIStateArgsForCall []struct {
@@ -384,6 +437,12 @@ type FakeStateManager struct {
 	setupPlanApprovalUIStateArgsForCall []struct {
 		arg1 string
 		arg2 chan domain.PlanApprovalAction
+	}
+	SetupUserQuestionUIStateStub        func([]domain.UserQuestion, chan []domain.UserQuestionAnswer)
+	setupUserQuestionUIStateMutex       sync.RWMutex
+	setupUserQuestionUIStateArgsForCall []struct {
+		arg1 []domain.UserQuestion
+		arg2 chan []domain.UserQuestionAnswer
 	}
 	StartChatSessionStub        func(string, string, <-chan domain.ChatEvent) error
 	startChatSessionMutex       sync.RWMutex
@@ -408,6 +467,11 @@ type FakeStateManager struct {
 	}
 	startToolExecutionReturnsOnCall map[int]struct {
 		result1 error
+	}
+	ToggleUserQuestionOptionStub        func(int)
+	toggleUserQuestionOptionMutex       sync.RWMutex
+	toggleUserQuestionOptionArgsForCall []struct {
+		arg1 int
 	}
 	TransitionToViewStub        func(domain.ViewState) error
 	transitionToViewMutex       sync.RWMutex
@@ -447,6 +511,91 @@ type FakeStateManager struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeStateManager) AdvanceUserQuestion() bool {
+	fake.advanceUserQuestionMutex.Lock()
+	ret, specificReturn := fake.advanceUserQuestionReturnsOnCall[len(fake.advanceUserQuestionArgsForCall)]
+	fake.advanceUserQuestionArgsForCall = append(fake.advanceUserQuestionArgsForCall, struct {
+	}{})
+	stub := fake.AdvanceUserQuestionStub
+	fakeReturns := fake.advanceUserQuestionReturns
+	fake.recordInvocation("AdvanceUserQuestion", []interface{}{})
+	fake.advanceUserQuestionMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) AdvanceUserQuestionCallCount() int {
+	fake.advanceUserQuestionMutex.RLock()
+	defer fake.advanceUserQuestionMutex.RUnlock()
+	return len(fake.advanceUserQuestionArgsForCall)
+}
+
+func (fake *FakeStateManager) AdvanceUserQuestionCalls(stub func() bool) {
+	fake.advanceUserQuestionMutex.Lock()
+	defer fake.advanceUserQuestionMutex.Unlock()
+	fake.AdvanceUserQuestionStub = stub
+}
+
+func (fake *FakeStateManager) AdvanceUserQuestionReturns(result1 bool) {
+	fake.advanceUserQuestionMutex.Lock()
+	defer fake.advanceUserQuestionMutex.Unlock()
+	fake.AdvanceUserQuestionStub = nil
+	fake.advanceUserQuestionReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) AdvanceUserQuestionReturnsOnCall(i int, result1 bool) {
+	fake.advanceUserQuestionMutex.Lock()
+	defer fake.advanceUserQuestionMutex.Unlock()
+	fake.AdvanceUserQuestionStub = nil
+	if fake.advanceUserQuestionReturnsOnCall == nil {
+		fake.advanceUserQuestionReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.advanceUserQuestionReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) AppendUserQuestionOtherText(arg1 string) {
+	fake.appendUserQuestionOtherTextMutex.Lock()
+	fake.appendUserQuestionOtherTextArgsForCall = append(fake.appendUserQuestionOtherTextArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.AppendUserQuestionOtherTextStub
+	fake.recordInvocation("AppendUserQuestionOtherText", []interface{}{arg1})
+	fake.appendUserQuestionOtherTextMutex.Unlock()
+	if stub != nil {
+		fake.AppendUserQuestionOtherTextStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) AppendUserQuestionOtherTextCallCount() int {
+	fake.appendUserQuestionOtherTextMutex.RLock()
+	defer fake.appendUserQuestionOtherTextMutex.RUnlock()
+	return len(fake.appendUserQuestionOtherTextArgsForCall)
+}
+
+func (fake *FakeStateManager) AppendUserQuestionOtherTextCalls(stub func(string)) {
+	fake.appendUserQuestionOtherTextMutex.Lock()
+	defer fake.appendUserQuestionOtherTextMutex.Unlock()
+	fake.AppendUserQuestionOtherTextStub = stub
+}
+
+func (fake *FakeStateManager) AppendUserQuestionOtherTextArgsForCall(i int) string {
+	fake.appendUserQuestionOtherTextMutex.RLock()
+	defer fake.appendUserQuestionOtherTextMutex.RUnlock()
+	argsForCall := fake.appendUserQuestionOtherTextArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) AreAllAgentsReady() bool {
@@ -502,6 +651,30 @@ func (fake *FakeStateManager) AreAllAgentsReadyReturnsOnCall(i int, result1 bool
 	}{result1}
 }
 
+func (fake *FakeStateManager) BackspaceUserQuestionOtherText() {
+	fake.backspaceUserQuestionOtherTextMutex.Lock()
+	fake.backspaceUserQuestionOtherTextArgsForCall = append(fake.backspaceUserQuestionOtherTextArgsForCall, struct {
+	}{})
+	stub := fake.BackspaceUserQuestionOtherTextStub
+	fake.recordInvocation("BackspaceUserQuestionOtherText", []interface{}{})
+	fake.backspaceUserQuestionOtherTextMutex.Unlock()
+	if stub != nil {
+		fake.BackspaceUserQuestionOtherTextStub()
+	}
+}
+
+func (fake *FakeStateManager) BackspaceUserQuestionOtherTextCallCount() int {
+	fake.backspaceUserQuestionOtherTextMutex.RLock()
+	defer fake.backspaceUserQuestionOtherTextMutex.RUnlock()
+	return len(fake.backspaceUserQuestionOtherTextArgsForCall)
+}
+
+func (fake *FakeStateManager) BackspaceUserQuestionOtherTextCalls(stub func()) {
+	fake.backspaceUserQuestionOtherTextMutex.Lock()
+	defer fake.backspaceUserQuestionOtherTextMutex.Unlock()
+	fake.BackspaceUserQuestionOtherTextStub = stub
+}
+
 func (fake *FakeStateManager) BroadcastEvent(arg1 domain.ChatEvent) {
 	fake.broadcastEventMutex.Lock()
 	fake.broadcastEventArgsForCall = append(fake.broadcastEventArgsForCall, struct {
@@ -532,6 +705,59 @@ func (fake *FakeStateManager) BroadcastEventArgsForCall(i int) domain.ChatEvent 
 	defer fake.broadcastEventMutex.RUnlock()
 	argsForCall := fake.broadcastEventArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) BuildUserQuestionAnswers() []domain.UserQuestionAnswer {
+	fake.buildUserQuestionAnswersMutex.Lock()
+	ret, specificReturn := fake.buildUserQuestionAnswersReturnsOnCall[len(fake.buildUserQuestionAnswersArgsForCall)]
+	fake.buildUserQuestionAnswersArgsForCall = append(fake.buildUserQuestionAnswersArgsForCall, struct {
+	}{})
+	stub := fake.BuildUserQuestionAnswersStub
+	fakeReturns := fake.buildUserQuestionAnswersReturns
+	fake.recordInvocation("BuildUserQuestionAnswers", []interface{}{})
+	fake.buildUserQuestionAnswersMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) BuildUserQuestionAnswersCallCount() int {
+	fake.buildUserQuestionAnswersMutex.RLock()
+	defer fake.buildUserQuestionAnswersMutex.RUnlock()
+	return len(fake.buildUserQuestionAnswersArgsForCall)
+}
+
+func (fake *FakeStateManager) BuildUserQuestionAnswersCalls(stub func() []domain.UserQuestionAnswer) {
+	fake.buildUserQuestionAnswersMutex.Lock()
+	defer fake.buildUserQuestionAnswersMutex.Unlock()
+	fake.BuildUserQuestionAnswersStub = stub
+}
+
+func (fake *FakeStateManager) BuildUserQuestionAnswersReturns(result1 []domain.UserQuestionAnswer) {
+	fake.buildUserQuestionAnswersMutex.Lock()
+	defer fake.buildUserQuestionAnswersMutex.Unlock()
+	fake.BuildUserQuestionAnswersStub = nil
+	fake.buildUserQuestionAnswersReturns = struct {
+		result1 []domain.UserQuestionAnswer
+	}{result1}
+}
+
+func (fake *FakeStateManager) BuildUserQuestionAnswersReturnsOnCall(i int, result1 []domain.UserQuestionAnswer) {
+	fake.buildUserQuestionAnswersMutex.Lock()
+	defer fake.buildUserQuestionAnswersMutex.Unlock()
+	fake.BuildUserQuestionAnswersStub = nil
+	if fake.buildUserQuestionAnswersReturnsOnCall == nil {
+		fake.buildUserQuestionAnswersReturnsOnCall = make(map[int]struct {
+			result1 []domain.UserQuestionAnswer
+		})
+	}
+	fake.buildUserQuestionAnswersReturnsOnCall[i] = struct {
+		result1 []domain.UserQuestionAnswer
+	}{result1}
 }
 
 func (fake *FakeStateManager) ClearAgentReadiness() {
@@ -724,6 +950,30 @@ func (fake *FakeStateManager) ClearPlanApprovalUIStateCalls(stub func()) {
 	fake.clearPlanApprovalUIStateMutex.Lock()
 	defer fake.clearPlanApprovalUIStateMutex.Unlock()
 	fake.ClearPlanApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearUserQuestionUIState() {
+	fake.clearUserQuestionUIStateMutex.Lock()
+	fake.clearUserQuestionUIStateArgsForCall = append(fake.clearUserQuestionUIStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearUserQuestionUIStateStub
+	fake.recordInvocation("ClearUserQuestionUIState", []interface{}{})
+	fake.clearUserQuestionUIStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearUserQuestionUIStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearUserQuestionUIStateCallCount() int {
+	fake.clearUserQuestionUIStateMutex.RLock()
+	defer fake.clearUserQuestionUIStateMutex.RUnlock()
+	return len(fake.clearUserQuestionUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearUserQuestionUIStateCalls(stub func()) {
+	fake.clearUserQuestionUIStateMutex.Lock()
+	defer fake.clearUserQuestionUIStateMutex.Unlock()
+	fake.ClearUserQuestionUIStateStub = stub
 }
 
 func (fake *FakeStateManager) CompleteCurrentTool(arg1 *domain.ToolExecutionResult) error {
@@ -1803,6 +2053,59 @@ func (fake *FakeStateManager) GetToolExecutionReturnsOnCall(i int, result1 *doma
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetUserQuestionUIState() *domain.UserQuestionUIState {
+	fake.getUserQuestionUIStateMutex.Lock()
+	ret, specificReturn := fake.getUserQuestionUIStateReturnsOnCall[len(fake.getUserQuestionUIStateArgsForCall)]
+	fake.getUserQuestionUIStateArgsForCall = append(fake.getUserQuestionUIStateArgsForCall, struct {
+	}{})
+	stub := fake.GetUserQuestionUIStateStub
+	fakeReturns := fake.getUserQuestionUIStateReturns
+	fake.recordInvocation("GetUserQuestionUIState", []interface{}{})
+	fake.getUserQuestionUIStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetUserQuestionUIStateCallCount() int {
+	fake.getUserQuestionUIStateMutex.RLock()
+	defer fake.getUserQuestionUIStateMutex.RUnlock()
+	return len(fake.getUserQuestionUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) GetUserQuestionUIStateCalls(stub func() *domain.UserQuestionUIState) {
+	fake.getUserQuestionUIStateMutex.Lock()
+	defer fake.getUserQuestionUIStateMutex.Unlock()
+	fake.GetUserQuestionUIStateStub = stub
+}
+
+func (fake *FakeStateManager) GetUserQuestionUIStateReturns(result1 *domain.UserQuestionUIState) {
+	fake.getUserQuestionUIStateMutex.Lock()
+	defer fake.getUserQuestionUIStateMutex.Unlock()
+	fake.GetUserQuestionUIStateStub = nil
+	fake.getUserQuestionUIStateReturns = struct {
+		result1 *domain.UserQuestionUIState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetUserQuestionUIStateReturnsOnCall(i int, result1 *domain.UserQuestionUIState) {
+	fake.getUserQuestionUIStateMutex.Lock()
+	defer fake.getUserQuestionUIStateMutex.Unlock()
+	fake.GetUserQuestionUIStateStub = nil
+	if fake.getUserQuestionUIStateReturnsOnCall == nil {
+		fake.getUserQuestionUIStateReturnsOnCall = make(map[int]struct {
+			result1 *domain.UserQuestionUIState
+		})
+	}
+	fake.getUserQuestionUIStateReturnsOnCall[i] = struct {
+		result1 *domain.UserQuestionUIState
+	}{result1}
+}
+
 func (fake *FakeStateManager) InitializeAgentReadiness(arg1 int) {
 	fake.initializeAgentReadinessMutex.Lock()
 	fake.initializeAgentReadinessArgsForCall = append(fake.initializeAgentReadinessArgsForCall, struct {
@@ -2443,6 +2746,70 @@ func (fake *FakeStateManager) SetTodosArgsForCall(i int) []domain.TodoItem {
 	return argsForCall.arg1
 }
 
+func (fake *FakeStateManager) SetUserQuestionOptionCursor(arg1 int) {
+	fake.setUserQuestionOptionCursorMutex.Lock()
+	fake.setUserQuestionOptionCursorArgsForCall = append(fake.setUserQuestionOptionCursorArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.SetUserQuestionOptionCursorStub
+	fake.recordInvocation("SetUserQuestionOptionCursor", []interface{}{arg1})
+	fake.setUserQuestionOptionCursorMutex.Unlock()
+	if stub != nil {
+		fake.SetUserQuestionOptionCursorStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetUserQuestionOptionCursorCallCount() int {
+	fake.setUserQuestionOptionCursorMutex.RLock()
+	defer fake.setUserQuestionOptionCursorMutex.RUnlock()
+	return len(fake.setUserQuestionOptionCursorArgsForCall)
+}
+
+func (fake *FakeStateManager) SetUserQuestionOptionCursorCalls(stub func(int)) {
+	fake.setUserQuestionOptionCursorMutex.Lock()
+	defer fake.setUserQuestionOptionCursorMutex.Unlock()
+	fake.SetUserQuestionOptionCursorStub = stub
+}
+
+func (fake *FakeStateManager) SetUserQuestionOptionCursorArgsForCall(i int) int {
+	fake.setUserQuestionOptionCursorMutex.RLock()
+	defer fake.setUserQuestionOptionCursorMutex.RUnlock()
+	argsForCall := fake.setUserQuestionOptionCursorArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetUserQuestionOtherActive(arg1 bool) {
+	fake.setUserQuestionOtherActiveMutex.Lock()
+	fake.setUserQuestionOtherActiveArgsForCall = append(fake.setUserQuestionOtherActiveArgsForCall, struct {
+		arg1 bool
+	}{arg1})
+	stub := fake.SetUserQuestionOtherActiveStub
+	fake.recordInvocation("SetUserQuestionOtherActive", []interface{}{arg1})
+	fake.setUserQuestionOtherActiveMutex.Unlock()
+	if stub != nil {
+		fake.SetUserQuestionOtherActiveStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetUserQuestionOtherActiveCallCount() int {
+	fake.setUserQuestionOtherActiveMutex.RLock()
+	defer fake.setUserQuestionOtherActiveMutex.RUnlock()
+	return len(fake.setUserQuestionOtherActiveArgsForCall)
+}
+
+func (fake *FakeStateManager) SetUserQuestionOtherActiveCalls(stub func(bool)) {
+	fake.setUserQuestionOtherActiveMutex.Lock()
+	defer fake.setUserQuestionOtherActiveMutex.Unlock()
+	fake.SetUserQuestionOtherActiveStub = stub
+}
+
+func (fake *FakeStateManager) SetUserQuestionOtherActiveArgsForCall(i int) bool {
+	fake.setUserQuestionOtherActiveMutex.RLock()
+	defer fake.setUserQuestionOtherActiveMutex.RUnlock()
+	argsForCall := fake.setUserQuestionOtherActiveArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeStateManager) SetupApprovalUIState(arg1 *sdk.ChatCompletionMessageToolCall, arg2 chan domain.ApprovalAction) {
 	fake.setupApprovalUIStateMutex.Lock()
 	fake.setupApprovalUIStateArgsForCall = append(fake.setupApprovalUIStateArgsForCall, struct {
@@ -2543,6 +2910,44 @@ func (fake *FakeStateManager) SetupPlanApprovalUIStateArgsForCall(i int) (string
 	fake.setupPlanApprovalUIStateMutex.RLock()
 	defer fake.setupPlanApprovalUIStateMutex.RUnlock()
 	argsForCall := fake.setupPlanApprovalUIStateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) SetupUserQuestionUIState(arg1 []domain.UserQuestion, arg2 chan []domain.UserQuestionAnswer) {
+	var arg1Copy []domain.UserQuestion
+	if arg1 != nil {
+		arg1Copy = make([]domain.UserQuestion, len(arg1))
+		copy(arg1Copy, arg1)
+	}
+	fake.setupUserQuestionUIStateMutex.Lock()
+	fake.setupUserQuestionUIStateArgsForCall = append(fake.setupUserQuestionUIStateArgsForCall, struct {
+		arg1 []domain.UserQuestion
+		arg2 chan []domain.UserQuestionAnswer
+	}{arg1Copy, arg2})
+	stub := fake.SetupUserQuestionUIStateStub
+	fake.recordInvocation("SetupUserQuestionUIState", []interface{}{arg1Copy, arg2})
+	fake.setupUserQuestionUIStateMutex.Unlock()
+	if stub != nil {
+		fake.SetupUserQuestionUIStateStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetupUserQuestionUIStateCallCount() int {
+	fake.setupUserQuestionUIStateMutex.RLock()
+	defer fake.setupUserQuestionUIStateMutex.RUnlock()
+	return len(fake.setupUserQuestionUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) SetupUserQuestionUIStateCalls(stub func([]domain.UserQuestion, chan []domain.UserQuestionAnswer)) {
+	fake.setupUserQuestionUIStateMutex.Lock()
+	defer fake.setupUserQuestionUIStateMutex.Unlock()
+	fake.SetupUserQuestionUIStateStub = stub
+}
+
+func (fake *FakeStateManager) SetupUserQuestionUIStateArgsForCall(i int) ([]domain.UserQuestion, chan []domain.UserQuestionAnswer) {
+	fake.setupUserQuestionUIStateMutex.RLock()
+	defer fake.setupUserQuestionUIStateMutex.RUnlock()
+	argsForCall := fake.setupUserQuestionUIStateArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
@@ -2673,6 +3078,38 @@ func (fake *FakeStateManager) StartToolExecutionReturnsOnCall(i int, result1 err
 	fake.startToolExecutionReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeStateManager) ToggleUserQuestionOption(arg1 int) {
+	fake.toggleUserQuestionOptionMutex.Lock()
+	fake.toggleUserQuestionOptionArgsForCall = append(fake.toggleUserQuestionOptionArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.ToggleUserQuestionOptionStub
+	fake.recordInvocation("ToggleUserQuestionOption", []interface{}{arg1})
+	fake.toggleUserQuestionOptionMutex.Unlock()
+	if stub != nil {
+		fake.ToggleUserQuestionOptionStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) ToggleUserQuestionOptionCallCount() int {
+	fake.toggleUserQuestionOptionMutex.RLock()
+	defer fake.toggleUserQuestionOptionMutex.RUnlock()
+	return len(fake.toggleUserQuestionOptionArgsForCall)
+}
+
+func (fake *FakeStateManager) ToggleUserQuestionOptionCalls(stub func(int)) {
+	fake.toggleUserQuestionOptionMutex.Lock()
+	defer fake.toggleUserQuestionOptionMutex.Unlock()
+	fake.ToggleUserQuestionOptionStub = stub
+}
+
+func (fake *FakeStateManager) ToggleUserQuestionOptionArgsForCall(i int) int {
+	fake.toggleUserQuestionOptionMutex.RLock()
+	defer fake.toggleUserQuestionOptionMutex.RUnlock()
+	argsForCall := fake.toggleUserQuestionOptionArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) TransitionToView(arg1 domain.ViewState) error {

@@ -140,20 +140,21 @@ type ClipboardImageOptimizeConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
-	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
-	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
-	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
-	Schedule  ScheduleToolConfig  `yaml:"schedule" mapstructure:"schedule"`
-	Agent     AgentToolConfig     `yaml:"agent" mapstructure:"agent"`
+	Enabled         bool                      `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox         SandboxConfig             `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash            BashToolConfig            `yaml:"bash" mapstructure:"bash"`
+	Read            ReadToolConfig            `yaml:"read" mapstructure:"read"`
+	Write           WriteToolConfig           `yaml:"write" mapstructure:"write"`
+	Edit            EditToolConfig            `yaml:"edit" mapstructure:"edit"`
+	Delete          DeleteToolConfig          `yaml:"delete" mapstructure:"delete"`
+	Grep            GrepToolConfig            `yaml:"grep" mapstructure:"grep"`
+	Tree            TreeToolConfig            `yaml:"tree" mapstructure:"tree"`
+	WebFetch        WebFetchToolConfig        `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch       WebSearchToolConfig       `yaml:"web_search" mapstructure:"web_search"`
+	TodoWrite       TodoWriteToolConfig       `yaml:"todo_write" mapstructure:"todo_write"`
+	Schedule        ScheduleToolConfig        `yaml:"schedule" mapstructure:"schedule"`
+	Agent           AgentToolConfig           `yaml:"agent" mapstructure:"agent"`
+	AskUserQuestion AskUserQuestionToolConfig `yaml:"ask_user_question" mapstructure:"ask_user_question"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -236,6 +237,12 @@ type WebSearchToolConfig struct {
 type TodoWriteToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// AskUserQuestionToolConfig contains AskUserQuestion-specific tool settings.
+// The tool is read-only and plan-mode only, so it carries no approval flag.
+type AskUserQuestionToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // ScheduleToolConfig contains schedule-specific tool settings.
@@ -784,6 +791,9 @@ func DefaultConfig() *Config { //nolint:funlen
 				StorageDir:      "",
 				MaxJobs:         100,
 			},
+			AskUserQuestion: AskUserQuestionToolConfig{
+				Enabled: true,
+			},
 			Agent: AgentToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
@@ -998,6 +1008,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.Tools.Agent.RequireApproval
 		}
 	case "RequestPlanApproval":
+		return false
+	case "AskUserQuestion":
 		return false
 	case "A2A_QueryAgent":
 		if c.A2A.Tools.QueryAgent.RequireApproval != nil {

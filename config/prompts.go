@@ -85,6 +85,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.Tree, &defaults.Tree)
 	mergeToolDescription(&loaded.TodoWrite, &defaults.TodoWrite)
 	mergeToolDescription(&loaded.RequestPlanApproval, &defaults.RequestPlanApproval)
+	mergeToolDescription(&loaded.AskUserQuestion, &defaults.AskUserQuestion)
 	mergeToolDescription(&loaded.WebFetch, &defaults.WebFetch)
 	mergeToolDescription(&loaded.WebSearch, &defaults.WebSearch)
 	mergeToolDescription(&loaded.Schedule, &defaults.Schedule)
@@ -191,6 +192,7 @@ type PromptsToolsConfig struct {
 	Tree                PromptsToolDescription `yaml:"Tree" mapstructure:"Tree"`
 	TodoWrite           PromptsToolDescription `yaml:"TodoWrite" mapstructure:"TodoWrite"`
 	RequestPlanApproval PromptsToolDescription `yaml:"RequestPlanApproval" mapstructure:"RequestPlanApproval"`
+	AskUserQuestion     PromptsToolDescription `yaml:"AskUserQuestion" mapstructure:"AskUserQuestion"`
 	WebFetch            PromptsToolDescription `yaml:"WebFetch" mapstructure:"WebFetch"`
 	WebSearch           PromptsToolDescription `yaml:"WebSearch" mapstructure:"WebSearch"`
 	Schedule            PromptsToolDescription `yaml:"Schedule" mapstructure:"Schedule"`
@@ -221,6 +223,7 @@ CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be ask
 CAPABILITIES IN PLAN MODE:
 - Read, Grep, and Tree tools for gathering information
 - TodoWrite for tracking planning progress
+- AskUserQuestion tool to ask the user up to 4 multiple-choice clarifying questions as an interactive form
 - RequestPlanApproval tool to submit your plan for user approval (also persists the plan as a Markdown file under <configDir>/plans/)
 - Analyze code structure and dependencies
 - Break down complex tasks into concrete, executable steps
@@ -235,13 +238,14 @@ RESTRICTIONS IN PLAN MODE:
 PLANNING WORKFLOW:
 1. Use Read/Grep/Tree to understand the codebase thoroughly
 2. Analyze the user's request and identify ALL requirements
-3. If you need clarification or more information, ASK the user in a regular assistant turn - do NOT call RequestPlanApproval yet
+3. If a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion to ask 1-4 multiple-choice questions instead of guessing. For open-ended clarification, ASK the user in a regular assistant turn. Either way, do NOT call RequestPlanApproval yet.
 4. Iterate with the user until the plan is complete and unambiguous
 5. When the plan is final, call RequestPlanApproval with both a short title AND the Markdown plan body
 
 DECISION MAKING:
-- Need more info? ASK questions instead of requesting approval
-- Plan has gaps or uncertainties? ASK for clarification
+- Need a discrete choice clarified? Call AskUserQuestion (1-4 questions, 2-4 options each) instead of guessing
+- Need open-ended info? ASK questions in a normal turn instead of requesting approval
+- Plan has gaps or uncertainties? Clarify first - do not request approval
 - Plan is complete and specific? Call RequestPlanApproval tool
 
 OUTPUT FORMAT - MARKDOWN PLAN:
@@ -559,6 +563,23 @@ Required parameters:
 - plan: The full plan as Markdown using H2 sections in this order - ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.
 
 Only call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.`,
+		},
+		AskUserQuestion: PromptsToolDescription{
+			Description: `Ask the user 1-4 multiple-choice clarifying questions as an interactive form (plan mode only).
+
+Use this when the plan hinges on a discrete decision the user should make - format, scope, approach, naming, trade-off - instead of guessing or asking in prose. Call it BEFORE RequestPlanApproval; fold the answers into the plan, then submit the plan.
+
+Each question has:
+- header: a short chip/tag (<= 12 chars), e.g. "Scope", "Format"
+- question: the full question text
+- options: 2-4 choices, each with a concise label (returned as the answer) and a description of the trade-off
+- multiSelect (optional): set true to let the user pick more than one option
+
+The UI always adds an "Other" free-text choice, so you do not need an "Other" option yourself. The user answers with the keyboard and the selected labels (and any free text) are returned to you.
+
+Notes:
+- Ask only what you genuinely need - prefer one focused round of questions over many.
+- If no interactive user is available (headless run), you will be told to proceed with stated assumptions instead.`,
 		},
 		WebFetch: PromptsToolDescription{
 			Description: `Fetch content from allowed URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files.`,

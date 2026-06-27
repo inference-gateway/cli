@@ -71,6 +71,25 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 	}
 }
 
+// HandleUserQuestionRequested sets up the AskUserQuestion form state. The form
+// renders as a floating box over the chat (like tool approval), so the view
+// stays ViewStateChat and keys are intercepted while the form state is set.
+// Unlike plan approval this does NOT stop the agent loop: the tool's Execute is
+// blocked on the response channel and resumes when the user submits or cancels.
+func (s *Service) HandleUserQuestionRequested(msg domain.UserQuestionRequestedEvent) tea.Cmd {
+	logger.Info("approvalCoordinator.HandleUserQuestionRequested called", "questions", len(msg.Questions))
+
+	s.stateManager.SetupUserQuestionUIState(msg.Questions, msg.ResponseChan)
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Please answer the question(s) - ↑/↓ move, space toggle, enter to continue, esc to cancel",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
 // HandlePlanApprovalResponse processes the user's accept/reject decision on a
 // plan and returns whatever cmds the orchestrator should run plus a restart
 // flag (true → orchestrator should kick a new ChatCompletionRunner.Start()).

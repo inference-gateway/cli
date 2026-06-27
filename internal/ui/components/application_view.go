@@ -43,21 +43,22 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 ) string {
 	width, height := data.Width, data.Height
 
-	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments)
+	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments)
 
 	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments, heights)
+		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, heights)
 
 	header := r.renderHeader(data, width)
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, snippetAttachments, width, heights.statusHeight)
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, width, heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }
@@ -69,6 +70,7 @@ type componentHeights struct {
 	queueBoxHeight       int
 	todoBoxHeight        int
 	approvalBoxHeight    int
+	questionBoxHeight    int
 	attachmentsHeight    int
 	backgroundTasksLines int
 	conversationHeight   int
@@ -85,10 +87,14 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 ) componentHeights {
 	if approvalBoxView != nil {
 		approvalBoxView.SetHeight(totalHeight)
+	}
+	if questionFormView != nil {
+		questionFormView.SetHeight(totalHeight)
 	}
 
 	heights := componentHeights{
@@ -120,13 +126,21 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		}
 	}
 
+	if questionFormView != nil {
+		questionContent := questionFormView.Render()
+		if questionContent != "" {
+			lines := strings.Count(questionContent, "\n") + 1
+			heights.questionBoxHeight = lines + 2
+		}
+	}
+
 	if cv, ok := conversationView.(*ConversationView); ok && cv.HasBackgroundTasks() {
 		heights.backgroundTasksLines = cv.BackgroundTasksBarHeight()
 	}
 
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
 		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.attachmentsHeight - heights.backgroundTasksLines
+		heights.questionBoxHeight - heights.attachmentsHeight - heights.backgroundTasksLines
 	heights.conversationHeight = ui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = ui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = ui.CalculateStatusHeight(adjustedHeight)
@@ -150,6 +164,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 	heights componentHeights,
 ) {
@@ -186,6 +201,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	if approvalBoxView != nil {
 		approvalBoxView.SetWidth(width)
 	}
+
+	if questionFormView != nil {
+		questionFormView.SetWidth(width)
+	}
 }
 
 // renderHeader renders the header section
@@ -209,6 +228,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
+	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 	width, statusHeight int,
 ) []string {
@@ -220,6 +240,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendModeIndicator(components, modeIndicator)
 	components = r.appendStatusView(components, statusView, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
+	components = r.appendQuestionForm(components, questionFormView)
 	components = append(components, inputArea)
 	components = r.appendSnippetAttachments(components, snippetAttachments)
 	components = r.appendAutocomplete(components, autocomplete)
@@ -322,6 +343,19 @@ func (r *ApplicationViewRenderer) appendApprovalBox(
 	if approvalBoxView != nil {
 		if approvalContent := approvalBoxView.Render(); approvalContent != "" {
 			components = append(components, "", approvalContent)
+		}
+	}
+	return components
+}
+
+// appendQuestionForm appends the AskUserQuestion form box if a question is pending
+func (r *ApplicationViewRenderer) appendQuestionForm(
+	components []string,
+	questionFormView *QuestionFormView,
+) []string {
+	if questionFormView != nil {
+		if questionContent := questionFormView.Render(); questionContent != "" {
+			components = append(components, "", questionContent)
 		}
 	}
 	return components

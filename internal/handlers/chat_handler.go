@@ -165,6 +165,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandlePlanApprovalRequestedEvent(m)
 	case domain.PlanApprovalResponseEvent:
 		return h.HandlePlanApprovalResponseEvent(m)
+	case domain.UserQuestionRequestedEvent:
+		return h.HandleUserQuestionRequestedEvent(m)
 	case domain.TodoUpdateChatEvent:
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
@@ -418,6 +420,14 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 	msg domain.PlanApprovalRequestedEvent,
 ) tea.Cmd {
 	return h.approvalCoordinator.HandlePlanApprovalRequested(msg)
+}
+
+// HandleUserQuestionRequestedEvent sets up the AskUserQuestion form. The agent
+// loop stays blocked in the tool until the user answers, so there is no restart.
+func (h *ChatHandler) HandleUserQuestionRequestedEvent(
+	msg domain.UserQuestionRequestedEvent,
+) tea.Cmd {
+	return h.approvalCoordinator.HandleUserQuestionRequested(msg)
 }
 
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(

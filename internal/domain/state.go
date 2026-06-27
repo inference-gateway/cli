@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -33,6 +34,7 @@ type ApplicationState struct {
 	fileSelectionState  *FileSelectionState
 	approvalUIState     *ApprovalUIState
 	planApprovalUIState *PlanApprovalUIState
+	userQuestionUIState *UserQuestionUIState
 
 	// Todo State
 	todos []TodoItem
@@ -362,6 +364,36 @@ type PlanApprovalUIState struct {
 	SelectedIndex int                     `json:"selected_index"`
 	PlanContent   string                  `json:"plan_content"`
 	ResponseChan  chan PlanApprovalAction `json:"-"`
+}
+
+// UserQuestionUIState drives the interactive AskUserQuestion form. The agent
+// loop is blocked in the tool goroutine while this holds the UI's working copy
+// of the in-progress answers. The slices are sized len(Questions): Selected is
+// the set of chosen option indices per question, OtherText/OtherActive back the
+// synthesized free-text "Other" row per question. ResponseChan delivers the
+// final answers slice back to the blocked tool.
+type UserQuestionUIState struct {
+	Questions    []UserQuestion            `json:"questions"`
+	CurrentIndex int                       `json:"current_index"`
+	OptionCursor int                       `json:"option_cursor"`
+	Selected     []map[int]bool            `json:"selected"`
+	OtherText    []string                  `json:"other_text"`
+	OtherActive  []bool                    `json:"other_active"`
+	ResponseChan chan []UserQuestionAnswer `json:"-"`
+}
+
+// OtherRowIndex returns the option-cursor index of the synthesized "Other" row
+// for the current question (it sits just past the last real option).
+func (q *UserQuestionUIState) OtherRowIndex() int {
+	if q.CurrentIndex < 0 || q.CurrentIndex >= len(q.Questions) {
+		return 0
+	}
+	return len(q.Questions[q.CurrentIndex].Options)
+}
+
+// OnOtherRow reports whether the option cursor is on the "Other" free-text row.
+func (q *UserQuestionUIState) OnOtherRow() bool {
+	return q.OptionCursor == q.OtherRowIndex()
 }
 
 // MessageEditState represents the state when editing a message
@@ -862,6 +894,163 @@ func (s *ApplicationState) ClearPlanApprovalUIState() {
 		close(s.planApprovalUIState.ResponseChan)
 	}
 	s.planApprovalUIState = nil
+}
+
+// User Question State Management
+
+// SetupUserQuestionUIState initializes the AskUserQuestion form state for the
+// given questions, pre-sizing the per-question working slices.
+func (s *ApplicationState) SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer) {
+	n := len(questions)
+	selected := make([]map[int]bool, n)
+	for i := range selected {
+		selected[i] = make(map[int]bool)
+	}
+	s.userQuestionUIState = &UserQuestionUIState{
+		Questions:    questions,
+		CurrentIndex: 0,
+		OptionCursor: 0,
+		Selected:     selected,
+		OtherText:    make([]string, n),
+		OtherActive:  make([]bool, n),
+		ResponseChan: responseChan,
+	}
+}
+
+// GetUserQuestionUIState returns the current AskUserQuestion form state, or nil.
+func (s *ApplicationState) GetUserQuestionUIState() *UserQuestionUIState {
+	return s.userQuestionUIState
+}
+
+// SetUserQuestionOptionCursor sets the highlighted option row for the current
+// question, clamped to [0, OtherRowIndex].
+func (s *ApplicationState) SetUserQuestionOptionCursor(idx int) {
+	q := s.userQuestionUIState
+	if q == nil {
+		return
+	}
+	maxIdx := q.OtherRowIndex()
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > maxIdx {
+		idx = maxIdx
+	}
+	q.OptionCursor = idx
+}
+
+// ToggleUserQuestionOption toggles the option at optIdx for the current
+// question. For single-select questions, selecting an option clears any other
+// selection first. Selecting any real option clears the "Other" free-text.
+func (s *ApplicationState) ToggleUserQuestionOption(optIdx int) {
+	q := s.userQuestionUIState
+	if q == nil || q.CurrentIndex >= len(q.Questions) {
+		return
+	}
+	sel := q.Selected[q.CurrentIndex]
+	if q.Questions[q.CurrentIndex].MultiSelect {
+		if sel[optIdx] {
+			delete(sel, optIdx)
+		} else {
+			sel[optIdx] = true
+		}
+		return
+	}
+	// Single-select: replace the selection.
+	wasSelected := sel[optIdx]
+	for k := range sel {
+		delete(sel, k)
+	}
+	if !wasSelected {
+		sel[optIdx] = true
+	}
+	q.OtherActive[q.CurrentIndex] = false
+}
+
+// AdvanceUserQuestion moves to the next question (resetting the option cursor)
+// and reports whether all questions have now been answered.
+func (s *ApplicationState) AdvanceUserQuestion() bool {
+	q := s.userQuestionUIState
+	if q == nil {
+		return true
+	}
+	q.CurrentIndex++
+	q.OptionCursor = 0
+	return q.CurrentIndex >= len(q.Questions)
+}
+
+// SetUserQuestionOtherActive toggles free-text entry on the "Other" row of the
+// current question. Activating it (single-select) clears the option selection.
+func (s *ApplicationState) SetUserQuestionOtherActive(active bool) {
+	q := s.userQuestionUIState
+	if q == nil || q.CurrentIndex >= len(q.Questions) {
+		return
+	}
+	q.OtherActive[q.CurrentIndex] = active
+	if active && !q.Questions[q.CurrentIndex].MultiSelect {
+		for k := range q.Selected[q.CurrentIndex] {
+			delete(q.Selected[q.CurrentIndex], k)
+		}
+	}
+}
+
+// AppendUserQuestionOtherText appends typed text to the current question's
+// "Other" buffer.
+func (s *ApplicationState) AppendUserQuestionOtherText(text string) {
+	q := s.userQuestionUIState
+	if q == nil || q.CurrentIndex >= len(q.Questions) {
+		return
+	}
+	q.OtherText[q.CurrentIndex] += text
+}
+
+// BackspaceUserQuestionOtherText removes the last rune from the current
+// question's "Other" buffer.
+func (s *ApplicationState) BackspaceUserQuestionOtherText() {
+	q := s.userQuestionUIState
+	if q == nil || q.CurrentIndex >= len(q.Questions) {
+		return
+	}
+	buf := q.OtherText[q.CurrentIndex]
+	if buf == "" {
+		return
+	}
+	r := []rune(buf)
+	q.OtherText[q.CurrentIndex] = string(r[:len(r)-1])
+}
+
+// BuildUserQuestionAnswers materializes the answers from the working state.
+func (s *ApplicationState) BuildUserQuestionAnswers() []UserQuestionAnswer {
+	q := s.userQuestionUIState
+	if q == nil {
+		return nil
+	}
+	answers := make([]UserQuestionAnswer, 0, len(q.Questions))
+	for i, question := range q.Questions {
+		labels := make([]string, 0, len(question.Options))
+		for optIdx := range question.Options {
+			if q.Selected[i][optIdx] {
+				labels = append(labels, question.Options[optIdx].Label)
+			}
+		}
+		answers = append(answers, UserQuestionAnswer{
+			Header:         question.Header,
+			Question:       question.Question,
+			SelectedLabels: labels,
+			OtherText:      strings.TrimSpace(q.OtherText[i]),
+		})
+	}
+	return answers
+}
+
+// ClearUserQuestionUIState clears the AskUserQuestion form state and closes the
+// response channel (without a prior send this signals cancellation to the
+// blocked tool). Nil-safe and idempotent.
+func (s *ApplicationState) ClearUserQuestionUIState() {
+	if s.userQuestionUIState != nil && s.userQuestionUIState.ResponseChan != nil {
+		close(s.userQuestionUIState.ResponseChan)
+	}
+	s.userQuestionUIState = nil
 }
 
 // Todo State Management

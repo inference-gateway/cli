@@ -161,3 +161,26 @@ func GetSessionID(ctx context.Context) string {
 func HasSessionID(ctx context.Context) bool {
 	return GetSessionID(ctx) != ""
 }
+
+// ========================================
+// User Question Broker
+// ========================================
+
+// WithUserQuestionBroker returns a new context carrying the interactive
+// question broker used by the AskUserQuestion tool. Injected only on the chat
+// path so headless/no-TTY runs see a nil broker and degrade gracefully.
+func WithUserQuestionBroker(ctx context.Context, broker UserQuestionBroker) context.Context {
+	return context.WithValue(ctx, UserQuestionBrokerKey, broker)
+}
+
+// GetUserQuestionBroker retrieves the question broker from context.
+// Returns nil if the key is not set or the value is not a UserQuestionBroker.
+func GetUserQuestionBroker(ctx context.Context) UserQuestionBroker {
+	broker, _ := ctx.Value(UserQuestionBrokerKey).(UserQuestionBroker)
+	return broker
+}
+
+// HasUserQuestionBroker checks if a question broker is set in the context.
+func HasUserQuestionBroker(ctx context.Context) bool {
+	return GetUserQuestionBroker(ctx) != nil
+}
