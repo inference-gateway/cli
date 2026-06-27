@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1540,7 +1540,7 @@ func (cv *ConversationView) renderSubagentTree() string {
 	for id := range cv.subagentTasks {
 		ids = append(ids, id)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 
 	running := 0
 	for _, d := range cv.subagentTasks {
@@ -1631,7 +1631,7 @@ func (cv *ConversationView) RenderBackgroundTasksBar(width int) string {
 	for id := range cv.backgroundTasks {
 		ids = append(ids, id)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	for _, id := range ids {
 		if line := cv.renderBackgroundTaskLine(cv.backgroundTasks[id], width); line != "" {
 			lines = append(lines, line)
@@ -2500,9 +2500,7 @@ func (cv *ConversationView) renderMessageHistorySelector() string {
 		truncatedMsg = strings.ReplaceAll(truncatedMsg, "\r", " ")
 		truncatedMsg = strings.Join(strings.Fields(truncatedMsg), " ")
 
-		if len(truncatedMsg) > availableWidth {
-			truncatedMsg = truncatedMsg[:availableWidth-3] + "..."
-		}
+		truncatedMsg = formatting.TruncateText(truncatedMsg, availableWidth)
 
 		var entry string
 		if isSelected {

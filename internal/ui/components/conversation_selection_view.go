@@ -11,6 +11,7 @@ import (
 
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -505,7 +506,7 @@ func (c *ConversationSelectorImpl) calculatePagination() paginationInfo {
 // writeConversationRow writes a single conversation row
 func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv shortcuts.ConversationSummary, index int) {
 	fullID := conv.ID
-	summary := c.truncateString(conv.Title, 25)
+	summary := formatting.TruncateText(conv.Title, 25)
 	msgCount := fmt.Sprintf("%d", conv.MessageCount)
 	requestCount := fmt.Sprintf("%d", conv.TokenStats.RequestCount)
 	inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
@@ -531,17 +532,6 @@ func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv
 		fmt.Fprintf(b, "  %-36s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s\n",
 			fullID, summary, msgCount, requestCount, inputTokens, outputTokens, costStr)
 	}
-}
-
-// truncateString truncates a string to the specified length with ellipsis
-func (c *ConversationSelectorImpl) truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // writeFooter writes the footer section

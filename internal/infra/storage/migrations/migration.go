@@ -1,10 +1,11 @@
 package migrations
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 )
 
@@ -137,12 +138,10 @@ func (r *MigrationRunner) ApplyMigrations(ctx context.Context, migrations []Migr
 		return 0, err
 	}
 
-	// Sort migrations by version
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+	slices.SortFunc(migrations, func(a, b Migration) int {
+		return cmp.Compare(a.Version, b.Version)
 	})
 
-	// Apply pending migrations
 	appliedCount := 0
 	for _, migration := range migrations {
 		if applied[migration.Version] {
@@ -182,9 +181,8 @@ func (r *MigrationRunner) GetMigrationStatus(ctx context.Context, availableMigra
 		})
 	}
 
-	// Sort by version
-	sort.Slice(status, func(i, j int) bool {
-		return status[i].Version < status[j].Version
+	slices.SortFunc(status, func(a, b MigrationStatus) int {
+		return cmp.Compare(a.Version, b.Version)
 	})
 
 	return status, nil

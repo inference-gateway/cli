@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1233,7 +1233,7 @@ func formatToolCallSummary(name, argsJSON string) string {
 	for k := range args {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	const maxValueChars = 60
 	const maxTotalChars = 200

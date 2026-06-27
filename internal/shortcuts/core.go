@@ -1,9 +1,10 @@
 package shortcuts
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -241,8 +242,8 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 		for model, stats := range costStats.PerModelStats {
 			models = append(models, modelCost{model, stats.TotalCost})
 		}
-		sort.Slice(models, func(i, j int) bool {
-			return models[i].cost > models[j].cost
+		slices.SortFunc(models, func(a, b modelCost) int {
+			return cmp.Compare(b.cost, a.cost)
 		})
 
 		output.WriteString("| Model | Cost | Input | Output | Requests |\n")

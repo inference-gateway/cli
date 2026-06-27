@@ -39,34 +39,3 @@ func DetectDisplay() (Provider, error) {
 
 	return nil, fmt.Errorf("no compatible display server detected (tried %d providers)", len(globalRegistry.providers))
 }
-
-// GetAllProviders returns all registered providers
-func GetAllProviders() []Provider {
-	globalRegistry.mu.RLock()
-	defer globalRegistry.mu.RUnlock()
-
-	providers := make([]Provider, len(globalRegistry.providers))
-	copy(providers, globalRegistry.providers)
-	return providers
-}
-
-// GetProvider returns a specific provider by display server name, or nil if not found
-func GetProvider(displayName string) Provider {
-	globalRegistry.mu.RLock()
-	defer globalRegistry.mu.RUnlock()
-
-	for _, p := range globalRegistry.providers {
-		if p.GetDisplayInfo().Name == displayName {
-			return p
-		}
-	}
-
-	return nil
-}
-
-// ClearProviders removes all registered providers (primarily for testing)
-func ClearProviders() {
-	globalRegistry.mu.Lock()
-	defer globalRegistry.mu.Unlock()
-	globalRegistry.providers = make([]Provider, 0)
-}

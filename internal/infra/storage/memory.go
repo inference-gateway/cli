@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -97,8 +97,8 @@ func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int
 		summaries = append(summaries, summary)
 	}
 
-	sort.Slice(summaries, func(i, j int) bool {
-		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	if offset >= len(summaries) {

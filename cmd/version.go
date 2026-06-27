@@ -12,8 +12,9 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version information",
 	Long:  `Display version information for the Inference Gateway CLI.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Printf("infer %s\n", version)
+		return nil
 	},
 }
 

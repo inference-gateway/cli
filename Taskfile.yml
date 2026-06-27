@@ -53,6 +53,11 @@ tasks:
     cmds:
       - go test -cover ./...
 
+  test:race:
+    desc: Run all tests with the race detector
+    cmds:
+      - go test -race ./...
+
   lint:
     desc: Run linter (requires golangci-lint)
     cmds:

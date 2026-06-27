@@ -1,11 +1,12 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -345,11 +346,14 @@ func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, showHidden, respe
 		filteredEntries = append(filteredEntries, entry)
 	}
 
-	sort.Slice(filteredEntries, func(i, j int) bool {
-		if filteredEntries[i].IsDir() != filteredEntries[j].IsDir() {
-			return filteredEntries[i].IsDir()
+	slices.SortFunc(filteredEntries, func(a, b os.DirEntry) int {
+		if a.IsDir() != b.IsDir() {
+			if a.IsDir() {
+				return -1
+			}
+			return 1
 		}
-		return filteredEntries[i].Name() < filteredEntries[j].Name()
+		return cmp.Compare(a.Name(), b.Name())
 	})
 
 	var builder strings.Builder

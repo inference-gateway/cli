@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -487,13 +487,13 @@ func pruneSessionImages(sessionID string, retention int) {
 		return
 	}
 
-	sort.Slice(files, func(i, j int) bool {
-		fi, _ := files[i].Info()
-		fj, _ := files[j].Info()
+	slices.SortFunc(files, func(a, b os.DirEntry) int {
+		fi, _ := a.Info()
+		fj, _ := b.Info()
 		if fi == nil || fj == nil {
-			return false
+			return 0
 		}
-		return fi.ModTime().Before(fj.ModTime())
+		return fi.ModTime().Compare(fj.ModTime())
 	})
 
 	toRemove := len(files) - retention

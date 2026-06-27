@@ -1,8 +1,9 @@
 package keybinding
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -133,11 +134,11 @@ func (r *Registry) GetActiveActions(app KeyHandlerContext) []*KeyAction {
 		}
 	}
 
-	sort.Slice(actions, func(i, j int) bool {
-		if actions[i].Category == actions[j].Category {
-			return actions[i].Description < actions[j].Description
+	slices.SortFunc(actions, func(a, b *KeyAction) int {
+		if c := cmp.Compare(a.Category, b.Category); c != 0 {
+			return c
 		}
-		return actions[i].Category < actions[j].Category
+		return cmp.Compare(a.Description, b.Description)
 	})
 
 	return actions
@@ -155,7 +156,7 @@ func (r *Registry) GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut {
 
 		sortedKeys := make([]string, len(action.Keys))
 		copy(sortedKeys, action.Keys)
-		sort.Strings(sortedKeys)
+		slices.Sort(sortedKeys)
 
 		shortcuts = append(shortcuts, HelpShortcut{
 			Key:         sortedKeys[0],
@@ -174,8 +175,8 @@ func (r *Registry) AddLayer(layer *KeyLayer) {
 
 	r.layers = append(r.layers, layer)
 
-	sort.Slice(r.layers, func(i, j int) bool {
-		return r.layers[i].Priority > r.layers[j].Priority
+	slices.SortFunc(r.layers, func(a, b *KeyLayer) int {
+		return cmp.Compare(b.Priority, a.Priority)
 	})
 }
 
@@ -460,11 +461,11 @@ func (r *Registry) ListAllActions() []*KeyAction {
 		actions = append(actions, action)
 	}
 
-	sort.Slice(actions, func(i, j int) bool {
-		if actions[i].Category == actions[j].Category {
-			return actions[i].ID < actions[j].ID
+	slices.SortFunc(actions, func(a, b *KeyAction) int {
+		if c := cmp.Compare(a.Category, b.Category); c != 0 {
+			return c
 		}
-		return actions[i].Category < actions[j].Category
+		return cmp.Compare(a.ID, b.ID)
 	})
 
 	return actions

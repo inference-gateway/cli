@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -135,8 +135,8 @@ func (s *Store) List() ([]*domain.ScheduledJob, []error) {
 		}
 		jobs = append(jobs, job)
 	}
-	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].CreatedAt.Before(jobs[j].CreatedAt)
+	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	return jobs, errs
 }

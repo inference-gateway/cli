@@ -1,9 +1,10 @@
 package shortcuts
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -76,7 +77,7 @@ func (r *Registry) List() []string {
 		names = append(names, name)
 	}
 
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -90,8 +91,8 @@ func (r *Registry) GetAll() []Shortcut {
 		shortcuts = append(shortcuts, shortcut)
 	}
 
-	sort.Slice(shortcuts, func(i, j int) bool {
-		return shortcuts[i].GetName() < shortcuts[j].GetName()
+	slices.SortFunc(shortcuts, func(a, b Shortcut) int {
+		return cmp.Compare(a.GetName(), b.GetName())
 	})
 
 	return shortcuts
@@ -212,6 +213,6 @@ func (r *Registry) GetShortcutsStartingWith(prefix string) []string {
 		}
 	}
 
-	sort.Strings(matches)
+	slices.Sort(matches)
 	return matches
 }

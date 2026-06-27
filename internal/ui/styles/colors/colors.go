@@ -1,7 +1,6 @@
 package colors
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
 
@@ -142,41 +141,4 @@ func CreateStyledText(text, colorCode string) string {
 // CreateStrikethroughText creates text with strikethrough styling
 func CreateStrikethroughText(text string) string {
 	return Strikethrough + Gray + text + Reset
-}
-
-// CreateDimText creates text with dim/faint styling
-func CreateDimText(text string) string {
-	return Dim + text + Reset
-}
-
-// Diff formatting helpers
-
-// CreateDiffAddedLine creates a diff line for added content with line number
-func CreateDiffAddedLine(lineNum int, content string) string {
-	return createDiffLineWithBg("+", lineNum, content, LightGreenBg)
-}
-
-// CreateDiffRemovedLine creates a diff line for removed content with line number
-func CreateDiffRemovedLine(lineNum int, content string) string {
-	return createDiffLineWithBg("-", lineNum, content, LightRedBg)
-}
-
-// createDiffLineWithBg creates a diff line with background only covering content
-func createDiffLineWithBg(prefix string, lineNum int, content string, bgColor string) string {
-	lineNumStr := Gray + formatLineNumber(lineNum) + Reset
-
-	brightWhite := "\033[1;37m\033[38;2;255;255;255m"
-	contentPart := brightWhite + prefix + " " + content
-
-	return lineNumStr + " " + bgColor + contentPart + Reset
-}
-
-// CreateDiffUnchangedLine creates a diff line for unchanged content with line number
-func CreateDiffUnchangedLine(lineNum int, content string) string {
-	return Gray + formatLineNumber(lineNum) + Reset + "  " + content
-}
-
-// formatLineNumber formats a line number to a 3-character right-aligned string
-func formatLineNumber(lineNum int) string {
-	return fmt.Sprintf("%3d", lineNum)
 }

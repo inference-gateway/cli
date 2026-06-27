@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -387,7 +387,7 @@ func getValidActionIDs() []string {
 	for _, action := range actions {
 		ids = append(ids, action.ID)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 
 	return ids
 }

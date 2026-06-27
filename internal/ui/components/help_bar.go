@@ -1,7 +1,8 @@
 package components
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	help "charm.land/bubbles/v2/help"
 	key "charm.land/bubbles/v2/key"
@@ -20,6 +21,9 @@ type HelpBar struct {
 	shortcuts     []ui.KeyShortcut
 	styleProvider *styles.Provider
 	help          help.Model
+
+	styledAccent string
+	styledDim    string
 }
 
 func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
@@ -36,11 +40,11 @@ func (hb *HelpBar) SetShortcuts(shortcuts []ui.KeyShortcut) {
 	sortedShortcuts := make([]ui.KeyShortcut, len(shortcuts))
 	copy(sortedShortcuts, shortcuts)
 
-	sort.Slice(sortedShortcuts, func(i, j int) bool {
-		if sortedShortcuts[i].Key == sortedShortcuts[j].Key {
-			return sortedShortcuts[i].Description < sortedShortcuts[j].Description
+	slices.SortFunc(sortedShortcuts, func(a, b ui.KeyShortcut) int {
+		if c := cmp.Compare(a.Key, b.Key); c != 0 {
+			return c
 		}
-		return sortedShortcuts[i].Key < sortedShortcuts[j].Key
+		return cmp.Compare(a.Description, b.Description)
 	})
 
 	hb.shortcuts = sortedShortcuts
@@ -72,12 +76,25 @@ func (hb *HelpBar) Render() string {
 	}
 
 	hb.help.SetWidth(hb.width)
-	dim := lipgloss.Color(hb.styleProvider.GetThemeColor("dim"))
-	hb.help.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color(hb.styleProvider.GetThemeColor("accent")))
-	hb.help.Styles.FullDesc = lipgloss.NewStyle().Foreground(dim)
-	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dim)
-
+	hb.refreshStyles()
 	return hb.help.FullHelpView(hb.helpColumns())
+}
+
+// refreshStyles rebuilds the help styles only when the active theme colours
+// change, so Render does not allocate three lipgloss styles on every frame.
+func (hb *HelpBar) refreshStyles() {
+	accent := hb.styleProvider.GetThemeColor("accent")
+	dim := hb.styleProvider.GetThemeColor("dim")
+	if accent == hb.styledAccent && dim == hb.styledDim {
+		return
+	}
+	hb.styledAccent = accent
+	hb.styledDim = dim
+
+	dimColor := lipgloss.Color(dim)
+	hb.help.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
+	hb.help.Styles.FullDesc = lipgloss.NewStyle().Foreground(dimColor)
+	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dimColor)
 }
 
 // helpColumns converts the sorted shortcuts into key.Binding columns laid out

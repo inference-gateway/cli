@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -358,7 +358,7 @@ func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult)
 		for key := range result.Arguments {
 			keys = append(keys, key)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		for i, key := range keys {
 			value := result.Arguments[key]
@@ -387,7 +387,7 @@ func (t *TodoWriteTool) formatToolCallWithCollapse(args map[string]any) string {
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {

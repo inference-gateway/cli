@@ -107,12 +107,6 @@ func GetAgentDefaults(name string) *AgentDefaults {
 	return nil
 }
 
-// IsKnownAgent returns true if the agent name has default configuration
-func IsKnownAgent(name string) bool {
-	_, ok := agentBaseDefaults[name]
-	return ok
-}
-
 // ListKnownAgents returns a list of all known agent names
 func ListKnownAgents() []string {
 	names := make([]string, 0, len(agentBaseDefaults))

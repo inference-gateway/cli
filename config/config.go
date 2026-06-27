@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 )
@@ -1333,27 +1332,6 @@ func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
 	return nil
 }
 
-// ResolveEnvironmentVariables resolves environment variable references in the format %VAR_NAME%
-func ResolveEnvironmentVariables(value string) string {
-	if value == "" {
-		return value
-	}
-
-	envVarPattern := regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`)
-
-	result := envVarPattern.ReplaceAllStringFunc(value, func(match string) string {
-		varName := match[1 : len(match)-1]
-
-		if envValue := os.Getenv(varName); envValue != "" {
-			return envValue
-		}
-
-		return ""
-	})
-
-	return result
-}
-
 // KeyNamespace represents the namespace for key binding actions
 type KeyNamespace string
 
@@ -1410,12 +1388,4 @@ func FindAvailablePort(basePort int) int {
 		return port
 	}
 	return basePort
-}
-
-// ReleasePort releases a previously allocated port
-// Should be called when containers are stopped
-func ReleasePort(port int) {
-	portMutex.Lock()
-	defer portMutex.Unlock()
-	delete(allocatedPorts, port)
 }

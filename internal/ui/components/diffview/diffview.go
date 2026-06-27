@@ -123,29 +123,11 @@ func (dv *DiffView) Width(w int) *DiffView { dv.width = w; return dv }
 // Layout overrides the layout selection. Defaults to Auto.
 func (dv *DiffView) Layout(l Layout) *DiffView { dv.layout = l; return dv }
 
-// SplitMinWidth overrides the width threshold above which Auto picks Split.
-// Default is 160.
-func (dv *DiffView) SplitMinWidth(w int) *DiffView { dv.splitMinWidth = w; return dv }
-
 // Style overrides the visual style. Defaults to DefaultDarkStyle.
 func (dv *DiffView) Style(s Style) *DiffView { dv.style = s; return dv }
 
-// ChromaStyle enables in-line syntax highlighting using the given chroma style.
-// Pass nil (the default) to disable highlighting.
-func (dv *DiffView) ChromaStyle(s *chroma.Style) *DiffView {
-	dv.chromaStyle = s
-	dv.clearSyntaxCache()
-	return dv
-}
-
-// TabWidth sets how many spaces a tab expands to. Default is 4.
-func (dv *DiffView) TabWidth(w int) *DiffView { dv.tabWidth = w; return dv }
-
 // ContextLines sets the number of unchanged context lines around each hunk.
 func (dv *DiffView) ContextLines(n int) *DiffView { dv.contextLines = n; return dv }
-
-// LineNumbers toggles the line-number gutter.
-func (dv *DiffView) LineNumbers(b bool) *DiffView { dv.lineNumbers = b; return dv }
 
 // String renders the diff.
 func (dv *DiffView) String() string {

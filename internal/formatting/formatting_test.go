@@ -3,6 +3,9 @@ package formatting
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestFormatResponsiveMessage_NoTrailingSpaces(t *testing.T) {
@@ -153,6 +156,53 @@ func TestFormatCost(t *testing.T) {
 			result := FormatCost(tt.cost)
 			if result != tt.want {
 				t.Errorf("FormatCost(%v) = %q, want %q", tt.cost, result, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateText(t *testing.T) {
+	exact := []struct {
+		name string
+		in   string
+		max  int
+		want string
+	}{
+		{"shorter than max", "hello", 10, "hello"},
+		{"equal to max", "hello", 5, "hello"},
+		{"ascii truncated", "hello world", 8, "hello..."},
+		{"maxLen 3 is ellipsis", "hello", 3, "..."},
+		{"maxLen 2 clamps to budget", "hello", 2, ".."},
+		{"maxLen 1 clamps to budget", "hello", 1, "."},
+		{"maxLen 0 is empty", "hello", 0, ""},
+		{"empty input", "", 10, ""},
+		{"wide runes fit exactly", "你好", 4, "你好"}, // each CJK rune is 2 columns
+	}
+	for _, tt := range exact {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TruncateText(tt.in, tt.max); got != tt.want {
+				t.Fatalf("TruncateText(%q, %d) = %q, want %q", tt.in, tt.max, got, tt.want)
+			}
+		})
+	}
+
+	wide := []struct {
+		name string
+		in   string
+		max  int
+	}{
+		{"cjk long", "你好世界你好世界", 6},
+		{"emoji run", "😀😀😀😀😀", 5},
+		{"mixed ascii and emoji", "café au lait ☕ extra long", 10},
+	}
+	for _, tt := range wide {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TruncateText(tt.in, tt.max)
+			if w := ansi.StringWidth(got); w > tt.max {
+				t.Errorf("TruncateText(%q, %d) width = %d, want <= %d (got %q)", tt.in, tt.max, w, tt.max, got)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("TruncateText(%q, %d) = %q is not valid UTF-8", tt.in, tt.max, got)
 			}
 		})
 	}

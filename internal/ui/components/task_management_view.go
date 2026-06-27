@@ -846,13 +846,13 @@ func (t *TaskManagerImpl) writeTaskRows(b *strings.Builder) {
 
 // writeTaskRow writes a single task row in table format
 func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
-	taskID := t.truncateString(task.TaskID, 38)
-	agentURL := t.truncateString(task.AgentURL, 30)
-	contextID := t.truncateString(task.ContextID, 38)
+	taskID := formatting.TruncateText(task.TaskID, 38)
+	agentURL := formatting.TruncateText(task.AgentURL, 30)
+	contextID := formatting.TruncateText(task.ContextID, 38)
 	if contextID == "" {
 		contextID = "-"
 	}
-	status := t.truncateString(task.Status, 15)
+	status := formatting.TruncateText(task.Status, 15)
 	elapsed := t.formatDuration(task.ElapsedTime)
 
 	if index == t.selected {
@@ -879,50 +879,6 @@ func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
 		help := t.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, r to refresh, q/Esc to quit")
 		fmt.Fprintf(b, "%s", help)
 	}
-}
-
-// truncateString truncates a string to the specified length with ellipsis
-func (t *TaskManagerImpl) truncateString(s string, maxLen int) string {
-	actualWidth := t.styleProvider.GetWidth(s)
-
-	if actualWidth <= maxLen {
-		return s
-	}
-
-	if maxLen <= 3 {
-		return "..."
-	}
-
-	stripped := t.stripAnsi(s)
-	if len(stripped) <= maxLen-3 {
-		return stripped + "..."
-	}
-	return stripped[:maxLen-3] + "..."
-}
-
-// stripAnsi removes ANSI escape sequences from a string
-func (t *TaskManagerImpl) stripAnsi(text string) string {
-	var result strings.Builder
-	inEscape := false
-
-	for i := 0; i < len(text); i++ {
-		if text[i] == '\033' && i+1 < len(text) && text[i+1] == '[' {
-			inEscape = true
-			i++
-			continue
-		}
-
-		if inEscape {
-			if (text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= 'a' && text[i] <= 'z') {
-				inEscape = false
-			}
-			continue
-		}
-
-		result.WriteByte(text[i])
-	}
-
-	return result.String()
 }
 
 // formatDuration formats a duration into a human-readable string
