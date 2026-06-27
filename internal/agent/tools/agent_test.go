@@ -61,7 +61,6 @@ func TestAgentTool_SyncFanOut(t *testing.T) {
 	}
 
 	args := map[string]any{
-		"wait": true,
 		"tasks": []any{
 			map[string]any{"description": "task A", "label": "A"},
 			map[string]any{"description": "task B", "label": "B"},
@@ -107,7 +106,7 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 		return agentrunner.Result{FinalAssistant: "ok"}, nil
 	}
 
-	args := map[string]any{"wait": true, "description": "do x"}
+	args := map[string]any{"description": "do x"}
 	if _, err := tool.Execute(context.Background(), args); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -124,7 +123,7 @@ func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
 	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
 	tool.interactiveAvailable = func() bool { return false }
 
-	args := map[string]any{"wait": true, "description": "do x"}
+	args := map[string]any{"description": "do x"}
 	res, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)

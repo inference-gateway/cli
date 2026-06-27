@@ -109,10 +109,6 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 						"type":        "string",
 						"description": "Shorthand for a single subagent task (alternative to tasks)",
 					},
-					"wait": map[string]any{
-						"type":        "boolean",
-						"description": "If true (default), block until all subagents finish and return aggregated results. If false, dispatch and get notified on completion.",
-					},
 				},
 			},
 		},
@@ -138,7 +134,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 	}
 
 	mode := t.resolveMode()
-	wait := t.resolveWait(args)
+	wait := t.resolveWait()
 
 	var notes []string
 	if maxN := t.maxParallel(); len(specs) > maxN {
@@ -481,10 +477,10 @@ func (t *AgentTool) resolveMode() string {
 	return domain.SubagentModeHeadless
 }
 
-func (t *AgentTool) resolveWait(args map[string]any) bool {
-	if w, ok := args["wait"].(bool); ok {
-		return w
-	}
+// resolveWait returns whether the tool blocks for aggregated results, from
+// config (tools.agent.wait) only. Like mode, this is an operator policy - not a
+// per-call LLM choice - so there is no wait parameter the model can override.
+func (t *AgentTool) resolveWait() bool {
 	return t.config.Tools.Agent.Wait
 }
 

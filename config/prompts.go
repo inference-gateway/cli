@@ -600,9 +600,9 @@ Provide either 'tasks' (an array of {description, label?, model?} objects) to ru
 
 The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
-Result delivery:
-- By default (wait=true) the tool BLOCKS until all subagents finish and returns their aggregated results in one response (classic fan-out / fan-in); their live progress is shown while you wait.
-- Set wait=false to instead dispatch and continue immediately; you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll, the results appear in the conversation.
+Result delivery is operator-configured (tools.agent.wait), not your choice - there is no wait parameter:
+- Blocking (default): the call waits until all subagents finish and returns their aggregated results in one response (fan-out / fan-in); their live progress shows while it runs.
+- Async: the call returns immediately and you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll, the results appear in the conversation.
 
 Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.`,
 		},
