@@ -91,9 +91,6 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
 	mockToolService := &domainmocks.FakeToolService{}
-	mockToolService.ListAvailableToolsReturns([]string{
-		"Read", "Write", "Bash", "WebSearch", "Tree",
-	})
 
 	readDesc := "Read files"
 	writeDesc := "Write files"
@@ -136,7 +133,9 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 		"required": []string{"command"},
 	})
 
-	mockToolService.ListToolsReturns([]sdk.ChatCompletionTool{
+	// loadTools now sources the !! suggestions from ListToolsForMode (the same
+	// mode-aware gating the agent uses for the LLM).
+	mockToolService.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		{
 			Type: sdk.Function,
 			Function: sdk.FunctionObject{
@@ -160,6 +159,14 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 				Description: &bashDesc,
 				Parameters:  &bashParams,
 			},
+		},
+		{
+			Type:     sdk.Function,
+			Function: sdk.FunctionObject{Name: "WebSearch"},
+		},
+		{
+			Type:     sdk.Function,
+			Function: sdk.FunctionObject{Name: "Tree"},
 		},
 	})
 
@@ -224,6 +231,47 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 
 			assert.Equal(t, tt.expectedVisible, autocomplete.IsVisible())
 		})
+	}
+}
+
+func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
+	mockRegistry := &uimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
+
+	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService.ListToolsForModeStub = func(mode domain.AgentMode) []sdk.ChatCompletionTool {
+		if mode == domain.AgentModePlan {
+			return []sdk.ChatCompletionTool{
+				{Type: sdk.Function, Function: sdk.FunctionObject{Name: "AskUserQuestion"}},
+			}
+		}
+		return []sdk.ChatCompletionTool{
+			{Type: sdk.Function, Function: sdk.FunctionObject{Name: "Bash"}},
+		}
+	}
+
+	sm := &domainmocks.FakeStateManager{}
+
+	theme := &uimocks.FakeTheme{}
+	theme.GetDimColorReturns("#808080")
+	theme.GetAccentColorReturns("#FF00FF")
+
+	ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+	ac.SetToolService(mockToolService)
+	ac.SetStateManager(sm)
+
+	// Standard mode: AskUserQuestion is plan-only, so it must not autocomplete.
+	sm.GetAgentModeReturns(domain.AgentModeStandard)
+	ac.Update("!!AskUser", 9)
+	if ac.IsVisible() {
+		t.Error("AskUserQuestion should not autocomplete in standard mode")
+	}
+
+	// Plan mode: it appears.
+	sm.GetAgentModeReturns(domain.AgentModePlan)
+	ac.Update("!!AskUser", 9)
+	if !ac.IsVisible() {
+		t.Error("AskUserQuestion should autocomplete in plan mode")
 	}
 }
 
