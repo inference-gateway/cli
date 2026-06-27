@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.124.0](https://github.com/inference-gateway/cli/compare/v0.123.1...v0.124.0) (2026-06-27)
+
+### 🚀 Features
+
+* add /env shortcut for creating .env.example with provider API keys ([#655](https://github.com/inference-gateway/cli/issues/655)) ([3227e15](https://github.com/inference-gateway/cli/commit/3227e152a0b8abf33916d37565c14eb049ffebb0)), closes [#519](https://github.com/inference-gateway/cli/issues/519)
+* **tools:** add Agent tool for local subagents ([#658](https://github.com/inference-gateway/cli/issues/658)) ([1712f6e](https://github.com/inference-gateway/cli/commit/1712f6e30014430acf90e7f7eb098e4fe143a0a5)), closes [#653](https://github.com/inference-gateway/cli/issues/653) [#653](https://github.com/inference-gateway/cli/issues/653)
+* **tools:** add AskUserQuestion clarifying-question form for plan mode ([#661](https://github.com/inference-gateway/cli/issues/661)) ([998bf37](https://github.com/inference-gateway/cli/commit/998bf3756537df0d0a43891c7e6da69f6d6a1ccb)), closes [#652](https://github.com/inference-gateway/cli/issues/652)
+* add sleep to default bash allow-list ([#660](https://github.com/inference-gateway/cli/issues/660)) ([2d945c3](https://github.com/inference-gateway/cli/commit/2d945c343c1df0c1fef6908757a7cd4fe2041fdc)), closes [#659](https://github.com/inference-gateway/cli/issues/659)
+
+### 🧹 Maintenance
+
+* **deps:** bump infer-action v0.17.2 -> v0.19.0 ([#654](https://github.com/inference-gateway/cli/issues/654)) ([c66e6d2](https://github.com/inference-gateway/cli/commit/c66e6d2d3bcb4030b0c59778fb180dc8fbb068b5))
+* **flox:** update codex and infer versions ([4268714](https://github.com/inference-gateway/cli/commit/426871457b25dfd7abd4f6cba24f93b583d89623))
+
 ## [0.123.1](https://github.com/inference-gateway/cli/compare/v0.123.0...v0.123.1) (2026-06-24)
 
 ### 🐛 Bug Fixes
