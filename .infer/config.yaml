@@ -38,6 +38,8 @@ speech_to_text:
   silence_timeout: 2
   ffmpeg_path: ""
   input_device: ""
+  retain_recordings: 0
+  recordings_dir: ""
 client:
   timeout: 200
   retry:

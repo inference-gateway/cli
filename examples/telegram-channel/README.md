@@ -127,6 +127,37 @@ You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
 5. The agent processes it (may use tools, call LLM)
 6. The response is parsed from stdout and sent back through Telegram
 
+## Voice Messages (Optional)
+
+The bot can transcribe inbound Telegram **voice notes** to text locally with
+[Whisper](../../docs/speech-to-text.md), so you can talk to the agent from your phone instead of
+typing. Transcription runs fully offline once the model is downloaded - no cloud STT, no API keys.
+
+**Prerequisite:** speech-to-text shells out to `ffmpeg` (to decode OGG/Opus) and a
+`whisper-cli`/`whisper-cpp` binary. The published `ghcr.io/inference-gateway/cli:latest` image does
+**not** bundle these, so enable voice in one of two ways:
+
+- **Run on a host** that has them installed (`brew install ffmpeg whisper-cpp`, or `apt install
+  ffmpeg` plus a whisper.cpp build) - see [Running Without Docker](#running-without-docker).
+- **Build a custom image** that adds `ffmpeg` and a whisper binary on top of the base image.
+
+Then enable it via environment variables (in `.env` or the compose `environment:` block):
+
+```bash
+INFER_SPEECH_TO_TEXT_ENABLED=true
+INFER_SPEECH_TO_TEXT_MODEL=tiny            # tiny | base | small | medium | large-v3-turbo
+INFER_SPEECH_TO_TEXT_AUTO_DOWNLOAD=true    # fetch the GGML model on first use
+INFER_SPEECH_TO_TEXT_RETAIN_RECORDINGS=10  # keep the last 10 voice files (0 = keep none, the default)
+```
+
+Send a voice note to your bot; it is downloaded, transcribed, and answered as if you had typed it.
+
+With `retain_recordings` greater than `0`, the original audio is also kept under `recordings_dir`
+(default `~/.infer/voice`), and the oldest files are pruned once the cap is exceeded. In this compose
+setup that path resolves to `/home/infer/.infer/voice`, which already persists to `./tmp/.infer/voice`
+on your host via the existing volume mount. Override the location with
+`INFER_SPEECH_TO_TEXT_RECORDINGS_DIR` if you want.
+
 ## Running Without Docker
 
 ```bash

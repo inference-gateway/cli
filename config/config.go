@@ -96,6 +96,21 @@ type SpeechToTextConfig struct {
 	SilenceTimeout      int    `yaml:"silence_timeout" mapstructure:"silence_timeout"`             // stop /voice after N s of silence (0 = record full cap)
 	FFmpegPath          string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`                     // "" -> resolve ffmpeg on PATH
 	InputDevice         string `yaml:"input_device" mapstructure:"input_device"`                   // "" -> platform default mic
+	RetainRecordings    int    `yaml:"retain_recordings" mapstructure:"retain_recordings"`         // keep last N inbound voice/audio files (0 = keep none)
+	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/voice
+}
+
+// ResolveRecordingsDir returns the directory where retained inbound voice/audio
+// recordings are stored, defaulting to ~/.infer/voice when RecordingsDir is unset.
+func (c SpeechToTextConfig) ResolveRecordingsDir() (string, error) {
+	if strings.TrimSpace(c.RecordingsDir) != "" {
+		return c.RecordingsDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "voice"), nil
 }
 
 // ClientConfig contains HTTP client settings
@@ -679,6 +694,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			SilenceTimeout:      2,
 			FFmpegPath:          "",
 			InputDevice:         "",
+			RetainRecordings:    0,
+			RecordingsDir:       "",
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -1056,6 +1073,13 @@ func (c *Config) Validate() error {
 			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, or %q",
 			c.Tools.Safety.ApprovalBehaviour,
 			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock,
+		)
+	}
+
+	if c.SpeechToText.RetainRecordings < 0 {
+		return fmt.Errorf(
+			"invalid speech_to_text.retain_recordings %d: must be >= 0",
+			c.SpeechToText.RetainRecordings,
 		)
 	}
 	return nil
