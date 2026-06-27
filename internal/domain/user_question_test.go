@@ -36,19 +36,35 @@ func sampleQuestions() []UserQuestion {
 	}
 }
 
-func TestUserQuestionUIState_SingleSelectToggleReplaces(t *testing.T) {
+func TestUserQuestionUIState_SingleSelectDefaultAndFollowsCursor(t *testing.T) {
 	s := NewApplicationState()
 	s.SetupUserQuestionUIState(sampleQuestions(), make(chan []UserQuestionAnswer, 1))
 
-	s.ToggleUserQuestionOption(0) // select JSON
-	s.ToggleUserQuestionOption(1) // single-select -> replaces with YAML
+	st := s.GetUserQuestionUIState()
+	if !st.Selected[0][0] {
+		t.Error("expected the first option to be pre-selected by default")
+	}
+
+	s.SetUserQuestionOptionCursor(1)
+	if st.Selected[0][0] || !st.Selected[0][1] {
+		t.Errorf("expected selection to follow the cursor to option 1, got %v", st.Selected[0])
+	}
+}
+
+func TestUserQuestionUIState_RecommendedDefault(t *testing.T) {
+	s := NewApplicationState()
+	s.SetupUserQuestionUIState([]UserQuestion{
+		{Header: "Fmt", Question: "q", MultiSelect: false, Options: []UserQuestionOption{
+			{Label: "JSON"}, {Label: "YAML (Recommended)"},
+		}},
+	}, make(chan []UserQuestionAnswer, 1))
 
 	st := s.GetUserQuestionUIState()
-	if st.Selected[0][0] {
-		t.Error("expected option 0 deselected after selecting option 1 (single-select)")
+	if st.Selected[0][0] || !st.Selected[0][1] {
+		t.Errorf("expected the (Recommended) option pre-selected, got %v", st.Selected[0])
 	}
-	if !st.Selected[0][1] {
-		t.Error("expected option 1 selected")
+	if st.OptionCursor != 1 {
+		t.Errorf("expected the cursor on the recommended option, got %d", st.OptionCursor)
 	}
 }
 
@@ -67,7 +83,7 @@ func TestUserQuestionUIState_MultiSelectAccumulates(t *testing.T) {
 		t.Errorf("expected options 0 and 2 selected, got %v", st.Selected[1])
 	}
 
-	s.ToggleUserQuestionOption(0) // toggle off
+	s.ToggleUserQuestionOption(0)
 	if st.Selected[1][0] {
 		t.Error("expected option 0 toggled off")
 	}
@@ -77,11 +93,10 @@ func TestUserQuestionUIState_BuildAnswersAndAdvance(t *testing.T) {
 	s := NewApplicationState()
 	s.SetupUserQuestionUIState(sampleQuestions(), make(chan []UserQuestionAnswer, 1))
 
-	s.ToggleUserQuestionOption(0) // q0: JSON
 	if s.AdvanceUserQuestion() {
 		t.Fatal("expected not done after q0")
 	}
-	s.ToggleUserQuestionOption(1) // q1: B
+	s.ToggleUserQuestionOption(1)
 	s.SetUserQuestionOtherActive(true)
 	s.AppendUserQuestionOtherText("custom")
 	if !s.AdvanceUserQuestion() {
@@ -93,7 +108,7 @@ func TestUserQuestionUIState_BuildAnswersAndAdvance(t *testing.T) {
 		t.Fatalf("expected 2 answers, got %d", len(answers))
 	}
 	if len(answers[0].SelectedLabels) != 1 || answers[0].SelectedLabels[0] != "JSON" {
-		t.Errorf("q0 expected [JSON], got %v", answers[0].SelectedLabels)
+		t.Errorf("q0 expected [JSON] (default), got %v", answers[0].SelectedLabels)
 	}
 	if answers[1].OtherText != "custom" {
 		t.Errorf("q1 expected OtherText=custom, got %q", answers[1].OtherText)
@@ -130,6 +145,5 @@ func TestUserQuestionUIState_ClearClosesChannel(t *testing.T) {
 		t.Fatal("expected a closed channel to be immediately readable")
 	}
 
-	// Idempotent / nil-safe.
 	s.ClearUserQuestionUIState()
 }

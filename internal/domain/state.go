@@ -915,6 +915,39 @@ func (s *ApplicationState) SetupUserQuestionUIState(questions []UserQuestion, re
 		OtherActive:  make([]bool, n),
 		ResponseChan: responseChan,
 	}
+	s.userQuestionUIState.applyCurrentQuestionDefault()
+}
+
+// defaultUserQuestionOption returns the option index to pre-select for a
+// single-select question: the first option whose label is marked "(Recommended)"
+// (case-insensitive), otherwise the first option.
+func defaultUserQuestionOption(q UserQuestion) int {
+	for i, opt := range q.Options {
+		if strings.Contains(strings.ToLower(opt.Label), "(recommended)") {
+			return i
+		}
+	}
+	return 0
+}
+
+// applyCurrentQuestionDefault pre-selects the default option for the current
+// question when it is single-select, so the radio always shows a choice and the
+// cursor starts on it. Multi-select questions start with nothing selected.
+func (q *UserQuestionUIState) applyCurrentQuestionDefault() {
+	if q.CurrentIndex >= len(q.Questions) {
+		return
+	}
+	question := q.Questions[q.CurrentIndex]
+	if question.MultiSelect || len(question.Options) == 0 {
+		return
+	}
+	idx := defaultUserQuestionOption(question)
+	q.OptionCursor = idx
+	sel := q.Selected[q.CurrentIndex]
+	for k := range sel {
+		delete(sel, k)
+	}
+	sel[idx] = true
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state, or nil.
@@ -937,6 +970,17 @@ func (s *ApplicationState) SetUserQuestionOptionCursor(idx int) {
 		idx = maxIdx
 	}
 	q.OptionCursor = idx
+
+	if q.CurrentIndex < len(q.Questions) && !q.Questions[q.CurrentIndex].MultiSelect {
+		sel := q.Selected[q.CurrentIndex]
+		for k := range sel {
+			delete(sel, k)
+		}
+		if idx < len(q.Questions[q.CurrentIndex].Options) {
+			sel[idx] = true
+			q.OtherActive[q.CurrentIndex] = false
+		}
+	}
 }
 
 // ToggleUserQuestionOption toggles the option at optIdx for the current
@@ -976,7 +1020,11 @@ func (s *ApplicationState) AdvanceUserQuestion() bool {
 	}
 	q.CurrentIndex++
 	q.OptionCursor = 0
-	return q.CurrentIndex >= len(q.Questions)
+	if q.CurrentIndex >= len(q.Questions) {
+		return true
+	}
+	q.applyCurrentQuestionDefault()
+	return false
 }
 
 // SetUserQuestionOtherActive toggles free-text entry on the "Other" row of the

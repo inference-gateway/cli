@@ -149,7 +149,7 @@ func (qv *QuestionFormView) hint(state *domain.UserQuestionUIState, question dom
 	if question.MultiSelect {
 		return "↑/↓ move · space toggle · enter continue · esc cancel"
 	}
-	return "↑/↓ move · enter select · esc cancel"
+	return "↑/↓ select · enter confirm · esc cancel"
 }
 
 // textBudget is the display width available for a row after reserving room for

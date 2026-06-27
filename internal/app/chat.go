@@ -568,13 +568,11 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 	}
 
 	if event.Connected && len(event.Tools) > 0 {
-		count := app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
-		logger.Debug("registered MCP tools", "server", event.ServerName, "count", count)
+		app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
 	}
 
 	if !event.Connected {
-		count := app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
-		logger.Debug("unregistered MCP tools", "server", event.ServerName, "count", count)
+		app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
 	}
 
 	if app.autocomplete != nil {
@@ -853,11 +851,14 @@ func (app *ChatApplication) toggleUserQuestionAtCursor() {
 		app.stateManager.SetUserQuestionOtherActive(true)
 		return
 	}
-	app.stateManager.ToggleUserQuestionOption(q.OptionCursor)
+
+	if q.Questions[q.CurrentIndex].MultiSelect {
+		app.stateManager.ToggleUserQuestionOption(q.OptionCursor)
+	}
 }
 
-// confirmUserQuestion records the highlighted choice (for single-select), then
-// advances to the next question or, on the last one, submits all answers.
+// confirmUserQuestion advances to the next question or, on the last one, submits
+// all answers (the current single-select choice already follows the cursor).
 func (app *ChatApplication) confirmUserQuestion() {
 	sm := app.stateManager
 	q := sm.GetUserQuestionUIState()
@@ -871,13 +872,8 @@ func (app *ChatApplication) confirmUserQuestion() {
 		return
 	}
 
-	// Single-select: Enter on a real option selects it (idempotently).
-	if !q.Questions[q.CurrentIndex].MultiSelect && !q.OnOtherRow() && !q.Selected[q.CurrentIndex][q.OptionCursor] {
-		sm.ToggleUserQuestionOption(q.OptionCursor)
-	}
-
 	if !userQuestionAnswered(q) {
-		return // require a selection or Other text before advancing
+		return
 	}
 
 	if !sm.AdvanceUserQuestion() {

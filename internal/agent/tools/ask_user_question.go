@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // Bounds for the AskUserQuestion schema. They are enforced in Validate (and
@@ -130,6 +131,7 @@ func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) 
 
 	broker := domain.GetUserQuestionBroker(ctx)
 	if broker == nil {
+		logger.Debug("AskUserQuestion: no interactive broker in context - degrading", "questions", len(questions))
 		return t.result(args, start, map[string]any{
 			"available": false,
 			"message": "No interactive user is available to answer questions in this session " +
@@ -138,7 +140,9 @@ func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) 
 		}), nil
 	}
 
+	logger.Debug("AskUserQuestion: presenting questions to user, blocking for answers", "questions", len(questions))
 	answers, ok, err := broker.AskUserQuestions(ctx, questions)
+	logger.Debug("AskUserQuestion: user responded", "ok", ok, "answers", len(answers), "err", err)
 	if err != nil {
 		return t.failure(args, start, fmt.Sprintf("question request cancelled: %v", err)), nil
 	}
@@ -250,9 +254,11 @@ func (t *AskUserQuestionTool) ShouldCollapseArg(key string) bool {
 	return key == "questions"
 }
 
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI.
+// ShouldAlwaysExpand keeps the collected answers expanded in the conversation
+// by default - the Q&A is the whole point of the tool, so it shouldn't be
+// hidden behind a collapsed one-liner.
 func (t *AskUserQuestionTool) ShouldAlwaysExpand() bool {
-	return false
+	return true
 }
 
 // triState lets the format helpers distinguish "absent" from an explicit
