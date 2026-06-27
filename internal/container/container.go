@@ -596,12 +596,6 @@ func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
 	return c.mcpManager
 }
 
-// GetChatEventListener returns the shared Bubble Tea channel listener used by
-// every chat orchestration service.
-func (c *ServiceContainer) GetChatEventListener() domain.ChatEventListener {
-	return c.chatEventListener
-}
-
 // GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
 func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
 	return c.a2aTaskCoordinator
@@ -706,11 +700,6 @@ func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
 
 	logger.Debug("using gateway mode (API-based)")
 	return adapters.NewSDKClientAdapter(c.createRawSDKClient())
-}
-
-// RegisterCommand allows external registration of commands
-func (c *ServiceContainer) RegisterShortcut(shortcut shortcuts.Shortcut) {
-	c.shortcutRegistry.Register(shortcut)
 }
 
 // GetBackgroundJobManager returns the background job manager

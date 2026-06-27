@@ -32,23 +32,3 @@ func ScaleAPIToScreen(apiX, apiY, apiWidth, apiHeight, screenWidth, screenHeight
 
 	return screenX, screenY
 }
-
-// ScaleScreenToAPI converts coordinates from screen space to API space.
-// This is the inverse of ScaleAPIToScreen and is used when capturing screenshots.
-//
-// Parameters:
-//   - screenX, screenY: Coordinates in actual screen space
-//   - screenWidth, screenHeight: Actual logical screen dimensions
-//   - apiWidth, apiHeight: Target screenshot dimensions
-//
-// Returns:
-//   - apiX, apiY: Coordinates in API/screenshot space
-func ScaleScreenToAPI(screenX, screenY, screenWidth, screenHeight, apiWidth, apiHeight int) (int, int) {
-	xScale := float64(apiWidth) / float64(screenWidth)
-	yScale := float64(apiHeight) / float64(screenHeight)
-
-	apiX := int(math.Round(float64(screenX) * xScale))
-	apiY := int(math.Round(float64(screenY) * yScale))
-
-	return apiX, apiY
-}

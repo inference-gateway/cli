@@ -82,8 +82,3 @@ func CanInputHandle(key tea.KeyMsg) bool {
 	}
 	return slices.Contains(InputHandlerKeys, key.String())
 }
-
-// IsKeyOrPrintable checks if a key is either a known key or a printable character
-func IsKeyOrPrintable(keyStr string) bool {
-	return IsPrintableCharacter(keyStr) || IsKnownKey(keyStr)
-}
