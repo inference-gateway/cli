@@ -39,6 +39,7 @@ type Registry struct {
 	readFiles          map[string]fileReadSnapshot
 	readFilesMu        sync.Mutex
 	taskTracker        domain.A2ATaskTracker
+	subagentTracker    domain.SubagentTracker
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
 	shellService       domain.BackgroundShellService
@@ -65,6 +66,9 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		mcpManager:         mcpManager,
 		stateManager:       stateManager,
 		screenshotProvider: screenshotProvider,
+	}
+	if st, ok := taskTracker.(domain.SubagentTracker); ok {
+		registry.subagentTracker = st
 	}
 
 	registry.registerTools()
@@ -109,6 +113,10 @@ func (r *Registry) registerTools() {
 
 	if cfg.Tools.Schedule.Enabled {
 		r.tools["Schedule"] = NewScheduleTool(cfg)
+	}
+
+	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
+		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker)
 	}
 
 	if cfg.Tools.WebFetch.Enabled {

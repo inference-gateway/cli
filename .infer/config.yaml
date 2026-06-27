@@ -158,6 +158,17 @@ tools:
     enabled: false
     require_approval: true
     max_jobs: 100
+  agent:
+    enabled: true
+    require_approval: true
+    mode: interactive
+    wait: true
+    max_parallel: 4
+    max_depth: 1
+    interactive:
+      multiplexer: tmux
+      layout: vertical
+      fallback: headless
   safety:
     require_approval: true
     approval_behaviour: prompt
@@ -283,6 +294,7 @@ web:
   port: 3000
   host: localhost
   session_inactivity_mins: 5
+  tmux: true
   ssh:
     enabled: false
     use_ssh_config: true

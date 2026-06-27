@@ -1,41 +1,91 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
+A README for coding agents working on the Inference Gateway CLI.
 
-This repository is a Go CLI application for Inference Gateway. The entry point is `main.go`; Cobra command implementations live in `cmd/`. Configuration models, defaults, and YAML helpers live in `config/`. Shared implementation details are under `internal/`, with test doubles in `tests/mocks/`. User-facing documentation is in `docs/`, runnable scenarios are in `examples/`, and release/container files include `Taskfile.yml`, `Dockerfile`, `flake.nix`, and `.releaserc.yaml`.
+## Stack
 
-## Build, Test, and Development Commands
+- **Go 1.26**, module `github.com/inference-gateway/cli`. Entry point: `main.go` → `cmd.Execute()`.
+- **Cobra** for CLI structure. Root subcommands share a dependency-injected service container (`internal/container/container.go`).
+- Dev environment managed via **flox** (`.flox/env/manifest.toml` pins Go, `go-task`, `golangci-lint`, `gopls`, `pre-commit`, `ripgrep`, `markdownlint-cli`, `gh`). Run everything through `flox activate --`.
 
-Use `flox activate` when available so local tools match CI.
+## Build / Test / Lint
 
-- `task build`: builds the `infer` binary with version metadata.
-- `task run -- <args>`: runs the CLI locally, for example `task run -- status`.
-- `task test`: runs all Go tests with `go test ./...`.
-- `task test:coverage`: runs tests with package coverage output.
-- `task fmt`: formats Go files with `go fmt ./...`.
-- `task lint`: runs `golangci-lint` and markdownlint fixes.
-- `task vet`: runs `go vet ./...`.
-- `task precommit:install` / `task precommit:run`: installs or runs all pre-commit checks.
+```bash
+task build                    # → ./infer binary
+task run -- <args>            # go run . <args> (e.g. task run -- status)
+task test                     # go test ./...
+task test:coverage            # go test -cover ./...
+task test:verbose             # go test -v ./...
+go test ./internal/agent -run TestBashTool  # single test
+task fmt                      # go fmt ./...
+task lint                     # golangci-lint run + markdownlint fix
+task vet                      # go vet ./...
+task precommit:run            # all pre-commit hooks
+task mocks:generate           # regenerate counterfeiter fakes in tests/mocks/
+task mod:tidy                 # go mod tidy
+```
 
-## Coding Style & Naming Conventions
+## Architecture
 
-Follow `.editorconfig`: UTF-8, LF endings, final newline, two-space indentation by default, and tabs for Go files. Keep Go code idiomatic and formatted by `go fmt`. Package names are short, lowercase, and descriptive. Go tests should use `_test.go` files colocated with the package unless shared mocks belong in `tests/mocks/`. Keep command names and config keys consistent with existing CLI terminology.
+The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`). States flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue … → Completing → Idle`. Each state's executor lives in `internal/agent/states/<state>.go`.
 
-## Testing Guidelines
+**Domain/Infra split:**
+- `internal/domain/` — pure interfaces and value types. `interfaces.go` is the central contract; touching it triggers mock regeneration in pre-commit.
+- `internal/infra/` — adapters (SDK clients, storage backends), storage migrations.
+- `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
+- `internal/agent/tools/` — tool implementations. `registry.go` is the source of truth for registered tools.
 
-The project uses Go’s standard testing framework. Add or update focused tests for command behavior, config parsing, migrations, and service logic touched by a change. Prefer table-driven tests where inputs and expected results vary. Run `task test` before opening a PR; use `task test:verbose` while diagnosing failures and `task test:coverage` for broader changes.
+**Two LLM client modes:** Gateway (default, HTTP via `inference-gateway/sdk`) vs Claude Code (shells out to `claude` CLI, subscription-based, Claude-only, no images).
 
-## Commit & Pull Request Guidelines
+## Testing
 
-Use Conventional Commits as enforced by `.commitlintrc.json`: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`. Examples: `fix(cli): handle missing config file` or `docs: update mcp guide`. PRs should describe the change, include test results, link related issues, and include screenshots or terminal output when user-visible CLI behavior changes.
+- Use Go's standard `testing` package. Colocate `_test.go` files with the package under test.
+- **Mocks** use [counterfeiter](https://github.com/maxbrunsfeld/counterfeiter) and live in `tests/mocks/` — they are **committed** to the repo.
+- If you add a new interface in `internal/domain`, add a `counterfeiter` line to `Taskfile.yml` under `mocks:generate` and run `task mocks:generate`.
+- Prefer table-driven tests where inputs and expected results vary.
+- SA5011 false positives in tests are suppressed in `.golangci.yml` — `t.Fatal` is recognised as no-return.
 
-## After Editing Config Behaviour
+## Linter Constraints
 
-When you change defaults, struct fields, validation, or any other behaviour in `config/config.go` (or any file under `config/` that affects generated output):
+`.golangci.yml` enforces:
+- `gocyclo`/`cyclop` max **25**
+- `funlen` max **150 lines / 80 statements**
+- `gocognit` max **45**
+- `nestif` min-complexity **4**
 
-1. **Re-generate the config files** by running `go run . init --overwrite`. This ensures the on-disk YAML files reflect the new defaults and schema.
-2. **Discard the `agents.yaml` diff.** `go run . init --overwrite` also regenerates `agents.yaml` — but that file contains user-curated A2A agent registrations. Overwriting it would nuke any agents the user has configured, so always `git checkout -- .infer/agents.yaml` (or restore it) before committing. The same applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, and `heartbeat.yaml` if they contain user data — use your judgement based on what you changed.
+Use `//nolint:funlen,gocyclo,cyclop` on long-but-cohesive functions rather than splitting them. Disabled linters: `exhaustruct`, `varnamelen`, `wrapcheck`, `paralleltest`, `testpackage`.
 
-## Security & Configuration Tips
+## Code & Commit Style
 
-Do not commit real secrets. Start from `.env.example` files and keep local credentials in `.env`. When changing tool execution, filesystem, MCP, or provider configuration behavior, review related docs under `docs/` and add tests for restrictive or failure cases.
+- **Conventional Commits** (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `perf:`, `test:`, `build:`, `ci:`, `chore:`, `revert:`.
+- `.editorconfig`: UTF-8, LF endings, final newline, two-space indent (tabs for Go files).
+- Package names are short, lowercase, descriptive.
+
+## Configuration
+
+Config is **split across multiple YAML files** under `.infer/` (project) and `~/.infer/` (userspace):
+
+| File | Purpose |
+|------|---------|
+| `config.yaml` | gateway, storage, tools, agent, chat, web, pricing |
+| `prompts.yaml` | LLM system prompts + per-tool descriptions |
+| `agents.yaml` | A2A agent registry |
+| `keybindings.yaml` | TUI keybindings |
+| `channels.yaml` | Telegram channel config |
+| `heartbeat.yaml` | Periodic wake-up config |
+| `mcp.yaml` | MCP server registry |
+| `computer_use.yaml` | Mouse/keyboard/screenshot settings |
+| `shortcuts/*.yaml` | Custom `/`-prefixed chat commands |
+
+Env var override format: `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
+
+**After editing config defaults**: run `go run . init --overwrite`, then **restore `agents.yaml`** (`git checkout -- .infer/agents.yaml`) — it contains user-curated A2A registrations and `init --overwrite` nukes it. Same caution applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`.
+
+## Security Gotchas
+
+- **Bash allow-list is default-deny.** Anything not matched is blocked (headless) or sent to approval (chat). The allow-list is **per agent mode** under `tools.bash.mode.{all,plan,standard,auto}.allow`. The effective list for a mode = `mode.all.allow` (baseline) ∪ that mode's own entries. By default, only `mode.auto` (YOLO mode, shift+tab in chat) carries `.*` (unrestricted). Standard (headless default) and Plan are read-only.
+- **Tool approval is two-layer:** `tools.safety.require_approval` decides *whether* approval is needed; `tools.safety.approval_behaviour` (`prompt` | `ipc` | `block`) decides *how*. Headless mode blocks by default when no approver is reachable.
+- Never commit real secrets. Use `.env` for credentials; `.env.example` as a template.
+- `BackgroundTaskRegistry` is the **single owner** of both A2A task tracking and background bash shell tracking. Don't construct them separately.
+- Plan mode is enforced by tool filtering (`FilterToolsForMode`), not by the agent. Plans persist as Markdown under `.infer/plans/`.
+- Conversation storage failure on init panics (rather than silently falling back) — set `storage.enabled: false` to opt out.

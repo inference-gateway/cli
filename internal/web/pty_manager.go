@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -167,6 +168,45 @@ func NewLocalPTYSession(cfg *config.Config) *LocalPTYSession {
 	}
 }
 
+// buildLocalSessionCommand builds the command the local PTY runs. When
+// web.tmux is enabled and tmux is installed, the chat is hosted inside an
+// isolated tmux server (-L infer-web, so the user's own tmux is untouched) in a
+// fresh session, which lets interactive subagents open visible panes via
+// `tmux split-window`. Otherwise it runs `infer chat` directly.
+func buildLocalSessionCommand(cfg *config.Config, execPath string) *exec.Cmd {
+	if cfg != nil && cfg.Web.Tmux && tmuxInstalled() {
+		sessionName := fmt.Sprintf("infer-web-%d", time.Now().UnixNano())
+		inner := fmt.Sprintf("'%s' chat", strings.ReplaceAll(execPath, "'", `'\''`))
+		return exec.Command("tmux", "-L", "infer-web", "new-session", "-s", sessionName, inner)
+	}
+	return exec.Command(execPath, "chat")
+}
+
+// tmuxInstalled reports whether the tmux binary is on PATH.
+func tmuxInstalled() bool {
+	_, err := exec.LookPath("tmux")
+	return err == nil
+}
+
+// filterEnv returns env with any entry whose key (the part before '=') matches
+// one of keys removed.
+func filterEnv(env []string, keys ...string) []string {
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		drop := false
+		for _, k := range keys {
+			if strings.HasPrefix(e, k+"=") {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func (s *LocalPTYSession) Start(cols, rows int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -176,10 +216,16 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	s.cmd = exec.Command(execPath, "chat")
-	s.cmd.Env = append(os.Environ(),
-		"TERM=xterm-256color",
-		"INFER_WEB_MODE=true",
+	s.cmd = buildLocalSessionCommand(s.cfg, execPath)
+	// The web terminal is its own environment (the browser), not the shell that
+	// launched `infer chat --web`. Strip any inherited $TMUX so: (a) a tmux-wrapped
+	// session binds to the dedicated infer-web server rather than the user's outer
+	// tmux; and (b) a plain session doesn't think it is inside the user's tmux -
+	// otherwise interactive subagents open panes in the user's terminal instead of
+	// the browser.
+	s.cmd.Env = filterEnv(
+		append(os.Environ(), "TERM=xterm-256color", "INFER_WEB_MODE=true"),
+		"TMUX", "TMUX_PANE",
 	)
 
 	ptyFile, err := pty.Start(s.cmd)

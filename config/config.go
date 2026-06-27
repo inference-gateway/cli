@@ -153,6 +153,7 @@ type ToolsConfig struct {
 	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
 	Schedule  ScheduleToolConfig  `yaml:"schedule" mapstructure:"schedule"`
+	Agent     AgentToolConfig     `yaml:"agent" mapstructure:"agent"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -249,6 +250,30 @@ type ScheduleToolConfig struct {
 	MaxJobs         int    `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
 }
 
+// AgentToolConfig contains settings for the Agent tool, which spawns local
+// subagents (each an `infer agent` subprocess) in parallel and folds their
+// results back into the main context. Unlike the A2A tools it needs no agent
+// server. Subagents run either headless (background) or interactive (in a tmux
+// pane the user can watch).
+type AgentToolConfig struct {
+	Enabled         bool                   `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Mode            string                 `yaml:"mode" mapstructure:"mode"`                 // headless | interactive
+	Wait            bool                   `yaml:"wait" mapstructure:"wait"`                 // false => async (fire-and-forget + notify)
+	MaxParallel     int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
+	MaxDepth        int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer agent`)
+	Model           string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	Interactive     AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
+}
+
+// AgentInteractiveConfig configures the tmux-backed interactive surface for
+// subagents (used when mode is "interactive").
+type AgentInteractiveConfig struct {
+	Multiplexer string `yaml:"multiplexer" mapstructure:"multiplexer"` // tmux (only supported value)
+	Layout      string `yaml:"layout" mapstructure:"layout"`           // vertical | horizontal | window
+	Fallback    string `yaml:"fallback" mapstructure:"fallback"`       // headless | error (when not inside tmux)
+}
+
 // QueryAgentToolConfig contains Query-specific tool settings
 type QueryAgentToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
@@ -340,6 +365,7 @@ type WebConfig struct {
 	Port                  int               `yaml:"port" mapstructure:"port"`
 	Host                  string            `yaml:"host" mapstructure:"host"`
 	SessionInactivityMins int               `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
+	Tmux                  bool              `yaml:"tmux" mapstructure:"tmux"`
 	SSH                   WebSSHConfig      `yaml:"ssh" mapstructure:"ssh"`
 	Servers               []SSHServerConfig `yaml:"servers" mapstructure:"servers"`
 }
@@ -758,6 +784,19 @@ func DefaultConfig() *Config { //nolint:funlen
 				StorageDir:      "",
 				MaxJobs:         100,
 			},
+			Agent: AgentToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+				Mode:            "interactive",
+				Wait:            true,
+				MaxParallel:     4,
+				MaxDepth:        1,
+				Interactive: AgentInteractiveConfig{
+					Multiplexer: "tmux",
+					Layout:      "vertical",
+					Fallback:    "headless",
+				},
+			},
 			Safety: SafetyConfig{
 				RequireApproval:   true,
 				ApprovalBehaviour: ApprovalBehaviourPrompt,
@@ -890,6 +929,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Port:                  3000,
 			Host:                  "localhost",
 			SessionInactivityMins: 5,
+			Tmux:                  true,
 			SSH: WebSSHConfig{
 				Enabled:        false,
 				UseSSHConfig:   true,
@@ -953,6 +993,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.Tools.Schedule.RequireApproval != nil {
 			return *c.Tools.Schedule.RequireApproval
 		}
+	case "Agent":
+		if c.Tools.Agent.RequireApproval != nil {
+			return *c.Tools.Agent.RequireApproval
+		}
 	case "RequestPlanApproval":
 		return false
 	case "A2A_QueryAgent":
@@ -1010,6 +1054,11 @@ func (c *Config) Validate() error {
 // A2A tools are enabled when a2a.enabled is true, regardless of tools.enabled
 func (c *Config) IsA2AToolsEnabled() bool {
 	return c.A2A.Enabled
+}
+
+// IsAgentToolEnabled reports whether the Agent tool (local subagents) is on.
+func (c *Config) IsAgentToolEnabled() bool {
+	return c.Tools.Enabled && c.Tools.Agent.Enabled
 }
 
 // IsClaudeCodeMode checks if Claude Code CLI mode is enabled

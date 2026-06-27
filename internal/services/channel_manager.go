@@ -1,13 +1,10 @@
 package services
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 
 // ChannelManagerService manages pluggable messaging channels and triggers
@@ -204,17 +202,13 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 	}
 }
 
-// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess,
-// streaming each assistant message back through the sendFn callback in real-time.
-// If images are present, they are written to session-scoped files and passed via --files flags.
-// When require_approval is enabled, it also creates a stdin pipe for approval IPC.
+// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess
+// (via the shared agentrunner), streaming each assistant message back through the
+// sendFn callback in real-time. If images are present, they are written to
+// session-scoped files and passed via --files flags. When require_approval is
+// enabled, tool approvals are brokered over the agent's stdin/stdout.
 func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
-	args := []string{"agent", "--session-id", sessionID, "--remote"}
-
-	if cm.cfg.RequireApproval {
-		args = append(args, "--require-approval")
-	}
-
+	var files []string
 	for _, img := range images {
 		imgPath, err := writeSessionImage(sessionID, img)
 		if err != nil {
@@ -222,77 +216,42 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 			continue
 		}
 		logger.Info("wrote session image", "path", imgPath, "base64_bytes", len(img.Data))
-		args = append(args, "--files", imgPath)
+		files = append(files, imgPath)
 	}
 
 	pruneSessionImages(sessionID, cm.cfg.ImageRetention)
 
-	args = append(args, message)
+	logger.Info("running agent subprocess", "session", sessionID, "require_approval", cm.cfg.RequireApproval)
 
-	logger.Info("running agent subprocess", "args", args)
-
-	cmd := cm.execCommandFunc(ctx, os.Args[0], args...)
-	cmd.Env = os.Environ()
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
-	}
-
-	var stdinWriter io.WriteCloser
-	if cm.cfg.RequireApproval {
-		stdinWriter, err = cmd.StdinPipe()
-		if err != nil {
-			return fmt.Errorf("failed to create stdin pipe: %w", err)
-		}
-	}
-
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start agent: %w", err)
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 	errorForwarded := false
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		if cm.cfg.RequireApproval && stdinWriter != nil {
-			if req, ok := parseApprovalRequest(line); ok {
-				if err := cm.handleApprovalRequest(ctx, senderKey, req, stdinWriter, sendFn, ch); err != nil {
-					logger.Error("approval handling failed", "error", err)
+	res, err := agentrunner.Run(ctx, agentrunner.Options{
+		BinaryPath:      os.Args[0],
+		Exec:            cm.execCommandFunc,
+		SessionID:       sessionID,
+		Prompt:          message,
+		Files:           files,
+		Remote:          true,
+		RequireApproval: cm.cfg.RequireApproval,
+		OnLine: func(line []byte) {
+			isErr := parseAgentError(line)
+			content := formatAgentMessage(line)
+			if content != "" {
+				sendFn(content)
+				if isErr {
+					errorForwarded = true
 				}
-				continue
 			}
-		}
-
-		isErr := parseAgentError(line)
-		content := formatAgentMessage(line)
-		if content != "" {
-			sendFn(content)
-			if isErr {
-				errorForwarded = true
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		logger.Error("error reading agent output", "error", err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		stderrStr := stderrBuf.String()
-		if stderrBuf.Len() > 0 {
-			logger.Error("agent stderr output", "stderr", stderrStr)
+		},
+		Approval: func(req domain.ApprovalRequest) domain.ApprovalResponse {
+			return cm.resolveApproval(ctx, senderKey, req, sendFn, ch)
+		},
+	})
+	if err != nil {
+		if res.Stderr != "" {
+			logger.Error("agent stderr output", "stderr", res.Stderr)
 		}
 		if !errorForwarded {
-			sendFn("❌ Agent failed: " + tailStderr(stderrStr, 500))
+			sendFn("❌ Agent failed: " + tailStderr(res.Stderr, 500))
 		}
 		return fmt.Errorf("agent process failed: %w", err)
 	}
@@ -300,27 +259,25 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 	return nil
 }
 
-// handleApprovalRequest sends an approval prompt to the channel, waits for the user's reply,
-// and writes the approval response to the agent's stdin.
-func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, senderKey string, req *domain.ApprovalRequest, stdinWriter io.Writer, sendFn func(string), ch domain.Channel) error {
+// resolveApproval sends an approval prompt to the channel, waits for the user's
+// reply (with a 5-minute auto-reject), and returns the decision. The shared
+// agentrunner writes the response back to the agent's stdin.
+func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey string, req domain.ApprovalRequest, sendFn func(string), ch domain.Channel) domain.ApprovalResponse {
 	respChan := make(chan domain.ApprovalResponse, 1)
 	cm.pendingApprovals.Store(senderKey, respChan)
 	defer cm.pendingApprovals.Delete(senderKey)
 
 	if ac, ok := ch.(domain.ApprovalChannel); ok {
 		recipientID := strings.TrimPrefix(senderKey, ch.Name()+"-")
-		if err := ac.SendApproval(ctx, recipientID, req); err != nil {
+		if err := ac.SendApproval(ctx, recipientID, &req); err != nil {
 			logger.Error("rich approval failed, falling back to text", "error", err)
-			sendFn(formatApprovalPrompt(req))
+			sendFn(formatApprovalPrompt(&req))
 		}
 	} else {
-		sendFn(formatApprovalPrompt(req))
+		sendFn(formatApprovalPrompt(&req))
 	}
 
-	var resp domain.ApprovalResponse
-	resp.Type = "approval_response"
-	resp.ToolCallID = req.ToolCallID
-
+	resp := domain.ApprovalResponse{Type: "approval_response", ToolCallID: req.ToolCallID}
 	select {
 	case reply := <-respChan:
 		resp.Approved = reply.Approved
@@ -331,29 +288,7 @@ func (cm *ChannelManagerService) handleApprovalRequest(ctx context.Context, send
 	case <-ctx.Done():
 		resp.Approved = false
 	}
-
-	respJSON, err := json.Marshal(resp)
-	if err != nil {
-		return fmt.Errorf("failed to marshal approval response: %w", err)
-	}
-
-	if _, err := stdinWriter.Write(append(respJSON, '\n')); err != nil {
-		return fmt.Errorf("failed to write approval response to stdin: %w", err)
-	}
-
-	return nil
-}
-
-// parseApprovalRequest attempts to parse a JSON line as an ApprovalRequest.
-func parseApprovalRequest(line []byte) (*domain.ApprovalRequest, bool) {
-	var req domain.ApprovalRequest
-	if err := json.Unmarshal(line, &req); err != nil {
-		return nil, false
-	}
-	if req.Type != "approval_request" {
-		return nil, false
-	}
-	return &req, true
+	return resp
 }
 
 // parseAgentError reports whether the line is a structured agent_error IPC message.

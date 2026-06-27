@@ -104,6 +104,7 @@ history
 chat_export_*
 conversations.db*
 conversations
+session_groups.json
 bin/
 tmp/
 plans/

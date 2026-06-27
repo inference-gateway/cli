@@ -244,6 +244,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2ATaskTracker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskRegistry
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SubagentTracker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalPolicy
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentStateMachine
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
@@ -290,6 +291,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/adk github.com/inference-gateway/adk/client.A2AClient
     sources:
       - "internal/domain/interfaces.go"
+      - "internal/domain/subagent.go"
       - "internal/domain/agent.go"
       - "internal/domain/config_service.go"
       - "internal/domain/pricing.go"
@@ -315,6 +317,7 @@ tasks:
       - "tests/mocks/domain/fake_conversation_storage.go"
       - "tests/mocks/domain/fake_sdkclient.go"
       - "tests/mocks/domain/fake_task_tracker.go"
+      - "tests/mocks/domain/fake_subagent_tracker.go"
       - "tests/mocks/ui/fake_conversation_renderer.go"
       - "tests/mocks/ui/fake_input_component.go"
       - "tests/mocks/ui/fake_status_component.go"

@@ -147,6 +147,12 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleA2ATaskFailedEvent(m)
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
+	case domain.SubagentSubmittedEvent:
+		return h.HandleSubagentSubmittedEvent(m)
+	case domain.SubagentCompletedEvent:
+		return h.HandleSubagentCompletedEvent(m)
+	case domain.SubagentFailedEvent:
+		return h.HandleSubagentFailedEvent(m)
 	case domain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
 	case domain.ToolCancelledEvent:
@@ -350,6 +356,31 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 	_ domain.MessageQueuedEvent,
 ) tea.Cmd {
 	return h.handleMessageQueued()
+}
+
+// Subagent lifecycle events drive the live tree in the conversation view
+// (see ConversationView.renderSubagentTree). The handler here only needs to
+// keep the chat event listener pumping, since these events arrive on the chat
+// event channel and the conversation view consumes them for rendering.
+func (h *ChatHandler) HandleSubagentSubmittedEvent(_ domain.SubagentSubmittedEvent) tea.Cmd {
+	return h.rearmChatListener()
+}
+
+func (h *ChatHandler) HandleSubagentCompletedEvent(_ domain.SubagentCompletedEvent) tea.Cmd {
+	return h.rearmChatListener()
+}
+
+func (h *ChatHandler) HandleSubagentFailedEvent(_ domain.SubagentFailedEvent) tea.Cmd {
+	return h.rearmChatListener()
+}
+
+// rearmChatListener re-issues the chat event listener so the Bubble Tea loop
+// keeps reading the next event from the channel.
+func (h *ChatHandler) rearmChatListener() tea.Cmd {
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return h.ListenForChatEvents(chatSession.EventChannel)
+	}
+	return nil
 }
 
 func (h *ChatHandler) HandleToolCancelledEvent(

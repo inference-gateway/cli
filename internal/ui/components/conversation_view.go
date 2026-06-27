@@ -64,6 +64,22 @@ type BackgroundTaskRemovalTickMsg struct {
 	TaskID string
 }
 
+// subagentDisplay tracks the live state of one local subagent (spawned by the
+// Agent tool) for the inline tree rendered in the sticky indicator bar. UI-only.
+type subagentDisplay struct {
+	ID          string
+	Label       string
+	Status      string // "running" | "done" | "failed"
+	StartedAt   time.Time
+	CompletedAt time.Time
+	IsTerminal  bool
+}
+
+// subagentRemovalTickMsg removes a terminal subagent's row from the tree after a delay.
+type subagentRemovalTickMsg struct {
+	ID string
+}
+
 // ConversationView handles the chat conversation display
 type ConversationView struct {
 	conversation           []domain.ConversationEntry
@@ -110,6 +126,7 @@ type ConversationView struct {
 	// A2ATaskSubmittedEvent, updated on status/complete/fail events, and
 	// removed by BackgroundTaskRemovalTickMsg ~5s after a terminal state.
 	backgroundTasks    map[string]*BackgroundTaskDisplay
+	subagentTasks      map[string]*subagentDisplay
 	backgroundSpinStep int
 	backgroundSpinner  spinner.Model
 	// agentNameResolver maps an agent URL to its configured friendly name
@@ -153,6 +170,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		styleProvider:          styleProvider,
 		markdownRenderer:       mdRenderer,
 		backgroundTasks:        make(map[string]*BackgroundTaskDisplay),
+		subagentTasks:          make(map[string]*subagentDisplay),
 		backgroundSpinner:      bgSpin,
 	}
 }
@@ -1100,8 +1118,16 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handleA2ATaskCompleted(msg, cmd)
 	case domain.A2ATaskFailedEvent:
 		return cv.handleA2ATaskFailed(msg, cmd)
+	case domain.SubagentSubmittedEvent:
+		return cv.handleSubagentSubmitted(msg, cmd)
+	case domain.SubagentCompletedEvent:
+		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "done", cmd)
+	case domain.SubagentFailedEvent:
+		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "failed", cmd)
 	case BackgroundTaskRemovalTickMsg:
 		return cv.handleRemoveBackgroundTask(msg, cmd)
+	case subagentRemovalTickMsg:
+		return cv.handleRemoveSubagent(msg, cmd)
 	case spinner.TickMsg:
 		return cv.handleSpinnerTick(msg, cmd)
 	default:
@@ -1259,7 +1285,7 @@ func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEv
 		}
 	}
 
-	startSpinner := !cv.hasOtherActiveBackgroundTasks(msg.TaskID)
+	startSpinner := !cv.hasOtherActiveBackgroundTasks(msg.TaskID) && !cv.hasActiveSubagents()
 
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
@@ -1383,16 +1409,185 @@ func (cv *ConversationView) handleRemoveBackgroundTask(msg BackgroundTaskRemoval
 	return cv, cmd
 }
 
-// hasActiveBackgroundTasks reports whether any tracked task has not yet
-// reached a terminal state - used to keep the spinner ticking only while
-// needed.
-func (cv *ConversationView) hasActiveBackgroundTasks() bool {
+// --- Subagent live tree (Agent tool) ---
+
+// handleSubagentSubmitted records a newly dispatched subagent so its live
+// progress renders in the sticky tree under the Agent tool call.
+func (cv *ConversationView) handleSubagentSubmitted(msg domain.SubagentSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.SubagentID == "" {
+		return cv, cmd
+	}
+	d, exists := cv.subagentTasks[msg.SubagentID]
+	if !exists {
+		d = &subagentDisplay{ID: msg.SubagentID, StartedAt: time.Now()}
+		cv.subagentTasks[msg.SubagentID] = d
+	}
+	d.Label = subagentLabel(msg.Label, msg.SubagentID)
+	d.Status = "running"
+	d.IsTerminal = false
+
+	startSpinner := !cv.hasActiveA2A() && !cv.hasActiveSubagentsExcept(msg.SubagentID)
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	if startSpinner {
+		cmd = tea.Batch(cmd, cv.backgroundSpinner.Tick)
+	}
+	return cv, cmd
+}
+
+// handleSubagentTerminal marks a subagent done/failed and schedules its removal.
+func (cv *ConversationView) handleSubagentTerminal(id, label, status string, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if id == "" {
+		return cv, cmd
+	}
+	d, exists := cv.subagentTasks[id]
+	if !exists {
+		d = &subagentDisplay{ID: id, StartedAt: time.Now()}
+		cv.subagentTasks[id] = d
+	}
+	if label != "" || d.Label == "" {
+		d.Label = subagentLabel(label, id)
+	}
+	d.Status = status
+	d.IsTerminal = true
+	d.CompletedAt = time.Now()
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, tea.Batch(cmd, scheduleSubagentRemoval(id))
+}
+
+// handleRemoveSubagent drops a terminal subagent's row from the tree.
+func (cv *ConversationView) handleRemoveSubagent(msg subagentRemovalTickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if _, exists := cv.subagentTasks[msg.ID]; !exists {
+		return cv, cmd
+	}
+	delete(cv.subagentTasks, msg.ID)
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+func scheduleSubagentRemoval(id string) tea.Cmd {
+	return tea.Tick(backgroundTaskRemovalDelay, func(_ time.Time) tea.Msg {
+		return subagentRemovalTickMsg{ID: id}
+	})
+}
+
+func (cv *ConversationView) hasActiveA2A() bool {
 	for _, d := range cv.backgroundTasks {
 		if !d.IsTerminal {
 			return true
 		}
 	}
 	return false
+}
+
+func (cv *ConversationView) hasActiveSubagents() bool {
+	for _, d := range cv.subagentTasks {
+		if !d.IsTerminal {
+			return true
+		}
+	}
+	return false
+}
+
+func (cv *ConversationView) hasActiveSubagentsExcept(id string) bool {
+	for sid, d := range cv.subagentTasks {
+		if sid != id && !d.IsTerminal {
+			return true
+		}
+	}
+	return false
+}
+
+func subagentLabel(label, id string) string {
+	if label != "" {
+		return label
+	}
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+func subagentElapsed(d *subagentDisplay) string {
+	if d.StartedAt.IsZero() {
+		return ""
+	}
+	end := time.Now()
+	if d.IsTerminal && !d.CompletedAt.IsZero() {
+		end = d.CompletedAt
+	}
+	secs := int(end.Sub(d.StartedAt).Seconds())
+	if secs < 0 {
+		secs = 0
+	}
+	return fmt.Sprintf("%ds", secs)
+}
+
+// renderSubagentTree renders the live subagent tree: a header line plus one
+// indented child row per subagent, each showing the executing-tool spinner
+// while running and a status icon when done.
+func (cv *ConversationView) renderSubagentTree() string {
+	if len(cv.subagentTasks) == 0 {
+		return ""
+	}
+	ids := make([]string, 0, len(cv.subagentTasks))
+	for id := range cv.subagentTasks {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	running := 0
+	for _, d := range cv.subagentTasks {
+		if !d.IsTerminal {
+			running++
+		}
+	}
+
+	header := cv.styleProvider.RenderWithColor("Agent", cv.styleProvider.GetThemeColor("accent")) +
+		cv.styleProvider.RenderWithColor(fmt.Sprintf(" %d subagent(s), %d running", len(ids), running), cv.styleProvider.GetThemeColor("dim"))
+	lines := []string{header}
+
+	for i, id := range ids {
+		d := cv.subagentTasks[id]
+		branch := "├─ "
+		if i == len(ids)-1 {
+			branch = "└─ "
+		}
+
+		var icon, iconColor, bodyColor string
+		switch d.Status {
+		case "done":
+			icon, iconColor, bodyColor = icons.CheckMark, "success", "dim"
+		case "failed":
+			icon, iconColor, bodyColor = icons.CrossMark, "error", "error"
+		default:
+			icon, iconColor, bodyColor = icons.GetSpinnerFrame(cv.backgroundSpinStep), "accent", "accent"
+		}
+
+		statusText := d.Status
+		if !d.IsTerminal {
+			statusText = "running " + subagentElapsed(d)
+		}
+
+		styledBranch := cv.styleProvider.RenderWithColor("  "+branch, cv.styleProvider.GetThemeColor("dim"))
+		styledIcon := cv.styleProvider.RenderWithColor(icon, cv.styleProvider.GetThemeColor(iconColor))
+		styledBody := cv.styleProvider.RenderWithColor(fmt.Sprintf("%s — %s", d.Label, statusText), cv.styleProvider.GetThemeColor(bodyColor))
+		lines = append(lines, styledBranch+styledIcon+" "+styledBody)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// hasActiveBackgroundTasks reports whether any tracked task (A2A or subagent)
+// has not yet reached a terminal state - used to keep the spinner ticking only
+// while needed.
+func (cv *ConversationView) hasActiveBackgroundTasks() bool {
+	return cv.hasActiveA2A() || cv.hasActiveSubagents()
 }
 
 // hasOtherActiveBackgroundTasks reports whether any non-terminal task other
@@ -1418,9 +1613,9 @@ func scheduleBackgroundTaskRemoval(taskID string) tea.Cmd {
 }
 
 // HasBackgroundTasks reports whether there is at least one tracked
-// background task to render in the sticky indicator bar.
+// background task (A2A task or local subagent) to render in the sticky bar.
 func (cv *ConversationView) HasBackgroundTasks() bool {
-	return len(cv.backgroundTasks) > 0
+	return len(cv.backgroundTasks) > 0 || len(cv.subagentTasks) > 0
 }
 
 // RenderBackgroundTasksBar returns the sticky multi-line indicator block
@@ -1430,22 +1625,23 @@ func (cv *ConversationView) HasBackgroundTasks() bool {
 // width controls non-terminal truncation of the model= segment; pass 0
 // to disable truncation entirely (used in some tests).
 func (cv *ConversationView) RenderBackgroundTasksBar(width int) string {
-	if len(cv.backgroundTasks) == 0 {
-		return ""
-	}
+	lines := make([]string, 0)
 
 	ids := make([]string, 0, len(cv.backgroundTasks))
 	for id := range cv.backgroundTasks {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-
-	lines := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if line := cv.renderBackgroundTaskLine(cv.backgroundTasks[id], width); line != "" {
 			lines = append(lines, line)
 		}
 	}
+
+	if tree := cv.renderSubagentTree(); tree != "" {
+		lines = append(lines, tree)
+	}
+
 	if len(lines) == 0 {
 		return ""
 	}

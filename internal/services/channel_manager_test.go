@@ -675,47 +675,6 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 	}
 }
 
-func TestParseApprovalRequest(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		ok    bool
-	}{
-		{
-			name:  "valid approval request",
-			input: `{"type":"approval_request","tool_name":"Bash","tool_args":"{\"command\":\"rm -rf /\"}","tool_call_id":"call_123"}`,
-			ok:    true,
-		},
-		{
-			name:  "different type is not approval",
-			input: `{"type":"info","message":"starting"}`,
-			ok:    false,
-		},
-		{
-			name:  "assistant message is not approval",
-			input: `{"role":"assistant","content":"hello"}`,
-			ok:    false,
-		},
-		{
-			name:  "invalid JSON",
-			input: `not json`,
-			ok:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, ok := parseApprovalRequest([]byte(tt.input))
-			if ok != tt.ok {
-				t.Errorf("parseApprovalRequest() ok = %v, want %v", ok, tt.ok)
-			}
-			if ok && req.ToolName != "Bash" {
-				t.Errorf("expected tool_name 'Bash', got %q", req.ToolName)
-			}
-		})
-	}
-}
-
 func TestIsApprovalReply(t *testing.T) {
 	tests := []struct {
 		input string

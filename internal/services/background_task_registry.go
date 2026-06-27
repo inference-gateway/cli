@@ -20,6 +20,7 @@ import (
 type backgroundTaskRegistry struct {
 	*utils.A2ATaskTrackerImpl // promotes the A2ATaskTracker surface
 	domain.ShellTracker       // promotes the ShellTracker surface
+	domain.SubagentTracker    // promotes the SubagentTracker surface
 }
 
 // NewBackgroundTaskRegistry constructs the unified registry. maxConcurrentShells
@@ -28,19 +29,23 @@ func NewBackgroundTaskRegistry(maxConcurrentShells int) domain.BackgroundTaskReg
 	return &backgroundTaskRegistry{
 		A2ATaskTrackerImpl: utils.NewA2ATaskTracker(),
 		ShellTracker:       utils.NewShellTracker(maxConcurrentShells),
+		SubagentTracker:    utils.NewSubagentTracker(),
 	}
 }
 
 // HasPending reports whether *any* background work is still in flight,
-// regardless of type. True when there is at least one A2A task being polled
-// OR at least one running background shell. This is the cross-type query
-// the BackgroundTasksWaiter uses to decide whether the session is safe to
-// close.
+// regardless of type. True when there is at least one A2A task being polled,
+// one running background shell, OR one running local subagent. This is the
+// cross-type query the BackgroundTasksWaiter uses to decide whether the session
+// is safe to close.
 func (r *backgroundTaskRegistry) HasPending() bool {
 	if len(r.GetAllPollingTasks()) > 0 {
 		return true
 	}
 	if r.ShellTracker != nil && r.CountRunning() > 0 {
+		return true
+	}
+	if r.SubagentTracker != nil && r.CountRunningSubagents() > 0 {
 		return true
 	}
 	return false
