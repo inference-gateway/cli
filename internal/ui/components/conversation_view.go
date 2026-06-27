@@ -2500,9 +2500,7 @@ func (cv *ConversationView) renderMessageHistorySelector() string {
 		truncatedMsg = strings.ReplaceAll(truncatedMsg, "\r", " ")
 		truncatedMsg = strings.Join(strings.Fields(truncatedMsg), " ")
 
-		if len(truncatedMsg) > availableWidth {
-			truncatedMsg = truncatedMsg[:availableWidth-3] + "..."
-		}
+		truncatedMsg = formatting.TruncateText(truncatedMsg, availableWidth)
 
 		var entry string
 		if isSelected {

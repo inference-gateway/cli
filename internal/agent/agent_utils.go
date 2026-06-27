@@ -14,6 +14,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -312,7 +313,7 @@ func (s *AgentServiceImpl) buildToolsInfo() string {
 	for _, def := range defs {
 		desc := ""
 		if def.Function.Description != nil {
-			desc = truncateString(strings.SplitN(*def.Function.Description, "\n", 2)[0], 100)
+			desc = formatting.TruncateText(strings.SplitN(*def.Function.Description, "\n", 2)[0], 100)
 		}
 		if desc != "" {
 			fmt.Fprintf(&b, "- %s: %s\n", def.Function.Name, desc)
@@ -824,7 +825,7 @@ func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Mess
 		"interval", interval,
 		"phase", phase,
 		"reminder_chars", len(reminderText),
-		"text_preview", truncateString(reminderText, 80),
+		"text_preview", formatting.TruncateText(reminderText, 80),
 	)
 	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
 		"turn":     turns,
@@ -843,17 +844,6 @@ func isCompleteJSON(s string) bool {
 
 	var js any
 	return json.Unmarshal([]byte(s), &js) == nil
-}
-
-// truncateString truncates a string to maxLen characters, adding "..." if truncated
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // getTruncationRecoveryGuidance returns tool-specific guidance when a tool call is truncated

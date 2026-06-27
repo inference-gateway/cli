@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	wordwrap "github.com/muesli/reflow/wordwrap"
@@ -69,17 +70,20 @@ func FormatResponsiveMessage(content string, width int) string {
 	return strings.Join(result, "\n")
 }
 
-// TruncateText truncates text to fit within maxLength, adding "..." if needed
+// TruncateText truncates text to fit within maxLength display columns, adding
+// "..." if needed. It is width-aware: multibyte and wide runes (emoji, CJK) and
+// ANSI escapes are measured by rendered width and never split mid-grapheme.
 func TruncateText(text string, maxLength int) string {
-	if len(text) <= maxLength {
+	if maxLength <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(text) <= maxLength {
 		return text
 	}
-
 	if maxLength <= 3 {
 		return "..."
 	}
-
-	return text[:maxLength-3] + "..."
+	return ansi.Truncate(text, maxLength, "...")
 }
 
 // ExtractTextFromContent extracts text from potentially multimodal message content

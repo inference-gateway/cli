@@ -12,6 +12,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 )
@@ -929,7 +930,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 		logger.Error("incomplete JSON in tool arguments",
 			"tool", tc.Function.Name,
 			"args_length", len(tc.Function.Arguments),
-			"args_preview", truncateString(tc.Function.Arguments, 200),
+			"args_preview", formatting.TruncateText(tc.Function.Arguments, 200),
 		)
 		return s.createErrorEntry(tc, incompleteErr, startTime)
 	}
