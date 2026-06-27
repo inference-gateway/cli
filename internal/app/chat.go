@@ -397,10 +397,9 @@ func (app *ChatApplication) Init() tea.Cmd {
 	}
 
 	if readiness := app.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-		cmds = append(cmds, func() tea.Msg {
-			time.Sleep(500 * time.Millisecond)
+		cmds = append(cmds, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
 			return domain.AgentStatusUpdateEvent{}
-		})
+		}))
 	}
 
 	if app.mcpManager != nil {

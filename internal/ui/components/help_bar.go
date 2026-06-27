@@ -21,6 +21,12 @@ type HelpBar struct {
 	shortcuts     []ui.KeyShortcut
 	styleProvider *styles.Provider
 	help          help.Model
+
+	// styledAccent/styledDim record the theme colours the cached help styles
+	// were last built from, so Render rebuilds them only when the theme
+	// changes instead of allocating three lipgloss styles on every frame.
+	styledAccent string
+	styledDim    string
 }
 
 func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
@@ -73,12 +79,25 @@ func (hb *HelpBar) Render() string {
 	}
 
 	hb.help.SetWidth(hb.width)
-	dim := lipgloss.Color(hb.styleProvider.GetThemeColor("dim"))
-	hb.help.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color(hb.styleProvider.GetThemeColor("accent")))
-	hb.help.Styles.FullDesc = lipgloss.NewStyle().Foreground(dim)
-	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dim)
-
+	hb.refreshStyles()
 	return hb.help.FullHelpView(hb.helpColumns())
+}
+
+// refreshStyles rebuilds the help styles only when the active theme colours
+// change, so Render does not allocate three lipgloss styles on every frame.
+func (hb *HelpBar) refreshStyles() {
+	accent := hb.styleProvider.GetThemeColor("accent")
+	dim := hb.styleProvider.GetThemeColor("dim")
+	if accent == hb.styledAccent && dim == hb.styledDim {
+		return
+	}
+	hb.styledAccent = accent
+	hb.styledDim = dim
+
+	dimColor := lipgloss.Color(dim)
+	hb.help.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
+	hb.help.Styles.FullDesc = lipgloss.NewStyle().Foreground(dimColor)
+	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dimColor)
 }
 
 // helpColumns converts the sorted shortcuts into key.Binding columns laid out
