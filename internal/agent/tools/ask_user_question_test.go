@@ -262,6 +262,32 @@ func TestAskUserQuestionTool_Execute_InvalidArgs(t *testing.T) {
 	}
 }
 
+// TestAskUserQuestionTool_ResultReachesLLMContext verifies the precise link that
+// puts the answers into the conversation the model sees next turn: the agent's
+// executeToolInternal feeds the tool result through FormatToolResultForLLM, which
+// dispatches to this tool's FormatResult(FormatterLLM). That string becomes the
+// tool-result message content.
+func TestAskUserQuestionTool_ResultReachesLLMContext(t *testing.T) {
+	tool := newAskUserQuestionToolForTest()
+	broker := &stubBroker{ok: true, answers: []domain.UserQuestionAnswer{
+		{Header: "Backend", Question: "Which storage backend?", SelectedLabels: []string{"sqlite"}},
+		{Header: "Scope", Question: "Which areas?", SelectedLabels: []string{"agent", "ui"}, OtherText: "also config"},
+	}}
+	ctx := domain.WithUserQuestionBroker(context.Background(), broker)
+
+	result, err := tool.Execute(ctx, validQuestionArgs())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	llm := tool.FormatResult(result, domain.FormatterLLM)
+	for _, want := range []string{"Backend", "sqlite", "Scope", "agent, ui", `Other: "also config"`} {
+		if !strings.Contains(llm, want) {
+			t.Errorf("LLM-facing tool result is missing %q; got:\n%s", want, llm)
+		}
+	}
+}
+
 func TestFormatAnswersForLLM(t *testing.T) {
 	answers := []domain.UserQuestionAnswer{
 		{Header: "Format", Question: "Which output format?", SelectedLabels: []string{"JSON"}},

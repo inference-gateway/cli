@@ -427,7 +427,15 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 	msg domain.UserQuestionRequestedEvent,
 ) tea.Cmd {
-	return h.approvalCoordinator.HandleUserQuestionRequested(msg)
+	cmd := h.approvalCoordinator.HandleUserQuestionRequested(msg)
+
+	if ch := h.directExec.PendingToolChannel(); ch != nil {
+		return tea.Batch(cmd, h.ListenForEvents(ch))
+	}
+	if cs := h.stateManager.GetChatSession(); cs != nil && cs.EventChannel != nil {
+		return tea.Batch(cmd, h.ListenForChatEvents(cs.EventChannel))
+	}
+	return cmd
 }
 
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(

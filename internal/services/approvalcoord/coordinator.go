@@ -77,8 +77,6 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 // Unlike plan approval this does NOT stop the agent loop: the tool's Execute is
 // blocked on the response channel and resumes when the user submits or cancels.
 func (s *Service) HandleUserQuestionRequested(msg domain.UserQuestionRequestedEvent) tea.Cmd {
-	logger.Info("approvalCoordinator.HandleUserQuestionRequested called", "questions", len(msg.Questions))
-
 	s.stateManager.SetupUserQuestionUIState(msg.Questions, msg.ResponseChan)
 
 	return func() tea.Msg {
@@ -167,13 +165,10 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 // HandleComputerUsePaused cancels the in-flight request and marks state as
 // paused. No restart - the user will manually resume.
 func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd {
-	logger.Debug("approvalCoordinator.HandleComputerUsePaused called", "request_id", msg.RequestID)
 	logger.Info("computer use execution paused", "request_id", msg.RequestID)
 
 	if err := s.agentService.CancelRequest(msg.RequestID); err != nil {
 		logger.Error("failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
-	} else {
-		logger.Debug("successfully cancelled request", "request_id", msg.RequestID)
 	}
 
 	s.stateManager.SetComputerUsePaused(true, msg.RequestID)
