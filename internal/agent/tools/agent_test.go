@@ -2,10 +2,12 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
@@ -152,5 +154,53 @@ func TestParseAgentTasks(t *testing.T) {
 
 	if _, err := parseAgentTasks(map[string]any{}); err == nil {
 		t.Fatalf("expected error for empty args")
+	}
+}
+
+func TestBuildChatPaneCommand_PropagatesParentMode(t *testing.T) {
+	tool := newTestAgentTool(t)
+
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModeAutoAccept}); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='auto'") {
+		t.Fatalf("AutoAccept parent must propagate auto mode; cmd = %q", got)
+	}
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModePlan}); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='plan'") {
+		t.Fatalf("Plan parent must propagate plan mode; cmd = %q", got)
+	}
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModeStandard}); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("Standard parent must NOT emit the mode var; cmd = %q", got)
+	}
+}
+
+func TestSubagentExtraEnv_PropagatesParentMode(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{ParentMode: domain.AgentModeAutoAccept}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=auto") {
+		t.Fatalf("AutoAccept parent must add the mode var to headless env; got %q", env)
+	}
+	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{ParentMode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("Standard parent must NOT add the mode var; got %q", env)
+	}
+}
+
+// TestAgentTool_InteractiveInheritsParentMode exercises the full Execute path:
+// the parent mode on the context must reach the tmux pane command.
+func TestAgentTool_InteractiveInheritsParentMode(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Agent.Mode = "interactive"
+	cfg.Tools.Agent.Wait = true
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool.interactiveAvailable = func() bool { return true }
+	var captured string
+	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
+		captured = command
+		return "", nil
+	}
+
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	if _, err := tool.Execute(ctx, map[string]any{"description": "do x"}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(captured, "INFER_SUBAGENT_AGENT_MODE='auto'") {
+		t.Fatalf("interactive subagent should inherit parent auto mode; cmd = %q", captured)
 	}
 }

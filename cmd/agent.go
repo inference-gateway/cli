@@ -85,6 +85,7 @@ type AgentSession struct {
 	fileService           domain.FileService
 	imageService          domain.ImageService
 	model                 string
+	agentMode             domain.AgentMode
 	conversation          []ConversationMessage
 	sessionID             string
 	maxTurns              int
@@ -102,6 +103,17 @@ type AgentSession struct {
 	totalCompletionTokens int
 	totalTokens           int
 	requestCount          int
+}
+
+// inheritedSubagentMode returns the coding mode a subagent should start in, read
+// from INFER_SUBAGENT_AGENT_MODE (set by the Agent tool when spawning from a
+// non-Standard parent). It defaults to Standard when unset or unrecognized, so
+// top-level `infer chat` / `infer agent` runs are unaffected.
+func inheritedSubagentMode() domain.AgentMode {
+	if m, ok := domain.ParseAgentMode(os.Getenv(domain.EnvSubagentAgentMode)); ok {
+		return m
+	}
+	return domain.AgentModeStandard
 }
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool, resultFile string) (err error) {
@@ -174,7 +186,8 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	stateManager := svc.GetStateManager()
 	pricingService := svc.GetPricingService()
 
-	stateManager.SetAgentMode(domain.AgentModeStandard)
+	agentMode := inheritedSubagentMode()
+	stateManager.SetAgentMode(agentMode)
 
 	saveEnabled := !noSave
 
@@ -185,6 +198,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		fileService:      fileService,
 		imageService:     imageService,
 		model:            selectedModel,
+		agentMode:        agentMode,
 		sessionID:        newSessionID,
 		maxTurns:         cfg.Agent.MaxTurns,
 		conversation:     []ConversationMessage{},
@@ -687,19 +701,20 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	return nil
 }
 
-// executeToolCall runs a single tool. Headless always runs in standard mode (a
-// restricted allow-list); off-list/mutating actions are gated upstream by
-// approval_behaviour rather than by switching to the unrestricted auto mode. The
-// mode is carried on the context so the Bash tool resolves the right per-mode
-// allow-list. approved is set only after an explicit IPC approval, marking the
-// context so an off-list but user-approved command is allowed to run.
+// executeToolCall runs a single tool. Headless normally runs in standard mode (a
+// restricted allow-list) with off-list/mutating actions gated upstream by
+// approval_behaviour; when spawned by the Agent tool from a non-Standard parent
+// it inherits that mode (s.agentMode, from INFER_SUBAGENT_AGENT_MODE) instead.
+// The mode is carried on the context so the Bash tool resolves the right
+// per-mode allow-list. approved is set only after an explicit IPC approval,
+// marking the context so an off-list but user-approved command is allowed to run.
 func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), domain.AgentModeStandard), s.model)
+	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), s.agentMode), s.model)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
 	}
@@ -911,6 +926,13 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 
 // isToolApprovalRequired checks if a tool requires user approval based on config.
 func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCall) bool {
+	// Auto-accept bypasses approval entirely, matching chat YOLO mode. A headless
+	// run only reaches this mode when spawned by the Agent tool from an
+	// auto-accept parent (via INFER_SUBAGENT_AGENT_MODE); top-level runs stay
+	// Standard and fall through to the per-mode gating below.
+	if s.agentMode == domain.AgentModeAutoAccept {
+		return false
+	}
 	if tc.Function.Name == "Bash" {
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
@@ -920,11 +942,11 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		if !ok {
 			return true
 		}
-		// Headless always runs in standard mode: an allowed command runs without
+		// An allowed command (per the session's mode allow-list) runs without
 		// approval; an off-list one needs approval and is then delivered per
 		// tools.safety.approval_behaviour (IPC when a broker is attached, else
 		// blocked) by deliverApprovalRequiredTool.
-		if s.config.IsBashCommandAllowed(command, "standard") {
+		if s.config.IsBashCommandAllowed(command, s.agentMode.AllowedlistKey()) {
 			return false
 		}
 	}

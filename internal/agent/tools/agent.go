@@ -36,6 +36,7 @@ type AgentTaskSpec struct {
 	Model        string
 	Files        []string
 	SystemPrompt string
+	ParentMode   domain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -164,8 +165,10 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 	parentSession := domain.GetSessionID(ctx)
 	parentModel := domain.GetModel(ctx)
+	parentMode, _ := domain.AgentModeFromContext(ctx) // absent -> Standard (the zero value)
 	for i := range specs {
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
+		specs[i].ParentMode = parentMode
 	}
 
 	if wait {
@@ -365,6 +368,9 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec) string {
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
+	if spec.ParentMode != domain.AgentModeStandard {
+		parts = append(parts, domain.EnvSubagentAgentMode+"="+shellQuote(spec.ParentMode.AllowedlistKey()))
+	}
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
@@ -378,6 +384,9 @@ func subagentExtraEnv(spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
+	}
+	if spec.ParentMode != domain.AgentModeStandard {
+		env = append(env, domain.EnvSubagentAgentMode+"="+spec.ParentMode.AllowedlistKey())
 	}
 	return env
 }

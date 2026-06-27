@@ -103,6 +103,23 @@ func (m AgentMode) AllowedlistKey() string {
 	}
 }
 
+// ParseAgentMode is the inverse of AllowedlistKey: it maps a mode key
+// ("standard"/"plan"/"auto") back to an AgentMode. Matching is case-insensitive
+// and tolerant of surrounding whitespace. ok is false for an empty or
+// unrecognized key, in which case callers should keep AgentModeStandard.
+func ParseAgentMode(s string) (AgentMode, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "standard":
+		return AgentModeStandard, true
+	case "plan":
+		return AgentModePlan, true
+	case "auto":
+		return AgentModeAutoAccept, true
+	default:
+		return AgentModeStandard, false
+	}
+}
+
 func (v ViewState) String() string {
 	switch v {
 	case ViewStateModelSelection:
