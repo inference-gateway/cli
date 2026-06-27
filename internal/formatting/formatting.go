@@ -80,8 +80,8 @@ func TruncateText(text string, maxLength int) string {
 	if ansi.StringWidth(text) <= maxLength {
 		return text
 	}
-	if maxLength <= 3 {
-		return "..."
+	if maxLength < 3 {
+		return strings.Repeat(".", maxLength)
 	}
 	return ansi.Truncate(text, maxLength, "...")
 }

@@ -172,6 +172,8 @@ func TestTruncateText(t *testing.T) {
 		{"equal to max", "hello", 5, "hello"},
 		{"ascii truncated", "hello world", 8, "hello..."},
 		{"maxLen 3 is ellipsis", "hello", 3, "..."},
+		{"maxLen 2 clamps to budget", "hello", 2, ".."},
+		{"maxLen 1 clamps to budget", "hello", 1, "."},
 		{"maxLen 0 is empty", "hello", 0, ""},
 		{"empty input", "", 10, ""},
 		{"wide runes fit exactly", "你好", 4, "你好"}, // each CJK rune is 2 columns
