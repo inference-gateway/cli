@@ -13,6 +13,37 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// directQuestionBroker implements domain.UserQuestionBroker for `!!` direct
+// tool execution. It publishes the question request onto the per-invocation
+// event channel and blocks until the user submits (answers arrive on the
+// response channel) or dismisses the form (the channel is closed without a
+// value). It lets AskUserQuestion be exercised without an LLM turn.
+type directQuestionBroker struct {
+	events    chan<- tea.Msg
+	requestID string
+}
+
+func (b *directQuestionBroker) AskUserQuestions(ctx context.Context, questions []domain.UserQuestion) ([]domain.UserQuestionAnswer, bool, error) {
+	responseChan := make(chan []domain.UserQuestionAnswer, 1)
+
+	b.events <- domain.UserQuestionRequestedEvent{
+		RequestID:    b.requestID,
+		Timestamp:    time.Now(),
+		Questions:    questions,
+		ResponseChan: responseChan,
+	}
+
+	select {
+	case answers, open := <-responseChan:
+		if !open {
+			return nil, false, nil
+		}
+		return answers, true, nil
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	}
+}
+
 // HandleToolCommand processes user-typed `!!ToolName(arg="value")` commands.
 // Parses the syntax, validates the tool is enabled, and dispatches to an
 // async executor.
@@ -132,6 +163,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 
 		ctx := domain.WithToolApproved(context.Background())
 		ctx = domain.WithDirectExecution(ctx)
+		ctx = domain.WithUserQuestionBroker(ctx, &directQuestionBroker{events: eventChan, requestID: toolCallID})
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- domain.ShowErrorEvent{
