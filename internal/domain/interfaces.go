@@ -163,27 +163,58 @@ type SessionTokenStats struct {
 	LastInputTokens   int `json:"last_input_tokens"`
 }
 
-// ConversationRepository handles conversation storage and retrieval
-type ConversationRepository interface {
+// MessageRepository handles CRUD operations for conversation messages
+type MessageRepository interface {
 	AddMessage(msg ConversationEntry) error
 	GetMessages() []ConversationEntry
 	Clear() error
 	ClearExceptFirstUserMessage() error
-	Export(format ExportFormat) ([]byte, error)
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
+	DeleteMessagesAfterIndex(index int) error
+}
+
+// TokenUsageRepository handles token usage tracking
+type TokenUsageRepository interface {
 	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats
+}
+
+// ToolResultFormatter handles formatting tool execution results
+type ToolResultFormatter interface {
 	FormatToolResultForLLM(result *ToolExecutionResult) string
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
+}
+
+// PendingToolCallManager handles pending tool call tracking
+type PendingToolCallManager interface {
 	RemovePendingToolCallByID(toolCallID string)
+}
+
+// ConversationLifecycleManager handles conversation lifecycle operations
+type ConversationLifecycleManager interface {
 	StartNewConversation(title string) error
-	DeleteMessagesAfterIndex(index int) error
 	GetCurrentConversationTitle() string
 	GetCurrentConversationID() string
+}
+
+// ConversationExporter handles conversation export
+type ConversationExporter interface {
+	Export(format ExportFormat) ([]byte, error)
+}
+
+// ConversationRepository is the composed interface for all conversation storage
+// and retrieval operations. New code should depend on the narrower sub-interfaces above.
+type ConversationRepository interface {
+	MessageRepository
+	TokenUsageRepository
+	ToolResultFormatter
+	PendingToolCallManager
+	ConversationLifecycleManager
+	ConversationExporter
 }
 
 // ConversationOptimizer optimizes conversation history to reduce token usage
@@ -271,62 +302,79 @@ type MessageQueue interface {
 	GetAll() []QueuedMessage
 }
 
-// StateManager interface defines state management operations
-type StateManager interface {
-	// View state management
+// ViewManager handles view state transitions
+type ViewManager interface {
 	GetCurrentView() ViewState
 	GetPreviousView() ViewState
 	TransitionToView(newView ViewState) error
+}
 
-	// Agent mode management
+// AgentModeManager handles agent mode switching
+type AgentModeManager interface {
 	GetAgentMode() AgentMode
 	SetAgentMode(mode AgentMode)
 	CycleAgentMode() AgentMode
+}
 
-	// Chat session management
+// ChatSessionManager handles chat session lifecycle
+type ChatSessionManager interface {
 	SetChatPending()
 	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
 	UpdateChatStatus(status ChatStatus) error
 	EndChatSession()
 	GetChatSession() *ChatSession
 	IsAgentBusy() bool
+}
 
-	// Event multicast for floating window
+// EventBridgeManager handles event multicast for floating window
+type EventBridgeManager interface {
 	SetEventBridge(bridge EventBridge)
 	GetEventBridge() EventBridge
 	BroadcastEvent(event ChatEvent)
+}
 
-	// Tool execution management
+// ToolExecutionManager handles tool execution sessions
+type ToolExecutionManager interface {
 	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
 	CompleteCurrentTool(result *ToolExecutionResult) error
 	FailCurrentTool(result *ToolExecutionResult) error
 	EndToolExecution()
 	GetToolExecution() *ToolExecutionSession
+}
 
-	// Dimensions management
+// DimensionsManager handles UI dimensions
+type DimensionsManager interface {
 	SetDimensions(width, height int)
 	GetDimensions() (int, int)
+}
 
-	// File selection management
+// FileSelectionManager handles file selection UI state
+type FileSelectionManager interface {
 	SetupFileSelection(files []string)
 	GetFileSelectionState() *FileSelectionState
 	UpdateFileSearchQuery(query string)
 	SetFileSelectedIndex(index int)
 	ClearFileSelectionState()
+}
 
-	// Approval management
+// ApprovalUIManager handles tool approval UI state
+type ApprovalUIManager interface {
 	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction)
 	GetApprovalUIState() *ApprovalUIState
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
+}
 
-	// Plan approval management
+// PlanApprovalUIManager handles plan approval UI state
+type PlanApprovalUIManager interface {
 	SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction)
 	GetPlanApprovalUIState() *PlanApprovalUIState
 	SetPlanApprovalSelectedIndex(index int)
 	ClearPlanApprovalUIState()
+}
 
-	// User question (AskUserQuestion) management
+// UserQuestionUIManager handles AskUserQuestion form state
+type UserQuestionUIManager interface {
 	SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer)
 	GetUserQuestionUIState() *UserQuestionUIState
 	SetUserQuestionOptionCursor(idx int)
@@ -337,12 +385,16 @@ type StateManager interface {
 	BackspaceUserQuestionOtherText()
 	BuildUserQuestionAnswers() []UserQuestionAnswer
 	ClearUserQuestionUIState()
+}
 
-	// Todo management
+// TodoManager handles todo list state
+type TodoManager interface {
 	SetTodos(todos []TodoItem)
 	GetTodos() []TodoItem
+}
 
-	// Agent readiness management
+// AgentReadinessManager handles A2A agent readiness tracking
+type AgentReadinessManager interface {
 	InitializeAgentReadiness(totalAgents int)
 	UpdateAgentStatus(name string, state AgentState, message string, url string, image string)
 	SetAgentError(name string, err error)
@@ -350,26 +402,52 @@ type StateManager interface {
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
+}
 
-	// Message edit state management
+// MessageEditManager handles message editing state
+type MessageEditManager interface {
 	SetMessageEditState(state *MessageEditState)
 	GetMessageEditState() *MessageEditState
 	ClearMessageEditState()
 	IsEditingMessage() bool
+}
 
-	// Focus management (macOS computer-use tools)
+// FocusManager handles macOS computer-use focus tracking
+type FocusManager interface {
 	SetLastFocusedApp(appID string)
 	GetLastFocusedApp() string
 	ClearLastFocusedApp()
 	SetLastClickCoordinates(x, y int)
 	GetLastClickCoordinates() (x, y int)
 	ClearLastClickCoordinates()
+}
 
-	// Computer Use Pause State
+// ComputerUsePauseManager handles computer use pause state
+type ComputerUsePauseManager interface {
 	SetComputerUsePaused(paused bool, requestID string)
 	IsComputerUsePaused() bool
 	GetPausedRequestID() string
 	ClearComputerUsePauseState()
+}
+
+// StateManager is the composed interface for all state management operations.
+// New code should depend on the narrower sub-interfaces above.
+type StateManager interface {
+	ViewManager
+	AgentModeManager
+	ChatSessionManager
+	EventBridgeManager
+	ToolExecutionManager
+	DimensionsManager
+	FileSelectionManager
+	ApprovalUIManager
+	PlanApprovalUIManager
+	UserQuestionUIManager
+	TodoManager
+	AgentReadinessManager
+	MessageEditManager
+	FocusManager
+	ComputerUsePauseManager
 }
 
 // Channel represents a pluggable messaging transport (WhatsApp, Telegram, etc.)

@@ -200,7 +200,9 @@ func (a *EventDrivenAgent) Events() chan<- domain.AgentEvent {
 
 // Start begins the event-driven agent execution
 func (a *EventDrivenAgent) Start() {
-	_ = a.stateMachine.Transition(a.agentCtx, domain.StateIdle)
+	if err := a.stateMachine.Transition(a.agentCtx, domain.StateIdle); err != nil {
+		logger.Error("failed to transition to Idle state", "error", err)
+	}
 
 	a.wg.Add(1)
 	go a.processEvents()
@@ -223,7 +225,9 @@ func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
 
 	cancelAndExit := func() {
-		_ = a.stateMachine.Transition(a.agentCtx, domain.StateCancelled)
+		if err := a.stateMachine.Transition(a.agentCtx, domain.StateCancelled); err != nil {
+			logger.Error("failed to transition to Cancelled state", "error", err)
+		}
 		a.eventPublisher.publishChatCancelled(a.service.GetMetrics(a.req.RequestID))
 	}
 

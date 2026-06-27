@@ -330,7 +330,7 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			if shouldReturn {
 				if taskResult != nil && state.ResultChan != nil {
 					state.ResultChan <- taskResult
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(20 * time.Millisecond)
 				}
 				return
 			}

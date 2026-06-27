@@ -6,13 +6,13 @@ import "time"
 // to improve UX when tasks transition from queued → working → completed
 const (
 	// Agent service processing delays
-	AgentIterationDelay        = 100 * time.Millisecond // Delay between agent iterations
-	AgentToolExecutionDelay    = 100 * time.Millisecond // Delay during tool execution
-	AgentParallelToolsDelay    = 100 * time.Millisecond // Delay for parallel tool coordination
-	AgentConversationSaveDelay = 100 * time.Millisecond // Delay when saving conversations
+	AgentIterationDelay        = 20 * time.Millisecond  // Delay between agent iterations
+	AgentToolExecutionDelay    = 20 * time.Millisecond  // Delay during tool execution
+	AgentParallelToolsDelay    = 20 * time.Millisecond  // Delay for parallel tool coordination
+	AgentConversationSaveDelay = 20 * time.Millisecond  // Delay when saving conversations
 	AgentStatusTickerInterval  = 200 * time.Millisecond // Status update ticker interval
 	BackgroundTaskPollDelay    = 500 * time.Millisecond // Delay for polling background tasks
-	CompletionCheckDelay       = 100 * time.Millisecond // Delay for checking completion status
+	CompletionCheckDelay       = 20 * time.Millisecond  // Delay for checking completion status
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates

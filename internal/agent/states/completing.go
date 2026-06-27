@@ -48,8 +48,8 @@ func (s *CompletingState) complete() error {
 		"total_turns", s.ctx.AgentCtx.Turns,
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
-	logger.Debug("sleeping 100ms for final queue check")
-	time.Sleep(100 * time.Millisecond)
+	logger.Debug("sleeping 20ms for final queue check")
+	time.Sleep(20 * time.Millisecond)
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued after completion, restarting agent")
