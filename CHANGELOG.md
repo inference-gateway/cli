@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.124.1](https://github.com/inference-gateway/cli/compare/v0.124.0...v0.124.1) (2026-06-27)
+
+### 🐛 Bug Fixes
+
+* **tools:** add format helpers for handling JSON round-trip data types and update ListShellsTool to use them ([6ad3a84](https://github.com/inference-gateway/cli/commit/6ad3a840a92f2d5c8ce5674201e3cb95aec8c84c))
+
+### ♻️ Code Refactoring
+
+* **subagents:** subagents inherit the parent chat's coding mode ([#662](https://github.com/inference-gateway/cli/issues/662)) ([de9be83](https://github.com/inference-gateway/cli/commit/de9be836b9e369b3f2fe36bb0fdf09207fba235a))
+
+### 🧹 Maintenance
+
+* **deps:** update infer to v0.124.0 ([4421306](https://github.com/inference-gateway/cli/commit/44213066393332145aa9d14a7285824157b9f746))
+
 ## [0.124.0](https://github.com/inference-gateway/cli/compare/v0.123.1...v0.124.0) (2026-06-27)
 
 ### 🚀 Features
