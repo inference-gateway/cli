@@ -69,6 +69,20 @@ func (t *subagentTracker) RemoveSubagent(id string) error {
 	return nil
 }
 
+// SetSubagentStatus atomically updates a subagent's status under the tracker's
+// lock. Returns an error if the ID is not tracked.
+func (t *subagentTracker) SetSubagentStatus(id string, status domain.SubagentStatus) error {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	s, exists := t.subagents[id]
+	if !exists {
+		return fmt.Errorf("subagent with ID %s not found", id)
+	}
+	s.Status = status
+	return nil
+}
+
 // CountRunningSubagents returns the number of subagents in the running state.
 func (t *subagentTracker) CountRunningSubagents() int {
 	t.mutex.RLock()

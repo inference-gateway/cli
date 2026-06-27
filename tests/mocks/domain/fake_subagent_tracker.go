@@ -61,6 +61,18 @@ type FakeSubagentTracker struct {
 	removeSubagentReturnsOnCall map[int]struct {
 		result1 error
 	}
+	SetSubagentStatusStub        func(string, domain.SubagentStatus) error
+	setSubagentStatusMutex       sync.RWMutex
+	setSubagentStatusArgsForCall []struct {
+		arg1 string
+		arg2 domain.SubagentStatus
+	}
+	setSubagentStatusReturns struct {
+		result1 error
+	}
+	setSubagentStatusReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -350,6 +362,68 @@ func (fake *FakeSubagentTracker) RemoveSubagentReturnsOnCall(i int, result1 erro
 		})
 	}
 	fake.removeSubagentReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatus(arg1 string, arg2 domain.SubagentStatus) error {
+	fake.setSubagentStatusMutex.Lock()
+	ret, specificReturn := fake.setSubagentStatusReturnsOnCall[len(fake.setSubagentStatusArgsForCall)]
+	fake.setSubagentStatusArgsForCall = append(fake.setSubagentStatusArgsForCall, struct {
+		arg1 string
+		arg2 domain.SubagentStatus
+	}{arg1, arg2})
+	stub := fake.SetSubagentStatusStub
+	fakeReturns := fake.setSubagentStatusReturns
+	fake.recordInvocation("SetSubagentStatus", []interface{}{arg1, arg2})
+	fake.setSubagentStatusMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatusCallCount() int {
+	fake.setSubagentStatusMutex.RLock()
+	defer fake.setSubagentStatusMutex.RUnlock()
+	return len(fake.setSubagentStatusArgsForCall)
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatusCalls(stub func(string, domain.SubagentStatus) error) {
+	fake.setSubagentStatusMutex.Lock()
+	defer fake.setSubagentStatusMutex.Unlock()
+	fake.SetSubagentStatusStub = stub
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatusArgsForCall(i int) (string, domain.SubagentStatus) {
+	fake.setSubagentStatusMutex.RLock()
+	defer fake.setSubagentStatusMutex.RUnlock()
+	argsForCall := fake.setSubagentStatusArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatusReturns(result1 error) {
+	fake.setSubagentStatusMutex.Lock()
+	defer fake.setSubagentStatusMutex.Unlock()
+	fake.SetSubagentStatusStub = nil
+	fake.setSubagentStatusReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeSubagentTracker) SetSubagentStatusReturnsOnCall(i int, result1 error) {
+	fake.setSubagentStatusMutex.Lock()
+	defer fake.setSubagentStatusMutex.Unlock()
+	fake.SetSubagentStatusStub = nil
+	if fake.setSubagentStatusReturnsOnCall == nil {
+		fake.setSubagentStatusReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.setSubagentStatusReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

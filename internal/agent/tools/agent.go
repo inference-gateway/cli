@@ -201,10 +201,11 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			answer, err := t.executeOne(ctx, spec, state.SessionID, mode)
 			sub := toSubResult(spec, state.SessionID, answer, err)
 			results[i] = sub
-			state.Status = domain.SubagentCompleted
+			status := domain.SubagentCompleted
 			if !sub.Success {
-				state.Status = domain.SubagentFailed
+				status = domain.SubagentFailed
 			}
+			_ = t.tracker.SetSubagentStatus(state.ID, status)
 
 			select {
 			case state.ResultChan <- &domain.ToolExecutionResult{
@@ -271,10 +272,11 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 			defer cancel()
 			answer, err := t.executeOne(runCtx, spec, state.SessionID, state.Mode)
 			sub := toSubResult(spec, state.SessionID, answer, err)
-			state.Status = domain.SubagentCompleted
+			status := domain.SubagentCompleted
 			if !sub.Success {
-				state.Status = domain.SubagentFailed
+				status = domain.SubagentFailed
 			}
+			_ = t.tracker.SetSubagentStatus(state.ID, status)
 			state.ResultChan <- &domain.ToolExecutionResult{
 				ToolName:  "Agent",
 				Arguments: map[string]any{"label": sub.Label, "session_id": state.SessionID},

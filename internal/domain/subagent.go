@@ -69,4 +69,8 @@ type SubagentTracker interface {
 
 	// CountRunningSubagents returns the number of subagents in the running state.
 	CountRunningSubagents() int
+
+	// SetSubagentStatus atomically updates a subagent's status under the
+	// tracker's lock. Returns an error if the ID is not tracked.
+	SetSubagentStatus(id string, status SubagentStatus) error
 }
