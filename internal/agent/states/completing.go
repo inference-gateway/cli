@@ -12,7 +12,7 @@ import (
 // CompletingState handles events in the Completing state.
 //
 // This state finalizes the agent execution:
-//  1. Performs a final 100ms queue check
+//  1. Performs a final 20ms queue check
 //  2. If messages queued → restart agent (CheckingQueue)
 //  3. Otherwise → publish completion event and transition to Idle
 type CompletingState struct {
