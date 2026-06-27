@@ -3,8 +3,8 @@ name: bubbles-v2
 description: >
   Use the Bubbles v2 component library for Bubble Tea v2 (charm.land/bubbles/v2):
   viewport, textinput/textarea, spinner, progress, list, table, key, help. Use when
-  adding or reviewing prebuilt TUI components — scrollable viewports, text inputs,
-  spinners, progress bars, key bindings and help — with this stack. Each component is
+  adding or reviewing prebuilt TUI components - scrollable viewports, text inputs,
+  spinners, progress bars, key bindings and help - with this stack. Each component is
   a sub-model you embed and delegate to; v2 constructors and key handling differ from
   v1, so lead with the contract and the v1->v2 table.
 license: Apache-2.0
@@ -39,7 +39,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd
     var cmd tea.Cmd
 
-    m.vp, cmd = m.vp.Update(msg) // reassign — dropping it loses state
+    m.vp, cmd = m.vp.Update(msg) // reassign - dropping it loses state
     cmds = append(cmds, cmd)
     m.sp, cmd = m.sp.Update(msg)
     cmds = append(cmds, cmd)
@@ -84,7 +84,7 @@ model wraps the composed string in `tea.NewView` (see **bubbletea-v2**).
 
 ## Notes on the common ones
 
-**viewport** — size on resize, then set content:
+**viewport** - size on resize, then set content:
 
 ```go
 case tea.WindowSizeMsg:
@@ -94,31 +94,31 @@ case tea.WindowSizeMsg:
 m.vp.SetContent(body)
 ```
 
-**spinner** — animation is a self-perpetuating command; kick it off in `Init` and let
+**spinner** - animation is a self-perpetuating command; kick it off in `Init` and let
 its `TickMsg` flow back through the component's `Update`:
 
 ```go
 func (m model) Init() tea.Cmd { return m.sp.Tick }
 ```
 
-**progress** — two modes. Static: `m.pr.ViewAs(0.4)` renders a bar at a percentage you
+**progress** - two modes. Static: `m.pr.ViewAs(0.4)` renders a bar at a percentage you
 own. Animated: `cmd := m.pr.SetPercent(0.4)`, then route `progress.FrameMsg` through
 `m.pr.Update`.
 
-**key + help** — define a keymap of `key.Binding`s, match with
+**key + help** - define a keymap of `key.Binding`s, match with
 `key.Matches(msg, m.keys.Up)`, and let `help` render it (implement `ShortHelp` /
 `FullHelp` on your keymap).
 
 ## Best practices & gotchas
 
 - Always reassign the component (`m.vp, cmd = m.vp.Update(msg)`) and `tea.Batch` the
-  cmds — dropping either loses state or stops animation.
+  cmds - dropping either loses state or stops animation.
 - Set component sizes from `tea.WindowSizeMsg`; account for borders/margins you wrap
   around them.
 - Manage focus: exactly one input `Focus()`ed at a time; `Blur()` the rest. `Focus()`
-  returns a `tea.Cmd` — don't drop it.
+  returns a `tea.Cmd` - don't drop it.
 - Constructors take options now: `viewport.New(w, h)` won't compile; use `WithWidth`/
-  `WithHeight`. (`list.New` is the exception — still positional.)
+  `WithHeight`. (`list.New` is the exception - still positional.)
 - `DefaultKeyMap` is a call now: `viewport.DefaultKeyMap()`.
 
 Pairs with **bubbletea-v2** (the runtime) and **lipgloss-v2** (styling components).

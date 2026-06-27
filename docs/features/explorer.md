@@ -3,7 +3,7 @@
 The `/explorer` command opens a VS Code-style file browser with a syntax-highlighted
 preview pane. In addition to browsing files, you can **select a line range** within a
 previewed file, **annotate it** with a natural-language instruction, and **inject** the
-annotated snippet plus surrounding file context into the chat — so the LLM knows exactly
+annotated snippet plus surrounding file context into the chat - so the LLM knows exactly
 which code to change and how.
 
 ## Workflow

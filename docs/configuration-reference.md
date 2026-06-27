@@ -302,10 +302,10 @@ compact:
   unrestricted.
 - **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
 - **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
-  - `prompt` — ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
+  - `prompt` - ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
     (Telegram); if none is reachable (CI/heartbeat) the action is **blocked** with a reason.
-  - `ipc` — force stdin/stdout IPC approval; blocked when no broker is attached.
-  - `block` — reject immediately with a reason, never ask.
+  - `ipc` - force stdin/stdout IPC approval; blocked when no broker is attached.
+  - `block` - reject immediately with a reason, never ask.
 
   The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
   the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
