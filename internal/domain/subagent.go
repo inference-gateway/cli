@@ -36,7 +36,7 @@ type SubagentState struct {
 	CancelFunc  context.CancelFunc
 	ResultChan  chan *ToolExecutionResult
 	ErrorChan   chan error
-	Silent bool
+	Silent      bool
 }
 
 // SubagentResultFile is the JSON written by `infer agent --result-file` on exit
