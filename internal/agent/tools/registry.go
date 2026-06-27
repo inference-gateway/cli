@@ -67,10 +67,6 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		stateManager:       stateManager,
 		screenshotProvider: screenshotProvider,
 	}
-	// The container passes the unified BackgroundTaskRegistry as taskTracker, so
-	// it also satisfies SubagentTracker - the same instance the SubagentPoller
-	// watches. When a bare A2A tracker is supplied (some tests), the Agent tool
-	// stays unregistered rather than tracking into an unwatched tracker.
 	if st, ok := taskTracker.(domain.SubagentTracker); ok {
 		registry.subagentTracker = st
 	}
