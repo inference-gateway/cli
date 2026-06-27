@@ -3,7 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -46,7 +46,7 @@ func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {
@@ -129,7 +129,7 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 		for key := range result.Arguments {
 			keys = append(keys, key)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		for i, key := range keys {
 			value := result.Arguments[key]
@@ -165,7 +165,7 @@ func (f BaseFormatter) FormatExpandedFooter(result *ToolExecutionResult, hasData
 	for key := range result.Metadata {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	for i, key := range keys {
 		if i == len(keys)-1 {
@@ -233,7 +233,7 @@ func (f CustomFormatter) FormatToolCall(args map[string]any, expanded bool) stri
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {
@@ -266,7 +266,7 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 		for key := range result.Arguments {
 			keys = append(keys, key)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		for i, key := range keys {
 			value := result.Arguments[key]

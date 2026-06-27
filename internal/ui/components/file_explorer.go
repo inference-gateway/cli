@@ -2,10 +2,11 @@ package components
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -890,11 +891,14 @@ func (t *FileExplorerImpl) ensureChildren(rel string) {
 
 // sortNodes orders directories before files, then case-insensitively by name.
 func sortNodes(nodes []explorerNode) {
-	sort.SliceStable(nodes, func(i, j int) bool {
-		if nodes[i].isDir != nodes[j].isDir {
-			return nodes[i].isDir
+	slices.SortStableFunc(nodes, func(a, b explorerNode) int {
+		if a.isDir != b.isDir {
+			if a.isDir {
+				return -1
+			}
+			return 1
 		}
-		return strings.ToLower(nodes[i].name) < strings.ToLower(nodes[j].name)
+		return cmp.Compare(strings.ToLower(a.name), strings.ToLower(b.name))
 	})
 }
 

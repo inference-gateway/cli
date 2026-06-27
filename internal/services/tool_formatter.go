@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -77,7 +77,7 @@ func (s *ToolFormatterService) FormatToolCall(toolName string, args map[string]a
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	var shouldCollapseFunc func(string) bool
 	tool, err := s.toolRegistry.GetTool(toolName)
@@ -188,7 +188,7 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any, maxWidth i
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	var argPairs []string
 	for _, key := range keys {

@@ -29,9 +29,10 @@ var rootCmd = &cobra.Command{
 	Long: `A powerful command-line interface for managing and interacting with
 the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Welcome to the Inference Gateway CLI!")
 		fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
+		return nil
 	},
 }
 

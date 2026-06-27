@@ -2,7 +2,7 @@ package formatting
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -168,7 +168,7 @@ func FormatToolCallWithOptions(toolName string, args map[string]any, expanded bo
 	for key := range args {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {

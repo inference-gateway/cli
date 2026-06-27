@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -117,8 +117,8 @@ func (s *Service) ListIssues(ctx context.Context) ([]domain.GitHubIssue, error) 
 			Author:    r.Author.Login,
 		})
 	}
-	sort.Slice(issues, func(i, j int) bool {
-		return issues[i].UpdatedAt.After(issues[j].UpdatedAt)
+	slices.SortFunc(issues, func(a, b domain.GitHubIssue) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	s.mu.Lock()

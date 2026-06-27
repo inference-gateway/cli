@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -239,8 +239,8 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		summaries = append(summaries, summary)
 	}
 
-	sort.Slice(summaries, func(i, j int) bool {
-		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	return summaries, nil
@@ -310,8 +310,8 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 		}
 	}
 
-	sort.Slice(summaries, func(i, j int) bool {
-		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	return summaries, nil

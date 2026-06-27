@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,7 +106,7 @@ func (s *AgentServiceImpl) getAccumulatedToolCalls() []*sdk.ChatCompletionMessag
 		_, _ = fmt.Sscanf(key, "%d", &idx)
 		indices = append(indices, idx)
 	}
-	sort.Ints(indices)
+	slices.Sort(indices)
 
 	result := make([]*sdk.ChatCompletionMessageToolCall, 0, len(s.toolCallsMap))
 	for _, idx := range indices {

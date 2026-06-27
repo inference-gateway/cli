@@ -1,7 +1,8 @@
 package components
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	help "charm.land/bubbles/v2/help"
 	key "charm.land/bubbles/v2/key"
@@ -36,11 +37,11 @@ func (hb *HelpBar) SetShortcuts(shortcuts []ui.KeyShortcut) {
 	sortedShortcuts := make([]ui.KeyShortcut, len(shortcuts))
 	copy(sortedShortcuts, shortcuts)
 
-	sort.Slice(sortedShortcuts, func(i, j int) bool {
-		if sortedShortcuts[i].Key == sortedShortcuts[j].Key {
-			return sortedShortcuts[i].Description < sortedShortcuts[j].Description
+	slices.SortFunc(sortedShortcuts, func(a, b ui.KeyShortcut) int {
+		if c := cmp.Compare(a.Key, b.Key); c != 0 {
+			return c
 		}
-		return sortedShortcuts[i].Key < sortedShortcuts[j].Key
+		return cmp.Compare(a.Description, b.Description)
 	})
 
 	hb.shortcuts = sortedShortcuts
