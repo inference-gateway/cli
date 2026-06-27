@@ -316,6 +316,20 @@ type PlanApprovalRequestedEvent struct {
 func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// UserQuestionRequestedEvent is published when the AskUserQuestion tool asks the
+// user one or more interactive clarifying questions. ResponseChan delivers the
+// collected answers back to the blocked tool goroutine; closing it without a
+// value signals cancellation.
+type UserQuestionRequestedEvent struct {
+	RequestID    string
+	Timestamp    time.Time
+	Questions    []UserQuestion
+	ResponseChan chan []UserQuestionAnswer `json:"-"`
+}
+
+func (e UserQuestionRequestedEvent) GetRequestID() string    { return e.RequestID }
+func (e UserQuestionRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
 // RefreshAutocompleteEvent is sent when autocomplete needs to refresh (e.g., after mode change)
 type RefreshAutocompleteEvent struct{}
 

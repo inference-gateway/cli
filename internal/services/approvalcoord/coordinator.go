@@ -71,6 +71,23 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 	}
 }
 
+// HandleUserQuestionRequested sets up the AskUserQuestion form state. The form
+// renders as a floating box over the chat (like tool approval), so the view
+// stays ViewStateChat and keys are intercepted while the form state is set.
+// Unlike plan approval this does NOT stop the agent loop: the tool's Execute is
+// blocked on the response channel and resumes when the user submits or cancels.
+func (s *Service) HandleUserQuestionRequested(msg domain.UserQuestionRequestedEvent) tea.Cmd {
+	s.stateManager.SetupUserQuestionUIState(msg.Questions, msg.ResponseChan)
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Please answer the question(s) - ↑/↓ move, space toggle, enter to continue, esc to cancel",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
 // HandlePlanApprovalResponse processes the user's accept/reject decision on a
 // plan and returns whatever cmds the orchestrator should run plus a restart
 // flag (true → orchestrator should kick a new ChatCompletionRunner.Start()).
@@ -148,13 +165,10 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 // HandleComputerUsePaused cancels the in-flight request and marks state as
 // paused. No restart - the user will manually resume.
 func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd {
-	logger.Debug("approvalCoordinator.HandleComputerUsePaused called", "request_id", msg.RequestID)
 	logger.Info("computer use execution paused", "request_id", msg.RequestID)
 
 	if err := s.agentService.CancelRequest(msg.RequestID); err != nil {
 		logger.Error("failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
-	} else {
-		logger.Debug("successfully cancelled request", "request_id", msg.RequestID)
 	}
 
 	s.stateManager.SetComputerUsePaused(true, msg.RequestID)

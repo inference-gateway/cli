@@ -93,6 +93,37 @@ func newEventPublisher(requestID string, chatEvents chan<- domain.ChatEvent) *ev
 	}
 }
 
+// chatQuestionBroker implements domain.UserQuestionBroker for the chat executor.
+// It publishes a UserQuestionRequestedEvent onto the per-request chatEvents
+// channel and blocks on the response channel, mirroring requestToolApproval.
+// The agent loop is only blocked in the tool's Execute goroutine; the TUI keeps
+// running and the answers arrive via the UI. When the user dismisses the form
+// the UI closes the channel (ok=false); session cancellation unblocks ctx.Done.
+type chatQuestionBroker struct {
+	publisher *eventPublisher
+}
+
+func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []domain.UserQuestion) ([]domain.UserQuestionAnswer, bool, error) {
+	responseChan := make(chan []domain.UserQuestionAnswer, 1)
+
+	b.publisher.chatEvents <- domain.UserQuestionRequestedEvent{
+		RequestID:    b.publisher.requestID,
+		Timestamp:    time.Now(),
+		Questions:    questions,
+		ResponseChan: responseChan,
+	}
+
+	select {
+	case answers, open := <-responseChan:
+		if !open {
+			return nil, false, nil
+		}
+		return answers, true, nil
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	}
+}
+
 // publishChatStart publishes a ChatStartEvent
 func (p *eventPublisher) publishChatStart() {
 	p.chatEvents <- domain.ChatStartEvent{
@@ -939,6 +970,13 @@ func (s *AgentServiceImpl) executeToolInternal(
 			}()
 		}
 		execCtx = domain.WithBashDetachChannel(execCtx, detachChan)
+	}
+
+	// AskUserQuestion blocks on an interactive form. Only hand it the broker
+	// when a chat UI/event loop is present (GetChatHandler is set only on the
+	// chat path); headless runs see a nil broker and degrade gracefully.
+	if tc.Function.Name == "AskUserQuestion" && domain.GetChatHandler(ctx) != nil {
+		execCtx = domain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
 	}
 
 	resultChan := make(chan struct {

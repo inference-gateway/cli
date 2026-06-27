@@ -111,6 +111,10 @@ func (r *Registry) registerTools() {
 	r.tools["TodoWrite"] = NewTodoWriteTool(cfg)
 	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg)
 
+	if cfg.Tools.AskUserQuestion.Enabled {
+		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
+	}
+
 	if cfg.Tools.Schedule.Enabled {
 		r.tools["Schedule"] = NewScheduleTool(cfg)
 	}

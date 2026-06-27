@@ -1,6 +1,7 @@
 package directexec
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -35,6 +36,13 @@ func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 
 	args := make(map[string]any)
 	if argsStr == "" {
+		return toolName, args, nil
+	}
+
+	if strings.HasPrefix(argsStr, "{") {
+		if err := json.Unmarshal([]byte(argsStr), &args); err != nil {
+			return "", nil, fmt.Errorf("failed to parse JSON arguments: %w", err)
+		}
 		return toolName, args, nil
 	}
 

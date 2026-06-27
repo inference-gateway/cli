@@ -736,6 +736,9 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
+	// Dismiss any pending AskUserQuestion form so it doesn't linger after the
+	// turn is cancelled (closing the channel unblocks the tool's Execute).
+	stateManager.ClearUserQuestionUIState()
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()
 	_ = stateManager.TransitionToView(domain.ViewStateChat)
@@ -758,6 +761,7 @@ func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
+	stateManager.ClearUserQuestionUIState()
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()
 	_ = stateManager.TransitionToView(domain.ViewStateChat)

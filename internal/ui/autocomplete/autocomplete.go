@@ -254,45 +254,20 @@ func (a *AutocompleteImpl) loadTools() {
 
 	a.suggestions = []ShortcutOption{}
 
-	availableTools := a.toolService.ListAvailableTools()
-	toolDefinitions := a.toolService.ListTools()
-
-	toolDefMap := make(map[string]sdk.ChatCompletionTool)
-	for _, toolDef := range toolDefinitions {
-		toolDefMap[toolDef.Function.Name] = toolDef
-	}
-
-	planModeTools := map[string]bool{
-		"Read":      true,
-		"Grep":      true,
-		"Tree":      true,
-		"TodoWrite": true,
-	}
-
-	var isInPlanMode bool
+	mode := domain.AgentModeStandard
 	if a.stateManager != nil {
-		agentMode := a.stateManager.GetAgentMode()
-		isInPlanMode = agentMode == domain.AgentModePlan
+		mode = a.stateManager.GetAgentMode()
 	}
 
-	for _, toolName := range availableTools {
+	for _, toolDef := range a.toolService.ListToolsForMode(mode) {
+		toolName := toolDef.Function.Name
 		if toolName == "RequestPlanApproval" {
+			// The plan-submission tool isn't a meaningful manual !! command.
 			continue
-		}
-
-		if isInPlanMode && !planModeTools[toolName] {
-			continue
-		}
-
-		var template string
-		if toolDef, exists := toolDefMap[toolName]; exists {
-			template = a.generateToolTemplate(toolDef)
-		} else {
-			template = "!!" + toolName + "("
 		}
 
 		a.suggestions = append(a.suggestions, ShortcutOption{
-			Shortcut:    template,
+			Shortcut:    a.generateToolTemplate(toolDef),
 			Description: "Execute " + toolName + " tool directly",
 			Usage:       "",
 		})

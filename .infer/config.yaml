@@ -169,6 +169,8 @@ tools:
       multiplexer: tmux
       layout: vertical
       fallback: headless
+  ask_user_question:
+    enabled: true
   safety:
     require_approval: true
     approval_behaviour: prompt

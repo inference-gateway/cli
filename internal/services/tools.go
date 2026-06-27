@@ -61,6 +61,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 			"A2A_QueryAgent":      true,
 			"TodoWrite":           true,
 			"RequestPlanApproval": true,
+			"AskUserQuestion":     true,
 		}
 
 		var definitions []sdk.ChatCompletionTool
@@ -75,6 +76,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 
 	planOnlyTools := map[string]bool{
 		"RequestPlanApproval": true,
+		"AskUserQuestion":     true,
 	}
 
 	var definitions []sdk.ChatCompletionTool
