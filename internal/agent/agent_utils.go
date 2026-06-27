@@ -14,7 +14,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	fromatting "github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
