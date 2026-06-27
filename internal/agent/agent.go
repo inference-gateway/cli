@@ -787,7 +787,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	}
 
 	for i, tc := range toolCalls {
-		requiresApproval := s.approvalPolicy.ShouldRequireApproval(context.Background(), tc, isChatMode)
+		requiresApproval := s.approvalPolicy.ShouldRequireApproval(ctx, tc, isChatMode)
 		if requiresApproval {
 			approvalTools = append(approvalTools, struct {
 				index int
@@ -872,7 +872,7 @@ func (s *AgentServiceImpl) executeTool(
 ) domain.ConversationEntry {
 	startTime := time.Now()
 
-	requiresApproval := s.approvalPolicy.ShouldRequireApproval(context.Background(), &tc, isChatMode)
+	requiresApproval := s.approvalPolicy.ShouldRequireApproval(ctx, &tc, isChatMode)
 	wasApproved := false
 	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
 	if isAutoAcceptMode {

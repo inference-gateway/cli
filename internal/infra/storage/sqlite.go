@@ -65,13 +65,8 @@ func (s *SQLiteStorage) runMigrations() error {
 
 	allMigrations := migrations.GetSQLiteMigrations()
 
-	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
-	if err != nil {
+	if _, err := runner.ApplyMigrations(ctx, allMigrations); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
-	}
-
-	if appliedCount > 0 {
-		_ = appliedCount
 	}
 
 	return nil
