@@ -568,7 +568,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	}
 
 	var subagentPoller *services.SubagentPoller
-	if s.bgRegistry != nil {
+	if s.bgRegistry != nil && s.config.IsAgentToolEnabled() {
 		subagentPoller = services.NewSubagentPoller(s.bgRegistry, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
 		go subagentPoller.Start(sessionCtx)
 	}

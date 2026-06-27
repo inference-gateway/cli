@@ -198,7 +198,7 @@ func (p *SubagentPoller) emit(event domain.ChatEvent) {
 	select {
 	case p.eventChan <- event:
 	default:
-		logger.Warn("failed to emit subagent event - channel full")
+		logger.Warn("dropped subagent UI event - chat event channel full", "event", fmt.Sprintf("%T", event))
 	}
 }
 
@@ -256,4 +256,12 @@ func (p *SubagentPoller) stopAllMonitors() {
 		cancel()
 	}
 	p.activeMonitors = make(map[string]context.CancelFunc)
+
+	if p.tracker != nil {
+		for _, state := range p.tracker.GetAllSubagents() {
+			if state.CancelFunc != nil {
+				state.CancelFunc()
+			}
+		}
+	}
 }
