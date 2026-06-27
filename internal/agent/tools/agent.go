@@ -207,15 +207,12 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			}
 			_ = t.tracker.SetSubagentStatus(state.ID, status)
 
-			select {
-			case state.ResultChan <- &domain.ToolExecutionResult{
+			state.ResultChan <- &domain.ToolExecutionResult{
 				ToolName: "Agent",
 				Success:  sub.Success,
 				Error:    sub.Error,
 				Duration: time.Since(state.StartedAt),
 				Data:     sub,
-			}:
-			default:
 			}
 		}(i, spec, state)
 	}

@@ -516,7 +516,6 @@ func isDomainEvent(msg tea.Msg) bool {
 		return true
 
 	case domain.SubagentSubmittedEvent,
-		domain.SubagentStatusUpdateEvent,
 		domain.SubagentCompletedEvent,
 		domain.SubagentFailedEvent:
 		return true

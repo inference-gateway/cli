@@ -213,19 +213,6 @@ type SubagentSubmittedEvent struct {
 func (e SubagentSubmittedEvent) GetRequestID() string    { return e.RequestID }
 func (e SubagentSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// SubagentStatusUpdateEvent indicates a local subagent status update
-type SubagentStatusUpdateEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	SubagentID string
-	Label      string
-	Status     string
-	Message    string
-}
-
-func (e SubagentStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
-func (e SubagentStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // SubagentCompletedEvent indicates a local subagent completed successfully
 type SubagentCompletedEvent struct {
 	RequestID  string

@@ -149,8 +149,6 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	case domain.SubagentSubmittedEvent:
 		return h.HandleSubagentSubmittedEvent(m)
-	case domain.SubagentStatusUpdateEvent:
-		return h.HandleSubagentStatusUpdateEvent(m)
 	case domain.SubagentCompletedEvent:
 		return h.HandleSubagentCompletedEvent(m)
 	case domain.SubagentFailedEvent:
@@ -365,10 +363,6 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 // keep the chat event listener pumping, since these events arrive on the chat
 // event channel and the conversation view consumes them for rendering.
 func (h *ChatHandler) HandleSubagentSubmittedEvent(_ domain.SubagentSubmittedEvent) tea.Cmd {
-	return h.rearmChatListener()
-}
-
-func (h *ChatHandler) HandleSubagentStatusUpdateEvent(_ domain.SubagentStatusUpdateEvent) tea.Cmd {
 	return h.rearmChatListener()
 }
 
