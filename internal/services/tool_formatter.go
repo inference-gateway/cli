@@ -214,7 +214,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 	if tool, err := s.toolRegistry.GetTool(result.ToolName); err != nil {
 		tree = s.formatFallback(result, domain.FormatterLLM)
 	} else {
-		tree = tool.FormatResult(result, domain.FormatterLLM)
+		tree = safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
 	}
 
 	tree = wrapTreeLines(tree, formatting.GetResponsiveWidth(terminalWidth))
@@ -236,7 +236,7 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecuti
 		return s.formatFallback(result, domain.FormatterLLM)
 	}
 
-	return tool.FormatResult(result, domain.FormatterLLM)
+	return safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
 }
 
 // formatFallback provides fallback formatting when tool is not available
@@ -308,8 +308,11 @@ func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *do
 
 // formatEnhancedGatewayTool formats Gateway tools with enhanced user-friendly visualization
 func (s *ToolFormatterService) formatEnhancedGatewayTool(result *domain.ToolExecutionResult, formatter *domain.BaseFormatter) string {
-	data := result.Data.(map[string]any)
-	visualDisplay := data["visual_display"].(string)
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return fmt.Sprintf("%s Executed on Gateway", formatter.FormatStatusIcon(result.Success))
+	}
+	visualDisplay, _ := data["visual_display"].(string)
 	statusIcon := formatter.FormatStatusIcon(result.Success)
 
 	toolType, _ := data["type"].(string)

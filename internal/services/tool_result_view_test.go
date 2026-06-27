@@ -69,6 +69,26 @@ func TestWrapTreeLine_avoidsSliverColumns(t *testing.T) {
 	}
 }
 
+func TestSafeToolFormat_returnsValueWhenNoPanic(t *testing.T) {
+	if got := safeToolFormat("Bash", func() string { return "ok output" }); got != "ok output" {
+		t.Errorf("safeToolFormat passthrough = %q, want %q", got, "ok output")
+	}
+}
+
+// TestSafeToolFormat_recoversPanicIntoPlaceholder reproduces the exact panic that
+// crashed the TUI on conversation reload (float64 asserted to int) and asserts the
+// guard degrades it to a readable placeholder instead of propagating.
+func TestSafeToolFormat_recoversPanicIntoPlaceholder(t *testing.T) {
+	got := safeToolFormat("ListShells", func() string {
+		var v any = float64(1)
+		_ = v.(int)
+		return "unreachable"
+	})
+	if !strings.Contains(got, "ListShells") || !strings.Contains(got, "unavailable") {
+		t.Errorf("expected a placeholder naming the tool, got %q", got)
+	}
+}
+
 func TestWrapTreeLines_endToEnd(t *testing.T) {
 	tree := strings.Join([]string{
 		"Bash(command=...)",

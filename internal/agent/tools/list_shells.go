@@ -100,7 +100,7 @@ func (t *ListShellsTool) IsEnabled() bool {
 func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
 	if formatType == domain.FormatterShort {
 		if data, ok := result.Data.(map[string]any); ok {
-			count := data["shell_count"].(int)
+			count := toInt(data["shell_count"])
 			if count == 0 {
 				return "No background shells running"
 			}
@@ -113,12 +113,12 @@ func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, format
 	}
 
 	if data, ok := result.Data.(map[string]any); ok {
-		count := data["shell_count"].(int)
+		count := toInt(data["shell_count"])
 		if count == 0 {
 			return "No background shells running"
 		}
 
-		shells := data["shells"].([]map[string]any)
+		shells := asMapSlice(data["shells"])
 		output := fmt.Sprintf("Background Shells (%d):\n\n", count)
 		for _, shell := range shells {
 			state := shell["state"].(string)
@@ -137,7 +137,7 @@ func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, format
 			output += fmt.Sprintf("%s %s\n", indicator, shell["shell_id"])
 			output += fmt.Sprintf("   %s\n", shell["command"])
 			output += fmt.Sprintf("   %s | %s | %d bytes\n\n",
-				shell["state"], shell["elapsed"], shell["output_size"])
+				shell["state"], shell["elapsed"], toInt(shell["output_size"]))
 		}
 		return output
 	}
@@ -167,12 +167,12 @@ func (t *ListShellsTool) formatLLMResult(result *domain.ToolExecutionResult) str
 		return "ListShells completed"
 	}
 
-	count := data["shell_count"].(int)
+	count := toInt(data["shell_count"])
 	if count == 0 {
 		return "No background shells are currently running or tracked."
 	}
 
-	shells := data["shells"].([]map[string]any)
+	shells := asMapSlice(data["shells"])
 	output := fmt.Sprintf("Found %d background shell(s):\n\n", count)
 	for i, shell := range shells {
 		output += fmt.Sprintf("%d. Shell ID: %s\n", i+1, shell["shell_id"])
@@ -180,9 +180,14 @@ func (t *ListShellsTool) formatLLMResult(result *domain.ToolExecutionResult) str
 		output += fmt.Sprintf("   State: %s\n", shell["state"])
 		output += fmt.Sprintf("   Started: %s\n", shell["started_at"])
 		output += fmt.Sprintf("   Elapsed: %s\n", shell["elapsed"])
-		output += fmt.Sprintf("   Output Size: %d bytes\n", shell["output_size"])
-		if exitCode, ok := shell["exit_code"].(*int); ok && exitCode != nil {
-			output += fmt.Sprintf("   Exit Code: %d\n", *exitCode)
+		output += fmt.Sprintf("   Output Size: %d bytes\n", toInt(shell["output_size"]))
+		switch ec := shell["exit_code"].(type) {
+		case *int:
+			if ec != nil {
+				output += fmt.Sprintf("   Exit Code: %d\n", *ec)
+			}
+		case float64, int, int64:
+			output += fmt.Sprintf("   Exit Code: %d\n", toInt(ec))
 		}
 		output += "\n"
 	}

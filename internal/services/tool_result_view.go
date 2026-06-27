@@ -8,6 +8,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // previewLineCount is how many output lines the collapsed tool result shows on success.
@@ -31,11 +32,25 @@ func (s *ToolFormatterService) resultBody(result *domain.ToolExecutionResult) st
 		return ""
 	}
 	if bp, ok := tool.(ResultBodyProvider); ok {
-		if body := bp.FormatResultBody(result); body != "" {
+		if body := safeToolFormat(result.ToolName, func() string { return bp.FormatResultBody(result) }); body != "" {
 			return strings.TrimRight(body, "\n")
 		}
 	}
-	return strings.TrimRight(tool.FormatPreview(result), "\n")
+	return strings.TrimRight(safeToolFormat(result.ToolName, func() string { return tool.FormatPreview(result) }), "\n")
+}
+
+// safeToolFormat runs a tool's formatting function under a panic guard. A malformed or
+// legacy tool result — most often numbers that became float64 after a JSON round-trip
+// when a saved conversation is reloaded — must degrade to a readable placeholder rather
+// than crash the whole TUI via Bubble Tea's program-level panic handler.
+func safeToolFormat(toolName string, fn func() string) (out string) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("tool result formatting panicked", "tool", toolName, "panic", r)
+			out = fmt.Sprintf("[%s result unavailable]", toolName)
+		}
+	}()
+	return fn()
 }
 
 // previewLines splits the body into the lines shown in the collapsed view and how
