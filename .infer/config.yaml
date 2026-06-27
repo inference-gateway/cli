@@ -294,7 +294,7 @@ web:
   port: 3000
   host: localhost
   session_inactivity_mins: 5
-  tmux: false
+  tmux: true
   ssh:
     enabled: false
     use_ssh_config: true

@@ -929,7 +929,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Port:                  3000,
 			Host:                  "localhost",
 			SessionInactivityMins: 5,
-			Tmux:                  false,
+			Tmux:                  true,
 			SSH: WebSSHConfig{
 				Enabled:        false,
 				UseSSHConfig:   true,
