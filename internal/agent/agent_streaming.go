@@ -82,7 +82,9 @@ func (a *EventDrivenAgent) startStreaming() {
 			Timestamp: time.Now(),
 			Error:     err,
 		}
-		_ = a.stateMachine.Transition(a.agentCtx, domain.StateError)
+		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
+			logger.Error("failed to transition to Error state after stream failure", "error", err)
+		}
 		return
 	}
 
@@ -133,7 +135,9 @@ func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 			Timestamp: time.Now(),
 			Error:     fmt.Errorf("stream timed out after %d seconds", a.service.timeoutSeconds),
 		}
-		_ = a.stateMachine.Transition(a.agentCtx, domain.StateError)
+		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
+			logger.Error("failed to transition to Error state after stream failure", "error", err)
+		}
 		return
 	}
 

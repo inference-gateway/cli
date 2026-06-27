@@ -292,7 +292,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			detached = true
 			detachedMux.Unlock()
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 
 			shellID, err := t.backgroundShellService.DetachToBackground(ctx, cmd, result.Command, outputBuffer)
 			if err != nil {

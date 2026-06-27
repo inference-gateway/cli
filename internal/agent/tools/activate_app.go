@@ -86,7 +86,7 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 		return nil, fmt.Errorf("failed to activate app '%s': %w (app may not be running)", bundleID, err)
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	currentApp, err := focusManager.GetFrontmostApp(ctx)
 	if err == nil && currentApp == bundleID {

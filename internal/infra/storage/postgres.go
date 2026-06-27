@@ -92,16 +92,8 @@ func (s *PostgresStorage) runMigrations(ctx context.Context) error {
 	// Get all PostgreSQL migrations
 	allMigrations := migrations.GetPostgresMigrations()
 
-	// Apply migrations
-	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
-	if err != nil {
+	if _, err := runner.ApplyMigrations(ctx, allMigrations); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
-	}
-
-	// Log applied migrations count (only if any were applied)
-	if appliedCount > 0 {
-		// Migrations were applied, but we don't log here as this is a library
-		_ = appliedCount
 	}
 
 	return nil
