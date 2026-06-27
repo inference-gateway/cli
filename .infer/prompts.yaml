@@ -379,7 +379,7 @@ tools:
     description: |-
       Spawn local subagents - each an autonomous "infer agent" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
 
-      Provide either 'tasks' (an array of {description, label?, model?} objects) to run several subagents at once, or 'description' for a single subagent.
+      Provide either 'tasks' (an array of {description, label?, model?, system_prompt?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).
 
       The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 

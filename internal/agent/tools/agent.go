@@ -25,12 +25,17 @@ import (
 // the depth reaches the configured max (a subagent is itself an `infer agent`).
 const subagentDepthEnv = "INFER_SUBAGENT_DEPTH"
 
+// subagentSystemPromptEnv carries a per-subagent system prompt to the spawned
+// subagent (read in initConfig), so each subagent can run with its own role.
+const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
+
 // AgentTaskSpec is one delegated unit of work within an Agent tool call.
 type AgentTaskSpec struct {
-	Label       string
-	Description string
-	Model       string
-	Files       []string
+	Label        string
+	Description  string
+	Model        string
+	Files        []string
+	SystemPrompt string
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -98,9 +103,10 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 						"items": map[string]any{
 							"type": "object",
 							"properties": map[string]any{
-								"description": map[string]any{"type": "string", "description": "The task for the subagent to perform"},
-								"label":       map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
-								"model":       map[string]any{"type": "string", "description": "Optional model override for this subagent"},
+								"description":   map[string]any{"type": "string", "description": "The task for the subagent to perform"},
+								"label":         map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
+								"model":         map[string]any{"type": "string", "description": "Optional model override for this subagent"},
+								"system_prompt": map[string]any{"type": "string", "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task"},
 							},
 							"required": []string{"description"},
 						},
@@ -108,6 +114,10 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 					"description": map[string]any{
 						"type":        "string",
 						"description": "Shorthand for a single subagent task (alternative to tasks)",
+					},
+					"system_prompt": map[string]any{
+						"type":        "string",
+						"description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
 					},
 				},
 			},
@@ -170,8 +180,6 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 	results := make([]AgentSubResult, len(specs))
 	var wg sync.WaitGroup
 	for i, spec := range specs {
-		// Track each subagent (silent: visibility only) so the live tree shows
-		// it running while we block here for the aggregated result.
 		state := &domain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
@@ -197,8 +205,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			if !sub.Success {
 				state.Status = domain.SubagentFailed
 			}
-			// Signal the poller so the tree row flips to done/failed and is
-			// cleaned up (Silent => no duplicate conversation message).
+
 			select {
 			case state.ResultChan <- &domain.ToolExecutionResult{
 				ToolName: "Agent",
@@ -316,7 +323,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		Model:      spec.Model,
 		Files:      spec.Files,
 		ResultFile: resultFile,
-		ExtraEnv:   []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)},
+		ExtraEnv:   subagentExtraEnv(spec),
 	})
 	// Prefer the result file's harvested answer (it skips the subagent's trailing
 	// "task complete" verification turn); fall back to the streamed final message.
@@ -356,11 +363,24 @@ func (t *AgentTool) executeInteractive(ctx context.Context, spec AgentTaskSpec, 
 // dropdown appears) plus the depth guard.
 func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec) string {
 	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	if spec.SystemPrompt != "" {
+		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
+	}
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
 	parts = append(parts, shellQuote(t.binary), "chat")
 	return strings.Join(parts, " ")
+}
+
+// subagentExtraEnv builds the environment passed to a headless subagent: the
+// depth guard plus an optional per-subagent system prompt.
+func subagentExtraEnv(spec AgentTaskSpec) []string {
+	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	if spec.SystemPrompt != "" {
+		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
+	}
+	return env
 }
 
 // sendTaskToPane waits for the chat TUI to be ready, then types the task into
@@ -404,7 +424,7 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (
 	case "window":
 		args = []string{"new-window"}
 	}
-	// -P -F prints the new pane id so we can target it precisely.
+
 	args = append(args, "-P", "-F", "#{pane_id}", command)
 	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
 	if err != nil {
@@ -414,8 +434,7 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (
 	if paneID == "" {
 		return "", nil
 	}
-	// Keep the pane open after the subagent exits, and label it. Best-effort:
-	// older tmux may not support a per-pane remain-on-exit / title.
+
 	_ = exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", paneID, "remain-on-exit", "on").Run()
 	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-t", paneID, "-T", title).Run()
 	return paneID, nil
@@ -639,10 +658,11 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 				return nil, fmt.Errorf("tasks[%d].description is required and must be a non-empty string", i)
 			}
 			specs = append(specs, AgentTaskSpec{
-				Label:       optionalString(m, "label"),
-				Description: desc,
-				Model:       optionalString(m, "model"),
-				Files:       optionalStringSlice(m, "files"),
+				Label:        optionalString(m, "label"),
+				Description:  desc,
+				Model:        optionalString(m, "model"),
+				Files:        optionalStringSlice(m, "files"),
+				SystemPrompt: optionalString(m, "system_prompt"),
 			})
 		}
 		return specs, nil
@@ -650,10 +670,11 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 
 	if desc, ok := args["description"].(string); ok && strings.TrimSpace(desc) != "" {
 		return []AgentTaskSpec{{
-			Label:       optionalString(args, "label"),
-			Description: desc,
-			Model:       optionalString(args, "model"),
-			Files:       optionalStringSlice(args, "files"),
+			Label:        optionalString(args, "label"),
+			Description:  desc,
+			Model:        optionalString(args, "model"),
+			Files:        optionalStringSlice(args, "files"),
+			SystemPrompt: optionalString(args, "system_prompt"),
 		}}, nil
 	}
 

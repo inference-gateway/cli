@@ -144,6 +144,10 @@ func initConfig() {
 	}
 	Cfg = cfg
 
+	if sp := os.Getenv("INFER_SUBAGENT_SYSTEM_PROMPT"); sp != "" {
+		cfg.Prompts.Agent.SystemPrompt = sp
+	}
+
 	verbose := v.GetBool("verbose")
 	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")

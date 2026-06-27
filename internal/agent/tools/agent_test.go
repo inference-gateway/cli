@@ -140,13 +140,13 @@ func TestParseAgentTasks(t *testing.T) {
 	}
 
 	specs, err = parseAgentTasks(map[string]any{"tasks": []any{
-		map[string]any{"description": "a", "label": "la", "model": "m1"},
+		map[string]any{"description": "a", "label": "la", "model": "m1", "system_prompt": "be terse"},
 		map[string]any{"description": "b"},
 	}})
 	if err != nil || len(specs) != 2 {
 		t.Fatalf("tasks parse failed: specs=%+v err=%v", specs, err)
 	}
-	if specs[0].Label != "la" || specs[0].Model != "m1" {
+	if specs[0].Label != "la" || specs[0].Model != "m1" || specs[0].SystemPrompt != "be terse" {
 		t.Fatalf("task fields not parsed: %+v", specs[0])
 	}
 
