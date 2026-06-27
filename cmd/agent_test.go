@@ -403,13 +403,13 @@ func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
 			mockToolService := &domainmocks.FakeToolService{}
 
 			cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 5}}
-			cfg.Tools.Safety.RequireApproval = true // Write needs approval
+			cfg.Tools.Safety.RequireApproval = true
 			cfg.Tools.Safety.ApprovalBehaviour = behaviour
 
 			session := &AgentSession{
 				toolService:     mockToolService,
 				config:          cfg,
-				requireApproval: false, // no IPC broker (CI/heartbeat)
+				requireApproval: false,
 			}
 
 			results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
@@ -434,6 +434,61 @@ func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
 	}
 }
 
+func TestInheritedSubagentMode(t *testing.T) {
+	t.Run("unset defaults to Standard", func(t *testing.T) {
+		t.Setenv("INFER_SUBAGENT_AGENT_MODE", "")
+		if got := inheritedSubagentMode(); got != domain.AgentModeStandard {
+			t.Fatalf("inheritedSubagentMode() = %v, want Standard", got)
+		}
+	})
+	t.Run("auto parses to AutoAccept", func(t *testing.T) {
+		t.Setenv("INFER_SUBAGENT_AGENT_MODE", "auto")
+		if got := inheritedSubagentMode(); got != domain.AgentModeAutoAccept {
+			t.Fatalf("inheritedSubagentMode() = %v, want AutoAccept", got)
+		}
+	})
+	t.Run("unrecognized falls back to Standard", func(t *testing.T) {
+		t.Setenv("INFER_SUBAGENT_AGENT_MODE", "bogus")
+		if got := inheritedSubagentMode(); got != domain.AgentModeStandard {
+			t.Fatalf("inheritedSubagentMode() = %v, want Standard", got)
+		}
+	})
+}
+
+// TestExecuteToolCalls_AutoAcceptBypassesApproval verifies that a headless
+// subagent inheriting Auto-Accept (via INFER_SUBAGENT_AGENT_MODE) runs an
+// approval-requiring tool without an approver attached - matching chat YOLO.
+// Contrast with TestExecuteToolCalls_BlocksWhenNoApprover, which blocks the
+// same call in the default Standard mode.
+func TestExecuteToolCalls_AutoAcceptBypassesApproval(t *testing.T) {
+	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService.ExecuteToolReturns(&domain.ToolExecutionResult{ToolName: "Write", Success: true, Data: "ok"}, nil)
+
+	cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 5}}
+	cfg.Tools.Safety.RequireApproval = true
+	cfg.Tools.Safety.ApprovalBehaviour = config.ApprovalBehaviourBlock
+
+	session := &AgentSession{
+		toolService:     mockToolService,
+		config:          cfg,
+		agentMode:       domain.AgentModeAutoAccept,
+		requireApproval: false,
+	}
+
+	results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
+		{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{
+			Name: "Write", Arguments: `{"file_path":"x","content":"y"}`,
+		}},
+	})
+
+	if mockToolService.ExecuteToolCallCount() != 1 {
+		t.Errorf("auto-accept must execute the tool, got %d calls", mockToolService.ExecuteToolCallCount())
+	}
+	if len(results) != 1 || results[0].ToolExecution == nil || !results[0].ToolExecution.Success {
+		t.Errorf("expected a successful execution result, got %+v", results)
+	}
+}
+
 // TestExecuteToolCalls_IPCApprovalExecutesWhenApproved verifies that with an IPC
 // broker attached (--require-approval) and the default prompt behaviour, an
 // approval-requiring tool is delivered over IPC and runs once the user approves.
@@ -451,7 +506,7 @@ func TestExecuteToolCalls_IPCApprovalExecutesWhenApproved(t *testing.T) {
 	session := &AgentSession{
 		toolService:     mockToolService,
 		config:          cfg,
-		requireApproval: true, // broker attached -> prompt resolves to IPC
+		requireApproval: true,
 		approvalCh:      approvalCh,
 	}
 
@@ -659,7 +714,7 @@ func TestEmitSessionStatsSuppressedWhenNoRequests(t *testing.T) {
 func TestEmitSessionStatsZeroCostWhenPricingDisabled(t *testing.T) {
 	session := &AgentSession{
 		model:                 "some/model",
-		pricingService:        fakePricing(0, 0, 0), // pricing disabled / zero cost
+		pricingService:        fakePricing(0, 0, 0),
 		config:                &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
 		totalPromptTokens:     10,
 		totalCompletionTokens: 5,

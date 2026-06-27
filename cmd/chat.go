@@ -164,6 +164,10 @@ func StartChatSession(cfg *config.Config) error {
 	conversationOptimizer := services.GetConversationOptimizer()
 	sessionRolloverManager := services.GetSessionRolloverManager()
 
+	if mode := inheritedSubagentMode(); mode != domain.AgentModeStandard {
+		stateManager.SetAgentMode(mode)
+	}
+
 	var screenshotServer *screenshotsvc.ScreenshotServer
 
 	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {

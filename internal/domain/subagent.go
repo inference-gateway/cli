@@ -20,6 +20,13 @@ const (
 	SubagentModeInteractive = "interactive"
 )
 
+// EnvSubagentAgentMode names the environment variable the Agent tool sets to
+// carry the parent chat's coding mode (the AgentMode.AllowedlistKey form -
+// "standard"/"plan"/"auto") to a spawned subagent, so it starts in the same
+// mode as its parent. It is absent for top-level `infer chat`/`infer agent`
+// runs, which therefore stay Standard-by-default.
+const EnvSubagentAgentMode = "INFER_SUBAGENT_AGENT_MODE"
+
 // SubagentState tracks one in-flight local subagent (an `infer agent`
 // subprocess spawned by the Agent tool). It is the subagent analogue of
 // TaskPollingState: the SubagentPoller selects on ResultChan/ErrorChan to
