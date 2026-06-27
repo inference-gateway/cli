@@ -22,9 +22,6 @@ type HelpBar struct {
 	styleProvider *styles.Provider
 	help          help.Model
 
-	// styledAccent/styledDim record the theme colours the cached help styles
-	// were last built from, so Render rebuilds them only when the theme
-	// changes instead of allocating three lipgloss styles on every frame.
 	styledAccent string
 	styledDim    string
 }

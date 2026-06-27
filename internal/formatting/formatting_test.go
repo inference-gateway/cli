@@ -184,9 +184,6 @@ func TestTruncateText(t *testing.T) {
 		})
 	}
 
-	// For multibyte/wide/emoji input the result must never exceed the column
-	// budget and must never split a grapheme - the old byte-slice version failed
-	// both (mangling emoji and over-counting CJK width).
 	wide := []struct {
 		name string
 		in   string

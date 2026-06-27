@@ -138,12 +138,10 @@ func (r *MigrationRunner) ApplyMigrations(ctx context.Context, migrations []Migr
 		return 0, err
 	}
 
-	// Sort migrations by version
 	slices.SortFunc(migrations, func(a, b Migration) int {
 		return cmp.Compare(a.Version, b.Version)
 	})
 
-	// Apply pending migrations
 	appliedCount := 0
 	for _, migration := range migrations {
 		if applied[migration.Version] {
@@ -183,7 +181,6 @@ func (r *MigrationRunner) GetMigrationStatus(ctx context.Context, availableMigra
 		})
 	}
 
-	// Sort by version
 	slices.SortFunc(status, func(a, b MigrationStatus) int {
 		return cmp.Compare(a.Version, b.Version)
 	})
