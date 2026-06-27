@@ -613,9 +613,14 @@ func formatSubResult(sub AgentSubResult) string {
 	return out.String()
 }
 
-// ShouldCollapseArg collapses the verbose task descriptions in the chat UI.
-func (t *AgentTool) ShouldCollapseArg(key string) bool {
-	return key == "tasks" || key == "description"
+// ShouldCollapseArg keeps the Agent tool's arguments visible rather than
+// collapsing them to "...". The task description is the one thing a user needs
+// to see when approving an Agent call - and unlike Write/Edit there is no diff
+// or preview below the summary to fall back on - so it must show in the approval
+// prompt and the tool-call line. Long values are truncated by the surrounding
+// view's width budget.
+func (t *AgentTool) ShouldCollapseArg(string) bool {
+	return false
 }
 
 // ShouldAlwaysExpand keeps the result block collapsed by default.
