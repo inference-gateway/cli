@@ -69,9 +69,11 @@ type AgentServiceImpl struct {
 	toolCallsMux sync.RWMutex
 
 	// Context caching
-	gitContextCache string
-	gitContextTurn  int
-	contextCacheMux sync.RWMutex
+	gitContextCache    string
+	gitContextTurn     int
+	memoryContextCache string
+	memoryContextTurn  int
+	contextCacheMux    sync.RWMutex
 }
 
 // sessionCancel bundles the two cancellation primitives for a single

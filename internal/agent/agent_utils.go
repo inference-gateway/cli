@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -191,7 +193,8 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Mess
 		s.buildBashAllowInfo() +
 		s.buildToolsInfo() +
 		s.buildSkillsInfo() +
-		s.buildActiveSkillInfo(messages)
+		s.buildActiveSkillInfo(messages) +
+		s.buildMemoryInfo(currentTurn)
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
@@ -432,6 +435,60 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildMemoryInfo loads the MEMORY.md index once per session and injects it as a
+// context block so the agent knows which durable facts exist; individual facts
+// are loaded on demand via the Memory tool. Cached like gitContextCache; the
+// per-turn TTL means writes from the prior turn are reflected on the next turn.
+func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
+	if !s.config.Memory.Enabled {
+		return ""
+	}
+
+	s.contextCacheMux.RLock()
+	if s.memoryContextCache != "" && currentTurn-s.memoryContextTurn < 1 {
+		defer s.contextCacheMux.RUnlock()
+		return s.memoryContextCache
+	}
+	s.contextCacheMux.RUnlock()
+
+	dir, err := s.config.ResolveMemoryDir()
+	if err != nil {
+		logger.Debug("failed to resolve memory dir", "error", err)
+		return ""
+	}
+
+	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debug("failed to read memory index", "path", indexPath, "error", err)
+		}
+		return ""
+	}
+
+	index := strings.TrimSpace(string(data))
+	if index == "" {
+		return ""
+	}
+	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
+		index = index[:maxChars] + "\n... (memory index truncated; use the Memory tool 'read' with a name for full facts)"
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\nPERSISTENT MEMORY INDEX (durable facts from past sessions; use the Memory tool 'read' with a name to load one in full):\n")
+	b.WriteString(index)
+	b.WriteString("\n")
+
+	result := b.String()
+
+	s.contextCacheMux.Lock()
+	s.memoryContextCache = result
+	s.memoryContextTurn = currentTurn
+	s.contextCacheMux.Unlock()
+
+	return result
 }
 
 // matchSkillTriggers scans user-role messages for explicit skill invocations

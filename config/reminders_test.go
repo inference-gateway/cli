@@ -59,19 +59,28 @@ func TestRemindersFileConstants(t *testing.T) {
 	}
 }
 
-// Reminders ship disabled by default (issue #525) with one todo-hygiene
-// reminder so flipping enabled=true is enough.
+// Reminders ship enabled by default with a todo-hygiene reminder plus a
+// memory-consult reminder (the latter pruned at load time when memory is off).
 func TestDefaultRemindersConfig(t *testing.T) {
 	cfg := config.DefaultRemindersConfig()
-	if cfg.Enabled {
-		t.Error("reminders should be disabled by default")
+	if !cfg.Enabled {
+		t.Error("reminders should be enabled by default")
 	}
 	if len(cfg.Reminders) == 0 {
-		t.Fatal("default should ship one reminder")
+		t.Fatal("default should ship at least one reminder")
 	}
 	first := cfg.Reminders[0]
 	if first.Text == "" || first.Hook != domain.HookPreStream || first.Trigger != config.ReminderTriggerInterval {
 		t.Errorf("unexpected default reminder: %+v", first)
+	}
+	hasMemoryConsult := false
+	for _, r := range cfg.Reminders {
+		if r.Name == "memory-consult" {
+			hasMemoryConsult = true
+		}
+	}
+	if !hasMemoryConsult {
+		t.Error("default reminders should include memory-consult")
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("default reminders config must be valid: %v", err)

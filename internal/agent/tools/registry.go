@@ -151,6 +151,10 @@ func (r *Registry) registerTools() {
 			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 		}
 	}
+
+	if cfg.Memory.Enabled {
+		r.tools["Memory"] = NewMemoryTool(cfg)
+	}
 }
 
 // GetTool retrieves a tool by name

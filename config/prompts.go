@@ -88,6 +88,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
 	mergeToolDescription(&loaded.GetLatestScreenshot, &defaults.GetLatestScreenshot)
+	mergeToolDescription(&loaded.Memory, &defaults.Memory)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -186,6 +187,7 @@ type PromptsToolsConfig struct {
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
 	GetLatestScreenshot PromptsToolDescription `yaml:"GetLatestScreenshot" mapstructure:"GetLatestScreenshot"`
+	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -628,6 +630,16 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		},
 		GetLatestScreenshot: PromptsToolDescription{
 			Description: `Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled.`,
+		},
+		Memory: PromptsToolDescription{
+			Description: `Persistent, cross-session memory stored as individual fact-files in a global memory directory. Each fact is one Markdown file (<slug>.md) with YAML frontmatter (name, description, metadata.type); MEMORY.md is the index (one line per fact) and is injected into your context at the start of every session. Use this to remember durable facts: user preferences, project conventions, recurring gotchas, and decisions that should outlive the current conversation.
+
+Operations:
+- read: With no name, return the MEMORY.md index. With a name, return that fact-file's full content. Use this to load a specific fact in full before relying on it.
+- write: Create or update a fact. Required: name (a short slug), description (a one-line summary shown in the index), type (one of user, feedback, project, reference), and content (the fact body). This writes <slug>.md and keeps the MEMORY.md index in sync automatically.
+- delete: Remove a fact and its index entry. Required: name.
+
+Guidelines: record one fact per memory; keep description to a single line; before writing, check the index for an existing entry and update it rather than creating a duplicate; delete facts that turn out to be wrong. Never edit MEMORY.md by hand - the tool maintains it.`,
 		},
 	}
 }

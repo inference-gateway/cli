@@ -225,6 +225,27 @@ func getEffectiveHeartbeatConfigPath() string {
 	return config.DefaultHeartbeatPath
 }
 
+// getEffectiveMemoryConfigPath returns the path to the memory config file
+// Searches in this order: 1) project .infer/memory.yaml, 2) user home ~/.infer/memory.yaml
+func getEffectiveMemoryConfigPath() string {
+	searchPaths := []string{
+		config.DefaultMemoryConfigPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.MemoryConfigFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultMemoryConfigPath
+}
+
 // getEffectiveComputerUseConfigPath returns the path to the computer_use config file
 // Searches in this order: 1) project .infer/computer_use.yaml, 2) user home ~/.infer/computer_use.yaml
 func getEffectiveComputerUseConfigPath() string {
@@ -406,6 +427,16 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.ComputerUse = *cuCfg
 	applyComputerUseEnvOverrides(cfg)
+
+	memoryPath := getEffectiveMemoryConfigPath()
+	memoryCfg, err := config.LoadMemory(memoryPath)
+	if err != nil {
+		logger.Warn("failed to load memory config, using defaults", "error", err, "path", memoryPath)
+		memoryCfg = config.DefaultMemoryConfig()
+	}
+	cfg.Memory = *memoryCfg
+	applyMemoryEnvOverrides(cfg)
+	pruneMemoryReminderIfDisabled(cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -631,6 +662,44 @@ func applyRemindersEnvOverrides(cfg *config.Config) {
 			cfg.Reminders.Enabled = b
 		}
 	}
+}
+
+// applyMemoryEnvOverrides applies INFER_MEMORY_* env vars onto the in-memory
+// memory config. Run AFTER LoadMemory so envs win over memory.yaml. The memory
+// config lives in its own file (yaml:"-" mapstructure:"-" on Config.Memory), so
+// viper does not bind these env vars itself. Mirrors applyHeartbeatEnvOverrides.
+func applyMemoryEnvOverrides(cfg *config.Config) {
+	if v, ok := os.LookupEnv("INFER_MEMORY_ENABLED"); ok {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			cfg.Memory.Enabled = b
+		}
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_DIR"); ok {
+		cfg.Memory.Dir = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_MAX_CHARS"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			cfg.Memory.MaxChars = n
+		}
+	}
+}
+
+// pruneMemoryReminderIfDisabled drops the built-in "memory-consult" reminder when
+// memory is disabled, so the enabled-by-default reminder set does not tell the
+// agent to consult memory that isn't actually available. Run AFTER both reminders
+// and memory config are loaded.
+func pruneMemoryReminderIfDisabled(cfg *config.Config) {
+	if cfg.Memory.Enabled {
+		return
+	}
+	kept := make([]config.ReminderConfig, 0, len(cfg.Reminders.Reminders))
+	for _, r := range cfg.Reminders.Reminders {
+		if r.Name == "memory-consult" {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	cfg.Reminders.Reminders = kept
 }
 
 // applyHooksEnvOverrides applies INFER_HOOKS_* env vars onto the in-memory hooks
