@@ -45,8 +45,6 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemPromptHeartbeat == "" {
 		loaded.Agent.SystemPromptHeartbeat = defaults.Agent.SystemPromptHeartbeat
 	}
-	// SystemReminders.Reminders is intentionally not backfilled: an explicit user
-	// list wins, and an absent prompts.yaml already yields the defaults via LoadYAML.
 	if loaded.Git.CommitMessage.SystemPrompt == "" {
 		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
 	}

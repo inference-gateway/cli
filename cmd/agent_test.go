@@ -1305,7 +1305,7 @@ func TestDispatchHooks_Reminders(t *testing.T) {
 
 	t.Run("turns_before_max reminder fires near max at post_session", func(t *testing.T) {
 		s := newSession(true, config.ReminderConfig{Name: "wrap", Text: "wrap up now", Hook: domain.HookPostSession, Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 2})
-		s.dispatchHooks(domain.HookPostSession, 9) // maxTurns 10, (10-9)=1 <= threshold 2
+		s.dispatchHooks(domain.HookPostSession, 9)
 		if len(s.conversation) != 1 || s.conversation[0].Content != "wrap up now" {
 			t.Errorf("turns_before_max reminder should fire near max, got %+v", s.conversation)
 		}
