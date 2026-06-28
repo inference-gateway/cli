@@ -42,7 +42,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
-		channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
+		remindersPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -62,6 +62,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
+		remindersPath = filepath.Join(homeDir, config.ConfigDirName, config.RemindersFileName)
 		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
 		heartbeatPath = filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
@@ -81,6 +82,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
+		remindersPath = config.DefaultRemindersPath
 		channelsPath = config.DefaultChannelsPath
 		heartbeatPath = config.DefaultHeartbeatPath
 		computerUsePath = config.DefaultComputerUsePath
@@ -89,7 +91,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, remindersPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -158,6 +160,10 @@ plans/
 		return fmt.Errorf("failed to create prompts config file: %w", err)
 	}
 
+	if err := createRemindersConfigFile(remindersPath); err != nil {
+		return fmt.Errorf("failed to create reminders config file: %w", err)
+	}
+
 	migrated, err := createChannelsConfigFile(channelsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create channels config file: %w", err)
@@ -217,6 +223,7 @@ plans/
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
+	fmt.Printf("   Created: %s\n", remindersPath)
 	fmt.Printf("   Created: %s\n", channelsPath)
 	fmt.Printf("   Created: %s\n", heartbeatPath)
 	fmt.Printf("   Created: %s\n", computerUsePath)
@@ -485,6 +492,18 @@ func createPromptsConfigFile(path string) error {
 	}
 
 	return config.SavePrompts(path, config.DefaultPromptsConfig())
+}
+
+// createRemindersConfigFile writes a fresh reminders.yaml seeded from the
+// in-code defaults (disabled, one todo-hygiene reminder). Reminders attach to
+// the agent-loop hook-point catalog; the companion executable hooks (#270) get
+// their own hooks.yaml.
+func createRemindersConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return config.SaveReminders(path, config.DefaultRemindersConfig())
 }
 
 // createChannelsConfigFile writes a fresh channels.yaml. Returns true when

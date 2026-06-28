@@ -1257,3 +1257,12 @@ type DirectExecutionService interface {
 	PendingBashChannel() <-chan tea.Msg
 	PendingToolChannel() <-chan tea.Msg
 }
+
+// SystemReminderProvider decides which system reminders are due for a given
+// ReminderQuery (hook point, per-run turn, cumulative session turn, max turns,
+// and the already-fired set). It is implemented by config from the user's
+// reminders list; the agent depends on this interface so reminder policy can be
+// faked in tests.
+type SystemReminderProvider interface {
+	RemindersDue(q ReminderQuery) []SystemReminder
+}

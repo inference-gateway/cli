@@ -1232,31 +1232,25 @@ func TestReasoningContentRoundTripSyncPath(t *testing.T) {
 	})
 }
 
-func TestInjectSystemReminderIfDue(t *testing.T) {
-	newSession := func(enabled bool, interval int, text string) *AgentSession {
+func TestDispatchHooks_Reminders(t *testing.T) {
+	newSession := func(enabled bool, reminders ...config.ReminderConfig) *AgentSession {
 		return &AgentSession{
 			config: &config.Config{
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemReminders: config.PromptsAgentRemindersConfig{
-							Enabled:      enabled,
-							Interval:     interval,
-							ReminderText: text,
-						},
-					},
-				},
+				Reminders: config.RemindersConfig{Enabled: enabled, Reminders: reminders},
 			},
-			conversation: []ConversationMessage{},
+			conversation:   []ConversationMessage{},
+			firedReminders: map[string]bool{},
+			maxTurns:       10,
 		}
 	}
 
-	t.Run("appends hidden user message and emits stream event when due", func(t *testing.T) {
-		s := newSession(true, 2, "remember to push")
+	t.Run("appends internal user message and emits hook/name-tagged event", func(t *testing.T) {
+		s := newSession(true, config.ReminderConfig{Name: "todo", Text: "remember to push", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerInterval, Interval: 2})
 		var buf bytes.Buffer
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
 
-		s.injectSystemReminderIfDue(2)
+		s.dispatchHooks(domain.HookPreStream, 2)
 
 		if len(s.conversation) != 1 {
 			t.Fatalf("expected 1 message appended, got %d", len(s.conversation))
@@ -1273,174 +1267,60 @@ func TestInjectSystemReminderIfDue(t *testing.T) {
 		if event["kind"] != "system_reminder" {
 			t.Errorf("kind = %v, want system_reminder", event["kind"])
 		}
-		if event["hidden"] != true {
-			t.Errorf("hidden = %v, want true", event["hidden"])
+		if event["hook"] != "pre_stream" {
+			t.Errorf("hook = %v, want pre_stream", event["hook"])
+		}
+		if event["name"] != "todo" {
+			t.Errorf("name = %v, want todo", event["name"])
 		}
 		if v, _ := event["turn"].(float64); v != 2 {
 			t.Errorf("turn = %v, want 2", event["turn"])
 		}
-		if v, _ := event["interval"].(float64); v != 2 {
-			t.Errorf("interval = %v, want 2", event["interval"])
-		}
 	})
 
 	t.Run("no-op when disabled", func(t *testing.T) {
-		s := newSession(false, 2, "ignored")
+		s := newSession(false, config.ReminderConfig{Name: "todo", Text: "ignored", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways})
 		var buf bytes.Buffer
 		t.Cleanup(streamevent.SetWriter(&buf))
 		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
 
-		s.injectSystemReminderIfDue(2)
+		s.dispatchHooks(domain.HookPreStream, 2)
 
-		if len(s.conversation) != 0 {
-			t.Errorf("expected no messages, got %d", len(s.conversation))
-		}
-		if buf.Len() != 0 {
-			t.Errorf("expected no stream event, got %q", buf.String())
+		if len(s.conversation) != 0 || buf.Len() != 0 {
+			t.Errorf("disabled reminders must not inject (%d msgs) or emit (%q)", len(s.conversation), buf.String())
 		}
 	})
 
-	t.Run("no-op between intervals", func(t *testing.T) {
-		s := newSession(true, 5, "wait")
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(3)
-
+	t.Run("interval miss does not fire", func(t *testing.T) {
+		s := newSession(true, config.ReminderConfig{Name: "todo", Text: "x", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerInterval, Interval: 5})
+		s.dispatchHooks(domain.HookPreStream, 3)
 		if len(s.conversation) != 0 {
-			t.Errorf("expected no messages, got %d", len(s.conversation))
-		}
-		if buf.Len() != 0 {
-			t.Errorf("expected no stream event, got %q", buf.String())
+			t.Errorf("interval miss must not fire, got %d", len(s.conversation))
 		}
 	})
 
-	t.Run("no-op on turn 0", func(t *testing.T) {
-		s := newSession(true, 2, "x")
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(0)
-
-		if len(s.conversation) != 0 {
-			t.Errorf("expected no messages, got %d", len(s.conversation))
+	t.Run("turns_before_max reminder fires near max at post_session", func(t *testing.T) {
+		s := newSession(true, config.ReminderConfig{Name: "wrap", Text: "wrap up now", Hook: domain.HookPostSession, Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 2})
+		s.dispatchHooks(domain.HookPostSession, 9)
+		if len(s.conversation) != 1 || s.conversation[0].Content != "wrap up now" {
+			t.Errorf("turns_before_max reminder should fire near max, got %+v", s.conversation)
 		}
-		if buf.Len() != 0 {
-			t.Errorf("expected no stream event, got %q", buf.String())
+	})
+
+	t.Run("skips injection while awaiting tool results", func(t *testing.T) {
+		s := newSession(true, config.ReminderConfig{Name: "todo", Text: "x", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerAlways})
+		toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "c1"}}
+		s.conversation = []ConversationMessage{{Role: "assistant", ToolCalls: &toolCalls}}
+		s.dispatchHooks(domain.HookPostTool, 1)
+		if len(s.conversation) != 1 {
+			t.Errorf("must not inject between tool_calls and results, got %d", len(s.conversation))
 		}
 	})
 }
 
-func TestInjectSystemReminderIfDueWrapUp(t *testing.T) {
-	newWrapUpSession := func(enabled bool, interval int, reminderText, wrapUpText string, wrapUpThreshold int, maxTurns int) *AgentSession {
-		return &AgentSession{
-			config: &config.Config{
-				Agent: config.AgentConfig{
-					MaxTurns: maxTurns,
-				},
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemReminders: config.PromptsAgentRemindersConfig{
-							Enabled:         enabled,
-							Interval:        interval,
-							ReminderText:    reminderText,
-							WrapUpText:      wrapUpText,
-							WrapUpThreshold: wrapUpThreshold,
-						},
-					},
-				},
-			},
-			maxTurns:     maxTurns,
-			conversation: []ConversationMessage{},
-		}
-	}
-
-	t.Run("wrap-up fires within threshold even when turn is not an interval boundary", func(t *testing.T) {
-		s := newWrapUpSession(true, 4, "regular reminder", "wrap up now!", 1, 10)
-
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(9)
-		if len(s.conversation) != 1 {
-			t.Fatalf("expected 1 message at turn 9, got %d", len(s.conversation))
-		}
-		if s.conversation[0].Content != "wrap up now!" {
-			t.Errorf("expected wrap-up text at turn 9, got %q", s.conversation[0].Content)
-		}
-		var event map[string]any
-		if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &event); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
-		if event["phase"] != "wrap_up" {
-			t.Errorf("phase = %v, want wrap_up", event["phase"])
-		}
-	})
-
-	t.Run("wrap-up fires when wrap_up_threshold < interval", func(t *testing.T) {
-		s := newWrapUpSession(true, 5, "regular reminder", "wrap up now!", 1, 10)
-
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(9)
-		if len(s.conversation) != 1 {
-			t.Fatalf("expected 1 message when wrap_up_threshold < interval, got %d", len(s.conversation))
-		}
-		if s.conversation[0].Content != "wrap up now!" {
-			t.Errorf("expected wrap-up text, got %q", s.conversation[0].Content)
-		}
-	})
-
-	t.Run("wrap-up uses wrap_up_text within threshold", func(t *testing.T) {
-		s := newWrapUpSession(true, 2, "regular reminder", "wrap up now!", 3, 10)
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(8)
-		if len(s.conversation) != 1 {
-			t.Fatalf("expected 1 message, got %d", len(s.conversation))
-		}
-		if s.conversation[0].Content != "wrap up now!" {
-			t.Errorf("expected wrap-up text, got %q", s.conversation[0].Content)
-		}
-	})
-
-	t.Run("regular text used before wrap-up threshold", func(t *testing.T) {
-		s := newWrapUpSession(true, 2, "regular reminder", "wrap up now!", 3, 10)
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(4)
-		if len(s.conversation) != 1 {
-			t.Fatalf("expected 1 message, got %d", len(s.conversation))
-		}
-		if s.conversation[0].Content != "regular reminder" {
-			t.Errorf("expected regular text before threshold, got %q", s.conversation[0].Content)
-		}
-	})
-
-	t.Run("wrap-up empty falls back to regular text", func(t *testing.T) {
-		s := newWrapUpSession(true, 2, "regular reminder", "", 3, 10)
-		var buf bytes.Buffer
-		t.Cleanup(streamevent.SetWriter(&buf))
-		t.Cleanup(streamevent.SetDebugEnabledForTest(true))
-
-		s.injectSystemReminderIfDue(8)
-		if len(s.conversation) != 1 {
-			t.Fatalf("expected 1 message, got %d", len(s.conversation))
-		}
-		if s.conversation[0].Content != "regular reminder" {
-			t.Errorf("expected regular text fallback, got %q", s.conversation[0].Content)
-		}
-	})
-}
+// Wrap-up behaviour is now the turns_before_max trigger, covered by
+// TestDispatchHooks_Reminders and the config truth table in
+// config/reminders_test.go.
 
 // rolloverFakeOptimizer is a minimal ConversationOptimizer used to exercise
 // the in-loop rollover path. It returns a single summary message regardless

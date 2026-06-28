@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
+	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	web "github.com/inference-gateway/cli/internal/web"
 )
 
@@ -91,6 +93,8 @@ and have a conversational interface with the inference gateway.`,
 //nolint:funlen // Chat session initialization requires multiple setup steps
 func StartChatSession(cfg *config.Config) error {
 	_ = clipboard.Init()
+
+	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
 
@@ -225,9 +229,6 @@ func StartChatSession(cfg *config.Config) error {
 		services.GetToolExecutionCoordinator(),
 	)
 
-	// Bubble Tea v2 controls mouse mode and focus reporting via the
-	// returned View struct fields (MouseMode / ReportFocus) rather than
-	// per-program options; ChatApplication.View() sets these.
 	program := tea.NewProgram(application)
 
 	if floatingWindowMgr != nil {
@@ -289,6 +290,8 @@ func isInteractiveTerminal() bool {
 
 // runNonInteractiveChat handles non-interactive chat mode (stdin/stdout)
 func runNonInteractiveChat(cfg *config.Config) error {
+	_ = streamevent.SetWriter(io.Discard)
+
 	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

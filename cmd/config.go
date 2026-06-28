@@ -267,6 +267,27 @@ func getEffectivePromptsConfigPath() string {
 	return config.DefaultPromptsPath
 }
 
+// getEffectiveRemindersConfigPath returns the path to the reminders config file
+// Searches in this order: 1) project .infer/reminders.yaml, 2) user home ~/.infer/reminders.yaml
+func getEffectiveRemindersConfigPath() string {
+	searchPaths := []string{
+		config.DefaultRemindersPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.RemindersFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultRemindersPath
+}
+
 // getKeybindingsConfigWritePath returns the path to write keybindings to,
 // honouring the --userspace flag.
 func getKeybindingsConfigWritePath(userspace bool) (string, error) {
@@ -320,6 +341,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	cfg.Prompts = *prompts
 	applyPromptsEnvOverrides(cfg)
 
+	remindersPath := getEffectiveRemindersConfigPath()
+	remindersCfg, err := config.LoadReminders(remindersPath)
+	if err != nil {
+		logger.Warn("failed to load reminders config, using defaults", "error", err, "path", remindersPath)
+		remindersCfg = config.DefaultRemindersConfig()
+	}
+	cfg.Reminders = *remindersCfg
+	applyRemindersEnvOverrides(cfg)
+
 	channelsPath := getEffectiveChannelsConfigPath()
 	channelsCfg, err := config.LoadChannels(channelsPath)
 	if err != nil {
@@ -364,7 +394,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
-		"INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_REMINDER_TEXT":        &cfg.Prompts.Agent.SystemReminders.ReminderText,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,
 		"INFER_PROMPTS_INIT_PROMPT":                                 &cfg.Prompts.Init.Prompt,
@@ -400,25 +429,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	for envKey, target := range envOverrides {
 		if val, ok := os.LookupEnv(envKey); ok {
 			*target = val
-		}
-	}
-
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED"); v != "" {
-		if b, err := strconv.ParseBool(v); err == nil {
-			cfg.Prompts.Agent.SystemReminders.Enabled = b
-		}
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.Prompts.Agent.SystemReminders.Interval = n
-		}
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_TEXT"); v != "" {
-		cfg.Prompts.Agent.SystemReminders.WrapUpText = v
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_THRESHOLD"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.Prompts.Agent.SystemReminders.WrapUpThreshold = n
 		}
 	}
 }
@@ -579,6 +589,18 @@ func applyHeartbeatEnvOverrides(cfg *config.Config) {
 	setString("INFER_HEARTBEAT_INITIAL_DELAY", &cfg.Heartbeat.InitialDelay)
 	setString("INFER_HEARTBEAT_MODEL", &cfg.Heartbeat.Model)
 	setString("INFER_HEARTBEAT_PROMPT", &cfg.Heartbeat.Prompt)
+}
+
+// applyRemindersEnvOverrides applies INFER_REMINDERS_* env vars onto the
+// in-memory reminders config. Run AFTER LoadReminders so envs win over
+// reminders.yaml. The reminders list itself is file-driven (like other complex
+// lists); only the master switch takes a scalar env override.
+func applyRemindersEnvOverrides(cfg *config.Config) {
+	if v, ok := os.LookupEnv("INFER_REMINDERS_ENABLED"); ok {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			cfg.Reminders.Enabled = b
+		}
+	}
 }
 
 // applyComputerUseEnvOverrides applies INFER_COMPUTER_USE_* env vars onto

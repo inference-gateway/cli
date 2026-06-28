@@ -169,6 +169,9 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		PublishChatCancelled: func(metrics *domain.ChatMetrics) {
 			a.eventPublisher.publishChatCancelled(metrics)
 		},
+		DispatchHooks: func(hook domain.HookPoint) {
+			a.service.dispatchHooks(a.agentCtx, hook)
+		},
 	}
 
 	a.registerHandler(states.NewIdleState(ctx))

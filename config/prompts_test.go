@@ -21,7 +21,6 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"agent.system_prompt_auto":                    cfg.Agent.SystemPromptAuto,
 		"agent.system_prompt_remote":                  cfg.Agent.SystemPromptRemote,
 		"agent.system_prompt_heartbeat":               cfg.Agent.SystemPromptHeartbeat,
-		"agent.system_reminders.reminder_text":        cfg.Agent.SystemReminders.ReminderText,
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
 		"conversation.title_generation.system_prompt": cfg.Conversation.TitleGeneration.SystemPrompt,
 		"init.prompt":                                 cfg.Init.Prompt,
@@ -107,21 +106,8 @@ func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	}
 }
 
-// System reminders ship disabled by default (issue #525) - the
-// `<system-reminder>` nudge is no longer useful with modern LLMs and was
-// burning tokens in channel-driven sessions. Interval must still default
-// to a positive number so a user who flips Enabled=true gets sensible
-// cadence without also having to set Interval.
-func TestDefaultPromptsConfig_SystemRemindersDisabled(t *testing.T) {
-	cfg := config.DefaultPromptsConfig()
-
-	if cfg.Agent.SystemReminders.Enabled {
-		t.Error("agent.system_reminders.enabled should default to false")
-	}
-	if cfg.Agent.SystemReminders.Interval <= 0 {
-		t.Errorf("agent.system_reminders.interval should default to a positive value, got %d", cfg.Agent.SystemReminders.Interval)
-	}
-}
+// Reminders moved out of prompts.yaml into their own reminders.yaml; their
+// defaults are covered by TestDefaultRemindersConfig in reminders_test.go.
 
 func TestLoadPrompts_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
@@ -290,9 +276,6 @@ func TestSavePrompts_RoundTrip(t *testing.T) {
 	original := &config.PromptsConfig{
 		Agent: config.PromptsAgentConfig{
 			SystemPrompt: "round trip system prompt",
-			SystemReminders: config.PromptsAgentRemindersConfig{
-				ReminderText: "round trip reminder",
-			},
 		},
 		Git: config.PromptsGitConfig{
 			CommitMessage: config.PromptsGitCommitMessageConfig{
@@ -311,9 +294,6 @@ func TestSavePrompts_RoundTrip(t *testing.T) {
 	}
 	if loaded.Agent.SystemPrompt != original.Agent.SystemPrompt {
 		t.Errorf("agent.system_prompt not preserved, got %q", loaded.Agent.SystemPrompt)
-	}
-	if loaded.Agent.SystemReminders.ReminderText != original.Agent.SystemReminders.ReminderText {
-		t.Errorf("reminder_text not preserved, got %q", loaded.Agent.SystemReminders.ReminderText)
 	}
 	if loaded.Git.CommitMessage.SystemPrompt != original.Git.CommitMessage.SystemPrompt {
 		t.Errorf("git.commit_message.system_prompt not preserved, got %q", loaded.Git.CommitMessage.SystemPrompt)

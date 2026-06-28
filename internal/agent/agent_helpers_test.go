@@ -67,41 +67,9 @@ func TestClearToolCallsMap(t *testing.T) {
 	assert.NotNil(t, agentService.toolCallsMap)
 }
 
-// TestShouldInjectSystemReminder tests system reminder injection logic
-func TestShouldInjectSystemReminder(t *testing.T) {
-	tests := []struct {
-		name     string
-		turns    int
-		interval int
-		enabled  bool
-		expected bool
-	}{
-		{"disabled", 4, 4, false, false},
-		{"matches_interval", 4, 4, true, true},
-		{"doesn't_match", 3, 4, true, false},
-		{"turn_zero", 0, 4, true, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemReminders: config.PromptsAgentRemindersConfig{
-							Enabled:  tt.enabled,
-							Interval: tt.interval,
-						},
-					},
-				},
-			}
-
-			agentService := &AgentServiceImpl{config: cfg}
-			result := agentService.shouldInjectSystemReminder(tt.turns)
-
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
+// Reminder interval/trigger gating moved to config.RemindersDue (see
+// config/reminders_test.go); injection/emission lives in
+// agent_reminder_emission_test.go.
 
 // TestGetSystemPromptForMode tests system prompt selection based on mode
 func TestGetSystemPromptForMode(t *testing.T) {

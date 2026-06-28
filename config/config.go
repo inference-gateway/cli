@@ -45,6 +45,7 @@ type Config struct {
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
+	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -1081,6 +1082,10 @@ func (c *Config) Validate() error {
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
 		)
+	}
+
+	if err := c.Reminders.Validate(); err != nil {
+		return fmt.Errorf("invalid reminders: %w", err)
 	}
 	return nil
 }
