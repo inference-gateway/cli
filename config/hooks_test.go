@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -36,11 +37,30 @@ func TestLoadHooks_MissingFileReturnsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadHooks on missing file: %v", err)
 	}
-	if len(loaded.Hooks) == 0 {
-		t.Error("missing file should yield the in-code defaults")
-	}
 	if loaded.Enabled {
 		t.Error("hooks must ship disabled by default")
+	}
+	if len(loaded.Hooks) != 0 {
+		t.Errorf("default hooks must ship empty (example is commented out), got %d", len(loaded.Hooks))
+	}
+}
+
+// The generated hooks.yaml template must be valid YAML that loads to the same
+// disabled+empty default (the example block is commented out, so nothing active).
+func TestDefaultHooksYAML_LoadsClean(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.yaml")
+	if err := os.WriteFile(path, []byte(config.DefaultHooksYAML), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	loaded, err := config.LoadHooks(path)
+	if err != nil {
+		t.Fatalf("LoadHooks on default template: %v", err)
+	}
+	if loaded.Enabled || len(loaded.Hooks) != 0 {
+		t.Errorf("template must load disabled+empty, got enabled=%v hooks=%d", loaded.Enabled, len(loaded.Hooks))
+	}
+	if err := loaded.Validate(); err != nil {
+		t.Errorf("template must validate: %v", err)
 	}
 }
 

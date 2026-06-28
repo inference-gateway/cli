@@ -513,16 +513,16 @@ func createRemindersConfigFile(path string) error {
 	return config.SaveReminders(path, config.DefaultRemindersConfig())
 }
 
-// createHooksConfigFile writes a fresh hooks.yaml seeded from the in-code
-// defaults (disabled, one illustrative post_session command). Command hooks are
-// the executable sibling of reminders; they run through the bash allow-list when
-// the agent dispatches them.
+// createHooksConfigFile writes a fresh hooks.yaml (disabled, with a commented-out
+// example). It writes the DefaultHooksYAML template verbatim rather than
+// marshalling DefaultHooksConfig so the example and guidance comments survive -
+// no hook ships active, since `infer` drives any project, not just Go ones.
 func createHooksConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	return config.SaveHooks(path, config.DefaultHooksConfig())
+	return os.WriteFile(path, []byte(config.DefaultHooksYAML), 0o644)
 }
 
 // createChannelsConfigFile writes a fresh channels.yaml. Returns true when
