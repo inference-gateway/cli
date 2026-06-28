@@ -288,6 +288,27 @@ func getEffectiveRemindersConfigPath() string {
 	return config.DefaultRemindersPath
 }
 
+// getEffectiveHooksConfigPath returns the path to the hooks config file.
+// Searches in this order: 1) project .infer/hooks.yaml, 2) user home ~/.infer/hooks.yaml
+func getEffectiveHooksConfigPath() string {
+	searchPaths := []string{
+		config.DefaultHooksPath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.HooksFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultHooksPath
+}
+
 // getKeybindingsConfigWritePath returns the path to write keybindings to,
 // honouring the --userspace flag.
 func getKeybindingsConfigWritePath(userspace bool) (string, error) {
@@ -349,6 +370,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Reminders = *remindersCfg
 	applyRemindersEnvOverrides(cfg)
+
+	hooksPath := getEffectiveHooksConfigPath()
+	hooksCfg, err := config.LoadHooks(hooksPath)
+	if err != nil {
+		logger.Warn("failed to load hooks config, using defaults", "error", err, "path", hooksPath)
+		hooksCfg = config.DefaultHooksConfig()
+	}
+	cfg.Hooks = *hooksCfg
+	applyHooksEnvOverrides(cfg)
 
 	channelsPath := getEffectiveChannelsConfigPath()
 	channelsCfg, err := config.LoadChannels(channelsPath)
@@ -599,6 +629,18 @@ func applyRemindersEnvOverrides(cfg *config.Config) {
 	if v, ok := os.LookupEnv("INFER_REMINDERS_ENABLED"); ok {
 		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
 			cfg.Reminders.Enabled = b
+		}
+	}
+}
+
+// applyHooksEnvOverrides applies INFER_HOOKS_* env vars onto the in-memory hooks
+// config. Run AFTER LoadHooks so envs win over hooks.yaml. The hooks list itself
+// is file-driven; only the master switch takes a scalar env override. Mirrors
+// applyRemindersEnvOverrides.
+func applyHooksEnvOverrides(cfg *config.Config) {
+	if v, ok := os.LookupEnv("INFER_HOOKS_ENABLED"); ok {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			cfg.Hooks.Enabled = b
 		}
 	}
 }

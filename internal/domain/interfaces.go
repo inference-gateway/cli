@@ -1266,3 +1266,13 @@ type DirectExecutionService interface {
 type SystemReminderProvider interface {
 	RemindersDue(q ReminderQuery) []SystemReminder
 }
+
+// HookCommandProvider resolves which command hooks are due at a hook point. It
+// is the command-action sibling of SystemReminderProvider, implemented by config
+// from the user's hooks list. The provider only resolves the commands; the agent
+// runs them through the existing bash allow-list, so config stays free of
+// os/exec. The agent depends on this interface so the command set can be faked
+// in tests.
+type HookCommandProvider interface {
+	CommandsDue(hook HookPoint) []HookCommand
+}

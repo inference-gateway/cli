@@ -46,6 +46,7 @@ type Config struct {
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
+	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -1086,6 +1087,9 @@ func (c *Config) Validate() error {
 
 	if err := c.Reminders.Validate(); err != nil {
 		return fmt.Errorf("invalid reminders: %w", err)
+	}
+	if err := c.Hooks.Validate(); err != nil {
+		return fmt.Errorf("invalid hooks: %w", err)
 	}
 	return nil
 }

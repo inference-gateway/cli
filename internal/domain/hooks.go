@@ -1,6 +1,9 @@
 package domain
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // HookPoint is one of the pre-defined points in the agent loop where actions
 // can attach. The catalog is fully symmetric: every loop phase exposes a
@@ -64,4 +67,14 @@ type ReminderQuery struct {
 	SessionTurn int
 	MaxTurns    int
 	Fired       map[string]bool
+}
+
+// HookCommand is a resolved command hook ready to run at a hook point: a named
+// shell command with a wall-clock timeout. It is the command-action sibling of
+// SystemReminder (the text-injection action). The agent - not the provider -
+// runs it, through the same bash allow-list a model-proposed command faces.
+type HookCommand struct {
+	Name    string
+	Command string
+	Timeout time.Duration
 }

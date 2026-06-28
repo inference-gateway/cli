@@ -1,0 +1,7 @@
+---
+enabled: false
+hooks:
+  - name: gofmt
+    hook: post_session
+    command: gofmt -w .
+    timeout: 30

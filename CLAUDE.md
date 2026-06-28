@@ -66,6 +66,8 @@ User-visible config lives in `.infer/` (project) and/or `~/.infer/` (userspace),
 | `config.yaml` | gateway, storage, tools, agent, chat, web, pricing |
 | `prompts.yaml` | LLM system prompts + per-tool descriptions (`tools.<ToolName>.description`) |
 | `keybindings.yaml` | chat TUI keybindings |
+| `reminders.yaml` | system reminders attached to agent hook points (text-injection action) |
+| `hooks.yaml` | command hooks: shell commands run at agent hook points (executable action) |
 | `channels.yaml` | Telegram etc. + per-channel allowlists |
 | `heartbeat.yaml` | wake-up interval, prompt, model override |
 | `computer_use.yaml` | mouse/keyboard/screenshot settings |
