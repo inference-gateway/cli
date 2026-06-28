@@ -38,10 +38,12 @@ speech_to_text:
   auto_download: true    # download the model on first use if missing
   max_recording_seconds: 30  # /voice hard recording cap
   silence_timeout: 2     # stop /voice this many seconds after you go quiet (0 = record full cap)
+  retain_recordings: 0   # keep the last N inbound Telegram voice/audio files (0 = keep none)
   # Optional overrides:
   binary_path: ""        # explicit whisper-cli/whisper-cpp path; empty = resolve on PATH
   ffmpeg_path: ""        # explicit ffmpeg path; empty = resolve on PATH
   models_dir: ""         # where models are cached; empty = ~/.infer/models/whisper
+  recordings_dir: ""     # where retained recordings live; empty = ~/.infer/voice
   input_device: ""       # microphone device; empty = platform default
   timeout: 120           # transcription timeout (seconds)
 ```
@@ -84,6 +86,11 @@ When `speech_to_text.enabled` is set and you run `infer channels-manager`, voice
 Telegram bot are downloaded, decoded with `ffmpeg`, transcribed, and forwarded to the agent as text.
 When speech-to-text is disabled, voice messages are ignored (as before). See
 [Channels](channels.md) for channel setup.
+
+By default the downloaded audio is transcribed and then deleted. To keep the original files, set
+`retain_recordings` to the number of recent recordings to keep (e.g. `10`). Retained files are written
+to `recordings_dir` (default `~/.infer/voice/`) with their original extension, and the oldest are
+pruned automatically once the cap is exceeded. `retain_recordings: 0` (the default) keeps nothing.
 
 ## Troubleshooting
 

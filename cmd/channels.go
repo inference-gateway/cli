@@ -202,17 +202,34 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 	return svc, nil
 }
 
+// buildVoiceRetention returns a retainer for inbound voice/audio files when
+// speech_to_text.retain_recordings > 0, or nil to disable retention.
+func buildVoiceRetention(cfg config.SpeechToTextConfig) *channels.VoiceRetention {
+	if cfg.RetainRecordings <= 0 {
+		return nil
+	}
+	dir, err := cfg.ResolveRecordingsDir()
+	if err != nil {
+		logger.Warn("voice recording retention disabled", "error", err)
+		return nil
+	}
+	logger.Info("retaining inbound voice recordings", "dir", dir, "keep", cfg.RetainRecordings)
+	return &channels.VoiceRetention{Dir: dir, Keep: cfg.RetainRecordings}
+}
+
 // registerChannels registers enabled channel implementations with the manager
 func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) error {
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {
 		var transcriber channels.VoiceTranscriber
+		var retention *channels.VoiceRetention
 		if cfg.SpeechToText.Enabled {
 			transcriber = stt.NewFileTranscriber(cfg.SpeechToText)
+			retention = buildVoiceRetention(cfg.SpeechToText)
 			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}
-		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber)
+		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber, retention)
 		cm.Register(telegramCh)
 		registered++
 		logger.Info("registered channel", "channel", "telegram")

@@ -37,12 +37,14 @@ type TelegramChannel struct {
 	cfg         config.TelegramChannelConfig
 	bot         *bot.Bot
 	transcriber VoiceTranscriber
+	retention   *VoiceRetention
 }
 
 // NewTelegramChannel creates a new Telegram channel. transcriber may be nil, in
-// which case inbound voice messages are ignored.
-func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber) *TelegramChannel {
-	return &TelegramChannel{cfg: cfg, transcriber: transcriber}
+// which case inbound voice messages are ignored. retention may be nil to disable
+// local persistence of inbound voice/audio files.
+func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber, retention *VoiceRetention) *TelegramChannel {
+	return &TelegramChannel{cfg: cfg, transcriber: transcriber, retention: retention}
 }
 
 // Name returns the channel identifier
@@ -275,12 +277,18 @@ func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bo
 	return true
 }
 
-// transcribeVoice downloads the referenced Telegram file to a temp path and
-// transcribes it via the configured transcriber.
+// transcribeVoice downloads the referenced Telegram file, optionally retains a
+// copy of the original audio, and transcribes it via the configured transcriber.
 func (t *TelegramChannel) transcribeVoice(ctx context.Context, b *bot.Bot, fileID string) (string, error) {
 	data, filePath, err := fetchTelegramFile(ctx, b, t.cfg.BotToken, fileID)
 	if err != nil {
 		return "", err
+	}
+
+	if t.retention != nil {
+		if _, err := t.retention.save(filePath, data); err != nil {
+			logger.Warn("failed to retain inbound voice recording", "error", err)
+		}
 	}
 
 	tmp, err := os.CreateTemp("", "infer-tg-voice-*"+filepath.Ext(filePath))
