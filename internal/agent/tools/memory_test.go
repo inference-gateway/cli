@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
 	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
@@ -233,7 +234,6 @@ func TestMemoryTool_Write_SanitizesSlug(t *testing.T) {
 		t.Errorf("expected flat fact-file my-fact-v2.md: %v", err)
 	}
 
-	// A traversal-y name must collapse to a flat slug inside the dir.
 	res = execOK(t, tool, map[string]any{
 		"operation":   "write",
 		"name":        "../evil",
@@ -255,7 +255,6 @@ func TestMemoryTool_Write_SanitizesSlug(t *testing.T) {
 func TestMemoryTool_Read(t *testing.T) {
 	tool, _ := newTestMemoryTool(t)
 
-	// Empty store: index read succeeds with a message.
 	res := execOK(t, tool, map[string]any{"operation": "read"})
 	if res.Content != "" {
 		t.Errorf("expected empty index content, got %q", res.Content)
@@ -265,19 +264,16 @@ func TestMemoryTool_Read(t *testing.T) {
 		"operation": "write", "name": "foo", "description": "the foo fact", "type": "project", "content": "foo body",
 	})
 
-	// Index read returns the catalog.
 	res = execOK(t, tool, map[string]any{"operation": "read"})
 	if !strings.Contains(res.Content, "](foo.md)") {
 		t.Errorf("index read missing entry:\n%s", res.Content)
 	}
 
-	// Named read returns the fact-file.
 	res = execOK(t, tool, map[string]any{"operation": "read", "name": "foo"})
 	if !strings.Contains(res.Content, "foo body") {
 		t.Errorf("named read missing body:\n%s", res.Content)
 	}
 
-	// Non-existent name succeeds with a message, not an error.
 	res = execOK(t, tool, map[string]any{"operation": "read", "name": "missing"})
 	if res.Content != "" || !strings.Contains(res.Message, "No memory named") {
 		t.Errorf("expected friendly miss, got content=%q message=%q", res.Content, res.Message)
@@ -297,7 +293,6 @@ func TestMemoryTool_Delete(t *testing.T) {
 		t.Error("index entry should be removed")
 	}
 
-	// Deleting again is idempotent.
 	res := execOK(t, tool, map[string]any{"operation": "delete", "name": "foo"})
 	if !strings.Contains(res.Message, "nothing to delete") {
 		t.Errorf("expected idempotent delete message, got %q", res.Message)

@@ -11,12 +11,12 @@ import (
 
 const (
 	ConfigDirName       = ".infer"
-	AgentsDirName       = ".agents" // open-standard skills dir (.agents/skills/), scanned project-relative only
+	AgentsDirName       = ".agents"
 	ConfigFileName      = "config.yaml"
 	GitignoreFileName   = ".gitignore"
 	LogsDirName         = "logs"
-	MemoryDirName       = "memory"    // global memory dir under ~/.infer/
-	MemoryIndexFileName = "MEMORY.md" // index of fact-files within the memory dir
+	MemoryDirName       = "memory"
+	MemoryIndexFileName = "MEMORY.md"
 
 	DefaultConfigPath     = ConfigDirName + "/" + ConfigFileName
 	DefaultLogsPath       = ConfigDirName + "/" + LogsDirName
