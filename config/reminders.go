@@ -113,22 +113,23 @@ func (r RemindersConfig) effective() []ReminderConfig {
 }
 
 // RemindersDue implements domain.SystemReminderProvider: it returns every
-// reminder attached to `hook` whose trigger fires at `turn`. Multiple reminders
-// on the same hook stack (all are returned). `fired` is consulted only by the
-// `once` trigger and is never written here - the caller marks names fired after
-// injecting. A nil `fired` is treated as "nothing fired yet".
-func (r RemindersConfig) RemindersDue(
-	hook domain.HookPoint, turn, maxTurns int, fired map[string]bool,
-) []domain.SystemReminder {
+// reminder attached to q.Hook whose trigger fires. Multiple reminders on the
+// same hook stack (all are returned). The interval trigger keys off
+// q.SessionTurn (cumulative across the chat session) so it fires on every Nth
+// conversational turn; turns_before_max keys off q.Turn/q.MaxTurns (the current
+// run's loop budget). q.Fired is consulted only by the `once` trigger and is
+// never written here - the caller marks names fired after injecting. A nil
+// q.Fired is treated as "nothing fired yet".
+func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemReminder {
 	if !r.Enabled {
 		return nil
 	}
 	var due []domain.SystemReminder
 	for _, rc := range r.effective() {
-		if rc.Hook != hook {
+		if rc.Hook != q.Hook {
 			continue
 		}
-		if !reminderTriggerFires(rc, turn, maxTurns, fired) {
+		if !reminderTriggerFires(rc, q) {
 			continue
 		}
 		due = append(due, domain.SystemReminder{Name: rc.Name, Text: rc.Text})
@@ -136,15 +137,15 @@ func (r RemindersConfig) RemindersDue(
 	return due
 }
 
-func reminderTriggerFires(rc ReminderConfig, turn, maxTurns int, fired map[string]bool) bool {
+func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 	switch rc.Trigger {
 	case ReminderTriggerInterval:
 		interval := cmp.Or(rc.Interval, defaultReminderInterval)
-		return turn > 0 && turn%interval == 0
+		return q.SessionTurn > 0 && q.SessionTurn%interval == 0
 	case ReminderTriggerTurnsBeforeMax:
-		return maxTurns > 0 && rc.Threshold > 0 && (maxTurns-turn) <= rc.Threshold
+		return q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
 	case ReminderTriggerOnce:
-		return !fired[rc.Name]
+		return !q.Fired[rc.Name]
 	case ReminderTriggerAlways:
 		return true
 	default:

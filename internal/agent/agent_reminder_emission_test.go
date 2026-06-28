@@ -48,6 +48,7 @@ func reminder(name, text string, hook domain.HookPoint, trigger config.ReminderT
 func TestInjectDueReminders_AppendsHiddenMessageAndEmits(t *testing.T) {
 	cfg := remindersConfig(true, reminder("todo", "remember to push", domain.HookPreStream, config.ReminderTriggerInterval, 2))
 	svc := &AgentServiceImpl{config: cfg}
+	svc.sessionTurns.Store(4)
 	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
@@ -66,6 +67,7 @@ func TestInjectDueReminders_AppendsHiddenMessageAndEmits(t *testing.T) {
 	assert.Equal(t, "pre_stream", event["hook"], "event must be tagged with the hook point")
 	assert.Equal(t, "todo", event["name"], "event must be tagged with the reminder name")
 	assert.EqualValues(t, 4, event["turn"])
+	assert.EqualValues(t, 4, event["session_turn"], "event must carry the cumulative session turn")
 	assert.NotEmpty(t, event["timestamp"])
 }
 
@@ -104,7 +106,7 @@ func TestInjectDueReminders_Stacking(t *testing.T) {
 }
 
 // A `once` reminder fires the first time its hook dispatches and is suppressed
-// afterwards via the per-run fired-set on the AgentContext.
+// afterwards via the session-scoped fired-set on the service.
 func TestInjectDueReminders_OnceSuppressedAfterFiring(t *testing.T) {
 	cfg := remindersConfig(true, reminder("memory", "load memory", domain.HookPreSession, config.ReminderTriggerOnce, 0))
 	svc := &AgentServiceImpl{config: cfg}
@@ -137,21 +139,23 @@ func TestInjectDueReminders_SkipsWhenAwaitingToolResults(t *testing.T) {
 }
 
 // The agent depends on the SystemReminderProvider interface, not the concrete
-// config: a wired provider is consulted with the live (hook, turn, maxTurns)
-// and whatever it returns is injected.
+// config: a wired provider is consulted with the live query (hook, per-request
+// turn, cumulative session turn, max turns) and whatever it returns is injected.
 func TestInjectDueReminders_UsesWiredProvider(t *testing.T) {
 	fake := &domainmocks.FakeSystemReminderProvider{}
 	fake.RemindersDueReturns([]domain.SystemReminder{{Name: "fake", Text: "from provider"}})
 	svc := &AgentServiceImpl{reminderProvider: fake}
+	svc.sessionTurns.Store(9) // cumulative session turn, distinct from the per-request turn
 
 	conv := []sdk.Message{}
 	svc.injectDueReminders(newReminderAgentCtx(&conv, 7, 12), domain.HookPostTool)
 
 	require.Equal(t, 1, fake.RemindersDueCallCount())
-	hook, turn, maxTurns, _ := fake.RemindersDueArgsForCall(0)
-	assert.Equal(t, domain.HookPostTool, hook)
-	assert.Equal(t, 7, turn)
-	assert.Equal(t, 12, maxTurns)
+	q := fake.RemindersDueArgsForCall(0)
+	assert.Equal(t, domain.HookPostTool, q.Hook)
+	assert.Equal(t, 7, q.Turn, "per-request turn comes from AgentContext.Turns")
+	assert.Equal(t, 9, q.SessionTurn, "session turn comes from the cumulative counter")
+	assert.Equal(t, 12, q.MaxTurns)
 
 	require.Len(t, conv, 1)
 	content, _ := conv[0].Content.AsMessageContent0()
@@ -171,4 +175,28 @@ func TestInjectDueReminders_DebugGateOff_AppendsButNoStream(t *testing.T) {
 
 	require.Len(t, conv, 1, "conversation still gets the reminder")
 	assert.Empty(t, buf.String(), "no stream event when the debug gate is off")
+}
+
+// Reminder cadence is session-scoped: an `interval` reminder fires on the Nth
+// cumulative conversational turn even though each user message runs as a fresh
+// AgentContext whose per-request Turns resets to 1. This is the exact scenario
+// that previously never fired in interactive chat - interval keyed off the
+// per-request turn, which a single-turn reply never advanced past 1.
+func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
+	cfg := remindersConfig(true, reminder("todo", "nudge", domain.HookPreStream, config.ReminderTriggerInterval, 4))
+	svc := &AgentServiceImpl{config: cfg}
+
+	var firedAt []int
+	for msg := 1; msg <= 8; msg++ {
+		conv := []sdk.Message{}
+		agentCtx := newReminderAgentCtx(&conv, 1, 50)
+		svc.sessionTurns.Add(1)
+		svc.injectDueReminders(agentCtx, domain.HookPreStream)
+		if len(conv) > 0 {
+			firedAt = append(firedAt, int(svc.sessionTurns.Load()))
+		}
+	}
+
+	assert.Equal(t, []int{4, 8}, firedAt,
+		"interval:4 must fire on cumulative turns 4 and 8 across separate single-turn requests")
 }

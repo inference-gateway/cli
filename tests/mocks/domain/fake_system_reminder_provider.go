@@ -8,13 +8,10 @@ import (
 )
 
 type FakeSystemReminderProvider struct {
-	RemindersDueStub        func(domain.HookPoint, int, int, map[string]bool) []domain.SystemReminder
+	RemindersDueStub        func(domain.ReminderQuery) []domain.SystemReminder
 	remindersDueMutex       sync.RWMutex
 	remindersDueArgsForCall []struct {
-		arg1 domain.HookPoint
-		arg2 int
-		arg3 int
-		arg4 map[string]bool
+		arg1 domain.ReminderQuery
 	}
 	remindersDueReturns struct {
 		result1 []domain.SystemReminder
@@ -26,21 +23,18 @@ type FakeSystemReminderProvider struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeSystemReminderProvider) RemindersDue(arg1 domain.HookPoint, arg2 int, arg3 int, arg4 map[string]bool) []domain.SystemReminder {
+func (fake *FakeSystemReminderProvider) RemindersDue(arg1 domain.ReminderQuery) []domain.SystemReminder {
 	fake.remindersDueMutex.Lock()
 	ret, specificReturn := fake.remindersDueReturnsOnCall[len(fake.remindersDueArgsForCall)]
 	fake.remindersDueArgsForCall = append(fake.remindersDueArgsForCall, struct {
-		arg1 domain.HookPoint
-		arg2 int
-		arg3 int
-		arg4 map[string]bool
-	}{arg1, arg2, arg3, arg4})
+		arg1 domain.ReminderQuery
+	}{arg1})
 	stub := fake.RemindersDueStub
 	fakeReturns := fake.remindersDueReturns
-	fake.recordInvocation("RemindersDue", []interface{}{arg1, arg2, arg3, arg4})
+	fake.recordInvocation("RemindersDue", []interface{}{arg1})
 	fake.remindersDueMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3, arg4)
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
@@ -54,17 +48,17 @@ func (fake *FakeSystemReminderProvider) RemindersDueCallCount() int {
 	return len(fake.remindersDueArgsForCall)
 }
 
-func (fake *FakeSystemReminderProvider) RemindersDueCalls(stub func(domain.HookPoint, int, int, map[string]bool) []domain.SystemReminder) {
+func (fake *FakeSystemReminderProvider) RemindersDueCalls(stub func(domain.ReminderQuery) []domain.SystemReminder) {
 	fake.remindersDueMutex.Lock()
 	defer fake.remindersDueMutex.Unlock()
 	fake.RemindersDueStub = stub
 }
 
-func (fake *FakeSystemReminderProvider) RemindersDueArgsForCall(i int) (domain.HookPoint, int, int, map[string]bool) {
+func (fake *FakeSystemReminderProvider) RemindersDueArgsForCall(i int) domain.ReminderQuery {
 	fake.remindersDueMutex.RLock()
 	defer fake.remindersDueMutex.RUnlock()
 	argsForCall := fake.remindersDueArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.arg1
 }
 
 func (fake *FakeSystemReminderProvider) RemindersDueReturns(result1 []domain.SystemReminder) {

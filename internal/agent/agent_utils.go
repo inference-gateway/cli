@@ -746,14 +746,17 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 }
 
 // injectDueReminders asks the reminder provider which reminders are due at the
-// given hook point and turn, then appends each as a hidden user message,
-// persists it via the conversation repo (when wired in), emits a
-// `system_reminder` stream event tagged with the reminder name and hook so
-// downstream observers can see the nudge, and marks it fired (for the `once`
-// trigger). Multiple reminders due at the same hook stack. The per-run
-// fired-set is mutex-guarded because the streaming goroutine
-// (pre_session/pre_stream) and the event-loop goroutine (the other points) can
-// both reach here.
+// given hook point, then appends each as a hidden user message, persists it via
+// the conversation repo (when wired in), emits a `system_reminder` stream event
+// tagged with the reminder name and hook so downstream observers can see the
+// nudge, and marks it fired (for the `once` trigger). Multiple reminders due at
+// the same hook stack.
+//
+// Cadence state is session-scoped (s.sessionTurns, s.firedReminders), NOT taken
+// from the per-request AgentContext, so `interval` counts cumulative turns
+// across the whole chat session and `once` fires once per session. The mutex
+// guards the fired-set because the streaming goroutine (pre_session/pre_stream)
+// and the event-loop goroutine (the other points) can both reach here.
 func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
@@ -767,13 +770,21 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		return
 	}
 
-	agentCtx.FiredRemindersMu.Lock()
-	defer agentCtx.FiredRemindersMu.Unlock()
-	if agentCtx.FiredReminders == nil {
-		agentCtx.FiredReminders = make(map[string]bool)
+	s.reminderMux.Lock()
+	defer s.reminderMux.Unlock()
+	if s.firedReminders == nil {
+		s.firedReminders = make(map[string]bool)
 	}
 
-	for _, r := range provider.RemindersDue(hook, agentCtx.Turns, agentCtx.MaxTurns, agentCtx.FiredReminders) {
+	sessionTurn := int(s.sessionTurns.Load())
+	q := domain.ReminderQuery{
+		Hook:        hook,
+		Turn:        agentCtx.Turns,
+		SessionTurn: sessionTurn,
+		MaxTurns:    agentCtx.MaxTurns,
+		Fired:       s.firedReminders,
+	}
+	for _, r := range provider.RemindersDue(q) {
 		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
 		*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
 
@@ -786,16 +797,18 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 
 		logger.Debug("system reminder injected",
 			"turn", agentCtx.Turns,
+			"session_turn", sessionTurn,
 			"hook", string(hook),
 			"name", r.Name,
 			"reminder_chars", len(r.Text),
 		)
 		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
-			"turn": agentCtx.Turns,
-			"hook": string(hook),
-			"name": r.Name,
+			"turn":         agentCtx.Turns,
+			"session_turn": sessionTurn,
+			"hook":         string(hook),
+			"name":         r.Name,
 		})
-		agentCtx.FiredReminders[r.Name] = true
+		s.firedReminders[r.Name] = true
 	}
 }
 

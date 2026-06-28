@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -12,7 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 )
@@ -34,6 +35,17 @@ type AgentServiceImpl struct {
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
 	reminderProvider domain.SystemReminderProvider
+
+	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
+	// cumulative model turns across the whole chat session so an `interval`
+	// reminder fires on every Nth conversational turn - the per-request
+	// AgentContext.Turns resets to 1 on each user message, so keying interval
+	// off it would essentially never fire in normal chat. firedReminders backs
+	// the `once` trigger across the session. Both reset implicitly when a new
+	// chat process builds a fresh AgentServiceImpl.
+	sessionTurns   atomic.Int64
+	firedReminders map[string]bool
+	reminderMux    sync.Mutex
 
 	// Request tracking: per-iteration streaming timeout contexts.
 	// Lifetime is one LLM turn (created in startStreaming, deleted via defer).
@@ -338,6 +350,7 @@ func NewAgent(
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
 		reminderProvider: cfg.Reminders,
+		firedReminders:   make(map[string]bool),
 		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),

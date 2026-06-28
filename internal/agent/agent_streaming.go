@@ -18,6 +18,7 @@ func (a *EventDrivenAgent) startStreaming() {
 	iterationStartTime := time.Now()
 
 	a.agentCtx.Turns++
+	a.service.sessionTurns.Add(1)
 	a.agentCtx.HasToolResults = false
 	a.service.clearToolCallsMap()
 

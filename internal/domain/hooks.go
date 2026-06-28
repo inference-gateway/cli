@@ -42,3 +42,26 @@ type SystemReminder struct {
 	Name string
 	Text string
 }
+
+// ReminderQuery carries the context a SystemReminderProvider needs to decide
+// which reminders are due at a hook point.
+//
+// Turn and SessionTurn differ deliberately. Turn is the agent-loop turn within
+// the CURRENT run (one user message in chat), used by the turns_before_max
+// trigger relative to MaxTurns. SessionTurn is the cumulative model-turn count
+// across the whole chat session - it does NOT reset when a new user message
+// starts a fresh run, so the `interval` trigger fires on every Nth
+// conversational turn as users expect (per-request Turns would reset to 1 each
+// message and an interval reminder would essentially never fire in chat). In
+// headless `infer agent` a single invocation IS the session, so the two are
+// equal.
+//
+// Fired carries reminder names already emitted this session (consulted by the
+// `once` trigger); the caller marks names fired after injecting.
+type ReminderQuery struct {
+	Hook        HookPoint
+	Turn        int
+	SessionTurn int
+	MaxTurns    int
+	Fired       map[string]bool
+}

@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
@@ -31,8 +30,6 @@ type AgentContext struct {
 	ApprovalPolicy   ApprovalPolicy
 	Ctx              context.Context
 	IsChatMode       bool
-	FiredReminders   map[string]bool
-	FiredRemindersMu sync.Mutex
 }
 
 // StateGuard is a function that determines if a state transition should occur

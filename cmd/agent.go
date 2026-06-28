@@ -1122,7 +1122,14 @@ func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 		}
 	}
 
-	for _, r := range provider.RemindersDue(hook, turn, s.maxTurns, s.firedReminders) {
+	q := domain.ReminderQuery{
+		Hook:        hook,
+		Turn:        turn,
+		SessionTurn: turn,
+		MaxTurns:    s.maxTurns,
+		Fired:       s.firedReminders,
+	}
+	for _, r := range provider.RemindersDue(q) {
 		s.addMessage(ConversationMessage{
 			Role:      "user",
 			Content:   r.Text,
@@ -1136,9 +1143,10 @@ func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 			"reminder_chars", len(r.Text),
 		)
 		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
-			"turn": turn,
-			"hook": string(hook),
-			"name": r.Name,
+			"turn":         turn,
+			"session_turn": turn,
+			"hook":         string(hook),
+			"name":         r.Name,
 		})
 		s.firedReminders[r.Name] = true
 	}
