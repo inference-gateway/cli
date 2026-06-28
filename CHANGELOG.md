@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.125.0](https://github.com/inference-gateway/cli/compare/v0.124.1...v0.125.0) (2026-06-28)
+
+### 🚀 Features
+
+* **reminders:** configurable reminders on a shared hook-point catalog ([#675](https://github.com/inference-gateway/cli/issues/675)) ([179cad1](https://github.com/inference-gateway/cli/commit/179cad1d3777213308ee27abeecd6047dd49f174)), closes [#270](https://github.com/inference-gateway/cli/issues/270) [#669](https://github.com/inference-gateway/cli/issues/669) [#270](https://github.com/inference-gateway/cli/issues/270) [#525](https://github.com/inference-gateway/cli/issues/525) [#270](https://github.com/inference-gateway/cli/issues/270)
+* **channels:** retain inbound voice/audio recordings with bounded cleanup ([#671](https://github.com/inference-gateway/cli/issues/671)) ([8fd29ce](https://github.com/inference-gateway/cli/commit/8fd29ced7b8dc49c021882d3df17848bbf5c8949))
+* **hooks:** run configured shell commands at agent hook points ([#676](https://github.com/inference-gateway/cli/issues/676)) ([990f2c0](https://github.com/inference-gateway/cli/commit/990f2c049ec9d170a21079e66952a8cd78bdd9b7)), closes [#270](https://github.com/inference-gateway/cli/issues/270) [#675](https://github.com/inference-gateway/cli/issues/675) [#675](https://github.com/inference-gateway/cli/issues/675) [#270](https://github.com/inference-gateway/cli/issues/270) [#675](https://github.com/inference-gateway/cli/issues/675) [#675](https://github.com/inference-gateway/cli/issues/675) [#669](https://github.com/inference-gateway/cli/issues/669) [#270](https://github.com/inference-gateway/cli/issues/270)
+
+### 🐛 Bug Fixes
+
+* **agent:** keep the internal completion check out of channel replies ([#672](https://github.com/inference-gateway/cli/issues/672)) ([96b166c](https://github.com/inference-gateway/cli/commit/96b166cd086ec71e6056d461fab090158df67984))
+* **docs:** replace em dashes with hyphens for consistency in SKILL.md and configuration-reference.md ([1c9196d](https://github.com/inference-gateway/cli/commit/1c9196d137adb9fd79a293733e1bed3e346d25cf))
+
+### ♻️ Code Refactoring
+
+* dead-code cleanup, Go 1.26 modernization, width-aware truncation, race testing ([#667](https://github.com/inference-gateway/cli/issues/667)) ([7a97f3b](https://github.com/inference-gateway/cli/commit/7a97f3ba0e47e35bbfcb510153a20ab917417e4f))
+* interfaces, fix context propagation, and reduce delays ([#666](https://github.com/inference-gateway/cli/issues/666)) ([1a93ff8](https://github.com/inference-gateway/cli/commit/1a93ff8f88dd83e19d938dd654c879be9d1a99bf))
+
+### 📚 Documentation
+
+* **skills:** add charm v2 skills (bubbletea, lipgloss, bubbles) ([#664](https://github.com/inference-gateway/cli/issues/664)) ([c7242c7](https://github.com/inference-gateway/cli/commit/c7242c7bf588b44fa75f6027f3341c144d515497)), closes [#657](https://github.com/inference-gateway/cli/issues/657) [#663](https://github.com/inference-gateway/cli/issues/663)
+* **skills:** add Go skills adapted from spf13/go-skills ([#665](https://github.com/inference-gateway/cli/issues/665)) ([971ac23](https://github.com/inference-gateway/cli/commit/971ac23ee0793d4541ffdeb218cd06c46f7685ea))
+* **skills:** add go-concurrency skill ([#663](https://github.com/inference-gateway/cli/issues/663)) ([c77ac33](https://github.com/inference-gateway/cli/commit/c77ac335fb607940085ae6101160798228e10fa8)), closes [#657](https://github.com/inference-gateway/cli/issues/657)
+
+### ✅ Tests
+
+* relax TestSessionID_Age_Recent upper bound to tolerate slow CI ([#673](https://github.com/inference-gateway/cli/issues/673)) ([9cfe203](https://github.com/inference-gateway/cli/commit/9cfe203ae5166eddb4cfa199e421d08bf5a729f2)), closes [#671](https://github.com/inference-gateway/cli/issues/671)
+
 ## [0.124.1](https://github.com/inference-gateway/cli/compare/v0.124.0...v0.124.1) (2026-06-27)
 
 ### 🐛 Bug Fixes
