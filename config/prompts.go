@@ -88,6 +88,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
 	mergeToolDescription(&loaded.GetLatestScreenshot, &defaults.GetLatestScreenshot)
+	mergeToolDescription(&loaded.Memory, &defaults.Memory)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -186,6 +187,7 @@ type PromptsToolsConfig struct {
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
 	GetLatestScreenshot PromptsToolDescription `yaml:"GetLatestScreenshot" mapstructure:"GetLatestScreenshot"`
+	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -628,6 +630,17 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		},
 		GetLatestScreenshot: PromptsToolDescription{
 			Description: `Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled.`,
+		},
+		Memory: PromptsToolDescription{
+			Description: `Read, append, replace, or remove entries in the persistent memory file (MEMORY.md). This file survives across sessions and is the agent's durable scratchpad for user preferences, project conventions, recurring gotchas, and any facts that should persist beyond the current conversation.
+
+Operations:
+- read: Return the full contents of the memory file(s). No parameters.
+- append: Add new content to the end of the memory file. Required: content.
+- replace: Replace the entire memory file with new content. Required: content. Use this to consolidate/rewrite when the file approaches the size cap.
+- remove: Delete the memory file entirely. No parameters.
+
+The memory file is size-capped (max_chars in config). When the file is near the cap, use replace to consolidate. The user_path file (user.md) is read-only and contains user-profile facts.`,
 		},
 	}
 }

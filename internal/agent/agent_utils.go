@@ -191,7 +191,8 @@ func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Mess
 		s.buildBashAllowInfo() +
 		s.buildToolsInfo() +
 		s.buildSkillsInfo() +
-		s.buildActiveSkillInfo(messages)
+		s.buildActiveSkillInfo(messages) +
+		s.buildMemoryInfo(currentTurn)
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
@@ -432,6 +433,58 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildMemoryInfo loads the memory file(s) once per session and injects
+// their content as a context block. Cached like gitContextCache and
+// invalidated when the Memory tool writes (via memoryContextTurn reset).
+func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
+	if !s.config.Memory.Enabled {
+		return ""
+	}
+
+	s.contextCacheMux.RLock()
+	if s.memoryContextCache != "" && currentTurn-s.memoryContextTurn < 1 {
+		defer s.contextCacheMux.RUnlock()
+		return s.memoryContextCache
+	}
+	s.contextCacheMux.RUnlock()
+
+	path, err := s.config.ResolveMemoryPath()
+	if err != nil {
+		logger.Debug("failed to resolve memory path", "error", err)
+		return ""
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debug("failed to read memory file", "path", path, "error", err)
+		}
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\nPERSISTENT MEMORY:\n")
+	b.WriteString(string(data))
+
+	// Also load user.md if configured
+	if s.config.Memory.UserPath != "" {
+		userData, err := os.ReadFile(s.config.Memory.UserPath)
+		if err == nil && len(userData) > 0 {
+			b.WriteString("\n\nUSER PROFILE:\n")
+			b.WriteString(string(userData))
+		}
+	}
+
+	result := b.String()
+
+	s.contextCacheMux.Lock()
+	s.memoryContextCache = result
+	s.memoryContextTurn = currentTurn
+	s.contextCacheMux.Unlock()
+
+	return result
 }
 
 // matchSkillTriggers scans user-role messages for explicit skill invocations

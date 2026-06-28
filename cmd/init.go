@@ -42,7 +42,8 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
-		remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
+		remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath,
+		memoryPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -69,6 +70,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
 		skillsDirPath = filepath.Join(homeDir, config.ConfigDirName, "skills")
+		memoryPath = filepath.Join(homeDir, config.ConfigDirName, config.MemoryFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -90,6 +92,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
 		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
+		memoryPath = filepath.Join(config.ConfigDirName, config.MemoryFileName)
 	}
 
 	if !overwrite {
@@ -192,6 +195,10 @@ plans/
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
+	if err := createMemoryFile(memoryPath); err != nil {
+		return fmt.Errorf("failed to create memory file: %w", err)
+	}
+
 	envExampleCreated := false
 	envExamplePath := envExampleFileName
 	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
@@ -236,6 +243,7 @@ plans/
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
+	fmt.Printf("   Created: %s\n", memoryPath)
 	if envExampleCreated {
 		fmt.Printf("   Created: %s\n", envExamplePath)
 	}
@@ -606,6 +614,30 @@ func createSkillsDir(dir string) error {
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 	return nil
+}
+
+// createMemoryFile seeds a starter memory.md file with guidance for the agent.
+func createMemoryFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create memory directory: %w", err)
+	}
+	content := `# Persistent Memory
+
+This file is the agent's durable scratchpad. Facts recorded here survive across sessions.
+
+## How to use
+
+- The agent reads this file at the start of each session.
+- Use the Memory tool (read/append/replace/remove) to update it.
+- Keep entries concise and actionable.
+- When the file approaches the size cap, consolidate old entries.
+
+## Getting started
+
+Record project conventions, build/test commands, user preferences, and any
+non-obvious gotchas the agent should remember between sessions.
+`
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

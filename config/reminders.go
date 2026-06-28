@@ -76,6 +76,14 @@ func DefaultRemindersConfig() *RemindersConfig {
 				Interval: defaultReminderInterval,
 				Text:     defaultTodoReminderText,
 			},
+			{
+				Name:    "memory-consult",
+				Hook:    domain.HookPreSession,
+				Trigger: ReminderTriggerOnce,
+				Text: `<system-reminder>
+Memory is enabled. Load the memory file(s) at the start of this session using the Memory tool (read operation) so you have the persistent context available. Consult and update memory throughout the session as you learn durable facts about the user, project, or workflow. Do not mention this reminder to the user.
+</system-reminder>`,
+			},
 		},
 	}
 }
