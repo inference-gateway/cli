@@ -43,7 +43,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
 		remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath,
-		memoryPath string
+		memoryConfigPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -70,7 +70,6 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
 		agentsPath = filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
 		skillsDirPath = filepath.Join(homeDir, config.ConfigDirName, "skills")
-		memoryPath = filepath.Join(homeDir, config.ConfigDirName, config.MemoryFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
@@ -92,8 +91,16 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		computerUsePath = config.DefaultComputerUsePath
 		agentsPath = config.DefaultAgentsPath
 		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
-		memoryPath = filepath.Join(config.ConfigDirName, config.MemoryFileName)
 	}
+
+	// Memory is a global concern - the store lives in ~/.infer/memory and is shared
+	// across every project - so its config file is always seeded in the home
+	// directory, regardless of init scope, and is created only when absent (below).
+	memHome, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	memoryConfigPath = filepath.Join(memHome, config.ConfigDirName, config.MemoryConfigFileName)
 
 	if !overwrite {
 		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
@@ -195,8 +202,9 @@ plans/
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
-	if err := createMemoryFile(memoryPath); err != nil {
-		return fmt.Errorf("failed to create memory file: %w", err)
+	memoryCreated, err := createMemoryConfigFile(memoryConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to create memory config file: %w", err)
 	}
 
 	envExampleCreated := false
@@ -243,7 +251,9 @@ plans/
 	fmt.Printf("   Created: %s\n", computerUsePath)
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
-	fmt.Printf("   Created: %s\n", memoryPath)
+	if memoryCreated {
+		fmt.Printf("   Created: %s\n", memoryConfigPath)
+	}
 	if envExampleCreated {
 		fmt.Printf("   Created: %s\n", envExamplePath)
 	}
@@ -616,28 +626,24 @@ func createSkillsDir(dir string) error {
 	return nil
 }
 
-// createMemoryFile seeds a starter memory.md file with guidance for the agent.
-func createMemoryFile(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create memory directory: %w", err)
+// createMemoryConfigFile seeds ~/.infer/memory.yaml from the in-code defaults
+// (disabled) when it does not already exist, returning whether a new file was
+// written. Memory is global, so its config lives in the home directory and is
+// never clobbered by re-running init - that would otherwise reset a user's
+// enabled memory from an unrelated project init. The memory store itself
+// (MEMORY.md plus per-fact files) is created lazily by the Memory tool on first
+// write, so init only seeds the config knob - it does not touch the memory dir.
+func createMemoryConfigFile(path string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
 	}
-	content := `# Persistent Memory
-
-This file is the agent's durable scratchpad. Facts recorded here survive across sessions.
-
-## How to use
-
-- The agent reads this file at the start of each session.
-- Use the Memory tool (read/append/replace/remove) to update it.
-- Keep entries concise and actionable.
-- When the file approaches the size cap, consolidate old entries.
-
-## Getting started
-
-Record project conventions, build/test commands, user preferences, and any
-non-obvious gotchas the agent should remember between sessions.
-`
-	return os.WriteFile(path, []byte(content), 0644)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return false, fmt.Errorf("failed to create config directory: %w", err)
+	}
+	if err := config.SaveMemory(path, config.DefaultMemoryConfig()); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // createMCPConfigFile creates the MCP configuration YAML file

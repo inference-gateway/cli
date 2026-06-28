@@ -632,15 +632,14 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled.`,
 		},
 		Memory: PromptsToolDescription{
-			Description: `Read, append, replace, or remove entries in the persistent memory file (MEMORY.md). This file survives across sessions and is the agent's durable scratchpad for user preferences, project conventions, recurring gotchas, and any facts that should persist beyond the current conversation.
+			Description: `Persistent, cross-session memory stored as individual fact-files in a global memory directory. Each fact is one Markdown file (<slug>.md) with YAML frontmatter (name, description, metadata.type); MEMORY.md is the index (one line per fact) and is injected into your context at the start of every session. Use this to remember durable facts: user preferences, project conventions, recurring gotchas, and decisions that should outlive the current conversation.
 
 Operations:
-- read: Return the full contents of the memory file(s). No parameters.
-- append: Add new content to the end of the memory file. Required: content.
-- replace: Replace the entire memory file with new content. Required: content. Use this to consolidate/rewrite when the file approaches the size cap.
-- remove: Delete the memory file entirely. No parameters.
+- read: With no name, return the MEMORY.md index. With a name, return that fact-file's full content. Use this to load a specific fact in full before relying on it.
+- write: Create or update a fact. Required: name (a short slug), description (a one-line summary shown in the index), type (one of user, feedback, project, reference), and content (the fact body). This writes <slug>.md and keeps the MEMORY.md index in sync automatically.
+- delete: Remove a fact and its index entry. Required: name.
 
-The memory file is size-capped (max_chars in config). When the file is near the cap, use replace to consolidate. The user_path file (user.md) is read-only and contains user-profile facts.`,
+Guidelines: record one fact per memory; keep description to a single line; before writing, check the index for an existing entry and update it rather than creating a duplicate; delete facts that turn out to be wrong. Never edit MEMORY.md by hand - the tool maintains it.`,
 		},
 	}
 }

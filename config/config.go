@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	ConfigDirName     = ".infer"
-	AgentsDirName     = ".agents" // open-standard skills dir (.agents/skills/), scanned project-relative only
-	ConfigFileName    = "config.yaml"
-	GitignoreFileName = ".gitignore"
-	LogsDirName       = "logs"
-	MemoryFileName    = "memory.md"
+	ConfigDirName       = ".infer"
+	AgentsDirName       = ".agents" // open-standard skills dir (.agents/skills/), scanned project-relative only
+	ConfigFileName      = "config.yaml"
+	GitignoreFileName   = ".gitignore"
+	LogsDirName         = "logs"
+	MemoryDirName       = "memory"    // global memory dir under ~/.infer/
+	MemoryIndexFileName = "MEMORY.md" // index of fact-files within the memory dir
 
 	DefaultConfigPath     = ConfigDirName + "/" + ConfigFileName
 	DefaultLogsPath       = ConfigDirName + "/" + LogsDirName
@@ -48,20 +49,9 @@ type Config struct {
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
-	Memory           MemoryConfig           `yaml:"memory" mapstructure:"memory"`
+	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
 	configDir        string
-}
-
-// MemoryConfig contains settings for persistent agent memory.
-// When enabled, the agent loads a Markdown file at session start and can
-// read/append/replace/remove entries via the Memory tool. The file is
-// size-capped at MaxChars; when approached, the agent is nudged to consolidate.
-type MemoryConfig struct {
-	Enabled  bool   `yaml:"enabled" mapstructure:"enabled"`
-	Path     string `yaml:"path" mapstructure:"path"`           // explicit path; "" => project .infer/memory.md => ~/.infer/memory.md
-	UserPath string `yaml:"user_path" mapstructure:"user_path"` // optional, e.g. ~/.infer/user.md
-	MaxChars int    `yaml:"max_chars" mapstructure:"max_chars"` // size cap in characters
 }
 
 // ContainerRuntimeConfig contains container runtime settings
@@ -966,12 +956,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			RolloverOnIdleMinutes: 30,
 			SummaryMaxTokens:      1024,
 		},
-		Memory: MemoryConfig{
-			Enabled:  false,
-			Path:     "",
-			UserPath: "",
-			MaxChars: DefaultMemoryMaxChars,
-		},
 		Web: WebConfig{
 			Enabled:               false,
 			Port:                  3000,
@@ -1195,21 +1179,20 @@ func (c *Config) MergeSandboxDirectories(extra []string) {
 	}
 }
 
-// ResolveMemoryPath resolves the effective memory file path following the
-// precedence: explicit path > project .infer/memory.md > userspace ~/.infer/memory.md.
-func (c *Config) ResolveMemoryPath() (string, error) {
-	if c.Memory.Path != "" {
-		return c.Memory.Path, nil
-	}
-	projectPath := filepath.Join(ConfigDirName, MemoryFileName)
-	if _, err := os.Stat(projectPath); err == nil {
-		return projectPath, nil
+// ResolveMemoryDir resolves the directory that holds the memory index
+// (MEMORY.md) and the individual fact-files. It honors an explicit Memory.Dir
+// override and otherwise defaults to the global userspace ~/.infer/memory. The
+// store is intentionally global (shared across all projects), so there is no
+// project-local branch.
+func (c *Config) ResolveMemoryDir() (string, error) {
+	if strings.TrimSpace(c.Memory.Dir) != "" {
+		return c.Memory.Dir, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home dir: %w", err)
 	}
-	return filepath.Join(home, ConfigDirName, MemoryFileName), nil
+	return filepath.Join(home, ConfigDirName, MemoryDirName), nil
 }
 
 func (c *Config) GetProtectedPaths() []string {
@@ -1274,7 +1257,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	// .infer/ protected-path check below. The tmp/plans carve-out stays unconditional.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		isWithinConfigSubdir(absPath, "tmp", "plans") ||
-		isWithinMemoryPath(absPath, c.Memory)
+		isWithinMemoryDir(absPath, c.Memory)
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
 		return err
@@ -1361,24 +1344,28 @@ func isWithinConfigSubdir(absPath string, names ...string) bool {
 	return false
 }
 
-// isWithinMemoryPath reports whether absPath matches one of the configured
-// memory file paths, so the Memory tool can read/write them even though
-// .infer/ is otherwise protected.
-func isWithinMemoryPath(absPath string, m MemoryConfig) bool {
+// isWithinMemoryDir reports whether absPath lives inside the global memory
+// directory (~/.infer/memory or the configured Memory.Dir override), so reads of
+// memory fact-files succeed even though .infer/ is otherwise protected. Gated on
+// Memory.Enabled. The Memory tool itself writes via its own atomic writer rather
+// than the sandboxed file writer, so this carve-out mainly governs manual reads.
+func isWithinMemoryDir(absPath string, m MemoryConfig) bool {
 	if !m.Enabled {
 		return false
 	}
-	check := func(p string) bool {
-		if p == "" {
-			return false
-		}
-		a, err := filepath.Abs(p)
+	dir := m.Dir
+	if strings.TrimSpace(dir) == "" {
+		home, err := os.UserHomeDir()
 		if err != nil {
 			return false
 		}
-		return absPath == a
+		dir = filepath.Join(home, ConfigDirName, MemoryDirName)
 	}
-	return check(m.Path) || check(m.UserPath)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
 }
 
 // checkProtectedPaths checks if a path matches any protected path patterns. When

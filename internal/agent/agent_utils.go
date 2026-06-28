@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -435,9 +437,10 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	return b.String()
 }
 
-// buildMemoryInfo loads the memory file(s) once per session and injects
-// their content as a context block. Cached like gitContextCache and
-// invalidated when the Memory tool writes (via memoryContextTurn reset).
+// buildMemoryInfo loads the MEMORY.md index once per session and injects it as a
+// context block so the agent knows which durable facts exist; individual facts
+// are loaded on demand via the Memory tool. Cached like gitContextCache; the
+// per-turn TTL means writes from the prior turn are reflected on the next turn.
 func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	if !s.config.Memory.Enabled {
 		return ""
@@ -450,31 +453,33 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	}
 	s.contextCacheMux.RUnlock()
 
-	path, err := s.config.ResolveMemoryPath()
+	dir, err := s.config.ResolveMemoryDir()
 	if err != nil {
-		logger.Debug("failed to resolve memory path", "error", err)
+		logger.Debug("failed to resolve memory dir", "error", err)
 		return ""
 	}
 
-	data, err := os.ReadFile(path)
+	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
+	data, err := os.ReadFile(indexPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			logger.Debug("failed to read memory file", "path", path, "error", err)
+			logger.Debug("failed to read memory index", "path", indexPath, "error", err)
 		}
 		return ""
+	}
+
+	index := strings.TrimSpace(string(data))
+	if index == "" {
+		return ""
+	}
+	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
+		index = index[:maxChars] + "\n… (memory index truncated; use the Memory tool 'read' with a name for full facts)"
 	}
 
 	var b strings.Builder
-	b.WriteString("\n\nPERSISTENT MEMORY:\n")
-	b.WriteString(string(data))
-
-	if s.config.Memory.UserPath != "" {
-		userData, err := os.ReadFile(s.config.Memory.UserPath)
-		if err == nil && len(userData) > 0 {
-			b.WriteString("\n\nUSER PROFILE:\n")
-			b.WriteString(string(userData))
-		}
-	}
+	b.WriteString("\n\nPERSISTENT MEMORY INDEX (durable facts from past sessions; use the Memory tool 'read' with a name to load one in full):\n")
+	b.WriteString(index)
+	b.WriteString("\n")
 
 	result := b.String()
 

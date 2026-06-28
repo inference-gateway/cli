@@ -63,11 +63,13 @@ type RemindersConfig struct {
 }
 
 // DefaultRemindersConfig returns the in-code default reminders configuration
-// used when no reminders.yaml exists. Reminders ship disabled by default (issue
-// #525) with one todo-hygiene reminder so flipping enabled=true is enough.
+// used when no reminders.yaml exists. Reminders ship enabled by default with a
+// todo-hygiene reminder and a memory-consult reminder; the latter is pruned at
+// load time when memory is disabled (see pruneMemoryReminderIfDisabled) so it
+// never references a feature that isn't active.
 func DefaultRemindersConfig() *RemindersConfig {
 	return &RemindersConfig{
-		Enabled: false,
+		Enabled: true,
 		Reminders: []ReminderConfig{
 			{
 				Name:     "todo-hygiene",
@@ -81,7 +83,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 				Hook:    domain.HookPreSession,
 				Trigger: ReminderTriggerOnce,
 				Text: `<system-reminder>
-Memory is enabled. Load the memory file(s) at the start of this session using the Memory tool (read operation) so you have the persistent context available. Consult and update memory throughout the session as you learn durable facts about the user, project, or workflow. Do not mention this reminder to the user.
+The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (read with its name). As you learn durable facts about the user, project, or workflow, record them with the Memory tool (write); it keeps the index in sync. Do not mention this reminder to the user.
 </system-reminder>`,
 			},
 		},
