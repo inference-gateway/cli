@@ -413,7 +413,7 @@ func indexEntryLine(slug, description string) string {
 	if desc == "" {
 		return fmt.Sprintf("- [%s](%s.md)", slug, slug)
 	}
-	return fmt.Sprintf("- [%s](%s.md) — %s", slug, slug, desc)
+	return fmt.Sprintf("- [%s](%s.md) - %s", slug, slug, desc)
 }
 
 // indexEntryMatches reports whether an index line points at slug's fact-file.

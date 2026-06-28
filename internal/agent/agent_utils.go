@@ -473,7 +473,7 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 		return ""
 	}
 	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
-		index = index[:maxChars] + "\n… (memory index truncated; use the Memory tool 'read' with a name for full facts)"
+		index = index[:maxChars] + "\n... (memory index truncated; use the Memory tool 'read' with a name for full facts)"
 	}
 
 	var b strings.Builder
