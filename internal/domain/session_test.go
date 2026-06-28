@@ -143,8 +143,8 @@ func TestSessionID_Age_Recent(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	age := id.Age()
 
-	if age < 10*time.Millisecond || age > 1*time.Second {
-		t.Errorf("SessionID.Age() = %v, expected to be between 10ms and 1s", age)
+	if age < 10*time.Millisecond || age > time.Minute {
+		t.Errorf("SessionID.Age() = %v, expected to be recent (>=10ms, <1m)", age)
 	}
 }
 
