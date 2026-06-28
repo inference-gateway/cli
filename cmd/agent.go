@@ -492,8 +492,10 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		}
 
 		verifyMsg := ConversationMessage{
-			Role:      "user",
-			Content:   "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
+			Role: "user",
+			Content: `<system-reminder>
+This is an automated check, not a message from the user. If more work is needed to fully address the user's last request, continue now. If everything is already done, stop without replying - do NOT announce completion, summarize, or otherwise mention this check to the user.
+</system-reminder>`,
 			Timestamp: time.Now(),
 			Internal:  true,
 		}
