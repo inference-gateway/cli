@@ -726,11 +726,23 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// dispatchHooks runs the actions attached to a hook point. Today that is only
-// system-reminder injection; executable command hooks (#270) plug in here at
-// the same call sites, feature-flagged.
+// dispatchHooks runs the actions attached to a hook point: system-reminder
+// injection (text action) and command hooks (executable action, #270). Both
+// agents flow every loop point through this single seam. The mode key and
+// session id are resolved here (from the live chat mode / request context) and
+// handed to the shared, allow-list-gated command runner.
 func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook domain.HookPoint) {
 	s.injectDueReminders(agentCtx, hook)
+
+	modeKey := domain.AgentModeStandard.AllowedlistKey()
+	if s.stateManager != nil {
+		modeKey = s.stateManager.GetAgentMode().AllowedlistKey()
+	}
+	sessionID := ""
+	if agentCtx.Ctx != nil {
+		sessionID = domain.GetSessionID(agentCtx.Ctx)
+	}
+	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, modeKey, hook, agentCtx.Turns, sessionID)
 }
 
 // conversationAwaitsToolResults reports whether the last message is an assistant

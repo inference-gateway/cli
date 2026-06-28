@@ -42,7 +42,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath,
-		remindersPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
+		remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath, skillsDirPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -63,6 +63,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		keybindingsPath = filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
 		promptsPath = filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
 		remindersPath = filepath.Join(homeDir, config.ConfigDirName, config.RemindersFileName)
+		hooksPath = filepath.Join(homeDir, config.ConfigDirName, config.HooksFileName)
 		channelsPath = filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
 		heartbeatPath = filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
 		computerUsePath = filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
@@ -83,6 +84,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		keybindingsPath = config.DefaultKeybindingsPath
 		promptsPath = config.DefaultPromptsPath
 		remindersPath = config.DefaultRemindersPath
+		hooksPath = config.DefaultHooksPath
 		channelsPath = config.DefaultChannelsPath
 		heartbeatPath = config.DefaultHeartbeatPath
 		computerUsePath = config.DefaultComputerUsePath
@@ -91,7 +93,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, remindersPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, keybindingsPath, promptsPath, remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath); err != nil {
 			return err
 		}
 	}
@@ -164,6 +166,10 @@ plans/
 		return fmt.Errorf("failed to create reminders config file: %w", err)
 	}
 
+	if err := createHooksConfigFile(hooksPath); err != nil {
+		return fmt.Errorf("failed to create hooks config file: %w", err)
+	}
+
 	migrated, err := createChannelsConfigFile(channelsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create channels config file: %w", err)
@@ -224,6 +230,7 @@ plans/
 	fmt.Printf("   Created: %s\n", keybindingsPath)
 	fmt.Printf("   Created: %s\n", promptsPath)
 	fmt.Printf("   Created: %s\n", remindersPath)
+	fmt.Printf("   Created: %s\n", hooksPath)
 	fmt.Printf("   Created: %s\n", channelsPath)
 	fmt.Printf("   Created: %s\n", heartbeatPath)
 	fmt.Printf("   Created: %s\n", computerUsePath)
@@ -504,6 +511,18 @@ func createRemindersConfigFile(path string) error {
 	}
 
 	return config.SaveReminders(path, config.DefaultRemindersConfig())
+}
+
+// createHooksConfigFile writes a fresh hooks.yaml (disabled, with a commented-out
+// example). It writes the DefaultHooksYAML template verbatim rather than
+// marshalling DefaultHooksConfig so the example and guidance comments survive -
+// no hook ships active, since `infer` drives any project, not just Go ones.
+func createHooksConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return os.WriteFile(path, []byte(config.DefaultHooksYAML), 0o644)
 }
 
 // createChannelsConfigFile writes a fresh channels.yaml. Returns true when

@@ -1,0 +1,17 @@
+---
+# Command hooks run a shell command at a pre-defined agent-loop hook point
+# - the executable sibling of reminders.yaml. Off by default.
+#
+# Each command is gated on the per-mode bash allow-list, exactly like a command
+# the model proposes: an off-list command is skipped and reported, never run.
+# Allow one via tools.bash.mode.*.allow or INFER_TOOLS_BASH_ALLOW_APPEND, then set
+# enabled: true (or INFER_HOOKS_ENABLED=true) to turn hooks on.
+enabled: false
+
+# Uncomment and adapt. hook is one of: pre_session, pre_stream, post_stream,
+# pre_tool, post_tool, pre_queue_drain, post_queue_drain, post_session.
+# hooks:
+#   - name: gofmt
+#     hook: post_session
+#     command: "gofmt -w ."
+#     timeout: 30   # seconds; 0 -> default 30

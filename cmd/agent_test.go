@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1507,4 +1508,57 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 			t.Errorf("sessionID must not change on PerformRollover error; got %q want %q", s.sessionID, originalID)
 		}
 	})
+}
+
+// hookSession builds a headless session with an enabled command hook plus a bash
+// allow-list. allow is the every-mode allow-list (empty means the command is
+// off-list). The command writes marker so the test can assert whether it ran -
+// independent of stream-event gating.
+func hookSession(command, marker string, allow []string) *AgentSession {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode:    config.BashModesConfig{All: config.BashModeAllowConfig{Allow: allow}},
+			},
+		},
+		Hooks: config.HooksConfig{
+			Enabled: true,
+			Hooks: []config.HookCommandConfig{
+				{Name: "marker", Hook: domain.HookPostSession, Command: command, Timeout: 5},
+			},
+		},
+	}
+	return &AgentSession{
+		config:       cfg,
+		hookProvider: cfg.Hooks,
+		agentMode:    domain.AgentModeStandard,
+		sessionID:    "sess",
+		conversation: []ConversationMessage{},
+	}
+}
+
+func TestAgentSession_DispatchHooks_RunsAllowListedCommandHook(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "hook-ran")
+	s := hookSession("touch "+marker, marker, []string{"touch .*"})
+
+	s.dispatchHooks(domain.HookPostSession, 1)
+
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("post_session command hook did not run: %v", err)
+	}
+}
+
+// Secure-by-default: an off-list command hook must NOT run in the headless
+// (unattended) path - no approver is reachable, so it is skipped, not executed.
+func TestAgentSession_DispatchHooks_SkipsOffListCommandHook(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "should-not-exist")
+	s := hookSession("touch "+marker, marker, nil) // empty allow-list -> off-list
+
+	s.dispatchHooks(domain.HookPostSession, 1)
+
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("off-list command hook must not run headless (secure-by-default)")
+	}
 }

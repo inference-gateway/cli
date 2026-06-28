@@ -18,6 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agent "github.com/inference-gateway/cli/internal/agent"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -93,6 +94,7 @@ type AgentSession struct {
 	config                *config.Config
 	conversationRepo      domain.ConversationRepository
 	reminderProvider      domain.SystemReminderProvider
+	hookProvider          domain.HookCommandProvider
 	firedReminders        map[string]bool
 	saveEnabled           bool
 	bgWaiter              *services.BackgroundTasksWaiter
@@ -207,6 +209,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		config:           cfg,
 		conversationRepo: conversationRepo,
 		reminderProvider: cfg.Reminders,
+		hookProvider:     cfg.Hooks,
 		firedReminders:   make(map[string]bool),
 		saveEnabled:      saveEnabled,
 		bgWaiter: services.NewBackgroundTasksWaiter(
@@ -1097,13 +1100,23 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 }
 
 // dispatchHooks runs the actions attached to a hook point for the synchronous
-// `infer agent` loop, mirroring AgentServiceImpl.dispatchHooks. Today that is
-// system-reminder injection via the shared provider (so the two callers emit
-// identical stream events); executable command hooks (#270) would plug in here.
-// The loop wires only the clean-boundary points (pre_session, pre_stream,
-// post_tool, post_session); the mid-turn points (post_stream, pre_tool) and
-// queue_drain are event-driven-only. Single-goroutine, so no mutex.
+// `infer agent` loop, mirroring AgentServiceImpl.dispatchHooks: system-reminder
+// injection (text action) and command hooks (executable action, #270), both via
+// the same shared providers so the two callers behave identically. The loop
+// wires only the clean-boundary points (pre_session, pre_stream, post_tool,
+// post_session); the mid-turn points (post_stream, pre_tool) and queue_drain are
+// event-driven-only. Single-goroutine, so no mutex. A headless run IS the
+// session, so the per-request turn doubles as the session turn.
 func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
+	s.injectDueReminders(hook, turn)
+	agent.RunCommandHooks(context.Background(), s.config, s.hookProvider, s.agentMode.AllowedlistKey(), hook, turn, s.sessionID)
+}
+
+// injectDueReminders appends any reminders due at the hook point as internal user
+// messages. Skipped while awaiting tool results (a user message would orphan the
+// pending tool_calls) - that guard is reminder-specific and must not block
+// command hooks, which is why it lives here rather than in dispatchHooks.
+func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders

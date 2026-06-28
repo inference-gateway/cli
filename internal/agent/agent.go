@@ -35,6 +35,7 @@ type AgentServiceImpl struct {
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
 	reminderProvider domain.SystemReminderProvider
+	hookProvider     domain.HookCommandProvider
 
 	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
 	// cumulative model turns across the whole chat session so an `interval`
@@ -350,6 +351,7 @@ func NewAgent(
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
 		reminderProvider: cfg.Reminders,
+		hookProvider:     cfg.Hooks,
 		firedReminders:   make(map[string]bool),
 		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
