@@ -33,6 +33,7 @@ type AgentServiceImpl struct {
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
+	reminderProvider domain.SystemReminderProvider
 
 	// Request tracking: per-iteration streaming timeout contexts.
 	// Lifetime is one LLM turn (created in startStreaming, deleted via defer).
@@ -336,6 +337,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
+		reminderProvider: cfg.Prompts.Agent.SystemReminders,
 		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),

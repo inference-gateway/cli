@@ -1,0 +1,44 @@
+package domain
+
+import "slices"
+
+// HookPoint is one of the pre-defined points in the agent loop where actions
+// can attach. The catalog is fully symmetric: every loop phase exposes a
+// pre_/post_ pair. System reminders (issue #669) attach a text-injection
+// action here today; executable command hooks (issue #270) attach a
+// command-execution action at the same points later, both flowing through the
+// single dispatchHooks(point) seam.
+type HookPoint string
+
+const (
+	HookPreSession     HookPoint = "pre_session"      // run begins, before the first stream (turn 1)
+	HookPostSession    HookPoint = "post_session"     // run finished ("agent finished generating")
+	HookPreStream      HookPoint = "pre_stream"       // before each LLM streaming turn
+	HookPostStream     HookPoint = "post_stream"      // after each LLM response, before tool evaluation
+	HookPreTool        HookPoint = "pre_tool"         // before tool execution
+	HookPostTool       HookPoint = "post_tool"        // after tool execution
+	HookPreQueueDrain  HookPoint = "pre_queue_drain"  // before draining queued user messages
+	HookPostQueueDrain HookPoint = "post_queue_drain" // after draining queued user messages
+)
+
+// HookPoints is the canonical catalog, used for config validation. Order is
+// the loop order (a run flows top to bottom, looping the middle phases).
+var HookPoints = []HookPoint{
+	HookPreSession,
+	HookPreStream,
+	HookPostStream,
+	HookPreTool,
+	HookPostTool,
+	HookPreQueueDrain,
+	HookPostQueueDrain,
+	HookPostSession,
+}
+
+// Valid reports whether h is one of the pre-defined hook points.
+func (h HookPoint) Valid() bool { return slices.Contains(HookPoints, h) }
+
+// SystemReminder is a resolved reminder ready to inject into the conversation.
+type SystemReminder struct {
+	Name string
+	Text string
+}

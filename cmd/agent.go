@@ -92,6 +92,8 @@ type AgentSession struct {
 	completedTurns        int
 	config                *config.Config
 	conversationRepo      domain.ConversationRepository
+	reminderProvider      domain.SystemReminderProvider
+	firedReminders        map[string]bool
 	saveEnabled           bool
 	bgWaiter              *services.BackgroundTasksWaiter
 	requireApproval       bool
@@ -204,6 +206,8 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		conversation:     []ConversationMessage{},
 		config:           cfg,
 		conversationRepo: conversationRepo,
+		reminderProvider: cfg.Prompts.Agent.SystemReminders,
+		firedReminders:   make(map[string]bool),
 		saveEnabled:      saveEnabled,
 		bgWaiter: services.NewBackgroundTasksWaiter(
 			cfg,
@@ -339,8 +343,8 @@ func resolveAndLoadSession(session *AgentSession, rolloverMgr *services.SessionR
 //
 // Called both at startup (before the turn loop) and at the top of every turn
 // iteration. s.completedTurns is intentionally preserved across rollover so
-// that --max-turns N stays a hard ceiling and injectSystemReminderIfDue keeps
-// its cadence. The idle trigger is structurally a no-op inside an active loop
+// that --max-turns N stays a hard ceiling and the reminder hooks keep their
+// cadence. The idle trigger is structurally a no-op inside an active loop
 // because every preceding executeTurn appended a fresh-timestamped message.
 func (s *AgentSession) maybeRollover() {
 	newID, fired := s.rolloverManager.MaybeRollover(context.Background(), s.model, s.groupKey)
@@ -464,13 +468,19 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 	for s.completedTurns < s.maxTurns {
 		s.maybeRollover()
-		s.injectSystemReminderIfDue(s.completedTurns + 1)
+
+		turn := s.completedTurns + 1
+		if s.completedTurns == 0 {
+			s.dispatchHooks(domain.HookPreSession, turn)
+		}
+		s.dispatchHooks(domain.HookPreStream, turn)
 
 		if err := s.executeTurn(); err != nil {
 			logger.Error("turn execution failed", "error", err, "turn", s.completedTurns)
 			return err
 		}
 
+		s.dispatchHooks(domain.HookPostTool, turn)
 		s.completedTurns++
 
 		if !s.lastResponseHadNoToolCalls() {
@@ -505,6 +515,8 @@ This is an automated check, not a message from the user. If more work is needed 
 	if s.completedTurns >= s.maxTurns {
 		logger.Info("maximum turns reached", "turns", s.completedTurns)
 	}
+
+	s.dispatchHooks(domain.HookPostSession, s.completedTurns)
 
 	s.waitForBackgroundTasks(monitorCtx)
 
@@ -1084,64 +1096,52 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 	return msg
 }
 
-// injectSystemReminderIfDue mirrors AgentServiceImpl.injectSystemReminderIfDue
-// for the sync `infer agent` loop: the streaming path is the only caller of
-// the internal version, so this command would otherwise never see reminders
-// even with the env vars set. Same gate (Enabled + turn%interval), same
-// streamevent shape, so downstream observers can't tell the two callers apart.
-// The wrap-up reminder fires regardless of the interval gate so it never
-// silently misses when wrap_up_threshold < interval.
-func (s *AgentSession) injectSystemReminderIfDue(turn int) {
-	reminders := s.config.Prompts.Agent.SystemReminders
-	if !reminders.Enabled {
+// dispatchHooks runs the actions attached to a hook point for the synchronous
+// `infer agent` loop, mirroring AgentServiceImpl.dispatchHooks. Today that is
+// system-reminder injection via the shared provider (so the two callers emit
+// identical stream events); executable command hooks (#270) would plug in here.
+// The loop wires only the clean-boundary points (pre_session, pre_stream,
+// post_tool, post_session); the mid-turn points (post_stream, pre_tool) and
+// queue_drain are event-driven-only. Single-goroutine, so no mutex.
+func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
+	provider := s.reminderProvider
+	if provider == nil && s.config != nil {
+		provider = s.config.Prompts.Agent.SystemReminders
+	}
+	if provider == nil {
 		return
 	}
-
-	isWrapUp := s.maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
-		(s.maxTurns-turn) <= reminders.WrapUpThreshold
-
-	interval := reminders.Interval
-	if interval <= 0 {
-		interval = 4
+	if s.firedReminders == nil {
+		s.firedReminders = make(map[string]bool)
 	}
 
-	if !isWrapUp {
-		if turn <= 0 || turn%interval != 0 {
+	if n := len(s.conversation); n > 0 {
+		last := s.conversation[n-1]
+		if last.Role == "assistant" && last.ToolCalls != nil && len(*last.ToolCalls) > 0 {
 			return
 		}
 	}
 
-	reminderText := reminders.ReminderText
-	if isWrapUp {
-		reminderText = reminders.WrapUpText
+	for _, r := range provider.RemindersDue(hook, turn, s.maxTurns, s.firedReminders) {
+		s.addMessage(ConversationMessage{
+			Role:      "user",
+			Content:   r.Text,
+			Timestamp: time.Now(),
+			Internal:  true,
+		})
+		logger.Info("system reminder injected",
+			"turn", turn,
+			"hook", string(hook),
+			"name", r.Name,
+			"reminder_chars", len(r.Text),
+		)
+		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
+			"turn": turn,
+			"hook": string(hook),
+			"name": r.Name,
+		})
+		s.firedReminders[r.Name] = true
 	}
-	if reminderText == "" {
-		return
-	}
-
-	phase := "periodic"
-	if isWrapUp {
-		phase = "wrap_up"
-	}
-
-	s.addMessage(ConversationMessage{
-		Role:      "user",
-		Content:   reminderText,
-		Timestamp: time.Now(),
-		Internal:  true,
-	})
-
-	logger.Info("system reminder injected",
-		"turn", turn,
-		"interval", interval,
-		"phase", phase,
-		"reminder_chars", len(reminderText),
-	)
-	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
-		"turn":     turn,
-		"interval": interval,
-		"phase":    phase,
-	})
 }
 
 func (s *AgentSession) addMessage(msg ConversationMessage) {

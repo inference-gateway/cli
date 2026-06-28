@@ -45,7 +45,10 @@ func (a *EventDrivenAgent) startStreaming() {
 
 	a.eventPublisher.publishChatStart()
 
-	a.service.injectSystemReminderIfDue(a.agentCtx.Turns, a.agentCtx.Conversation)
+	if a.agentCtx.Turns == 1 {
+		a.service.dispatchHooks(a.agentCtx, domain.HookPreSession)
+	}
+	a.service.dispatchHooks(a.agentCtx, domain.HookPreStream)
 
 	mode := domain.AgentModeStandard
 	if a.service.stateManager != nil {

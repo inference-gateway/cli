@@ -114,13 +114,15 @@ agent:
   custom_instructions: ""
   system_reminders:
     enabled: false
-    interval: 4
-    reminder_text: |-
-      <system-reminder>
-      This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-      </system-reminder>
-    wrap_up_text: ""
-    wrap_up_threshold: 0
+    reminders:
+      - name: todo-hygiene
+        text: |-
+          <system-reminder>
+          This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+          </system-reminder>
+        hook: pre_stream
+        trigger: interval
+        interval: 4
 git:
   commit_message:
     system_prompt: |-

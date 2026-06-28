@@ -1082,6 +1082,10 @@ func (c *Config) Validate() error {
 			c.SpeechToText.RetainRecordings,
 		)
 	}
+
+	if err := c.Prompts.Agent.SystemReminders.Validate(); err != nil {
+		return fmt.Errorf("invalid agent.system_reminders: %w", err)
+	}
 	return nil
 }
 

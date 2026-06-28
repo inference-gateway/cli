@@ -58,6 +58,10 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 		}
 	}
 
+	if (!needsApproval || !allApprovalBlocked) && s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPreTool)
+	}
+
 	switch {
 	case needsApproval && allApprovalBlocked:
 		logger.Info("approval required but undeliverable, blocking tools", "tool_count", len(*s.ctx.CurrentToolCalls))

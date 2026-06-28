@@ -1257,3 +1257,12 @@ type DirectExecutionService interface {
 	PendingBashChannel() <-chan tea.Msg
 	PendingToolChannel() <-chan tea.Msg
 }
+
+// SystemReminderProvider decides which system reminders are due at a given hook
+// point and turn. It is implemented by config from the user's reminders list;
+// the agent depends on this interface so reminder policy can be faked in tests.
+// `fired` carries reminder names already emitted this run (consulted by the
+// `once` trigger); the caller marks names fired after injecting.
+type SystemReminderProvider interface {
+	RemindersDue(hook HookPoint, turn, maxTurns int, fired map[string]bool) []SystemReminder
+}

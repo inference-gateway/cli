@@ -50,11 +50,7 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 			return nil
 		}
 
-		if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
-			logger.Debug("queue not empty, draining")
-			numBatched := s.ctx.BatchDrainQueue()
-			logger.Debug("batched queued messages", "count", numBatched)
-		}
+		s.drainQueueWithHooks()
 
 		if s.ctx.AgentCtx.Ctx.Err() != nil {
 			logger.Debug("session cancelled - completing without next turn",
@@ -126,4 +122,22 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 		s.ctx.Events <- domain.StartStreamingEvent{}
 	}
 	return nil
+}
+
+// drainQueueWithHooks batches any queued messages into the conversation,
+// dispatching the pre_queue_drain hook before and post_queue_drain after (the
+// latter only when something was actually drained).
+func (s *CheckingQueueState) drainQueueWithHooks() {
+	if s.ctx.AgentCtx.MessageQueue.IsEmpty() {
+		return
+	}
+	logger.Debug("queue not empty, draining")
+	if s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPreQueueDrain)
+	}
+	numBatched := s.ctx.BatchDrainQueue()
+	logger.Debug("batched queued messages", "count", numBatched)
+	if numBatched > 0 && s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPostQueueDrain)
+	}
 }

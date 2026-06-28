@@ -2,6 +2,7 @@ package config
 
 import (
 	utils "github.com/inference-gateway/cli/config/utils"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 const (
@@ -44,18 +45,8 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemPromptHeartbeat == "" {
 		loaded.Agent.SystemPromptHeartbeat = defaults.Agent.SystemPromptHeartbeat
 	}
-	if loaded.Agent.SystemReminders.ReminderText == "" {
-		loaded.Agent.SystemReminders.ReminderText = defaults.Agent.SystemReminders.ReminderText
-	}
-	if loaded.Agent.SystemReminders.Interval == 0 {
-		loaded.Agent.SystemReminders.Interval = defaults.Agent.SystemReminders.Interval
-	}
-	if loaded.Agent.SystemReminders.WrapUpText == "" {
-		loaded.Agent.SystemReminders.WrapUpText = defaults.Agent.SystemReminders.WrapUpText
-	}
-	if loaded.Agent.SystemReminders.WrapUpThreshold == 0 {
-		loaded.Agent.SystemReminders.WrapUpThreshold = defaults.Agent.SystemReminders.WrapUpThreshold
-	}
+	// SystemReminders.Reminders is intentionally not backfilled: an explicit user
+	// list wins, and an absent prompts.yaml already yields the defaults via LoadYAML.
 	if loaded.Git.CommitMessage.SystemPrompt == "" {
 		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
 	}
@@ -135,12 +126,12 @@ type PromptsAgentConfig struct {
 	SystemReminders       PromptsAgentRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 }
 
+// PromptsAgentRemindersConfig is the master switch plus the list of named
+// reminders. Each reminder attaches to a pre-defined hook point with a trigger
+// (see config/reminders.go). It implements domain.SystemReminderProvider.
 type PromptsAgentRemindersConfig struct {
-	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	Interval        int    `yaml:"interval" mapstructure:"interval"`
-	ReminderText    string `yaml:"reminder_text" mapstructure:"reminder_text"`
-	WrapUpText      string `yaml:"wrap_up_text" mapstructure:"wrap_up_text"`
-	WrapUpThreshold int    `yaml:"wrap_up_threshold" mapstructure:"wrap_up_threshold"`
+	Enabled   bool             `yaml:"enabled" mapstructure:"enabled"`
+	Reminders []ReminderConfig `yaml:"reminders,omitempty" mapstructure:"reminders"`
 }
 
 type PromptsGitConfig struct {
@@ -324,11 +315,18 @@ CONSTRAINTS:
 - Each tick is a fresh session - you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
 			CustomInstructions: ``,
 			SystemReminders: PromptsAgentRemindersConfig{
-				Enabled:  false,
-				Interval: 4,
-				ReminderText: `<system-reminder>
+				Enabled: false,
+				Reminders: []ReminderConfig{
+					{
+						Name:     "todo-hygiene",
+						Hook:     domain.HookPreStream,
+						Trigger:  ReminderTriggerInterval,
+						Interval: 4,
+						Text: `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,
+					},
+				},
 			},
 		},
 		Git: PromptsGitConfig{

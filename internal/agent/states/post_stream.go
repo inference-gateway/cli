@@ -40,6 +40,10 @@ func (s *PostStreamState) Handle(event domain.AgentEvent) error {
 		"has_tool_calls", len(*s.ctx.CurrentToolCalls) > 0,
 		"has_reasoning", *s.ctx.CurrentReasoning != "")
 
+	if s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPostStream)
+	}
+
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued during stream, returning to checking queue")
 		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {

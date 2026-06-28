@@ -364,7 +364,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
-		"INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_REMINDER_TEXT":        &cfg.Prompts.Agent.SystemReminders.ReminderText,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,
 		"INFER_PROMPTS_INIT_PROMPT":                                 &cfg.Prompts.Init.Prompt,
@@ -406,19 +405,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Prompts.Agent.SystemReminders.Enabled = b
-		}
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.Prompts.Agent.SystemReminders.Interval = n
-		}
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_TEXT"); v != "" {
-		cfg.Prompts.Agent.SystemReminders.WrapUpText = v
-	}
-	if v := os.Getenv("INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_THRESHOLD"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.Prompts.Agent.SystemReminders.WrapUpThreshold = n
 		}
 	}
 }

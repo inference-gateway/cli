@@ -67,6 +67,9 @@ func (s *CompletingState) complete() error {
 	if s.ctx.AgentCtx.Ctx.Err() != nil {
 		s.ctx.PublishChatCancelled(s.ctx.GetMetrics(s.ctx.Request.RequestID))
 	} else {
+		if s.ctx.DispatchHooks != nil {
+			s.ctx.DispatchHooks(domain.HookPostSession)
+		}
 		s.ctx.PublishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.ctx.GetMetrics(s.ctx.Request.RequestID))
 	}
 

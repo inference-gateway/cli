@@ -32,6 +32,10 @@ func (s *PostToolExecutionState) Handle(event domain.AgentEvent) error {
 		"max_turns", s.ctx.AgentCtx.MaxTurns,
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
+	if s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPostTool)
+	}
+
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		return s.handleQueuedMessages()
 	}
@@ -60,8 +64,14 @@ func (s *PostToolExecutionState) Handle(event domain.AgentEvent) error {
 // matching the "drain then stop" contract from issue #532.
 func (s *PostToolExecutionState) handleQueuedMessages() error {
 	logger.Debug("messages queued during tool execution, draining queue")
+	if s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPreQueueDrain)
+	}
 	numBatched := s.ctx.BatchDrainQueue()
 	logger.Debug("batched messages after tool execution", "count", numBatched)
+	if numBatched > 0 && s.ctx.DispatchHooks != nil {
+		s.ctx.DispatchHooks(domain.HookPostQueueDrain)
+	}
 
 	if s.ctx.AgentCtx.Ctx.Err() != nil {
 		logger.Debug("session cancelled after drain - completing without next turn",

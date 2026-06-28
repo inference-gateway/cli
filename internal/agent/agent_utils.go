@@ -726,113 +726,77 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// isWithinWrapUpThreshold returns true when the agent is within the wrap-up
-// window (maxTurns > 0 && wrap_up_text != "" && wrap_up_threshold > 0 &&
-// (maxTurns - turns) <= wrap_up_threshold). This predicate is shared by
-// shouldInjectSystemReminder, getSystemReminderMessage, and
-// injectSystemReminderIfDue so the phase label and text selection stay in sync.
-func (s *AgentServiceImpl) isWithinWrapUpThreshold(turns int) bool {
-	reminders := s.config.Prompts.Agent.SystemReminders
-	maxTurns := s.config.GetAgentConfig().MaxTurns
-	return maxTurns > 0 && reminders.WrapUpText != "" && reminders.WrapUpThreshold > 0 &&
-		(maxTurns-turns) <= reminders.WrapUpThreshold
+// dispatchHooks runs the actions attached to a hook point. Today that is only
+// system-reminder injection; executable command hooks (#270) plug in here at
+// the same call sites, feature-flagged.
+func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook domain.HookPoint) {
+	s.injectDueReminders(agentCtx, hook)
 }
 
-// shouldInjectSystemReminder checks if a system reminder should be injected.
-// Regular reminders fire at the configured interval. When the agent is within
-// the wrap-up threshold (wrap_up_threshold) of max_turns, the wrap-up
-// reminder fires regardless of the interval gate so it never silently misses.
-func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
-	reminders := s.config.Prompts.Agent.SystemReminders
-
-	if !reminders.Enabled {
+// conversationAwaitsToolResults reports whether the last message is an assistant
+// turn carrying tool_calls that have not yet been answered. Injecting a user
+// reminder in that state would orphan the tool_calls, so reminder injection is
+// skipped until the tool results land.
+func conversationAwaitsToolResults(conv []sdk.Message) bool {
+	if len(conv) == 0 {
 		return false
 	}
-
-	if s.isWithinWrapUpThreshold(turns) {
-		return true
-	}
-
-	interval := reminders.Interval
-	if interval <= 0 {
-		interval = 4
-	}
-
-	return turns > 0 && turns%interval == 0
+	last := conv[len(conv)-1]
+	return last.Role == sdk.Assistant && last.ToolCalls != nil && len(*last.ToolCalls) > 0
 }
 
-// getSystemReminderMessage returns the system reminder message to inject.
-// When the agent is within the wrap-up threshold (max_turns > 0 && wrap_up_text != ""
-// && (max_turns - turns) <= wrap_up_threshold), the wrap-up text is used instead
-// of the regular reminder_text.
-func (s *AgentServiceImpl) getSystemReminderMessage(turns int) sdk.Message {
-	reminders := s.config.Prompts.Agent.SystemReminders
+// injectDueReminders asks the reminder provider which reminders are due at the
+// given hook point and turn, then appends each as a hidden user message,
+// persists it via the conversation repo (when wired in), emits a
+// `system_reminder` stream event tagged with the reminder name and hook so
+// downstream observers can see the nudge, and marks it fired (for the `once`
+// trigger). Multiple reminders due at the same hook stack. The per-run
+// fired-set is mutex-guarded because the streaming goroutine
+// (pre_session/pre_stream) and the event-loop goroutine (the other points) can
+// both reach here.
+func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
+	provider := s.reminderProvider
+	if provider == nil && s.config != nil {
+		provider = s.config.Prompts.Agent.SystemReminders
+	}
+	if provider == nil {
+		return
+	}
 
-	if s.isWithinWrapUpThreshold(turns) {
-		return sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(reminders.WrapUpText),
+	if conversationAwaitsToolResults(*agentCtx.Conversation) {
+		return
+	}
+
+	agentCtx.FiredRemindersMu.Lock()
+	defer agentCtx.FiredRemindersMu.Unlock()
+	if agentCtx.FiredReminders == nil {
+		agentCtx.FiredReminders = make(map[string]bool)
+	}
+
+	for _, r := range provider.RemindersDue(hook, agentCtx.Turns, agentCtx.MaxTurns, agentCtx.FiredReminders) {
+		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
+		*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
+
+		if s.conversationRepo != nil {
+			entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("failed to store system reminder message", "error", err)
+			}
 		}
-	}
 
-	reminderText := reminders.ReminderText
-	if reminderText == "" {
-		reminderText = `<system-reminder>
-This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-</system-reminder>`
+		logger.Debug("system reminder injected",
+			"turn", agentCtx.Turns,
+			"hook", string(hook),
+			"name", r.Name,
+			"reminder_chars", len(r.Text),
+		)
+		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
+			"turn": agentCtx.Turns,
+			"hook": string(hook),
+			"name": r.Name,
+		})
+		agentCtx.FiredReminders[r.Name] = true
 	}
-
-	return sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent(reminderText),
-	}
-}
-
-// injectSystemReminderIfDue evaluates the configured reminder interval and
-// appends the reminder to the conversation when due. It persists the
-// reminder via the conversation repo (when wired in), records a structured
-// log line, and emits a `system_reminder` stream event so downstream
-// observers - log scrapers, the inference-gateway/infer-action runner -
-// can see exactly when (and what) the model was nudged with. Returns true
-// when a reminder was actually injected; false otherwise.
-func (s *AgentServiceImpl) injectSystemReminderIfDue(turns int, conv *[]sdk.Message) bool {
-	if !s.shouldInjectSystemReminder(turns) {
-		return false
-	}
-
-	msg := s.getSystemReminderMessage(turns)
-	*conv = append(*conv, msg)
-
-	if s.conversationRepo != nil {
-		entry := domain.ConversationEntry{
-			Message: msg,
-			Time:    time.Now(),
-			Hidden:  true,
-		}
-		if err := s.conversationRepo.AddMessage(entry); err != nil {
-			logger.Error("failed to store system reminder message", "error", err)
-		}
-	}
-
-	reminderText, _ := msg.Content.AsMessageContent0()
-	interval := s.config.Prompts.Agent.SystemReminders.Interval
-	phase := "periodic"
-	if s.isWithinWrapUpThreshold(turns) {
-		phase = "wrap_up"
-	}
-	logger.Debug("system reminder injected",
-		"turn", turns,
-		"interval", interval,
-		"phase", phase,
-		"reminder_chars", len(reminderText),
-		"text_preview", formatting.TruncateText(reminderText, 80),
-	)
-	streamevent.EmitDebugMessage("user", reminderText, "system_reminder", map[string]any{
-		"turn":     turns,
-		"interval": interval,
-		"phase":    phase,
-	})
-	return true
 }
 
 // isCompleteJSON checks if a string is a complete, valid JSON
