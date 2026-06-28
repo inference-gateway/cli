@@ -18,8 +18,8 @@ import (
 // stream event so a chatty command can't emit an unbounded line.
 const hookCommandOutputLimit = 4096
 
-// RunCommandHooks is the single chokepoint both agents use to run command hooks
-// (issue #270). It asks the provider which commands are attached to hook, gates
+// RunCommandHooks is the single chokepoint both agents use to run command hooks.
+// It asks the provider which commands are attached to hook, gates
 // each on the per-mode bash allow-list - the SAME matcher a model-proposed bash
 // command faces, so command hooks open no new bypass of the secure-by-default
 // model - and runs the allowed ones fire-and-observe. Off-list commands are

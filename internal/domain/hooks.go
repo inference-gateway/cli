@@ -7,8 +7,8 @@ import (
 
 // HookPoint is one of the pre-defined points in the agent loop where actions
 // can attach. The catalog is fully symmetric: every loop phase exposes a
-// pre_/post_ pair. System reminders (issue #669) attach a text-injection
-// action here today; executable command hooks (issue #270) attach a
+// pre_/post_ pair. System reminders attach a text-injection
+// action here today; executable command hooks attach a
 // command-execution action at the same points later, both flowing through the
 // single dispatchHooks(point) seam.
 type HookPoint string

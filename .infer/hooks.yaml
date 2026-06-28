@@ -1,6 +1,6 @@
 ---
 # Command hooks run a shell command at a pre-defined agent-loop hook point
-# (issue #270) - the executable sibling of reminders.yaml. Off by default.
+# - the executable sibling of reminders.yaml. Off by default.
 #
 # Each command is gated on the per-mode bash allow-list, exactly like a command
 # the model proposes: an off-list command is skipped and reported, never run.
