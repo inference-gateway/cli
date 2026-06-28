@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 	yaml "gopkg.in/yaml.v3"
 )
 
