@@ -757,7 +757,7 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
-		provider = s.config.Prompts.Agent.SystemReminders
+		provider = s.config.Reminders
 	}
 	if provider == nil {
 		return

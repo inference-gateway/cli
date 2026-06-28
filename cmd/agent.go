@@ -206,7 +206,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		conversation:     []ConversationMessage{},
 		config:           cfg,
 		conversationRepo: conversationRepo,
-		reminderProvider: cfg.Prompts.Agent.SystemReminders,
+		reminderProvider: cfg.Reminders,
 		firedReminders:   make(map[string]bool),
 		saveEnabled:      saveEnabled,
 		bgWaiter: services.NewBackgroundTasksWaiter(
@@ -1106,7 +1106,7 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
-		provider = s.config.Prompts.Agent.SystemReminders
+		provider = s.config.Reminders
 	}
 	if provider == nil {
 		return

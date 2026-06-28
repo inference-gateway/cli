@@ -20,13 +20,9 @@ import (
 // reminder injection (the config value implements domain.SystemReminderProvider).
 func remindersConfig(enabled bool, reminders ...config.ReminderConfig) *config.Config {
 	return &config.Config{
-		Prompts: config.PromptsConfig{
-			Agent: config.PromptsAgentConfig{
-				SystemReminders: config.PromptsAgentRemindersConfig{
-					Enabled:   enabled,
-					Reminders: reminders,
-				},
-			},
+		Reminders: config.RemindersConfig{
+			Enabled:   enabled,
+			Reminders: reminders,
 		},
 	}
 }

@@ -1236,11 +1236,7 @@ func TestDispatchHooks_Reminders(t *testing.T) {
 	newSession := func(enabled bool, reminders ...config.ReminderConfig) *AgentSession {
 		return &AgentSession{
 			config: &config.Config{
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemReminders: config.PromptsAgentRemindersConfig{Enabled: enabled, Reminders: reminders},
-					},
-				},
+				Reminders: config.RemindersConfig{Enabled: enabled, Reminders: reminders},
 			},
 			conversation:   []ConversationMessage{},
 			firedReminders: map[string]bool{},

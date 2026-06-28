@@ -45,6 +45,7 @@ type Config struct {
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
+	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -1083,8 +1084,8 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	if err := c.Prompts.Agent.SystemReminders.Validate(); err != nil {
-		return fmt.Errorf("invalid agent.system_reminders: %w", err)
+	if err := c.Reminders.Validate(); err != nil {
+		return fmt.Errorf("invalid reminders: %w", err)
 	}
 	return nil
 }

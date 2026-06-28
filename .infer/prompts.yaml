@@ -112,17 +112,6 @@ agent:
     - Never spam channels or open noisy artifacts (PRs, issues) on a heartbeat unless the user has set up explicit instructions for that behaviour.
     - Each tick is a fresh session - you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).
   custom_instructions: ""
-  system_reminders:
-    enabled: false
-    reminders:
-      - name: todo-hygiene
-        text: |-
-          <system-reminder>
-          This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-          </system-reminder>
-        hook: pre_stream
-        trigger: interval
-        interval: 4
 git:
   commit_message:
     system_prompt: |-

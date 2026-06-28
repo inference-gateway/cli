@@ -25,7 +25,6 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat)
 	require.NotEmpty(t, cfg.Prompts.Agent.SystemPromptHeartbeat, "heartbeat prompt must have a non-empty default")
-	require.Equal(t, defaults.Agent.SystemReminders.Reminders, cfg.Prompts.Agent.SystemReminders.Reminders)
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt)
 	require.Equal(t, defaults.Conversation.TitleGeneration.SystemPrompt, cfg.Prompts.Conversation.TitleGeneration.SystemPrompt)
 	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt)

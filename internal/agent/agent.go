@@ -337,7 +337,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
-		reminderProvider: cfg.Prompts.Agent.SystemReminders,
+		reminderProvider: cfg.Reminders,
 		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),

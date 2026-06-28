@@ -2,7 +2,6 @@ package config
 
 import (
 	utils "github.com/inference-gateway/cli/config/utils"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 const (
@@ -115,21 +114,12 @@ type PromptsConfig struct {
 }
 
 type PromptsAgentConfig struct {
-	SystemPrompt          string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemPromptPlan      string                      `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptAuto      string                      `yaml:"system_prompt_auto" mapstructure:"system_prompt_auto"`
-	SystemPromptRemote    string                      `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
-	SystemPromptHeartbeat string                      `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
-	CustomInstructions    string                      `yaml:"custom_instructions" mapstructure:"custom_instructions"`
-	SystemReminders       PromptsAgentRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
-}
-
-// PromptsAgentRemindersConfig is the master switch plus the list of named
-// reminders. Each reminder attaches to a pre-defined hook point with a trigger
-// (see config/reminders.go). It implements domain.SystemReminderProvider.
-type PromptsAgentRemindersConfig struct {
-	Enabled   bool             `yaml:"enabled" mapstructure:"enabled"`
-	Reminders []ReminderConfig `yaml:"reminders,omitempty" mapstructure:"reminders"`
+	SystemPrompt          string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPromptPlan      string `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptAuto      string `yaml:"system_prompt_auto" mapstructure:"system_prompt_auto"`
+	SystemPromptRemote    string `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
+	SystemPromptHeartbeat string `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
+	CustomInstructions    string `yaml:"custom_instructions" mapstructure:"custom_instructions"`
 }
 
 type PromptsGitConfig struct {
@@ -312,20 +302,6 @@ CONSTRAINTS:
 - Never spam channels or open noisy artifacts (PRs, issues) on a heartbeat unless the user has set up explicit instructions for that behaviour.
 - Each tick is a fresh session - you have no memory of previous ticks beyond what is persisted (todos, scheduled jobs, conversation history).`,
 			CustomInstructions: ``,
-			SystemReminders: PromptsAgentRemindersConfig{
-				Enabled: false,
-				Reminders: []ReminderConfig{
-					{
-						Name:     "todo-hygiene",
-						Hook:     domain.HookPreStream,
-						Trigger:  ReminderTriggerInterval,
-						Interval: 4,
-						Text: `<system-reminder>
-This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-</system-reminder>`,
-					},
-				},
-			},
 		},
 		Git: PromptsGitConfig{
 			CommitMessage: PromptsGitCommitMessageConfig{

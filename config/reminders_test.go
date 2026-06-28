@@ -1,14 +1,74 @@
 package config_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func remindersCfg(enabled bool, reminders ...config.ReminderConfig) config.PromptsAgentRemindersConfig {
-	return config.PromptsAgentRemindersConfig{Enabled: enabled, Reminders: reminders}
+func TestSaveLoadReminders_RoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reminders.yaml")
+	original := &config.RemindersConfig{
+		Enabled: true,
+		Reminders: []config.ReminderConfig{
+			{Name: "memory", Text: "load memory", Hook: domain.HookPreSession, Trigger: config.ReminderTriggerOnce},
+		},
+	}
+	if err := config.SaveReminders(path, original); err != nil {
+		t.Fatalf("SaveReminders: %v", err)
+	}
+	loaded, err := config.LoadReminders(path)
+	if err != nil {
+		t.Fatalf("LoadReminders: %v", err)
+	}
+	if !loaded.Enabled || len(loaded.Reminders) != 1 ||
+		loaded.Reminders[0].Name != "memory" || loaded.Reminders[0].Hook != domain.HookPreSession {
+		t.Errorf("round-trip mismatch: %+v", loaded)
+	}
+}
+
+func TestLoadReminders_MissingFileReturnsDefaults(t *testing.T) {
+	loaded, err := config.LoadReminders(filepath.Join(t.TempDir(), "nope.yaml"))
+	if err != nil {
+		t.Fatalf("LoadReminders on missing file: %v", err)
+	}
+	if len(loaded.Reminders) == 0 {
+		t.Error("missing file should yield the in-code defaults")
+	}
+}
+
+func remindersCfg(enabled bool, reminders ...config.ReminderConfig) config.RemindersConfig {
+	return config.RemindersConfig{Enabled: enabled, Reminders: reminders}
+}
+
+func TestRemindersFileConstants(t *testing.T) {
+	if config.RemindersFileName != "reminders.yaml" {
+		t.Errorf("RemindersFileName = %q, want reminders.yaml", config.RemindersFileName)
+	}
+	if config.DefaultRemindersPath != config.ConfigDirName+"/reminders.yaml" {
+		t.Errorf("DefaultRemindersPath = %q", config.DefaultRemindersPath)
+	}
+}
+
+// Reminders ship disabled by default (issue #525) with one todo-hygiene
+// reminder so flipping enabled=true is enough.
+func TestDefaultRemindersConfig(t *testing.T) {
+	cfg := config.DefaultRemindersConfig()
+	if cfg.Enabled {
+		t.Error("reminders should be disabled by default")
+	}
+	if len(cfg.Reminders) == 0 {
+		t.Fatal("default should ship one reminder")
+	}
+	first := cfg.Reminders[0]
+	if first.Text == "" || first.Hook != domain.HookPreStream || first.Trigger != config.ReminderTriggerInterval {
+		t.Errorf("unexpected default reminder: %+v", first)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("default reminders config must be valid: %v", err)
+	}
 }
 
 func TestRemindersDue_MasterGateDisabled(t *testing.T) {
