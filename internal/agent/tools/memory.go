@@ -140,7 +140,6 @@ func (t *MemoryTool) execRead(ctx context.Context, args map[string]any, start ti
 
 	var parts []string
 
-	// Read primary memory file
 	primaryContent, err := os.ReadFile(primaryPath)
 	if err == nil {
 		parts = append(parts, fmt.Sprintf("=== %s ===\n%s", primaryPath, string(primaryContent)))
@@ -154,7 +153,6 @@ func (t *MemoryTool) execRead(ctx context.Context, args map[string]any, start ti
 		}, nil
 	}
 
-	// Read user memory file if configured
 	if t.config.Memory.UserPath != "" {
 		userContent, err := os.ReadFile(t.config.Memory.UserPath)
 		if err == nil {
@@ -208,7 +206,6 @@ func (t *MemoryTool) execAppend(ctx context.Context, args map[string]any, conten
 		}, nil
 	}
 
-	// Read existing content
 	existingContent := ""
 	existing, err := os.ReadFile(path)
 	if err == nil {
@@ -223,7 +220,6 @@ func (t *MemoryTool) execAppend(ctx context.Context, args map[string]any, conten
 		}, nil
 	}
 
-	// Append new content
 	var newContent string
 	if existingContent != "" {
 		newContent = existingContent + "\n" + content

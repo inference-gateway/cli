@@ -468,7 +468,6 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	b.WriteString("\n\nPERSISTENT MEMORY:\n")
 	b.WriteString(string(data))
 
-	// Also load user.md if configured
 	if s.config.Memory.UserPath != "" {
 		userData, err := os.ReadFile(s.config.Memory.UserPath)
 		if err == nil && len(userData) > 0 {

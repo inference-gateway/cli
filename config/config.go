@@ -1201,12 +1201,10 @@ func (c *Config) ResolveMemoryPath() (string, error) {
 	if c.Memory.Path != "" {
 		return c.Memory.Path, nil
 	}
-	// Project-local
 	projectPath := filepath.Join(ConfigDirName, MemoryFileName)
 	if _, err := os.Stat(projectPath); err == nil {
 		return projectPath, nil
 	}
-	// Userspace fallback
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home dir: %w", err)
