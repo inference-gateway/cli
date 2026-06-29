@@ -217,17 +217,18 @@ var agentsDisableCmd = &cobra.Command{
 	},
 }
 
-// agentsConfigPath returns the agents.yaml path for the current command,
-// honouring --userspace.
+// agentsConfigPath returns the agents.yaml path for the current command. Writes
+// target the userspace baseline (~/.infer/) by default; --project targets the
+// project .infer/agents.yaml instead.
 func agentsConfigPath(cmd *cobra.Command) (string, error) {
-	if GetUserspaceFlag(cmd) {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		return filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName), nil
+	if GetProjectFlag(cmd) {
+		return config.DefaultAgentsPath, nil
 	}
-	return config.DefaultAgentsPath, nil
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName), nil
 }
 
 // ExternalAgent represents an agent configured via INFER_A2A_AGENTS
@@ -556,10 +557,9 @@ func initAgents(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	userspace := GetUserspaceFlag(cmd)
-	var scopeDesc string
-	if userspace {
-		scopeDesc = "userspace "
+	scopeDesc := "userspace "
+	if GetProjectFlag(cmd) {
+		scopeDesc = "project "
 	}
 
 	fmt.Printf("%s %sagents.yaml initialized successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
@@ -646,7 +646,7 @@ func init() {
 	agentsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	agentsShowCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
-	agentsCmd.PersistentFlags().Bool("userspace", false, "Use userspace configuration (~/.infer/) instead of project configuration")
+	agentsCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 
 	rootCmd.AddCommand(agentsCmd)
 }

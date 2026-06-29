@@ -109,7 +109,7 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 }
 
 // ensureRemoteConfig ensures infer config exists on remote server
-// Runs infer init --userspace if ~/.infer/config.yaml doesn't exist
+// Runs infer init (which seeds ~/.infer/ by default) if ~/.infer/config.yaml doesn't exist
 func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ string) error {
 	commandPath := serverCfg.CommandPath
 	if commandPath == "" {
@@ -144,7 +144,7 @@ func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ 
 	}
 	defer func() { _ = session2.Close() }()
 
-	initCmd := fmt.Sprintf("%s init --userspace", commandPath)
+	initCmd := fmt.Sprintf("%s init", commandPath)
 	initOutput, err := session2.CombinedOutput(initCmd)
 	if err != nil {
 		return fmt.Errorf("failed to initialize config: %w\nOutput: %s", err, string(initOutput))

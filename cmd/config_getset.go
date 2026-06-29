@@ -23,8 +23,8 @@ var configGetCmd = &cobra.Command{
 	Short: "Get a configuration value",
 	Long: `Print the effective value of a configuration key, or the whole config when no key is given.
 
-The value reflects what the CLI actually runs with: built-in defaults, the global
-~/.infer/config.yaml and the local .infer/config.yaml (sandbox directories merged),
+The value reflects what the CLI actually runs with: built-in defaults, the userspace
+~/.infer/config.yaml baseline merged key-by-key with the project .infer/config.yaml,
 and INFER_* environment overrides.
 
 Keys are dotted paths into config.yaml:
@@ -48,8 +48,8 @@ Keys are dotted paths into config.yaml. The value is parsed to the field's type
   infer config set agent.max_turns 50
   infer config set tools.sandbox.directories ".,/tmp,/data"
 
-By default the project .infer/config.yaml is updated; pass --userspace to update
-~/.infer/config.yaml instead.`,
+By default the userspace ~/.infer/config.yaml baseline is updated; pass --project
+to write a sparse override into the project .infer/config.yaml instead.`,
 	Args: cobra.ExactArgs(2),
 	RunE: setConfigValue,
 }
@@ -130,7 +130,8 @@ func printConfigValue(value any, format string) error {
 
 // setConfigValue parses value to the type of the target field (discovered by
 // reflecting over the Config struct) and persists it to config.yaml. The
-// project config is updated by default; --userspace targets ~/.infer.
+// userspace baseline (~/.infer) is updated by default; --project targets the
+// project .infer/config.yaml.
 func setConfigValue(cmd *cobra.Command, args []string) error {
 	key := args[0]
 	rawValue := args[1]
@@ -145,14 +146,21 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid value for %q: %w", key, err)
 	}
 
-	target, path, err := configWriteTarget(GetUserspaceFlag(cmd))
+	toProject := GetProjectFlag(cmd)
+	target, path, err := configWriteTarget(toProject)
 	if err != nil {
 		return err
 	}
 
 	target.Set(key, parsed)
-	if err := utils.WriteViperConfigWithIndent(target, 2); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	// The project layer is a sparse override (only the keys it sets); the home
+	// baseline is written full so it remains a complete, ordered config.yaml.
+	writeErr := utils.WriteViperConfigWithIndent(target, 2)
+	if toProject {
+		writeErr = utils.WriteViperConfigSparse(target, 2)
+	}
+	if writeErr != nil {
+		return fmt.Errorf("failed to save config: %w", writeErr)
 	}
 
 	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Set %s = %v", key, parsed)))
@@ -160,33 +168,32 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// configWriteTarget returns the viper instance and path to write to. The
-// project config reuses the active viper (V); --userspace binds a fresh viper
-// to ~/.infer/config.yaml so only that file is updated.
-func configWriteTarget(userspace bool) (*viper.Viper, string, error) {
-	if !userspace {
-		path := V.ConfigFileUsed()
-		if path == "" {
-			path = config.DefaultConfigPath
-			V.SetConfigFile(path)
+// configWriteTarget returns a fresh viper bound to the file `config set` should
+// write, plus that path. Writes target the userspace baseline
+// (~/.infer/config.yaml) by default; --project (toProject) writes a sparse
+// override into the project .infer/config.yaml. Either way the existing file is
+// pre-loaded into a fresh viper so only the single key being set is added - the
+// merged/effective config is never written back, keeping both files sparse.
+func configWriteTarget(toProject bool) (*viper.Viper, string, error) {
+	var path string
+	if toProject {
+		path = config.DefaultConfigPath
+	} else {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to resolve home directory: %w", err)
 		}
-		return V, path, nil
+		path = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to resolve home directory: %w", err)
-	}
-	path := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
-
-	uv := viper.New()
-	uv.SetConfigFile(path)
+	wv := viper.New()
+	wv.SetConfigFile(path)
 	if _, statErr := os.Stat(path); statErr == nil {
-		if err := uv.ReadInConfig(); err != nil {
+		if err := wv.ReadInConfig(); err != nil {
 			return nil, "", fmt.Errorf("failed to read %s: %w", path, err)
 		}
 	}
-	return uv, path, nil
+	return wv, path, nil
 }
 
 // resolveConfigKeyKind walks the Config struct by mapstructure tag to find the

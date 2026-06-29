@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	glamour "charm.land/glamour/v2"
@@ -119,18 +121,23 @@ func init() {
 	mcpUpdateCmd.Flags().StringSlice("exclude", []string{}, "Update filter for excluded tools (empty = no change)")
 	mcpUpdateCmd.Flags().Bool("enabled", true, "Enable/disable the server")
 
-	mcpCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
+	mcpCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 
 	rootCmd.AddCommand(mcpCmd)
 }
 
+// getMCPConfigPath returns the mcp.yaml path to write. Writes target the
+// userspace baseline (~/.infer/) by default; --project targets the project
+// .infer/mcp.yaml instead.
 func getMCPConfigPath(cmd *cobra.Command) string {
-	userspace, _ := cmd.Flags().GetBool("userspace")
-	if userspace {
-		homeDir, _ := cmd.Root().PersistentFlags().GetString("home")
-		return homeDir + "/" + config.ConfigDirName + "/" + config.MCPFileName
+	if GetProjectFlag(cmd) {
+		return config.DefaultMCPPath
 	}
-	return config.DefaultMCPPath
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return config.DefaultMCPPath
+	}
+	return filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 }
 
 func listMCPServers(cmd *cobra.Command, args []string) error {
