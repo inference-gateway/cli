@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	cobra "github.com/spf13/cobra"
-	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
@@ -25,23 +24,26 @@ var configCmd = &cobra.Command{
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new configuration file",
-	Long: `Initialize a new .infer/config.yaml configuration file in the current directory.
-This creates only the configuration file with default settings.
+	Long: `Initialize a new config.yaml with default settings.
+
+By default this writes the userspace baseline at ~/.infer/config.yaml. Pass
+--project to write a project-level ./.infer/config.yaml that overrides the
+baseline key-by-key instead.
 
 For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userspace := GetUserspaceFlag(cmd)
+		project := GetProjectFlag(cmd)
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
 
 		var configPath string
-		if userspace {
+		if project {
+			configPath = config.DefaultConfigPath
+		} else {
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
 			configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
-		} else {
-			configPath = config.DefaultConfigPath
 		}
 
 		if _, err := os.Stat(configPath); err == nil {
@@ -54,17 +56,17 @@ For complete project initialization, use 'infer init' instead.`,
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
-		var scopeDesc string
-		if userspace {
-			scopeDesc = "userspace "
+		scopeDesc := "userspace "
+		if project {
+			scopeDesc = "project "
 		}
 
 		fmt.Printf("Successfully created %sconfiguration: %s\n", scopeDesc, configPath)
-		if userspace {
-			fmt.Println("This userspace configuration will be used as a fallback for all projects.")
-			fmt.Println("Project-level configurations will take precedence when present.")
+		if project {
+			fmt.Println("This project configuration overrides your userspace baseline (~/.infer/) key-by-key.")
 		} else {
-			fmt.Println("You can now customize the configuration for this project.")
+			fmt.Println("This userspace configuration is the shared baseline for all your projects.")
+			fmt.Println("Project-level configurations are merged on top when present.")
 		}
 		fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
 
@@ -330,17 +332,18 @@ func getEffectiveHooksConfigPath() string {
 	return config.DefaultHooksPath
 }
 
-// getKeybindingsConfigWritePath returns the path to write keybindings to,
-// honouring the --userspace flag.
-func getKeybindingsConfigWritePath(userspace bool) (string, error) {
-	if userspace {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		return filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName), nil
+// getKeybindingsConfigWritePath returns the path to write keybindings to.
+// Keybindings are a userspace-only concern, so writes target ~/.infer/ by
+// default; --project (toProject) opts into a project-level override instead.
+func getKeybindingsConfigWritePath(toProject bool) (string, error) {
+	if toProject {
+		return config.DefaultKeybindingsPath, nil
 	}
-	return config.DefaultKeybindingsPath, nil
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName), nil
 }
 
 // loadConfigFromViper assembles the in-memory Config by unmarshalling
@@ -354,7 +357,6 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 
 	resolveViperEnvironmentVariables(cfg, "")
-	mergeGlobalSandboxDirs(cfg)
 
 	mcpConfigPath := getEffectiveMCPConfigPath()
 	mcpConfig, err := config.LoadMCP(mcpConfigPath)
@@ -780,15 +782,17 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setBool("INFER_COMPUTER_USE_TOOLS_ACTIVATE_APP_ENABLED", &cfg.ComputerUse.Tools.ActivateApp.Enabled)
 }
 
-// GetUserspaceFlag checks for --userspace flag on the current command or parent commands
-func GetUserspaceFlag(cmd *cobra.Command) bool {
-	if userspace, err := cmd.Flags().GetBool("userspace"); err == nil && userspace {
+// GetProjectFlag checks for the --project flag on the current command or any
+// parent command. Userspace-first model (issue #680): config writes target the
+// home ~/.infer/ baseline by default; --project opts into a project override.
+func GetProjectFlag(cmd *cobra.Command) bool {
+	if project, err := cmd.Flags().GetBool("project"); err == nil && project {
 		return true
 	}
 
 	parent := cmd.Parent()
 	for parent != nil {
-		if userspace, err := parent.Flags().GetBool("userspace"); err == nil && userspace {
+		if project, err := parent.Flags().GetBool("project"); err == nil && project {
 			return true
 		}
 		parent = parent.Parent()
@@ -799,38 +803,11 @@ func GetUserspaceFlag(cmd *cobra.Command) bool {
 
 func init() {
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
-	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
+	configCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 
 	configCmd.AddCommand(configInitCmd)
 
 	rootCmd.AddCommand(configCmd)
-}
-
-// mergeGlobalSandboxDirs unions the userspace ~/.infer/config.yaml sandbox
-// directories into cfg so a project config.yaml (which viper reads in
-// isolation) does not fully shadow the user's global allowlist. Runs at load
-// time only and is never written back, so config files stay clean. Skills
-// directories remain reachable via the isWithinSkillsDir carve-out regardless.
-func mergeGlobalSandboxDirs(cfg *config.Config) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	globalPath := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
-	if sameConfigFile(globalPath, V.ConfigFileUsed()) {
-		return
-	}
-	if _, err := os.Stat(globalPath); err != nil {
-		return
-	}
-
-	gv := viper.New()
-	gv.SetConfigFile(globalPath)
-	if err := gv.ReadInConfig(); err != nil {
-		logger.Warn("failed to read global config for sandbox merge", "path", globalPath, "error", err)
-		return
-	}
-	cfg.MergeSandboxDirectories(gv.GetStringSlice("tools.sandbox.directories"))
 }
 
 // sameConfigFile reports whether two config paths point at the same file,

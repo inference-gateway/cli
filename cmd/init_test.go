@@ -2,103 +2,77 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
 	cobra "github.com/spf13/cobra"
+	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
+// runInit builds a bare command carrying init's flags and runs initializeProject.
+func runInit(t *testing.T, flags map[string]bool) error {
+	t.Helper()
+	cmd := &cobra.Command{}
+	cmd.Flags().Bool("overwrite", false, "")
+	cmd.Flags().Bool("project", false, "")
+	cmd.Flags().Bool("skip-migrations", false, "")
+	for name, val := range flags {
+		require.NoError(t, cmd.Flags().Set(name, strconv.FormatBool(val)))
+	}
+	return initializeProject(cmd)
+}
+
+// TestInitializeProject pins the userspace-first model (issue #680): a plain
+// `infer init` seeds the full baseline into ~/.infer/ and writes nothing into
+// the project, while `infer init --project` seeds only the project-overridable
+// files into ./.infer/ and keeps userspace-only files in ~/.infer/.
 func TestInitializeProject(t *testing.T) {
-	tests := []struct {
-		name        string
-		flags       map[string]any
-		wantFiles   []string
-		wantNoFiles []string
-		wantErr     bool
-	}{
-		{
-			name: "basic project initialization",
-			flags: map[string]any{
-				"overwrite":       false,
-				"userspace":       false,
-				"skip-migrations": true,
-			},
-			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore", ".infer/computer_use.yaml", ".infer/heartbeat.yaml"},
-			wantNoFiles: []string{"AGENTS.md"},
-			wantErr:     false,
-		},
-		{
-			name: "userspace initialization",
-			flags: map[string]any{
-				"overwrite":       true,
-				"userspace":       true,
-				"skip-migrations": true,
-			},
-			wantFiles:   []string{},
-			wantNoFiles: []string{".infer/config.yaml", ".infer/.gitignore", "AGENTS.md"},
-			wantErr:     false,
-		},
+	projectOverridable := []string{
+		".infer/config.yaml", ".infer/.gitignore", ".infer/prompts.yaml",
+		".infer/hooks.yaml", ".infer/agents.yaml", ".infer/mcp.yaml",
+		".infer/shortcuts/scm.yaml",
+	}
+	userspaceOnly := []string{
+		"keybindings.yaml", "reminders.yaml", "channels.yaml",
+		"heartbeat.yaml", "computer_use.yaml",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "infer-init-test-*")
-			if err != nil {
-				t.Fatalf("failed to create temp dir: %v", err)
-			}
-			defer func() { _ = os.RemoveAll(tmpDir) }()
+	t.Run("default seeds userspace baseline, nothing in project", func(t *testing.T) {
+		homeDir, projectDir := splitHomeProjectEnv(t)
 
-			t.Setenv("HOME", t.TempDir())
+		require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
 
-			oldWd, err := os.Getwd()
-			if err != nil {
-				t.Fatalf("failed to get working directory: %v", err)
-			}
-			defer func() { _ = os.Chdir(oldWd) }()
+		for _, f := range []string{"config.yaml", ".gitignore", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml"} {
+			require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
+		}
+		require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))
+		require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
+	})
 
-			if err := os.Chdir(tmpDir); err != nil {
-				t.Fatalf("failed to change to temp dir: %v", err)
-			}
+	t.Run("project seeds override layer, userspace-only files stay home", func(t *testing.T) {
+		homeDir, projectDir := splitHomeProjectEnv(t)
 
-			cmd := &cobra.Command{}
-			for flag, value := range tt.flags {
-				switch v := value.(type) {
-				case bool:
-					cmd.Flags().Bool(flag, v, "")
-					_ = cmd.Flag(flag).Value.Set(strconv.FormatBool(v))
-				case string:
-					cmd.Flags().String(flag, v, "")
-					_ = cmd.Flag(flag).Value.Set(v)
-				}
-			}
+		require.NoError(t, runInit(t, map[string]bool{"project": true, "skip-migrations": true}))
 
-			err = initializeProject(cmd)
+		for _, f := range projectOverridable {
+			require.FileExists(t, filepath.Join(projectDir, f))
+		}
+		for _, f := range userspaceOnly {
+			require.NoFileExists(t, filepath.Join(projectDir, config.ConfigDirName, f))
+			require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
+		}
+		require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("initializeProject() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			for _, file := range tt.wantFiles {
-				if userspace, ok := tt.flags["userspace"].(bool); ok && userspace && !strings.Contains(file, "/") {
-					continue
-				}
-				if _, err := os.Stat(file); os.IsNotExist(err) {
-					t.Errorf("expected file %s to exist, but it doesn't", file)
-				}
-			}
-
-			for _, file := range tt.wantNoFiles {
-				if _, err := os.Stat(file); !os.IsNotExist(err) {
-					t.Errorf("expected file %s to not exist, but it does", file)
-				}
-			}
-		})
-	}
+		data, err := os.ReadFile(filepath.Join(projectDir, config.DefaultConfigPath))
+		require.NoError(t, err)
+		require.Contains(t, string(data), "Project-level configuration overrides")
+		require.NotContains(t, string(data), "gateway:")
+	})
 }
 
 func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {

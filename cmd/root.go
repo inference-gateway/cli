@@ -106,17 +106,65 @@ func applyBashAllowAppends(v *viper.Viper) {
 	}
 }
 
+// loadLayeredConfig reads config.yaml userspace-first: the home
+// ~/.infer/config.yaml is the base layer and a project ./.infer/config.yaml
+// (or ./config.yaml) is merged on top key-by-key. This is the userspace-first
+// model (issue #680) - a project commits only the keys it overrides and inherits
+// everything else from the home baseline. Net precedence: defaults < home <
+// project < flags < env. A project that omits config.yaml inherits home wholesale.
+func loadLayeredConfig(v *viper.Viper) {
+	homeConfigPath := ""
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homeConfigPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	}
+
+	readLayer := func(path string, merge bool) {
+		v.SetConfigFile(path)
+		var err error
+		if merge {
+			err = v.MergeInConfig()
+		} else {
+			err = v.ReadInConfig()
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading config %s: %v\n", path, err)
+			os.Exit(1)
+		}
+	}
+
+	loaded := false
+	if homeConfigPath != "" && fileExists(homeConfigPath) {
+		readLayer(homeConfigPath, false)
+		loaded = true
+	}
+
+	// The project layer is merged on top of home. When home and project resolve
+	// to the same file (e.g. running from within ~/.infer), skip the second read
+	// so a single file isn't merged onto itself.
+	if projectPath := resolveProjectConfigPath(); projectPath != "" && !sameConfigFile(projectPath, homeConfigPath) {
+		readLayer(projectPath, loaded)
+	}
+}
+
+// resolveProjectConfigPath returns the first existing project-level config.yaml,
+// matching the legacy search order (cwd ./config.yaml, then ./.infer/config.yaml).
+// Returns "" when neither exists.
+func resolveProjectConfigPath() string {
+	for _, p := range []string{config.ConfigFileName, config.DefaultConfigPath} {
+		if fileExists(p) {
+			return p
+		}
+	}
+	return ""
+}
+
 func initConfig() {
 	V = viper.New()
 	v := V
 
 	registerConfigDefaults(v, config.DefaultConfig())
 
-	v.SetConfigName("config")
 	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-	v.AddConfigPath("./.infer")
-	v.AddConfigPath("$HOME/.infer")
 	v.SetEnvPrefix("INFER")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -129,12 +177,7 @@ func initConfig() {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
 	}
 
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			fmt.Fprintf(os.Stderr, "Error reading config: %v\n", err)
-			os.Exit(1)
-		}
-	}
+	loadLayeredConfig(v)
 
 	applyBashAllowAppends(v)
 

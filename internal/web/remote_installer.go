@@ -173,7 +173,7 @@ echo "Binary installed to: %s/infer"
 	}
 	defer func() { _ = session3.Close() }()
 
-	initCmd := fmt.Sprintf("%s/infer init --userspace", installDir)
+	initCmd := fmt.Sprintf("%s/infer init", installDir)
 	initOutput, err := session3.CombinedOutput(initCmd)
 	if err != nil {
 		logger.Warn("failed to initialize infer config, may need manual setup", "error", err, "output", string(initOutput))

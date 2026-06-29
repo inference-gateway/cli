@@ -75,7 +75,7 @@ func init() {
 	keybindingsCmd.AddCommand(keybindingsEnableCmd)
 	keybindingsCmd.AddCommand(keybindingsDisableCmd)
 
-	keybindingsCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
+	keybindingsCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 
 	rootCmd.AddCommand(keybindingsCmd)
 }
@@ -121,7 +121,7 @@ func listKeybindings(cmd *cobra.Command, args []string) error {
 }
 
 func resetKeybindings(cmd *cobra.Command, args []string) error {
-	path, err := getKeybindingsConfigWritePath(GetUserspaceFlag(cmd))
+	path, err := getKeybindingsConfigWritePath(GetProjectFlag(cmd))
 	if err != nil {
 		return err
 	}
@@ -357,10 +357,11 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 }
 
 // loadKeybindingsForWrite resolves the destination keybindings.yaml path
-// (honouring --userspace), loads the existing config (or defaults if the
-// file is absent), and returns everything callers need to mutate-and-save.
+// (userspace ~/.infer/ by default, or the project layer under --project),
+// loads the existing config (or defaults if the file is absent), and returns
+// everything callers need to mutate-and-save.
 func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsConfig, error) {
-	path, err := getKeybindingsConfigWritePath(GetUserspaceFlag(cmd))
+	path, err := getKeybindingsConfigWritePath(GetProjectFlag(cmd))
 	if err != nil {
 		return "", nil, err
 	}
