@@ -63,7 +63,7 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 			return nil
 		}
 
-		if s.ctx.BackgroundTaskRegistry != nil && s.ctx.BackgroundTaskRegistry.HasPending() {
+		if s.ctx.BackgroundTaskRegistry != nil && s.ctx.BackgroundTaskRegistry.HasActiveWork() {
 			logger.Debug("background tasks pending, waiting")
 			s.ctx.WaitGroup.Add(1)
 			go func() {

@@ -11,6 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -621,6 +622,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	var subagentPoller *services.SubagentPoller
 	if s.bgRegistry != nil && s.config.IsAgentToolEnabled() {
 		subagentPoller = services.NewSubagentPoller(s.bgRegistry, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
+		// Chat mode only: watch interactive subagents' panes so they notify on
+		// completion (the agent waits instead of polling). Set before Start.
+		subagentPoller.SetPaneInspector(tools.NewPaneInspector())
 		go subagentPoller.Start(sessionCtx)
 	}
 

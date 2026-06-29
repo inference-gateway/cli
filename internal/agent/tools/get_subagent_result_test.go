@@ -19,11 +19,13 @@ func TestGetSubagentResultTool_Validate(t *testing.T) {
 	}
 }
 
-func TestGetSubagentResultTool_Interactive(t *testing.T) {
+// A completed interactive subagent (kept tracked, pane still open) can have its
+// final output re-read on demand.
+func TestGetSubagentResultTool_CompletedInteractiveReadsPane(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
 	_ = tracker.AddSubagent(&domain.SubagentState{
 		ID: "s1", Label: "w", Mode: domain.SubagentModeInteractive,
-		SessionID: "sess", PaneID: "%5", Status: domain.SubagentRunning,
+		SessionID: "sess", PaneID: "%5", Status: domain.SubagentCompleted,
 	})
 	tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
 	gotLines := -1
@@ -44,11 +46,28 @@ func TestGetSubagentResultTool_Interactive(t *testing.T) {
 	if data["output"] != "hello from pane" {
 		t.Fatalf("output = %v", data["output"])
 	}
-	if data["status"] != "running" {
-		t.Fatalf("status = %v, want running", data["status"])
-	}
 	if gotLines != 12 {
 		t.Fatalf("lines arg not forwarded: got %d", gotLines)
+	}
+}
+
+// A running subagent (either mode) must refuse the poll - it notifies automatically.
+func TestGetSubagentResultTool_RunningRefuses(t *testing.T) {
+	for _, mode := range []string{domain.SubagentModeInteractive, domain.SubagentModeHeadless} {
+		tracker := utils.NewSubagentTracker()
+		_ = tracker.AddSubagent(&domain.SubagentState{
+			ID: "r1", Label: "w", Mode: mode, PaneID: "%5", Status: domain.SubagentRunning,
+		})
+		tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
+		tool.capturePane = func(ctx context.Context, paneID string, maxLines int) string { return "x" }
+		tool.paneState = func(ctx context.Context, paneID string) paneState { return paneAlive }
+		res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "r1"})
+		if err != nil {
+			t.Fatalf("Execute(%s): %v", mode, err)
+		}
+		if res.Success {
+			t.Fatalf("a running %s subagent should refuse polling", mode)
+		}
 	}
 }
 
@@ -63,18 +82,22 @@ func TestGetSubagentResultTool_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetSubagentResultTool_HeadlessMessage(t *testing.T) {
+// A running headless subagent is monitored in the background and notifies
+// automatically, so polling it via GetSubagentResult must be refused.
+func TestGetSubagentResultTool_HeadlessRefusesWhileRunning(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
 	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "h1", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
+		ID: "h1", Label: "worker", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
 	})
 	tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "h1"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	data := res.Data.(map[string]any)
-	if _, ok := data["message"]; !ok {
-		t.Fatalf("headless subagent should return an explanatory message, got %+v", data)
+	if res.Success {
+		t.Fatalf("a running headless subagent should refuse polling")
+	}
+	if res.Error == "" {
+		t.Fatalf("refusal should explain that the subagent notifies automatically")
 	}
 }

@@ -262,7 +262,9 @@ func (a *EventDrivenAgent) processEvents() {
 			}
 
 			if currentState == domain.StateIdle {
-				hasPendingTasks := a.registry != nil && a.registry.HasPending()
+				// HasActiveWork (not HasPending) so the loop stays alive while
+				// interactive subagents run and their pane watcher can notify.
+				hasPendingTasks := a.registry != nil && a.registry.HasActiveWork()
 				if hasPendingTasks {
 					logger.Debug("agent in Idle state but has pending background tasks, staying alive")
 				} else {

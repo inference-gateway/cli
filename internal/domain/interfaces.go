@@ -652,8 +652,16 @@ type BackgroundTaskRegistry interface {
 
 	// HasPending reports whether *any* background work is still in flight,
 	// regardless of type. True when there is at least one A2A task being
-	// polled, one running background shell, OR one running local subagent.
+	// polled, one running background shell, OR one running HEADLESS subagent.
+	// It deliberately excludes interactive subagents so a one-shot `infer agent`
+	// does not hang at exit waiting on a user-driven tmux pane.
 	HasPending() bool
+
+	// HasActiveWork is HasPending plus running INTERACTIVE subagents. The chat
+	// agent loop uses it to stay alive while interactive subagents run, so the
+	// pane watcher can deliver their completion notifications. The headless
+	// final-wait keeps using HasPending (see above).
+	HasActiveWork() bool
 }
 
 // FetchResult represents the result of a fetch operation

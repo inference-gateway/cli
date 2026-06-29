@@ -6,6 +6,43 @@ import (
 	"strings"
 )
 
+// chatIdleMarker is the input placeholder shown by the chat TUI when it is
+// idle and waiting for input (see internal/ui/components/input_view.go). Its
+// presence near the bottom of a subagent's pane means the chat finished its
+// turn.
+const chatIdleMarker = "Type your message"
+
+// NewPaneInspector returns a services.PaneInspector (a
+// func(ctx, paneID) (content string, idle bool, gone bool)) backed by the tmux
+// helpers. It is injected into the SubagentPoller in chat mode so it can watch
+// interactive subagents for completion. idle is true when the chat input prompt
+// has reappeared in the last few lines (the subagent finished its turn) or the
+// pane's process exited; gone is true when the pane no longer exists.
+func NewPaneInspector() func(ctx context.Context, paneID string) (string, bool, bool) {
+	return func(ctx context.Context, paneID string) (string, bool, bool) {
+		switch tmuxPaneState(ctx, paneID) {
+		case paneGone:
+			return "", false, true
+		case paneDead:
+			// Process exited (kept by remain-on-exit) - definitively done.
+			return tmuxCapturePaneTail(ctx, paneID, defaultPaneTailLines), true, false
+		}
+		content := tmuxCapturePaneTail(ctx, paneID, defaultPaneTailLines)
+		return content, lastLinesContain(content, chatIdleMarker, 6), false
+	}
+}
+
+// lastLinesContain reports whether the marker appears within the last n lines of
+// s. Restricting to the tail avoids mistaking the marker appearing inside a
+// subagent's response for the idle input prompt at the bottom of the pane.
+func lastLinesContain(s, marker string, n int) bool {
+	lines := strings.Split(s, "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Contains(strings.Join(lines, "\n"), marker)
+}
+
 // Tail bounds for harvesting a subagent pane's output: enough to show the last
 // message or two, never the full scrollback.
 const (

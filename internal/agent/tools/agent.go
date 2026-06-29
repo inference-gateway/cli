@@ -391,7 +391,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		})
 	}
 
-	msg := fmt.Sprintf("Launched %d interactive subagent(s) in tmux panes - each a live chat you can watch. They keep running until they exit or you close them: use ListSubagents to check status, GetSubagentResult to read a subagent's latest output, and CloseSubagent to close one once its work is done.", len(launched))
+	msg := fmt.Sprintf("Launched %d interactive subagent(s) in tmux panes - live chats you can watch. You will be AUTOMATICALLY NOTIFIED when each finishes (its final output is folded back into this conversation) - do NOT poll with ListSubagents/GetSubagentResult; just wait. Use CloseSubagent only to stop one early.", len(launched))
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}

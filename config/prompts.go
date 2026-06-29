@@ -601,19 +601,20 @@ Provide either 'tasks' (an array of {description, label?, model?, system_prompt?
 
 The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
-- Headless subagents honor tools.agent.wait: blocking (default) waits until all finish and returns their aggregated results (fan-out / fan-in); async returns immediately and you are AUTOMATICALLY NOTIFIED when each completes - do not poll.
-- Interactive subagents are fire-and-watch: the call returns once their tmux panes are launched, and they keep running until they exit or you close them. Use ListSubagents to check status, GetSubagentResult to read a subagent's latest output, and CloseSubagent to close one once its work is done.
+In EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation) - do NOT poll with ListSubagents/GetSubagentResult; dispatch, then wait for the notification.
+- Headless subagents honor tools.agent.wait: blocking (default) waits until all finish and returns their aggregated results (fan-out / fan-in); async returns immediately and notifies you as each completes.
+- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live and are notified when each finishes. Use CloseSubagent only to stop one early.
 
 Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.`,
 		},
 		ListSubagents: PromptsToolDescription{
-			Description: `List the local subagents spawned by the Agent tool, with each one's id, label, mode, and status. For interactive (tmux-pane) subagents the status is live (running / finished / closed) so you can tell which have finished their work. Use the returned subagent_id with GetSubagentResult or CloseSubagent.`,
+			Description: `Snapshot the local subagents spawned by the Agent tool (id, label, mode, status). Running subagents notify you automatically when they finish - this is a one-off status check, NOT a way to poll for completion. Use a returned subagent_id with GetSubagentResult or CloseSubagent.`,
 		},
 		GetSubagentResult: PromptsToolDescription{
-			Description: `Read the latest output of an interactive subagent by capturing a bounded tail of its tmux pane (the last message or few messages, not the whole history). Pass the subagent_id from ListSubagents; optionally set 'lines' to control how many trailing lines to return. Use this to judge whether a subagent has finished its work before closing it. Headless subagents have no live output - their result is delivered automatically on completion.`,
+			Description: `Read an interactive subagent's latest pane output on demand. Do NOT use this to poll for completion - you are notified automatically when a subagent finishes; a running headless subagent refuses this call. Pass the subagent_id from ListSubagents; optionally set 'lines' for how many trailing lines to return.`,
 		},
 		CloseSubagent: PromptsToolDescription{
-			Description: `Close a subagent spawned by the Agent tool. For an interactive subagent this captures a final tail of its pane output (folded back into the conversation) and closes its tmux pane; for a headless one it cancels the running subprocess. Pass the subagent_id from ListSubagents. Use this once a subagent has finished its work so its pane does not linger.`,
+			Description: `Stop a subagent early or tidy a finished interactive pane. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes. For an interactive subagent this harvests a final tail of its pane and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.`,
 		},
 		A2AQueryAgent: PromptsToolDescription{
 			Description: `Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.`,

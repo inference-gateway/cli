@@ -242,6 +242,16 @@ type FakeBackgroundTaskRegistry struct {
 	getTasksForContextReturnsOnCall map[int]struct {
 		result1 []string
 	}
+	HasActiveWorkStub        func() bool
+	hasActiveWorkMutex       sync.RWMutex
+	hasActiveWorkArgsForCall []struct {
+	}
+	hasActiveWorkReturns struct {
+		result1 bool
+	}
+	hasActiveWorkReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	HasContextStub        func(string) bool
 	hasContextMutex       sync.RWMutex
 	hasContextArgsForCall []struct {
@@ -1621,6 +1631,59 @@ func (fake *FakeBackgroundTaskRegistry) GetTasksForContextReturnsOnCall(i int, r
 	}
 	fake.getTasksForContextReturnsOnCall[i] = struct {
 		result1 []string
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) HasActiveWork() bool {
+	fake.hasActiveWorkMutex.Lock()
+	ret, specificReturn := fake.hasActiveWorkReturnsOnCall[len(fake.hasActiveWorkArgsForCall)]
+	fake.hasActiveWorkArgsForCall = append(fake.hasActiveWorkArgsForCall, struct {
+	}{})
+	stub := fake.HasActiveWorkStub
+	fakeReturns := fake.hasActiveWorkReturns
+	fake.recordInvocation("HasActiveWork", []interface{}{})
+	fake.hasActiveWorkMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) HasActiveWorkCallCount() int {
+	fake.hasActiveWorkMutex.RLock()
+	defer fake.hasActiveWorkMutex.RUnlock()
+	return len(fake.hasActiveWorkArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) HasActiveWorkCalls(stub func() bool) {
+	fake.hasActiveWorkMutex.Lock()
+	defer fake.hasActiveWorkMutex.Unlock()
+	fake.HasActiveWorkStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) HasActiveWorkReturns(result1 bool) {
+	fake.hasActiveWorkMutex.Lock()
+	defer fake.hasActiveWorkMutex.Unlock()
+	fake.HasActiveWorkStub = nil
+	fake.hasActiveWorkReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) HasActiveWorkReturnsOnCall(i int, result1 bool) {
+	fake.hasActiveWorkMutex.Lock()
+	defer fake.hasActiveWorkMutex.Unlock()
+	fake.HasActiveWorkStub = nil
+	if fake.hasActiveWorkReturnsOnCall == nil {
+		fake.hasActiveWorkReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.hasActiveWorkReturnsOnCall[i] = struct {
+		result1 bool
 	}{result1}
 }
 

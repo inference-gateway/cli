@@ -84,7 +84,10 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 // report their tracked status.
 func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.SubagentState) map[string]any {
 	status := string(s.Status)
-	if s.Mode == domain.SubagentModeInteractive {
+	// While an interactive subagent is still running, refine its status with the
+	// live pane state (running / finished / closed). A completed one keeps its
+	// tracked "completed" status (its pane is idle but still alive).
+	if s.Mode == domain.SubagentModeInteractive && s.Status == domain.SubagentRunning {
 		status = t.paneState(ctx, s.PaneID).status()
 	}
 	info := map[string]any{
@@ -98,6 +101,9 @@ func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.Subagent
 	}
 	if s.PaneID != "" {
 		info["pane_id"] = s.PaneID
+	}
+	if s.Status == domain.SubagentRunning {
+		info["note"] = "notifies automatically when it finishes; do not poll"
 	}
 	return info
 }
@@ -160,7 +166,7 @@ func (t *ListSubagentsTool) formatList(result *domain.ToolExecutionResult) strin
 			fmt.Fprintf(&out, "   elapsed: %s\n", elapsed)
 		}
 	}
-	out.WriteString("\nUse GetSubagentResult(subagent_id=\"<id>\") to read a subagent's latest output, or CloseSubagent(subagent_id=\"<id>\") to close one.")
+	out.WriteString("\nRunning subagents notify you automatically when they finish - do not poll. Use CloseSubagent(subagent_id=\"<id>\") only to stop one early or tidy a finished pane.")
 	return out.String()
 }
 

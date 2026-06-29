@@ -51,6 +51,20 @@ func (r *backgroundTaskRegistry) HasPending() bool {
 	return false
 }
 
+// HasActiveWork reports whether any background work is in flight INCLUDING
+// running interactive subagents. The chat agent loop uses this (rather than
+// HasPending) so it stays alive while interactive subagents run and the pane
+// watcher can deliver their completion notifications.
+func (r *backgroundTaskRegistry) HasActiveWork() bool {
+	if r.HasPending() {
+		return true
+	}
+	if r.SubagentTracker != nil && r.CountRunningSubagents() > 0 {
+		return true
+	}
+	return false
+}
+
 // countPendingSubagents counts only headless running subagents. Interactive
 // subagents are live, user-driven tmux panes managed via the subagent tools;
 // they must not keep a session open waiting on them, or a headless run that
