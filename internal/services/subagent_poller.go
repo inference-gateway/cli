@@ -91,6 +91,13 @@ func (p *SubagentPoller) checkForNewSubagents(ctx context.Context) {
 		return
 	}
 	for _, state := range p.tracker.GetAllSubagents() {
+		// Interactive subagents are managed synchronously by the ListSubagents /
+		// GetSubagentResult / CloseSubagent tools and have no ResultChan-based
+		// completion. Monitoring them here would re-emit a "submitted" event every
+		// turn and block a monitor goroutine on a channel nobody sends to.
+		if state.Mode == domain.SubagentModeInteractive {
+			continue
+		}
 		p.mu.RLock()
 		_, monitoring := p.activeMonitors[state.ID]
 		p.mu.RUnlock()

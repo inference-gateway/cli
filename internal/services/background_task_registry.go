@@ -45,8 +45,22 @@ func (r *backgroundTaskRegistry) HasPending() bool {
 	if r.ShellTracker != nil && r.CountRunning() > 0 {
 		return true
 	}
-	if r.SubagentTracker != nil && r.CountRunningSubagents() > 0 {
+	if r.SubagentTracker != nil && r.countPendingSubagents() > 0 {
 		return true
 	}
 	return false
+}
+
+// countPendingSubagents counts only headless running subagents. Interactive
+// subagents are live, user-driven tmux panes managed via the subagent tools;
+// they must not keep a session open waiting on them, or a headless run that
+// opened one would hang at exit until the background-task wait times out.
+func (r *backgroundTaskRegistry) countPendingSubagents() int {
+	n := 0
+	for _, s := range r.GetAllSubagents() {
+		if s.Status == domain.SubagentRunning && s.Mode != domain.SubagentModeInteractive {
+			n++
+		}
+	}
+	return n
 }

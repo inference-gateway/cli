@@ -78,6 +78,9 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.WebSearch, &defaults.WebSearch)
 	mergeToolDescription(&loaded.Schedule, &defaults.Schedule)
 	mergeToolDescription(&loaded.Agent, &defaults.Agent)
+	mergeToolDescription(&loaded.ListSubagents, &defaults.ListSubagents)
+	mergeToolDescription(&loaded.GetSubagentResult, &defaults.GetSubagentResult)
+	mergeToolDescription(&loaded.CloseSubagent, &defaults.CloseSubagent)
 	mergeToolDescription(&loaded.A2AQueryAgent, &defaults.A2AQueryAgent)
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
 	mergeToolDescription(&loaded.A2ASubmitTask, &defaults.A2ASubmitTask)
@@ -177,6 +180,9 @@ type PromptsToolsConfig struct {
 	WebSearch           PromptsToolDescription `yaml:"WebSearch" mapstructure:"WebSearch"`
 	Schedule            PromptsToolDescription `yaml:"Schedule" mapstructure:"Schedule"`
 	Agent               PromptsToolDescription `yaml:"Agent" mapstructure:"Agent"`
+	ListSubagents       PromptsToolDescription `yaml:"ListSubagents" mapstructure:"ListSubagents"`
+	GetSubagentResult   PromptsToolDescription `yaml:"GetSubagentResult" mapstructure:"GetSubagentResult"`
+	CloseSubagent       PromptsToolDescription `yaml:"CloseSubagent" mapstructure:"CloseSubagent"`
 	A2AQueryAgent       PromptsToolDescription `yaml:"A2A_QueryAgent" mapstructure:"A2A_QueryAgent"`
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
 	A2ASubmitTask       PromptsToolDescription `yaml:"A2A_SubmitTask" mapstructure:"A2A_SubmitTask"`
@@ -595,11 +601,19 @@ Provide either 'tasks' (an array of {description, label?, model?, system_prompt?
 
 The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
-Result delivery is operator-configured (tools.agent.wait), not your choice - there is no wait parameter:
-- Blocking (default): the call waits until all subagents finish and returns their aggregated results in one response (fan-out / fan-in); their live progress shows while it runs.
-- Async: the call returns immediately and you are AUTOMATICALLY NOTIFIED when each subagent completes - do not poll, the results appear in the conversation.
+- Headless subagents honor tools.agent.wait: blocking (default) waits until all finish and returns their aggregated results (fan-out / fan-in); async returns immediately and you are AUTOMATICALLY NOTIFIED when each completes - do not poll.
+- Interactive subagents are fire-and-watch: the call returns once their tmux panes are launched, and they keep running until they exit or you close them. Use ListSubagents to check status, GetSubagentResult to read a subagent's latest output, and CloseSubagent to close one once its work is done.
 
 Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.`,
+		},
+		ListSubagents: PromptsToolDescription{
+			Description: `List the local subagents spawned by the Agent tool, with each one's id, label, mode, and status. For interactive (tmux-pane) subagents the status is live (running / finished / closed) so you can tell which have finished their work. Use the returned subagent_id with GetSubagentResult or CloseSubagent.`,
+		},
+		GetSubagentResult: PromptsToolDescription{
+			Description: `Read the latest output of an interactive subagent by capturing a bounded tail of its tmux pane (the last message or few messages, not the whole history). Pass the subagent_id from ListSubagents; optionally set 'lines' to control how many trailing lines to return. Use this to judge whether a subagent has finished its work before closing it. Headless subagents have no live output - their result is delivered automatically on completion.`,
+		},
+		CloseSubagent: PromptsToolDescription{
+			Description: `Close a subagent spawned by the Agent tool. For an interactive subagent this captures a final tail of its pane output (folded back into the conversation) and closes its tmux pane; for a headless one it cancels the running subprocess. Pass the subagent_id from ListSubagents. Use this once a subagent has finished its work so its pane does not linger.`,
 		},
 		A2AQueryAgent: PromptsToolDescription{
 			Description: `Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.`,

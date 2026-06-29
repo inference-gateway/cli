@@ -121,6 +121,9 @@ func (r *Registry) registerTools() {
 
 	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
 		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker)
+		r.tools["ListSubagents"] = NewListSubagentsTool(cfg, r.subagentTracker)
+		r.tools["GetSubagentResult"] = NewGetSubagentResultTool(cfg, r.subagentTracker)
+		r.tools["CloseSubagent"] = NewCloseSubagentTool(cfg, r.subagentTracker)
 	}
 
 	if cfg.Tools.WebFetch.Enabled {

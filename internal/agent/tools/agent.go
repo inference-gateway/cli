@@ -70,6 +70,7 @@ type AgentTool struct {
 	runHeadless          func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
 	interactiveAvailable func() bool
 	launchPane           func(ctx context.Context, title, command string) (string, error)
+	sendTask             func(ctx context.Context, paneID, task string) error
 }
 
 // NewAgentTool creates the Agent tool. tracker must be the session's
@@ -84,6 +85,7 @@ func NewAgentTool(cfg *config.Config, tracker domain.SubagentTracker) *AgentTool
 	t.runHeadless = agentrunner.Run
 	t.interactiveAvailable = tmuxAvailable
 	t.launchPane = t.launchTmuxPane
+	t.sendTask = t.sendTaskToPane
 	return t
 }
 
@@ -171,6 +173,14 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		specs[i].ParentMode = parentMode
 	}
 
+	// Interactive subagents have no completion signal (a live `infer chat` REPL),
+	// so they are fire-and-track regardless of the wait setting: launch the panes,
+	// register them, and return. The main agent inspects and closes them with the
+	// ListSubagents / GetSubagentResult / CloseSubagent tools.
+	if mode == domain.SubagentModeInteractive {
+		return t.runInteractive(ctx, args, start, specs, parentSession, notes), nil
+	}
+
 	if wait {
 		return t.runWait(ctx, args, start, specs, mode, parentSession, notes), nil
 	}
@@ -201,7 +211,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 		wg.Add(1)
 		go func(i int, spec AgentTaskSpec, state *domain.SubagentState) {
 			defer wg.Done()
-			answer, err := t.executeOne(ctx, spec, state.SessionID, mode)
+			answer, err := t.executeOne(ctx, spec, state.SessionID)
 			sub := toSubResult(spec, state.SessionID, answer, err)
 			results[i] = sub
 			status := domain.SubagentCompleted
@@ -270,7 +280,7 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 		state.CancelFunc = cancel
 		go func(spec AgentTaskSpec, state *domain.SubagentState) {
 			defer cancel()
-			answer, err := t.executeOne(runCtx, spec, state.SessionID, state.Mode)
+			answer, err := t.executeOne(runCtx, spec, state.SessionID)
 			sub := toSubResult(spec, state.SessionID, answer, err)
 			status := domain.SubagentCompleted
 			if !sub.Success {
@@ -309,11 +319,9 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 	}
 }
 
-// executeOne runs a single subagent and returns its final assistant message.
-func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID, mode string) (string, error) {
-	if mode == domain.SubagentModeInteractive {
-		return t.executeInteractive(ctx, spec, sessionID)
-	}
+// executeOne runs a single headless subagent and returns its final assistant
+// message. Interactive subagents are handled separately by runInteractive.
+func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, error) {
 	resultFile := subagentResultFilePath(sessionID)
 	_ = os.Remove(resultFile)
 	defer func() { _ = os.Remove(resultFile) }()
@@ -341,23 +349,78 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	return answer, err
 }
 
-// executeInteractive launches a live `infer chat` subagent in a tmux pane and
-// types the task into it via stdin (tmux send-keys). It is fire-and-watch:
-// `infer chat` is interactive and gives no completion signal, so there is no
-// automatic result harvest - the user watches and drives the side-chat.
-func (t *AgentTool) executeInteractive(ctx context.Context, spec AgentTaskSpec, _ string) (string, error) {
-	title := spec.Label
-	if title == "" {
-		title = "subagent"
+// runInteractive launches each subagent in its own live `infer chat` tmux pane,
+// types in the task, and tracks it as a running interactive subagent. There is
+// no completion signal (the pane is a user-driven REPL), so this is
+// fire-and-track: it returns once the panes are launched. The main agent then
+// uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
+// them.
+func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *domain.ToolExecutionResult {
+	launched := make([]AgentSubResult, 0, len(specs))
+	for _, spec := range specs {
+		sessionID := newSubagentSessionID(parentSession)
+		title := spec.Label
+		if title == "" {
+			title = "subagent"
+		}
+		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec))
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("%s: failed to open tmux pane: %v", labelOrSession(spec.Label, sessionID), err))
+			continue
+		}
+		if err := t.sendTask(ctx, paneID, spec.Description); err != nil {
+			logger.Warn("failed to send task to interactive subagent pane", "pane", paneID, "error", err)
+		}
+
+		state := &domain.SubagentState{
+			ID:          uuid.New().String(),
+			Label:       spec.Label,
+			Description: spec.Description,
+			Model:       spec.Model,
+			Mode:        domain.SubagentModeInteractive,
+			SessionID:   sessionID,
+			PaneID:      paneID,
+			Status:      domain.SubagentRunning,
+			StartedAt:   time.Now(),
+		}
+		if err := t.tracker.AddSubagent(state); err != nil {
+			logger.Warn("failed to track interactive subagent", "error", err)
+			continue
+		}
+		launched = append(launched, AgentSubResult{
+			Label:     spec.Label,
+			SessionID: sessionID,
+			Success:   true,
+			Result:    fmt.Sprintf("running in tmux pane %s", paneID),
+		})
 	}
-	paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec))
-	if err != nil {
-		return "", fmt.Errorf("failed to open tmux pane: %w", err)
+
+	msg := fmt.Sprintf("Launched %d interactive subagent(s) in tmux panes - each a live chat you can watch. They keep running until they exit or you close them: use ListSubagents to check status, GetSubagentResult to read a subagent's latest output, and CloseSubagent to close one once its work is done.", len(launched))
+	if len(notes) > 0 {
+		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
-	if err := t.sendTaskToPane(ctx, paneID, spec.Description); err != nil {
-		logger.Warn("failed to send task to interactive subagent pane", "pane", paneID, "error", err)
+	return &domain.ToolExecutionResult{
+		ToolName:  "Agent",
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data: AgentToolResult{
+			Mode:       domain.SubagentModeInteractive,
+			Wait:       false,
+			Dispatched: len(launched),
+			Subagents:  launched,
+			Message:    msg,
+		},
 	}
-	return fmt.Sprintf("Launched an interactive chat subagent in tmux pane %s and typed in the task: %q. Watch and interact with it in the pane.", paneID, spec.Description), nil
+}
+
+// labelOrSession returns label, or a short session id when the label is blank,
+// for use in user-facing notes.
+func labelOrSession(label, sessionID string) string {
+	if label != "" {
+		return label
+	}
+	return shortSession(sessionID)
 }
 
 // buildChatPaneCommand assembles the shell command run inside the tmux pane: a

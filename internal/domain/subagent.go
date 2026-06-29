@@ -38,6 +38,7 @@ type SubagentState struct {
 	Model       string
 	Mode        string // SubagentModeHeadless | SubagentModeInteractive
 	SessionID   string
+	PaneID      string // tmux pane id for interactive subagents ("" for headless)
 	Status      SubagentStatus
 	StartedAt   time.Time
 	CancelFunc  context.CancelFunc
