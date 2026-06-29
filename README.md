@@ -192,7 +192,7 @@ chmod +x infer-darwin-amd64
 sudo mv infer-darwin-amd64 /usr/local/bin/infer
 ```
 
-For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/security/binary-verification.md).
+For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/binary-verification.md).
 
 ### Build from Source
 
