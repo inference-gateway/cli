@@ -25,6 +25,7 @@ An agentic command-line assistant that writes code, understands project context,
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Claude Code Mode (Subscription)](#claude-code-mode-subscription)
 - [Commands](#commands)
 - [Tools for LLMs](#tools-for-llms)
 - [Configuration](#configuration)
@@ -33,6 +34,10 @@ An agentic command-line assistant that writes code, understands project context,
 - [Shortcuts](#shortcuts)
 - [Channels (Remote Messaging)](#channels-remote-messaging)
 - [Heartbeat (Periodic Wake-Up)](#heartbeat-periodic-wake-up)
+- [Agent Skills](#agent-skills)
+- [Computer Use](#computer-use)
+- [Persistent Memory](#persistent-memory)
+- [Reminders & Command Hooks](#reminders--command-hooks)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
 - [Development](#development)
@@ -47,18 +52,19 @@ An agentic command-line assistant that writes code, understands project context,
 - **Conversation History**: Store and retrieve past conversations with multiple storage backends
   - [Conversation Storage](docs/conversation-storage.md) - Detailed storage backend documentation
   - [Conversation Title Generation](docs/conversation-title-generation.md) - AI-powered title generation system
+  - [Database Migrations](docs/database-migrations.md) - Schema migration system for the SQLite/Postgres backends
 - **Conversation Versioning**: Navigate back in time to previous conversation points (double ESC)
   - View message history with timestamps
   - Restore conversation to any previous user message
   - Permanent deletion of messages after restore point
-  - [Learn more →](docs/features/conversation-versioning.md)
+  - [Learn more →](docs/conversation-versioning.md)
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute allowed commands and tools - [See all tools →](docs/tools-reference.md)
 - **Tool Approval System**: User approval workflow for sensitive operations with real-time diff visualization
 - **Agent Modes**: Three operational modes for different workflows:
   - **Standard Mode** (default): Normal operation with all configured tools and approval checks
-  - **Plan Mode**: Read-only mode for planning and analysis without execution
+  - **Plan Mode**: Read-only mode for planning and analysis without execution - [Learn more →](docs/plan-mode.md)
   - **Auto-Accept Mode**: All tools auto-approved for rapid execution (YOLO mode)
   - Toggle between modes with **Shift+Tab**
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers that don't return usage metrics
@@ -83,6 +89,16 @@ An agentic command-line assistant that writes code, understands project context,
   recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
 - **Heartbeat (Periodic Wake-Up)**: Wake the agent on a fixed interval to check for pending todos and background work,
   with a separate configurable system prompt - off by default - [Learn more →](docs/heartbeat.md)
+- **Agent Skills**: Drop-in `SKILL.md` instruction folders the agent discovers and loads on demand;
+  install them straight from GitHub with `infer skills install` - on by default - [Learn more →](docs/skills.md)
+- **Persistent Memory**: Cross-session memory stored as individual Markdown fact-files with an
+  auto-maintained `MEMORY.md` index that is injected at session start - on by default - [Learn more →](#persistent-memory)
+- **Subagents**: Spawn parallel `infer agent` subprocesses from chat with the `Agent` tool to fan out
+  independent work (research, edits, investigations) and fold their results back into the conversation
+- **Computer Use**: Let the agent drive the desktop - mouse, keyboard, screenshots, app focus - across
+  macOS, X11, and Wayland - off by default - [Learn more →](#computer-use)
+- **Reminders & Command Hooks**: Inject system reminders or run shell commands at agent-loop hook
+  points to enforce project conventions - [Learn more →](#reminders--command-hooks)
 
 ## Installation
 
@@ -176,7 +192,7 @@ chmod +x infer-darwin-amd64
 sudo mv infer-darwin-amd64 /usr/local/bin/infer
 ```
 
-For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/security/binary-verification.md).
+For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/binary-verification.md).
 
 ### Build from Source
 
@@ -522,7 +538,8 @@ infer agents add custom https://...  # Add a custom agent
 infer agents list                    # List all agents
 ```
 
-For detailed A2A setup, see [A2A Agents Configuration](docs/agents-configuration.md).
+For detailed A2A setup, see [A2A Agents Configuration](docs/agents-configuration.md); for how
+connections are established and tasks polled, see [A2A Connections](docs/a2a-connections.md).
 
 ### Utility Commands
 
@@ -552,6 +569,24 @@ infer conversation-title generate  # Generate titles for all conversations
 infer conversation-title status    # Show generation status
 ```
 
+**`infer skills`** - Manage Agent Skills (reusable `SKILL.md` instruction folders)
+
+```bash
+infer skills list                                # List discovered skills
+infer skills install skill-creator               # Install a skill from GitHub
+infer skills install acme/internal-comms --user  # Install to ~/.infer/skills
+infer skills uninstall pdf                        # Remove a skill by name
+```
+
+See [Agent Skills](#agent-skills) and [docs/skills.md](docs/skills.md) for the format.
+
+**`infer export`** - Export a conversation to a Markdown file
+
+```bash
+infer conversations list      # Find the session ID
+infer export <session-id>     # Writes .infer/chat_export_<timestamp>.md
+```
+
 **`infer version`** - Display CLI version information
 
 ```bash
@@ -564,24 +599,84 @@ When tool execution is enabled, LLMs can use various tools to interact with your
 summary of available tools. For detailed documentation, parameters, and examples, see
 [Tools Reference](docs/tools-reference.md).
 
-| Tool | Purpose | Approval Required | Documentation |
-| ------ | --------- | ------------------- | --------------- |
-| **Bash** | Execute allowed shell commands | Optional | [Details](docs/tools-reference.md#bash-tool) |
-| **Read** | Read file contents with line ranges | No | [Details](docs/tools-reference.md#read-tool) |
-| **Write** | Write content to files | Yes | [Details](docs/tools-reference.md#write-tool) |
-| **Edit** | Exact string replacements in files | Yes | [Details](docs/tools-reference.md#edit-tool) |
-| **MultiEdit** | Multiple atomic edits to files | Yes | [Details](docs/tools-reference.md#multiedit-tool) |
-| **Delete** | Delete files and directories | Yes | [Details](docs/tools-reference.md#delete-tool) |
-| **Tree** | Display directory structure | No | [Details](docs/tools-reference.md#tree-tool) |
-| **Grep** | Search files with regex (ripgrep/Go) | No | [Details](docs/tools-reference.md#grep-tool) |
-| **WebSearch** | Search the web (DuckDuckGo/Google) | No | [Details](docs/tools-reference.md#websearch-tool) |
-| **WebFetch** | Fetch content from URLs | No | [Details](docs/tools-reference.md#webfetch-tool) |
-| **Github** | Interact with GitHub API | No | [Details](docs/tools-reference.md#github-tool) |
-| **TodoWrite** | Create and manage task lists | No | [Details](docs/tools-reference.md#todowrite-tool) |
-| **Schedule** | Cron-driven recurring or one-off tasks delivered via the originating channel | Yes | [Details](docs/tools-reference.md#schedule-tool) |
-| **A2A_SubmitTask** | Submit tasks to A2A agents | No | [Details](docs/tools-reference.md#a2a_submittask-tool) |
-| **A2A_QueryAgent** | Query A2A agent capabilities | No | [Details](docs/tools-reference.md#a2a_queryagent-tool) |
-| **A2A_QueryTask** | Check A2A task status | No | [Details](docs/tools-reference.md#a2a_querytask-tool) |
+Tools are grouped by category below. Many are gated behind a config flag (noted per group);
+the always-available set is registered for every session. There is **no built-in GitHub tool** -
+use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub operations.
+
+**Core file & search** (always available):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Read** | Read file contents with line ranges | No |
+| **Write** | Write content to files | Yes |
+| **Edit** | Exact string replacements in files | Yes |
+| **MultiEdit** | Multiple atomic edits to a single file | Yes |
+| **Delete** | Delete files and directories | Yes |
+| **Grep** | Search files with regex (ripgrep/Go) | No |
+| **Tree** | Display directory structure | No |
+
+**Shell** (Bash is always available; the background-shell trio needs `tools.bash.background_shells.enabled`):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Bash** | Execute shell commands (per-mode allow-list) | Optional |
+| **BashOutput** | Read new output from a running background shell | Yes |
+| **KillShell** | Terminate a background shell | Yes |
+| **ListShells** | List background shells and their state | Yes |
+
+**Task & planning** (`AskUserQuestion` needs `tools.ask_user_question.enabled`):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **TodoWrite** | Create and manage task lists | No |
+| **RequestPlanApproval** | Submit a plan for approval and persist it (plan mode) | No |
+| **AskUserQuestion** | Ask the user multiple-choice questions (plan mode) | No |
+
+**Web** (`WebSearch`/`WebFetch` need their respective config flag):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **WebSearch** | Search the web (DuckDuckGo/Google) | Yes |
+| **WebFetch** | Fetch content from a URL | Yes |
+
+**Subagents** (the `Agent` tool and its companions, enabled by default):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Agent** | Spawn an `infer agent` subprocess to run work in parallel | Yes |
+| **ListSubagents** | List spawned subagents and their status | No |
+| **GetSubagentResult** | Re-read a finished subagent's last message | No |
+| **ReadSubagentScreen** | Capture an interactive subagent's terminal screen | No |
+| **SendSubagentInput** | Type into an interactive subagent's TUI | Yes |
+| **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
+| **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
+
+**Computer Use** (require `computer_use.enabled`; these bypass the approval prompt and run silently):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **MouseMove** / **MouseClick** / **MouseScroll** | Control the mouse | No |
+| **KeyboardType** | Type text or send key combinations | No |
+| **GetFocusedApp** / **ActivateApp** | Query or focus an application | No |
+| **GetLatestScreenshot** | Read the latest streamed screenshot | No |
+
+**Memory, scheduling & A2A** (each gated by its own flag):
+
+| Tool | Purpose | Approval | Enabled by |
+| ------ | --------- | ---------- | ------------ |
+| **Memory** | Persistent, cross-session fact storage | No | `memory.enabled` (default on) |
+| **Schedule** | Cron-driven recurring/one-off tasks via the originating channel | Yes | `tools.schedule.enabled` |
+| **A2A_SubmitTask** | Submit a task to an A2A agent | Yes | A2A enabled |
+| **A2A_QueryAgent** | Query an A2A agent's capabilities | No | A2A enabled |
+| **A2A_QueryTask** | Check an A2A task's status | No | A2A enabled |
+
+> **Approval** reflects the default policy. The global default is `tools.safety.require_approval: true`,
+> so a tool is **No** only where it is explicitly exempt in code (read-only file/search tools, Memory,
+> the plan/question tools, subagent reads, and computer-use). Bash is governed instead by the per-mode
+> bash allow-list. Override any tool with `tools.<name>.require_approval`.
+>
+> **MCP tools** are not listed here - they are discovered and registered dynamically at runtime from your
+> configured MCP servers and surface as `MCP_<server>_<tool>` (see [MCP Integration](docs/mcp-integration.md)).
 
 **Tool Configuration:**
 
@@ -833,16 +928,20 @@ When a tool requiring approval is executed:
 
 ### Default Approval Requirements
 
+The global default is `tools.safety.require_approval: true`, so **any tool not explicitly exempt requires
+approval**; override per tool with `tools.<name>.require_approval`.
+
 | Tool | Requires Approval | Reason |
 | ------ | ------------------- | --------- |
-| Write | Yes | Creates/modifies files |
-| Edit | Yes | Modifies file contents |
-| MultiEdit | Yes | Multiple file modifications |
-| Delete | Yes | Removes files/directories |
-| Bash | Optional | Executes system commands |
+| Write, Edit, MultiEdit, Delete | Yes | Create / modify / remove files |
+| Schedule, Agent | Yes | Side effects (scheduled jobs, spawned subprocesses) |
+| WebSearch, WebFetch | Yes | Make external requests (global default) |
+| A2A_SubmitTask | Yes | Dispatches work to another agent |
+| Bash | Optional | Governed by the per-mode bash allow-list |
 | Read, Grep, Tree | No | Read-only operations |
-| WebSearch, WebFetch | No | External read-only |
-| A2A Tools | No | Agent delegation |
+| Memory, TodoWrite | No | Local agent state (explicitly exempt) |
+| Computer-use tools | No | Run silently in the background |
+| A2A_QueryAgent, A2A_QueryTask | No | Read-only A2A queries |
 
 ### Approval Configuration
 
@@ -882,18 +981,32 @@ actions.
 
 ### Built-in Shortcuts
 
-**Core:**
+**Conversation & session:**
 
-- `/clear` - Clear conversation history
-- `/exit` - Exit chat session
-- `/help [shortcut]` - Show available shortcuts
-- `/model` - Switch to different model
-- `/theme` - Switch chat theme
+- `/new [title]` - Start a new conversation (optionally titled)
+- `/clear` - Save the current conversation and start a new one
+- `/compact` - Save the conversation and start a new session seeded with a summary
+- `/conversations` - Open the conversation selection dropdown
+- `/context` - Show context-window usage
 - `/cost` - Show session cost breakdown with per-model details
-- `/compact` - Compact conversation
-- `/copy [format]` - Copy current conversation to the system clipboard (text, markdown, or json)
-- `/voice [seconds]` - Record from the microphone and transcribe to the input field with Whisper (requires `speech_to_text.enabled`)
-- `/export` - Export conversation
+- `/copy [text|markdown|json]` - Copy the conversation to the clipboard (aliases: `txt`, `md`)
+- `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
+- `/theme` - Switch chat theme
+- `/voice [seconds]` - Record from the microphone and transcribe to the input with Whisper (requires `speech_to_text.enabled`)
+- `/help [shortcut]` - Show available shortcuts
+- `/exit` - Exit the chat session
+
+**Panels & views:**
+
+- `/diff` - Open the changes panel (interactive diff viewer)
+- `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/explorer.md)
+- `/tasks` - Show the A2A task-management interface (requires A2A) - [Learn more →](docs/tasks-management.md)
+- `/release-notes [version]` - Show release notes from GitHub Releases (latest, or a specific version)
+
+**Project setup:**
+
+- `/init` - Generate an `AGENTS.md` by analyzing the project
+- `/init-github-action` - Set up a GitHub Action via an interactive wizard
 
 **Git Shortcuts** (created by `infer init`):
 
@@ -907,6 +1020,15 @@ actions.
 - `/scm issues` - List GitHub issues
 - `/scm issue <number>` - Show issue details
 - `/scm pr-create [context]` - Generate AI-powered PR plan
+
+**Other Shortcuts** (created by `infer init`):
+
+- `/mcp [list|add|remove|enable|disable]` - Manage MCP servers
+- `/shells` - List running and recent background shell processes
+- `/export` - Export the current conversation to markdown
+- `/env` - Generate a `.env.example` with all provider API keys
+- `/agents [list|add|remove|enable|disable]` - Manage A2A agents
+- `/skills [list|install|uninstall]` - Manage Agent Skills
 
 ### AI-Powered Snippets
 
@@ -1156,12 +1278,120 @@ export INFER_HEARTBEAT_INTERVAL=30m
 For the full guide, including configuration reference and common
 patterns (TODO sweeps, CI watchdogs), see [Heartbeat Documentation](docs/heartbeat.md).
 
+## Agent Skills
+
+Agent Skills are reusable, model-readable instruction folders. Each skill is a folder containing a
+`SKILL.md` file with YAML frontmatter (`name`, `description`) - the same contract used by the open
+`.agents/skills/` standard, so existing skill folders drop in unchanged. The agent discovers skills at
+startup and loads a skill's full instructions on demand when they are relevant.
+
+Skills are scanned from three locations (highest precedence first; first match wins on a name collision):
+
+- `.infer/skills/<name>/SKILL.md` - project
+- `.agents/skills/<name>/SKILL.md` - open standard
+- `~/.infer/skills/<name>/SKILL.md` - user-global
+
+Skills are **enabled by default**; disable with `agent.skills.enabled=false` (or `INFER_AGENT_SKILLS_ENABLED=false`).
+
+```bash
+infer skills list                          # Discover skills (works even when disabled)
+infer skills install skill-creator         # Install from github.com/inference-gateway/skills
+infer skills install acme/internal-comms   # Install from github.com/acme/skills
+infer skills uninstall pdf                 # Remove a skill folder by name
+```
+
+`install` accepts a skill name, an `org/skill` pair, or a full GitHub tree URL; set `GITHUB_TOKEN`
+(or `GH_TOKEN`) to raise the rate limit and reach private repositories. See
+[docs/skills.md](docs/skills.md) for the authoring format.
+
+## Computer Use
+
+When enabled, the agent can control the desktop - move and click the mouse, scroll, type text and key
+combinations, focus applications, and read screenshots. The display backend is detected automatically
+across **macOS** (via a bundled Swift bridge), **X11**, and **Wayland**.
+
+Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or `infer config set computer_use.enabled true`):
+
+```yaml
+# .infer/computer_use.yaml
+enabled: true
+rate_limit:
+  enabled: true
+screenshot:
+  streaming_enabled: true   # also registers the GetLatestScreenshot tool
+```
+
+Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`, and
+`GetLatestScreenshot`. They run silently in the background (bypassing the approval prompt) and are
+governed by `computer_use.enabled` plus the configured rate limits. On macOS an optional **floating
+progress window** can mirror what the agent is doing. For a sandboxed desktop to drive, see
+[examples/computer-use](examples/computer-use/).
+
+## Persistent Memory
+
+The agent keeps a durable, cross-session memory: individual Markdown **fact-files** under a global
+directory (`~/.infer/memory` by default), catalogued by a `MEMORY.md` index. The index is injected
+into context at session start, and the agent reads or writes individual facts on demand through the
+`Memory` tool. A session reminder nudges it to consult and keep memory up to date.
+
+Memory is **enabled by default**. Configure it in `memory.yaml`:
+
+```yaml
+# .infer/memory.yaml
+enabled: true
+dir: ""           # "" => ~/.infer/memory
+max_chars: 4000   # cap on the injected MEMORY.md index
+```
+
+Turn it off with `memory.enabled=false` (or `INFER_MEMORY_ENABLED=false`); the memory-consult
+reminder below is pruned automatically when memory is disabled.
+
+## Reminders & Command Hooks
+
+Two lightweight extension points fire at fixed **agent-loop hook points** - `pre_session`,
+`pre_stream`, `post_stream`, `pre_tool`, `post_tool`, `pre_queue_drain`, `post_queue_drain`, and
+`post_session`:
+
+- **Reminders** (`reminders.yaml`) inject a `<system-reminder>` text block at a hook point, gated by a
+  trigger (`always`, `interval`, `turns_before_max`, or `once`). Reminders ship **enabled** with two
+  defaults: `todo-hygiene` (nudges the agent to keep a todo list) and `memory-consult` (points it at
+  the memory index; auto-pruned when memory is off).
+- **Command Hooks** (`hooks.yaml`) run a shell command at a hook point - the executable sibling of
+  reminders. They are **off by default**; each command still faces the per-mode bash allow-list when
+  the agent runs it, so allow-list the command and set `enabled: true` to turn hooks on.
+
+```yaml
+# .infer/hooks.yaml
+enabled: true
+hooks:
+  - name: gofmt
+    hook: post_session
+    command: "gofmt -w ."
+    timeout: 30   # seconds; 0 -> default 30
+```
+
 ## Global Flags
 
 - `-v, --verbose`: Enable verbose output
 - `--config <path>`: Specify custom config file path
 
 ## Examples
+
+### Docker Compose Examples
+
+Each directory under [`examples/`](examples/) is a self-contained, runnable setup with its own README
+and Docker Compose file:
+
+| Example | Demonstrates |
+| --------- | -------------- |
+| [basic](examples/basic/) | Minimal gateway + CLI setup to get started |
+| [a2a](examples/a2a/) | Agent-to-Agent: multiple agents, a demo site, and a VNC container |
+| [mcp](examples/mcp/) | MCP server integration with a sample server and config |
+| [computer-use](examples/computer-use/) | Computer Use driving a sandboxed Ubuntu GUI container |
+| [model-switching](examples/model-switching/) | Switching models mid-session, with a small frontend |
+| [shortcuts](examples/shortcuts/) | Custom `/`-shortcuts wired through config |
+| [web-terminal](examples/web-terminal/) | Browser-based, multi-tab web terminal |
+| [telegram-channel](examples/telegram-channel/) | Driving the agent from a Telegram channel |
 
 ### Basic Workflow
 

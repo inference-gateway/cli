@@ -100,8 +100,8 @@ them exist in both layers (project and userspace).
   [A2A Agents](agents-configuration.md).
 - **`mcp.yaml`** - MCP server registry and liveness probe settings. Manage
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
-- **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`,
-  `/agents` shortcuts plus any you add. Drop new YAML files into
+- **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`, `/env`,
+  `/agents`, `/skills` shortcuts plus any you add. Drop new YAML files into
   `shortcuts/`. See [Shortcuts Guide](shortcuts-guide.md).
 - **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
   into the cross-tool `.agents/skills/` open standard) to extend the agent.

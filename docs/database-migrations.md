@@ -255,6 +255,6 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 
 ## See Also
 
-- [Storage Architecture](./storage-architecture.md) (if exists)
-- [Configuration Guide](../CLAUDE.md)
+- [Conversation Storage](./conversation-storage.md)
+- [Configuration Reference](./configuration-reference.md)
 - [Upgrade Guide](../CHANGELOG.md)
