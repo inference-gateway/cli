@@ -57,7 +57,7 @@ An agentic command-line assistant that writes code, understands project context,
   - View message history with timestamps
   - Restore conversation to any previous user message
   - Permanent deletion of messages after restore point
-  - [Learn more →](docs/features/conversation-versioning.md)
+  - [Learn more →](docs/conversation-versioning.md)
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute allowed commands and tools - [See all tools →](docs/tools-reference.md)
@@ -999,7 +999,7 @@ actions.
 **Panels & views:**
 
 - `/diff` - Open the changes panel (interactive diff viewer)
-- `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/features/explorer.md)
+- `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/explorer.md)
 - `/tasks` - Show the A2A task-management interface (requires A2A) - [Learn more →](docs/tasks-management.md)
 - `/release-notes [version]` - Show release notes from GitHub Releases (latest, or a specific version)
 
