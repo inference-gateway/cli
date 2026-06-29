@@ -1776,7 +1776,7 @@ func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
 
 	status := ""
 	if len(sels) > 0 {
-		status = fmt.Sprintf("%d snippet(s) attached — sent with your next message", len(sels))
+		status = fmt.Sprintf("%d snippet(s) attached - sent with your next message", len(sels))
 	}
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{Message: status, Spinner: false, StatusType: domain.StatusDefault}
@@ -2323,7 +2323,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 
 // augmentWithSnippets appends the pending snippet attachments (selected lines
 // only, via FormatAnnotations) to the outgoing message content. It is skipped
-// for slash/bash commands, which must not carry a trailing code blob — their
+// for slash/bash commands, which must not carry a trailing code blob - their
 // attachments are preserved for the next regular message. Returns the content
 // to send and whether snippets were appended.
 func (app *ChatApplication) augmentWithSnippets(input string) (string, bool) {

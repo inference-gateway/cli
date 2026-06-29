@@ -1577,7 +1577,7 @@ func (cv *ConversationView) renderSubagentTree() string {
 
 		styledBranch := cv.styleProvider.RenderWithColor("  "+branch, cv.styleProvider.GetThemeColor("dim"))
 		styledIcon := cv.styleProvider.RenderWithColor(icon, cv.styleProvider.GetThemeColor(iconColor))
-		styledBody := cv.styleProvider.RenderWithColor(fmt.Sprintf("%s — %s", d.Label, statusText), cv.styleProvider.GetThemeColor(bodyColor))
+		styledBody := cv.styleProvider.RenderWithColor(fmt.Sprintf("%s - %s", d.Label, statusText), cv.styleProvider.GetThemeColor(bodyColor))
 		lines = append(lines, styledBranch+styledIcon+" "+styledBody)
 	}
 	return strings.Join(lines, "\n")

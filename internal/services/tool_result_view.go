@@ -40,8 +40,8 @@ func (s *ToolFormatterService) resultBody(result *domain.ToolExecutionResult) st
 }
 
 // safeToolFormat runs a tool's formatting function under a panic guard. A malformed or
-// legacy tool result — most often numbers that became float64 after a JSON round-trip
-// when a saved conversation is reloaded — must degrade to a readable placeholder rather
+// legacy tool result - most often numbers that became float64 after a JSON round-trip
+// when a saved conversation is reloaded - must degrade to a readable placeholder rather
 // than crash the whole TUI via Bubble Tea's program-level panic handler.
 func safeToolFormat(toolName string, fn func() string) (out string) {
 	defer func() {

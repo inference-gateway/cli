@@ -19,7 +19,7 @@ var initCmd = &cobra.Command{
 
 By default, this seeds the full baseline configuration to ~/.infer/ so it is shared
 across all of your projects.  Pass --project to create a project-level override layer
-in ./.infer/ instead — only project-overridable files are seeded there as a sparse
+in ./.infer/ instead - only project-overridable files are seeded there as a sparse
 scaffold; personal, machine-, or secret-scoped files always live in ~/.infer/.
 
 To generate an AGENTS.md file, use the /init shortcut in interactive chat mode,
@@ -49,7 +49,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 	homeCfgDir := filepath.Join(homeDir, config.ConfigDirName)
 
-	// Userspace-only file paths — always seeded to ~/.infer/, regardless of scope.
+	// Userspace-only file paths - always seeded to ~/.infer/, regardless of scope.
 	homeKeybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
 	homeremindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	homeChannelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
@@ -57,14 +57,14 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	homeComputerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
 	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
-	// Project-overridable file paths — these go to ./.infer/ in --project mode
+	// Project-overridable file paths - these go to ./.infer/ in --project mode
 	// or to ~/.infer/ in default (home) mode.
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
 		hooksPath, agentsPath, skillsDirPath string
 
-	// Userspace-only paths — always home. These are assigned once and used in
+	// Userspace-only paths - always home. These are assigned once and used in
 	// both modes so the creation logic below is shared.
 	keybindingsPath := homeKeybindingsPath
 	remindersPath := homeremindersPath
@@ -112,7 +112,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 
 	// Validate: only fail if the *freshly seeded* files already exist.
 	// In --project mode, userspace-only files may already exist in ~/.infer/
-	// from a prior home init — those are seeded only-if-absent below, so we
+	// from a prior home init - those are seeded only-if-absent below, so we
 	// exclude them from the existence check.
 	if !overwrite {
 		// Project-overridable files are always freshly seeded, so none of them

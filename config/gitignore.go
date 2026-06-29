@@ -9,7 +9,7 @@ import (
 // so runtime artifacts (logs, conversations, downloaded binaries, backups) are
 // never committed. Shared by `infer init` and the runtime auto-provisioner so
 // both stay in lockstep.
-const InferGitignoreContent = `# inference-gateway CLI runtime artifacts — do not commit
+const InferGitignoreContent = `# inference-gateway CLI runtime artifacts - do not commit
 logs/*.log
 history
 chat_export_*
@@ -27,8 +27,8 @@ plans/
 // `infer init --project` output and user edits are preserved.
 //
 // It targets the bare project-relative ConfigDirName (not GetConfigDir()) on
-// purpose: the runtime artifacts it guards — logs, conversations, the gateway
-// binary, backups — always land in the project-local ./.infer/ regardless of
+// purpose: the runtime artifacts it guards - logs, conversations, the gateway
+// binary, backups - always land in the project-local ./.infer/ regardless of
 // where config itself resolves.
 func EnsureProjectGitignore() error {
 	path := filepath.Join(ConfigDirName, GitignoreFileName)

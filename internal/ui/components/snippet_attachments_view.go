@@ -15,7 +15,7 @@ const maxVisibleSnippetRows = 10
 // SnippetAttachmentsView renders the pending snippet attachments as a small tree
 // below the chat input: one parent row per file, one indented child row per
 // captured line range. It is a passive renderer driven by ChatApplication
-// (mirroring TodoBoxView) — focus, cursor and the snippet list are pushed in
+// (mirroring TodoBoxView) - focus, cursor and the snippet list are pushed in
 // before each render. The selected content is sent with the next chat message.
 type SnippetAttachmentsView struct {
 	styleProvider *styles.Provider
@@ -143,7 +143,7 @@ func (v *SnippetAttachmentsView) renderChildRow(pos int, s SnippetSelection, acc
 func (v *SnippetAttachmentsView) headerText() string {
 	count := len(v.order)
 	if v.focused {
-		return fmt.Sprintf("Attached context (%d) — ↑/↓ move · d remove · c clear · esc done", count)
+		return fmt.Sprintf("Attached context (%d) - ↑/↓ move · d remove · c clear · esc done", count)
 	}
 	if v.focusHint != "" {
 		return fmt.Sprintf("Attached context (%d) · %s to edit · sent with your next message", count, v.focusHint)

@@ -88,7 +88,7 @@ func resolveBashAllowOverride(flagName, envName string) string {
 // unions into every mode, so appending here makes the extra commands auto-run in
 // standard, auto, and plan alike without touching the matcher. Must run after
 // ReadInConfig so the append sees config-file values; v.Set then wins over later
-// layers. The append never replaces the curated defaults — it only adds.
+// layers. The append never replaces the curated defaults - it only adds.
 func applyBashAllowAppends(v *viper.Viper) {
 	appends := []struct {
 		key, appendFlag, appendEnv string

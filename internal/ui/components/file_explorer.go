@@ -157,7 +157,7 @@ type FileExplorerImpl struct {
 	annotateInput string
 
 	loadErr error
-	done    bool // explorer closed normally (esc/q) — carry selections to chat
+	done    bool // explorer closed normally (esc/q) - carry selections to chat
 	cancel  bool // discard everything (ctrl+c)
 }
 
@@ -669,7 +669,7 @@ func (t *FileExplorerImpl) movePreviewCursor(delta int) {
 	case t.previewCursor > top+height-1:
 		t.viewport.SetYOffset(t.previewCursor - height + 1)
 	}
-	// else: cursor already visible — leave YOffset unchanged.
+	// else: cursor already visible - leave YOffset unchanged.
 }
 
 func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -780,7 +780,7 @@ func (t *FileExplorerImpl) Selections() []SnippetSelection {
 
 // FormatAnnotations builds an LLM-ready context block from a set of snippet
 // selections. Selections are grouped by file (deduping file reads). Only the
-// selected line ranges are emitted — never the whole file — each as a fenced
+// selected line ranges are emitted - never the whole file - each as a fenced
 // block headed by `<file> (lines X-Y):`, optionally followed by a `note:` line
 // when the user attached an instruction.
 //

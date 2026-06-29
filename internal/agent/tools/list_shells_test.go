@@ -12,7 +12,7 @@ import (
 // non-empty shell list (shell_count is an int, output_size an int64, exit_code a *int,
 // shells a []map[string]any). The unused completed_at field is omitted. The reloaded
 // variant in the round-trip test runs this through JSON, turning the numbers into
-// float64 and the slice into []any — the shape that used to panic FormatResult.
+// float64 and the slice into []any - the shape that used to panic FormatResult.
 func freshListShellsData() map[string]any {
 	exitZero := 0
 	return map[string]any{

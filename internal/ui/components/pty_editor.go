@@ -53,7 +53,7 @@ func (t *vtTerm) closeEmulator() { _ = t.em.Close() }
 // stopReplies unblocks the reply-forwarding goroutine's blocked Read by closing the
 // emulator's input pipe, which returns EOF. We close the pipe directly rather than
 // calling em.Close because Close also writes the emulator's `closed` flag, which that
-// same goroutine reads inside Read — an unsynchronized access the race detector flags.
+// same goroutine reads inside Read - an unsynchronized access the race detector flags.
 // The io.Pipe gives the writer-close ↔ Read-EOF happens-before; the em.Close fallback
 // only runs if the emulator's pipe type ever changes, so close() never hangs.
 func (t *vtTerm) stopReplies() {

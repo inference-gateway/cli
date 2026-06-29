@@ -778,7 +778,7 @@ func TestExplorer_FormatAnnotations(t *testing.T) {
 			t.Errorf("FormatAnnotations output missing %q\n--- output ---\n%s", want, out)
 		}
 	}
-	// Only the selected lines (3-5) are emitted — not the whole file.
+	// Only the selected lines (3-5) are emitted - not the whole file.
 	if strings.Contains(out, "package main") {
 		t.Errorf("output should not include non-selected line 1 (package main)\n--- output ---\n%s", out)
 	}
