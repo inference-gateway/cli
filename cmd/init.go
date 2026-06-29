@@ -146,19 +146,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		}
 	}
 
-	gitignoreContent := `# Ignore log files and history files
-logs/*.log
-history
-chat_export_*
-conversations.db*
-conversations
-session_groups.json
-bin/
-tmp/
-plans/
-`
-
-	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
+	if err := os.WriteFile(gitignorePath, []byte(config.InferGitignoreContent), 0o644); err != nil {
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
