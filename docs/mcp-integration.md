@@ -95,7 +95,9 @@ discovery_timeout: 30
 
 servers:
   - name: "filesystem"
-    url: "http://localhost:3000/sse"
+    host: "localhost"
+    port: 3000
+    path: "/sse"
     enabled: true
     description: "File system operations"
 ```
@@ -137,7 +139,9 @@ Then configure the server URL:
 ```yaml
 servers:
   - name: "demo-server"
-    url: "http://localhost:3000/sse"
+    host: "localhost"
+    port: 3000
+    path: "/sse"
     enabled: true
 ```
 
@@ -174,7 +178,6 @@ Each server in the `servers` array supports:
 | Field | Required | Type | Description |
 | ----- | -------- | ---- | ----------- |
 | `name` | ✅ | string | Unique server identifier |
-| `url` | ❌* | string | HTTP SSE endpoint URL (*required if `run=false`) |
 | `enabled` | ✅ | boolean | Enable/disable this server |
 | `timeout` | ❌ | integer | Override global timeout |
 | `description` | ❌ | string | Human-readable description |
@@ -193,6 +196,10 @@ Each server in the `servers` array supports:
 | `startup_timeout` | ❌ | integer | Container startup timeout in seconds (default: 30) |
 | `health_cmd` | ❌ | string | Custom Docker healthcheck command |
 
+> **Manual servers** (`run: false`): set `host` / `port` / `path` to point at the running
+> server's SSE endpoint. The URL is built as `{scheme}://{host}:{port}{path}` (defaults:
+> `http`, `localhost`, `/mcp`).
+
 ### Tool Filtering
 
 #### Include Tools
@@ -202,7 +209,9 @@ When `include_tools` is specified, **only** these tools are exposed:
 ```yaml
 servers:
   - name: "database"
-    url: "http://localhost:3001/sse"
+    host: "localhost"
+    port: 3001
+    path: "/sse"
     enabled: true
     include_tools:
       - "query"
@@ -217,7 +226,9 @@ When `exclude_tools` is specified, these tools are hidden:
 ```yaml
 servers:
   - name: "filesystem"
-    url: "http://localhost:3000/sse"
+    host: "localhost"
+    port: 3000
+    path: "/sse"
     enabled: true
     exclude_tools:
       - "delete_file"  # Exclude dangerous operations
@@ -237,7 +248,9 @@ All configuration values support environment variable expansion:
 ```yaml
 servers:
   - name: "filesystem"
-    url: "${MCP_FILESYSTEM_URL}"
+    host: "${MCP_FILESYSTEM_HOST}"
+    port: 3000
+    path: "/sse"
     enabled: true
 ```
 
@@ -246,7 +259,7 @@ Override via environment:
 ```bash
 export INFER_MCP_ENABLED=true
 export INFER_MCP_CONNECTION_TIMEOUT=60
-export MCP_FILESYSTEM_URL=http://localhost:3000/sse
+export MCP_FILESYSTEM_HOST=localhost
 ```
 
 ## Tool Discovery
@@ -350,7 +363,9 @@ Per-server timeout configuration:
 ```yaml
 servers:
   - name: "slow-server"
-    url: "http://slow-service:8080/sse"
+    host: "slow-service"
+    port: 8080
+    path: "/sse"
     timeout: 120  # Override global timeout
 ```
 
@@ -383,7 +398,9 @@ discovery_timeout: 30
 
 servers:
   - name: "filesystem"
-    url: "http://localhost:3000/sse"
+    host: "localhost"
+    port: 3000
+    path: "/sse"
     enabled: true
     description: "Sandboxed file system operations"
     exclude_tools:
@@ -407,13 +424,17 @@ enabled: true
 servers:
   # Filesystem access
   - name: "filesystem"
-    url: "http://localhost:3000/sse"
+    host: "localhost"
+    port: 3000
+    path: "/sse"
     enabled: true
     timeout: 60
 
   # Database queries
   - name: "postgres"
-    url: "http://localhost:3001/sse"
+    host: "localhost"
+    port: 3001
+    path: "/sse"
     enabled: true
     include_tools:
       - "query"
@@ -421,7 +442,9 @@ servers:
 
   # External API (disabled)
   - name: "weather-api"
-    url: "http://localhost:3002/sse"
+    host: "localhost"
+    port: 3002
+    path: "/sse"
     enabled: false
 ```
 
@@ -434,7 +457,9 @@ connection_timeout: ${MCP_TIMEOUT:-30}
 
 servers:
   - name: "production-db"
-    url: "${PROD_DB_MCP_URL}"
+    scheme: "https"
+    host: "${PROD_DB_MCP_HOST}"
+    path: "/sse"
     enabled: ${PROD_DB_ENABLED:-false}
 ```
 
@@ -442,7 +467,7 @@ servers:
 # .env
 MCP_ENABLED=true
 MCP_TIMEOUT=60
-PROD_DB_MCP_URL=https://mcp.production.example.com/sse
+PROD_DB_MCP_HOST=mcp.production.example.com
 PROD_DB_ENABLED=true
 ```
 
@@ -918,7 +943,7 @@ cat .infer/logs/*.log | grep "MCP.*failed"
 - [MCP Specification](https://github.com/anthropics/mcp)
 - [MCP SDK (Node.js)](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
 - [MCP SDK (Go)](https://github.com/metoro-io/mcp-golang)
-- [Example MCP Servers](../../tests/mcp-test-server/)
+- [Example MCP Servers](../examples/mcp/)
 
 ## Support
 

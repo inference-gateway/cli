@@ -2,13 +2,14 @@
 
 The CLI supports configurable conversation storage, allowing you to save, resume, and manage your chat
 sessions across different invocations. By default, conversations are stored using JSONL (JSON Lines) files,
-which provides zero-dependency persistent storage. You can also choose SQLite, PostgreSQL, or Redis.
+which provides zero-dependency persistent storage. You can also choose SQLite, PostgreSQL, Redis,
+Cloudflare D1, or in-memory storage.
 
 ## Overview
 
 The conversation storage system provides:
 
-- **Configurable Storage**: Choose between JSONL (default), SQLite, PostgreSQL, Redis, or in-memory
+- **Configurable Storage**: Choose between JSONL (default), SQLite, PostgreSQL, Redis, Cloudflare D1, or in-memory
 - **Conversation Management**: List, save, load, and delete conversations using `/conversations`
 - **Unified Interface**: Consistent API across all storage backends
 
@@ -55,10 +56,16 @@ Each conversation is stored in a separate JSONL file in the configured directory
 └── <conversation-id-3>.jsonl
 ```
 
-Each file contains exactly two lines:
+Each file is **append-only** (format v2): the CLI appends one line per conversation entry as the
+chat progresses, then appends a fresh metadata line on every save. The loader reads the **last**
+metadata line, so each save publishes the latest token and cost stats. A file therefore grows to
+many lines:
 
-- **Line 1**: Metadata (JSON object)
-- **Line 2**: Entries array (JSON array)
+- One **entry line** per message - `{"type": "entry", "index": N, "entry": {...}}`
+- A trailing **metadata line** - `{"v": 2, "type": "metadata", "metadata": {...}}` - re-appended on each save
+
+Legacy v1 files (a single metadata line followed by a single entries array) are still read for
+backward compatibility.
 
 **Backup:**
 
@@ -140,10 +147,8 @@ storage:
   redis:
     host: localhost
     port: 6379
-    database: 0
     password: ""  # optional
-    username: ""  # optional
-    ttl: 2592000  # 30 days in seconds, 0 for no expiration
+    db: 0  # Redis database number
 ```
 
 **Pros:**
@@ -158,6 +163,36 @@ storage:
 - Requires Redis server
 - Memory-based (can be expensive for large datasets)
 - Data loss risk if not properly configured for persistence
+
+### D1 (Cloudflare D1)
+
+[Cloudflare D1](https://developers.cloudflare.com/d1/) is serverless SQLite exposed over an HTTP
+query API - useful when you want hosted, queryable conversation storage without running your own
+database server.
+
+```yaml
+storage:
+  enabled: true
+  type: d1
+  d1:
+    account_id: "<cloudflare-account-id>"
+    database_id: "<d1-database-id>"
+    # api_token is a secret - inject it via the environment, not the config file:
+    #   export INFER_STORAGE_D1_API_TOKEN=...
+    base_url: ""  # optional override for the D1 API endpoint
+```
+
+**Pros:**
+
+- Hosted and serverless - no database server to run
+- SQL querying with SQLite semantics
+- Reachable from anywhere over HTTPS
+
+**Cons:**
+
+- Requires a Cloudflare account and a provisioned D1 database
+- Network latency on every operation
+- API token must be supplied (normally via `INFER_STORAGE_D1_API_TOKEN`)
 
 ## Configuration
 

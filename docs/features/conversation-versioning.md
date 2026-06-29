@@ -222,6 +222,6 @@ A: All user messages from the current conversation are available, with paginatio
 
 ## See Also
 
-- [Keybinding Configuration](../configuration/keybindings.md)
-- [Chat Interface Guide](../user-guide/chat-interface.md)
-- [Agent Modes](../user-guide/agent-modes.md)
+- [Conversation Storage](../conversation-storage.md)
+- [Configuration Reference](../configuration-reference.md)
+- [Plan Mode](../plan-mode.md)

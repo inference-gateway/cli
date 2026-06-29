@@ -165,8 +165,10 @@ interval: 15m
 prompt: "Check the status of the latest GitHub Actions run on this repo. If it failed, summarise the failure in the conversation log."
 ```
 
-System prompt should give the agent permission to call the `Github`
-tool but warn against opening issues automatically.
+The agent inspects GitHub state with the `gh` CLI via the Bash tool - there is no
+built-in GitHub tool. Read-only `gh` subcommands (`gh run view`, `gh pr list`, ...)
+are on the standard bash allow-list; keep the prompt scoped to reporting and warn
+against opening issues or pushing changes automatically.
 
 ## Troubleshooting
 

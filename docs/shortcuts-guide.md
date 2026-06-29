@@ -11,6 +11,7 @@ including built-in shortcuts, AI-powered snippets, and custom shortcut creation.
 - [Built-in Shortcuts](#built-in-shortcuts)
 - [Git Shortcuts](#git-shortcuts)
 - [SCM Shortcuts](#scm-shortcuts)
+- [Init-Created Shortcuts](#init-created-shortcuts)
 - [AI-Powered Snippets](#ai-powered-snippets)
 - [User-Defined Shortcuts](#user-defined-shortcuts)
 - [Advanced Usage](#advanced-usage)
@@ -40,19 +41,32 @@ These shortcuts are available out of the box:
 
 ### Core Shortcuts
 
-- `/clear` - Clear conversation history
-- `/exit` - Exit the chat session
-- `/help [shortcut]` - Show available shortcuts or specific shortcut help
-- `/model` - Switch to a different model
-- `/theme` - Switch chat interface theme or list available themes
-- `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
-- `/compact` - Immediately compact conversation to reduce token usage
+**Conversation & session:**
+
+- `/new [title]` - Start a new conversation (optionally titled)
+- `/clear` - Save the current conversation and start a new one
+- `/compact` - Save the conversation and start a new session seeded with a summary
+- `/conversations` - Open the conversation selection dropdown
+- `/context` - Show context-window usage
+- `/cost` - Show session cost breakdown with per-model details
 - `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
-- `/export [format]` - Export conversation to markdown
-- `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/env` - Generate a `.env.example` file with all provider API environment variables
+- `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
+- `/theme` - Switch chat interface theme or list available themes
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
+- `/help [shortcut]` - Show available shortcuts or specific shortcut help
+- `/exit` - Exit the chat session
+
+**Panels & views:**
+
+- `/diff` - Open the changes panel (interactive diff viewer)
+- `/explorer` - Open the file explorer (tree + fuzzy finder)
+- `/tasks` - Show the A2A task-management interface (requires A2A)
 - `/release-notes [version]` - Show GitHub release notes for a version or the latest (requires the `gh` CLI installed and authenticated)
+
+**Project setup:**
+
+- `/init` - Set input with project analysis prompt for AGENTS.md generation
+- `/init-github-action` - Set up a GitHub Action via an interactive wizard
 
 ### Project Initialization Shortcut
 
@@ -224,6 +238,25 @@ shortcuts:
 - Fetch issue details and comments before implementing a fix
 - Let the LLM analyze issue discussions to understand requirements
 - Customize the shortcuts to add filters, change limits, or modify output format
+
+---
+
+## Init-Created Shortcuts
+
+Beyond `/git` and `/scm`, `infer init` seeds several more shortcut files in
+`.infer/shortcuts/` that wrap common `infer` subcommands and tools:
+
+| Shortcut | File | Description |
+| -------- | ---- | ----------- |
+| `/mcp <list\|add\|remove\|enable\|disable>` | `mcp.yaml` | Manage MCP servers |
+| `/shells` | `shells.yaml` | List running and recent background shell processes |
+| `/export` | `export.yaml` | Export the current conversation to markdown |
+| `/env` | `env.yaml` | Generate a `.env.example` with all provider API keys |
+| `/agents <list\|add\|remove\|enable\|disable>` | `a2a.yaml` | Manage A2A agents |
+| `/skills <list\|install\|uninstall>` | `skills.yaml` | Manage Agent Skills |
+
+These are regular YAML shortcuts - edit or remove them like any other file in
+`.infer/shortcuts/`.
 
 ---
 

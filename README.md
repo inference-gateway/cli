@@ -1021,6 +1021,15 @@ actions.
 - `/scm issue <number>` - Show issue details
 - `/scm pr-create [context]` - Generate AI-powered PR plan
 
+**Other Shortcuts** (created by `infer init`):
+
+- `/mcp [list|add|remove|enable|disable]` - Manage MCP servers
+- `/shells` - List running and recent background shell processes
+- `/export` - Export the current conversation to markdown
+- `/env` - Generate a `.env.example` with all provider API keys
+- `/agents [list|add|remove|enable|disable]` - Manage A2A agents
+- `/skills [list|install|uninstall]` - Manage Agent Skills
+
 ### AI-Powered Snippets
 
 Create shortcuts that use LLMs to transform data:
