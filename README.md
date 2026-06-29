@@ -57,7 +57,7 @@ An agentic command-line assistant that writes code, understands project context,
   - View message history with timestamps
   - Restore conversation to any previous user message
   - Permanent deletion of messages after restore point
-  - [Learn more →](docs/features/conversation-versioning.md)
+  - [Learn more →](docs/conversation-versioning.md)
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute allowed commands and tools - [See all tools →](docs/tools-reference.md)
@@ -192,7 +192,7 @@ chmod +x infer-darwin-amd64
 sudo mv infer-darwin-amd64 /usr/local/bin/infer
 ```
 
-For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/security/binary-verification.md).
+For advanced verification with Cosign signatures, see [Binary Verification Guide](docs/binary-verification.md).
 
 ### Build from Source
 
@@ -999,7 +999,7 @@ actions.
 **Panels & views:**
 
 - `/diff` - Open the changes panel (interactive diff viewer)
-- `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/features/explorer.md)
+- `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/explorer.md)
 - `/tasks` - Show the A2A task-management interface (requires A2A) - [Learn more →](docs/tasks-management.md)
 - `/release-notes [version]` - Show release notes from GitHub Releases (latest, or a specific version)
 
@@ -1020,6 +1020,15 @@ actions.
 - `/scm issues` - List GitHub issues
 - `/scm issue <number>` - Show issue details
 - `/scm pr-create [context]` - Generate AI-powered PR plan
+
+**Other Shortcuts** (created by `infer init`):
+
+- `/mcp [list|add|remove|enable|disable]` - Manage MCP servers
+- `/shells` - List running and recent background shell processes
+- `/export` - Export the current conversation to markdown
+- `/env` - Generate a `.env.example` with all provider API keys
+- `/agents [list|add|remove|enable|disable]` - Manage A2A agents
+- `/skills [list|install|uninstall]` - Manage Agent Skills
 
 ### AI-Powered Snippets
 

@@ -1,6 +1,6 @@
 # Binary Verification Guide
 
-[← Back to README](../../README.md)
+[← Back to README](../README.md)
 
 This document provides detailed instructions for verifying the integrity and authenticity of Inference
 Gateway CLI release binaries using SHA256 checksums and Cosign signatures.
@@ -239,4 +239,4 @@ openssl base64 -d -in checksums.txt.pem -out checksums.txt.pem.decoded
 
 ---
 
-[← Back to README](../../README.md)
+[← Back to README](../README.md)

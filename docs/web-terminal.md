@@ -157,6 +157,7 @@ web:
 ### Environment Variables
 
 ```bash
+export INFER_WEB_ENABLED=true
 export INFER_WEB_PORT=3000
 export INFER_WEB_HOST="localhost"
 export INFER_WEB_SESSION_INACTIVITY_MINS=10
@@ -712,6 +713,6 @@ Planned features for future releases:
 - [xterm.js Documentation](https://xtermjs.org/)
 - [gorilla/websocket](https://github.com/gorilla/websocket)
 - [creack/pty](https://github.com/creack/pty)
-- [Model Context Protocol (MCP)](docs/mcp-integration.md)
-- [Agent Configuration](docs/agents-configuration.md)
-- [Configuration Reference](docs/configuration-reference.md)
+- [Model Context Protocol (MCP)](mcp-integration.md)
+- [Agent Configuration](agents-configuration.md)
+- [Configuration Reference](configuration-reference.md)
