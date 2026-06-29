@@ -38,7 +38,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop
+func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop,gocognit
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	project, _ := cmd.Flags().GetBool("project")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
@@ -115,25 +115,23 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	// from a prior home init — those are seeded only-if-absent below, so we
 	// exclude them from the existence check.
 	if !overwrite {
-		if project {
-			if err := validateFilesNotExist(
-				configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
-				mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-				envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
-				mcpPath, promptsPath, hooksPath, agentsPath,
-			); err != nil {
-				return err
-			}
-		} else {
-			if err := validateFilesNotExist(
-				configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
-				mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-				envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
-				mcpPath, keybindingsPath, promptsPath,
-				remindersPath, hooksPath, channelsPath, heartbeatPath, computerUsePath, agentsPath,
-			); err != nil {
-				return err
-			}
+		// Project-overridable files are always freshly seeded, so none of them
+		// may pre-exist. The userspace-only files (keybindings, reminders,
+		// channels, heartbeat, computer_use) are seeded only-if-absent, so they
+		// are only checked in home mode - in --project mode they may legitimately
+		// already exist from an earlier home init.
+		pathsToCheck := []string{
+			configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
+			mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
+			envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
+			mcpPath, promptsPath, hooksPath, agentsPath,
+		}
+		if !project {
+			pathsToCheck = append(pathsToCheck,
+				keybindingsPath, remindersPath, channelsPath, heartbeatPath, computerUsePath)
+		}
+		if err := validateFilesNotExist(pathsToCheck...); err != nil {
+			return err
 		}
 	}
 
@@ -256,23 +254,10 @@ plans/
 	}
 
 	// --- .env.example (project only) ---
-	envExampleCreated := false
 	envExamplePath := envExampleFileName
+	envExampleCreated := false
 	if project {
-		if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
-			content := envExampleContent()
-			if err := os.WriteFile(envExamplePath, []byte(content), 0644); err != nil {
-				fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
-			} else {
-				envExampleCreated = true
-			}
-		}
-
-		if envExampleCreated {
-			if err := ensureEnvInGitignore(); err != nil {
-				fmt.Printf("%s Warning: failed to add .env to .gitignore: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
-			}
-		}
+		envExampleCreated = createProjectEnvExample()
 	}
 
 	// --- Output ---
@@ -348,6 +333,28 @@ plans/
 	}
 
 	return nil
+}
+
+// createProjectEnvExample writes .env.example and registers it in .gitignore
+// when it does not already exist, returning whether a new file was created.
+// It is best-effort - failures print a warning but never abort init - and is
+// only invoked in --project mode, where a local .env.example is useful
+// scaffolding for per-project secrets.
+func createProjectEnvExample() bool {
+	if _, err := os.Stat(envExampleFileName); !os.IsNotExist(err) {
+		return false
+	}
+
+	if err := os.WriteFile(envExampleFileName, []byte(envExampleContent()), 0644); err != nil {
+		fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envExampleFileName, err)
+		return false
+	}
+
+	if err := ensureEnvInGitignore(); err != nil {
+		fmt.Printf("%s Warning: failed to add .env to .gitignore: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
+	}
+
+	return true
 }
 
 // createSparseConfigScaffold writes a minimal config.yaml that signals it is a
