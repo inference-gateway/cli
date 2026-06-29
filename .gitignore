@@ -18,3 +18,4 @@ result-*
 # IDE's
 .vscode
 .idea
+.infer
