@@ -1030,9 +1030,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.Tools.Agent.RequireApproval
 		}
 	case "ListSubagents", "GetSubagentResult":
-		// Read-only inspection of the agent's own subagents. (CloseSubagent is
-		// intentionally absent: like KillShell it falls through to the global
-		// approval setting since it terminates a subagent/pane.)
 		return false
 	case "RequestPlanApproval":
 		return false

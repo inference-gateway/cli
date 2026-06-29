@@ -173,10 +173,6 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		specs[i].ParentMode = parentMode
 	}
 
-	// Interactive subagents have no completion signal (a live `infer chat` REPL),
-	// so they are fire-and-track regardless of the wait setting: launch the panes,
-	// register them, and return. The main agent inspects and closes them with the
-	// ListSubagents / GetSubagentResult / CloseSubagent tools.
 	if mode == domain.SubagentModeInteractive {
 		return t.runInteractive(ctx, args, start, specs, parentSession, notes), nil
 	}

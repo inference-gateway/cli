@@ -18,9 +18,9 @@ const (
 type paneState int
 
 const (
-	paneGone  paneState = iota // no such pane (closed)
-	paneAlive                  // pane exists and its process is running
-	paneDead                   // pane exists but its process exited (kept by remain-on-exit)
+	paneGone  paneState = iota
+	paneAlive
+	paneDead
 )
 
 // status maps a pane state to the user-facing subagent status word.
