@@ -129,8 +129,6 @@ func TestConfigSetProjectWritesSparseOverride(t *testing.T) {
 	content := string(data)
 	require.Contains(t, content, "proj-set-model")
 	require.Contains(t, content, "agent:")
-	// Sparse: unrelated default sections must not be written, or they'd shadow
-	// the home baseline on merge.
 	require.NotContains(t, content, "gateway:")
 	require.NotContains(t, content, "storage:")
 

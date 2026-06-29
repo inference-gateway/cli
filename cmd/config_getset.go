@@ -153,8 +153,6 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	}
 
 	target.Set(key, parsed)
-	// The project layer is a sparse override (only the keys it sets); the home
-	// baseline is written full so it remains a complete, ordered config.yaml.
 	writeErr := utils.WriteViperConfigWithIndent(target, 2)
 	if toProject {
 		writeErr = utils.WriteViperConfigSparse(target, 2)

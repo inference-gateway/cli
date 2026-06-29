@@ -68,7 +68,6 @@ func TestInitializeProject(t *testing.T) {
 		}
 		require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
 
-		// The project config.yaml is a sparse scaffold, not a full config dump.
 		data, err := os.ReadFile(filepath.Join(projectDir, config.DefaultConfigPath))
 		require.NoError(t, err)
 		require.Contains(t, string(data), "Project-level configuration overrides")
