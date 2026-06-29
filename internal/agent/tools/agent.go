@@ -36,7 +36,10 @@ type AgentTaskSpec struct {
 	Model        string
 	Files        []string
 	SystemPrompt string
-	ParentMode   domain.AgentMode
+	// Mode is the subagent's capability, resolved from the `type` argument:
+	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
+	// AgentModeStandard (can mutate, approval applies).
+	Mode domain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -110,6 +113,7 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 								"label":         map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
 								"model":         map[string]any{"type": "string", "description": "Optional model override for this subagent"},
 								"system_prompt": map[string]any{"type": "string", "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task"},
+								"type":          map[string]any{"type": "string", "enum": []string{"ReadOnly", "ReadWrite"}, "description": "Capability. ReadOnly (default) is Explore-like: read/search tools only, never needs approval - use for investigation/research. ReadWrite can modify files and run commands; its mutations require approval."},
 							},
 							"required": []string{"description"},
 						},
@@ -121,6 +125,11 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 					"system_prompt": map[string]any{
 						"type":        "string",
 						"description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
+					},
+					"type": map[string]any{
+						"type":        "string",
+						"enum":        []string{"ReadOnly", "ReadWrite"},
+						"description": "Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.",
 					},
 				},
 			},
@@ -167,10 +176,11 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 	parentSession := domain.GetSessionID(ctx)
 	parentModel := domain.GetModel(ctx)
-	parentMode, _ := domain.AgentModeFromContext(ctx) // absent -> Standard (the zero value)
+	// The subagent's capability comes from its per-task `type` (spec.Mode, resolved
+	// in parseAgentTasks), NOT from the parent's mode - a ReadOnly subagent stays
+	// read-only even when spawned from an AutoAccept chat.
 	for i := range specs {
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
-		specs[i].ParentMode = parentMode
 	}
 
 	if mode == domain.SubagentModeInteractive {
@@ -296,7 +306,7 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
 	}
 
-	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. You will be notified automatically when each completes - do not wait or poll.", len(dispatched), mode)
+	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. END YOUR TURN NOW - you will be notified automatically when each completes; do NOT poll with ListSubagents/GetSubagentResult.", len(dispatched), mode)
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
@@ -359,7 +369,9 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		if title == "" {
 			title = "subagent"
 		}
-		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec))
+		_ = os.Remove(subagentResultFilePath(sessionID))
+		_ = os.Remove(subagentApprovalFilePath(sessionID))
+		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec, sessionID))
 		if err != nil {
 			notes = append(notes, fmt.Sprintf("%s: failed to open tmux pane: %v", labelOrSession(spec.Label, sessionID), err))
 			continue
@@ -391,7 +403,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		})
 	}
 
-	msg := fmt.Sprintf("Launched %d interactive subagent(s) in tmux panes - live chats you can watch. You will be AUTOMATICALLY NOTIFIED when each finishes (its final output is folded back into this conversation) - do NOT poll with ListSubagents/GetSubagentResult; just wait. Use CloseSubagent only to stop one early.", len(launched))
+	msg := fmt.Sprintf("Launched %d interactive subagent(s) in tmux panes - live chats you can watch. You will be AUTOMATICALLY NOTIFIED when each finishes (its final output is folded back into this conversation). END YOUR TURN NOW and wait: do NOT call ListSubagents/GetSubagentResult to poll, and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.", len(launched))
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
@@ -422,17 +434,20 @@ func labelOrSession(label, sessionID string) string {
 // buildChatPaneCommand assembles the shell command run inside the tmux pane: a
 // live `infer chat` using the parent model (via INFER_AGENT_MODEL so no model
 // dropdown appears) plus the depth guard.
-func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec) string {
+func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) string {
 	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
-	if spec.ParentMode != domain.AgentModeStandard {
-		parts = append(parts, domain.EnvSubagentAgentMode+"="+shellQuote(spec.ParentMode.AllowedlistKey()))
+	if spec.Mode != domain.AgentModeStandard {
+		parts = append(parts, domain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.AllowedlistKey()))
 	}
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
+
+	parts = append(parts, domain.EnvSubagentResultFile+"="+shellQuote(subagentResultFilePath(sessionID)))
+	parts = append(parts, domain.EnvSubagentApprovalFile+"="+shellQuote(subagentApprovalFilePath(sessionID)))
 	parts = append(parts, shellQuote(t.binary), "chat")
 	return strings.Join(parts, " ")
 }
@@ -444,8 +459,8 @@ func subagentExtraEnv(spec AgentTaskSpec) []string {
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
-	if spec.ParentMode != domain.AgentModeStandard {
-		env = append(env, domain.EnvSubagentAgentMode+"="+spec.ParentMode.AllowedlistKey())
+	if spec.Mode != domain.AgentModeStandard {
+		env = append(env, domain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
 	}
 	return env
 }
@@ -457,10 +472,7 @@ func (t *AgentTool) sendTaskToPane(ctx context.Context, paneID, task string) err
 		return nil
 	}
 	t.waitForPaneReady(ctx, paneID)
-	if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "-l", task).Run(); err != nil {
-		return err
-	}
-	return exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "Enter").Run()
+	return tmuxSendKeys(ctx, paneID, task, []string{"Enter"})
 }
 
 // waitForPaneReady polls the pane content until the chat input prompt appears
@@ -512,6 +524,27 @@ func subagentResultFilePath(sessionID string) string {
 	return filepath.Join(os.TempDir(), "infer-subagent-"+sessionID+".json")
 }
 
+// subagentApprovalFilePath is the temp path an interactive subagent writes while
+// it is blocked on a tool-approval prompt (see EnvSubagentApprovalFile).
+func subagentApprovalFilePath(sessionID string) string {
+	return filepath.Join(os.TempDir(), "infer-subagent-"+sessionID+".approval.json")
+}
+
+// readSubagentApproval reads a subagent's approval sidecar. It returns
+// (summary, true) when the subagent is currently blocked on a tool-approval
+// prompt, or ("", false) when it is not (file absent, malformed, or not awaiting).
+func readSubagentApproval(sessionID string) (string, bool) {
+	data, err := os.ReadFile(subagentApprovalFilePath(sessionID))
+	if err != nil {
+		return "", false
+	}
+	var af domain.SubagentApprovalFile
+	if err := json.Unmarshal(data, &af); err != nil || !af.Awaiting {
+		return "", false
+	}
+	return strings.TrimSpace(af.Summary), true
+}
+
 // readSubagentResultFile reads and parses a subagent result file without
 // waiting. Returns ok=false when the file is absent or malformed.
 func readSubagentResultFile(path string) (domain.SubagentResultFile, bool) {
@@ -524,6 +557,18 @@ func readSubagentResultFile(path string) (domain.SubagentResultFile, bool) {
 		return domain.SubagentResultFile{}, false
 	}
 	return rf, true
+}
+
+// readSubagentResultMessage returns the subagent chat's real last assistant
+// message from its result file (trimmed), or "" if the file is absent or empty.
+// It is the single harvest path: the subagent's pane is never scraped for content
+// (its TUI chrome is noise), so on a miss callers deliver nothing. Shared by the
+// poller's inspector and the GetSubagentResult / CloseSubagent tools.
+func readSubagentResultMessage(sessionID string) string {
+	if rf, ok := readSubagentResultFile(subagentResultFilePath(sessionID)); ok {
+		return strings.TrimSpace(rf.FinalAssistant)
+	}
+	return ""
 }
 
 // Validate checks the tool arguments.
@@ -730,6 +775,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 				Model:        optionalString(m, "model"),
 				Files:        optionalStringSlice(m, "files"),
 				SystemPrompt: optionalString(m, "system_prompt"),
+				Mode:         resolveSubagentType(optionalString(m, "type")),
 			})
 		}
 		return specs, nil
@@ -742,10 +788,22 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 			Model:        optionalString(args, "model"),
 			Files:        optionalStringSlice(args, "files"),
 			SystemPrompt: optionalString(args, "system_prompt"),
+			Mode:         resolveSubagentType(optionalString(args, "type")),
 		}}, nil
 	}
 
 	return nil, fmt.Errorf("provide either 'tasks' (a non-empty array) or 'description' (a single task)")
+}
+
+// resolveSubagentType maps the Agent tool's `type` argument to a subagent
+// capability mode: "ReadWrite" -> AgentModeStandard (can mutate, approval
+// applies); anything else, including the default empty value, -> AgentModeReadOnly
+// (Explore-like read/search, no approval). Matching is case-insensitive.
+func resolveSubagentType(t string) domain.AgentMode {
+	if strings.EqualFold(strings.TrimSpace(t), "ReadWrite") {
+		return domain.AgentModeStandard
+	}
+	return domain.AgentModeReadOnly
 }
 
 func optionalStringSlice(m map[string]any, key string) []string {

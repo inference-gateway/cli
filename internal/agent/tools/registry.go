@@ -124,6 +124,9 @@ func (r *Registry) registerTools() {
 		r.tools["ListSubagents"] = NewListSubagentsTool(cfg, r.subagentTracker)
 		r.tools["GetSubagentResult"] = NewGetSubagentResultTool(cfg, r.subagentTracker)
 		r.tools["CloseSubagent"] = NewCloseSubagentTool(cfg, r.subagentTracker)
+		r.tools["ReadSubagentScreen"] = NewReadSubagentScreenTool(cfg, r.subagentTracker)
+		r.tools["SendSubagentInput"] = NewSendSubagentInputTool(cfg, r.subagentTracker)
+		r.tools["ApproveSubagent"] = NewApproveSubagentTool(cfg, r.subagentTracker)
 	}
 
 	if cfg.Tools.WebFetch.Enabled {

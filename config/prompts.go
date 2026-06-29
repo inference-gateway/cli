@@ -81,6 +81,9 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.ListSubagents, &defaults.ListSubagents)
 	mergeToolDescription(&loaded.GetSubagentResult, &defaults.GetSubagentResult)
 	mergeToolDescription(&loaded.CloseSubagent, &defaults.CloseSubagent)
+	mergeToolDescription(&loaded.ReadSubagentScreen, &defaults.ReadSubagentScreen)
+	mergeToolDescription(&loaded.SendSubagentInput, &defaults.SendSubagentInput)
+	mergeToolDescription(&loaded.ApproveSubagent, &defaults.ApproveSubagent)
 	mergeToolDescription(&loaded.A2AQueryAgent, &defaults.A2AQueryAgent)
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
 	mergeToolDescription(&loaded.A2ASubmitTask, &defaults.A2ASubmitTask)
@@ -183,6 +186,9 @@ type PromptsToolsConfig struct {
 	ListSubagents       PromptsToolDescription `yaml:"ListSubagents" mapstructure:"ListSubagents"`
 	GetSubagentResult   PromptsToolDescription `yaml:"GetSubagentResult" mapstructure:"GetSubagentResult"`
 	CloseSubagent       PromptsToolDescription `yaml:"CloseSubagent" mapstructure:"CloseSubagent"`
+	ReadSubagentScreen  PromptsToolDescription `yaml:"ReadSubagentScreen" mapstructure:"ReadSubagentScreen"`
+	SendSubagentInput   PromptsToolDescription `yaml:"SendSubagentInput" mapstructure:"SendSubagentInput"`
+	ApproveSubagent     PromptsToolDescription `yaml:"ApproveSubagent" mapstructure:"ApproveSubagent"`
 	A2AQueryAgent       PromptsToolDescription `yaml:"A2A_QueryAgent" mapstructure:"A2A_QueryAgent"`
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
 	A2ASubmitTask       PromptsToolDescription `yaml:"A2A_SubmitTask" mapstructure:"A2A_SubmitTask"`
@@ -597,11 +603,13 @@ The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire wh
 		Agent: PromptsToolDescription{
 			Description: `Spawn local subagents - each an autonomous "infer agent" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
 
-Provide either 'tasks' (an array of {description, label?, model?, system_prompt?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).
+Provide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).
+
+Choose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.
 
 The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
-In EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation) - do NOT poll with ListSubagents/GetSubagentResult; dispatch, then wait for the notification.
+In EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.
 - Headless subagents honor tools.agent.wait: blocking (default) waits until all finish and returns their aggregated results (fan-out / fan-in); async returns immediately and notifies you as each completes.
 - Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live and are notified when each finishes. Use CloseSubagent only to stop one early.
 
@@ -611,10 +619,19 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Snapshot the local subagents spawned by the Agent tool (id, label, mode, status). Running subagents notify you automatically when they finish - this is a one-off status check, NOT a way to poll for completion. Use a returned subagent_id with GetSubagentResult or CloseSubagent.`,
 		},
 		GetSubagentResult: PromptsToolDescription{
-			Description: `Read an interactive subagent's latest pane output on demand. Do NOT use this to poll for completion - you are notified automatically when a subagent finishes; a running headless subagent refuses this call. Pass the subagent_id from ListSubagents; optionally set 'lines' for how many trailing lines to return.`,
+			Description: `Re-read a completed interactive subagent's last assistant message on demand. Do NOT use this to poll for completion - you are notified automatically when a subagent finishes; a running subagent refuses this call. If you just dispatched a subagent, END YOUR TURN and wait for the notification instead of calling this. Pass the subagent_id from ListSubagents.`,
 		},
 		CloseSubagent: PromptsToolDescription{
-			Description: `Stop a subagent early or tidy a finished interactive pane. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes. For an interactive subagent this harvests a final tail of its pane and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.`,
+			Description: `Stop a subagent early or tidy a finished interactive pane. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.`,
+		},
+		ReadSubagentScreen: PromptsToolDescription{
+			Description: `Capture the RAW terminal screen of an interactive subagent's tmux pane - the rendered TUI exactly as drawn (input box, status bar, menus and all). Use this to inspect or test a subagent's live TUI; unlike GetSubagentResult it works while the subagent is running and is NOT a way to poll for completion (you are notified automatically when a subagent finishes). Optional 'lines' bounds the output to the last N lines. Interactive subagents only. Pass the subagent_id from ListSubagents.`,
+		},
+		SendSubagentInput: PromptsToolDescription{
+			Description: `Type into an interactive subagent's TUI - to re-prompt it or drive its interface. Provide 'text' (typed literally) and/or 'keys' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown). With submit=true (default) it presses Enter to send a new prompt and you are AUTOMATICALLY NOTIFIED when the subagent finishes the resulting turn - do not poll. With submit=false it only sends the keys (for TUI navigation/testing); observe the effect with ReadSubagentScreen. Interactive subagents only. Pass the subagent_id from ListSubagents.`,
+		},
+		ApproveSubagent: PromptsToolDescription{
+			Description: `Respond to an interactive subagent that is waiting for tool approval (you are notified with a '[Subagent ... awaiting approval]' message showing what it wants to run). decision='approve' lets it proceed, 'reject' declines. This action itself requires YOUR confirmation in this chat before it is relayed. Only Approve/Reject - do not auto-approve. Pass the subagent_id from ListSubagents.`,
 		},
 		A2AQueryAgent: PromptsToolDescription{
 			Description: `Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.`,

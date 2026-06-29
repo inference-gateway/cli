@@ -87,6 +87,11 @@ const (
 	AgentModePlan
 	// AgentModeAutoAccept bypasses all approval checks (YOLO mode)
 	AgentModeAutoAccept
+	// AgentModeReadOnly is an Explore-like capability for subagents: only
+	// read/search tools are offered and approval is bypassed (the toolset is
+	// read-only by construction). It is a subagent capability selected by the
+	// Agent tool's `type` parameter, not a human shift+tab mode.
+	AgentModeReadOnly
 )
 
 // AllowedlistKey maps the agent mode to the bash allow-list mode key used in
@@ -98,6 +103,8 @@ func (m AgentMode) AllowedlistKey() string {
 		return "plan"
 	case AgentModeAutoAccept:
 		return "auto"
+	case AgentModeReadOnly:
+		return "readonly"
 	default:
 		return "standard"
 	}
@@ -115,6 +122,8 @@ func ParseAgentMode(s string) (AgentMode, bool) {
 		return AgentModePlan, true
 	case "auto":
 		return AgentModeAutoAccept, true
+	case "readonly":
+		return AgentModeReadOnly, true
 	default:
 		return AgentModeStandard, false
 	}
@@ -157,6 +166,8 @@ func (m AgentMode) String() string {
 		return "Plan"
 	case AgentModeAutoAccept:
 		return "AutoAccept"
+	case AgentModeReadOnly:
+		return "ReadOnly"
 	default:
 		return "Unknown"
 	}
@@ -171,6 +182,8 @@ func (m AgentMode) DisplayName() string {
 		return "Plan Mode"
 	case AgentModeAutoAccept:
 		return "Auto-Accept"
+	case AgentModeReadOnly:
+		return "Read-Only"
 	default:
 		return "Unknown"
 	}
@@ -474,7 +487,10 @@ func (s *ApplicationState) SetAgentMode(mode AgentMode) {
 	s.agentMode = mode
 }
 
-// CycleAgentMode cycles to the next agent mode
+// CycleAgentMode cycles to the next agent mode. The human shift+tab cycle is
+// deliberately three-way (Standard -> Plan -> AutoAccept); AgentModeReadOnly is a
+// subagent-only capability set by the Agent tool's `type` parameter, not a mode a
+// user can toggle their own chat into.
 func (s *ApplicationState) CycleAgentMode() AgentMode {
 	switch s.agentMode {
 	case AgentModeStandard:

@@ -90,6 +90,16 @@ func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.Subagent
 	if s.Mode == domain.SubagentModeInteractive && s.Status == domain.SubagentRunning {
 		status = t.paneState(ctx, s.PaneID).status()
 	}
+	// A subagent blocked on a tool-approval prompt reports awaiting_approval. This
+	// is a display-only override - its tracked Status stays Running so the poller
+	// keeps watching it (and re-notifies once the approval is resolved).
+	awaiting := false
+	if s.Mode == domain.SubagentModeInteractive {
+		if _, ok := readSubagentApproval(s.SessionID); ok {
+			status = "awaiting_approval"
+			awaiting = true
+		}
+	}
 	info := map[string]any{
 		"subagent_id": s.ID,
 		"label":       s.Label,
@@ -102,7 +112,10 @@ func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.Subagent
 	if s.PaneID != "" {
 		info["pane_id"] = s.PaneID
 	}
-	if s.Status == domain.SubagentRunning {
+	switch {
+	case awaiting:
+		info["note"] = "blocked on tool approval; review and respond with ApproveSubagent"
+	case s.Status == domain.SubagentRunning:
 		info["note"] = "notifies automatically when it finishes; do not poll"
 	}
 	return info

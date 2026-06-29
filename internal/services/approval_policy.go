@@ -14,6 +14,8 @@ import (
 // StandardApprovalPolicy implements the default approval policy with the following rules:
 //  1. Computer use tools (mouse, keyboard) always bypass approval (background execution)
 //  2. Auto-accept mode bypasses all approval
+//     2.5. ReadOnly mode (Explore-like subagent) bypasses approval; its toolset is
+//     read-only by construction so nothing it can call mutates
 //  3. Non-chat (headless agent) mode bypasses approval; there the Bash tool's own
 //     per-mode gate (executeBash) decides what runs
 //  4. Bash commands are governed by the per-mode allow-list (config.IsBashCommandAllowed):
@@ -44,25 +46,22 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
-	// Rule 2: Auto-accept mode bypasses all approval
 	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
 		return false
 	}
 
-	// Rule 3: Non-chat (headless agent) mode bypasses approval; there the Bash tool's
-	// own per-mode gate (executeBash) decides what runs, rejecting off-list commands.
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeReadOnly {
+		return false
+	}
+
 	if !isChatMode {
 		return false
 	}
 
-	// Rule 4: Bash is governed by the per-mode allow-list. Reached only in chat,
-	// non-auto mode (standard/plan), so allowed commands bypass approval and
-	// anything off-list prompts the user.
 	if toolCall.Function.Name == "Bash" {
 		return !p.isBashCommandAllowed(toolCall)
 	}
 
-	// Rule 5: Check configuration (per-tool or global setting)
 	return p.config.IsApprovalRequired(toolCall.Function.Name)
 }
 

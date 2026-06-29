@@ -48,6 +48,8 @@ func (mi *ModeIndicator) Render() string {
 		modeText = "▶ PLAN"
 	case domain.AgentModeAutoAccept:
 		modeText = "▸ AUTO"
+	case domain.AgentModeReadOnly:
+		modeText = "▸ READ-ONLY"
 	}
 
 	styledMode := mi.styleProvider.RenderStyledText(
@@ -58,7 +60,7 @@ func (mi *ModeIndicator) Render() string {
 		},
 	)
 
-	modeWidth := 7
+	modeWidth := len([]rune(modeText))
 	availableWidth := mi.width - 4
 	spacingWidth := availableWidth - modeWidth
 

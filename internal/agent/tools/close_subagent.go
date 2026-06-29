@@ -3,30 +3,29 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// CloseSubagentTool closes a subagent. For an interactive subagent it harvests a
-// final tail of the pane's output and kills the tmux pane; for a headless one it
-// cancels the running subprocess. It is the subagent analogue of KillShell.
+// CloseSubagentTool closes a subagent. For an interactive subagent it harvests
+// its last assistant message (result file) and kills the tmux pane; for a
+// headless one it cancels the running subprocess. The subagent analogue of KillShell.
 type CloseSubagentTool struct {
-	config      *config.Config
-	tracker     domain.SubagentTracker
-	capturePane func(ctx context.Context, paneID string, maxLines int) string
-	killPane    func(ctx context.Context, paneID string) error
+	config   *config.Config
+	tracker  domain.SubagentTracker
+	killPane func(ctx context.Context, paneID string) error
 }
 
 // NewCloseSubagentTool creates a new CloseSubagent tool over the session's
 // SubagentTracker.
 func NewCloseSubagentTool(cfg *config.Config, tracker domain.SubagentTracker) *CloseSubagentTool {
 	return &CloseSubagentTool{
-		config:      cfg,
-		tracker:     tracker,
-		capturePane: tmuxCapturePaneTail,
-		killPane:    tmuxKillPane,
+		config:   cfg,
+		tracker:  tracker,
+		killPane: tmuxKillPane,
 	}
 }
 
@@ -80,8 +79,9 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 // subagent. The harvested output is returned so the subagent's last work folds
 // back into the conversation.
 func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *domain.SubagentState) *domain.ToolExecutionResult {
-	output := t.capturePane(ctx, s.PaneID, defaultPaneTailLines)
+	output := readSubagentResultMessage(s.SessionID)
 	_ = t.killPane(ctx, s.PaneID)
+	_ = os.Remove(subagentResultFilePath(s.SessionID))
 	_ = t.tracker.RemoveSubagent(s.ID)
 	return &domain.ToolExecutionResult{
 		ToolName:  "CloseSubagent",

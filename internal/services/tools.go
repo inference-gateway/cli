@@ -74,6 +74,28 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 		return definitions
 	}
 
+	if mode == domain.AgentModeReadOnly {
+		allowedTools := map[string]bool{
+			"Read":               true,
+			"Grep":               true,
+			"Tree":               true,
+			"WebFetch":           true,
+			"WebSearch":          true,
+			"ListSubagents":      true,
+			"GetSubagentResult":  true,
+			"ReadSubagentScreen": true,
+		}
+
+		var definitions []sdk.ChatCompletionTool
+		allTools := s.registry.GetToolDefinitions()
+		for _, tool := range allTools {
+			if s.isToolEnabled(tool.Function.Name) && allowedTools[tool.Function.Name] {
+				definitions = append(definitions, tool)
+			}
+		}
+		return definitions
+	}
+
 	planOnlyTools := map[string]bool{
 		"RequestPlanApproval": true,
 		"AskUserQuestion":     true,

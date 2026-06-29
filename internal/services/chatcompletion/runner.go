@@ -2,7 +2,9 @@ package chatcompletion
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -172,6 +174,7 @@ func (r *Runner) HandleChatChunk(msg domain.ChatChunkEvent) tea.Cmd {
 // status, refreshes history, emits tool-call previews, and signals completion.
 func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
 	r.restorePendingModel()
+	r.writeSubagentResultFile(msg)
 
 	if msg.Cancelled {
 		_ = r.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
@@ -222,9 +225,87 @@ func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
 	return tea.Sequence(cmds...)
 }
 
+// writeSubagentResultFile lets an interactive subagent's `infer chat` hand its
+// last assistant message back to the parent Agent tool. When launched as an
+// interactive subagent the parent sets INFER_SUBAGENT_RESULT_FILE; on each fully
+// completed turn (a final answer, no pending tool calls) we write the last
+// assistant message as a SubagentResultFile so the parent delivers the real
+// answer instead of scraping the tmux pane's chrome. A no-op for a normal chat.
+//
+// The message comes from the conversation, not the event: ChatCompleteEvent.Message
+// is not populated (see publishChatComplete), but the assistant turn is already in
+// the repo by the time this runs (streaming appends it before emitting the event).
+func (r *Runner) writeSubagentResultFile(msg domain.ChatCompleteEvent) {
+	path := os.Getenv(domain.EnvSubagentResultFile)
+	if path == "" || msg.Cancelled || len(msg.ToolCalls) > 0 {
+		return
+	}
+	answer := lastAssistantText(r.conversationRepo.GetMessages())
+	if answer == "" {
+		return
+	}
+	r.writeSubagentResultFileAtomic(path, domain.SubagentResultFile{FinalAssistant: answer, Success: true})
+}
+
+// writeSubagentResultFileError records a failed terminal turn for an interactive
+// subagent so the parent harvests the error rather than falling back to the pane.
+func (r *Runner) writeSubagentResultFileError(runErr error) {
+	path := os.Getenv(domain.EnvSubagentResultFile)
+	if path == "" {
+		return
+	}
+	rf := domain.SubagentResultFile{
+		FinalAssistant: lastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
+		Success:        false,
+	}
+	if runErr != nil {
+		rf.Error = runErr.Error()
+	}
+	r.writeSubagentResultFileAtomic(path, rf)
+}
+
+// writeSubagentResultFileAtomic marshals rf and writes it to path via a temp file
+// and rename, so a polling parent never reads a half-written file.
+func (r *Runner) writeSubagentResultFileAtomic(path string, rf domain.SubagentResultFile) {
+	data, err := json.Marshal(rf)
+	if err != nil {
+		logger.Warn("subagent result file: marshal failed", "error", err)
+		return
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		logger.Warn("subagent result file: write failed", "error", err, "path", path)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		logger.Warn("subagent result file: rename failed", "error", err, "path", path)
+	}
+}
+
+// lastAssistantText returns the content of the last non-empty assistant message
+// in entries (backward scan), or "" if none. The interactive analogue of the
+// headless lastAssistantBefore (cmd/agent.go).
+func lastAssistantText(entries []domain.ConversationEntry) string {
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		if e.Message.Role != sdk.Assistant {
+			continue
+		}
+		text, err := e.Message.Content.AsMessageContent0()
+		if err != nil {
+			continue
+		}
+		if s := strings.TrimSpace(text); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // HandleChatError tears down session state and emits a sticky error event
 // (with a friendlier message for "timed out" errors).
 func (r *Runner) HandleChatError(msg domain.ChatErrorEvent) tea.Cmd {
+	r.writeSubagentResultFileError(msg.Error)
 	_ = r.stateManager.UpdateChatStatus(domain.ChatStatusError)
 	r.stateManager.EndChatSession()
 	r.stateManager.EndToolExecution()

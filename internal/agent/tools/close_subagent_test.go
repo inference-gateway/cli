@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -17,15 +18,18 @@ func TestCloseSubagentTool_Validate(t *testing.T) {
 }
 
 func TestCloseSubagentTool_InteractiveKillsAndHarvests(t *testing.T) {
+	sessionID := "sess-close"
+	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
+	writeTestResultFile(t, sessionID, "final words")
+
 	tracker := utils.NewSubagentTracker()
 	_ = tracker.AddSubagent(&domain.SubagentState{
 		ID: "s1", Label: "w", Mode: domain.SubagentModeInteractive,
-		SessionID: "sess", PaneID: "%7", Status: domain.SubagentRunning,
+		SessionID: sessionID, PaneID: "%7", Status: domain.SubagentRunning,
 	})
 	tool := NewCloseSubagentTool(config.DefaultConfig(), tracker)
 	killed := ""
 	tool.killPane = func(ctx context.Context, paneID string) error { killed = paneID; return nil }
-	tool.capturePane = func(ctx context.Context, paneID string, maxLines int) string { return "final words" }
 
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "s1"})
 	if err != nil {

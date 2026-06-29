@@ -10,24 +10,17 @@ import (
 )
 
 // GetSubagentResultTool returns the latest output of an interactive subagent by
-// capturing a bounded tail of its tmux pane (the last message or few messages,
-// never the whole scrollback). It is the subagent analogue of BashOutput.
+// returning the subagent chat's last assistant message (from its result file).
+// It is the subagent analogue of BashOutput.
 type GetSubagentResultTool struct {
-	config      *config.Config
-	tracker     domain.SubagentTracker
-	paneState   func(ctx context.Context, paneID string) paneState
-	capturePane func(ctx context.Context, paneID string, maxLines int) string
+	config  *config.Config
+	tracker domain.SubagentTracker
 }
 
 // NewGetSubagentResultTool creates a new GetSubagentResult tool over the
 // session's SubagentTracker.
 func NewGetSubagentResultTool(cfg *config.Config, tracker domain.SubagentTracker) *GetSubagentResultTool {
-	return &GetSubagentResultTool{
-		config:      cfg,
-		tracker:     tracker,
-		paneState:   tmuxPaneState,
-		capturePane: tmuxCapturePaneTail,
-	}
+	return &GetSubagentResultTool{config: cfg, tracker: tracker}
 }
 
 // Definition returns the tool definition for the LLM.
@@ -44,10 +37,6 @@ func (t *GetSubagentResultTool) Definition() sdk.ChatCompletionTool {
 					"subagent_id": map[string]any{
 						"type":        "string",
 						"description": "The subagent id from ListSubagents",
-					},
-					"lines": map[string]any{
-						"type":        "integer",
-						"description": fmt.Sprintf("Optional number of trailing lines to return (default %d, max %d)", defaultPaneTailLines, maxPaneTailLines),
 					},
 				},
 				"required":             []string{"subagent_id"},
@@ -74,22 +63,19 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 		}, nil
 	}
 
-	// A running subagent (either mode) is monitored in the background and notifies
-	// automatically on completion - refuse the poll (mirrors A2A_QueryTask). The
-	// user can watch an interactive pane directly; the result arrives on its own.
 	if s.Status == domain.SubagentRunning {
 		return &domain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
 			Success:   false,
-			Error:     fmt.Sprintf("Subagent %s is still running and will notify you AUTOMATICALLY when it finishes - do not poll. Wait for its '[Subagent Completed: ...]' message to appear in the conversation, then act on it.", labelOrSession(s.Label, s.SessionID)),
+			Error:     fmt.Sprintf("Subagent %s is still running and will notify you AUTOMATICALLY when it finishes. END YOUR TURN NOW - do NOT call this again, and do NOT CloseSubagent to fetch a result. Its '[Subagent Completed: ...]' message arrives in the conversation on its own; act on it then.", labelOrSession(s.Label, s.SessionID)),
 		}, nil
 	}
 
-	// Not running: a completed interactive subagent is kept tracked with its pane
-	// still open, so its final output can be re-read on demand.
+	// A completed interactive subagent: return its real last assistant message
+	// from the result file (its chat wrote it on turn completion). The pane is
+	// never scraped - its TUI chrome is noise - so output is "" if none was written.
 	if s.Mode == domain.SubagentModeInteractive {
-		output := t.capturePane(ctx, s.PaneID, toInt(args["lines"]))
 		return &domain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
@@ -99,8 +85,8 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 				"label":       s.Label,
 				"mode":        s.Mode,
 				"pane_id":     s.PaneID,
-				"status":      t.paneState(ctx, s.PaneID).status(),
-				"output":      output,
+				"status":      string(s.Status),
+				"output":      readSubagentResultMessage(s.SessionID),
 			},
 		}, nil
 	}

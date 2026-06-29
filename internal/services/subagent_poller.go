@@ -13,13 +13,12 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// PaneInspector probes an interactive subagent's tmux pane without importing
-// the tools package (which would create an import cycle). content is a bounded
-// tail of the pane; idle reports whether the chat is back at its input prompt
-// (the subagent finished its turn) or its process exited; gone reports the pane
-// no longer exists. The concrete tmux-backed implementation is constructed in
-// package agent (tools.NewPaneInspector) and injected via SetPaneInspector.
-type PaneInspector func(ctx context.Context, paneID string) (content string, idle bool, gone bool)
+// PaneInspector probes an interactive subagent without importing the tools
+// package (which would create an import cycle), returning a domain.PaneObservation
+// (result-file message, pane liveness, and pending-approval signal). The concrete
+// tmux+sidecar implementation is constructed in package agent (tools.NewPaneInspector)
+// and injected via SetPaneInspector.
+type PaneInspector func(ctx context.Context, paneID, sessionID string) domain.PaneObservation
 
 // SubagentPoller drives the per-subagent monitor goroutines that watch
 // in-flight local subagents (spawned by the Agent tool) for completion and
@@ -38,6 +37,11 @@ type SubagentPoller struct {
 	stopped          bool
 	agentEventChan   chan<- domain.AgentEvent
 	paneInspector    PaneInspector
+	// notifiedApprovals records, per subagent id, the approval summary already
+	// surfaced to the main agent - so a pending approval is announced once (not
+	// every poll) and a fresh approval re-announces. It lives on the poller (not a
+	// monitor goroutine) so it survives a monitor re-spawn after SendSubagentInput.
+	notifiedApprovals map[string]string
 
 	// Interactive-pane completion-heuristic tunables (overridable in tests).
 	interactivePollInterval time.Duration
@@ -60,6 +64,7 @@ func NewSubagentPoller(
 		requestID:               requestID,
 		conversationRepo:        conversationRepo,
 		activeMonitors:          make(map[string]context.CancelFunc),
+		notifiedApprovals:       make(map[string]string),
 		stopChan:                make(chan struct{}),
 		interactivePollInterval: 2 * time.Second,
 		interactiveGrace:        4 * time.Second,
@@ -124,17 +129,11 @@ func (p *SubagentPoller) checkForNewSubagents(ctx context.Context) {
 
 	for _, state := range p.tracker.GetAllSubagents() {
 		if state.Mode == domain.SubagentModeInteractive {
-			// Interactive subagents are watched by polling their tmux pane, which
-			// only happens in chat mode (paneInspector set); in a headless one-shot
-			// run the inspector is nil so they are left alone (fire-and-forget). A
-			// completed interactive subagent is kept tracked (so its pane stays
-			// watchable / closeable) and must not be re-watched.
 			if !canWatchInteractive || state.Status != domain.SubagentRunning {
 				continue
 			}
 		}
-		// Headless subagents are monitored regardless of status: a tracked one is
-		// still running or holds a buffered ResultChan result yet to be delivered.
+
 		p.mu.RLock()
 		_, monitoring := p.activeMonitors[state.ID]
 		p.mu.RUnlock()
@@ -200,9 +199,6 @@ func (p *SubagentPoller) finish(state *domain.SubagentState, result *domain.Tool
 		result = &domain.ToolExecutionResult{ToolName: "Agent", Success: false, Error: "subagent produced no result"}
 	}
 
-	// Silent (synchronous wait-all) subagents are tracked only to drive the
-	// live tree; the Agent tool returns their aggregated result directly, so
-	// don't also inject it onto the conversation queue.
 	if !state.Silent {
 		p.addResultToMessageQueue(state, result)
 	}
@@ -323,8 +319,8 @@ func (p *SubagentPoller) monitorInteractive(ctx context.Context, state *domain.S
 	ticker := time.NewTicker(p.interactivePollInterval)
 	defer ticker.Stop()
 
-	var lastContent string
-	stable := 0
+	stableTicks := 0
+	prevScreen := ""
 	started := time.Now()
 
 	for {
@@ -332,51 +328,97 @@ func (p *SubagentPoller) monitorInteractive(ctx context.Context, state *domain.S
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			content, idle, gone := inspect(ctx, state.PaneID)
-			if gone {
-				p.finishInteractive(state, lastContent)
+			obs := inspect(ctx, state.PaneID, state.SessionID)
+			if obs.Harvested != "" {
+				p.finishInteractive(state, obs.Harvested)
 				return
 			}
-			// Grace window: right after launch the input prompt is present before
-			// the typed task starts running - don't mistake it for completion.
-			if time.Since(started) < p.interactiveGrace {
-				lastContent = content
+
+			if obs.Gone || obs.Dead {
+				p.finishInteractive(state, "")
+				return
+			}
+
+			p.handleApprovalSignal(state, obs)
+			if obs.AwaitingApproval {
+				stableTicks = 0
+				prevScreen = obs.Screen
 				continue
 			}
-			if idle && content != "" && content == lastContent {
-				stable++
-			} else {
-				stable = 0
+			if time.Since(started) < p.interactiveGrace {
+				prevScreen = obs.Screen
+				continue
 			}
-			lastContent = content
-			if stable >= p.interactiveStableNeeded {
-				p.finishInteractive(state, content)
+
+			if obs.Screen == prevScreen {
+				stableTicks++
+			} else {
+				stableTicks = 0
+			}
+			prevScreen = obs.Screen
+			if stableTicks >= p.interactiveStableNeeded {
+				p.finishInteractive(state, "")
 				return
 			}
 		}
 	}
 }
 
-// finishInteractive notifies the main agent that an interactive subagent has
-// finished its turn (folding the pane's latest output into the conversation),
-// marks it completed, but KEEPS the record and pane so the user can read it and
-// CloseSubagent can clean it up later. checkForNewSubagents skips non-running
-// subagents, so a completed one is never re-watched or re-notified.
-func (p *SubagentPoller) finishInteractive(state *domain.SubagentState, tail string) {
-	if p.tracker == nil || p.tracker.GetSubagent(state.ID) == nil {
-		return // raced with CloseSubagent / already removed
+// handleApprovalSignal notifies the main agent (once per distinct approval) when
+// an interactive subagent is blocked on a tool-approval prompt, and forgets the
+// record when the prompt clears so a later approval re-notifies. The notify-once
+// state lives on the poller (not this goroutine) so it survives a monitor
+// re-spawn triggered by SendSubagentInput.
+func (p *SubagentPoller) handleApprovalSignal(state *domain.SubagentState, obs domain.PaneObservation) {
+	p.mu.Lock()
+	if !obs.AwaitingApproval {
+		delete(p.notifiedApprovals, state.ID)
+		p.mu.Unlock()
+		return
 	}
-	_ = p.tracker.SetSubagentStatus(state.ID, domain.SubagentCompleted)
+	if p.notifiedApprovals[state.ID] == obs.ApprovalSummary {
+		p.mu.Unlock()
+		return
+	}
+	p.notifiedApprovals[state.ID] = obs.ApprovalSummary
+	p.mu.Unlock()
 
-	body := strings.TrimSpace(tail)
-	if body == "" {
-		body = "(the subagent's pane produced no captured output)"
-	}
 	label := state.Label
 	if label == "" {
 		label = state.ID
 	}
-	p.enqueueAndWake(state, fmt.Sprintf("[Subagent Completed: %s]\n\n%s", label, body))
+	content := fmt.Sprintf("[Subagent Awaiting Approval: %s]", label)
+	if summary := strings.TrimSpace(obs.ApprovalSummary); summary != "" {
+		content += "\n\n" + summary
+	}
+	content += fmt.Sprintf("\n\nThis subagent is blocked waiting to run the above. Review it, then respond with ApproveSubagent(subagent_id=%q, decision=\"approve\") or decision=\"reject\".", state.ID)
+	p.enqueueAndWake(state, content)
+}
+
+// finishInteractive notifies the main agent that an interactive subagent has
+// finished its turn, folding its last assistant message into the conversation.
+// It marks the subagent completed but KEEPS the record and pane so the user can
+// read it and CloseSubagent can clean it up later; checkForNewSubagents skips
+// non-running subagents, so a completed one is never re-watched or re-notified.
+// message is the subagent's real last assistant message, or "" when none was
+// harvestable - in which case the notification is a bare header (no pane chrome).
+func (p *SubagentPoller) finishInteractive(state *domain.SubagentState, message string) {
+	if p.tracker == nil || p.tracker.GetSubagent(state.ID) == nil {
+		return
+	}
+	_ = p.tracker.SetSubagentStatus(state.ID, domain.SubagentCompleted)
+
+	label := state.Label
+	if label == "" {
+		label = state.ID
+	}
+	content := fmt.Sprintf("[Subagent Completed: %s]", label)
+	if body := strings.TrimSpace(message); body != "" {
+		content += "\n\n" + body
+	} else {
+		content += "\n\n(No final message was captured - the subagent ended its turn without output or is waiting for input. Use ReadSubagentScreen to inspect it, SendSubagentInput to re-prompt it, or CloseSubagent to stop it. Do not assume it failed or produced nothing.)"
+	}
+	p.enqueueAndWake(state, content)
 	p.emitCompletion(state, &domain.ToolExecutionResult{ToolName: "Agent", Success: true})
 }
 

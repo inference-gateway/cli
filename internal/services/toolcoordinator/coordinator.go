@@ -128,6 +128,7 @@ func (c *Coordinator) HandleToolCallReady(_ domain.ToolCallReadyEvent) tea.Cmd {
 func (c *Coordinator) HandleToolApprovalRequested(msg domain.ToolApprovalRequestedEvent) tea.Cmd {
 	c.addPendingToolCall(msg.ToolCall, msg.ResponseChan)
 	c.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
+	writeSubagentApprovalSidecar(msg.ToolCall)
 
 	c.stateManager.BroadcastEvent(domain.ToolApprovalNotificationEvent{
 		RequestID: msg.RequestID,
@@ -153,6 +154,8 @@ func (c *Coordinator) HandleToolApprovalRequested(msg domain.ToolApprovalRequest
 func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponseEvent) tea.Cmd {
 	logger.Info("coordinator.HandleToolApprovalResponse called",
 		"action", msg.Action, "tool", msg.ToolCall.Function.Name)
+
+	clearSubagentApprovalSidecar()
 
 	c.updateToolApprovalStatus(msg.Action)
 

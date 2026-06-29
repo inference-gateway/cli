@@ -4,43 +4,37 @@ import (
 	"context"
 	"os/exec"
 	"strings"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// chatIdleMarker is the input placeholder shown by the chat TUI when it is
-// idle and waiting for input (see internal/ui/components/input_view.go). Its
-// presence near the bottom of a subagent's pane means the chat finished its
-// turn.
-const chatIdleMarker = "Type your message"
-
-// NewPaneInspector returns a services.PaneInspector (a
-// func(ctx, paneID) (content string, idle bool, gone bool)) backed by the tmux
-// helpers. It is injected into the SubagentPoller in chat mode so it can watch
-// interactive subagents for completion. idle is true when the chat input prompt
-// has reappeared in the last few lines (the subagent finished its turn) or the
-// pane's process exited; gone is true when the pane no longer exists.
-func NewPaneInspector() func(ctx context.Context, paneID string) (string, bool, bool) {
-	return func(ctx context.Context, paneID string) (string, bool, bool) {
+// NewPaneInspector returns a services.PaneInspector (a func yielding a
+// domain.PaneObservation) backed by the subagent result file, the approval
+// sidecar, and the tmux pane's liveness. It is injected into the SubagentPoller
+// in chat mode so it can watch interactive subagents for completion and pending
+// approvals. It NEVER returns pane content as the delivered message - the pane is
+// rendered TUI chrome (input box, status bar), which is noise in the main
+// conversation; only the result file's last assistant message is delivered. The
+// Screen snapshot it returns is used ONLY for the poller's idle-by-stability
+// check, never delivered.
+func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {
+	return func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {
+		obs := domain.PaneObservation{Harvested: readSubagentResultMessage(sessionID)}
+		if summary, awaiting := readSubagentApproval(sessionID); awaiting {
+			obs.AwaitingApproval = true
+			obs.ApprovalSummary = summary
+		}
 		switch tmuxPaneState(ctx, paneID) {
 		case paneGone:
-			return "", false, true
+			obs.Gone = true
+			return obs
 		case paneDead:
-			// Process exited (kept by remain-on-exit) - definitively done.
-			return tmuxCapturePaneTail(ctx, paneID, defaultPaneTailLines), true, false
+			obs.Dead = true
+			return obs
 		}
-		content := tmuxCapturePaneTail(ctx, paneID, defaultPaneTailLines)
-		return content, lastLinesContain(content, chatIdleMarker, 6), false
+		obs.Screen = tmuxCapturePaneTail(ctx, paneID, defaultPaneTailLines)
+		return obs
 	}
-}
-
-// lastLinesContain reports whether the marker appears within the last n lines of
-// s. Restricting to the tail avoids mistaking the marker appearing inside a
-// subagent's response for the idle input prompt at the bottom of the pane.
-func lastLinesContain(s, marker string, n int) bool {
-	lines := strings.Split(s, "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	return strings.Contains(strings.Join(lines, "\n"), marker)
 }
 
 // Tail bounds for harvesting a subagent pane's output: enough to show the last
@@ -106,6 +100,44 @@ func tmuxCapturePaneTail(ctx context.Context, paneID string, maxLines int) strin
 		return ""
 	}
 	return tailNonBlankLines(string(out), maxLines)
+}
+
+// tmuxCapturePane captures the full visible content of a pane as plain text
+// (escape sequences stripped), trailing whitespace trimmed. Unlike
+// tmuxCapturePaneTail it preserves the rendered layout (internal blank lines)
+// so the caller sees the TUI as drawn - used by ReadSubagentScreen for TUI
+// inspection/testing. Returns "" if the pane cannot be read.
+func tmuxCapturePane(ctx context.Context, paneID string) string {
+	if paneID == "" {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimRight(string(out), " \t\n")
+}
+
+// tmuxSendKeys sends literal text and/or named keys to a tmux pane. Literal text
+// is sent with -l so shell metacharacters are typed verbatim (never interpreted
+// as tmux key names); named keys (Enter, Up, Escape, ...) are sent without -l so
+// tmux resolves them. A blank paneID is a no-op. Shared by sendTaskToPane (launch
+// task), SendSubagentInput (re-prompt / TUI drive) and ApproveSubagent.
+func tmuxSendKeys(ctx context.Context, paneID, text string, keys []string) error {
+	if paneID == "" {
+		return nil
+	}
+	if text != "" {
+		if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "-l", text).Run(); err != nil {
+			return err
+		}
+	}
+	for _, k := range keys {
+		if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, k).Run(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // tmuxKillPane closes a tmux pane. A blank id is a no-op.
