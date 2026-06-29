@@ -735,7 +735,7 @@ func createSkillsDir(dir string) error {
 }
 
 // createMemoryConfigFile seeds ~/.infer/memory.yaml from the in-code defaults
-// (disabled) when it does not already exist, returning whether a new file was
+// (enabled by default) when it does not already exist, returning whether a new file was
 // written. Memory is global, so its config lives in the home directory and is
 // never clobbered by re-running init - that would otherwise reset a user's
 // enabled memory from an unrelated project init. The memory store itself

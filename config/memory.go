@@ -27,11 +27,11 @@ type MemoryConfig struct {
 
 // DefaultMemoryConfig returns the in-code default memory configuration used when
 // no memory.yaml file exists. `infer init` seeds the file from this and the
-// runtime falls back to it when the file is absent. Memory ships disabled by
-// default; flipping enabled=true is enough to turn it on.
+// runtime falls back to it when the file is absent. Memory is enabled by
+// default; flip enabled=false to turn it off.
 func DefaultMemoryConfig() *MemoryConfig {
 	return &MemoryConfig{
-		Enabled:  false,
+		Enabled:  true,
 		Dir:      "",
 		MaxChars: DefaultMemoryMaxChars,
 	}
