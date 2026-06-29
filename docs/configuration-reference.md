@@ -178,15 +178,6 @@ tools:
   todo_write:
     enabled: true
     require_approval: false
-  github:
-    enabled: true
-    token: "%GITHUB_TOKEN%"
-    base_url: "https://api.github.com"
-    owner: ""
-    safety:
-      max_size: 1048576  # 1MB
-      timeout: 30        # 30 seconds
-    require_approval: false
   safety:
     require_approval: true
     # How an action that needs approval is delivered: prompt (TUI in chat, IPC
@@ -583,7 +574,6 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 - `INFER_TOOLS_TREE_ENABLED`: Enable/disable Tree tool (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_ENABLED`: Enable/disable WebFetch tool (default: `true`)
 - `INFER_TOOLS_WEB_SEARCH_ENABLED`: Enable/disable WebSearch tool (default: `true`)
-- `INFER_TOOLS_GITHUB_ENABLED`: Enable/disable Github tool (default: `true`)
 - `INFER_TOOLS_TODO_WRITE_ENABLED`: Enable/disable TodoWrite tool (default: `true`)
 
 **Tool Approval Configuration:**
@@ -666,15 +656,6 @@ tools:
 - `INFER_TOOLS_WEB_FETCH_CACHE_ENABLED`: Enable fetch caching (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `900`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `104857600`)
-
-**GitHub Tool Configuration:**
-
-- `INFER_TOOLS_GITHUB_TOKEN`: GitHub personal access token
-- `INFER_TOOLS_GITHUB_BASE_URL`: GitHub API base URL (default: `https://api.github.com`)
-- `INFER_TOOLS_GITHUB_OWNER`: Default GitHub owner/organization
-- `INFER_TOOLS_GITHUB_REPO`: Default GitHub repository
-- `INFER_TOOLS_GITHUB_SAFETY_MAX_SIZE`: Maximum GitHub file size in bytes (default: `10485760`)
-- `INFER_TOOLS_GITHUB_SAFETY_TIMEOUT`: GitHub API timeout in seconds (default: `30`)
 
 **Sandbox Configuration:**
 
@@ -811,10 +792,6 @@ Configuration values support environment variable substitution using the `%VAR_N
 ```yaml
 gateway:
   api_key: "%INFER_API_KEY%"
-
-tools:
-  github:
-    token: "%GITHUB_TOKEN%"
 ```
 
 This allows sensitive values to be stored as environment variables while keeping them out of configuration files.
