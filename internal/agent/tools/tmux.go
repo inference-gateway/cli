@@ -55,7 +55,7 @@ const (
 type paneState int
 
 const (
-	paneGone  paneState = iota
+	paneGone paneState = iota
 	paneAlive
 	paneDead
 )
