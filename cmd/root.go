@@ -198,11 +198,12 @@ func initConfig() {
 	stdout := v.GetBool("logging.stdout")
 
 	if logDir == "" {
-		configFile := v.ConfigFileUsed()
-		if configFile != "" {
-			configDir := filepath.Dir(configFile)
-			logDir = filepath.Join(configDir, "logs")
-		}
+		// App logs are project-local: write to ./.infer/logs (relative to the
+		// working dir), the same place the gateway logs to. Previously this derived
+		// the dir from v.ConfigFileUsed(), which returns the home ~/.infer/config.yaml
+		// when both a home and project config exist, sending app logs to
+		// ~/.infer/logs while the gateway logged to ./.infer/logs.
+		logDir = config.DefaultLogsPath
 	}
 
 	logger.Init(logger.Config{
