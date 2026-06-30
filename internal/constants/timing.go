@@ -9,7 +9,6 @@ const (
 	AgentIterationDelay       = 20 * time.Millisecond  // Delay between agent iterations
 	AgentToolExecutionDelay   = 20 * time.Millisecond  // Delay during tool execution
 	AgentStatusTickerInterval = 200 * time.Millisecond // Status update ticker interval
-	DrainQueueTickInterval    = 500 * time.Millisecond // Chat queue-drain ticker: start a turn when idle + queue non-empty
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates
@@ -29,4 +28,12 @@ const (
 	ToolUpdateThrottle    = 50 * time.Millisecond
 	SpinnerUpdateInterval = 200 * time.Millisecond
 	StatusRefreshInterval = 500 * time.Millisecond
+)
+
+// ObservabilityTiming contains thresholds for the single-ingress instrumentation:
+// the Bubble Tea Update loop is single-threaded, so a slow handler is a UI freeze,
+// and a background job that overruns is worth a one-time warning.
+const (
+	SlowUpdateThreshold     = 100 * time.Millisecond
+	JobRunningLongThreshold = 5 * time.Minute
 )

@@ -48,7 +48,7 @@ func waitTerminal(t *testing.T, sup *Supervisor, id string) domain.JobStatus {
 func TestShellJob_CompletesAndNotifies(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
 	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{})
+	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-ok", "true")
@@ -68,7 +68,7 @@ func TestShellJob_CompletesAndNotifies(t *testing.T) {
 
 func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{})
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-fail", "false")
@@ -85,14 +85,14 @@ func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 
 func TestShellJob_WindStopCancels(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{})
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-sleep", "sleep", "60")
 	_ = tracker.Add(shell)
 	sup.Submit(NewShellJob(shell, tracker))
 
-	time.Sleep(20 * time.Millisecond) // let the monitor start waiting
+	time.Sleep(20 * time.Millisecond)
 	if err := sup.Wind("s-sleep", domain.WindStop); err != nil {
 		t.Fatalf("Wind: %v", err)
 	}

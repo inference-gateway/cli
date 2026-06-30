@@ -29,7 +29,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 
 	tracker := utils.NewA2ATaskTracker()
 	queue := &mocks.FakeMessageQueue{}
-	sup := jobs.NewSupervisor(queue, &mocks.FakeConversationRepository{})
+	sup := jobs.NewSupervisor(queue, &mocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	completed := adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}

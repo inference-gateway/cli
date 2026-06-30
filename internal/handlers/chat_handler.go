@@ -1,12 +1,9 @@
 package handlers
 
 import (
-	"time"
-
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -172,8 +169,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
 		return h.HandleAgentStatusUpdateEvent(m)
-	case domain.DrainQueueTickEvent:
-		return h.HandleDrainQueueTickEvent(m)
+	case domain.DrainQueueEvent:
+		return h.HandleDrainQueueEvent(m)
 	case domain.NavigateBackInTimeEvent:
 		return nil
 	case domain.MessageHistoryRestoreEvent:
@@ -246,7 +243,26 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 	if msg.Cancelled {
 		h.toolCoordinator.SetActiveToolCallID("")
 	}
+	if h.shouldDrainAfterComplete(msg) {
+		return tea.Batch(cmd, drainQueueCmd())
+	}
 	return cmd
+}
+
+// shouldDrainAfterComplete reports whether a completed turn should trigger a queue
+// drain. A terminal turn - cancelled, or a final answer with no tool calls - is
+// the moment queued work should drain (a message typed while busy, or a
+// background-job note that landed mid-turn). A turn with tool calls is not
+// terminal (results feed back in), so it does not drain.
+func (h *ChatHandler) shouldDrainAfterComplete(msg domain.ChatCompleteEvent) bool {
+	terminal := msg.Cancelled || len(msg.ToolCalls) == 0
+	return terminal && !h.messageQueue.IsEmpty()
+}
+
+// drainQueueCmd emits a single DrainQueueEvent on the next loop tick. The gate
+// (HandleDrainQueueEvent) starts a fresh turn only if the agent is idle.
+func drainQueueCmd() tea.Cmd {
+	return func() tea.Msg { return domain.DrainQueueEvent{} }
 }
 
 func (h *ChatHandler) HandleChatErrorEvent(
@@ -451,50 +467,35 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// HandleAgentStatusUpdateEvent handles agent status updates
-func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateEvent) tea.Cmd {
-	// The StateManager was already updated in the callback before this event was sent
-	// Just receiving this event triggers a UI refresh, which updates the agent indicator
-
-	// Check if all agents are ready - if so, stop polling
-	if readiness := h.stateManager.GetAgentReadiness(); readiness != nil {
-		if readiness.ReadyAgents >= readiness.TotalAgents {
-			// All agents ready, stop polling
-			return nil
-		}
-	}
-
-	// Keep polling for status updates
-	return func() tea.Msg {
-		time.Sleep(500 * time.Millisecond)
-		return domain.AgentStatusUpdateEvent{}
-	}
+// HandleAgentStatusUpdateEvent refreshes the agent indicator. The StateManager
+// was already updated by the container's status callback before this event was
+// pushed, so simply receiving it re-renders the indicator. There is no polling:
+// the callback pushes a fresh event on every real status change and stops when
+// the agents stop changing.
+func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ domain.AgentStatusUpdateEvent) tea.Cmd {
+	return nil
 }
 
-// HandleDrainQueueTickEvent is the queue-drain ticker. Every tick, if the agent
-// is idle (not busy) and the shared message queue has content - a background-job
-// completion note or a user message typed while busy - it starts a fresh agent
-// turn through the normal entry point (startChatCompletion). The new turn's
-// CheckingQueue state drains the queue into the conversation and the agent
-// responds, so queued work is delivered reliably without the supervisor "wake".
-// It always reschedules itself so the loop is self-perpetuating.
+// HandleDrainQueueEvent is the pure gate for draining queued work. When the chat
+// view is active, the agent is idle, and the shared queue has content (a
+// background-job note or a message typed while busy), it marks the session
+// pending and starts a fresh turn whose CheckingQueue state drains the queue.
+// Every other case returns nil: there is no self-reschedule (the old ticker is
+// gone). The event is re-pushed by its real triggers - the supervisor on enqueue,
+// turn completion (HandleChatCompleteEvent), and re-entering the chat view.
 //
-// SetChatPending() is called synchronously before startChatCompletion because
-// the session is not marked busy until StartChatSession runs inside the async
-// Cmd; without it, the next tick could double-start a completion. The Bubble Tea
-// Update loop is single-threaded, so this check-then-mark is race-free.
-func (h *ChatHandler) HandleDrainQueueTickEvent(_ domain.DrainQueueTickEvent) tea.Cmd {
-	reschedule := tea.Tick(constants.DrainQueueTickInterval, func(time.Time) tea.Msg {
-		return domain.DrainQueueTickEvent{}
-	})
-
+// SetChatPending() is called synchronously before startChatCompletion because the
+// session is not marked busy until StartChatSession runs inside the async Cmd;
+// without it, a second DrainQueueEvent could double-start a completion. The Bubble
+// Tea Update loop is single-threaded, so this check-then-mark is race-free.
+func (h *ChatHandler) HandleDrainQueueEvent(_ domain.DrainQueueEvent) tea.Cmd {
 	if h.stateManager.GetCurrentView() != domain.ViewStateChat ||
 		h.stateManager.IsAgentBusy() || h.messageQueue.IsEmpty() {
-		return reschedule
+		return nil
 	}
 
 	h.stateManager.SetChatPending()
-	return tea.Batch(h.startChatCompletion(), reschedule)
+	return h.startChatCompletion()
 }
 
 // HandleComputerUsePausedEvent handles computer use pause events

@@ -550,7 +550,7 @@ type blockingMCPManager struct {
 
 func (m *blockingMCPManager) GetClients() []domain.MCPClient {
 	close(m.getClientsCalled)
-	select {} // block forever
+	select {}
 }
 func (m *blockingMCPManager) GetClient(string) domain.MCPClient  { return nil }
 func (m *blockingMCPManager) GetTotalServers() int               { return 0 }
@@ -559,9 +559,7 @@ func (m *blockingMCPManager) ClearToolCount(string)              {}
 func (m *blockingMCPManager) StartServers(context.Context) error { return nil }
 func (m *blockingMCPManager) StopServers(context.Context) error  { return nil }
 func (m *blockingMCPManager) Close() error                       { return nil }
-func (m *blockingMCPManager) StartMonitoring(context.Context) <-chan domain.MCPServerStatusUpdateEvent {
-	return nil
-}
+func (m *blockingMCPManager) StartMonitoring(context.Context)    {}
 
 // TestRegistry_NewRegistry_DoesNotBlockOnMCP is a regression test for
 // issue #523: NewRegistry must not synchronously call DiscoverTools (or any

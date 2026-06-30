@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -23,10 +22,6 @@ import (
 	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
-
-// explorerRefreshInterval is how often the explorer re-reads the expanded
-// directories so created/removed/renamed files show up "live".
-const explorerRefreshInterval = time.Second
 
 const (
 	explorerSidebarMinWidth = 24
@@ -75,9 +70,6 @@ type explorerRow struct {
 	depth    int
 	expanded bool // dirs only: whether currently expanded
 }
-
-// explorerTickMsg drives the periodic live refresh.
-type explorerTickMsg struct{}
 
 // explorerWalkDoneMsg carries the result of the async fuzzy-finder file walk.
 type explorerWalkDoneMsg struct {
@@ -186,7 +178,10 @@ func NewFileExplorer(root string, styleProvider *styles.Provider, themeService d
 	return t
 }
 
-func (t *FileExplorerImpl) Init() tea.Cmd { return t.tickCmd() }
+// Init does no work: the constructor and Reset already seed the root, and the
+// tree refreshes on view-entry (reopen re-runs this), on in-loop tool/bash
+// completion events, and on the manual refresh key - no polling tick.
+func (t *FileExplorerImpl) Init() tea.Cmd { return nil }
 
 // Reset clears state so the panel can be reused on a later open.
 func (t *FileExplorerImpl) Reset() {
@@ -278,9 +273,11 @@ func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return t.updateEditor(msg)
 	}
 	switch m := msg.(type) {
-	case explorerTickMsg:
-		t.handleTick()
-		return t, t.tickCmd()
+	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+		// The agent's own edits / git commands are exactly what change the tree;
+		// refresh off those in-loop events instead of a clock.
+		t.refresh()
+		return t, nil
 	case explorerWalkDoneMsg:
 		t.handleWalkDone(m)
 		return t, nil
@@ -320,6 +317,10 @@ func (t *FileExplorerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	pressed := normalizeKey(msg.String())
 	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
 		t.cancel = true
+		return t, nil
+	}
+	if pressed == "ctrl+r" { // manual refresh (replaces the deleted 1s poll)
+		t.refresh()
 		return t, nil
 	}
 	switch t.keymap.match(pressed,
@@ -416,21 +417,17 @@ func (t *FileExplorerImpl) toggleHidden() {
 	t.reanchorSelection()
 }
 
-func (t *FileExplorerImpl) handleTick() {
-	// Drop the cache and re-flatten: flatten() re-reads only the visible
-	// (expanded) directories via ensureChildren, so new/removed files there show
-	// up; collapsed directories are not re-read until expanded.
+// refresh re-reads the visible tree. It drops the cache and re-flattens:
+// flatten() re-reads only the expanded directories via ensureChildren, so
+// new/removed files there show up; collapsed directories are not re-read until
+// expanded. Called on view-entry, on in-loop tool/bash completion, on editor
+// exit, and on the manual refresh key.
+func (t *FileExplorerImpl) refresh() {
 	t.children = make(map[string][]explorerNode)
 	t.ensureChildren("")
 	t.flatten()
 	t.reanchorSelection()
 	t.dirtyPreview = true
-}
-
-func (t *FileExplorerImpl) tickCmd() tea.Cmd {
-	return tea.Tick(explorerRefreshInterval, func(_ time.Time) tea.Msg {
-		return explorerTickMsg{}
-	})
 }
 
 // --- edit mode (real editor in a PTY) ---
@@ -467,14 +464,11 @@ func (t *FileExplorerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.editor = nil
 		t.editMode = false
 		t.dirtyPreview = true
-		t.handleTick()
+		t.refresh()
 		return t, nil
 	case tea.KeyPressMsg:
 		t.editor.write(encodeKey(m))
 		return t, nil
-	case explorerTickMsg:
-		// Keep the live-refresh tick chain alive while editing.
-		return t, t.tickCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
 		t.SetHeight(m.Height)

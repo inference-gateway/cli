@@ -258,6 +258,13 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case domain.TasksLoadedEvent:
 		return t.handleTasksLoaded(msg)
+	case domain.BackgroundTasksChangedEvent:
+		// A background job changed status (submitted/signalled/finished). Reload so
+		// the open /tasks view reflects it live, replacing render-time polling.
+		if t.loading {
+			return t, nil
+		}
+		return t, t.loadTasksCmd()
 	case domain.TaskCancelledEvent:
 		return t.handleTaskCancelled(msg)
 	case tea.WindowSizeMsg:

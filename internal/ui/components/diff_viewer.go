@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -15,10 +14,6 @@ import (
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
-
-// diffRefreshInterval is how often the changes panel re-polls git while open,
-// so edits from the agent, an editor, or anywhere else show up "live".
-const diffRefreshInterval = time.Second
 
 const (
 	diffSidebarMinWidth = 24
@@ -121,9 +116,6 @@ type diffViewerLoadedMsg struct {
 	err      error
 }
 
-// diffViewerTickMsg drives the periodic live refresh.
-type diffViewerTickMsg struct{}
-
 // patchLoadedMsg carries the file patch loaded when entering patch (hunk) mode.
 type patchLoadedMsg struct {
 	patch  gitdiff.FilePatch
@@ -218,9 +210,12 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 	}
 }
 
+// Init loads the current diff once. It refreshes thereafter on view-entry
+// (reopen re-runs this), on in-loop tool/bash completion events, on git
+// stage/unstage/discard actions, and on the manual refresh key - no polling tick.
 func (t *DiffViewerImpl) Init() tea.Cmd {
 	t.loading = true
-	return tea.Batch(t.loadCmd(), t.tickCmd())
+	return t.loadCmd()
 }
 
 // Reset clears state so the panel can be reused on a later open.
@@ -341,8 +336,10 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.patchMsg = m.err.Error()
 		t.dirtyDiff = true
 		return t, nil
-	case diffViewerTickMsg:
-		return t, tea.Batch(t.loadCmd(), t.tickCmd())
+	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+		// The agent's edits and git commands are what change the staged/unstaged
+		// diff; re-poll off those in-loop events instead of a clock.
+		return t, t.loadCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
 		t.SetHeight(m.Height)
@@ -393,6 +390,9 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
 		t.cancel = true
 		return t, nil
+	}
+	if pressed == "ctrl+r" { // manual refresh (replaces the deleted 1s git poll)
+		return t, t.loadCmd()
 	}
 	switch t.keymap.match(pressed,
 		actDiffNavUp, actDiffNavDown, actDiffToggle, actDiffExpand, actDiffCollapse,
@@ -614,9 +614,6 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		t.editor.write(encodeKey(m))
 		return t, nil
-	case diffViewerTickMsg:
-		// Keep the live-refresh tick chain alive while editing.
-		return t, t.tickCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
 		t.SetHeight(m.Height)
@@ -1019,12 +1016,6 @@ func (t *DiffViewerImpl) loadCmd() tea.Cmd {
 		staged, unstaged, err := src.Changes()
 		return diffViewerLoadedMsg{staged: staged, unstaged: unstaged, err: err}
 	}
-}
-
-func (t *DiffViewerImpl) tickCmd() tea.Cmd {
-	return tea.Tick(diffRefreshInterval, func(_ time.Time) tea.Msg {
-		return diffViewerTickMsg{}
-	})
 }
 
 // --- tree model ---

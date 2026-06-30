@@ -214,14 +214,21 @@ type BashCommandCompletedEvent struct {
 	ErrorMessage  string
 }
 
-// DrainQueueTickEvent is a periodic tick (scheduled in the chat UI's Init and
-// self-rescheduled by its handler) that asks the orchestrator to start a fresh
-// agent turn whenever the agent is idle and the shared message queue has content
-// (background-job completion notes or user messages typed while busy). It is the
-// single, reliable mechanism that delivers queued work to the agent - replacing
-// the fragile supervisor "wake" - while keeping the agent state machine intact
-// (each turn still runs Idle -> CheckingQueue -> ... -> Completing -> Idle).
-type DrainQueueTickEvent struct{}
+// DrainQueueEvent asks the orchestrator to start a fresh agent turn when the
+// agent is idle on the chat view and the shared message queue has content
+// (background-job completion notes or user messages typed while busy). Unlike the
+// old queue-drain tick it is not a clock: it is pushed exactly once per real
+// trigger (a background job landing work, a turn completing with a non-empty
+// queue, or re-entering the chat view), and HandleDrainQueueEvent is a pure gate
+// that starts a turn (Idle -> CheckingQueue -> ... -> Completing -> Idle) or
+// returns nil. There is no self-reschedule.
+type DrainQueueEvent struct{}
+
+// BackgroundTasksChangedEvent signals that a background job's status changed
+// (submitted, signalled, completed, or failed). The supervisor pushes it so the
+// /tasks view and the inline conversation rows refresh on real change instead of
+// polling at render time.
+type BackgroundTasksChangedEvent struct{}
 
 // Agent Readiness Events
 

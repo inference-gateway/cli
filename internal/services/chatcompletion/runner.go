@@ -182,6 +182,7 @@ func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
 		r.stateManager.EndToolExecution()
 	} else if len(msg.ToolCalls) == 0 {
 		_ = r.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+		r.stateManager.EndToolExecution()
 	}
 
 	cmds := []tea.Cmd{

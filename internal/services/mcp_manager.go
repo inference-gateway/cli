@@ -240,20 +240,24 @@ type MCPManager struct {
 	sessionID        domain.SessionID
 	config           *config.MCPConfig
 	containerRuntime domain.ContainerRuntime
+	notifier         domain.UINotifier
 	mu               sync.RWMutex
 	clients          map[string]*mcpClient
 	toolCounts       map[string]int
 	probeCancel      context.CancelFunc
 	probeWg          sync.WaitGroup
-	statusChan       chan domain.MCPServerStatusUpdateEvent
 	monitorStarted   bool
-	channelClosed    bool
 	containerIDs     map[string]string
 	assignedPorts    map[string]int
 }
 
-// NewMCPManager creates a new MCP manager
-func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime) *MCPManager {
+// NewMCPManager creates a new MCP manager. notifier is the single UI ingress the
+// liveness probes push MCPServerStatusUpdateEvent through; a nil notifier
+// degrades to no UI pushes.
+func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime, notifier domain.UINotifier) *MCPManager {
+	if notifier == nil {
+		notifier = domain.NoopUINotifier{}
+	}
 	clients := make(map[string]*mcpClient)
 
 	for _, server := range cfg.Servers {
@@ -271,10 +275,19 @@ func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime do
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: runtime,
+		notifier:         notifier,
 		clients:          clients,
 		toolCounts:       make(map[string]int),
 		containerIDs:     make(map[string]string),
 		assignedPorts:    make(map[string]int),
+	}
+}
+
+// notify pushes an event to the UI loop. It is nil-safe so a zero-value manager
+// (e.g. one built directly in a test) never panics.
+func (m *MCPManager) notify(event any) {
+	if m.notifier != nil {
+		m.notifier.Notify(event)
 	}
 }
 
@@ -310,28 +323,28 @@ func (m *MCPManager) GetTotalServers() int {
 	return len(m.config.Servers)
 }
 
-// StartMonitoring begins background health monitoring and returns a channel for status updates
-// This method is idempotent - calling it multiple times returns the same channel
-func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServerStatusUpdateEvent {
+// StartMonitoring begins background health monitoring, pushing every
+// MCPServerStatusUpdateEvent through the injected UI notifier. It is idempotent -
+// subsequent calls are no-ops. The initial status is emitted from a goroutine
+// because Notify wraps the unbuffered (*tea.Program).Send, which blocks until the
+// Bubble Tea loop consumes; emitting it synchronously from app.Init (before the
+// loop runs) would deadlock.
+func (m *MCPManager) StartMonitoring(ctx context.Context) {
 	m.mu.Lock()
-
 	if m.monitorStarted {
 		m.mu.Unlock()
-		return m.statusChan
+		return
 	}
-
-	m.statusChan = make(chan domain.MCPServerStatusUpdateEvent, 10)
 	m.monitorStarted = true
 	m.mu.Unlock()
 
-	m.sendInitialStatusUpdate()
+	go m.sendInitialStatusUpdate()
 
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if !m.config.LivenessProbeEnabled {
-		close(m.statusChan)
-		m.channelClosed = true
-		m.mu.Unlock()
-		return m.statusChan
+		return
 	}
 
 	interval := time.Duration(m.config.LivenessProbeInterval) * time.Second
@@ -383,9 +396,6 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 			}
 		}(client)
 	}
-	m.mu.Unlock()
-
-	return m.statusChan
 }
 
 // checkClientHealth performs a health check on a client and handles reconnection
@@ -532,19 +542,24 @@ func (m *MCPManager) calculateBackoff(attempt int, baseInterval time.Duration) t
 	return backoff
 }
 
-// sendInitialStatusUpdate sends the current status for all connected clients
+// sendInitialStatusUpdate pushes the current status for all connected clients. It
+// collects the connected server names under the lock, then emits after releasing
+// it: notify wraps the blocking program.Send, which must never run under m.mu.
 func (m *MCPManager) sendInitialStatusUpdate() {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	connected := make([]string, 0, len(m.clients))
 	for _, client := range m.clients {
 		client.mu.RLock()
 		isConnected := client.isConnected
 		client.mu.RUnlock()
-
 		if isConnected {
-			m.sendStatusUpdateWithTools(client.serverName, true, nil)
+			connected = append(connected, client.serverName)
 		}
+	}
+	m.mu.RUnlock()
+
+	for _, name := range connected {
+		m.sendStatusUpdateWithTools(name, true, nil)
 	}
 }
 
@@ -586,30 +601,20 @@ func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
 	}
 }
 
-// sendStatusUpdateWithTools sends a status update event with discovered tools
+// sendStatusUpdateWithTools pushes a status update event with discovered tools
+// through the UI notifier. getMCPServerStatus takes and releases m.mu before
+// notify runs, so the blocking program.Send is never called under the lock.
 func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []domain.MCPDiscoveredTool) {
-	if m.statusChan == nil {
-		logger.Warn("cannot send status update: status channel is nil", "server", serverName)
-		return
-	}
-
 	status := m.getMCPServerStatus()
 
-	event := domain.MCPServerStatusUpdateEvent{
+	m.notify(domain.MCPServerStatusUpdateEvent{
 		ServerName:       serverName,
 		Connected:        connected,
 		TotalServers:     status.TotalServers,
 		ConnectedServers: status.ConnectedServers,
 		TotalTools:       status.TotalTools,
 		Tools:            tools,
-	}
-
-	select {
-	case m.statusChan <- event:
-		logger.Debug("mCP status update sent successfully", "server", serverName)
-	default:
-		logger.Warn("mCP status channel full, skipping update", "server", serverName)
-	}
+	})
 }
 
 // UpdateToolCount updates the tool count for a specific server
@@ -641,14 +646,6 @@ func (m *MCPManager) Close() error {
 	m.mu.Unlock()
 
 	m.probeWg.Wait()
-
-	m.mu.Lock()
-	if m.statusChan != nil && !m.channelClosed {
-		close(m.statusChan)
-		m.channelClosed = true
-	}
-	m.statusChan = nil
-	m.mu.Unlock()
 
 	m.mu.RLock()
 	for _, client := range m.clients {

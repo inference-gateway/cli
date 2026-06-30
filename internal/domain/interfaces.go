@@ -862,8 +862,10 @@ type MCPManager interface {
 	// GetTotalServers returns the total number of configured MCP servers
 	GetTotalServers() int
 
-	// StartMonitoring begins background health monitoring and returns a channel for status updates
-	StartMonitoring(ctx context.Context) <-chan MCPServerStatusUpdateEvent
+	// StartMonitoring begins background health monitoring, pushing every
+	// MCPServerStatusUpdateEvent through the UI notifier injected at
+	// construction. Idempotent; the initial status is emitted asynchronously.
+	StartMonitoring(ctx context.Context)
 
 	// UpdateToolCount updates the tool count for a specific server
 	UpdateToolCount(serverName string, count int)

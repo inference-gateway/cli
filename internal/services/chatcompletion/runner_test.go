@@ -281,6 +281,9 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if status := state.UpdateChatStatusArgsForCall(0); status != domain.ChatStatusCompleted {
 			t.Errorf("expected ChatStatusCompleted, got %v", status)
 		}
+		if state.EndToolExecutionCallCount() != 1 {
+			t.Errorf("expected EndToolExecution once on terminal completion, got %d", state.EndToolExecutionCallCount())
+		}
 	})
 
 	t.Run("cancelled: tears down session and updates status to Cancelled", func(t *testing.T) {
