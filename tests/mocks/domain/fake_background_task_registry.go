@@ -37,6 +37,19 @@ type FakeBackgroundTaskRegistry struct {
 		arg1 string
 		arg2 string
 	}
+	BindRequestStub        func(chan<- domain.ChatEvent, string, chan<- domain.AgentEvent) func()
+	bindRequestMutex       sync.RWMutex
+	bindRequestArgsForCall []struct {
+		arg1 chan<- domain.ChatEvent
+		arg2 string
+		arg3 chan<- domain.AgentEvent
+	}
+	bindRequestReturns struct {
+		result1 func()
+	}
+	bindRequestReturnsOnCall map[int]struct {
+		result1 func()
+	}
 	CleanupStub        func(time.Duration) int
 	cleanupMutex       sync.RWMutex
 	cleanupArgsForCall []struct {
@@ -70,6 +83,17 @@ type FakeBackgroundTaskRegistry struct {
 		result1 int
 	}
 	countRunningReturnsOnCall map[int]struct {
+		result1 int
+	}
+	CountRunningJobsStub        func(domain.JobKind) int
+	countRunningJobsMutex       sync.RWMutex
+	countRunningJobsArgsForCall []struct {
+		arg1 domain.JobKind
+	}
+	countRunningJobsReturns struct {
+		result1 int
+	}
+	countRunningJobsReturnsOnCall map[int]struct {
 		result1 int
 	}
 	CountRunningSubagentsStub        func() int
@@ -333,6 +357,11 @@ type FakeBackgroundTaskRegistry struct {
 	removeTaskArgsForCall []struct {
 		arg1 string
 	}
+	SetAgentEventChannelStub        func(chan<- domain.AgentEvent)
+	setAgentEventChannelMutex       sync.RWMutex
+	setAgentEventChannelArgsForCall []struct {
+		arg1 chan<- domain.AgentEvent
+	}
 	SetSubagentStatusStub        func(string, domain.SubagentStatus) error
 	setSubagentStatusMutex       sync.RWMutex
 	setSubagentStatusArgsForCall []struct {
@@ -345,6 +374,16 @@ type FakeBackgroundTaskRegistry struct {
 	setSubagentStatusReturnsOnCall map[int]struct {
 		result1 error
 	}
+	SnapshotStub        func() []domain.TrackedJob
+	snapshotMutex       sync.RWMutex
+	snapshotArgsForCall []struct {
+	}
+	snapshotReturns struct {
+		result1 []domain.TrackedJob
+	}
+	snapshotReturnsOnCall map[int]struct {
+		result1 []domain.TrackedJob
+	}
 	StartPollingStub        func(string, *domain.TaskPollingState)
 	startPollingMutex       sync.RWMutex
 	startPollingArgsForCall []struct {
@@ -355,6 +394,28 @@ type FakeBackgroundTaskRegistry struct {
 	stopPollingMutex       sync.RWMutex
 	stopPollingArgsForCall []struct {
 		arg1 string
+	}
+	SubmitStub        func(domain.BackgroundJob)
+	submitMutex       sync.RWMutex
+	submitArgsForCall []struct {
+		arg1 domain.BackgroundJob
+	}
+	WindAllJobsStub        func(domain.WindSignal)
+	windAllJobsMutex       sync.RWMutex
+	windAllJobsArgsForCall []struct {
+		arg1 domain.WindSignal
+	}
+	WindJobStub        func(string, domain.WindSignal) error
+	windJobMutex       sync.RWMutex
+	windJobArgsForCall []struct {
+		arg1 string
+		arg2 domain.WindSignal
+	}
+	windJobReturns struct {
+		result1 error
+	}
+	windJobReturnsOnCall map[int]struct {
+		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -513,6 +574,69 @@ func (fake *FakeBackgroundTaskRegistry) AddTaskArgsForCall(i int) (string, strin
 	defer fake.addTaskMutex.RUnlock()
 	argsForCall := fake.addTaskArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequest(arg1 chan<- domain.ChatEvent, arg2 string, arg3 chan<- domain.AgentEvent) func() {
+	fake.bindRequestMutex.Lock()
+	ret, specificReturn := fake.bindRequestReturnsOnCall[len(fake.bindRequestArgsForCall)]
+	fake.bindRequestArgsForCall = append(fake.bindRequestArgsForCall, struct {
+		arg1 chan<- domain.ChatEvent
+		arg2 string
+		arg3 chan<- domain.AgentEvent
+	}{arg1, arg2, arg3})
+	stub := fake.BindRequestStub
+	fakeReturns := fake.bindRequestReturns
+	fake.recordInvocation("BindRequest", []interface{}{arg1, arg2, arg3})
+	fake.bindRequestMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequestCallCount() int {
+	fake.bindRequestMutex.RLock()
+	defer fake.bindRequestMutex.RUnlock()
+	return len(fake.bindRequestArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequestCalls(stub func(chan<- domain.ChatEvent, string, chan<- domain.AgentEvent) func()) {
+	fake.bindRequestMutex.Lock()
+	defer fake.bindRequestMutex.Unlock()
+	fake.BindRequestStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequestArgsForCall(i int) (chan<- domain.ChatEvent, string, chan<- domain.AgentEvent) {
+	fake.bindRequestMutex.RLock()
+	defer fake.bindRequestMutex.RUnlock()
+	argsForCall := fake.bindRequestArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequestReturns(result1 func()) {
+	fake.bindRequestMutex.Lock()
+	defer fake.bindRequestMutex.Unlock()
+	fake.BindRequestStub = nil
+	fake.bindRequestReturns = struct {
+		result1 func()
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) BindRequestReturnsOnCall(i int, result1 func()) {
+	fake.bindRequestMutex.Lock()
+	defer fake.bindRequestMutex.Unlock()
+	fake.BindRequestStub = nil
+	if fake.bindRequestReturnsOnCall == nil {
+		fake.bindRequestReturnsOnCall = make(map[int]struct {
+			result1 func()
+		})
+	}
+	fake.bindRequestReturnsOnCall[i] = struct {
+		result1 func()
+	}{result1}
 }
 
 func (fake *FakeBackgroundTaskRegistry) Cleanup(arg1 time.Duration) int {
@@ -702,6 +826,67 @@ func (fake *FakeBackgroundTaskRegistry) CountRunningReturnsOnCall(i int, result1
 		})
 	}
 	fake.countRunningReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobs(arg1 domain.JobKind) int {
+	fake.countRunningJobsMutex.Lock()
+	ret, specificReturn := fake.countRunningJobsReturnsOnCall[len(fake.countRunningJobsArgsForCall)]
+	fake.countRunningJobsArgsForCall = append(fake.countRunningJobsArgsForCall, struct {
+		arg1 domain.JobKind
+	}{arg1})
+	stub := fake.CountRunningJobsStub
+	fakeReturns := fake.countRunningJobsReturns
+	fake.recordInvocation("CountRunningJobs", []interface{}{arg1})
+	fake.countRunningJobsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobsCallCount() int {
+	fake.countRunningJobsMutex.RLock()
+	defer fake.countRunningJobsMutex.RUnlock()
+	return len(fake.countRunningJobsArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobsCalls(stub func(domain.JobKind) int) {
+	fake.countRunningJobsMutex.Lock()
+	defer fake.countRunningJobsMutex.Unlock()
+	fake.CountRunningJobsStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobsArgsForCall(i int) domain.JobKind {
+	fake.countRunningJobsMutex.RLock()
+	defer fake.countRunningJobsMutex.RUnlock()
+	argsForCall := fake.countRunningJobsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobsReturns(result1 int) {
+	fake.countRunningJobsMutex.Lock()
+	defer fake.countRunningJobsMutex.Unlock()
+	fake.CountRunningJobsStub = nil
+	fake.countRunningJobsReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) CountRunningJobsReturnsOnCall(i int, result1 int) {
+	fake.countRunningJobsMutex.Lock()
+	defer fake.countRunningJobsMutex.Unlock()
+	fake.CountRunningJobsStub = nil
+	if fake.countRunningJobsReturnsOnCall == nil {
+		fake.countRunningJobsReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.countRunningJobsReturnsOnCall[i] = struct {
 		result1 int
 	}{result1}
 }
@@ -2142,6 +2327,38 @@ func (fake *FakeBackgroundTaskRegistry) RemoveTaskArgsForCall(i int) string {
 	return argsForCall.arg1
 }
 
+func (fake *FakeBackgroundTaskRegistry) SetAgentEventChannel(arg1 chan<- domain.AgentEvent) {
+	fake.setAgentEventChannelMutex.Lock()
+	fake.setAgentEventChannelArgsForCall = append(fake.setAgentEventChannelArgsForCall, struct {
+		arg1 chan<- domain.AgentEvent
+	}{arg1})
+	stub := fake.SetAgentEventChannelStub
+	fake.recordInvocation("SetAgentEventChannel", []interface{}{arg1})
+	fake.setAgentEventChannelMutex.Unlock()
+	if stub != nil {
+		fake.SetAgentEventChannelStub(arg1)
+	}
+}
+
+func (fake *FakeBackgroundTaskRegistry) SetAgentEventChannelCallCount() int {
+	fake.setAgentEventChannelMutex.RLock()
+	defer fake.setAgentEventChannelMutex.RUnlock()
+	return len(fake.setAgentEventChannelArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) SetAgentEventChannelCalls(stub func(chan<- domain.AgentEvent)) {
+	fake.setAgentEventChannelMutex.Lock()
+	defer fake.setAgentEventChannelMutex.Unlock()
+	fake.SetAgentEventChannelStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) SetAgentEventChannelArgsForCall(i int) chan<- domain.AgentEvent {
+	fake.setAgentEventChannelMutex.RLock()
+	defer fake.setAgentEventChannelMutex.RUnlock()
+	argsForCall := fake.setAgentEventChannelArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeBackgroundTaskRegistry) SetSubagentStatus(arg1 string, arg2 domain.SubagentStatus) error {
 	fake.setSubagentStatusMutex.Lock()
 	ret, specificReturn := fake.setSubagentStatusReturnsOnCall[len(fake.setSubagentStatusArgsForCall)]
@@ -2201,6 +2418,59 @@ func (fake *FakeBackgroundTaskRegistry) SetSubagentStatusReturnsOnCall(i int, re
 	}
 	fake.setSubagentStatusReturnsOnCall[i] = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) Snapshot() []domain.TrackedJob {
+	fake.snapshotMutex.Lock()
+	ret, specificReturn := fake.snapshotReturnsOnCall[len(fake.snapshotArgsForCall)]
+	fake.snapshotArgsForCall = append(fake.snapshotArgsForCall, struct {
+	}{})
+	stub := fake.SnapshotStub
+	fakeReturns := fake.snapshotReturns
+	fake.recordInvocation("Snapshot", []interface{}{})
+	fake.snapshotMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) SnapshotCallCount() int {
+	fake.snapshotMutex.RLock()
+	defer fake.snapshotMutex.RUnlock()
+	return len(fake.snapshotArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) SnapshotCalls(stub func() []domain.TrackedJob) {
+	fake.snapshotMutex.Lock()
+	defer fake.snapshotMutex.Unlock()
+	fake.SnapshotStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) SnapshotReturns(result1 []domain.TrackedJob) {
+	fake.snapshotMutex.Lock()
+	defer fake.snapshotMutex.Unlock()
+	fake.SnapshotStub = nil
+	fake.snapshotReturns = struct {
+		result1 []domain.TrackedJob
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) SnapshotReturnsOnCall(i int, result1 []domain.TrackedJob) {
+	fake.snapshotMutex.Lock()
+	defer fake.snapshotMutex.Unlock()
+	fake.SnapshotStub = nil
+	if fake.snapshotReturnsOnCall == nil {
+		fake.snapshotReturnsOnCall = make(map[int]struct {
+			result1 []domain.TrackedJob
+		})
+	}
+	fake.snapshotReturnsOnCall[i] = struct {
+		result1 []domain.TrackedJob
 	}{result1}
 }
 
@@ -2267,6 +2537,132 @@ func (fake *FakeBackgroundTaskRegistry) StopPollingArgsForCall(i int) string {
 	defer fake.stopPollingMutex.RUnlock()
 	argsForCall := fake.stopPollingArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) Submit(arg1 domain.BackgroundJob) {
+	fake.submitMutex.Lock()
+	fake.submitArgsForCall = append(fake.submitArgsForCall, struct {
+		arg1 domain.BackgroundJob
+	}{arg1})
+	stub := fake.SubmitStub
+	fake.recordInvocation("Submit", []interface{}{arg1})
+	fake.submitMutex.Unlock()
+	if stub != nil {
+		fake.SubmitStub(arg1)
+	}
+}
+
+func (fake *FakeBackgroundTaskRegistry) SubmitCallCount() int {
+	fake.submitMutex.RLock()
+	defer fake.submitMutex.RUnlock()
+	return len(fake.submitArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) SubmitCalls(stub func(domain.BackgroundJob)) {
+	fake.submitMutex.Lock()
+	defer fake.submitMutex.Unlock()
+	fake.SubmitStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) SubmitArgsForCall(i int) domain.BackgroundJob {
+	fake.submitMutex.RLock()
+	defer fake.submitMutex.RUnlock()
+	argsForCall := fake.submitArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindAllJobs(arg1 domain.WindSignal) {
+	fake.windAllJobsMutex.Lock()
+	fake.windAllJobsArgsForCall = append(fake.windAllJobsArgsForCall, struct {
+		arg1 domain.WindSignal
+	}{arg1})
+	stub := fake.WindAllJobsStub
+	fake.recordInvocation("WindAllJobs", []interface{}{arg1})
+	fake.windAllJobsMutex.Unlock()
+	if stub != nil {
+		fake.WindAllJobsStub(arg1)
+	}
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindAllJobsCallCount() int {
+	fake.windAllJobsMutex.RLock()
+	defer fake.windAllJobsMutex.RUnlock()
+	return len(fake.windAllJobsArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindAllJobsCalls(stub func(domain.WindSignal)) {
+	fake.windAllJobsMutex.Lock()
+	defer fake.windAllJobsMutex.Unlock()
+	fake.WindAllJobsStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindAllJobsArgsForCall(i int) domain.WindSignal {
+	fake.windAllJobsMutex.RLock()
+	defer fake.windAllJobsMutex.RUnlock()
+	argsForCall := fake.windAllJobsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJob(arg1 string, arg2 domain.WindSignal) error {
+	fake.windJobMutex.Lock()
+	ret, specificReturn := fake.windJobReturnsOnCall[len(fake.windJobArgsForCall)]
+	fake.windJobArgsForCall = append(fake.windJobArgsForCall, struct {
+		arg1 string
+		arg2 domain.WindSignal
+	}{arg1, arg2})
+	stub := fake.WindJobStub
+	fakeReturns := fake.windJobReturns
+	fake.recordInvocation("WindJob", []interface{}{arg1, arg2})
+	fake.windJobMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJobCallCount() int {
+	fake.windJobMutex.RLock()
+	defer fake.windJobMutex.RUnlock()
+	return len(fake.windJobArgsForCall)
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJobCalls(stub func(string, domain.WindSignal) error) {
+	fake.windJobMutex.Lock()
+	defer fake.windJobMutex.Unlock()
+	fake.WindJobStub = stub
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJobArgsForCall(i int) (string, domain.WindSignal) {
+	fake.windJobMutex.RLock()
+	defer fake.windJobMutex.RUnlock()
+	argsForCall := fake.windJobArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJobReturns(result1 error) {
+	fake.windJobMutex.Lock()
+	defer fake.windJobMutex.Unlock()
+	fake.WindJobStub = nil
+	fake.windJobReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackgroundTaskRegistry) WindJobReturnsOnCall(i int, result1 error) {
+	fake.windJobMutex.Lock()
+	defer fake.windJobMutex.Unlock()
+	fake.WindJobStub = nil
+	if fake.windJobReturnsOnCall == nil {
+		fake.windJobReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.windJobReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeBackgroundTaskRegistry) Invocations() map[string][][]interface{} {

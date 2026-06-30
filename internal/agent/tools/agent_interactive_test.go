@@ -16,9 +16,9 @@ func TestAgentTool_InteractiveTracksPane(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
-	cfg.Tools.Agent.Wait = true // interactive ignores wait - it must still return immediately
+	cfg.Tools.Agent.Wait = true
 	tracker := utils.NewSubagentTracker()
-	tool := NewAgentTool(cfg, tracker)
+	tool := NewAgentTool(cfg, tracker, nil)
 	tool.interactiveAvailable = func() bool { return true }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) { return "%9", nil }
 	tool.sendTask = func(ctx context.Context, paneID, task string) error { return nil }

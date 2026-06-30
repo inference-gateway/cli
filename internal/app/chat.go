@@ -248,6 +248,9 @@ func NewChatApplication(
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
+		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
+			isb.SetBackgroundTaskRegistry(reg)
+		}
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -1361,6 +1364,9 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 
 		styleProvider := styles.NewProvider(app.themeService)
 		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
+		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
+			app.taskManager.SetBackgroundTaskRegistry(reg)
+		}
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

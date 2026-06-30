@@ -17,7 +17,7 @@ func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "headless"
-	return NewAgentTool(cfg, utils.NewSubagentTracker())
+	return NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 }
 
 func TestAgentTool_Definition(t *testing.T) {
@@ -45,7 +45,7 @@ func TestAgentTool_Validate(t *testing.T) {
 
 func TestAgentTool_DepthCapDisables(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "1")
-	tool := NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
 	if tool.IsEnabled() {
 		t.Fatalf("Agent tool must disable itself at depth >= max_depth")
 	}
@@ -96,7 +96,7 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")
@@ -122,7 +122,7 @@ func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Interactive.Fallback = "error"
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 
 	args := map[string]any{"description": "do x"}
@@ -214,7 +214,7 @@ func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Wait = true
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return true }
 	var captured string
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {

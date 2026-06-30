@@ -527,7 +527,9 @@ type MarkdownRenderer interface {
 	SetWidth(width int)
 }
 
-// TaskPollingState represents the state of background polling for a task
+// TaskPollingState is the data record for one in-flight A2A task that the task
+// view reads. Monitoring is owned by the job supervisor (a2aJob), which polls the
+// remote agent and updates LastKnownState/LastPollAt here.
 type TaskPollingState struct {
 	TaskID          string
 	ContextID       string
@@ -540,18 +542,6 @@ type TaskPollingState struct {
 	CurrentInterval time.Duration
 	LastKnownState  string
 	CancelFunc      context.CancelFunc
-	ResultChan      chan *ToolExecutionResult
-	ErrorChan       chan error
-	StatusChan      chan *A2ATaskStatusUpdate
-}
-
-// A2ATaskStatusUpdate represents a status update for an ongoing A2A task
-type A2ATaskStatusUpdate struct {
-	TaskID    string
-	AgentURL  string
-	State     string
-	Message   string
-	Timestamp time.Time
 }
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
@@ -662,6 +652,38 @@ type BackgroundTaskRegistry interface {
 	// pane watcher can deliver their completion notifications. The headless
 	// final-wait keeps using HasPending (see above).
 	HasActiveWork() bool
+
+	// Submit hands a background job to the supervisor, which spawns its monitor
+	// goroutine and folds its result back onto the conversation when it finishes.
+	// This is the single entry point every kind (A2A task, shell, subagent) uses
+	// instead of running its own poller.
+	Submit(job BackgroundJob)
+
+	// Snapshot returns the supervisor's view of all live and recently-finished
+	// jobs for the task view and status line.
+	Snapshot() []TrackedJob
+
+	// CountRunningJobs returns how many supervised jobs are running, optionally
+	// filtered to one kind (pass "" for all kinds).
+	CountRunningJobs(kind JobKind) int
+
+	// WindJob sends a graceful wind-down or hard stop to one supervised job.
+	WindJob(id string, sig WindSignal) error
+
+	// WindAllJobs broadcasts a signal to every running supervised job (graceful
+	// shutdown: WindWrapUp, grace window, then WindStop).
+	WindAllJobs(sig WindSignal)
+
+	// BindRequest points the job supervisor's event sink at the active request, so
+	// finished jobs deliver their UI events and agent wake-ups to it. The returned
+	// release func unbinds the sink and MUST be called before the request closes
+	// its event channels (the supervisor then drops late events instead of sending
+	// on a closed channel). See jobs.Supervisor.BindRequest.
+	BindRequest(eventChan chan<- ChatEvent, requestID string, agentEventChan chan<- AgentEvent) (release func())
+
+	// SetAgentEventChannel updates the agent wake-up channel on the current
+	// binding (the agent is built after BindRequest, so its channel arrives later).
+	SetAgentEventChannel(ch chan<- AgentEvent)
 }
 
 // FetchResult represents the result of a fetch operation

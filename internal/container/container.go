@@ -27,6 +27,7 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
+	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -66,6 +67,7 @@ type ServiceContainer struct {
 	// tasks and background bash shells. The narrower domain.A2ATaskTracker
 	// and domain.ShellTracker views are accessed via the same instance.
 	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
 	gatewayManager         domain.GatewayManager
@@ -241,6 +243,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
 	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
+
+	// The supervisor is built before the conversation repo (above); now that the
+	// repo exists, give it to the supervisor so it can format finished jobs' results.
+	if c.jobSupervisor != nil {
+		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
+	}
 
 	if c.config.IsClaudeCodeMode() {
 		logger.Info("using static Claude model list (Claude Code mode)")
@@ -727,9 +735,9 @@ func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellSer
 		c.ensureBackgroundTaskRegistry()
 		c.backgroundShellService = services.NewBackgroundShellService(
 			c.backgroundTaskRegistry,
+			c.jobSupervisor,
 			c.config,
 			nil,
-			c.messageQueue,
 		)
 	}
 	return c.backgroundShellService
@@ -743,8 +751,18 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 	if c.backgroundTaskRegistry != nil {
 		return
 	}
+	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo)
+	retention := time.Duration(c.config.Tools.Bash.BackgroundShells.RetentionMinutes) * time.Minute
+	c.jobSupervisor.Start(10*time.Minute, retention)
 	maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
-	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent)
+	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
+}
+
+// GetJobSupervisor returns the background job supervisor, constructing the
+// registry (and therefore the supervisor) on first use.
+func (c *ServiceContainer) GetJobSupervisor() *jobs.Supervisor {
+	c.ensureBackgroundTaskRegistry()
+	return c.jobSupervisor
 }
 
 // Shutdown gracefully shuts down the service container and its resources
@@ -752,6 +770,11 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	if c.backgroundShellService != nil {
 		logger.Info("stopping background shell service...")
 		c.backgroundShellService.Stop()
+	}
+
+	if c.jobSupervisor != nil {
+		logger.Info("stopping job supervisor...")
+		c.jobSupervisor.Stop()
 	}
 
 	if c.agentManager != nil && c.agentManager.IsRunning() {

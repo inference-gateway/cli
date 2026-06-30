@@ -26,6 +26,7 @@ type InputStatusBar struct {
 	tokenEstimator         domain.TokenEstimator
 	backgroundShellService domain.BackgroundShellService
 	backgroundTaskService  domain.BackgroundTaskService
+	backgroundTaskRegistry domain.BackgroundTaskRegistry
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
@@ -82,6 +83,12 @@ func (isb *InputStatusBar) SetBackgroundShellService(service domain.BackgroundSh
 // SetBackgroundTaskService sets the background task service
 func (isb *InputStatusBar) SetBackgroundTaskService(service domain.BackgroundTaskService) {
 	isb.backgroundTaskService = service
+}
+
+// SetBackgroundTaskRegistry sets the unified background task registry, the single
+// source for the live A2A/shell/subagent counts shown in the status line.
+func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry domain.BackgroundTaskRegistry) {
+	isb.backgroundTaskRegistry = registry
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
@@ -199,15 +206,9 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 		}
 	}
 
-	if isb.shouldShowIndicator("background_shells") {
-		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
-			parts = append(parts, backgroundInfo)
-		}
-	}
-
-	if isb.shouldShowIndicator("a2a_tasks") {
-		if a2aInfo := isb.getA2ATaskInfo(); a2aInfo != "" {
-			parts = append(parts, a2aInfo)
+	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
+		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
+			parts = append(parts, jobsInfo)
 		}
 	}
 
@@ -342,15 +343,9 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
-	if isb.shouldShowIndicator("background_shells") {
-		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
-			parts = append(parts, backgroundInfo)
-		}
-	}
-
-	if isb.shouldShowIndicator("a2a_tasks") {
-		if a2aInfo := isb.getA2ATaskInfo(); a2aInfo != "" {
-			parts = append(parts, a2aInfo)
+	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
+		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
+			parts = append(parts, jobsInfo)
 		}
 	}
 
@@ -579,45 +574,29 @@ func (isb *InputStatusBar) getToolInfo() string {
 }
 
 // getBackgroundInfo returns background process count information
-func (isb *InputStatusBar) getBackgroundInfo() string {
-	if isb.backgroundShellService == nil {
+func (isb *InputStatusBar) getBackgroundJobsInfo() string {
+	if isb.backgroundTaskRegistry == nil {
 		return ""
 	}
 
-	shells := isb.backgroundShellService.GetAllShells()
-	runningCount := 0
-	for _, shell := range shells {
-		if shell.State == domain.ShellStateRunning {
-			runningCount++
-		}
-	}
+	a2a := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindA2A)
+	shells := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindShell)
+	subagents := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindSubagent)
 
-	if runningCount == 0 {
+	var segments []string
+	if a2a > 0 {
+		segments = append(segments, fmt.Sprintf("%d A2A", a2a))
+	}
+	if shells > 0 {
+		segments = append(segments, fmt.Sprintf("%d shells", shells))
+	}
+	if subagents > 0 {
+		segments = append(segments, fmt.Sprintf("%d subagents", subagents))
+	}
+	if len(segments) == 0 {
 		return ""
 	}
-
-	return fmt.Sprintf("Background: (%d)", runningCount)
-}
-
-// getA2ATaskInfo returns A2A background task count information
-func (isb *InputStatusBar) getA2ATaskInfo() string {
-	if isb.backgroundTaskService == nil {
-		return ""
-	}
-
-	tasks := isb.backgroundTaskService.GetBackgroundTasks()
-	activeCount := 0
-	for _, task := range tasks {
-		if task.IsPolling {
-			activeCount++
-		}
-	}
-
-	if activeCount == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("Tasks: (%d)", activeCount)
+	return "⚙ " + strings.Join(segments, " · ")
 }
 
 // getContextUsageIndicator returns a context usage indicator string.

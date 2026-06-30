@@ -51,10 +51,10 @@ type SubagentApprovalFile struct {
 	Summary  string `json:"summary,omitempty"`
 }
 
-// SubagentState tracks one in-flight local subagent (an `infer agent`
-// subprocess spawned by the Agent tool). It is the subagent analogue of
-// TaskPollingState: the SubagentPoller selects on ResultChan/ErrorChan to
-// deliver the outcome back onto the conversation.
+// SubagentState is the data record for one local subagent (an `infer agent`
+// subprocess or tmux pane spawned by the Agent tool) that the subagent control
+// tools (ListSubagents, CloseSubagent, ...) read. Monitoring is owned by the job
+// supervisor (headlessSubagentJob / interactiveSubagentJob), not this struct.
 type SubagentState struct {
 	ID          string
 	Label       string
@@ -66,8 +66,6 @@ type SubagentState struct {
 	Status      SubagentStatus
 	StartedAt   time.Time
 	CancelFunc  context.CancelFunc
-	ResultChan  chan *ToolExecutionResult
-	ErrorChan   chan error
 	Silent      bool
 }
 

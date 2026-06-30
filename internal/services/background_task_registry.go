@@ -2,6 +2,7 @@ package services
 
 import (
 	domain "github.com/inference-gateway/cli/internal/domain"
+	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
@@ -21,16 +22,53 @@ type backgroundTaskRegistry struct {
 	*utils.A2ATaskTrackerImpl // promotes the A2ATaskTracker surface
 	domain.ShellTracker       // promotes the ShellTracker surface
 	domain.SubagentTracker    // promotes the SubagentTracker surface
+	supervisor                *jobs.Supervisor
 }
 
 // NewBackgroundTaskRegistry constructs the unified registry. maxConcurrentShells
-// is the per-session cap enforced by the underlying shell tracker.
-func NewBackgroundTaskRegistry(maxConcurrentShells int) domain.BackgroundTaskRegistry {
+// is the per-session cap enforced by the underlying shell tracker. supervisor is
+// the single fan-in that monitors submitted jobs and backs the unified job
+// surface (Submit/Snapshot/Wind).
+func NewBackgroundTaskRegistry(maxConcurrentShells int, supervisor *jobs.Supervisor) domain.BackgroundTaskRegistry {
 	return &backgroundTaskRegistry{
 		A2ATaskTrackerImpl: utils.NewA2ATaskTracker(),
 		ShellTracker:       utils.NewShellTracker(maxConcurrentShells),
 		SubagentTracker:    utils.NewSubagentTracker(),
+		supervisor:         supervisor,
 	}
+}
+
+// Submit delegates to the supervisor.
+func (r *backgroundTaskRegistry) Submit(job domain.BackgroundJob) { r.supervisor.Submit(job) }
+
+// Snapshot delegates to the supervisor.
+func (r *backgroundTaskRegistry) Snapshot() []domain.TrackedJob { return r.supervisor.Snapshot() }
+
+// CountRunningJobs delegates to the supervisor.
+func (r *backgroundTaskRegistry) CountRunningJobs(kind domain.JobKind) int {
+	return r.supervisor.CountRunning(kind)
+}
+
+// WindJob delegates to the supervisor.
+func (r *backgroundTaskRegistry) WindJob(id string, sig domain.WindSignal) error {
+	return r.supervisor.Wind(id, sig)
+}
+
+// WindAllJobs delegates to the supervisor.
+func (r *backgroundTaskRegistry) WindAllJobs(sig domain.WindSignal) { r.supervisor.WindAll(sig) }
+
+// BindRequest delegates to the supervisor.
+func (r *backgroundTaskRegistry) BindRequest(
+	eventChan chan<- domain.ChatEvent,
+	requestID string,
+	agentEventChan chan<- domain.AgentEvent,
+) (release func()) {
+	return r.supervisor.BindRequest(eventChan, requestID, agentEventChan)
+}
+
+// SetAgentEventChannel delegates to the supervisor.
+func (r *backgroundTaskRegistry) SetAgentEventChannel(ch chan<- domain.AgentEvent) {
+	r.supervisor.SetAgentEventChannel(ch)
 }
 
 // HasPending reports whether *any* background work is still in flight,

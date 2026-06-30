@@ -40,6 +40,7 @@ type Registry struct {
 	readFilesMu        sync.Mutex
 	taskTracker        domain.A2ATaskTracker
 	subagentTracker    domain.SubagentTracker
+	jobSubmitter       domain.JobSubmitter
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
 	shellService       domain.BackgroundShellService
@@ -69,6 +70,9 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 	}
 	if st, ok := taskTracker.(domain.SubagentTracker); ok {
 		registry.subagentTracker = st
+	}
+	if js, ok := taskTracker.(domain.JobSubmitter); ok {
+		registry.jobSubmitter = js
 	}
 
 	registry.registerTools()
@@ -120,7 +124,7 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
-		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker)
+		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker, r.jobSubmitter)
 		r.tools["ListSubagents"] = NewListSubagentsTool(cfg, r.subagentTracker)
 		r.tools["GetSubagentResult"] = NewGetSubagentResultTool(cfg, r.subagentTracker)
 		r.tools["CloseSubagent"] = NewCloseSubagentTool(cfg, r.subagentTracker)
@@ -140,7 +144,7 @@ func (r *Registry) registerTools() {
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.taskTracker)
-		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker)
+		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
 	}
 
 	if cfg.ComputerUse.Enabled {

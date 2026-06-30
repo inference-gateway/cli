@@ -11,7 +11,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -611,30 +610,18 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
-	taskTracker := s.toolService.GetA2ATaskTracker()
-	var poller *services.A2ATaskPoller
-
-	if taskTracker != nil {
-		poller = services.NewA2ATaskPoller(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		go poller.Start(sessionCtx)
-	}
-
-	var subagentPoller *services.SubagentPoller
-	if s.bgRegistry != nil && s.config.IsAgentToolEnabled() {
-		subagentPoller = services.NewSubagentPoller(s.bgRegistry, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		// Chat mode only: watch interactive subagents' panes so they notify on
-		// completion (the agent waits instead of polling). Set before Start.
-		subagentPoller.SetPaneInspector(tools.NewPaneInspector())
-		go subagentPoller.Start(sessionCtx)
+	// Point the job supervisor's event sink at this request so background jobs
+	// (shells, A2A tasks, and subagents) deliver their UI events and agent
+	// wake-ups here. release() unbinds before chatEvents closes.
+	var releaseSupervisor func()
+	if s.bgRegistry != nil {
+		releaseSupervisor = s.bgRegistry.BindRequest(chatEvents, req.RequestID, nil)
 	}
 
 	go func() {
 		defer func() {
-			if poller != nil {
-				poller.Stop()
-			}
-			if subagentPoller != nil {
-				subagentPoller.Stop()
+			if releaseSupervisor != nil {
+				releaseSupervisor()
 			}
 			close(chatEvents)
 			s.sessionMux.Lock()
@@ -658,11 +645,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.bgRegistry,
 		)
 
-		if poller != nil {
-			poller.SetAgentEventChannel(agent.Events())
-		}
-		if subagentPoller != nil {
-			subagentPoller.SetAgentEventChannel(agent.Events())
+		if s.bgRegistry != nil {
+			s.bgRegistry.SetAgentEventChannel(agent.Events())
 		}
 
 		agent.Start()

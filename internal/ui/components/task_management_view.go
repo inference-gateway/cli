@@ -39,6 +39,7 @@ type TaskManagerImpl struct {
 	cancelled             bool
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
+	backgroundJobRegistry domain.BackgroundTaskRegistry
 	searchQuery           string
 	searchMode            bool
 	loading               bool
@@ -749,6 +750,8 @@ func (t *TaskManagerImpl) renderTaskList() string {
 	title := t.styleProvider.RenderWithColor("A2A Background Tasks", accentColor)
 	fmt.Fprintf(&content, "%s\n\n", title)
 
+	t.writeJobCountsSummary(&content)
+
 	t.writeViewTabs(&content)
 
 	t.writeSearchInfo(&content)
@@ -775,6 +778,29 @@ func (t *TaskManagerImpl) renderTaskList() string {
 	t.writeFooter(&content)
 
 	return content.String()
+}
+
+// SetBackgroundTaskRegistry wires the unified registry so the view can show live
+// counts of every background-work kind (A2A tasks, shells, subagents), not just
+// the A2A tasks listed in the table below.
+func (t *TaskManagerImpl) SetBackgroundTaskRegistry(registry domain.BackgroundTaskRegistry) {
+	t.backgroundJobRegistry = registry
+}
+
+// writeJobCountsSummary writes a one-line summary of all running background work
+// from the supervisor: "Running: 2 A2A · 1 shell · 3 subagents".
+func (t *TaskManagerImpl) writeJobCountsSummary(b *strings.Builder) {
+	if t.backgroundJobRegistry == nil {
+		return
+	}
+	a2a := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindA2A)
+	shells := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindShell)
+	subagents := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindSubagent)
+
+	dimColor := t.styleProvider.GetThemeColor("dim")
+	summary := fmt.Sprintf("Running: %d A2A · %d shells · %d subagents  (total %d)",
+		a2a, shells, subagents, a2a+shells+subagents)
+	fmt.Fprintf(b, "%s\n\n", t.styleProvider.RenderWithColor(summary, dimColor))
 }
 
 // writeViewTabs writes the view selection tabs

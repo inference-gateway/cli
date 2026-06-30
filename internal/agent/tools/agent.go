@@ -66,6 +66,7 @@ type AgentToolResult struct {
 type AgentTool struct {
 	config    *config.Config
 	tracker   domain.SubagentTracker
+	submitter domain.JobSubmitter
 	formatter domain.BaseFormatter
 	binary    string
 
@@ -76,12 +77,14 @@ type AgentTool struct {
 	sendTask             func(ctx context.Context, paneID, task string) error
 }
 
-// NewAgentTool creates the Agent tool. tracker must be the session's
-// SubagentTracker (the same instance the SubagentPoller watches).
-func NewAgentTool(cfg *config.Config, tracker domain.SubagentTracker) *AgentTool {
+// NewAgentTool creates the Agent tool. tracker is the session's SubagentTracker
+// (the data store the subagent control tools read); submitter is the job
+// supervisor that monitors async/interactive subagents to completion.
+func NewAgentTool(cfg *config.Config, tracker domain.SubagentTracker, submitter domain.JobSubmitter) *AgentTool {
 	t := &AgentTool{
 		config:    cfg,
 		tracker:   tracker,
+		submitter: submitter,
 		formatter: domain.NewBaseFormatter("Agent"),
 		binary:    os.Args[0],
 	}
@@ -197,6 +200,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 // returning one aggregated result (fan-out / fan-in).
 func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
 	results := make([]AgentSubResult, len(specs))
+	states := make([]*domain.SubagentState, len(specs))
 	var wg sync.WaitGroup
 	for i, spec := range specs {
 		state := &domain.SubagentState{
@@ -209,9 +213,8 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			Status:      domain.SubagentRunning,
 			StartedAt:   time.Now(),
 			Silent:      true,
-			ResultChan:  make(chan *domain.ToolExecutionResult, 1),
-			ErrorChan:   make(chan error, 1),
 		}
+		states[i] = state
 		_ = t.tracker.AddSubagent(state)
 
 		wg.Add(1)
@@ -225,17 +228,15 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 				status = domain.SubagentFailed
 			}
 			_ = t.tracker.SetSubagentStatus(state.ID, status)
-
-			state.ResultChan <- &domain.ToolExecutionResult{
-				ToolName: "Agent",
-				Success:  sub.Success,
-				Error:    sub.Error,
-				Duration: time.Since(state.StartedAt),
-				Data:     sub,
-			}
 		}(i, spec, state)
 	}
 	wg.Wait()
+
+	// This path is synchronous (the tool call blocks until all subagents finish),
+	// so it is not supervised; clean up the tracker entries here instead.
+	for _, state := range states {
+		_ = t.tracker.RemoveSubagent(state.ID)
+	}
 
 	success := true
 	for _, r := range results {
@@ -259,11 +260,13 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 }
 
 // runAsync dispatches subagents and returns immediately. Each subagent's
-// outcome is delivered later by the SubagentPoller via its ResultChan.
-func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+// outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
+func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
+
+		runCtx, cancel := context.WithCancel(context.Background())
 		state := &domain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
@@ -273,35 +276,19 @@ func (t *AgentTool) runAsync(ctx context.Context, args map[string]any, start tim
 			SessionID:   sessionID,
 			Status:      domain.SubagentRunning,
 			StartedAt:   time.Now(),
-			ResultChan:  make(chan *domain.ToolExecutionResult, 1),
-			ErrorChan:   make(chan error, 1),
+			CancelFunc:  cancel,
 		}
 		if err := t.tracker.AddSubagent(state); err != nil {
+			cancel()
 			logger.Warn("failed to track subagent", "error", err)
 			continue
 		}
 
-		// Detach from the tool-call context so the subagent outlives this turn.
-		runCtx, cancel := context.WithCancel(context.Background())
-		state.CancelFunc = cancel
-		go func(spec AgentTaskSpec, state *domain.SubagentState) {
-			defer cancel()
-			answer, err := t.executeOne(runCtx, spec, state.SessionID)
-			sub := toSubResult(spec, state.SessionID, answer, err)
-			status := domain.SubagentCompleted
-			if !sub.Success {
-				status = domain.SubagentFailed
-			}
-			_ = t.tracker.SetSubagentStatus(state.ID, status)
-			state.ResultChan <- &domain.ToolExecutionResult{
-				ToolName:  "Agent",
-				Arguments: map[string]any{"label": sub.Label, "session_id": state.SessionID},
-				Success:   sub.Success,
-				Error:     sub.Error,
-				Duration:  time.Since(state.StartedAt),
-				Data:      sub,
-			}
-		}(spec, state)
+		if t.submitter != nil {
+			t.submitter.Submit(&headlessSubagentJob{tool: t, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel})
+		} else {
+			cancel()
+		}
 
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
 	}
@@ -341,8 +328,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		ResultFile: resultFile,
 		ExtraEnv:   subagentExtraEnv(spec),
 	})
-	// Prefer the result file's harvested answer (it skips the subagent's trailing
-	// "task complete" verification turn); fall back to the streamed final message.
+
 	answer := res.FinalAssistant
 	if rf, ok := readSubagentResultFile(resultFile); ok {
 		if rf.FinalAssistant != "" {
@@ -395,6 +381,11 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 			logger.Warn("failed to track interactive subagent", "error", err)
 			continue
 		}
+
+		if t.submitter != nil {
+			t.submitter.Submit(newInteractiveSubagentJob(t, state))
+		}
+
 		launched = append(launched, AgentSubResult{
 			Label:     spec.Label,
 			SessionID: sessionID,
