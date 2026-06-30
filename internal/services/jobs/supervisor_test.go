@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
+
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -73,6 +75,19 @@ func (f *fakeJob) closes() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.closeCalls
+}
+
+// fakeRetainerJob is a fakeJob that also implements domain.TaskRetainer, returning a
+// preset TaskInfo/ok so the supervisor's retain-on-finish path can be tested in
+// isolation from any real job's extraction logic.
+type fakeRetainerJob struct {
+	*fakeJob
+	info domain.TaskInfo
+	ok   bool
+}
+
+func (j *fakeRetainerJob) RetainedTask(domain.ToolExecutionResult) (domain.TaskInfo, bool) {
+	return j.info, j.ok
 }
 
 // TestSupervisor_FinishOnce: a finished non-silent job lands exactly one note on
@@ -423,4 +438,79 @@ func TestSupervisor_RunningJobNeverEvicted(t *testing.T) {
 	}
 
 	sup.Stop()
+}
+
+// TestSupervisor_FinishRetainsTerminalTask: a finished job implementing TaskRetainer
+// (opting in) has its TaskInfo handed to the retention service exactly once, so the
+// completed A2A task stays in the task view after its monitor goroutine exits.
+func TestSupervisor_FinishRetainsTerminalTask(t *testing.T) {
+	retention := &domainmocks.FakeTaskRetentionService{}
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup.SetTaskRetention(retention)
+
+	info := domain.TaskInfo{AgentURL: "http://agent", Task: adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}}
+	job := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: info, ok: true}
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	if n := retention.AddTaskCallCount(); n != 1 {
+		t.Fatalf("AddTask called %d times, want 1", n)
+	}
+	if got := retention.AddTaskArgsForCall(0); got.AgentURL != "http://agent" || got.Task.ID != "t1" {
+		t.Fatalf("AddTask got %+v, want AgentURL=http://agent Task.ID=t1", got)
+	}
+}
+
+// TestSupervisor_FinishSkipsRetention: retention is untouched when the job is not a
+// TaskRetainer, or is one that opts out (ok=false).
+func TestSupervisor_FinishSkipsRetention(t *testing.T) {
+	t.Run("not a retainer", func(t *testing.T) {
+		retention := &domainmocks.FakeTaskRetentionService{}
+		sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+		sup.SetTaskRetention(retention)
+
+		job := newFakeJob("plain", domain.JobKindShell)
+		sup.Submit(job)
+		<-job.started
+		close(job.finish)
+		sup.Stop()
+
+		if n := retention.AddTaskCallCount(); n != 0 {
+			t.Fatalf("AddTask called %d times, want 0", n)
+		}
+	})
+
+	t.Run("retainer opts out", func(t *testing.T) {
+		retention := &domainmocks.FakeTaskRetentionService{}
+		sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+		sup.SetTaskRetention(retention)
+
+		job := &fakeRetainerJob{fakeJob: newFakeJob("optout", domain.JobKindA2A), ok: false}
+		sup.Submit(job)
+		<-job.started
+		close(job.finish)
+		sup.Stop()
+
+		if n := retention.AddTaskCallCount(); n != 0 {
+			t.Fatalf("AddTask called %d times, want 0", n)
+		}
+	})
+}
+
+// TestSupervisor_FinishWithoutRetentionService: a retainer job finishing with no
+// retention service wired must not panic, and the job still completes normally.
+func TestSupervisor_FinishWithoutRetentionService(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	job := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: domain.TaskInfo{AgentURL: "http://agent"}, ok: true}
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	if j, ok := snapByID(sup, "t1"); !ok || j.Status != domain.JobCompleted {
+		t.Fatalf("job should complete normally, got ok=%v %+v", ok, j)
+	}
 }

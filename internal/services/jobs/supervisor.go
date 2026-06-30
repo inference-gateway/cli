@@ -28,6 +28,7 @@ type Supervisor struct {
 	messageQueue     domain.MessageQueue
 	conversationRepo domain.ConversationRepository
 	notifier         domain.UINotifier
+	taskRetention    domain.TaskRetentionService
 
 	mu              sync.RWMutex
 	jobs            map[string]*supervised
@@ -83,6 +84,17 @@ func (s *Supervisor) notify(event any) {
 func (s *Supervisor) SetConversationRepo(repo domain.ConversationRepository) {
 	s.mu.Lock()
 	s.conversationRepo = repo
+	s.mu.Unlock()
+}
+
+// SetTaskRetention wires the A2A task-retention service that finished jobs
+// implementing domain.TaskRetainer populate for the task view. Like the
+// conversation repo, it is set after construction because the retention service is
+// built later in the container than the supervisor. A nil service disables
+// retention (finish just skips it).
+func (s *Supervisor) SetTaskRetention(svc domain.TaskRetentionService) {
+	s.mu.Lock()
+	s.taskRetention = svc
 	s.mu.Unlock()
 }
 
@@ -213,10 +225,19 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	sj.status = status
 	sj.completedAt = &now
 	evicted := s.evictOverCapLocked(sj.meta.Kind)
+	retention := s.taskRetention // set-once during construction; read under the lock that guards the setter
 	s.mu.Unlock()
 
 	for _, v := range evicted {
 		v.job.Close()
+	}
+
+	if retention != nil {
+		if r := asRetainer(sj.job); r != nil {
+			if info, ok := r.RetainedTask(result); ok {
+				retention.AddTask(info)
+			}
+		}
 	}
 
 	s.notify(domain.BackgroundTasksChangedEvent{})
@@ -299,6 +320,14 @@ func (s *Supervisor) formatResult(job domain.BackgroundJob, meta domain.JobMeta,
 func asNotifier(job domain.BackgroundJob) domain.JobNotifier {
 	if n, ok := job.(domain.JobNotifier); ok {
 		return n
+	}
+	return nil
+}
+
+// asRetainer returns the job as a TaskRetainer if it implements one.
+func asRetainer(job domain.BackgroundJob) domain.TaskRetainer {
+	if r, ok := job.(domain.TaskRetainer); ok {
+		return r
 	}
 	return nil
 }
