@@ -331,12 +331,12 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	args = append(args, agent.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	var outputBuf strings.Builder
+	var outputBuf, errBuf strings.Builder
 	cmd.Stdout = &outputBuf
-	cmd.Stderr = io.Discard
+	cmd.Stderr = &errBuf
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker run failed: %w", err)
+		return fmt.Errorf("docker run failed: %w: %s", err, strings.TrimSpace(errBuf.String()))
 	}
 
 	containerID := strings.TrimSpace(outputBuf.String())

@@ -3,7 +3,6 @@ package container
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -158,7 +157,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		return
 	}
 
-	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
+	agentsPath := config.ResolveAgentsPath()
 	agentsConfig, err := config.LoadAgents(agentsPath)
 	if err != nil {
 		logger.Warn("failed to load agents configuration", "error", err)
