@@ -110,6 +110,15 @@ type JobSubmitter interface {
 	Submit(job BackgroundJob)
 }
 
+// JobStopper ends a supervised background job by id. It is the narrow projection
+// of BackgroundTaskRegistry that CloseSubagent uses to wind down the supervised
+// monitor of the subagent it closes - cancelling the job's Run context so the
+// status-line running-count drops immediately instead of lingering until the
+// pane-watcher next polls (or never, if a killed pane is not observed as gone).
+type JobStopper interface {
+	WindJob(id string, sig WindSignal) error
+}
+
 // JobNotifier is an optional BackgroundJob extension. A job that implements it
 // formats its own completion-notification body (the text enqueued for the agent
 // to read when it finishes) - e.g. a shell reports its exit code and duration,
@@ -127,34 +136,3 @@ type TrackedJob struct {
 	CompletedAt *time.Time
 	LastNote    string
 }
-
-// BackgroundJobPhase tags a BackgroundJobEvent's point in a job's lifecycle.
-type BackgroundJobPhase string
-
-const (
-	JobPhaseSubmitted BackgroundJobPhase = "submitted"
-	JobPhaseStatus    BackgroundJobPhase = "status"
-	JobPhaseCompleted BackgroundJobPhase = "completed"
-	JobPhaseFailed    BackgroundJobPhase = "failed"
-)
-
-// BackgroundJobEvent is the single chat event the supervisor emits for every
-// background-work kind, replacing the per-kind A2A/Shell/Subagent events. The UI
-// renders live progress from it; the authoritative per-job state for the task
-// view comes from the tracker snapshot, not from these events.
-type BackgroundJobEvent struct {
-	RequestID string
-	Timestamp time.Time
-	Phase     BackgroundJobPhase
-	Kind      JobKind
-	JobID     string
-	Label     string
-	Note      string
-	Result    *ToolExecutionResult
-}
-
-// GetRequestID implements ChatEvent.
-func (e BackgroundJobEvent) GetRequestID() string { return e.RequestID }
-
-// GetTimestamp implements ChatEvent.
-func (e BackgroundJobEvent) GetTimestamp() time.Time { return e.Timestamp }

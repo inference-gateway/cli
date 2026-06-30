@@ -16,15 +16,19 @@ import (
 type CloseSubagentTool struct {
 	config   *config.Config
 	tracker  domain.SubagentTracker
+	stopJob  domain.JobStopper
 	killPane func(ctx context.Context, paneID string) error
 }
 
 // NewCloseSubagentTool creates a new CloseSubagent tool over the session's
-// SubagentTracker.
-func NewCloseSubagentTool(cfg *config.Config, tracker domain.SubagentTracker) *CloseSubagentTool {
+// SubagentTracker. stopJob ends the supervised monitor of a closed interactive
+// subagent (may be nil, e.g. when the supervisor is unavailable, in which case
+// the tool falls back to killing the pane directly).
+func NewCloseSubagentTool(cfg *config.Config, tracker domain.SubagentTracker, stopJob domain.JobStopper) *CloseSubagentTool {
 	return &CloseSubagentTool{
 		config:   cfg,
 		tracker:  tracker,
+		stopJob:  stopJob,
 		killPane: tmuxKillPane,
 	}
 }
@@ -80,7 +84,11 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 // back into the conversation.
 func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *domain.SubagentState) *domain.ToolExecutionResult {
 	output := readSubagentResultMessage(s.SessionID)
-	_ = t.killPane(ctx, s.PaneID)
+	if t.stopJob != nil {
+		_ = t.stopJob.WindJob(s.ID, domain.WindStop)
+	} else {
+		_ = t.killPane(ctx, s.PaneID)
+	}
 	_ = os.Remove(subagentResultFilePath(s.SessionID))
 	_ = t.tracker.RemoveSubagent(s.ID)
 	return &domain.ToolExecutionResult{

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // fastInteractiveJob builds an interactive subagent job with a fake pane inspector
@@ -70,37 +69,6 @@ func TestInteractiveSubagentJob_HarvestEmitsCompletionOnce(t *testing.T) {
 	if !strings.Contains(all[0], "the subagent's real answer") || !strings.Contains(all[0], "Subagent Completed") {
 		t.Fatalf("completion note missing harvested answer: %q", all[0])
 	}
-}
-
-// TestInteractiveSubagentJob_HarvestMarksTrackerComplete is the regression guard
-// for "subagent completion comes back as queued / the main agent is not notified".
-// After a turn is delivered, the tracker status MUST flip to SubagentCompleted so
-// registry.HasActiveWork() drops and the chat loop responds to the drained note
-// instead of waiting forever (the old SubagentPoller.finishInteractive did this).
-func TestInteractiveSubagentJob_HarvestMarksTrackerComplete(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
-	state := &domain.SubagentState{
-		ID: "s1", Label: "sub", SessionID: "sess", PaneID: "pane",
-		Mode: domain.SubagentModeInteractive, Status: domain.SubagentRunning, StartedAt: time.Now(),
-	}
-	if err := tracker.AddSubagent(state); err != nil {
-		t.Fatalf("add subagent: %v", err)
-	}
-
-	j := fastInteractiveJob(func() domain.PaneObservation {
-		return domain.PaneObservation{Harvested: "done sleeping"}
-	})
-	j.tool = &AgentTool{tracker: tracker}
-	j.state = state
-
-	stop, notes := runJobCollecting(j)
-	defer stop()
-
-	waitUntil(t, func() bool { return len(notes()) >= 1 }, "the harvested turn to be emitted")
-	waitUntil(t, func() bool {
-		s := tracker.GetSubagent("s1")
-		return s != nil && s.Status == domain.SubagentCompleted
-	}, "the tracker status to flip to Completed after the turn is delivered")
 }
 
 func TestInteractiveSubagentJob_IdleFallbackEmits(t *testing.T) {

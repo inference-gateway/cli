@@ -647,12 +647,6 @@ type BackgroundTaskRegistry interface {
 	// does not hang at exit waiting on a user-driven tmux pane.
 	HasPending() bool
 
-	// HasActiveWork is HasPending plus running INTERACTIVE subagents. The chat
-	// agent loop uses it to stay alive while interactive subagents run, so the
-	// pane watcher can deliver their completion notifications. The headless
-	// final-wait keeps using HasPending (see above).
-	HasActiveWork() bool
-
 	// Submit hands a background job to the supervisor, which spawns its monitor
 	// goroutine and folds its result back onto the conversation when it finishes.
 	// This is the single entry point every kind (A2A task, shell, subagent) uses
@@ -673,17 +667,6 @@ type BackgroundTaskRegistry interface {
 	// WindAllJobs broadcasts a signal to every running supervised job (graceful
 	// shutdown: WindWrapUp, grace window, then WindStop).
 	WindAllJobs(sig WindSignal)
-
-	// BindRequest points the job supervisor's event sink at the active request, so
-	// finished jobs deliver their UI events and agent wake-ups to it. The returned
-	// release func unbinds the sink and MUST be called before the request closes
-	// its event channels (the supervisor then drops late events instead of sending
-	// on a closed channel). See jobs.Supervisor.BindRequest.
-	BindRequest(eventChan chan<- ChatEvent, requestID string, agentEventChan chan<- AgentEvent) (release func())
-
-	// SetAgentEventChannel updates the agent wake-up channel on the current
-	// binding (the agent is built after BindRequest, so its channel arrives later).
-	SetAgentEventChannel(ch chan<- AgentEvent)
 }
 
 // FetchResult represents the result of a fetch operation

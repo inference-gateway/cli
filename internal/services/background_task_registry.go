@@ -57,20 +57,6 @@ func (r *backgroundTaskRegistry) WindJob(id string, sig domain.WindSignal) error
 // WindAllJobs delegates to the supervisor.
 func (r *backgroundTaskRegistry) WindAllJobs(sig domain.WindSignal) { r.supervisor.WindAll(sig) }
 
-// BindRequest delegates to the supervisor.
-func (r *backgroundTaskRegistry) BindRequest(
-	eventChan chan<- domain.ChatEvent,
-	requestID string,
-	agentEventChan chan<- domain.AgentEvent,
-) (release func()) {
-	return r.supervisor.BindRequest(eventChan, requestID, agentEventChan)
-}
-
-// SetAgentEventChannel delegates to the supervisor.
-func (r *backgroundTaskRegistry) SetAgentEventChannel(ch chan<- domain.AgentEvent) {
-	r.supervisor.SetAgentEventChannel(ch)
-}
-
 // HasPending reports whether *any* background work is still in flight,
 // regardless of type. True when there is at least one A2A task being polled,
 // one running background shell, OR one running local subagent. This is the
@@ -84,20 +70,6 @@ func (r *backgroundTaskRegistry) HasPending() bool {
 		return true
 	}
 	if r.SubagentTracker != nil && r.countPendingSubagents() > 0 {
-		return true
-	}
-	return false
-}
-
-// HasActiveWork reports whether any background work is in flight INCLUDING
-// running interactive subagents. The chat agent loop uses this (rather than
-// HasPending) so it stays alive while interactive subagents run and the pane
-// watcher can deliver their completion notifications.
-func (r *backgroundTaskRegistry) HasActiveWork() bool {
-	if r.HasPending() {
-		return true
-	}
-	if r.SubagentTracker != nil && r.CountRunningSubagents() > 0 {
 		return true
 	}
 	return false

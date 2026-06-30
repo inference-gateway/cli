@@ -55,8 +55,8 @@ type AgentServiceImpl struct {
 
 	// Session tracking: covers the full lifetime of a RunWithStream call.
 	// Cancelling a session aborts streaming, tool execution, approval waits,
-	// background pollers, and the main event loop in one shot. Idempotent
-	// via sync.Once so multiple Esc presses are safe.
+	// and the main event loop in one shot. Idempotent via sync.Once so
+	// multiple Esc presses are safe.
 	activeSessions map[string]*sessionCancel
 	sessionMux     sync.RWMutex
 
@@ -610,19 +610,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
-	// Point the job supervisor's event sink at this request so background jobs
-	// (shells, A2A tasks, and subagents) deliver their UI events and agent
-	// wake-ups here. release() unbinds before chatEvents closes.
-	var releaseSupervisor func()
-	if s.bgRegistry != nil {
-		releaseSupervisor = s.bgRegistry.BindRequest(chatEvents, req.RequestID, nil)
-	}
-
 	go func() {
 		defer func() {
-			if releaseSupervisor != nil {
-				releaseSupervisor()
-			}
 			close(chatEvents)
 			s.sessionMux.Lock()
 			delete(s.activeSessions, req.RequestID)
@@ -644,10 +633,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			model,
 			s.bgRegistry,
 		)
-
-		if s.bgRegistry != nil {
-			s.bgRegistry.SetAgentEventChannel(agent.Events())
-		}
 
 		agent.Start()
 		agent.Wait()

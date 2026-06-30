@@ -2,12 +2,14 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // fakeJob is a controllable BackgroundJob: Run blocks until finish is closed (or
@@ -73,26 +75,13 @@ func (f *fakeJob) closes() int {
 	return f.closeCalls
 }
 
-func drainEvents(ch <-chan domain.ChatEvent) []domain.BackgroundJobEvent {
-	var out []domain.BackgroundJobEvent
-	for {
-		select {
-		case ev := <-ch:
-			if bje, ok := ev.(domain.BackgroundJobEvent); ok {
-				out = append(out, bje)
-			}
-		default:
-			return out
-		}
-	}
-}
-
+// TestSupervisor_FinishOnce: a finished non-silent job lands exactly one note on
+// the shared queue (the chat-UI ticker / headless waiter deliver it) and the
+// terminal entry is kept for the task view until cleanup. The supervisor has no
+// per-request binding - it only ever produces queue messages.
 func TestSupervisor_FinishOnce(t *testing.T) {
 	queue := &domainmocks.FakeMessageQueue{}
 	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{})
-	events := make(chan domain.ChatEvent, 32)
-	release := sup.BindRequest(events, "req-1", nil)
-	defer release()
 
 	job := newFakeJob("job-1", domain.JobKindShell)
 	sup.Submit(job)
@@ -103,22 +92,6 @@ func TestSupervisor_FinishOnce(t *testing.T) {
 
 	if n := queue.EnqueueCallCount(); n != 1 {
 		t.Fatalf("Enqueue called %d times, want 1", n)
-	}
-	evs := drainEvents(events)
-	var submitted, completed int
-	for _, e := range evs {
-		switch e.Phase {
-		case domain.JobPhaseSubmitted:
-			submitted++
-		case domain.JobPhaseCompleted:
-			completed++
-		}
-		if e.RequestID != "req-1" {
-			t.Fatalf("event RequestID = %q, want req-1", e.RequestID)
-		}
-	}
-	if submitted != 1 || completed != 1 {
-		t.Fatalf("events: submitted=%d completed=%d, want 1/1", submitted, completed)
 	}
 
 	// The terminal job is kept for the task view until cleanup.
@@ -143,48 +116,33 @@ func TestSupervisor_SilentJobDoesNotEnqueue(t *testing.T) {
 	}
 }
 
-// TestSupervisor_PostReleaseDropsEventNoPanic asserts the core safety invariant:
-// a job finishing after its request released and CLOSED its event channel drops
-// the event instead of panicking on a send to a closed channel.
-func TestSupervisor_PostReleaseDropsEventNoPanic(t *testing.T) {
+// TestSupervisor_ConcurrentFinishEnqueuesEachOnce finishes many jobs at once and
+// asserts each lands exactly one queue note. Under -race it guards the
+// finish/enqueue path now that there is no per-request sink at all - jobs only
+// ever produce queue messages, so a late completion can never send on a closed
+// channel.
+func TestSupervisor_ConcurrentFinishEnqueuesEachOnce(t *testing.T) {
 	queue := &domainmocks.FakeMessageQueue{}
 	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{})
-	events := make(chan domain.ChatEvent, 32)
 
-	release := sup.BindRequest(events, "req-1", nil)
-	job := newFakeJob("job-1", domain.JobKindA2A)
-	sup.Submit(job)
-	<-job.started
+	const n = 16
+	js := make([]*fakeJob, n)
+	for i := range js {
+		js[i] = newFakeJob(fmt.Sprintf("job-%d", i), domain.JobKindShell)
+		sup.Submit(js[i])
+		<-js[i].started
+	}
 
-	release()
-	close(events)
-
-	close(job.finish)
+	var wg sync.WaitGroup
+	for _, j := range js {
+		wg.Add(1)
+		go func(j *fakeJob) { defer wg.Done(); close(j.finish) }(j)
+	}
+	wg.Wait()
 	sup.Stop()
 
-	if n := queue.EnqueueCallCount(); n != 1 {
-		t.Fatalf("Enqueue called %d times, want 1 (queue is independent of the sink)", n)
-	}
-}
-
-// TestSupervisor_ReleaseRaceNoPanic exercises release()+close racing a finishing
-// job; run under -race it catches an unsynchronised send on a closing channel.
-func TestSupervisor_ReleaseRaceNoPanic(t *testing.T) {
-	for i := 0; i < 50; i++ {
-		sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{})
-		events := make(chan domain.ChatEvent, 1)
-		release := sup.BindRequest(events, "r", nil)
-		job := newFakeJob("j", domain.JobKindShell)
-		sup.Submit(job)
-		<-job.started
-
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() { defer wg.Done(); close(job.finish) }()
-		release()
-		close(events)
-		wg.Wait()
-		sup.Stop()
+	if got := queue.EnqueueCallCount(); got != n {
+		t.Fatalf("Enqueue called %d times, want %d (one per finished job)", got, n)
 	}
 }
 
@@ -247,10 +205,7 @@ func TestSupervisor_PendingPredicates(t *testing.T) {
 	<-interactive.started
 
 	if sup.HasPending() {
-		t.Fatalf("HasPending true with only an interactive subagent running")
-	}
-	if !sup.HasActiveWork() {
-		t.Fatalf("HasActiveWork false with an interactive subagent running")
+		t.Fatalf("HasPending true with only an interactive subagent (ExcludeFromPending) running")
 	}
 
 	shell := newFakeJob("shell", domain.JobKindShell)

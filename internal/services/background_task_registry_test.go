@@ -38,26 +38,3 @@ func TestHasPending_ExcludesInteractiveSubagents(t *testing.T) {
 		t.Fatalf("a running headless subagent should count as pending")
 	}
 }
-
-// HasActiveWork includes running interactive subagents (so the chat loop stays
-// alive for the pane watcher to notify) even though HasPending excludes them.
-func TestHasActiveWork_IncludesInteractiveSubagents(t *testing.T) {
-	reg := newTestRegistry(4)
-
-	if err := reg.AddSubagent(&domain.SubagentState{
-		ID: "i1", Mode: domain.SubagentModeInteractive, Status: domain.SubagentRunning,
-	}); err != nil {
-		t.Fatalf("AddSubagent: %v", err)
-	}
-	if reg.HasPending() {
-		t.Fatalf("HasPending must still exclude interactive subagents")
-	}
-	if !reg.HasActiveWork() {
-		t.Fatalf("HasActiveWork must include a running interactive subagent")
-	}
-
-	_ = reg.SetSubagentStatus("i1", domain.SubagentCompleted)
-	if reg.HasActiveWork() {
-		t.Fatalf("a completed interactive subagent must not count as active work")
-	}
-}

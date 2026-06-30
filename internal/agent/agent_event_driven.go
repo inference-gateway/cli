@@ -194,13 +194,6 @@ func (a *EventDrivenAgent) registerHandler(handler domain.StateHandler) {
 	a.stateHandlers[handler.Name()] = handler
 }
 
-// Events returns a send-only handle on the agent's internal event channel
-// so external producers (e.g. the A2A task poller) can wake the loop when
-// background work completes while the agent is idling.
-func (a *EventDrivenAgent) Events() chan<- domain.AgentEvent {
-	return a.events
-}
-
 // Start begins the event-driven agent execution
 func (a *EventDrivenAgent) Start() {
 	if err := a.stateMachine.Transition(a.agentCtx, domain.StateIdle); err != nil {
@@ -262,16 +255,9 @@ func (a *EventDrivenAgent) processEvents() {
 			}
 
 			if currentState == domain.StateIdle {
-				// HasActiveWork (not HasPending) so the loop stays alive while
-				// interactive subagents run and their pane watcher can notify.
-				hasPendingTasks := a.registry != nil && a.registry.HasActiveWork()
-				if hasPendingTasks {
-					logger.Debug("agent in Idle state but has pending background tasks, staying alive")
-				} else {
-					logger.Debug("agent reached Idle state with no pending tasks",
-						"total_turns", a.agentCtx.Turns)
-					return
-				}
+				logger.Debug("agent reached Idle state - turn complete",
+					"total_turns", a.agentCtx.Turns)
+				return
 			}
 		}
 	}

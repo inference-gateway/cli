@@ -28,7 +28,6 @@ type Supervisor struct {
 
 	mu   sync.RWMutex
 	jobs map[string]*supervised
-	sink *requestSink
 
 	wg          sync.WaitGroup
 	stopOnce    sync.Once
@@ -45,16 +44,6 @@ type supervised struct {
 	completedAt *time.Time
 	lastNote    string
 	cancel      context.CancelFunc
-}
-
-// requestSink is where monitors deliver chat events and agent wake-ups for the
-// request that is currently bound. It is nil between requests, so a completion
-// that lands after a request tore down drops its event instead of sending on a
-// closed channel. See BindRequest.
-type requestSink struct {
-	eventChan      chan<- domain.ChatEvent
-	agentEventChan chan<- domain.AgentEvent
-	requestID      string
 }
 
 // NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
@@ -105,42 +94,6 @@ func (s *Supervisor) Start(interval, retention time.Duration) {
 	}()
 }
 
-// BindRequest points the supervisor's event sink at one request's chat-event and
-// agent-event channels and returns a release func. Monitors emit through the
-// bound sink; after release() the sink is cleared so later completions drop their
-// events. release MUST be called before the request closes its event channels;
-// because emit holds the read lock for the duration of its non-blocking send and
-// release takes the write lock, no send can be in flight once release returns -
-// closing the channels afterwards is race-free.
-func (s *Supervisor) BindRequest(
-	eventChan chan<- domain.ChatEvent,
-	requestID string,
-	agentEventChan chan<- domain.AgentEvent,
-) (release func()) {
-	s.mu.Lock()
-	s.sink = &requestSink{eventChan: eventChan, agentEventChan: agentEventChan, requestID: requestID}
-	s.mu.Unlock()
-
-	return func() {
-		s.mu.Lock()
-		if s.sink != nil && s.sink.requestID == requestID {
-			s.sink = nil
-		}
-		s.mu.Unlock()
-	}
-}
-
-// SetAgentEventChannel updates only the agent wake-up channel on the current
-// binding (the agent is constructed after BindRequest, so its event channel
-// arrives later). No-op if nothing is bound.
-func (s *Supervisor) SetAgentEventChannel(ch chan<- domain.AgentEvent) {
-	s.mu.Lock()
-	if s.sink != nil {
-		s.sink.agentEventChan = ch
-	}
-	s.mu.Unlock()
-}
-
 // Submit registers a job and spawns its monitor goroutine. Duplicate IDs and
 // submissions after Stop are ignored.
 func (s *Supervisor) Submit(job domain.BackgroundJob) {
@@ -170,13 +123,6 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 	s.wg.Add(1)
 	s.mu.Unlock()
 
-	s.dispatch(func(reqID string) domain.ChatEvent {
-		return domain.BackgroundJobEvent{
-			RequestID: reqID, Timestamp: time.Now(),
-			Phase: domain.JobPhaseSubmitted, Kind: meta.Kind, JobID: meta.ID, Label: meta.Label,
-		}
-	}, false)
-
 	go s.monitor(ctx, sj)
 }
 
@@ -198,7 +144,10 @@ func (s *Supervisor) monitor(ctx context.Context, sj *supervised) {
 	s.finish(sj, result)
 }
 
-// onSignal records and forwards a job's intermediate status.
+// onSignal records a job's intermediate status and, when the signal asks for it,
+// lands the note on the shared queue. The chat-UI queue-drain ticker (and the
+// headless waiter) deliver it to the agent - the supervisor never touches a
+// per-request channel.
 func (s *Supervisor) onSignal(sj *supervised, sig domain.JobSignal) {
 	if sig.Note != "" {
 		s.mu.Lock()
@@ -206,29 +155,20 @@ func (s *Supervisor) onSignal(sj *supervised, sig domain.JobSignal) {
 		s.mu.Unlock()
 	}
 
-	s.dispatch(func(reqID string) domain.ChatEvent {
-		return domain.BackgroundJobEvent{
-			RequestID: reqID, Timestamp: time.Now(),
-			Phase: domain.JobPhaseStatus, Kind: sj.meta.Kind, JobID: sj.meta.ID, Label: sj.meta.Label, Note: sig.Note,
-		}
-	}, false)
-
 	if sig.Enqueue && sig.Note != "" {
 		s.enqueue(sig.Note)
-		s.dispatch(nil, true) // wake the agent to read it
 	}
 }
 
-// finish marks a job terminal, delivers its result onto the conversation, and
-// emits the completion/failure event. The entry is KEPT (terminal) so the task
-// view can show it; Cleanup reaps it after the retention window.
+// finish marks a job terminal and lands its result on the shared queue (unless
+// the job is Silent and delivered its own per-turn notes). The entry is KEPT
+// (terminal) so the task view can show it; Cleanup reaps it after the retention
+// window. The chat-UI queue-drain ticker delivers the note to the agent.
 func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	now := time.Now()
 	status := domain.JobCompleted
-	phase := domain.JobPhaseCompleted
 	if !result.Success {
 		status = domain.JobFailed
-		phase = domain.JobPhaseFailed
 	}
 
 	s.mu.Lock()
@@ -236,18 +176,10 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	sj.completedAt = &now
 	s.mu.Unlock()
 
-	res := result
 	if !sj.meta.Silent {
+		res := result
 		s.enqueue(s.formatResult(sj.job, sj.meta, &res))
-		s.dispatch(nil, true)
 	}
-
-	s.dispatch(func(reqID string) domain.ChatEvent {
-		return domain.BackgroundJobEvent{
-			RequestID: reqID, Timestamp: time.Now(),
-			Phase: phase, Kind: sj.meta.Kind, JobID: sj.meta.ID, Label: sj.meta.Label, Result: &res,
-		}
-	}, false)
 }
 
 // formatResult renders a finished job's outcome as the user-role message the
@@ -296,33 +228,6 @@ func (s *Supervisor) enqueue(content string) {
 
 // dispatch delivers a chat event and/or an agent wake-up through the current
 // request sink. It holds the read lock across the non-blocking sends so a
-// concurrent release() (write lock) cannot clear the sink and let the request
-// close its channels mid-send. build may be nil to wake without an event.
-func (s *Supervisor) dispatch(build func(reqID string) domain.ChatEvent, wake bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	sink := s.sink
-	if sink == nil {
-		return
-	}
-	if build != nil && sink.eventChan != nil {
-		ev := build(sink.requestID)
-		select {
-		case sink.eventChan <- ev:
-		default:
-			logger.Warn("dropped background job event - chat event channel full")
-		}
-	}
-	if wake && sink.agentEventChan != nil {
-		select {
-		case sink.agentEventChan <- domain.MessageReceivedEvent{}:
-		default:
-			logger.Warn("dropped agent wake-up - agent event channel full")
-		}
-	}
-}
-
 // Wind delivers a graceful wind-down or hard stop to one job.
 func (s *Supervisor) Wind(id string, sig domain.WindSignal) error {
 	s.mu.RLock()
@@ -410,12 +315,6 @@ func (s *Supervisor) HasPending() bool {
 		}
 	}
 	return false
-}
-
-// HasActiveWork reports whether any job is still running, including interactive
-// subagents - the chat loop uses this so it stays alive while they run.
-func (s *Supervisor) HasActiveWork() bool {
-	return s.CountRunning("") > 0
 }
 
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,
