@@ -1032,8 +1032,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "ListSubagents", "GetSubagentResult", "ReadSubagentScreen":
 		return false
 	case "ApproveSubagent":
-		// Relaying a subagent's approval decision always requires the human's
-		// confirmation in this chat, regardless of the global setting.
 		return true
 	case "RequestPlanApproval":
 		return false
