@@ -3,6 +3,7 @@ package autocomplete
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -266,9 +267,13 @@ func (a *AutocompleteImpl) loadTools() {
 			continue
 		}
 
+		description := "Execute " + toolName + " tool directly"
+		if hints := a.generateParameterHints(toolDef); hints != "" {
+			description += " - args: " + hints
+		}
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    a.generateToolTemplate(toolDef),
-			Description: "Execute " + toolName + " tool directly",
+			Description: description,
 			Usage:       "",
 		})
 	}
@@ -276,18 +281,22 @@ func (a *AutocompleteImpl) loadTools() {
 
 // generateToolTemplate creates a complete tool template with required arguments
 func (a *AutocompleteImpl) generateToolTemplate(toolDef sdk.ChatCompletionTool) string {
-	template := "!!" + toolDef.Function.Name + "("
+	return "!!" + toolDef.Function.Name + "(" + a.generateToolArguments(toolDef) + ")"
+}
 
-	if toolDef.Function.Parameters != nil {
-		params := map[string]any(*toolDef.Function.Parameters)
-		requiredArgs := a.extractRequiredArguments(params)
-		if len(requiredArgs) > 0 {
-			template += strings.Join(requiredArgs, ", ")
-		}
+// generateToolArguments builds the comma-separated argument skeleton that goes
+// inside the parentheses. It prefers top-level "required" properties, then
+// falls back to all top-level properties so one-of / all-optional schemas
+// (like the Agent tool) still surface their meaningful arguments.
+func (a *AutocompleteImpl) generateToolArguments(toolDef sdk.ChatCompletionTool) string {
+	if toolDef.Function.Parameters == nil {
+		return ""
 	}
-
-	template += ")"
-	return template
+	params := map[string]any(*toolDef.Function.Parameters)
+	if requiredArgs := a.extractRequiredArguments(params); len(requiredArgs) > 0 {
+		return strings.Join(requiredArgs, ", ")
+	}
+	return strings.Join(a.extractAllProperties(params), ", ")
 }
 
 // extractRequiredArguments extracts required arguments from parameters
@@ -309,6 +318,79 @@ func (a *AutocompleteImpl) extractRequiredArguments(params map[string]any) []str
 	}
 
 	return requiredArgs
+}
+
+// extractAllProperties builds argument templates for every top-level property,
+// sorted by name for deterministic output. Used as the fallback when a schema
+// has no top-level "required" array (one-of / all-optional schemas like the
+// Agent tool), so the skeleton still shows the tool's meaningful arguments.
+// Returns nil when there are no properties.
+func (a *AutocompleteImpl) extractAllProperties(params map[string]any) []string {
+	properties, ok := params["properties"].(map[string]any)
+	if !ok || len(properties) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	args := make([]string, 0, len(names))
+	for _, name := range names {
+		args = append(args, a.generateArgumentTemplate(name, properties))
+	}
+	return args
+}
+
+// generateParameterHints builds a compact, sorted parameter list of the form
+// "name (type, required|optional)" from the tool's top-level schema, so the
+// dropdown description surfaces what to pass even when the schema has no
+// top-level "required". Returns "" when the tool has no parameters.
+func (a *AutocompleteImpl) generateParameterHints(toolDef sdk.ChatCompletionTool) string {
+	if toolDef.Function.Parameters == nil {
+		return ""
+	}
+	params := map[string]any(*toolDef.Function.Parameters)
+	properties, ok := params["properties"].(map[string]any)
+	if !ok || len(properties) == 0 {
+		return ""
+	}
+
+	required := make(map[string]bool)
+	switch reqRaw := params["required"].(type) {
+	case []any:
+		for _, r := range reqRaw {
+			if s, ok := r.(string); ok {
+				required[s] = true
+			}
+		}
+	case []string:
+		for _, s := range reqRaw {
+			required[s] = true
+		}
+	}
+
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		typ := "any"
+		if propDef, ok := properties[name].(map[string]any); ok {
+			if t, ok := propDef["type"].(string); ok && t != "" {
+				typ = t
+			}
+		}
+		qualifier := "optional"
+		if required[name] {
+			qualifier = "required"
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s, %s)", name, typ, qualifier))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // processAnySlice processes a slice of any type for required arguments
@@ -354,6 +436,10 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 				return paramName + "=0.0"
 			case "boolean":
 				return paramName + "=false"
+			case "array":
+				return paramName + "=[]"
+			case "object":
+				return paramName + "={}"
 			default:
 				return paramName + "=\"\""
 			}

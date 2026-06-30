@@ -600,9 +600,103 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	})
 }
 
-// TestAutocomplete_TabCompletesWithoutSubmitting locks in that Tab only
-// completes a suggestion (with a trailing space) and never auto-submits, even
-// for a no-arg shortcut. The user submits with a deliberate Enter afterwards.
+// TestAutocomplete_ToolsAllOptionalSchema covers the regression in issue #690:
+// a tool whose useful arguments are not top-level "required" (a one-of /
+// all-optional schema like the Agent tool) must still surface its arguments in
+// the !! skeleton and the dropdown description, rather than showing a bare
+// "Tool()" with a generic "Execute <tool> tool directly" line.
+func TestAutocomplete_ToolsAllOptionalSchema(t *testing.T) {
+	mockRegistry := &uimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
+
+	mockToolService := &domainmocks.FakeToolService{}
+
+	agentDesc := "Spawn local subagents in parallel"
+
+	// Agent-shaped schema: top-level properties with NO top-level "required"
+	// array (a one-of between `tasks` and `description`). The only "required"
+	// is nested under tasks.items, which the !! template builder must not rely
+	// on. Includes an array-typed property to exercise the new array handling.
+	agentParams := sdk.FunctionParameters(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tasks": map[string]any{
+				"type":        "array",
+				"description": "Subagent tasks to run in parallel",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"description": map[string]any{"type": "string"},
+					},
+					"required": []string{"description"},
+				},
+			},
+			"description": map[string]any{
+				"type":        "string",
+				"description": "Shorthand for a single subagent task",
+			},
+			"system_prompt": map[string]any{
+				"type":        "string",
+				"description": "Optional system prompt for the single-task form",
+			},
+			"type": map[string]any{
+				"type":        "string",
+				"enum":        []string{"ReadOnly", "ReadWrite"},
+				"description": "Capability for the single-task form",
+			},
+		},
+	})
+
+	mockToolService.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+		{
+			Type: sdk.Function,
+			Function: sdk.FunctionObject{
+				Name:        "Agent",
+				Description: &agentDesc,
+				Parameters:  &agentParams,
+			},
+		},
+	})
+
+	theme := &uimocks.FakeTheme{}
+	theme.GetDimColorReturns("#808080")
+	theme.GetAccentColorReturns("#FF00FF")
+
+	ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+	ac.SetToolService(mockToolService)
+	// Use a wide terminal so the description column is wide enough for the full
+	// parameter hint list (it is truncated to descWidth during rendering).
+	ac.SetWidth(240)
+
+	t.Run("skeleton includes all top-level properties with type-appropriate defaults", func(t *testing.T) {
+		ac.Update("!!Age", 5)
+		assert.True(t, ac.IsVisible(), "!!Age should match the Agent tool")
+		// Properties are surfaced in sorted order; array -> [], string -> "".
+		assert.Equal(t, `!!Agent(description="", system_prompt="", tasks=[], type="")`,
+			ac.GetSelectedShortcut(),
+			"all-optional schema must fill the skeleton with its top-level properties, not empty parens")
+	})
+
+	t.Run("dropdown description lists the parameters with type and required/optional", func(t *testing.T) {
+		ac.Update("!!Age", 5)
+		assert.True(t, ac.IsVisible())
+		rendered := ac.Render()
+		assert.Contains(t, rendered, "args:",
+			"description should be enriched with a parameter list")
+		assert.Contains(t, rendered, "description (string, optional)")
+		assert.Contains(t, rendered, "system_prompt (string, optional)")
+		assert.Contains(t, rendered, "tasks (array, optional)")
+		assert.Contains(t, rendered, "type (string, optional)")
+	})
+
+	t.Run("empty !! prefix still shows the enriched Agent suggestion", func(t *testing.T) {
+		ac.Update("!!", 2)
+		assert.True(t, ac.IsVisible())
+		assert.Equal(t, `!!Agent(description="", system_prompt="", tasks=[], type="")`,
+			ac.GetSelectedShortcut())
+	})
+}
+
 func TestAutocomplete_TabCompletesWithoutSubmitting(t *testing.T) {
 	noArgShortcut := &shortcutsmocks.FakeShortcut{}
 	noArgShortcut.GetNameReturns("clear")
