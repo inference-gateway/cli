@@ -144,7 +144,8 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 			obs := j.inspect(ctx, j.state.PaneID, j.state.SessionID)
 
 			if obs.Gone || obs.Dead {
-				j.harvestTurn(obs.Harvested, &lastHarvest, emit) // capture a final turn
+				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
+				j.markTurnComplete()
 				return domain.ToolExecutionResult{ToolName: "Agent", Success: true}
 			}
 
@@ -176,6 +177,7 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 			prevScreen = obs.Screen
 			if stableTicks >= j.stableNeeded && !idleNotified {
 				idleNotified = true
+				j.markTurnComplete()
 				emit(domain.JobSignal{Note: j.idleMessage(), Enqueue: true})
 			}
 		}
@@ -190,8 +192,26 @@ func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emi
 		return
 	}
 	*last = body
+	j.markTurnComplete()
 	emit(domain.JobSignal{Note: j.completedMessage(body), Enqueue: true})
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
+}
+
+// markTurnComplete flips the tracker status to SubagentCompleted once a turn's
+// output has been delivered, mirroring the old SubagentPoller.finishInteractive.
+// It is what lets the main agent ACT on the note: while the status stays
+// SubagentRunning, registry.HasActiveWork() reports work in flight and the chat
+// loop's CheckingQueue keeps WAITING instead of responding to the just-drained
+// "[Subagent Completed]" message. The supervisor job and the tmux pane live on
+// (the count/status line still shows the live pane); only the per-turn
+// active-work signal is cleared. Nil-safe so the heuristic tests (no tool) pass.
+func (j *interactiveSubagentJob) markTurnComplete() {
+	if j.tool == nil || j.tool.tracker == nil {
+		return
+	}
+	if err := j.tool.tracker.SetSubagentStatus(j.state.ID, domain.SubagentCompleted); err != nil {
+		logger.Warn("interactive subagent status update failed", "id", j.state.ID, "error", err)
+	}
 }
 
 // Wind kills the pane on WindStop (which makes Run observe Gone and return);
