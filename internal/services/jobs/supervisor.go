@@ -18,6 +18,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -26,6 +27,7 @@ import (
 type Supervisor struct {
 	messageQueue     domain.MessageQueue
 	conversationRepo domain.ConversationRepository
+	notifier         domain.UINotifier
 
 	mu              sync.RWMutex
 	jobs            map[string]*supervised
@@ -46,19 +48,33 @@ type supervised struct {
 	completedAt *time.Time
 	lastNote    string
 	cancel      context.CancelFunc
+	warnedLong  bool
 }
 
 // NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
 // long-lived singletons used to deliver finished jobs' results back onto the
 // conversation; either may be nil (the supervisor degrades to event-only).
-func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.ConversationRepository) *Supervisor {
+// notifier is the single UI ingress used to push DrainQueueEvent (so landed work
+// drains promptly) and BackgroundTasksChangedEvent (so the task view refreshes);
+// a nil notifier degrades to no UI pushes.
+func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.ConversationRepository, notifier domain.UINotifier) *Supervisor {
+	if notifier == nil {
+		notifier = domain.NoopUINotifier{}
+	}
 	return &Supervisor{
 		messageQueue:     messageQueue,
 		conversationRepo: conversationRepo,
+		notifier:         notifier,
 		jobs:             make(map[string]*supervised),
 		retentionByKind:  make(map[domain.JobKind]int),
 		stopCleanup:      make(chan struct{}),
 	}
+}
+
+// notify pushes an event to the UI loop. NewSupervisor defaults a nil notifier to
+// NoopUINotifier, so s.notifier is always non-nil here.
+func (s *Supervisor) notify(event any) {
+	s.notifier.Notify(event)
 }
 
 // SetConversationRepo wires the conversation repository used to format finished
@@ -143,6 +159,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 	}
 
 	go s.monitor(ctx, sj)
+	s.notify(domain.BackgroundTasksChangedEvent{})
 }
 
 // monitor runs one job to completion and then delivers its outcome. A panicking
@@ -164,14 +181,15 @@ func (s *Supervisor) monitor(ctx context.Context, sj *supervised) {
 }
 
 // onSignal records a job's intermediate status and, when the signal asks for it,
-// lands the note on the shared queue. The chat-UI queue-drain ticker (and the
-// headless waiter) deliver it to the agent - the supervisor never touches a
-// per-request channel.
+// lands the note on the shared queue. enqueue pushes a DrainQueueEvent so the
+// idle agent picks the note up; the supervisor never touches a per-request
+// channel. A BackgroundTasksChangedEvent refreshes the task view's last-note.
 func (s *Supervisor) onSignal(sj *supervised, sig domain.JobSignal) {
 	if sig.Note != "" {
 		s.mu.Lock()
 		sj.lastNote = sig.Note
 		s.mu.Unlock()
+		s.notify(domain.BackgroundTasksChangedEvent{})
 	}
 
 	if sig.Enqueue && sig.Note != "" {
@@ -182,7 +200,8 @@ func (s *Supervisor) onSignal(sj *supervised, sig domain.JobSignal) {
 // finish marks a job terminal and lands its result on the shared queue (unless
 // the job is Silent and delivered its own per-turn notes). The entry is KEPT
 // (terminal) so the task view can show it; Cleanup reaps it after the retention
-// window. The chat-UI queue-drain ticker delivers the note to the agent.
+// window. enqueue pushes a DrainQueueEvent so the agent picks up the note, and a
+// BackgroundTasksChangedEvent refreshes the task view's status.
 func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	now := time.Now()
 	status := domain.JobCompleted
@@ -199,6 +218,8 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	for _, v := range evicted {
 		v.job.Close()
 	}
+
+	s.notify(domain.BackgroundTasksChangedEvent{})
 
 	if !sj.meta.Silent {
 		res := result
@@ -282,7 +303,11 @@ func asNotifier(job domain.BackgroundJob) domain.JobNotifier {
 	return nil
 }
 
-// enqueue lands content on the shared message queue as a user-role message.
+// enqueue lands content on the shared message queue as a user-role message and
+// pushes a DrainQueueEvent so an idle agent on the chat view starts a turn to
+// read it. The gate (HandleDrainQueueEvent) drops the event when the agent is
+// busy or off-chat; that work is then picked up at the next turn completion or on
+// returning to chat.
 func (s *Supervisor) enqueue(content string) {
 	if s.messageQueue == nil {
 		return
@@ -291,6 +316,7 @@ func (s *Supervisor) enqueue(content string) {
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(content),
 	}, "system")
+	s.notify(domain.DrainQueueEvent{})
 }
 
 // Wind delivers a graceful wind-down or hard stop to a single running job by id.
@@ -370,14 +396,23 @@ func (s *Supervisor) CountRunning(kind domain.JobKind) int {
 
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,
 // running each one's Wind(WindStop) teardown (kill pane, remove temp files)
-// before dropping it. Running jobs are never reaped. Returns the number removed.
+// before dropping it. Running jobs are never reaped. The same sweep emits a
+// one-time "job running long" warning for any still-running job that has exceeded
+// JobRunningLongThreshold. Returns the number removed.
 func (s *Supervisor) Cleanup(olderThan time.Duration) int {
-	cutoff := time.Now().Add(-olderThan)
+	now := time.Now()
+	cutoff := now.Add(-olderThan)
+	longCutoff := now.Add(-constants.JobRunningLongThreshold)
 
 	s.mu.Lock()
 	var reaped []*supervised
+	var longRunning []domain.JobMeta
 	for id, sj := range s.jobs {
 		if !sj.status.IsTerminal() {
+			if !sj.warnedLong && sj.meta.StartedAt.Before(longCutoff) {
+				sj.warnedLong = true
+				longRunning = append(longRunning, sj.meta)
+			}
 			continue
 		}
 		if terminalTime(sj).After(cutoff) {
@@ -390,6 +425,13 @@ func (s *Supervisor) Cleanup(olderThan time.Duration) int {
 
 	for _, sj := range reaped {
 		sj.job.Close()
+	}
+	for _, m := range longRunning {
+		logger.Warn("job running long",
+			"kind", string(m.Kind),
+			"label", m.Label,
+			"elapsed_s", int(now.Sub(m.StartedAt).Seconds()),
+		)
 	}
 	return len(reaped)
 }

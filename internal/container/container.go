@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	zap "go.uber.org/zap"
@@ -105,6 +106,35 @@ type ServiceContainer struct {
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   domain.DirectExecutionService
 	toolExecutionCoordinator domain.ToolExecutionCoordinator
+	uiNotifier               *uiNotifierHolder
+}
+
+// uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
+// the *uiNotifierHolder once at construction (never reassigning it) and call Notify
+// from their own goroutines; SetUINotifier stores the real program-backed notifier
+// exactly once at startup (before program.Run). atomic.Pointer keeps the read
+// lock-free and the late swap race-free without a mutex. The stored pointer is
+// never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
+type uiNotifierHolder struct {
+	inner atomic.Pointer[domain.UINotifier]
+}
+
+func newUINotifierHolder() *uiNotifierHolder {
+	h := &uiNotifierHolder{}
+	var noop domain.UINotifier = domain.NoopUINotifier{}
+	h.inner.Store(&noop)
+	return h
+}
+
+func (h *uiNotifierHolder) Notify(event any) {
+	(*h.inner.Load()).Notify(event)
+}
+
+func (h *uiNotifierHolder) set(n domain.UINotifier) {
+	if n == nil {
+		n = domain.NoopUINotifier{}
+	}
+	h.inner.Store(&n)
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -126,6 +156,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		config:           cfg,
 		containerRuntime: containerRuntime,
 		log:              log,
+		uiNotifier:       newUINotifierHolder(),
 	}
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
@@ -143,6 +174,15 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	container.initializeExtensibility()
 
 	return container
+}
+
+// SetUINotifier swaps in the real (program-backed) UI notifier. cmd/chat.go calls
+// it once, after tea.NewProgram and before program.Run, so every background
+// producer that captured the holder at construction begins pushing into the live
+// Bubble Tea loop. Safe to call from any goroutine; before it runs, producers
+// push to the no-op default.
+func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
+	c.uiNotifier.set(n)
 }
 
 // initializeGatewayManager creates the gateway manager (but does not start it)
@@ -183,6 +223,13 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
+		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{
+			AgentName: agentName,
+			State:     state,
+			Message:   message,
+			URL:       url,
+			Image:     image,
+		})
 	})
 
 	ctx := context.Background()
@@ -197,7 +244,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime)
+	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -750,7 +797,7 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 	if c.backgroundTaskRegistry != nil {
 		return
 	}
-	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo)
+	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo, c.uiNotifier)
 	c.jobSupervisor.SetRetentionCount(domain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
 	c.jobSupervisor.SetRetentionCount(domain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
 	c.jobSupervisor.SetRetentionCount(domain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func TestNewMCPManager(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	if manager == nil {
 		t.Fatal("Expected non-nil manager")
@@ -50,7 +51,7 @@ func TestMCPManager_Close(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	err := manager.Close()
 	if err != nil {
@@ -65,7 +66,7 @@ func TestMCPManager_GetClients_NoServers(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -94,7 +95,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -135,7 +136,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -144,8 +145,40 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 }
 
-func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
-	cfg := &config.MCPConfig{
+// recordingNotifier is a thread-safe domain.UINotifier that collects every
+// pushed event so tests can assert what a producer emitted.
+type recordingNotifier struct {
+	mu     sync.Mutex
+	events []any
+}
+
+func (r *recordingNotifier) Notify(event any) {
+	r.mu.Lock()
+	r.events = append(r.events, event)
+	r.mu.Unlock()
+}
+
+func (r *recordingNotifier) count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.events)
+}
+
+// waitForCount polls until the recorder reaches at least n events or the deadline
+// passes, returning the final count. Pushes happen on a goroutine, so we poll.
+func (r *recordingNotifier) waitForCount(n int, within time.Duration) int {
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if r.count() >= n {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return r.count()
+}
+
+func monitoringTestConfig() *config.MCPConfig {
+	return &config.MCPConfig{
 		Enabled:               true,
 		LivenessProbeEnabled:  false,
 		LivenessProbeInterval: 10,
@@ -160,55 +193,77 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 			},
 		},
 	}
+}
 
-	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+// connectAll marks every client connected so the initial-status push fires
+// (initializeClient does not connect by itself - a live probe would).
+func connectAll(m *MCPManager) {
+	for _, c := range m.clients {
+		c.mu.Lock()
+		c.isConnected = true
+		c.mu.Unlock()
+	}
+}
+
+// sendStatusUpdateWithTools pushes an MCPServerStatusUpdateEvent through the
+// injected notifier (no channel). This is the synchronous push primitive every
+// probe path funnels through.
+func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
+	rec := &recordingNotifier{}
+	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+
+	manager.sendStatusUpdateWithTools("test-server", true, nil)
+
+	if got := rec.count(); got != 1 {
+		t.Fatalf("expected 1 push, got %d", got)
+	}
+	ev, ok := rec.events[0].(domain.MCPServerStatusUpdateEvent)
+	if !ok {
+		t.Fatalf("expected MCPServerStatusUpdateEvent, got %T", rec.events[0])
+	}
+	if ev.ServerName != "test-server" || !ev.Connected {
+		t.Errorf("unexpected event payload: %+v", ev)
+	}
+}
+
+// StartMonitoring pushes the initial status for connected clients through the
+// notifier - there is no channel to drain. A second call is a no-op (idempotent),
+// so the count stays at one connected client rather than doubling.
+func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
+	rec := &recordingNotifier{}
+	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	chan1 := manager.StartMonitoring(ctx)
-	chan2 := manager.StartMonitoring(ctx)
+	manager.StartMonitoring(ctx)
+	manager.StartMonitoring(ctx)
 
-	if chan1 != chan2 {
-		t.Error("StartMonitoring should be idempotent and return the same channel")
+	rec.waitForCount(1, time.Second)
+	// Settle: give a hypothetical second initial-status goroutine time to fire.
+	time.Sleep(50 * time.Millisecond)
+	if got := rec.count(); got != 1 {
+		t.Errorf("expected exactly 1 initial status push (idempotent), got %d", got)
 	}
 
 	_ = manager.Close()
 }
 
+// With liveness probes disabled, StartMonitoring still pushes the initial status
+// once through the notifier and starts no probe goroutines.
 func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
-	cfg := &config.MCPConfig{
-		Enabled:               true,
-		LivenessProbeEnabled:  false,
-		LivenessProbeInterval: 10,
-		Servers: []config.MCPServerEntry{
-			{
-				Name:    "test-server",
-				Scheme:  "http",
-				Host:    "localhost",
-				Ports:   []string{"8080:8080"},
-				Path:    "/mcp",
-				Enabled: true,
-			},
-		},
-	}
-
-	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil)
+	rec := &recordingNotifier{}
+	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	statusChan := manager.StartMonitoring(ctx)
+	manager.StartMonitoring(ctx)
 
-	select {
-	case _, ok := <-statusChan:
-		if ok {
-			t.Error("Expected channel to be closed when probes are disabled")
-		}
-	case <-time.After(100 * time.Millisecond):
-		t.Error("Channel should be closed immediately when probes are disabled")
+	if got := rec.waitForCount(1, time.Second); got != 1 {
+		t.Errorf("expected 1 initial status push with probes disabled, got %d", got)
 	}
 
 	_ = manager.Close()

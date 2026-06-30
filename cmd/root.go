@@ -198,11 +198,7 @@ func initConfig() {
 	stdout := v.GetBool("logging.stdout")
 
 	if logDir == "" {
-		configFile := v.ConfigFileUsed()
-		if configFile != "" {
-			configDir := filepath.Dir(configFile)
-			logDir = filepath.Join(configDir, "logs")
-		}
+		logDir = config.DefaultLogsPath
 	}
 
 	logger.Init(logger.Config{

@@ -73,6 +73,17 @@ func GetGlobalLogger() *zap.Logger {
 	return globalLogger
 }
 
+// SetGlobalLogger swaps the global logger (and its sugared form). It is primarily
+// a test seam: tests build a logger over an observed core to assert what was
+// logged. Passing nil is a no-op.
+func SetGlobalLogger(l *zap.Logger) {
+	if l == nil {
+		return
+	}
+	globalLogger = l
+	sugar = l.Sugar()
+}
+
 // Debug logs a debug message
 func Debug(msg string, args ...any) {
 	if sugar != nil {

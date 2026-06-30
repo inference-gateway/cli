@@ -213,3 +213,52 @@ func TestWriteTaskSections_RendersPerKindTables(t *testing.T) {
 		}
 	}
 }
+
+// TestRefreshTick_ReArmsAndDedups exercises the live-elapsed tick lifecycle: a
+// running view keeps the chain alive, an emptied view stops it, a new task
+// (BackgroundTasksChangedEvent) restarts a dead chain exactly once, a task
+// arriving while the chain is alive never spawns a second chain, and a tick
+// stamped with a superseded epoch is dropped so chains never overlap.
+func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
+	running := []TaskInfo{{TaskPollingState: domain.TaskPollingState{TaskID: "shell-1"}, Kind: domain.JobKindShell, Status: "Running"}}
+
+	tm := &TaskManagerImpl{tickLive: true, tickEpoch: 3, activeTasks: running}
+	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 3}); cmd == nil {
+		t.Fatal("running view: tick must re-arm (non-nil cmd)")
+	}
+	if !tm.tickLive {
+		t.Fatal("running view: tickLive must stay true")
+	}
+
+	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 3, loading: false}
+	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 3}); cmd != nil {
+		t.Fatal("empty view: tick must stop (nil cmd)")
+	}
+	if tm.tickLive {
+		t.Fatal("empty view: tickLive must clear")
+	}
+
+	tm = &TaskManagerImpl{tickLive: false, tickEpoch: 3, loading: false}
+	if _, cmd := tm.Update(domain.BackgroundTasksChangedEvent{}); cmd == nil {
+		t.Fatal("new task while dead: must re-arm (non-nil cmd)")
+	}
+	if !tm.tickLive || tm.tickEpoch != 4 {
+		t.Fatalf("new task: want tickLive=true epoch=4, got %v/%d", tm.tickLive, tm.tickEpoch)
+	}
+
+	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 4, loading: false, activeTasks: running}
+	if _, cmd := tm.Update(domain.BackgroundTasksChangedEvent{}); cmd == nil {
+		t.Fatal("new task while alive: must still reload (non-nil cmd)")
+	}
+	if tm.tickEpoch != 4 {
+		t.Fatalf("new task while alive: epoch must not bump, got %d", tm.tickEpoch)
+	}
+
+	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 5, activeTasks: running}
+	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 4}); cmd != nil {
+		t.Fatal("stale epoch: tick must be dropped (nil cmd)")
+	}
+	if !tm.tickLive || tm.tickEpoch != 5 {
+		t.Fatalf("stale epoch: state must be untouched, got %v/%d", tm.tickLive, tm.tickEpoch)
+	}
+}

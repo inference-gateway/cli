@@ -10,7 +10,7 @@ import (
 // newTestRegistry builds a registry with a real (idle) supervisor for the
 // per-kind tracker tests below.
 func newTestRegistry(maxShells int) domain.BackgroundTaskRegistry {
-	return NewBackgroundTaskRegistry(maxShells, jobs.NewSupervisor(nil, nil))
+	return NewBackgroundTaskRegistry(maxShells, jobs.NewSupervisor(nil, nil, nil))
 }
 
 // TestHasPending_ExcludesInteractiveSubagents guards the fix for #678: a running

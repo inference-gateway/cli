@@ -39,6 +39,7 @@ type ChatHandler struct {
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
+	drainRetryArmed        bool
 }
 
 func NewChatHandler(
@@ -172,8 +173,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
 		return h.HandleAgentStatusUpdateEvent(m)
-	case domain.DrainQueueTickEvent:
-		return h.HandleDrainQueueTickEvent(m)
+	case domain.DrainQueueEvent:
+		return h.HandleDrainQueueEvent(m)
+	case domain.DrainQueueRetryEvent:
+		return h.HandleDrainQueueRetryEvent(m)
 	case domain.NavigateBackInTimeEvent:
 		return nil
 	case domain.MessageHistoryRestoreEvent:
@@ -246,7 +249,26 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 	if msg.Cancelled {
 		h.toolCoordinator.SetActiveToolCallID("")
 	}
+	if h.shouldDrainAfterComplete(msg) {
+		return tea.Batch(cmd, drainQueueCmd())
+	}
 	return cmd
+}
+
+// shouldDrainAfterComplete reports whether a completed turn should trigger a queue
+// drain. A terminal turn - cancelled, or a final answer with no tool calls - is
+// the moment queued work should drain (a message typed while busy, or a
+// background-job note that landed mid-turn). A turn with tool calls is not
+// terminal (results feed back in), so it does not drain.
+func (h *ChatHandler) shouldDrainAfterComplete(msg domain.ChatCompleteEvent) bool {
+	terminal := msg.Cancelled || len(msg.ToolCalls) == 0
+	return terminal && !h.messageQueue.IsEmpty()
+}
+
+// drainQueueCmd emits a single DrainQueueEvent on the next loop tick. The gate
+// (HandleDrainQueueEvent) starts a fresh turn only if the agent is idle.
+func drainQueueCmd() tea.Cmd {
+	return func() tea.Msg { return domain.DrainQueueEvent{} }
 }
 
 func (h *ChatHandler) HandleChatErrorEvent(
@@ -451,50 +473,70 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// HandleAgentStatusUpdateEvent handles agent status updates
-func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateEvent) tea.Cmd {
-	// The StateManager was already updated in the callback before this event was sent
-	// Just receiving this event triggers a UI refresh, which updates the agent indicator
-
-	// Check if all agents are ready - if so, stop polling
-	if readiness := h.stateManager.GetAgentReadiness(); readiness != nil {
-		if readiness.ReadyAgents >= readiness.TotalAgents {
-			// All agents ready, stop polling
-			return nil
-		}
-	}
-
-	// Keep polling for status updates
-	return func() tea.Msg {
-		time.Sleep(500 * time.Millisecond)
-		return domain.AgentStatusUpdateEvent{}
-	}
+// HandleAgentStatusUpdateEvent refreshes the agent indicator. The StateManager
+// was already updated by the container's status callback before this event was
+// pushed, so simply receiving it re-renders the indicator. There is no polling:
+// the callback pushes a fresh event on every real status change and stops when
+// the agents stop changing.
+func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ domain.AgentStatusUpdateEvent) tea.Cmd {
+	return nil
 }
 
-// HandleDrainQueueTickEvent is the queue-drain ticker. Every tick, if the agent
-// is idle (not busy) and the shared message queue has content - a background-job
-// completion note or a user message typed while busy - it starts a fresh agent
-// turn through the normal entry point (startChatCompletion). The new turn's
-// CheckingQueue state drains the queue into the conversation and the agent
-// responds, so queued work is delivered reliably without the supervisor "wake".
-// It always reschedules itself so the loop is self-perpetuating.
+// HandleDrainQueueEvent gates draining queued work into a fresh agent turn. When
+// the chat view is active and the agent is idle, it marks the session pending and
+// starts a turn whose CheckingQueue state drains the queue.
 //
-// SetChatPending() is called synchronously before startChatCompletion because
-// the session is not marked busy until StartChatSession runs inside the async
-// Cmd; without it, the next tick could double-start a completion. The Bubble Tea
-// Update loop is single-threaded, so this check-then-mark is race-free.
-func (h *ChatHandler) HandleDrainQueueTickEvent(_ domain.DrainQueueTickEvent) tea.Cmd {
-	reschedule := tea.Tick(constants.DrainQueueTickInterval, func(time.Time) tea.Msg {
-		return domain.DrainQueueTickEvent{}
-	})
+// When work is stranded (chat view, non-empty queue) it also arms a single bounded
+// retry. A background job can finish at the exact instant the agent is still
+// finishing its own turn; the supervisor's one-shot DrainQueueEvent would then be
+// gate-dropped and, without a retry, the queue would be stranded forever (the old
+// always-on ticker's repetition was the de-facto retry). armDrainRetry restores
+// that robustness without an idle clock AND without multiplying timers: the
+// drainRetryArmed guard keeps exactly one retry chain no matter how many
+// DrainQueueEvents arrive, and the chain stops the moment the queue drains (so it
+// never fires when idle on chat or off-chat - no /model flicker regression).
+//
+// SetChatPending() marks the session busy synchronously (StartChatSession only
+// runs later inside the async Cmd), so the retry sees "busy" and cannot
+// double-start. The Bubble Tea Update loop is single-threaded, so this
+// check-then-mark is race-free.
+func (h *ChatHandler) HandleDrainQueueEvent(_ domain.DrainQueueEvent) tea.Cmd {
+	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != domain.ViewStateChat {
+		return nil
+	}
 
-	if h.stateManager.GetCurrentView() != domain.ViewStateChat ||
-		h.stateManager.IsAgentBusy() || h.messageQueue.IsEmpty() {
-		return reschedule
+	if h.stateManager.IsAgentBusy() {
+		return h.armDrainRetry()
 	}
 
 	h.stateManager.SetChatPending()
-	return tea.Batch(h.startChatCompletion(), reschedule)
+	return tea.Batch(h.startChatCompletion(), h.armDrainRetry())
+}
+
+// armDrainRetry arms ONE bounded retry, collapsing the N-pushes-per-busy-turn case
+// to a single timer. It returns nil when a retry is already outstanding, so a burst
+// of DrainQueueEvents (one per background job landing in the same busy turn) can
+// never spawn parallel retry chains. Race-free: the flag is only ever touched on
+// the single-threaded Update loop.
+func (h *ChatHandler) armDrainRetry() tea.Cmd {
+	if h.drainRetryArmed {
+		return nil
+	}
+	h.drainRetryArmed = true
+	return tea.Tick(constants.DrainQueueRetryInterval, func(time.Time) tea.Msg {
+		return domain.DrainQueueRetryEvent{}
+	})
+}
+
+// HandleDrainQueueRetryEvent fires when the bounded retry tick elapses. It clears
+// the armed flag (this timer is spent) and re-runs the drain gate, which re-arms a
+// single fresh timer iff work is still stranded. A dedicated event type - rather
+// than re-emitting DrainQueueEvent - is what lets the guard distinguish "the retry
+// fired" from "a fresh external push", so exactly one retry chain stays alive
+// regardless of how many DrainQueueEvents were pushed.
+func (h *ChatHandler) HandleDrainQueueRetryEvent(_ domain.DrainQueueRetryEvent) tea.Cmd {
+	h.drainRetryArmed = false
+	return h.HandleDrainQueueEvent(domain.DrainQueueEvent{})
 }
 
 // HandleComputerUsePausedEvent handles computer use pause events

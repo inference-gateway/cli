@@ -164,7 +164,7 @@ func TestExplorer_ReanchorAcrossRefresh(t *testing.T) {
 	e.selectedKey = "b.txt"
 
 	writeTestFile(t, filepath.Join(root, "a2.txt"), "a2")
-	e.handleTick()
+	e.refresh()
 	if got := e.rows[e.cursor].node.relPath; got != "b.txt" {
 		t.Fatalf("selection should stay on b.txt across refresh, got %q", got)
 	}
@@ -172,7 +172,7 @@ func TestExplorer_ReanchorAcrossRefresh(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, "b.txt")); err != nil {
 		t.Fatal(err)
 	}
-	e.handleTick()
+	e.refresh()
 	if e.cursor < 0 || e.cursor >= len(e.rows) {
 		t.Fatalf("cursor out of range after the selected file was removed: %d (rows=%d)", e.cursor, len(e.rows))
 	}
@@ -187,7 +187,7 @@ func TestExplorer_TickPicksUpNewFileInExpandedDir(t *testing.T) {
 	e.setExpanded(true)
 
 	writeTestFile(t, filepath.Join(root, "dir", "new.txt"), "n")
-	e.handleTick()
+	e.refresh()
 
 	if !explorerHasRow(e, "dir/new.txt") {
 		t.Fatalf("new file in an expanded dir should appear after a tick; rows=%v", rowRels(e))
@@ -201,7 +201,7 @@ func TestExplorer_TickIgnoresNewFileInCollapsedDir(t *testing.T) {
 	e := newTestExplorer(t, root) // dir is collapsed by default
 
 	writeTestFile(t, filepath.Join(root, "dir", "new.txt"), "n")
-	e.handleTick()
+	e.refresh()
 
 	if explorerHasRow(e, "dir/new.txt") {
 		t.Fatal("a file in a collapsed dir should not be read/shown on refresh")

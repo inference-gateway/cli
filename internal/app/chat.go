@@ -59,6 +59,7 @@ type ChatApplication struct {
 	mcpManager             domain.MCPManager
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
+	backgroundTaskRegistry domain.BackgroundTaskRegistry
 
 	// Chat orchestration services
 	a2aTaskCoordinator       domain.A2ATaskCoordinator
@@ -139,6 +140,7 @@ func NewChatApplication(
 	agentManager domain.AgentManager,
 	agentService domain.AgentService,
 	backgroundTaskService domain.BackgroundTaskService,
+	backgroundTaskRegistry domain.BackgroundTaskRegistry,
 	conversationOptimizer domain.ConversationOptimizer,
 	conversationRepo domain.ConversationRepository,
 	fileService domain.FileService,
@@ -186,6 +188,7 @@ func NewChatApplication(
 		mcpManager:               mcpManager,
 		taskRetentionService:     taskRetentionService,
 		backgroundTaskService:    backgroundTaskService,
+		backgroundTaskRegistry:   backgroundTaskRegistry,
 		a2aTaskCoordinator:       a2aTaskCoordinator,
 		approvalCoordinator:      approvalCoordinator,
 		chatCompletionRunner:     chatCompletionRunner,
@@ -249,8 +252,8 @@ func NewChatApplication(
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
-		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
-			isb.SetBackgroundTaskRegistry(reg)
+		if app.backgroundTaskRegistry != nil {
+			isb.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
 	}
 
@@ -400,19 +403,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 
-	if readiness := app.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-		cmds = append(cmds, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
-			return domain.AgentStatusUpdateEvent{}
-		}))
-	}
-
-	// Queue-drain ticker: starts a fresh agent turn whenever the agent is idle
-	// and the shared queue has content (background-job notes / messages typed
-	// while busy). Self-reschedules in HandleDrainQueueTickEvent.
-	cmds = append(cmds, tea.Tick(constants.DrainQueueTickInterval, func(time.Time) tea.Msg {
-		return domain.DrainQueueTickEvent{}
-	}))
-
 	if app.mcpManager != nil {
 		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
 			TotalServers:     app.mcpManager.GetTotalServers(),
@@ -420,38 +410,22 @@ func (app *ChatApplication) Init() tea.Cmd {
 			TotalTools:       0,
 		})
 
-		ctx := context.Background()
-		statusChan := app.mcpManager.StartMonitoring(ctx)
-		cmds = append(cmds, waitForMCPStatusUpdate(statusChan))
+		app.mcpManager.StartMonitoring(context.Background())
 	}
 
 	return tea.Batch(cmds...)
 }
 
-// waitForMCPStatusUpdate waits for a status update from the MCP manager channel
-// The channel is captured in the closure and passed along with each event
-func waitForMCPStatusUpdate(statusChan <-chan domain.MCPServerStatusUpdateEvent) tea.Cmd {
-	return func() tea.Msg {
-		event, ok := <-statusChan
-		if !ok {
-			return nil
-		}
-
-		return mcpStatusUpdateWithChannel{
-			event:   event,
-			channel: statusChan,
-		}
-	}
-}
-
-// mcpStatusUpdateWithChannel wraps the event with the channel for continuation
-type mcpStatusUpdateWithChannel struct {
-	event   domain.MCPServerStatusUpdateEvent
-	channel <-chan domain.MCPServerStatusUpdateEvent
-}
-
-// Update handles all application messages using the state management system
+// Update handles all application messages using the state management system. It
+// is the single ingress for every message - background producers push through the
+// UI notifier (program.Send), so this is the one place to measure handler
+// duration: a slow handler in the single-threaded loop is a visible UI freeze.
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	start := time.Now()
+	defer logSlowUpdate(start, msg)
+
+	viewBefore := app.stateManager.GetCurrentView()
+
 	var cmds []tea.Cmd
 
 	if cmd := app.handleAppEvents(msg); cmd != nil {
@@ -468,14 +442,28 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
 
-	if mcpStatusUpdate, ok := msg.(mcpStatusUpdateWithChannel); ok {
-		if cmd := app.handleMCPStatusUpdate(mcpStatusUpdate.event); cmd != nil {
+	if event, ok := msg.(domain.MCPServerStatusUpdateEvent); ok {
+		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-		cmds = append(cmds, waitForMCPStatusUpdate(mcpStatusUpdate.channel))
+	}
+
+	if viewBefore != domain.ViewStateChat &&
+		app.stateManager.GetCurrentView() == domain.ViewStateChat &&
+		!app.messageQueue.IsEmpty() {
+		cmds = append(cmds, func() tea.Msg { return domain.DrainQueueEvent{} })
 	}
 
 	return app, tea.Batch(cmds...)
+}
+
+// logSlowUpdate warns when a single Update dispatch took longer than
+// SlowUpdateThreshold. The Update loop is single-threaded, so a slow handler is a
+// visible UI freeze - the one ingress is the one place worth measuring.
+func logSlowUpdate(start time.Time, msg tea.Msg) {
+	if d := time.Since(start); d > constants.SlowUpdateThreshold {
+		logger.Warn("slow update", "event", fmt.Sprintf("%T", msg), "ms", d.Milliseconds())
+	}
 }
 
 // isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
@@ -538,7 +526,8 @@ func isDomainEvent(msg tea.Msg) bool {
 		domain.ToolCancelledEvent,
 		domain.TodoUpdateChatEvent,
 		domain.AgentStatusUpdateEvent,
-		domain.DrainQueueTickEvent,
+		domain.DrainQueueEvent,
+		domain.DrainQueueRetryEvent,
 		domain.NavigateBackInTimeEvent,
 		domain.MessageHistoryRestoreEvent,
 		domain.ComputerUsePausedEvent,
@@ -1361,20 +1350,14 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		if !app.config.A2A.Enabled {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.ShowErrorEvent{
-					Error:  "Task management requires A2A to be enabled in configuration.",
-					Sticky: true,
-				}
-			})
-			return cmds
-		}
-
+		// The task view shows all background work - shells, subagents, and A2A
+		// tasks - so it is no longer gated on A2A. Shell/subagent rows come from the
+		// unified BackgroundTaskRegistry's supervisor snapshot; A2A rows from the
+		// poller/retention service. Either source may simply be empty.
 		styleProvider := styles.NewProvider(app.themeService)
 		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
-		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
-			app.taskManager.SetBackgroundTaskRegistry(reg)
+		if app.backgroundTaskRegistry != nil {
+			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -1524,7 +1507,7 @@ func (app *ChatApplication) renderConversationSelection() string {
 
 func (app *ChatApplication) renderA2ATaskManagement() string {
 	if app.taskManager == nil {
-		return "Task management requires A2A to be enabled in configuration."
+		return "Loading tasks…"
 	}
 
 	width, height := app.stateManager.GetDimensions()
