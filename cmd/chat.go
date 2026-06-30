@@ -205,6 +205,7 @@ func StartChatSession(cfg *config.Config) error {
 		agentManager,
 		agentService,
 		backgroundTaskService,
+		services.GetBackgroundTaskRegistry(),
 		conversationOptimizer,
 		conversationRepo,
 		fileService,

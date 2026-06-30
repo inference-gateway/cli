@@ -10,11 +10,13 @@ import (
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
-// TestHandleDrainQueueEvent is the regression guard for the pure, gate-only queue
-// drain. It must start a fresh agent turn - and mark the session pending to close
-// the double-start window - ONLY when the chat view is active, the agent is idle,
-// and the queue has content. In every other case it must return nil: there is no
-// self-reschedule, so the deleted ticker can never creep back in.
+// TestHandleDrainQueueEvent guards the drain gate. It starts a fresh agent turn -
+// marking the session pending to close the double-start window - ONLY when the
+// chat view is active, the agent is idle, and the queue has content. When the
+// agent is busy with work still queued it returns a single retry Cmd (so a
+// transient gate-block can't strand the queue) WITHOUT starting a turn. When there
+// is nothing stranded (empty queue) or the user is off-chat it returns nil, so the
+// retry never fires when idle - no resurrected idle ticker.
 func TestHandleDrainQueueEvent(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -22,11 +24,12 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 		busy       bool
 		queueEmpty bool
 		wantStart  bool
+		wantCmd    bool
 	}{
-		{"idle + queued + chat -> start a turn", domain.ViewStateChat, false, false, true},
-		{"agent busy -> nil", domain.ViewStateChat, true, false, false},
-		{"empty queue -> nil", domain.ViewStateChat, false, true, false},
-		{"non-chat view -> nil", domain.ViewStateModelSelection, false, false, false},
+		{"idle + queued + chat -> start a turn (and retry)", domain.ViewStateChat, false, false, true, true},
+		{"busy + queued + chat -> retry only, no start", domain.ViewStateChat, true, false, false, true},
+		{"empty queue + chat -> nil (no idle ticker)", domain.ViewStateChat, false, true, false, false},
+		{"non-chat view + queued -> nil", domain.ViewStateModelSelection, false, false, false, false},
 	}
 
 	for _, tt := range tests {
@@ -50,14 +53,9 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 
 			cmd := h.HandleDrainQueueEvent(domain.DrainQueueEvent{})
 
-			if tt.wantStart {
-				if cmd == nil {
-					t.Fatal("expected a start Cmd when chat + idle + queued")
-				}
-			} else if cmd != nil {
-				t.Fatal("gate-only handler must return nil in every no-op branch (no reschedule ticker)")
+			if (cmd != nil) != tt.wantCmd {
+				t.Fatalf("returned a Cmd = %v, want %v", cmd != nil, tt.wantCmd)
 			}
-
 			if started := runner.StartCallCount() > 0; started != tt.wantStart {
 				t.Fatalf("startChatCompletion called=%v, want %v", started, tt.wantStart)
 			}

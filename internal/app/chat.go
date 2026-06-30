@@ -59,6 +59,7 @@ type ChatApplication struct {
 	mcpManager             domain.MCPManager
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
+	backgroundTaskRegistry domain.BackgroundTaskRegistry
 
 	// Chat orchestration services
 	a2aTaskCoordinator       domain.A2ATaskCoordinator
@@ -139,6 +140,7 @@ func NewChatApplication(
 	agentManager domain.AgentManager,
 	agentService domain.AgentService,
 	backgroundTaskService domain.BackgroundTaskService,
+	backgroundTaskRegistry domain.BackgroundTaskRegistry,
 	conversationOptimizer domain.ConversationOptimizer,
 	conversationRepo domain.ConversationRepository,
 	fileService domain.FileService,
@@ -186,6 +188,7 @@ func NewChatApplication(
 		mcpManager:               mcpManager,
 		taskRetentionService:     taskRetentionService,
 		backgroundTaskService:    backgroundTaskService,
+		backgroundTaskRegistry:   backgroundTaskRegistry,
 		a2aTaskCoordinator:       a2aTaskCoordinator,
 		approvalCoordinator:      approvalCoordinator,
 		chatCompletionRunner:     chatCompletionRunner,
@@ -249,8 +252,8 @@ func NewChatApplication(
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
-		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
-			isb.SetBackgroundTaskRegistry(reg)
+		if app.backgroundTaskRegistry != nil {
+			isb.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
 	}
 
@@ -1346,20 +1349,14 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		if !app.config.A2A.Enabled {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.ShowErrorEvent{
-					Error:  "Task management requires A2A to be enabled in configuration.",
-					Sticky: true,
-				}
-			})
-			return cmds
-		}
-
+		// The task view shows all background work - shells, subagents, and A2A
+		// tasks - so it is no longer gated on A2A. Shell/subagent rows come from the
+		// unified BackgroundTaskRegistry's supervisor snapshot; A2A rows from the
+		// poller/retention service. Either source may simply be empty.
 		styleProvider := styles.NewProvider(app.themeService)
 		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
-		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
-			app.taskManager.SetBackgroundTaskRegistry(reg)
+		if app.backgroundTaskRegistry != nil {
+			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -1509,7 +1506,7 @@ func (app *ChatApplication) renderConversationSelection() string {
 
 func (app *ChatApplication) renderA2ATaskManagement() string {
 	if app.taskManager == nil {
-		return "Task management requires A2A to be enabled in configuration."
+		return "Loading tasks…"
 	}
 
 	width, height := app.stateManager.GetDimensions()

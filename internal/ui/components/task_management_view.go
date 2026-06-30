@@ -182,8 +182,11 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 		// and recently-finished, bounded by each kind's completed_retention). A2A
 		// jobs are skipped here - their rows are sourced above from the richer A2A
 		// poller / retention service (history, artifacts, context id).
+		snapshotLen := 0
 		if t.backgroundJobRegistry != nil {
-			for _, job := range t.backgroundJobRegistry.Snapshot() {
+			snapshot := t.backgroundJobRegistry.Snapshot()
+			snapshotLen = len(snapshot)
+			for _, job := range snapshot {
 				if job.Meta.Kind == domain.JobKindA2A {
 					continue
 				}
@@ -195,6 +198,15 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 				}
 			}
 		}
+
+		logger.Debug("loaded /tasks rows",
+			"registry_nil", t.backgroundJobRegistry == nil,
+			"supervisor_snapshot", snapshotLen,
+			"a2a_polling", len(backgroundTasks),
+			"a2a_retained", len(retainedTaskInfos),
+			"active_total", len(activeTasks),
+			"completed_total", len(completedTasks),
+		)
 
 		interfaceActiveTasks := make([]any, len(activeTasks))
 		for i, task := range activeTasks {

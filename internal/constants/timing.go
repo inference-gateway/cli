@@ -9,6 +9,7 @@ const (
 	AgentIterationDelay       = 20 * time.Millisecond  // Delay between agent iterations
 	AgentToolExecutionDelay   = 20 * time.Millisecond  // Delay during tool execution
 	AgentStatusTickerInterval = 200 * time.Millisecond // Status update ticker interval
+	DrainQueueRetryInterval   = 300 * time.Millisecond // Re-check interval while queued work waits behind a busy agent
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates

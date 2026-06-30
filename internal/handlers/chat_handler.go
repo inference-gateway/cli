@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -476,26 +479,40 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ domain.AgentStatusUpdateEve
 	return nil
 }
 
-// HandleDrainQueueEvent is the pure gate for draining queued work. When the chat
-// view is active, the agent is idle, and the shared queue has content (a
-// background-job note or a message typed while busy), it marks the session
-// pending and starts a fresh turn whose CheckingQueue state drains the queue.
-// Every other case returns nil: there is no self-reschedule (the old ticker is
-// gone). The event is re-pushed by its real triggers - the supervisor on enqueue,
-// turn completion (HandleChatCompleteEvent), and re-entering the chat view.
+// HandleDrainQueueEvent gates draining queued work into a fresh agent turn. When
+// the chat view is active and the agent is idle, it marks the session pending and
+// starts a turn whose CheckingQueue state drains the queue.
 //
-// SetChatPending() is called synchronously before startChatCompletion because the
-// session is not marked busy until StartChatSession runs inside the async Cmd;
-// without it, a second DrainQueueEvent could double-start a completion. The Bubble
-// Tea Update loop is single-threaded, so this check-then-mark is race-free.
+// It re-arms a single low-frequency retry, but ONLY while there is genuinely
+// stranded work on the chat view (a non-empty queue). A background job can finish
+// at the exact instant the agent is still finishing its own turn; the supervisor's
+// one-shot DrainQueueEvent would then be gate-dropped and, without a retry, the
+// queue would be stranded forever (the old always-on ticker's repetition was the
+// de-facto retry). Arming the retry only while the queue is non-empty restores
+// that robustness without an idle clock: it stops the moment the queue drains, so
+// it never fires when idle on chat or off-chat (no /model flicker regression).
+//
+// SetChatPending() marks the session busy synchronously (StartChatSession only
+// runs later inside the async Cmd), so the batched retry sees "busy" and cannot
+// double-start. The Bubble Tea Update loop is single-threaded, so this
+// check-then-mark is race-free.
 func (h *ChatHandler) HandleDrainQueueEvent(_ domain.DrainQueueEvent) tea.Cmd {
-	if h.stateManager.GetCurrentView() != domain.ViewStateChat ||
-		h.stateManager.IsAgentBusy() || h.messageQueue.IsEmpty() {
+	// Nothing stranded, or off the chat view (the chat re-entry edge re-pushes a
+	// DrainQueueEvent on return) - no work and no retry.
+	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != domain.ViewStateChat {
 		return nil
 	}
 
+	retry := tea.Tick(constants.DrainQueueRetryInterval, func(time.Time) tea.Msg {
+		return domain.DrainQueueEvent{}
+	})
+
+	if h.stateManager.IsAgentBusy() {
+		return retry
+	}
+
 	h.stateManager.SetChatPending()
-	return h.startChatCompletion()
+	return tea.Batch(h.startChatCompletion(), retry)
 }
 
 // HandleComputerUsePausedEvent handles computer use pause events

@@ -63,6 +63,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetAgentManager(),
 		c.GetAgentService(),
 		c.GetBackgroundTaskService(),
+		c.GetBackgroundTaskRegistry(),
 		c.GetConversationOptimizer(),
 		c.GetConversationRepository(),
 		c.GetFileService(),
