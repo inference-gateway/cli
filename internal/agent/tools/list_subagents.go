@@ -84,15 +84,9 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 // report their tracked status.
 func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.SubagentState) map[string]any {
 	status := string(s.Status)
-	// While an interactive subagent is still running, refine its status with the
-	// live pane state (running / finished / closed). A completed one keeps its
-	// tracked "completed" status (its pane is idle but still alive).
 	if s.Mode == domain.SubagentModeInteractive && s.Status == domain.SubagentRunning {
 		status = t.paneState(ctx, s.PaneID).status()
 	}
-	// A subagent blocked on a tool-approval prompt reports awaiting_approval. This
-	// is a display-only override - its tracked Status stays Running so the poller
-	// keeps watching it (and re-notifies once the approval is resolved).
 	awaiting := false
 	if s.Mode == domain.SubagentModeInteractive {
 		if _, ok := readSubagentApproval(s.SessionID); ok {

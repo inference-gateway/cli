@@ -18,8 +18,6 @@ import (
 type ReadSubagentScreenTool struct {
 	config  *config.Config
 	tracker domain.SubagentTracker
-	// capture returns the pane content; lines>0 bounds it to the last N lines,
-	// else the full visible screen. Injection point for tests.
 	capture func(ctx context.Context, paneID string, lines int) string
 }
 

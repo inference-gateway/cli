@@ -55,7 +55,7 @@ func TestBashTool_DetachOnSignal(t *testing.T) {
 		resCh <- r
 	}()
 
-	time.Sleep(150 * time.Millisecond) // let the command start
+	time.Sleep(150 * time.Millisecond)
 	detachChan <- struct{}{}
 
 	select {

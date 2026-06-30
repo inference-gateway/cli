@@ -113,10 +113,6 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 		return t.fail(args, fmt.Sprintf("Failed to send input to subagent %s: %v", labelOrSession(s.Label, s.SessionID), err)), nil
 	}
 
-	// Re-arm the completion watcher: submitting a prompt starts a new turn, so
-	// drop the stale result file (else the re-spawned monitor would instantly
-	// re-harvest the previous answer) and flip the record back to running. The
-	// poller's checkForNewSubagents then re-watches and re-notifies on completion.
 	rearmed := false
 	if submit && s.Status != domain.SubagentRunning {
 		_ = os.Remove(subagentResultFilePath(s.SessionID))

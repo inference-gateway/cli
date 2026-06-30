@@ -257,8 +257,6 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		t.taskTracker.StartPolling(taskID, pollingState)
 	}
 
-	// The supervisor monitors the remote task to completion (a2aJob.Run is the
-	// folded polling loop) and folds the result back, replacing A2ATaskPoller.
 	if t.submitter != nil {
 		t.submitter.Submit(&a2aJob{tool: t, agentURL: agentURL, taskID: taskID, state: pollingState})
 	}

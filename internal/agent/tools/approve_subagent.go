@@ -81,15 +81,13 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 		return t.fail(args, fmt.Sprintf("Subagent %s's pane no longer exists.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 
-	key := "Enter" // default focus is [Approve]
+	key := "Enter"
 	if decision == "reject" {
-		key = "Escape" // Escape rejects immediately, regardless of focus
+		key = "Escape"
 	}
 	if err := t.sendKeys(ctx, s.PaneID, "", []string{key}); err != nil {
 		return t.fail(args, fmt.Sprintf("Failed to relay decision to subagent %s: %v", labelOrSession(s.Label, s.SessionID), err)), nil
 	}
-	// Clear the approval sidecar now so ListSubagents / the poller stop showing
-	// "awaiting" immediately (the subagent also removes it when it resumes).
 	_ = os.Remove(subagentApprovalFilePath(s.SessionID))
 
 	return &domain.ToolExecutionResult{
