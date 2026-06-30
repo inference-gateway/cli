@@ -48,7 +48,7 @@ type supervised struct {
 	completedAt *time.Time
 	lastNote    string
 	cancel      context.CancelFunc
-	warnedLong  bool // a "job running long" warning has been emitted once
+	warnedLong  bool
 }
 
 // NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
