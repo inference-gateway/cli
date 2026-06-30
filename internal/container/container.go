@@ -440,6 +440,10 @@ func (c *ServiceContainer) initializeServices() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
 		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
 
+		if c.jobSupervisor != nil {
+			c.jobSupervisor.SetTaskRetention(c.taskRetentionService)
+		}
+
 		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry)
 	}
 

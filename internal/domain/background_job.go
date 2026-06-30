@@ -126,6 +126,16 @@ type JobNotifier interface {
 	Notification(result ToolExecutionResult) string
 }
 
+// TaskRetainer is an optional BackgroundJob extension. A job that implements it
+// contributes a TaskInfo to the A2A task-retention view when it reaches a terminal
+// state, so a completed/failed/canceled task stays listed in the task view after its
+// monitor goroutine exits (the supervisor drops it from the live "active" set on
+// finish). ok=false opts out (e.g. a non-terminal-for-retention state such as
+// input-required). Jobs that do not implement it are never retained.
+type TaskRetainer interface {
+	RetainedTask(result ToolExecutionResult) (TaskInfo, bool)
+}
+
 // TrackedJob is a point-in-time snapshot of one supervised job for the task view
 // and status line.
 type TrackedJob struct {
