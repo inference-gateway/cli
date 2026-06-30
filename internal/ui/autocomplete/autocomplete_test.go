@@ -613,10 +613,6 @@ func TestAutocomplete_ToolsAllOptionalSchema(t *testing.T) {
 
 	agentDesc := "Spawn local subagents in parallel"
 
-	// Agent-shaped schema: top-level properties with NO top-level "required"
-	// array (a one-of between `tasks` and `description`). The only "required"
-	// is nested under tasks.items, which the !! template builder must not rely
-	// on. Includes an array-typed property to exercise the new array handling.
 	agentParams := sdk.FunctionParameters(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -664,14 +660,11 @@ func TestAutocomplete_ToolsAllOptionalSchema(t *testing.T) {
 
 	ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 	ac.SetToolService(mockToolService)
-	// Use a wide terminal so the description column is wide enough for the full
-	// parameter hint list (it is truncated to descWidth during rendering).
 	ac.SetWidth(240)
 
 	t.Run("skeleton includes all top-level properties with type-appropriate defaults", func(t *testing.T) {
 		ac.Update("!!Age", 5)
 		assert.True(t, ac.IsVisible(), "!!Age should match the Agent tool")
-		// Properties are surfaced in sorted order; array -> [], string -> "".
 		assert.Equal(t, `!!Agent(description="", system_prompt="", tasks=[], type="")`,
 			ac.GetSelectedShortcut(),
 			"all-optional schema must fill the skeleton with its top-level properties, not empty parens")
