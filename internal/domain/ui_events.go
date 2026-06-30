@@ -224,6 +224,16 @@ type BashCommandCompletedEvent struct {
 // returns nil. There is no self-reschedule.
 type DrainQueueEvent struct{}
 
+// DrainQueueRetryEvent is the bounded retry behind DrainQueueEvent, and is NOT a
+// clock. A DrainQueueEvent can land while the agent is momentarily busy (e.g. a
+// background job finishes in the same instant the turn is still completing); the
+// gate drops it, so without a retry the queue would strand. HandleDrainQueueEvent
+// arms a single DrainQueueRetryEvent in that case, and the drainRetryArmed guard
+// keeps it to exactly one outstanding timer no matter how many DrainQueueEvents
+// arrived. When it fires, HandleDrainQueueRetryEvent re-runs the gate, which
+// re-arms only while work is still stranded and stops the moment the queue drains.
+type DrainQueueRetryEvent struct{}
+
 // BackgroundTasksChangedEvent signals that a background job's status changed
 // (submitted, signalled, completed, or failed). The supervisor pushes it so the
 // /tasks view and the inline conversation rows refresh on real change instead of

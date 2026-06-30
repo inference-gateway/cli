@@ -71,12 +71,10 @@ func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.Con
 	}
 }
 
-// notify pushes an event to the UI loop. It is nil-safe so a zero-value
-// Supervisor (e.g. one built directly in a test) never panics.
+// notify pushes an event to the UI loop. NewSupervisor defaults a nil notifier to
+// NoopUINotifier, so s.notifier is always non-nil here.
 func (s *Supervisor) notify(event any) {
-	if s.notifier != nil {
-		s.notifier.Notify(event)
-	}
+	s.notifier.Notify(event)
 }
 
 // SetConversationRepo wires the conversation repository used to format finished

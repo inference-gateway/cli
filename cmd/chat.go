@@ -231,7 +231,6 @@ func StartChatSession(cfg *config.Config) error {
 	)
 
 	program := tea.NewProgram(application)
-
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
 
@@ -428,6 +427,13 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 // SetUINotifier before program.Run.
 type programNotifier struct{ program *tea.Program }
 
+// Notify MUST only ever be called from a background goroutine, never from the
+// Update loop. (*tea.Program).Send is unbuffered - it blocks until the loop
+// consumes the message - so a synchronous Notify from inside Update would deadlock
+// the loop against itself. That failure is also invisible: the slow-update warn
+// runs in a deferred call, and a deadlocked Update never returns to fire it. Every
+// producer captures this notifier at construction and calls it from its own
+// goroutine; keep it that way.
 func (p programNotifier) Notify(event any) { p.program.Send(event) }
 
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to the

@@ -283,12 +283,10 @@ func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime do
 	}
 }
 
-// notify pushes an event to the UI loop. It is nil-safe so a zero-value manager
-// (e.g. one built directly in a test) never panics.
+// notify pushes an event to the UI loop. NewMCPManager defaults a nil notifier to
+// NoopUINotifier, so m.notifier is always non-nil here.
 func (m *MCPManager) notify(event any) {
-	if m.notifier != nil {
-		m.notifier.Notify(event)
-	}
+	m.notifier.Notify(event)
 }
 
 // GetClients returns a list of MCP clients

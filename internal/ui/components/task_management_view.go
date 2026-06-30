@@ -57,6 +57,8 @@ type TaskManagerImpl struct {
 	currentView           TaskViewMode
 	infoViewport          viewport.Model
 	spinner               spinner.Model
+	tickLive              bool
+	tickEpoch             int
 }
 
 type TaskViewMode int
@@ -104,20 +106,33 @@ func NewTaskManager(
 }
 
 func (t *TaskManagerImpl) Init() tea.Cmd {
-	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick, t.refreshTickCmd())
+	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick, t.armRefreshTick())
 }
 
 // taskRefreshTickMsg drives the live "Elapsed" column. Status changes already
 // arrive as BackgroundTasksChangedEvents, but elapsed time advances on the wall
 // clock with no event, so a periodic re-render is the only way to show it live.
-type taskRefreshTickMsg struct{}
+// epoch stamps which chain armed the tick so a superseded one is ignored.
+type taskRefreshTickMsg struct{ epoch int }
 
-// refreshTickCmd schedules the next live refresh. It is re-armed in Update ONLY
-// while the view is open and a task is actually running, so it stops the moment
-// nothing is running - a bounded animation tick (like the spinner), not an idle
-// poller.
+// refreshTickCmd schedules the next live refresh for the current chain. It is
+// re-armed in Update ONLY while the view is open and a task is actually running,
+// so it stops the moment nothing is running - a bounded animation tick (like the
+// spinner), not an idle poller.
 func (t *TaskManagerImpl) refreshTickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg { return taskRefreshTickMsg{} })
+	epoch := t.tickEpoch
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return taskRefreshTickMsg{epoch: epoch} })
+}
+
+// armRefreshTick starts a NEW live-elapsed chain, bumping the epoch so any tick
+// armed by a prior chain (e.g. one still in flight from before a close/reopen) is
+// ignored when it fires - guaranteeing exactly one live chain. Callers must arm
+// only when t.tickLive is false (Init, or a new task arriving while the chain is
+// dead).
+func (t *TaskManagerImpl) armRefreshTick() tea.Cmd {
+	t.tickEpoch++
+	t.tickLive = true
+	return t.refreshTickCmd()
 }
 
 // Reset resets the task manager state for reuse
@@ -132,6 +147,7 @@ func (t *TaskManagerImpl) Reset() {
 	t.loading = true
 	t.loadError = nil
 	t.currentView = TaskViewAll
+	t.tickLive = false
 }
 
 func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
@@ -271,14 +287,18 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if t.loading {
 			return t, nil
 		}
+		if !t.tickLive {
+			return t, tea.Batch(t.loadTasksCmd(), t.armRefreshTick())
+		}
 		return t, t.loadTasksCmd()
 	case domain.TaskCancelledEvent:
 		return t.handleTaskCancelled(msg)
 	case taskRefreshTickMsg:
-		if t.done || t.cancelled {
+		if msg.epoch != t.tickEpoch {
 			return t, nil
 		}
-		if !t.loading && len(t.activeTasks) == 0 {
+		if t.done || t.cancelled || (!t.loading && len(t.activeTasks) == 0) {
+			t.tickLive = false
 			return t, nil
 		}
 		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd())
@@ -329,12 +349,10 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Mo
 func (t *TaskManagerImpl) handleTaskCancelled(msg domain.TaskCancelledEvent) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		logger.Error("task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
-		// Even if cancellation failed, reload tasks to show current state
 	} else {
 		logger.Info("task cancelled, reloading tasks", "task_id", msg.TaskID)
 	}
 
-	// Reload tasks to reflect the canceled task in completed tasks list
 	return t, t.loadTasksCmd()
 }
 

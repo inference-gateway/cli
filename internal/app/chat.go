@@ -527,6 +527,7 @@ func isDomainEvent(msg tea.Msg) bool {
 		domain.TodoUpdateChatEvent,
 		domain.AgentStatusUpdateEvent,
 		domain.DrainQueueEvent,
+		domain.DrainQueueRetryEvent,
 		domain.NavigateBackInTimeEvent,
 		domain.MessageHistoryRestoreEvent,
 		domain.ComputerUsePausedEvent,

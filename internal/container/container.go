@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	zap "go.uber.org/zap"
@@ -109,30 +109,32 @@ type ServiceContainer struct {
 	uiNotifier               *uiNotifierHolder
 }
 
-// uiNotifierHolder is a thread-safe, swappable domain.UINotifier. It is the one
-// synchronized primitive for the notifier: producers capture it once at
-// construction (never reassigning it), so they never lock, while SetUINotifier
-// swaps the inner notifier exactly once at startup (before program.Run). The
-// RWMutex exists only to keep the late swap race-free under the detector.
+// uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
+// the *uiNotifierHolder once at construction (never reassigning it) and call Notify
+// from their own goroutines; SetUINotifier stores the real program-backed notifier
+// exactly once at startup (before program.Run). atomic.Pointer keeps the read
+// lock-free and the late swap race-free without a mutex. The stored pointer is
+// never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
 type uiNotifierHolder struct {
-	mu    sync.RWMutex
-	inner domain.UINotifier
+	inner atomic.Pointer[domain.UINotifier]
+}
+
+func newUINotifierHolder() *uiNotifierHolder {
+	h := &uiNotifierHolder{}
+	var noop domain.UINotifier = domain.NoopUINotifier{}
+	h.inner.Store(&noop)
+	return h
 }
 
 func (h *uiNotifierHolder) Notify(event any) {
-	h.mu.RLock()
-	n := h.inner
-	h.mu.RUnlock()
-	n.Notify(event)
+	(*h.inner.Load()).Notify(event)
 }
 
 func (h *uiNotifierHolder) set(n domain.UINotifier) {
 	if n == nil {
 		n = domain.NoopUINotifier{}
 	}
-	h.mu.Lock()
-	h.inner = n
-	h.mu.Unlock()
+	h.inner.Store(&n)
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -154,7 +156,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		config:           cfg,
 		containerRuntime: containerRuntime,
 		log:              log,
-		uiNotifier:       &uiNotifierHolder{inner: domain.NoopUINotifier{}},
+		uiNotifier:       newUINotifierHolder(),
 	}
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
