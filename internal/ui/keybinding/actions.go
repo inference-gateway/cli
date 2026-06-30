@@ -342,7 +342,7 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 		{
 			Namespace:   config.NamespaceTextEditing,
 			ID:          config.ActionID(config.NamespaceTextEditing, "delete_word_backward"),
-			Keys:        []string{"ctrl+w"},
+			Keys:        []string{"ctrl+w", "alt+backspace", "ctrl+backspace"},
 			Description: "delete word backward",
 			Category:    "text_editing",
 			Handler:     handleDeleteWordBackward,

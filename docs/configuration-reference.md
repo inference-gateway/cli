@@ -429,6 +429,11 @@ bindings:
 `~/.infer/keybindings.yaml` → in-code defaults (when no file exists).
 Environment variables override whichever file was loaded.
 
+> **Note (macOS):** Word-wise delete in the chat input is bound to `ctrl+w`, `opt+backspace`
+> (`alt+backspace`), and `ctrl+backspace`. Some terminals only send `opt+backspace` as
+> `alt+backspace` when "Use Option as Meta key" is enabled (iTerm2: Profiles → Keys; Terminal.app:
+> Settings → Profiles → Keyboard → "Use Option as Meta key"). `ctrl+w` always works.
+
 **Available Commands:**
 
 ```bash

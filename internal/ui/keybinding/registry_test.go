@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
@@ -298,4 +299,36 @@ func TestActionConflictDetection(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected registration to succeed (key sharing is allowed), got error: %v", err)
 	}
+}
+
+func TestDeleteWordBackwardBindings(t *testing.T) {
+	wantID := config.ActionID(config.NamespaceTextEditing, "delete_word_backward")
+	wordDeleteKeys := []string{"ctrl+w", "alt+backspace", "ctrl+backspace"}
+
+	assertResolves := func(t *testing.T, registry *keybinding.Registry) {
+		t.Helper()
+		ctx := newTestContext(domain.ViewStateChat, "hello world")
+		for _, key := range wordDeleteKeys {
+			action := registry.Resolve(key, ctx)
+			if action == nil {
+				t.Fatalf("expected %q to resolve to an action", key)
+			}
+			if action.ID != wantID {
+				t.Errorf("expected %q to resolve to %q, got %q", key, wantID, action.ID)
+			}
+		}
+	}
+
+	t.Run("registry defaults", func(t *testing.T) {
+		assertResolves(t, keybinding.NewRegistry(nil))
+	})
+
+	t.Run("default config overrides", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Chat.Keybindings = config.KeybindingsConfig{
+			Enabled:  true,
+			Bindings: config.GetDefaultKeybindings(),
+		}
+		assertResolves(t, keybinding.NewRegistry(cfg))
+	})
 }

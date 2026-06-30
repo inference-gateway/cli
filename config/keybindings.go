@@ -215,7 +215,7 @@ func addTextEditingBindings(bindings map[string]KeyBindingEntry) {
 		Enabled:     &enabled,
 	}
 	bindings[ActionID(NamespaceTextEditing, "delete_word_backward")] = KeyBindingEntry{
-		Keys:        []string{"ctrl+w"},
+		Keys:        []string{"ctrl+w", "alt+backspace", "ctrl+backspace"},
 		Description: "delete word backward",
 		Category:    "text_editing",
 		Enabled:     &enabled,
