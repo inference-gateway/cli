@@ -751,6 +751,9 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 		return
 	}
 	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo)
+	c.jobSupervisor.SetRetentionCount(domain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(domain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(domain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)
 	retention := time.Duration(c.config.Tools.Bash.BackgroundShells.RetentionMinutes) * time.Minute
 	c.jobSupervisor.Start(10*time.Minute, retention)
 	maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent

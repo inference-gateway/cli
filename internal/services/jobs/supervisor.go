@@ -12,6 +12,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -26,8 +27,9 @@ type Supervisor struct {
 	messageQueue     domain.MessageQueue
 	conversationRepo domain.ConversationRepository
 
-	mu   sync.RWMutex
-	jobs map[string]*supervised
+	mu              sync.RWMutex
+	jobs            map[string]*supervised
+	retentionByKind map[domain.JobKind]int
 
 	wg          sync.WaitGroup
 	stopOnce    sync.Once
@@ -54,6 +56,7 @@ func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.Con
 		messageQueue:     messageQueue,
 		conversationRepo: conversationRepo,
 		jobs:             make(map[string]*supervised),
+		retentionByKind:  make(map[domain.JobKind]int),
 		stopCleanup:      make(chan struct{}),
 	}
 }
@@ -64,6 +67,17 @@ func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.Con
 func (s *Supervisor) SetConversationRepo(repo domain.ConversationRepository) {
 	s.mu.Lock()
 	s.conversationRepo = repo
+	s.mu.Unlock()
+}
+
+// SetRetentionCount caps how many terminal jobs of a kind are kept for the task
+// view. When a job finishes, the oldest terminal jobs of its kind beyond max are
+// reaped immediately (their Close teardown runs). max <= 0 means unbounded -
+// terminal jobs are kept until the time-based Cleanup sweep. Set once per kind at
+// startup, before jobs are submitted.
+func (s *Supervisor) SetRetentionCount(kind domain.JobKind, max int) {
+	s.mu.Lock()
+	s.retentionByKind[kind] = max
 	s.mu.Unlock()
 }
 
@@ -174,12 +188,60 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	s.mu.Lock()
 	sj.status = status
 	sj.completedAt = &now
+	evicted := s.evictOverCapLocked(sj.meta.Kind)
 	s.mu.Unlock()
+
+	for _, v := range evicted {
+		v.job.Close()
+	}
 
 	if !sj.meta.Silent {
 		res := result
 		s.enqueue(s.formatResult(sj.job, sj.meta, &res))
 	}
+}
+
+// evictOverCapLocked drops the oldest terminal jobs of kind beyond its retention
+// count and returns them for teardown. The caller MUST hold s.mu and MUST call
+// Close on each returned job AFTER releasing the lock (Close can kill a pane or
+// touch the filesystem). A retention count of 0 (or negative) means unbounded.
+// Running jobs are never candidates, so a live interactive subagent is never
+// reaped by a burst of finished headless ones.
+func (s *Supervisor) evictOverCapLocked(kind domain.JobKind) []*supervised {
+	max := s.retentionByKind[kind]
+	if max <= 0 {
+		return nil
+	}
+
+	terminal := make([]*supervised, 0, len(s.jobs))
+	for _, sj := range s.jobs {
+		if sj.meta.Kind == kind && sj.status.IsTerminal() {
+			terminal = append(terminal, sj)
+		}
+	}
+	if len(terminal) <= max {
+		return nil
+	}
+
+	slices.SortFunc(terminal, func(a, b *supervised) int {
+		return terminalTime(a).Compare(terminalTime(b))
+	})
+
+	evicted := terminal[:len(terminal)-max]
+	for _, sj := range evicted {
+		delete(s.jobs, sj.meta.ID)
+	}
+	return evicted
+}
+
+// terminalTime is when a job reached a terminal state, used to order retention
+// eviction and time-based cleanup (oldest first). It falls back to StartedAt
+// when a job has no recorded completion time.
+func terminalTime(sj *supervised) time.Time {
+	if sj.completedAt != nil {
+		return *sj.completedAt
+	}
+	return sj.meta.StartedAt
 }
 
 // formatResult renders a finished job's outcome as the user-role message the
@@ -329,11 +391,7 @@ func (s *Supervisor) Cleanup(olderThan time.Duration) int {
 		if !sj.status.IsTerminal() {
 			continue
 		}
-		ref := sj.meta.StartedAt
-		if sj.completedAt != nil {
-			ref = *sj.completedAt
-		}
-		if ref.After(cutoff) {
+		if terminalTime(sj).After(cutoff) {
 			continue
 		}
 		reaped = append(reaped, sj)
