@@ -372,11 +372,6 @@ type FakeBackgroundTaskRegistry struct {
 	submitArgsForCall []struct {
 		arg1 domain.BackgroundJob
 	}
-	WindAllJobsStub        func(domain.WindSignal)
-	windAllJobsMutex       sync.RWMutex
-	windAllJobsArgsForCall []struct {
-		arg1 domain.WindSignal
-	}
 	WindJobStub        func(string, domain.WindSignal) error
 	windJobMutex       sync.RWMutex
 	windJobArgsForCall []struct {
@@ -2392,38 +2387,6 @@ func (fake *FakeBackgroundTaskRegistry) SubmitArgsForCall(i int) domain.Backgrou
 	fake.submitMutex.RLock()
 	defer fake.submitMutex.RUnlock()
 	argsForCall := fake.submitArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeBackgroundTaskRegistry) WindAllJobs(arg1 domain.WindSignal) {
-	fake.windAllJobsMutex.Lock()
-	fake.windAllJobsArgsForCall = append(fake.windAllJobsArgsForCall, struct {
-		arg1 domain.WindSignal
-	}{arg1})
-	stub := fake.WindAllJobsStub
-	fake.recordInvocation("WindAllJobs", []interface{}{arg1})
-	fake.windAllJobsMutex.Unlock()
-	if stub != nil {
-		fake.WindAllJobsStub(arg1)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) WindAllJobsCallCount() int {
-	fake.windAllJobsMutex.RLock()
-	defer fake.windAllJobsMutex.RUnlock()
-	return len(fake.windAllJobsArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) WindAllJobsCalls(stub func(domain.WindSignal)) {
-	fake.windAllJobsMutex.Lock()
-	defer fake.windAllJobsMutex.Unlock()
-	fake.WindAllJobsStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) WindAllJobsArgsForCall(i int) domain.WindSignal {
-	fake.windAllJobsMutex.RLock()
-	defer fake.windAllJobsMutex.RUnlock()
-	argsForCall := fake.windAllJobsArgsForCall[i]
 	return argsForCall.arg1
 }
 

@@ -121,6 +121,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 		s.mu.Unlock()
 		return
 	}
+	var toClose domain.BackgroundJob
 	if existing, exists := s.jobs[meta.ID]; exists {
 		if !existing.status.IsTerminal() {
 			s.mu.Unlock()
@@ -128,7 +129,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 			return
 		}
 
-		existing.job.Close()
+		toClose = existing.job
 		delete(s.jobs, meta.ID)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,6 +137,10 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 	s.jobs[meta.ID] = sj
 	s.wg.Add(1)
 	s.mu.Unlock()
+
+	if toClose != nil {
+		toClose.Close()
+	}
 
 	go s.monitor(ctx, sj)
 }
@@ -250,9 +255,9 @@ func terminalTime(sj *supervised) time.Time {
 // tool result.
 func (s *Supervisor) formatResult(job domain.BackgroundJob, meta domain.JobMeta, result *domain.ToolExecutionResult) string {
 	var body string
-	switch {
-	case asNotifier(job) != nil:
-		body = asNotifier(job).Notification(*result)
+	switch n := asNotifier(job); {
+	case n != nil:
+		body = n.Notification(*result)
 	case s.conversationRepo != nil:
 		body = s.conversationRepo.FormatToolResultForLLM(result)
 	default:
@@ -288,9 +293,7 @@ func (s *Supervisor) enqueue(content string) {
 	}, "system")
 }
 
-// dispatch delivers a chat event and/or an agent wake-up through the current
-// request sink. It holds the read lock across the non-blocking sends so a
-// Wind delivers a graceful wind-down or hard stop to one job.
+// Wind delivers a graceful wind-down or hard stop to a single running job by id.
 func (s *Supervisor) Wind(id string, sig domain.WindSignal) error {
 	s.mu.RLock()
 	sj := s.jobs[id]
@@ -363,20 +366,6 @@ func (s *Supervisor) CountRunning(kind domain.JobKind) int {
 		n++
 	}
 	return n
-}
-
-// HasPending reports whether any running job blocks quiescence - i.e. should keep
-// a headless session alive. Interactive subagents (ExcludeFromPending) do not.
-func (s *Supervisor) HasPending() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, sj := range s.jobs {
-		if sj.status == domain.JobRunning && !sj.meta.ExcludeFromPending {
-			return true
-		}
-	}
-	return false
 }
 
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,

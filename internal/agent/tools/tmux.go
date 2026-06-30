@@ -8,14 +8,14 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// NewPaneInspector returns a services.PaneInspector (a func yielding a
+// NewPaneInspector returns a pane inspector (a func yielding a
 // domain.PaneObservation) backed by the subagent result file, the approval
-// sidecar, and the tmux pane's liveness. It is injected into the SubagentPoller
-// in chat mode so it can watch interactive subagents for completion and pending
-// approvals. It NEVER returns pane content as the delivered message - the pane is
-// rendered TUI chrome (input box, status bar), which is noise in the main
-// conversation; only the result file's last assistant message is delivered. The
-// Screen snapshot it returns is used ONLY for the poller's idle-by-stability
+// sidecar, and the tmux pane's liveness. The interactive subagent monitor
+// (interactiveSubagentJob) calls it to watch interactive subagents for completion
+// and pending approvals. It NEVER returns pane content as the delivered message -
+// the pane is rendered TUI chrome (input box, status bar), which is noise in the
+// main conversation; only the result file's last assistant message is delivered.
+// The Screen snapshot it returns is used ONLY for the monitor's idle-by-stability
 // check, never delivered.
 func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {
 	return func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {

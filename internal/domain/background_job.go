@@ -40,8 +40,6 @@ type JobMeta struct {
 	StartedAt   time.Time
 
 	Silent bool
-
-	ExcludeFromPending bool
 }
 
 // JobSignal is an intermediate, non-terminal event a running job emits to the

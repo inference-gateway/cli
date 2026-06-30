@@ -80,9 +80,9 @@ type SubagentResultFile struct {
 }
 
 // PaneObservation is one probe of an interactive subagent's tmux pane, produced
-// by a pane inspector and consumed by the SubagentPoller. It lives in domain so
-// the inspector (package tools) and the poller (package services) can share it
-// without an import cycle.
+// by a pane inspector and consumed by the interactive subagent monitor
+// (interactiveSubagentJob) to decide when a turn completed or an approval is
+// pending.
 type PaneObservation struct {
 	// Harvested is the subagent chat's real last assistant message (from its
 	// result file); "" until its turn completes. The ONLY content ever delivered -

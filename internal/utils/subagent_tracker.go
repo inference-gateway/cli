@@ -37,22 +37,32 @@ func (t *subagentTracker) AddSubagent(state *domain.SubagentState) error {
 	return nil
 }
 
-// GetSubagent returns a subagent by ID, or nil if not tracked.
+// GetSubagent returns a copy of a subagent by ID, or nil if not tracked. A copy
+// is returned (not the live map entry) so callers can read mutable fields like
+// Status without racing SetSubagentStatus, which mutates the stored entry under
+// the lock.
 func (t *subagentTracker) GetSubagent(id string) *domain.SubagentState {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	return t.subagents[id]
+	s, ok := t.subagents[id]
+	if !ok {
+		return nil
+	}
+	cp := *s
+	return &cp
 }
 
-// GetAllSubagents returns all tracked subagents.
+// GetAllSubagents returns copies of all tracked subagents (see GetSubagent for
+// why copies).
 func (t *subagentTracker) GetAllSubagents() []*domain.SubagentState {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
 	out := make([]*domain.SubagentState, 0, len(t.subagents))
 	for _, s := range t.subagents {
-		out = append(out, s)
+		cp := *s
+		out = append(out, &cp)
 	}
 	return out
 }

@@ -107,19 +107,19 @@ func newInteractiveSubagentJob(tool *AgentTool, state *domain.SubagentState) *in
 	}
 }
 
-// Meta describes the interactive subagent. It is Silent (per-turn emits carry the
-// notifications) and ExcludeFromPending (a user-driven pane must not keep a
-// headless run alive at exit).
+// Meta describes the interactive subagent. It is Silent because each completed
+// turn's output is emitted as its own note, so the terminal result adds nothing.
+// (A user-driven interactive pane is kept out of the headless quiescence check by
+// the tracker's Mode filter in countPendingSubagents, not by this Meta.)
 func (j *interactiveSubagentJob) Meta() domain.JobMeta {
 	return domain.JobMeta{
-		ID:                 j.state.ID,
-		Kind:               domain.JobKindSubagent,
-		Label:              labelOrSession(j.state.Label, j.state.SessionID),
-		Description:        j.state.Description,
-		Detail:             domain.SubagentModeInteractive,
-		StartedAt:          j.state.StartedAt,
-		Silent:             true,
-		ExcludeFromPending: true,
+		ID:          j.state.ID,
+		Kind:        domain.JobKindSubagent,
+		Label:       labelOrSession(j.state.Label, j.state.SessionID),
+		Description: j.state.Description,
+		Detail:      domain.SubagentModeInteractive,
+		StartedAt:   j.state.StartedAt,
+		Silent:      true,
 	}
 }
 

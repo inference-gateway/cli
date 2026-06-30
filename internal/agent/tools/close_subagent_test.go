@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -50,24 +52,6 @@ func TestCloseSubagentTool_InteractiveKillsAndHarvests(t *testing.T) {
 	}
 }
 
-// fakeJobStopper records WindJob calls so the close-subagent test can assert the
-// supervised monitor is wound down (the fix for "closed subagents still show in
-// the status-line count").
-type fakeJobStopper struct {
-	winds []struct {
-		id  string
-		sig domain.WindSignal
-	}
-}
-
-func (f *fakeJobStopper) WindJob(id string, sig domain.WindSignal) error {
-	f.winds = append(f.winds, struct {
-		id  string
-		sig domain.WindSignal
-	}{id, sig})
-	return nil
-}
-
 // TestCloseSubagentTool_InteractiveWindsSupervisedJob is the regression guard for
 // the stuck "N subagents" count: closing an interactive subagent must WindStop its
 // supervised job (which cancels the job's Run context so the count drops at once),
@@ -81,7 +65,7 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 		ID: "s1", Mode: domain.SubagentModeInteractive,
 		SessionID: sessionID, PaneID: "%7", Status: domain.SubagentRunning,
 	})
-	stopper := &fakeJobStopper{}
+	stopper := &domainmocks.FakeJobStopper{}
 	tool := NewCloseSubagentTool(config.DefaultConfig(), tracker, stopper)
 
 	paneKilledDirectly := false
@@ -91,8 +75,11 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 	if err != nil || res == nil || !res.Success {
 		t.Fatalf("Execute: err=%v res=%+v", err, res)
 	}
-	if len(stopper.winds) != 1 || stopper.winds[0].id != "s1" || stopper.winds[0].sig != domain.WindStop {
-		t.Fatalf("expected one WindJob(s1, WindStop), got %+v", stopper.winds)
+	if stopper.WindJobCallCount() != 1 {
+		t.Fatalf("expected one WindJob call, got %d", stopper.WindJobCallCount())
+	}
+	if id, sig := stopper.WindJobArgsForCall(0); id != "s1" || sig != domain.WindStop {
+		t.Fatalf("expected WindJob(s1, WindStop), got (%q, %v)", id, sig)
 	}
 	if paneKilledDirectly {
 		t.Fatalf("with a supervisor wired, the job's Wind kills the pane - killPane must not be called directly")

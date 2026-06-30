@@ -12,23 +12,6 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// stubBackgroundTaskService is a tiny hand-written BackgroundTaskService for the
-// view tests (the two-method interface has no counterfeiter fake).
-type stubBackgroundTaskService struct {
-	tasks     []domain.TaskPollingState
-	cancelErr error
-	canceled  []string
-}
-
-func (s *stubBackgroundTaskService) GetBackgroundTasks() []domain.TaskPollingState {
-	return s.tasks
-}
-
-func (s *stubBackgroundTaskService) CancelBackgroundTask(taskID string) error {
-	s.canceled = append(s.canceled, taskID)
-	return s.cancelErr
-}
-
 func createMockStyleProviderForTasks() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeThemeService := &domainmocks.FakeThemeService{}
@@ -64,11 +47,10 @@ func countKinds(rows []any) map[domain.JobKind]int {
 // while A2A jobs in the snapshot are dropped so they aren't double-listed
 // alongside the A2A poller's own rows.
 func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
-	bg := &stubBackgroundTaskService{
-		tasks: []domain.TaskPollingState{
-			{TaskID: "a2a-1", AgentURL: "http://agent", StartedAt: time.Now()},
-		},
-	}
+	bg := &domainmocks.FakeBackgroundTaskService{}
+	bg.GetBackgroundTasksReturns([]domain.TaskPollingState{
+		{TaskID: "a2a-1", AgentURL: "http://agent", StartedAt: time.Now()},
+	})
 	done := time.Now()
 	reg := &domainmocks.FakeBackgroundTaskRegistry{}
 	reg.SnapshotReturns([]domain.TrackedJob{

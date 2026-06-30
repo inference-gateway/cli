@@ -54,9 +54,6 @@ func (r *backgroundTaskRegistry) WindJob(id string, sig domain.WindSignal) error
 	return r.supervisor.Wind(id, sig)
 }
 
-// WindAllJobs delegates to the supervisor.
-func (r *backgroundTaskRegistry) WindAllJobs(sig domain.WindSignal) { r.supervisor.WindAll(sig) }
-
 // HasPending reports whether *any* background work is still in flight,
 // regardless of type. True when there is at least one A2A task being polled,
 // one running background shell, OR one running local subagent. This is the

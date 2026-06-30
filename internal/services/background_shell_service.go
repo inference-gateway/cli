@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -28,7 +27,6 @@ type BackgroundShellService struct {
 	supervisor   *jobs.Supervisor
 	config       *config.Config
 	eventChannel chan<- domain.ChatEvent
-	mutex        sync.RWMutex
 }
 
 // NewBackgroundShellService creates a new background shell service. supervisor
@@ -54,9 +52,6 @@ func (s *BackgroundShellService) DetachToBackground(
 	command string,
 	outputBuffer domain.OutputRingBuffer,
 ) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	if !s.config.Tools.Bash.BackgroundShells.Enabled {
 		return "", fmt.Errorf("background shells are disabled in configuration")
 	}

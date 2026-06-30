@@ -196,24 +196,17 @@ func TestSupervisor_CleanupReapsFinishedAndTearsDown(t *testing.T) {
 	}
 }
 
-func TestSupervisor_PendingPredicates(t *testing.T) {
+func TestSupervisor_CountRunning(t *testing.T) {
 	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{})
 
-	interactive := newFakeJob("interactive", domain.JobKindSubagent)
-	interactive.meta.ExcludeFromPending = true
-	sup.Submit(interactive)
-	<-interactive.started
-
-	if sup.HasPending() {
-		t.Fatalf("HasPending true with only an interactive subagent (ExcludeFromPending) running")
-	}
+	sub := newFakeJob("subagent", domain.JobKindSubagent)
+	sup.Submit(sub)
+	<-sub.started
 
 	shell := newFakeJob("shell", domain.JobKindShell)
 	sup.Submit(shell)
 	<-shell.started
-	if !sup.HasPending() {
-		t.Fatalf("HasPending false with a shell running")
-	}
+
 	if got := sup.CountRunning(domain.JobKindSubagent); got != 1 {
 		t.Fatalf("CountRunning(subagent) = %d, want 1", got)
 	}
@@ -401,7 +394,6 @@ func TestSupervisor_RunningJobNeverEvicted(t *testing.T) {
 	sup.SetRetentionCount(domain.JobKindSubagent, 1)
 
 	live := newFakeJob("interactive", domain.JobKindSubagent)
-	live.meta.ExcludeFromPending = true
 	sup.Submit(live)
 	<-live.started
 

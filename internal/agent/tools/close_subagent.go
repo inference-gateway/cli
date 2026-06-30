@@ -105,9 +105,9 @@ func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[strin
 	}
 }
 
-// closeHeadless cancels a running headless subagent. The SubagentPoller delivers
-// the cancellation outcome and removes it from tracking, so this does not remove
-// it directly.
+// closeHeadless cancels a running headless subagent. The supervised
+// headlessSubagentJob delivers the cancellation outcome and removes it from
+// tracking on reap, so this does not remove it directly.
 func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *domain.SubagentState) *domain.ToolExecutionResult {
 	if s.CancelFunc != nil {
 		s.CancelFunc()

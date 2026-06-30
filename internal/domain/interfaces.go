@@ -663,10 +663,6 @@ type BackgroundTaskRegistry interface {
 
 	// WindJob sends a graceful wind-down or hard stop to one supervised job.
 	WindJob(id string, sig WindSignal) error
-
-	// WindAllJobs broadcasts a signal to every running supervised job (graceful
-	// shutdown: WindWrapUp, grace window, then WindStop).
-	WindAllJobs(sig WindSignal)
 }
 
 // FetchResult represents the result of a fetch operation
