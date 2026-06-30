@@ -27,10 +27,34 @@ const (
 // runs, which therefore stay Standard-by-default.
 const EnvSubagentAgentMode = "INFER_SUBAGENT_AGENT_MODE"
 
-// SubagentState tracks one in-flight local subagent (an `infer agent`
-// subprocess spawned by the Agent tool). It is the subagent analogue of
-// TaskPollingState: the SubagentPoller selects on ResultChan/ErrorChan to
-// deliver the outcome back onto the conversation.
+// EnvSubagentResultFile names the environment variable the Agent tool sets on an
+// interactive subagent's `infer chat` so it writes its last assistant message
+// (as a SubagentResultFile JSON) to that path on each completed turn. The parent
+// reads it to deliver the subagent's real answer - not the tmux pane's chrome -
+// when the subagent finishes. Unset for normal `infer chat`, which writes nothing.
+const EnvSubagentResultFile = "INFER_SUBAGENT_RESULT_FILE"
+
+// EnvSubagentApprovalFile names the environment variable the Agent tool sets on
+// an interactive subagent's `infer chat` so it writes a SubagentApprovalFile JSON
+// to that path whenever it blocks on a tool-approval prompt (and removes it when
+// the prompt resolves). The parent watches this file to surface "subagent is
+// awaiting approval" to the user and relay the decision (ApproveSubagent). Unset
+// for normal `infer chat`, which writes nothing.
+const EnvSubagentApprovalFile = "INFER_SUBAGENT_APPROVAL_FILE"
+
+// SubagentApprovalFile is the JSON an interactive subagent's chat writes while it
+// is blocked on a tool-approval prompt. It is an authoritative signal (written
+// the moment the chat blocks, removed when it resolves) so the parent does not
+// have to scrape the pane's TUI to detect a pending approval.
+type SubagentApprovalFile struct {
+	Awaiting bool   `json:"awaiting"`
+	Summary  string `json:"summary,omitempty"`
+}
+
+// SubagentState is the data record for one local subagent (an `infer agent`
+// subprocess or tmux pane spawned by the Agent tool) that the subagent control
+// tools (ListSubagents, CloseSubagent, ...) read. Monitoring is owned by the job
+// supervisor (headlessSubagentJob / interactiveSubagentJob), not this struct.
 type SubagentState struct {
 	ID          string
 	Label       string
@@ -38,11 +62,10 @@ type SubagentState struct {
 	Model       string
 	Mode        string // SubagentModeHeadless | SubagentModeInteractive
 	SessionID   string
+	PaneID      string
 	Status      SubagentStatus
 	StartedAt   time.Time
 	CancelFunc  context.CancelFunc
-	ResultChan  chan *ToolExecutionResult
-	ErrorChan   chan error
 	Silent      bool
 }
 
@@ -54,6 +77,31 @@ type SubagentResultFile struct {
 	Success        bool   `json:"success"`
 	Error          string `json:"error,omitempty"`
 	SessionID      string `json:"session_id,omitempty"`
+}
+
+// PaneObservation is one probe of an interactive subagent's tmux pane, produced
+// by a pane inspector and consumed by the interactive subagent monitor
+// (interactiveSubagentJob) to decide when a turn completed or an approval is
+// pending.
+type PaneObservation struct {
+	// Harvested is the subagent chat's real last assistant message (from its
+	// result file); "" until its turn completes. The ONLY content ever delivered -
+	// the pane is never scraped for content (its TUI chrome is noise).
+	Harvested string
+	// Screen is a snapshot of the pane's current tail, used by the poller to detect
+	// idleness by stability: while the subagent works the chat's elapsed-time
+	// spinner changes this every poll; at idle it is frozen. The input-box
+	// placeholder ("Type your message") is NOT a usable idle signal - it is drawn
+	// even mid-turn - so the stability of the whole tail is used instead.
+	Screen string
+	// Gone means the pane no longer exists (closed).
+	Gone bool
+	// Dead means the pane's process exited (the pane is kept open by remain-on-exit).
+	Dead bool
+	// AwaitingApproval means the subagent is blocked on a tool-approval prompt.
+	AwaitingApproval bool
+	// ApprovalSummary describes the pending tool call (name + args) when awaiting.
+	ApprovalSummary string
 }
 
 // SubagentTracker tracks local subagents spawned by the Agent tool. It is the

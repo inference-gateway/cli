@@ -3,11 +3,23 @@ package domain
 import "testing"
 
 func TestParseAgentMode_RoundTripsAllowedlistKey(t *testing.T) {
-	for _, m := range []AgentMode{AgentModeStandard, AgentModePlan, AgentModeAutoAccept} {
+	for _, m := range []AgentMode{AgentModeStandard, AgentModePlan, AgentModeAutoAccept, AgentModeReadOnly} {
 		got, ok := ParseAgentMode(m.AllowedlistKey())
 		if !ok || got != m {
 			t.Fatalf("ParseAgentMode(%q) = (%v,%v), want (%v,true)", m.AllowedlistKey(), got, ok, m)
 		}
+	}
+}
+
+func TestAgentModeReadOnly_StringDisplayName(t *testing.T) {
+	if got := AgentModeReadOnly.String(); got != "ReadOnly" {
+		t.Fatalf("AgentModeReadOnly.String() = %q, want ReadOnly", got)
+	}
+	if got := AgentModeReadOnly.DisplayName(); got != "Read-Only" {
+		t.Fatalf("AgentModeReadOnly.DisplayName() = %q, want Read-Only", got)
+	}
+	if got := AgentModeReadOnly.AllowedlistKey(); got != "readonly" {
+		t.Fatalf("AgentModeReadOnly.AllowedlistKey() = %q, want readonly", got)
 	}
 }
 

@@ -1,21 +1,21 @@
 package states
 
 import (
-	"time"
-
-	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // CheckingQueueState handles events in the CheckingQueue state.
 //
-// This state evaluates multiple conditions to determine the next action:
+// This state evaluates conditions to determine the next action:
 //  1. Tool results pending → must respond to tools first (StreamingLLM)
 //  2. Messages queued → drain queue into conversation
-//  3. Background tasks pending → wait for completion
-//  4. Can complete → transition to Completing
-//  5. Otherwise → continue agent loop (StreamingLLM)
+//  3. Can complete → transition to Completing
+//  4. Otherwise → continue agent loop (StreamingLLM)
+//
+// The turn does NOT wait in-state for background work. Background-job completion
+// notes are drained from the queue here (when the chat-UI ticker or headless
+// waiter starts a fresh turn), so Idle stays terminal.
 type CheckingQueueState struct {
 	ctx *domain.StateContext
 }
@@ -60,25 +60,6 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 				return err
 			}
 			s.ctx.Events <- domain.CompletionRequestedEvent{}
-			return nil
-		}
-
-		if s.ctx.BackgroundTaskRegistry != nil && s.ctx.BackgroundTaskRegistry.HasPending() {
-			logger.Debug("background tasks pending, waiting")
-			s.ctx.WaitGroup.Add(1)
-			go func() {
-				defer s.ctx.WaitGroup.Done()
-				select {
-				case <-time.After(constants.BackgroundTaskPollDelay):
-					select {
-					case s.ctx.Events <- domain.MessageReceivedEvent{}:
-					case <-s.ctx.CancelChan:
-						return
-					}
-				case <-s.ctx.CancelChan:
-					return
-				}
-			}()
 			return nil
 		}
 

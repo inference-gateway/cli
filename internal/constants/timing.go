@@ -9,7 +9,7 @@ const (
 	AgentIterationDelay       = 20 * time.Millisecond  // Delay between agent iterations
 	AgentToolExecutionDelay   = 20 * time.Millisecond  // Delay during tool execution
 	AgentStatusTickerInterval = 200 * time.Millisecond // Status update ticker interval
-	BackgroundTaskPollDelay   = 500 * time.Millisecond // Delay for polling background tasks
+	DrainQueueTickInterval    = 500 * time.Millisecond // Chat queue-drain ticker: start a turn when idle + queue non-empty
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates

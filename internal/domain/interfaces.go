@@ -527,7 +527,9 @@ type MarkdownRenderer interface {
 	SetWidth(width int)
 }
 
-// TaskPollingState represents the state of background polling for a task
+// TaskPollingState is the data record for one in-flight A2A task that the task
+// view reads. Monitoring is owned by the job supervisor (a2aJob), which polls the
+// remote agent and updates LastKnownState/LastPollAt here.
 type TaskPollingState struct {
 	TaskID          string
 	ContextID       string
@@ -540,18 +542,6 @@ type TaskPollingState struct {
 	CurrentInterval time.Duration
 	LastKnownState  string
 	CancelFunc      context.CancelFunc
-	ResultChan      chan *ToolExecutionResult
-	ErrorChan       chan error
-	StatusChan      chan *A2ATaskStatusUpdate
-}
-
-// A2ATaskStatusUpdate represents a status update for an ongoing A2A task
-type A2ATaskStatusUpdate struct {
-	TaskID    string
-	AgentURL  string
-	State     string
-	Message   string
-	Timestamp time.Time
 }
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
@@ -652,8 +642,27 @@ type BackgroundTaskRegistry interface {
 
 	// HasPending reports whether *any* background work is still in flight,
 	// regardless of type. True when there is at least one A2A task being
-	// polled, one running background shell, OR one running local subagent.
+	// polled, one running background shell, OR one running HEADLESS subagent.
+	// It deliberately excludes interactive subagents so a one-shot `infer agent`
+	// does not hang at exit waiting on a user-driven tmux pane.
 	HasPending() bool
+
+	// Submit hands a background job to the supervisor, which spawns its monitor
+	// goroutine and folds its result back onto the conversation when it finishes.
+	// This is the single entry point every kind (A2A task, shell, subagent) uses
+	// instead of running its own poller.
+	Submit(job BackgroundJob)
+
+	// Snapshot returns the supervisor's view of all live and recently-finished
+	// jobs for the task view and status line.
+	Snapshot() []TrackedJob
+
+	// CountRunningJobs returns how many supervised jobs are running, optionally
+	// filtered to one kind (pass "" for all kinds).
+	CountRunningJobs(kind JobKind) int
+
+	// WindJob sends a graceful wind-down or hard stop to one supervised job.
+	WindJob(id string, sig WindSignal) error
 }
 
 // FetchResult represents the result of a fetch operation

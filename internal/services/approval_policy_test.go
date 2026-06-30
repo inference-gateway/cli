@@ -86,6 +86,23 @@ func TestStandardApprovalPolicy_AutoAcceptMode(t *testing.T) {
 	})
 }
 
+func TestStandardApprovalPolicy_ReadOnlyMode(t *testing.T) {
+	stateManager := &mocksdomain.FakeStateManager{}
+	stateManager.GetAgentModeReturns(domain.AgentModeReadOnly)
+
+	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
+	ctx := context.Background()
+
+	t.Run("ReadOnly subagent bypasses approval in chat mode", func(t *testing.T) {
+		for _, toolName := range []string{"Read", "Grep", "Tree", "WebFetch", "Write"} {
+			toolCall := createToolCall(toolName, `{}`)
+			if policy.ShouldRequireApproval(ctx, toolCall, true) {
+				t.Errorf("Expected %s to bypass approval in read-only mode", toolName)
+			}
+		}
+	})
+}
+
 func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
 	stateManager := &mocksdomain.FakeStateManager{}
 	stateManager.GetAgentModeReturns(domain.AgentModeStandard)

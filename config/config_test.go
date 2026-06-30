@@ -85,6 +85,12 @@ func testToolsDefaults(t *testing.T, cfg *Config) {
 	if !cfg.Tools.Bash.Enabled {
 		t.Error("Expected bash tool to be enabled by default")
 	}
+	if got := cfg.Tools.Bash.BackgroundShells.CompletedRetention; got != 5 {
+		t.Errorf("Expected background shells completed_retention default 5, got %d", got)
+	}
+	if got := cfg.Tools.Agent.CompletedRetention; got != 5 {
+		t.Errorf("Expected agent completed_retention default 5, got %d", got)
+	}
 }
 
 func testWebSearchDefaults(t *testing.T, cfg *Config) {

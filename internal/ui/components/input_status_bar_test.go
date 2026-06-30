@@ -163,6 +163,46 @@ func TestInputStatusBar_ShouldShowIndicator_NilConfig(t *testing.T) {
 	}
 }
 
+func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
+	t.Run("nil registry yields nothing", func(t *testing.T) {
+		sb := &InputStatusBar{}
+		if got := sb.getBackgroundJobsInfo(); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("only non-zero kinds are shown", func(t *testing.T) {
+		reg := &domainmocks.FakeBackgroundTaskRegistry{}
+		reg.CountRunningJobsStub = func(kind domain.JobKind) int {
+			switch kind {
+			case domain.JobKindA2A:
+				return 2
+			case domain.JobKindSubagent:
+				return 3
+			default:
+				return 0
+			}
+		}
+		sb := &InputStatusBar{backgroundTaskRegistry: reg}
+		got := sb.getBackgroundJobsInfo()
+		if !strings.Contains(got, "2 A2A") || !strings.Contains(got, "3 subagents") {
+			t.Fatalf("missing counts: %q", got)
+		}
+		if strings.Contains(got, "shells") {
+			t.Fatalf("zero-count kind should be omitted: %q", got)
+		}
+	})
+
+	t.Run("all zero yields nothing", func(t *testing.T) {
+		reg := &domainmocks.FakeBackgroundTaskRegistry{}
+		reg.CountRunningJobsReturns(0)
+		sb := &InputStatusBar{backgroundTaskRegistry: reg}
+		if got := sb.getBackgroundJobsInfo(); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+}
+
 func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 	themeService := &domainmocks.FakeThemeService{}
 	themeService.GetCurrentThemeNameReturns("tokyo-night")

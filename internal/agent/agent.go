@@ -55,8 +55,8 @@ type AgentServiceImpl struct {
 
 	// Session tracking: covers the full lifetime of a RunWithStream call.
 	// Cancelling a session aborts streaming, tool execution, approval waits,
-	// background pollers, and the main event loop in one shot. Idempotent
-	// via sync.Once so multiple Esc presses are safe.
+	// and the main event loop in one shot. Idempotent via sync.Once so
+	// multiple Esc presses are safe.
 	activeSessions map[string]*sessionCancel
 	sessionMux     sync.RWMutex
 
@@ -610,28 +610,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
-	taskTracker := s.toolService.GetA2ATaskTracker()
-	var poller *services.A2ATaskPoller
-
-	if taskTracker != nil {
-		poller = services.NewA2ATaskPoller(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		go poller.Start(sessionCtx)
-	}
-
-	var subagentPoller *services.SubagentPoller
-	if s.bgRegistry != nil && s.config.IsAgentToolEnabled() {
-		subagentPoller = services.NewSubagentPoller(s.bgRegistry, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
-		go subagentPoller.Start(sessionCtx)
-	}
-
 	go func() {
 		defer func() {
-			if poller != nil {
-				poller.Stop()
-			}
-			if subagentPoller != nil {
-				subagentPoller.Stop()
-			}
 			close(chatEvents)
 			s.sessionMux.Lock()
 			delete(s.activeSessions, req.RequestID)
@@ -653,13 +633,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			model,
 			s.bgRegistry,
 		)
-
-		if poller != nil {
-			poller.SetAgentEventChannel(agent.Events())
-		}
-		if subagentPoller != nil {
-			subagentPoller.SetAgentEventChannel(agent.Events())
-		}
 
 		agent.Start()
 		agent.Wait()

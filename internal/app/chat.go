@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
@@ -248,6 +249,9 @@ func NewChatApplication(
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
+		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
+			isb.SetBackgroundTaskRegistry(reg)
+		}
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -402,6 +406,13 @@ func (app *ChatApplication) Init() tea.Cmd {
 		}))
 	}
 
+	// Queue-drain ticker: starts a fresh agent turn whenever the agent is idle
+	// and the shared queue has content (background-job notes / messages typed
+	// while busy). Self-reschedules in HandleDrainQueueTickEvent.
+	cmds = append(cmds, tea.Tick(constants.DrainQueueTickInterval, func(time.Time) tea.Msg {
+		return domain.DrainQueueTickEvent{}
+	}))
+
 	if app.mcpManager != nil {
 		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
 			TotalServers:     app.mcpManager.GetTotalServers(),
@@ -527,6 +538,7 @@ func isDomainEvent(msg tea.Msg) bool {
 		domain.ToolCancelledEvent,
 		domain.TodoUpdateChatEvent,
 		domain.AgentStatusUpdateEvent,
+		domain.DrainQueueTickEvent,
 		domain.NavigateBackInTimeEvent,
 		domain.MessageHistoryRestoreEvent,
 		domain.ComputerUsePausedEvent,
@@ -1361,6 +1373,9 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 
 		styleProvider := styles.NewProvider(app.themeService)
 		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
+		if reg, ok := app.toolRegistry.GetA2ATaskTracker().(domain.BackgroundTaskRegistry); ok {
+			app.taskManager.SetBackgroundTaskRegistry(reg)
+		}
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

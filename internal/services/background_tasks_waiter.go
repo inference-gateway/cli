@@ -29,24 +29,23 @@ type DrainedMessage struct {
 //
 // This is the batch-mode counterpart to chat mode's CheckingQueueState.
 type BackgroundTasksWaiter struct {
-	cfg            *config.Config
-	registry       domain.BackgroundTaskRegistry
-	messageQueue   domain.MessageQueue
-	poller         *A2ATaskPoller
-	subagentPoller *SubagentPoller
-	enabled        bool
+	cfg          *config.Config
+	registry     domain.BackgroundTaskRegistry
+	messageQueue domain.MessageQueue
+	enabled      bool
 }
 
 // NewBackgroundTasksWaiter constructs a waiter. If both A2A tools and the Agent
 // tool are disabled, or either of the underlying services is nil, the returned
 // waiter is a no-op for every method, so callers can use it unconditionally.
-// A poller is started per enabled producer (A2A tasks and/or local subagents).
+// sessionID and conversationRepo are unused now that the job supervisor owns
+// monitoring; they are kept in the signature for call-site stability.
 func NewBackgroundTasksWaiter(
 	cfg *config.Config,
-	sessionID string,
+	_ string,
 	registry domain.BackgroundTaskRegistry,
 	messageQueue domain.MessageQueue,
-	conversationRepo domain.ConversationRepository,
+	_ domain.ConversationRepository,
 ) *BackgroundTasksWaiter {
 	w := &BackgroundTasksWaiter{
 		cfg:          cfg,
@@ -58,44 +57,19 @@ func NewBackgroundTasksWaiter(
 		return w
 	}
 
-	if cfg.IsA2AToolsEnabled() {
+	if cfg.IsA2AToolsEnabled() || cfg.IsAgentToolEnabled() {
 		w.enabled = true
-		w.poller = NewA2ATaskPoller(registry, nil, messageQueue, sessionID, conversationRepo)
-	}
-
-	if cfg.IsAgentToolEnabled() {
-		w.enabled = true
-		w.subagentPoller = NewSubagentPoller(registry, nil, messageQueue, sessionID, conversationRepo)
 	}
 
 	return w
 }
 
-// Start launches the background polling goroutines. No-op when disabled.
-func (w *BackgroundTasksWaiter) Start(ctx context.Context) {
-	if !w.enabled {
-		return
-	}
-	if w.poller != nil {
-		go w.poller.Start(ctx)
-	}
-	if w.subagentPoller != nil {
-		go w.subagentPoller.Start(ctx)
-	}
-}
+// Start is retained for the lifecycle contract; the job supervisor owns all
+// monitor goroutines now, so there is nothing to launch here.
+func (w *BackgroundTasksWaiter) Start(_ context.Context) {}
 
-// Stop terminates the background polling goroutines. No-op when disabled.
-func (w *BackgroundTasksWaiter) Stop() {
-	if !w.enabled {
-		return
-	}
-	if w.poller != nil {
-		w.poller.Stop()
-	}
-	if w.subagentPoller != nil {
-		w.subagentPoller.Stop()
-	}
-}
+// Stop is a no-op for the same reason as Start.
+func (w *BackgroundTasksWaiter) Stop() {}
 
 // HasPendingTasks reports whether any background work is still in flight.
 func (w *BackgroundTasksWaiter) HasPendingTasks() bool {

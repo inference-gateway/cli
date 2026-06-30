@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"sync"
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -52,4 +53,42 @@ func TestSubagentTracker_NilState(t *testing.T) {
 	if err := tr.AddSubagent(nil); err == nil {
 		t.Fatalf("expected AddSubagent(nil) to error")
 	}
+}
+
+// TestSubagentTracker_ConcurrentStatusReadWrite races SetSubagentStatus (writer)
+// against GetSubagent/GetAllSubagents readers that read Status. It fails under
+// `go test -race` if the getters hand out the live entry instead of a copy - the
+// same write/read pattern as the BackgroundTasksWaiter polling countPendingSubagents
+// while a job goroutine marks the subagent completed.
+func TestSubagentTracker_ConcurrentStatusReadWrite(t *testing.T) {
+	tr := NewSubagentTracker()
+	const n = 16
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = string(rune('a' + i))
+		_ = tr.AddSubagent(&domain.SubagentState{ID: ids[i], Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning})
+	}
+
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		wg.Add(2)
+		go func(id string) {
+			defer wg.Done()
+			for range 200 {
+				_ = tr.SetSubagentStatus(id, domain.SubagentCompleted)
+			}
+		}(id)
+		go func(id string) {
+			defer wg.Done()
+			for range 200 {
+				if s := tr.GetSubagent(id); s != nil {
+					_ = s.Status
+				}
+				for _, s := range tr.GetAllSubagents() {
+					_ = s.Status
+				}
+			}
+		}(id)
+	}
+	wg.Wait()
 }

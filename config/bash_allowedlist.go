@@ -31,6 +31,10 @@ func (c *Config) bashAllowFor(mode string) []string {
 		out = append(out, m.Standard.Allow...)
 	case "auto":
 		out = append(out, m.Auto.Allow...)
+	case "readonly":
+		// ReadOnly subagents are never offered the Bash tool (ListToolsForMode), so
+		// this is unreachable in practice; keep an explicit case (baseline only) so a
+		// future Bash entry can't silently fall through to the wrong list.
 	}
 	return out
 }

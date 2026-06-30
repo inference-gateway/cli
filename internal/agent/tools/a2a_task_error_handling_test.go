@@ -23,7 +23,7 @@ func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -102,7 +102,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		mockClient := &adkmocks.FakeA2AClient{}
 		mockClient.SendTaskReturns(nil, errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"))
 
-		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -140,7 +140,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		mockClient := &adkmocks.FakeA2AClient{}
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: completedTask}, nil)
 
-		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -263,7 +263,7 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 			mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: existingTask}, tt.getTaskError)
 			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
-			tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
+			tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
 
 			args := map[string]any{
 				"agent_url":        agentURL,
@@ -336,7 +336,7 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: workingTaskAgent1}, nil)
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTaskAgent2}, nil)
 
-		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
 
 		args1 := map[string]any{
 			"agent_url":        agentURL1,
@@ -398,7 +398,7 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
-		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,

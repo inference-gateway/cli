@@ -175,6 +175,8 @@ func (c *ClaudeCodeClient) getPermissionMode() string {
 		return "bypassPermissions"
 	case domain.AgentModePlan:
 		return "plan"
+	case domain.AgentModeReadOnly:
+		return "plan"
 	default:
 		return "default"
 	}

@@ -190,10 +190,11 @@ type BashToolConfig struct {
 
 // BackgroundShellsConfig contains background shell execution settings
 type BackgroundShellsConfig struct {
-	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxConcurrent     int  `yaml:"max_concurrent" mapstructure:"max_concurrent"`
-	MaxOutputBufferMB int  `yaml:"max_output_buffer_mb" mapstructure:"max_output_buffer_mb"`
-	RetentionMinutes  int  `yaml:"retention_minutes" mapstructure:"retention_minutes"`
+	Enabled            bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxConcurrent      int  `yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	MaxOutputBufferMB  int  `yaml:"max_output_buffer_mb" mapstructure:"max_output_buffer_mb"`
+	RetentionMinutes   int  `yaml:"retention_minutes" mapstructure:"retention_minutes"`
+	CompletedRetention int  `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
 
 // ReadToolConfig contains read-specific tool settings
@@ -283,14 +284,15 @@ type ScheduleToolConfig struct {
 // server. Subagents run either headless (background) or interactive (in a tmux
 // pane the user can watch).
 type AgentToolConfig struct {
-	Enabled         bool                   `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-	Mode            string                 `yaml:"mode" mapstructure:"mode"`                 // headless | interactive
-	Wait            bool                   `yaml:"wait" mapstructure:"wait"`                 // false => async (fire-and-forget + notify)
-	MaxParallel     int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
-	MaxDepth        int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer agent`)
-	Model           string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
-	Interactive     AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
+	Enabled            bool                   `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval    *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Mode               string                 `yaml:"mode" mapstructure:"mode"`                 // headless | interactive
+	Wait               bool                   `yaml:"wait" mapstructure:"wait"`                 // false => async (fire-and-forget + notify)
+	MaxParallel        int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
+	MaxDepth           int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer agent`)
+	Model              string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	Interactive        AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
+	CompletedRetention int                    `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
 
 // AgentInteractiveConfig configures the tmux-backed interactive surface for
@@ -750,10 +752,11 @@ func DefaultConfig() *Config { //nolint:funlen
 					Auto:     BashModeAllowConfig{Allow: []string{`.*`}},
 				},
 				BackgroundShells: BackgroundShellsConfig{
-					Enabled:           true,
-					MaxConcurrent:     5,
-					MaxOutputBufferMB: 10,
-					RetentionMinutes:  60,
+					Enabled:            true,
+					MaxConcurrent:      5,
+					MaxOutputBufferMB:  10,
+					RetentionMinutes:   60,
+					CompletedRetention: 5,
 				},
 			},
 			Read: ReadToolConfig{
@@ -817,12 +820,13 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled: true,
 			},
 			Agent: AgentToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{true}[0],
-				Mode:            "interactive",
-				Wait:            true,
-				MaxParallel:     4,
-				MaxDepth:        1,
+				Enabled:            true,
+				RequireApproval:    &[]bool{true}[0],
+				Mode:               "interactive",
+				Wait:               true,
+				MaxParallel:        4,
+				MaxDepth:           1,
+				CompletedRetention: 5,
 				Interactive: AgentInteractiveConfig{
 					Multiplexer: "tmux",
 					Layout:      "vertical",
@@ -1029,6 +1033,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.Tools.Agent.RequireApproval != nil {
 			return *c.Tools.Agent.RequireApproval
 		}
+	case "ListSubagents", "GetSubagentResult", "ReadSubagentScreen":
+		return false
+	case "ApproveSubagent":
+		return true
 	case "RequestPlanApproval":
 		return false
 	case "AskUserQuestion":

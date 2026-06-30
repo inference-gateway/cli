@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -171,6 +172,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
 		return h.HandleAgentStatusUpdateEvent(m)
+	case domain.DrainQueueTickEvent:
+		return h.HandleDrainQueueTickEvent(m)
 	case domain.NavigateBackInTimeEvent:
 		return nil
 	case domain.MessageHistoryRestoreEvent:
@@ -466,6 +469,32 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateE
 		time.Sleep(500 * time.Millisecond)
 		return domain.AgentStatusUpdateEvent{}
 	}
+}
+
+// HandleDrainQueueTickEvent is the queue-drain ticker. Every tick, if the agent
+// is idle (not busy) and the shared message queue has content - a background-job
+// completion note or a user message typed while busy - it starts a fresh agent
+// turn through the normal entry point (startChatCompletion). The new turn's
+// CheckingQueue state drains the queue into the conversation and the agent
+// responds, so queued work is delivered reliably without the supervisor "wake".
+// It always reschedules itself so the loop is self-perpetuating.
+//
+// SetChatPending() is called synchronously before startChatCompletion because
+// the session is not marked busy until StartChatSession runs inside the async
+// Cmd; without it, the next tick could double-start a completion. The Bubble Tea
+// Update loop is single-threaded, so this check-then-mark is race-free.
+func (h *ChatHandler) HandleDrainQueueTickEvent(_ domain.DrainQueueTickEvent) tea.Cmd {
+	reschedule := tea.Tick(constants.DrainQueueTickInterval, func(time.Time) tea.Msg {
+		return domain.DrainQueueTickEvent{}
+	})
+
+	if h.stateManager.GetCurrentView() != domain.ViewStateChat ||
+		h.stateManager.IsAgentBusy() || h.messageQueue.IsEmpty() {
+		return reschedule
+	}
+
+	h.stateManager.SetChatPending()
+	return tea.Batch(h.startChatCompletion(), reschedule)
 }
 
 // HandleComputerUsePausedEvent handles computer use pause events

@@ -23,7 +23,7 @@ func TestA2ASubmitTaskTool_Definition(t *testing.T) {
 		},
 		Prompts: *config.DefaultPromptsConfig(),
 	}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	def := tool.Definition()
 
@@ -44,7 +44,7 @@ func TestA2ASubmitTaskTool_Execute_MissingAgentURL(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	args := map[string]any{
 		"task_description": "Test task",
@@ -68,7 +68,7 @@ func TestA2ASubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	args := map[string]any{
 		"agent_url": "http://test-agent.example.com",
@@ -83,7 +83,7 @@ func TestA2ASubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 
 func TestA2ASubmitTaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	tests := []struct {
 		name    string
@@ -161,7 +161,7 @@ func TestA2ASubmitTaskTool_IsEnabled(t *testing.T) {
 					},
 				},
 			}
-			tool := NewA2ASubmitTaskTool(cfg, nil)
+			tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -170,7 +170,7 @@ func TestA2ASubmitTaskTool_IsEnabled(t *testing.T) {
 
 func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	taskResult := A2ASubmitTaskResult{
 		TaskID:    "task-123",
@@ -221,7 +221,7 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 
 func TestA2ASubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	metadata := adk.Struct{
 		"usage": map[string]any{
@@ -265,7 +265,7 @@ func TestA2ASubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 
 func TestA2ASubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	result := &domain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
@@ -286,7 +286,7 @@ func TestA2ASubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 
 func TestA2ASubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	errorText := "The `reasoning_content` in the thinking mode must be passed back to the API."
 
@@ -380,7 +380,7 @@ func TestA2ASubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 
 func TestA2ASubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	errorText := "DeepSeek returned 400: invalid_api_key"
 
@@ -418,7 +418,7 @@ func ptrString(s string) *string { return &s }
 
 func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	taskResult := A2ASubmitTaskResult{
 		State:   string(adk.TaskStateSubmitted),
@@ -438,7 +438,7 @@ func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 
 func TestA2ASubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
@@ -447,7 +447,7 @@ func TestA2ASubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 
 func TestA2ASubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ASubmitTaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }

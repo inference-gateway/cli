@@ -21,6 +21,7 @@ type A2ASubmitTaskTool struct {
 	config      *config.Config
 	formatter   domain.CustomFormatter
 	taskTracker domain.A2ATaskTracker
+	submitter   domain.JobSubmitter
 	client      client.A2AClient
 }
 
@@ -37,10 +38,11 @@ type A2ASubmitTaskResult struct {
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
-func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker, submitter domain.JobSubmitter) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
+		submitter:   submitter,
 		client:      nil,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata"
@@ -49,10 +51,11 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker)
 }
 
 // NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.A2ATaskTracker, client client.A2AClient) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.A2ATaskTracker, submitter domain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
+		submitter:   submitter,
 		client:      client,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata"
@@ -240,7 +243,6 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		}
 	}
 
-	pollCtx, cancel := context.WithCancel(context.Background())
 	pollingState := &domain.TaskPollingState{
 		TaskID:          taskID,
 		ContextID:       receivedContextID,
@@ -249,17 +251,15 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		IsPolling:       false,
 		StartedAt:       time.Now(),
 		LastPollAt:      time.Now(),
-		CancelFunc:      cancel,
-		ResultChan:      make(chan *domain.ToolExecutionResult, 1),
-		ErrorChan:       make(chan error, 1),
-		StatusChan:      make(chan *domain.A2ATaskStatusUpdate, 10),
 	}
 
 	if t.taskTracker != nil {
 		t.taskTracker.StartPolling(taskID, pollingState)
 	}
 
-	go t.pollTaskInBackground(pollCtx, agentURL, taskID, pollingState)
+	if t.submitter != nil {
+		t.submitter.Submit(&a2aJob{tool: t, agentURL: agentURL, taskID: taskID, state: pollingState})
+	}
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
@@ -278,13 +278,23 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	}, nil
 }
 
-// pollTaskInBackground polls for task completion in a background goroutine
-func (t *A2ASubmitTaskTool) pollTaskInBackground(
+// runA2APolling polls the remote agent until the task reaches a terminal state
+// and returns the outcome. It is the body of a2aJob.Run - the supervisor owns
+// the goroutine - so it returns the result and emits intermediate status via emit
+// rather than pushing onto channels (no producer/consumer split, hence no
+// ordering sleeps). StopPolling fires on every exit so the task view stops
+// showing it as active.
+func (t *A2ASubmitTaskTool) runA2APolling(
 	ctx context.Context,
 	agentURL string,
 	taskID string,
 	state *domain.TaskPollingState,
-) {
+	emit func(domain.JobSignal),
+) domain.ToolExecutionResult {
+	if t.taskTracker != nil {
+		defer t.taskTracker.StopPolling(taskID)
+	}
+
 	adkClient := t.getOrCreateClient(agentURL)
 
 	strategy := t.config.A2A.Task.PollingStrategy
@@ -301,10 +311,7 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 	for {
 		select {
 		case <-ctx.Done():
-			if state.ErrorChan != nil {
-				state.ErrorChan <- fmt.Errorf("task cancelled")
-			}
-			return
+			return domain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task cancelled"}
 
 		case <-ticker.C:
 			pollAttempt++
@@ -314,25 +321,19 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			state.LastPollAt = time.Now()
 
 			currentTask, err := t.queryTask(ctx, adkClient, taskID)
-			if err != nil {
+			if err != nil || currentTask == nil {
 				currentInterval = t.handleQueryError(agentURL, taskID, strategy, currentInterval, state, ticker, err)
 				continue
 			}
 
-			if currentTask == nil {
-				currentInterval = t.handleQueryError(agentURL, taskID, strategy, currentInterval, state, ticker, fmt.Errorf("failed to parse task"))
-				continue
-			}
-
-			t.publishStatusUpdate(state, taskID, agentURL, *currentTask)
+			t.emitStatusUpdate(state, taskID, agentURL, *currentTask, emit)
 
 			shouldReturn, taskResult := t.handleTaskState(agentURL, taskID, pollAttempt, state, *currentTask, pollingDetails.String())
 			if shouldReturn {
-				if taskResult != nil && state.ResultChan != nil {
-					state.ResultChan <- taskResult
-					time.Sleep(20 * time.Millisecond)
+				if taskResult != nil {
+					return *taskResult
 				}
-				return
+				return domain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task ended without a result"}
 			}
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
@@ -397,27 +398,23 @@ func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 	return textFromParts(parts)
 }
 
-func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task) {
-	if state.StatusChan == nil {
-		return
-	}
-
+// emitStatusUpdate records the latest remote task state on the polling state
+// (read by the task view) and emits it as a non-terminal JobSignal for the UI.
+func (t *A2ASubmitTaskTool) emitStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(domain.JobSignal)) {
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
 		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 	}
 
-	statusUpdate := &domain.A2ATaskStatusUpdate{
-		TaskID:    taskID,
-		AgentURL:  agentURL,
-		State:     string(currentTask.Status.State),
-		Message:   statusMessage,
-		Timestamp: time.Now(),
-	}
+	stateStr := string(currentTask.Status.State)
+	state.LastKnownState = stateStr
 
-	select {
-	case state.StatusChan <- statusUpdate:
-	default:
+	note := fmt.Sprintf("A2A task on %s: %s", agentURL, stateStr)
+	if statusMessage != "" {
+		note = fmt.Sprintf("A2A task on %s (%s): %s", agentURL, stateStr, statusMessage)
+	}
+	if emit != nil {
+		emit(domain.JobSignal{Note: note, State: stateStr})
 	}
 }
 

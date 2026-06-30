@@ -6,48 +6,43 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"sync"
-	"syscall"
 	"time"
 
 	uuid "github.com/google/uuid"
-	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 )
 
-// BackgroundShellService manages background shell execution
+// BackgroundShellService is the thin front-end for background bash shells: it
+// detaches a running command (registering it so the bash tools can read its
+// output), submits a shellJob to the supervisor (which monitors it, notifies the
+// agent, and reaps it), and brokers output retrieval and cancellation. The
+// completion monitoring and reaping that used to live here are now the
+// supervisor's job.
 type BackgroundShellService struct {
-	shellTracker  domain.ShellTracker
-	config        *config.Config
-	eventChannel  chan<- domain.ChatEvent
-	messageQueue  domain.MessageQueue
-	cleanupTicker *time.Ticker
-	stopCleanup   chan struct{}
-	wg            sync.WaitGroup
-	mutex         sync.RWMutex
+	shellTracker domain.ShellTracker
+	supervisor   *jobs.Supervisor
+	config       *config.Config
+	eventChannel chan<- domain.ChatEvent
 }
 
-// NewBackgroundShellService creates a new background shell service
+// NewBackgroundShellService creates a new background shell service. supervisor
+// monitors and reaps each detached shell.
 func NewBackgroundShellService(
 	tracker domain.ShellTracker,
+	supervisor *jobs.Supervisor,
 	cfg *config.Config,
 	eventChannel chan<- domain.ChatEvent,
-	messageQueue domain.MessageQueue,
 ) *BackgroundShellService {
-	service := &BackgroundShellService{
+	return &BackgroundShellService{
 		shellTracker: tracker,
+		supervisor:   supervisor,
 		config:       cfg,
 		eventChannel: eventChannel,
-		messageQueue: messageQueue,
-		stopCleanup:  make(chan struct{}),
 	}
-
-	service.startCleanupRoutine()
-
-	return service
 }
 
 // DetachToBackground moves a running command to background
@@ -57,16 +52,11 @@ func (s *BackgroundShellService) DetachToBackground(
 	command string,
 	outputBuffer domain.OutputRingBuffer,
 ) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	if !s.config.Tools.Bash.BackgroundShells.Enabled {
 		return "", fmt.Errorf("background shells are disabled in configuration")
 	}
 
 	shellID := generateShellID()
-
-	shellCtx, cancel := context.WithCancel(context.Background())
 
 	shell := &domain.BackgroundShell{
 		ShellID:      shellID,
@@ -75,17 +65,14 @@ func (s *BackgroundShellService) DetachToBackground(
 		StartedAt:    time.Now(),
 		State:        domain.ShellStateRunning,
 		OutputBuffer: outputBuffer,
-		CancelFunc:   cancel,
 		ReadOffset:   0,
 	}
 
 	if err := s.shellTracker.Add(shell); err != nil {
-		cancel()
 		return "", fmt.Errorf("failed to add shell to tracker: %w", err)
 	}
 
-	s.wg.Add(1)
-	go s.monitorShell(shellCtx, shell)
+	s.supervisor.Submit(jobs.NewShellJob(shell, s.shellTracker))
 
 	if s.eventChannel != nil {
 		select {
@@ -103,77 +90,6 @@ func (s *BackgroundShellService) DetachToBackground(
 	logger.Info("shell detached to background", "shell_id", shellID, "command", command)
 
 	return shellID, nil
-}
-
-// monitorShell monitors a background shell until completion
-func (s *BackgroundShellService) monitorShell(_ context.Context, shell *domain.BackgroundShell) {
-	defer s.wg.Done()
-
-	err := shell.Cmd.Wait()
-
-	completedAt := time.Now()
-	duration := completedAt.Sub(shell.StartedAt)
-
-	shell.CompletedAt = &completedAt
-
-	if err != nil {
-		s.handleShellFailure(shell, err)
-		return
-	}
-
-	{
-		exitCode := 0
-		shell.ExitCode = &exitCode
-		shell.State = domain.ShellStateCompleted
-
-		logger.Info("background shell completed", "shell_id", shell.ShellID, "duration", duration)
-		s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, duration, "")
-		if s.eventChannel != nil {
-			select {
-			case s.eventChannel <- domain.ShellCompletedEvent{
-				RequestID: "system",
-				Timestamp: time.Now(),
-				ShellID:   shell.ShellID,
-				ExitCode:  exitCode,
-				Duration:  duration,
-			}:
-			default:
-				logger.Warn("event channel full, shell completed event dropped", "shell_id", shell.ShellID)
-			}
-		}
-	}
-}
-
-// handleShellFailure handles a failed shell execution
-func (s *BackgroundShellService) handleShellFailure(shell *domain.BackgroundShell, err error) {
-	exitCode := -1
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-			exitCode = status.ExitStatus()
-		}
-	}
-
-	shell.ExitCode = &exitCode
-	shell.State = domain.ShellStateFailed
-
-	logger.Error("background shell failed", "shell_id", shell.ShellID, "error", err, "exit_code", exitCode)
-	s.enqueueShellNotification(shell.ShellID, shell.Command, exitCode, time.Since(shell.StartedAt), err.Error())
-
-	if s.eventChannel == nil {
-		return
-	}
-
-	select {
-	case s.eventChannel <- domain.ShellFailedEvent{
-		RequestID: "system",
-		Timestamp: time.Now(),
-		ShellID:   shell.ShellID,
-		Error:     err.Error(),
-		ExitCode:  exitCode,
-	}:
-	default:
-		logger.Warn("event channel full, shell failed event dropped", "shell_id", shell.ShellID)
-	}
 }
 
 // GetShellOutput retrieves incremental output from a shell
@@ -225,62 +141,21 @@ func (s *BackgroundShellService) GetShellOutputWithFilter(shellID string, fromOf
 	return filteredOutput, newOffset, state, nil
 }
 
-// CancelShell cancels a running background shell
+// CancelShell cancels a running background shell. It hands the kill to the
+// supervisor (WindStop -> SIGKILL); the shellJob's Run then records the
+// Cancelled state and the supervisor delivers the completion notification, so
+// the process is waited on in exactly one place.
 func (s *BackgroundShellService) CancelShell(shellID string) error {
 	shell := s.shellTracker.Get(shellID)
 	if shell == nil {
 		return fmt.Errorf("shell not found: %s", shellID)
 	}
-
 	if shell.State != domain.ShellStateRunning {
 		return fmt.Errorf("shell is not running (state: %s)", shell.State)
 	}
 
 	logger.Info("cancelling background shell", "shell_id", shellID)
-
-	if shell.Cmd.Process != nil {
-		if err := shell.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			logger.Warn("failed to send SIGTERM", "shell_id", shellID, "error", err)
-		}
-
-		done := make(chan struct{})
-		go func() {
-			_ = shell.Cmd.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			logger.Info("shell exited gracefully", "shell_id", shellID)
-		case <-time.After(5 * time.Second):
-			logger.Warn("shell did not exit gracefully, sending SIGKILL", "shell_id", shellID)
-			if err := shell.Cmd.Process.Kill(); err != nil {
-				logger.Error("failed to kill shell", "shell_id", shellID, "error", err)
-			}
-		}
-	}
-
-	if shell.CancelFunc != nil {
-		shell.CancelFunc()
-	}
-
-	completedAt := time.Now()
-	shell.CompletedAt = &completedAt
-	shell.State = domain.ShellStateCancelled
-
-	if s.eventChannel != nil {
-		select {
-		case s.eventChannel <- domain.ShellCancelledEvent{
-			RequestID: "system",
-			Timestamp: time.Now(),
-			ShellID:   shellID,
-		}:
-		default:
-			logger.Warn("event channel full, shell cancelled event dropped", "shell_id", shellID)
-		}
-	}
-
-	return nil
+	return s.supervisor.Wind(shellID, domain.WindStop)
 }
 
 // GetAllShells returns all tracked shells
@@ -326,114 +201,9 @@ func (s *BackgroundShellService) GetStats() map[string]int {
 	return stats
 }
 
-// startCleanupRoutine starts the periodic cleanup of old completed shells
-func (s *BackgroundShellService) startCleanupRoutine() {
-	s.cleanupTicker = time.NewTicker(10 * time.Minute)
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
-		for {
-			select {
-			case <-s.cleanupTicker.C:
-				s.performCleanup()
-			case <-s.stopCleanup:
-				s.cleanupTicker.Stop()
-				return
-			}
-		}
-	}()
-}
-
-// performCleanup removes old completed/failed/cancelled shells
-func (s *BackgroundShellService) performCleanup() {
-	retentionDuration := time.Duration(s.config.Tools.Bash.BackgroundShells.RetentionMinutes) * time.Minute
-
-	removed := s.shellTracker.Cleanup(retentionDuration)
-
-	if removed > 0 {
-		logger.Info("cleaned up old background shells", "removed", removed, "retention", retentionDuration)
-	}
-}
-
-// Stop stops the background shell service and cleanup routine
-func (s *BackgroundShellService) Stop() {
-	s.killAllRunningShells()
-
-	close(s.stopCleanup)
-
-	s.wg.Wait()
-}
-
-// killAllRunningShells terminates all running background shells
-func (s *BackgroundShellService) killAllRunningShells() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	shells := s.shellTracker.GetAll()
-	runningCount := 0
-
-	for _, shell := range shells {
-		if shell.State != domain.ShellStateRunning {
-			continue
-		}
-
-		runningCount++
-		s.terminateShell(shell)
-	}
-
-	if runningCount > 0 {
-		logger.Info("terminated running background shells", "count", runningCount)
-	}
-}
-
-// terminateShell terminates a single background shell
-func (s *BackgroundShellService) terminateShell(shell *domain.BackgroundShell) {
-	logger.Info("terminating background shell on exit", "shell_id", shell.ShellID, "command", shell.Command)
-
-	if shell.Cmd.Process != nil {
-		if err := shell.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			logger.Warn("failed to send SIGTERM to shell", "shell_id", shell.ShellID, "error", err)
-			if killErr := shell.Cmd.Process.Kill(); killErr != nil {
-				logger.Error("failed to kill shell process", "shell_id", shell.ShellID, "error", killErr)
-			}
-		}
-	}
-
-	if shell.CancelFunc != nil {
-		shell.CancelFunc()
-	}
-
-	shell.State = domain.ShellStateCancelled
-	completedAt := time.Now()
-	shell.CompletedAt = &completedAt
-}
-
-// enqueueShellNotification pushes a short completion/failure notification onto
-// the shared message queue so the agent learns a background shell finished.
-// Only the shell ID, command, exit code, and duration are included - NOT the
-// full output. The LLM can call BashOutput to retrieve the output if needed.
-func (s *BackgroundShellService) enqueueShellNotification(shellID, command string, exitCode int, duration time.Duration, errMsg string) {
-	if s.messageQueue == nil {
-		return
-	}
-
-	var content string
-	if errMsg != "" {
-		content = fmt.Sprintf("[Background Shell Failed: %s] Command: %s | Exit code: %d | Duration: %s | Error: %s. Use BashOutput to retrieve the full output.",
-			shellID, command, exitCode, duration, errMsg)
-	} else {
-		content = fmt.Sprintf("[Background Shell Completed: %s] Command: %s | Exit code: %d | Duration: %s. Use BashOutput to retrieve the full output.",
-			shellID, command, exitCode, duration)
-	}
-
-	msg := sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent(content),
-	}
-	s.messageQueue.Enqueue(msg, "system")
-}
+// Stop is retained for the lifecycle contract. The supervisor owns the monitor
+// goroutines and the cleanup ticker now, so there is nothing to stop here.
+func (s *BackgroundShellService) Stop() {}
 
 // generateShellID generates a unique shell ID
 func generateShellID() string {

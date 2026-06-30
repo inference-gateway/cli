@@ -17,7 +17,7 @@ func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "headless"
-	return NewAgentTool(cfg, utils.NewSubagentTracker())
+	return NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 }
 
 func TestAgentTool_Definition(t *testing.T) {
@@ -45,7 +45,7 @@ func TestAgentTool_Validate(t *testing.T) {
 
 func TestAgentTool_DepthCapDisables(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "1")
-	tool := NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
 	if tool.IsEnabled() {
 		t.Fatalf("Agent tool must disable itself at depth >= max_depth")
 	}
@@ -96,7 +96,7 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")
@@ -122,7 +122,7 @@ func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Interactive.Fallback = "error"
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 
 	args := map[string]any{"description": "do x"}
@@ -157,38 +157,64 @@ func TestParseAgentTasks(t *testing.T) {
 	}
 }
 
-func TestBuildChatPaneCommand_PropagatesParentMode(t *testing.T) {
+func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 	tool := newTestAgentTool(t)
 
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModeAutoAccept}); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='auto'") {
-		t.Fatalf("AutoAccept parent must propagate auto mode; cmd = %q", got)
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: domain.AgentModeReadOnly}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
+		t.Fatalf("ReadOnly subagent must emit readonly mode; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModePlan}); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='plan'") {
-		t.Fatalf("Plan parent must propagate plan mode; cmd = %q", got)
-	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{ParentMode: domain.AgentModeStandard}); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
-		t.Fatalf("Standard parent must NOT emit the mode var; cmd = %q", got)
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: domain.AgentModeStandard}, "sess"); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("ReadWrite (Standard) subagent must NOT emit the mode var; cmd = %q", got)
 	}
 }
 
-func TestSubagentExtraEnv_PropagatesParentMode(t *testing.T) {
+// buildChatPaneCommand must tell the subagent's chat where to write its last
+// assistant message so the parent can harvest the real result (not pane chrome).
+func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
+	tool := newTestAgentTool(t)
+	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess-xyz")
+	if !strings.Contains(got, "INFER_SUBAGENT_RESULT_FILE=") || !strings.Contains(got, "infer-subagent-sess-xyz.json") {
+		t.Fatalf("expected the result-file env var for the session; cmd = %q", got)
+	}
+}
+
+func TestSubagentExtraEnv_EmitsSubagentMode(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
-	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{ParentMode: domain.AgentModeAutoAccept}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=auto") {
-		t.Fatalf("AutoAccept parent must add the mode var to headless env; got %q", env)
+	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
+		t.Fatalf("ReadOnly subagent must add the readonly mode var to headless env; got %q", env)
 	}
-	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{ParentMode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
-		t.Fatalf("Standard parent must NOT add the mode var; got %q", env)
+	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("ReadWrite (Standard) subagent must NOT add the mode var; got %q", env)
 	}
 }
 
-// TestAgentTool_InteractiveInheritsParentMode exercises the full Execute path:
-// the parent mode on the context must reach the tmux pane command.
-func TestAgentTool_InteractiveInheritsParentMode(t *testing.T) {
+// resolveSubagentType maps the `type` argument to a capability mode, defaulting
+// to ReadOnly; the parent's own mode no longer leaks into the subagent.
+func TestResolveSubagentType(t *testing.T) {
+	cases := map[string]domain.AgentMode{
+		"":          domain.AgentModeReadOnly,
+		"ReadOnly":  domain.AgentModeReadOnly,
+		"readonly":  domain.AgentModeReadOnly,
+		"ReadWrite": domain.AgentModeStandard,
+		"readwrite": domain.AgentModeStandard,
+		"bogus":     domain.AgentModeReadOnly,
+	}
+	for in, want := range cases {
+		if got := resolveSubagentType(in); got != want {
+			t.Fatalf("resolveSubagentType(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+// TestAgentTool_InteractiveDefaultsToReadOnly exercises the full Execute path: a
+// subagent with no `type` defaults to ReadOnly, and the parent's mode (here
+// AutoAccept) must NOT leak into it - capability is type-driven, not inherited.
+func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Wait = true
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker())
+	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return true }
 	var captured string
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
@@ -200,7 +226,14 @@ func TestAgentTool_InteractiveInheritsParentMode(t *testing.T) {
 	if _, err := tool.Execute(ctx, map[string]any{"description": "do x"}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if !strings.Contains(captured, "INFER_SUBAGENT_AGENT_MODE='auto'") {
-		t.Fatalf("interactive subagent should inherit parent auto mode; cmd = %q", captured)
+	if !strings.Contains(captured, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
+		t.Fatalf("subagent must default to readonly regardless of parent mode; cmd = %q", captured)
+	}
+
+	if _, err := tool.Execute(ctx, map[string]any{"description": "do x", "type": "ReadWrite"}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(captured, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("ReadWrite subagent must run as Standard (no mode var); cmd = %q", captured)
 	}
 }

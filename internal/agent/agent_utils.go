@@ -352,6 +352,9 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 	case domain.AgentModeStandard:
 		return prompts.SystemPrompt
 
+	case domain.AgentModeReadOnly:
+		return prompts.SystemPrompt
+
 	default:
 		return prompts.SystemPrompt
 	}
