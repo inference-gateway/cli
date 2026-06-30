@@ -104,7 +104,20 @@ func NewTaskManager(
 }
 
 func (t *TaskManagerImpl) Init() tea.Cmd {
-	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick)
+	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick, t.refreshTickCmd())
+}
+
+// taskRefreshTickMsg drives the live "Elapsed" column. Status changes already
+// arrive as BackgroundTasksChangedEvents, but elapsed time advances on the wall
+// clock with no event, so a periodic re-render is the only way to show it live.
+type taskRefreshTickMsg struct{}
+
+// refreshTickCmd schedules the next live refresh. It is re-armed in Update ONLY
+// while the view is open and a task is actually running, so it stops the moment
+// nothing is running - a bounded animation tick (like the spinner), not an idle
+// poller.
+func (t *TaskManagerImpl) refreshTickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return taskRefreshTickMsg{} })
 }
 
 // Reset resets the task manager state for reuse
@@ -178,15 +191,8 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			completedTasks = append(completedTasks, taskInfo)
 		}
 
-		// Shells and subagents come from the unified supervisor snapshot (running
-		// and recently-finished, bounded by each kind's completed_retention). A2A
-		// jobs are skipped here - their rows are sourced above from the richer A2A
-		// poller / retention service (history, artifacts, context id).
-		snapshotLen := 0
 		if t.backgroundJobRegistry != nil {
-			snapshot := t.backgroundJobRegistry.Snapshot()
-			snapshotLen = len(snapshot)
-			for _, job := range snapshot {
+			for _, job := range t.backgroundJobRegistry.Snapshot() {
 				if job.Meta.Kind == domain.JobKindA2A {
 					continue
 				}
@@ -198,15 +204,6 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 				}
 			}
 		}
-
-		logger.Debug("loaded /tasks rows",
-			"registry_nil", t.backgroundJobRegistry == nil,
-			"supervisor_snapshot", snapshotLen,
-			"a2a_polling", len(backgroundTasks),
-			"a2a_retained", len(retainedTaskInfos),
-			"active_total", len(activeTasks),
-			"completed_total", len(completedTasks),
-		)
 
 		interfaceActiveTasks := make([]any, len(activeTasks))
 		for i, task := range activeTasks {
@@ -271,14 +268,20 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case domain.TasksLoadedEvent:
 		return t.handleTasksLoaded(msg)
 	case domain.BackgroundTasksChangedEvent:
-		// A background job changed status (submitted/signalled/finished). Reload so
-		// the open /tasks view reflects it live, replacing render-time polling.
 		if t.loading {
 			return t, nil
 		}
 		return t, t.loadTasksCmd()
 	case domain.TaskCancelledEvent:
 		return t.handleTaskCancelled(msg)
+	case taskRefreshTickMsg:
+		if t.done || t.cancelled {
+			return t, nil
+		}
+		if !t.loading && len(t.activeTasks) == 0 {
+			return t, nil
+		}
+		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd())
 	case tea.WindowSizeMsg:
 		return t.handleWindowResize(msg)
 	case tea.KeyMsg:
@@ -388,8 +391,6 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
-			// Cancel is wired only for active A2A tasks; shells and subagents
-			// (also TaskRef == nil) are stopped from their own tools, not here.
 			if normalizeKind(task.Kind) == domain.JobKindA2A && task.TaskRef == nil {
 				t.confirmCancel = true
 				return t, nil
@@ -404,8 +405,6 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		t.handleViewSwitch(msg.String())
 		return t, nil
 
-	case "r":
-		return t, t.loadTasksCmd()
 	}
 
 	return t, nil
@@ -1099,7 +1098,7 @@ func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
 		help := t.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to view, Esc to clear search")
 		fmt.Fprintf(b, "%s", help)
 	} else {
-		help := t.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, r to refresh, q/Esc to quit")
+		help := t.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, q/Esc to quit")
 		fmt.Fprintf(b, "%s", help)
 	}
 }
