@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.126.0](https://github.com/inference-gateway/cli/compare/v0.125.0...v0.126.0) (2026-06-30)
+
+### 🚀 Features
+
+* add persistent memory tool for agent ([#679](https://github.com/inference-gateway/cli/issues/679)) ([a487b13](https://github.com/inference-gateway/cli/commit/a487b1391b7f6b26c1f6d6e1a9e1716532df1ba8))
+* **agent:** interactive subagent management and unified background-work tracking ([#684](https://github.com/inference-gateway/cli/issues/684)) ([343e083](https://github.com/inference-gateway/cli/commit/343e08300939fb14e4f2e0b17bc95496fd37d00a))
+
+### 🐛 Bug Fixes
+
+* **chat:** bind opt+backspace and ctrl+backspace to delete-word-backward ([#697](https://github.com/inference-gateway/cli/issues/697)) ([173fe83](https://github.com/inference-gateway/cli/commit/173fe8315cdef9bd3fe972d6cb6398d8cd20b239)), closes [#689](https://github.com/inference-gateway/cli/issues/689) [#576](https://github.com/inference-gateway/cli/issues/576)
+* **a2a:** retain completed background tasks in /tasks ([#691](https://github.com/inference-gateway/cli/issues/691)) ([#701](https://github.com/inference-gateway/cli/issues/701)) ([43b8e13](https://github.com/inference-gateway/cli/commit/43b8e13ac98900799c0e1acd00fc04d45a105e51))
+* **autocomplete:** surface arguments for one-of/all-optional tool schemas ([#698](https://github.com/inference-gateway/cli/issues/698)) ([655b2e4](https://github.com/inference-gateway/cli/commit/655b2e40e660ac6f55966db6ba2d2c77b01d35b8))
+
+### ♻️ Code Refactoring
+
+* add .gitignore by default to the projects dir ([4717deb](https://github.com/inference-gateway/cli/commit/4717deb375dac21b19dc35f6fc27f745d6e794b4))
+* enable memory by default ([86c2158](https://github.com/inference-gateway/cli/commit/86c2158a1833876bd8286255a2df262f90b98ccf))
+* make infer config userspace-first ([#682](https://github.com/inference-gateway/cli/issues/682)) ([1e77e42](https://github.com/inference-gateway/cli/commit/1e77e42f2acdf622497044dc2f45329b59090bb5)), closes [#680](https://github.com/inference-gateway/cli/issues/680)
+* **tui:** single event-loop ingress - one notifier, no self-rescheduling pollers ([#700](https://github.com/inference-gateway/cli/issues/700)) ([2ab8854](https://github.com/inference-gateway/cli/commit/2ab8854365e3f91175a7b818630be5a572a9fb3a))
+* standardize comment punctuation by replacing em dashes with hyphens ([78f53a8](https://github.com/inference-gateway/cli/commit/78f53a85e1f40c57f9bd09945bb12e1365435e5c))
+
+### 📚 Documentation
+
+* fix docs/ drift found by the README-to-codebase audit ([#687](https://github.com/inference-gateway/cli/issues/687)) ([413047a](https://github.com/inference-gateway/cli/commit/413047a8d241f82dff6ea4a7c6b4fbb6ed446402)), closes [#572](https://github.com/inference-gateway/cli/issues/572) [#686](https://github.com/inference-gateway/cli/issues/686)
+* sync README and reference docs with the codebase ([#685](https://github.com/inference-gateway/cli/issues/685)) ([c328423](https://github.com/inference-gateway/cli/commit/c328423b9bc7760a62c01df00f4420982edab8c7)), closes [#572](https://github.com/inference-gateway/cli/issues/572) [#684](https://github.com/inference-gateway/cli/issues/684) [#684](https://github.com/inference-gateway/cli/issues/684)
+
+### 👷 CI/CD
+
+* **deps:** update CLAUDE workflow to version 0.14.5 ([eaba2b3](https://github.com/inference-gateway/cli/commit/eaba2b301c7fa9cb91a42bfab09f7db559ac9b10))
+
+### 🧹 Maintenance
+
+* add .infer to .gitignore ([08ef319](https://github.com/inference-gateway/cli/commit/08ef3192ad7249aa729ce7b75c76e8999023dc00))
+* **deps:** bump infer CLI v0.124.0 -> v0.125.0, infer-action v0.19.0 -> v0.19.1 ([#681](https://github.com/inference-gateway/cli/issues/681)) ([e9e7e21](https://github.com/inference-gateway/cli/commit/e9e7e215969a48afab51d8193d0ceb5adf208e29))
+* remove agent definitions ([4f7fd7d](https://github.com/inference-gateway/cli/commit/4f7fd7d73bca5b2d5d002d6872e4c6920c9b6da5))
+* remove unused configuration and shortcut files ([4c611db](https://github.com/inference-gateway/cli/commit/4c611dbd23debb67db9cce8c1c065d6ac7662671))
+* update claude-code to 2.1.191 ([729e81c](https://github.com/inference-gateway/cli/commit/729e81cb2dec282d3c3cd7b92604d2b638210f6b))
+
 ## [0.125.0](https://github.com/inference-gateway/cli/compare/v0.124.1...v0.125.0) (2026-06-28)
 
 ### 🚀 Features
