@@ -119,6 +119,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 		toolResults       []domain.ConversationEntry
 		expectedRejection bool
 		expectedPlan      string
+		expectedPath      string
 	}{
 		{
 			name:              "no_results",
@@ -179,13 +180,67 @@ func TestCheckToolResultsStatus(t *testing.T) {
 			expectedRejection: true,
 			expectedPlan:      "",
 		},
+		{
+			name: "with_plan_approval",
+			toolResults: []domain.ConversationEntry{
+				{
+					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("plan")},
+					ToolExecution: &domain.ToolExecutionResult{
+						ToolName: "RequestPlanApproval",
+						Success:  true,
+						Data: map[string]any{
+							"plan": "# Plan\n- step 1",
+							"path": ".infer/plans/2026-06-28-090000-plan.md",
+						},
+					},
+				},
+			},
+			expectedRejection: false,
+			expectedPlan:      "# Plan\n- step 1",
+			expectedPath:      ".infer/plans/2026-06-28-090000-plan.md",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hasRejection, planContent := agentService.checkToolResultsStatus(tt.toolResults)
+			hasRejection, planContent, planPath := agentService.checkToolResultsStatus(tt.toolResults)
 			assert.Equal(t, tt.expectedRejection, hasRejection)
 			assert.Equal(t, tt.expectedPlan, planContent)
+			assert.Equal(t, tt.expectedPath, planPath)
+		})
+	}
+}
+
+// TestExtractPlanPath tests pulling the saved plan file path out of a
+// RequestPlanApproval tool result, including defensive/degenerate cases.
+func TestExtractPlanPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   *domain.ToolExecutionResult
+		expected string
+	}{
+		{name: "nil_result", result: nil, expected: ""},
+		{name: "nil_data", result: &domain.ToolExecutionResult{}, expected: ""},
+		{
+			name:     "data_not_a_map",
+			result:   &domain.ToolExecutionResult{Data: "oops"},
+			expected: "",
+		},
+		{
+			name:     "missing_path_key",
+			result:   &domain.ToolExecutionResult{Data: map[string]any{"plan": "x"}},
+			expected: "",
+		},
+		{
+			name:     "path_present",
+			result:   &domain.ToolExecutionResult{Data: map[string]any{"path": ".infer/plans/p.md"}},
+			expected: ".infer/plans/p.md",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, extractPlanPath(tt.result))
 		})
 	}
 }

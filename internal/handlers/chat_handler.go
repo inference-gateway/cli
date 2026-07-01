@@ -466,9 +466,25 @@ func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	msg domain.PlanApprovalResponseEvent,
 ) tea.Cmd {
+	// Capture the saved plan path before the coordinator clears the UI state; on
+	// approval we compact the planning context away and point the agent back at
+	// the plan file to execute.
+	planPath := ""
+	if st := h.stateManager.GetPlanApprovalUIState(); st != nil {
+		planPath = st.PlanPath
+	}
+
 	cmd, restart := h.approvalCoordinator.HandlePlanApprovalResponse(msg)
 	if !restart {
 		return cmd
+	}
+
+	// Compaction on approval runs independently of compact.enabled (that flag only
+	// governs the automatic mid-conversation compaction). We only need the optimizer
+	// to be constructed and a saved plan file to point the agent back at; otherwise
+	// fall back to executing in place.
+	if h.conversationOptimizer != nil && planPath != "" {
+		return tea.Batch(cmd, h.compactThenExecutePlanCmd(planPath))
 	}
 	return tea.Batch(cmd, h.startChatCompletion())
 }

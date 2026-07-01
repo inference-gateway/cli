@@ -562,7 +562,8 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 
 func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 	return func() tea.Msg {
-		if s.handler.conversationOptimizer == nil {
+		h := s.handler
+		if h.conversationOptimizer == nil {
 			return domain.SetStatusEvent{
 				Message:    "Conversation optimizer is not enabled in configuration",
 				Spinner:    false,
@@ -570,8 +571,8 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		entries := s.handler.conversationRepo.GetMessages()
-		if len(entries) == 0 {
+		messages := h.nonHiddenMessages()
+		if len(messages) == 0 {
 			return domain.SetStatusEvent{
 				Message:    "No messages to compact",
 				Spinner:    false,
@@ -579,19 +580,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		logger.Info("starting conversation compaction", "message_count", len(entries))
-
-		originalTitle := s.handler.conversationRepo.GetCurrentConversationTitle()
-
-		messages := make([]sdk.Message, 0, len(entries))
-		for _, entry := range entries {
-			if entry.Hidden {
-				continue
-			}
-			messages = append(messages, entry.Message)
-		}
-
-		currentModel := s.handler.modelService.GetCurrentModel()
+		currentModel := h.modelService.GetCurrentModel()
 		if currentModel == "" {
 			return domain.SetStatusEvent{
 				Message:    "No model selected - please select a model first",
@@ -602,24 +591,15 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		logger.Info("optimizing conversation", "model", currentModel, "message_count", len(messages))
 
-		optimizedChan := make(chan []sdk.Message, 1)
-		go func() {
-			optimized := s.handler.conversationOptimizer.OptimizeMessages(messages, currentModel, true)
-			optimizedChan <- optimized
-		}()
-
-		var optimizedMessages []sdk.Message
-		select {
-		case optimizedMessages = <-optimizedChan:
-			logger.Info("optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
-		case <-time.After(70 * time.Second):
-			logger.Error("optimization timed out after 70 seconds")
+		optimizedMessages, ok := h.optimizeWithTimeout(messages, currentModel)
+		if !ok {
 			return domain.SetStatusEvent{
 				Message:    "Conversation optimization timed out - try again or check gateway logs",
 				Spinner:    false,
 				StatusType: domain.StatusError,
 			}
 		}
+		logger.Info("optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
 
 		if len(optimizedMessages) >= len(messages) {
 			return domain.SetStatusEvent{
@@ -629,8 +609,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		newTitle := fmt.Sprintf("Continued from %s", originalTitle)
-		if err := s.handler.conversationRepo.StartNewConversation(newTitle); err != nil {
+		if err := h.reseedConversationWithMessages(optimizedMessages, currentModel); err != nil {
 			logger.Error("failed to start new conversation", "error", err)
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
@@ -639,21 +618,10 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		for _, msg := range optimizedMessages {
-			entry := domain.ConversationEntry{
-				Message: msg,
-				Model:   currentModel,
-				Time:    time.Now(),
-			}
-			if err := s.handler.conversationRepo.AddMessage(entry); err != nil {
-				logger.Error("failed to add optimized message", "error", err)
-			}
-		}
-
 		return tea.Batch(
 			func() tea.Msg {
 				return domain.UpdateHistoryEvent{
-					History: s.handler.conversationRepo.GetMessages(),
+					History: h.conversationRepo.GetMessages(),
 				}
 			},
 			func() tea.Msg {

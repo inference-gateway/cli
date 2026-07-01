@@ -367,7 +367,7 @@ type ApprovalUIManager interface {
 
 // PlanApprovalUIManager handles plan approval UI state
 type PlanApprovalUIManager interface {
-	SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction)
+	SetupPlanApprovalUIState(planContent, planPath string, responseChan chan PlanApprovalAction)
 	GetPlanApprovalUIState() *PlanApprovalUIState
 	SetPlanApprovalSelectedIndex(index int)
 	ClearPlanApprovalUIState()

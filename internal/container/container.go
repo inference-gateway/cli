@@ -314,19 +314,24 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
 	}
 
-	if c.config.Compact.Enabled {
-		summaryClient := c.createAgentSDKClient()
-		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:           c.config.Compact.Enabled,
-			AutoAt:            c.config.Compact.AutoAt,
-			BufferSize:        2,
-			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
-			Client:            summaryClient,
-			Config:            c.config,
-			Tokenizer:         c.tokenizer,
-			Repo:              c.conversationRepo,
-		})
+	// The optimizer is constructed unconditionally: compact.enabled only gates the
+	// automatic mid-conversation compaction (OptimizeMessages with force=false) and
+	// the headless session rollover below. Compaction on plan approval always runs
+	// (it calls OptimizeMessages with force=true, which ignores the enabled flag),
+	// so the optimizer must exist even when compact.enabled is false.
+	summaryClient := c.createAgentSDKClient()
+	c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+		Enabled:           c.config.Compact.Enabled,
+		AutoAt:            c.config.Compact.AutoAt,
+		BufferSize:        2,
+		KeepFirstMessages: c.config.Compact.KeepFirstMessages,
+		Client:            summaryClient,
+		Config:            c.config,
+		Tokenizer:         c.tokenizer,
+		Repo:              c.conversationRepo,
+	})
 
+	if c.config.Compact.Enabled {
 		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 			c.sessionRolloverManager = services.NewSessionRolloverManager(
 				c.config,

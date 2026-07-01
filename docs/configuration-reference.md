@@ -236,7 +236,7 @@ chat:
       session_tokens: true
       git_branch: true
 compact:
-  enabled: false # Enable automatic conversation compaction
+  enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (20-100)
 ```
 
@@ -308,7 +308,11 @@ compact:
 
 ### Compact Settings
 
-- **compact.enabled**: Enable automatic conversation compaction to reduce token usage (default: false)
+- **compact.enabled**: Enable automatic mid-conversation compaction at the `auto_at`
+  threshold to reduce token usage (default: true). This flag does **not** gate
+  compaction on plan approval - approving a plan in [Plan Mode](plan-mode.md) always
+  summarizes the exploration-heavy planning conversation and continues execution in a
+  fresh, smaller session, regardless of this setting.
 - **compact.auto_at**: Percentage of context window (20-100) at which to automatically trigger compaction (default: 80)
 
 ### Agent Settings
@@ -749,7 +753,7 @@ http://browser-agent:8080
 
 ### Compact Configuration
 
-- `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `false`)
+- `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
 - `INFER_COMPACT_AUTO_AT`: Auto-compact after N messages (default: `100`)
 
 ### Git Configuration

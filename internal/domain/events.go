@@ -310,6 +310,7 @@ type PlanApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
 	PlanContent  string
+	PlanPath     string
 	ResponseChan chan PlanApprovalAction `json:"-"`
 }
 
