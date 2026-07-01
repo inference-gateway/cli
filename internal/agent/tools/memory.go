@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -470,7 +471,16 @@ func writeIndexEntries(indexPath string, entries []string) error {
 	return writeFileAtomic(indexPath, b.String())
 }
 
+// indexMu serializes the read-modify-write of the shared MEMORY.md index.
+// Memory tools run in the agent's parallel execution pool, so two writes in one
+// turn can otherwise both read the same index and the second's atomic rewrite
+// silently drops the first's entry (a last-writer-wins loss the -race detector
+// can't see because it is a file, not shared memory).
+var indexMu sync.Mutex
+
 func upsertIndexEntry(dir, slug, description string) error {
+	indexMu.Lock()
+	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
 	entries, err := readIndexEntries(indexPath)
 	if err != nil {
@@ -492,6 +502,8 @@ func upsertIndexEntry(dir, slug, description string) error {
 }
 
 func removeIndexEntry(dir, slug string) error {
+	indexMu.Lock()
+	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
 	entries, err := readIndexEntries(indexPath)
 	if err != nil {

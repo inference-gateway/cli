@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
@@ -351,6 +353,44 @@ func TestMemoryTool_IndexIntegrity(t *testing.T) {
 	}
 	if n := countIndexEntries(index); n != 1 {
 		t.Errorf("expected 1 index entry, got %d:\n%s", n, index)
+	}
+}
+
+// TestMemoryTool_ConcurrentWritesKeepAllIndexEntries guards the MEMORY.md index
+// against a last-writer-wins loss: Memory tools run in the agent's parallel
+// execution pool, so distinct writes in one turn race the index read-modify-
+// write. Every entry must survive. Asserts on file contents, not the -race
+// detector, because the loss is at the file layer, not shared memory.
+func TestMemoryTool_ConcurrentWritesKeepAllIndexEntries(t *testing.T) {
+	tool, dir := newTestMemoryTool(t)
+
+	const n = 16
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := range n {
+		go func(i int) {
+			defer wg.Done()
+			if _, err := tool.Execute(context.Background(), map[string]any{
+				"operation":   "write",
+				"name":        fmt.Sprintf("fact-%02d", i),
+				"description": fmt.Sprintf("fact number %d", i),
+				"type":        "project",
+				"content":     "body",
+			}); err != nil {
+				t.Errorf("write %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	index := readIndexFile(t, dir)
+	if got := countIndexEntries(index); got != n {
+		t.Fatalf("expected %d index entries after concurrent writes, got %d:\n%s", n, got, index)
+	}
+	for i := range n {
+		if want := fmt.Sprintf("](fact-%02d.md)", i); !strings.Contains(index, want) {
+			t.Errorf("index missing entry %s:\n%s", want, index)
+		}
 	}
 }
 
