@@ -156,18 +156,15 @@ func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pu
 	}
 	dirty := len(strings.TrimSpace(string(status))) > 0
 	if dirty {
-		logger.Debug("memory git sync: committing memory changes")
 		if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
 			logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
 			return err
 		}
 	}
 	if !dirty && !pushWhenClean {
-		logger.Debug("memory git sync: nothing to push (memory unchanged)")
 		return nil
 	}
 	if !b.hasCommits(ctx, dir) {
-		logger.Debug("memory git sync: nothing to push (no local memory yet)")
 		return nil
 	}
 	return b.pushWithRetry(ctx, dir, branch)
@@ -253,8 +250,6 @@ func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
 		logger.Warn("memory git sync: failed to set origin remote", "error", err, "output", trim(out))
 		return err
 	}
-	logger.Debug("memory git sync: origin remote reconciled to config",
-		"repo", redactRepo(repo), "previous", redactRepo(current))
 	return nil
 }
 
