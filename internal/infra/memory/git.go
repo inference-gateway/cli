@@ -191,17 +191,14 @@ const maxPushAttempts = 3
 func (b *GitBackend) pushWithRetry(ctx context.Context, dir, branch string) error {
 	var lastErr error
 	for attempt := 1; attempt <= maxPushAttempts; attempt++ {
-		out, err := b.run(ctx, dir, "push", "-u", "origin", branch)
+		_, err := b.run(ctx, dir, "push", "-u", "origin", branch)
 		if err == nil {
-			logger.Debug("memory git sync: pushed memory", "dir", dir, "branch", branch, "attempt", attempt)
 			return nil
 		}
 		lastErr = err
 		if attempt == maxPushAttempts {
 			break
 		}
-		logger.Debug("memory git sync: push rejected (concurrent push?), rebasing onto remote",
-			"attempt", attempt, "output", trim(out))
 		if rout, rerr := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); rerr != nil {
 			logger.Warn("memory git sync: rebase onto remote failed", "error", rerr, "output", trim(rout))
 			_, _ = b.run(ctx, dir, "rebase", "--abort")
