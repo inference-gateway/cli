@@ -39,7 +39,7 @@ func TestApplyMemoryEnvOverrides_Backend(t *testing.T) {
 	}
 }
 
-func TestReconcileMemoryReminders(t *testing.T) {
+func TestPruneMemoryRemindersIfDisabled(t *testing.T) {
 	countMemory := func(rs []config.ReminderConfig) int {
 		n := 0
 		for _, r := range rs {
@@ -60,7 +60,7 @@ func TestReconcileMemoryReminders(t *testing.T) {
 
 	disabled := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	disabled.Memory.Enabled = false
-	reconcileMemoryReminders(disabled)
+	pruneMemoryRemindersIfDisabled(disabled)
 	if got := countMemory(disabled.Reminders.Reminders); got != 0 {
 		t.Errorf("memory reminders should be pruned when memory disabled; got %d", got)
 	}
@@ -68,22 +68,10 @@ func TestReconcileMemoryReminders(t *testing.T) {
 		t.Error("todo-hygiene should remain after pruning memory reminders")
 	}
 
-	legacy := &config.Config{Reminders: config.RemindersConfig{
-		Enabled: true,
-		Reminders: []config.ReminderConfig{
-			{Name: "todo-hygiene", Hook: "pre_stream", Trigger: config.ReminderTriggerInterval, Interval: 4, Text: "x"},
-		},
-	}}
-	legacy.Memory.Enabled = true
-	reconcileMemoryReminders(legacy)
-	if !has(legacy.Reminders.Reminders, "memory-hygiene") || !has(legacy.Reminders.Reminders, "memory-consult") {
-		t.Errorf("memory reminders should be injected into a legacy config when memory enabled: %+v", legacy.Reminders.Reminders)
-	}
-
-	full := &config.Config{Reminders: *config.DefaultRemindersConfig()}
-	full.Memory.Enabled = true
-	reconcileMemoryReminders(full)
-	if got := countMemory(full.Reminders.Reminders); got != 2 {
-		t.Errorf("expected exactly 2 memory reminders (no duplicates); got %d", got)
+	enabled := &config.Config{Reminders: *config.DefaultRemindersConfig()}
+	enabled.Memory.Enabled = true
+	pruneMemoryRemindersIfDisabled(enabled)
+	if got := countMemory(enabled.Reminders.Reminders); got != 2 {
+		t.Errorf("expected the 2 built-in memory reminders to remain when enabled; got %d", got)
 	}
 }

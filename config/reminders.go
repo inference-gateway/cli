@@ -76,10 +76,9 @@ The persistent memory index (MEMORY.md) is already injected into your context. B
 
 // MemoryReminders returns the built-in reminders coupled to the memory feature:
 // memory-consult (turn-1 orientation) and memory-hygiene (a periodic nudge to
-// record durable facts). They are the single source of truth used both to seed a
-// fresh reminders.yaml and to reconcile at config load - added when memory is
-// enabled (so a new built-in ships to users whose reminders.yaml predates it)
-// and pruned when memory is disabled.
+// record durable facts). They are the single source of truth used to seed
+// reminders.yaml (fresh init or init --overwrite) and to identify which
+// reminders to prune when memory is disabled (see pruneMemoryRemindersIfDisabled).
 func MemoryReminders() []ReminderConfig {
 	return []ReminderConfig{
 		{
@@ -99,11 +98,10 @@ func MemoryReminders() []ReminderConfig {
 }
 
 // DefaultRemindersConfig returns the in-code default reminders configuration
-// used when no reminders.yaml exists. Reminders ship enabled by default with a
-// todo-hygiene reminder plus the built-in memory reminders (see
-// MemoryReminders). The memory reminders are reconciled at load time against the
-// memory feature flag (see reconcileMemoryReminders) so they are present exactly
-// when memory is enabled, regardless of the age of the user's reminders.yaml.
+// used when no reminders.yaml exists (and to seed the file on init). Reminders
+// ship enabled by default with a todo-hygiene reminder plus the built-in memory
+// reminders (see MemoryReminders); the memory ones are pruned at load time when
+// memory is disabled (see pruneMemoryRemindersIfDisabled).
 func DefaultRemindersConfig() *RemindersConfig {
 	reminders := []ReminderConfig{
 		{
