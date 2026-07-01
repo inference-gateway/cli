@@ -1110,10 +1110,6 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 // event-driven-only. Single-goroutine, so no mutex. A headless run IS the
 // session, so the per-request turn doubles as the session turn.
 func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
-	// Sync the memory dir with the remote at the run boundaries (best-effort; the
-	// backend logs its own failures). SyncIn pulls once at run start; SyncOut is
-	// the headless backstop for memory changes at run finish (the Memory tool also
-	// pushes on each write). Both no-op for the local backend.
 	if s.memoryBackend != nil {
 		switch hook {
 		case domain.HookPreSession:

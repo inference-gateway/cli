@@ -15,8 +15,8 @@ const (
 
 // Memory backend types selected by memory.backend.type.
 const (
-	MemoryBackendLocal = "local" // default: no remote, sync is a no-op
-	MemoryBackendGit   = "git"   // clone/pull on start, commit/push on change
+	MemoryBackendLocal = "local"
+	MemoryBackendGit   = "git"
 )
 
 // Memory git sync actions (memory.backend.git.sync.on_start / on_finish).
@@ -32,7 +32,7 @@ const (
 const (
 	DefaultMemoryGitBranch        = "main"
 	DefaultMemoryGitCommitMessage = "chore(memory): sync"
-	DefaultMemoryGitTimeout       = 60 // seconds per git operation
+	DefaultMemoryGitTimeout       = 60
 )
 
 // MemoryConfig configures the agent's persistent, cross-session memory. When

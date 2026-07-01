@@ -113,7 +113,7 @@ func TestGitBackend_PullOnPresent(t *testing.T) {
 	memDir := filepath.Join(t.TempDir(), "memory")
 	mustGit(t, "", "clone", "-b", "main", bare, memDir)
 
-	seedRemote(t, bare, "b.md", "two") // remote advances after the local clone
+	seedRemote(t, bare, "b.md", "two")
 
 	b := newGitBackend(t, memDir, bare)
 	if err := b.SyncIn(context.Background()); err != nil {
@@ -185,13 +185,13 @@ func TestGitBackend_PushNoopWhenClean(t *testing.T) {
 
 func TestGitBackend_AdoptEmptyRemote(t *testing.T) {
 	isolatedGitEnv(t)
-	bare := initBareRemote(t) // empty: no commits, no branch
+	bare := initBareRemote(t)
 
 	memDir := filepath.Join(t.TempDir(), "memory")
 	if err := os.MkdirAll(memDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(memDir, "local.md"), "local") // pre-existing non-git memory
+	writeFile(t, filepath.Join(memDir, "local.md"), "local")
 
 	b := newGitBackend(t, memDir, bare)
 	if err := b.SyncIn(context.Background()); err != nil {
@@ -200,14 +200,14 @@ func TestGitBackend_AdoptEmptyRemote(t *testing.T) {
 	if !isGitRepo(memDir) {
 		t.Fatalf("expected repo initialized in place at %s", memDir)
 	}
-	requireFile(t, filepath.Join(memDir, "local.md")) // local content preserved
+	requireFile(t, filepath.Join(memDir, "local.md"))
 
 	if err := b.SyncOut(context.Background()); err != nil {
 		t.Fatalf("SyncOut: %v", err)
 	}
 	check := filepath.Join(t.TempDir(), "check")
 	mustGit(t, "", "clone", "-b", "main", bare, check)
-	requireFile(t, filepath.Join(check, "local.md")) // local pushed up
+	requireFile(t, filepath.Join(check, "local.md"))
 }
 
 func TestGitBackend_SyncInRunsOnce(t *testing.T) {
@@ -237,8 +237,6 @@ func TestGitBackend_FailureDegrades(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(memDir, "fact.md"), "durable")
 
-	// Repo points at a path that does not exist: sync must not panic and must
-	// leave local memory intact.
 	b := newGitBackend(t, memDir, filepath.Join(t.TempDir(), "does-not-exist.git"))
 
 	_ = b.SyncIn(context.Background())

@@ -88,9 +88,6 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 		return nil
 	}
 
-	// Empty remote, or local (non-git) memory already present: initialize a repo
-	// in place so the first SyncOut can push local memory up. Reconciliation with
-	// any remote history happens in SyncOut's push-then-rebase.
 	if err := b.ensureRepo(ctx, dir); err != nil {
 		return err
 	}
@@ -110,7 +107,7 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		return err
 	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil // memory never created; nothing to push
+		return nil
 	}
 	unlock := lockDir(dir)
 	defer unlock()
@@ -128,7 +125,7 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		return err
 	}
 	if len(strings.TrimSpace(string(status))) == 0 {
-		return nil // no changes -> no-op
+		return nil
 	}
 	if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
 		logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
