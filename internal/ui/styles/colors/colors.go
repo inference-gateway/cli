@@ -17,7 +17,7 @@ const (
 	Cyan          = "\033[38;2;125;207;255m" // #7dcfff - cyan variant
 	Magenta       = "\033[38;2;187;154;247m" // #bb9af7 - purple for secondary
 	White         = "\033[38;2;169;177;214m" // #a9b1d6 - light gray-blue for primary text
-	Gray          = "\033[38;2;86;95;137m"   // #565f89 - dim gray
+	Gray          = "\033[38;2;122;127;154m" // #7a7f9a - dim gray
 	LightGray     = "\033[38;2;102;102;102m" // #666666 - light gray
 	Amber         = "\033[38;2;224;175;104m" // #e0af68 - amber for warnings
 	BrightRed     = "\033[38;2;247;118;142m" // Same as Red
@@ -35,7 +35,7 @@ const (
 	LipglossCyan      = "#7dcfff"
 	LipglossMagenta   = "#bb9af7"
 	LipglossWhite     = "#a9b1d6"
-	LipglossGray      = "#565f89"
+	LipglossGray      = "#7a7f9a"
 	LipglossLightGray = "#666666"
 	LipglossAmber     = "#e0af68"
 	LipglossBlack     = "#000000"

@@ -67,7 +67,7 @@ func (fakeHint) GetKeyOnly(string) string { return "ctrl+o" }
 func newTestStyleProvider() *styles.Provider {
 	theme := &uimocks.FakeTheme{}
 	theme.GetAccentColorReturns("#7aa2f7")
-	theme.GetDimColorReturns("#565f89")
+	theme.GetDimColorReturns("#7a7f9a")
 	theme.GetSuccessColorReturns("#9ece6a")
 	theme.GetErrorColorReturns("#f7768e")
 	theme.GetAssistantColorReturns("#a9b1d6")

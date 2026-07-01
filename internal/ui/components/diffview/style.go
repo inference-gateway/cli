@@ -28,7 +28,7 @@ type Style struct {
 const (
 	darkBg          = "#1a1b26"
 	darkFg          = "#a9b1d6"
-	darkDim         = "#565f89"
+	darkDim         = "#7a7f9a"
 	darkGutterBg    = "#1f2030"
 	darkHunkFg      = "#7aa2f7"
 	darkHunkBg      = "#24283b"
