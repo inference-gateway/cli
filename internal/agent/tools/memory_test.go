@@ -2,10 +2,14 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -19,7 +23,41 @@ func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
 	cfg.Memory.Dir = t.TempDir()
 	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
 	cfg.Prompts = *config.DefaultPromptsConfig()
-	return NewMemoryTool(cfg), cfg.Memory.Dir
+	return NewMemoryTool(cfg, nil), cfg.Memory.Dir
+}
+
+func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Memory.Enabled = true
+	cfg.Memory.Dir = t.TempDir()
+	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
+	cfg.Prompts = *config.DefaultPromptsConfig()
+
+	fake := &mocks.FakeMemoryBackend{}
+	tool := NewMemoryTool(cfg, fake)
+
+	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "read"}); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got := fake.SyncOutCallCount(); got != 0 {
+		t.Fatalf("read must not sync out; got %d calls", got)
+	}
+
+	execOK(t, tool, map[string]any{
+		"operation":   "write",
+		"name":        "build-commands",
+		"description": "how to build",
+		"type":        "project",
+		"content":     "run task build",
+	})
+	if got := fake.SyncOutCallCount(); got != 1 {
+		t.Fatalf("write must sync out once; got %d calls", got)
+	}
+
+	execOK(t, tool, map[string]any{"operation": "delete", "name": "build-commands"})
+	if got := fake.SyncOutCallCount(); got != 2 {
+		t.Fatalf("delete must sync out; got %d calls", got)
+	}
 }
 
 func execOK(t *testing.T, tool *MemoryTool, args map[string]any) *MemoryToolResult {
@@ -94,12 +132,12 @@ func TestMemoryTool_Definition(t *testing.T) {
 
 func TestMemoryTool_IsEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
-	if NewMemoryTool(cfg).IsEnabled() {
+	if NewMemoryTool(cfg, nil).IsEnabled() {
 		t.Error("Memory tool should be disabled by default")
 	}
 
 	cfg.Memory.Enabled = true
-	if !NewMemoryTool(cfg).IsEnabled() {
+	if !NewMemoryTool(cfg, nil).IsEnabled() {
 		t.Error("Memory tool should be enabled when memory.enabled is true")
 	}
 }
@@ -151,7 +189,7 @@ func TestMemoryTool_Validate(t *testing.T) {
 func TestMemoryTool_Validate_Disabled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Memory.Enabled = false
-	tool := NewMemoryTool(cfg)
+	tool := NewMemoryTool(cfg, nil)
 	if err := tool.Validate(map[string]any{"operation": "read"}); err == nil {
 		t.Error("Expected validation error when memory is disabled")
 	}
@@ -315,6 +353,44 @@ func TestMemoryTool_IndexIntegrity(t *testing.T) {
 	}
 	if n := countIndexEntries(index); n != 1 {
 		t.Errorf("expected 1 index entry, got %d:\n%s", n, index)
+	}
+}
+
+// TestMemoryTool_ConcurrentWritesKeepAllIndexEntries guards the MEMORY.md index
+// against a last-writer-wins loss: Memory tools run in the agent's parallel
+// execution pool, so distinct writes in one turn race the index read-modify-
+// write. Every entry must survive. Asserts on file contents, not the -race
+// detector, because the loss is at the file layer, not shared memory.
+func TestMemoryTool_ConcurrentWritesKeepAllIndexEntries(t *testing.T) {
+	tool, dir := newTestMemoryTool(t)
+
+	const n = 16
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := range n {
+		go func(i int) {
+			defer wg.Done()
+			if _, err := tool.Execute(context.Background(), map[string]any{
+				"operation":   "write",
+				"name":        fmt.Sprintf("fact-%02d", i),
+				"description": fmt.Sprintf("fact number %d", i),
+				"type":        "project",
+				"content":     "body",
+			}); err != nil {
+				t.Errorf("write %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	index := readIndexFile(t, dir)
+	if got := countIndexEntries(index); got != n {
+		t.Fatalf("expected %d index entries after concurrent writes, got %d:\n%s", n, got, index)
+	}
+	for i := range n {
+		if want := fmt.Sprintf("](fact-%02d.md)", i); !strings.Contains(index, want) {
+			t.Errorf("index missing entry %s:\n%s", want, index)
+		}
 	}
 }
 

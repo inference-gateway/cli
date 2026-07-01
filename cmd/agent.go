@@ -95,6 +95,7 @@ type AgentSession struct {
 	conversationRepo      domain.ConversationRepository
 	reminderProvider      domain.SystemReminderProvider
 	hookProvider          domain.HookCommandProvider
+	memoryBackend         domain.MemoryBackend
 	firedReminders        map[string]bool
 	saveEnabled           bool
 	bgWaiter              *services.BackgroundTasksWaiter
@@ -210,6 +211,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		conversationRepo: conversationRepo,
 		reminderProvider: cfg.Reminders,
 		hookProvider:     cfg.Hooks,
+		memoryBackend:    svc.GetMemoryBackend(),
 		firedReminders:   make(map[string]bool),
 		saveEnabled:      saveEnabled,
 		bgWaiter: services.NewBackgroundTasksWaiter(
@@ -1108,6 +1110,15 @@ func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEnt
 // event-driven-only. Single-goroutine, so no mutex. A headless run IS the
 // session, so the per-request turn doubles as the session turn.
 func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
+	if s.memoryBackend != nil {
+		switch hook {
+		case domain.HookPreSession:
+			_ = s.memoryBackend.SyncIn(context.Background())
+		case domain.HookPostSession:
+			_ = s.memoryBackend.SyncOut(context.Background())
+		}
+	}
+
 	s.injectDueReminders(hook, turn)
 	agent.RunCommandHooks(context.Background(), s.config, s.hookProvider, s.agentMode.AllowedlistKey(), hook, turn, s.sessionID)
 }

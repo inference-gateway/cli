@@ -438,7 +438,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Memory = *memoryCfg
 	applyMemoryEnvOverrides(cfg)
-	pruneMemoryReminderIfDisabled(cfg)
+	pruneMemoryRemindersIfDisabled(cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -684,19 +684,48 @@ func applyMemoryEnvOverrides(cfg *config.Config) {
 			cfg.Memory.MaxChars = n
 		}
 	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_TYPE"); ok {
+		cfg.Memory.Backend.Type = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_REPO"); ok {
+		cfg.Memory.Backend.Git.Repo = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_BRANCH"); ok {
+		cfg.Memory.Backend.Git.Branch = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_COMMIT_MESSAGE"); ok {
+		cfg.Memory.Backend.Git.CommitMessage = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_TIMEOUT"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			cfg.Memory.Backend.Git.Timeout = n
+		}
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_START"); ok {
+		cfg.Memory.Backend.Git.Sync.OnStart = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_FINISH"); ok {
+		cfg.Memory.Backend.Git.Sync.OnFinish = v
+	}
 }
 
-// pruneMemoryReminderIfDisabled drops the built-in "memory-consult" reminder when
-// memory is disabled, so the enabled-by-default reminder set does not tell the
-// agent to consult memory that isn't actually available. Run AFTER both reminders
-// and memory config are loaded.
-func pruneMemoryReminderIfDisabled(cfg *config.Config) {
+// pruneMemoryRemindersIfDisabled drops the built-in memory reminders (see
+// config.MemoryReminders) when memory is disabled, so the enabled-by-default
+// reminder set does not tell the agent to consult or record memory that isn't
+// active. When memory is enabled the built-ins are delivered through the config
+// file (fresh init, or `init --overwrite`), keeping reminders.yaml the single
+// source of truth. Run AFTER both reminders and memory config are loaded.
+func pruneMemoryRemindersIfDisabled(cfg *config.Config) {
 	if cfg.Memory.Enabled {
 		return
 	}
+	builtin := make(map[string]bool)
+	for _, r := range config.MemoryReminders() {
+		builtin[r.Name] = true
+	}
 	kept := make([]config.ReminderConfig, 0, len(cfg.Reminders.Reminders))
 	for _, r := range cfg.Reminders.Reminders {
-		if r.Name == "memory-consult" {
+		if builtin[r.Name] {
 			continue
 		}
 		kept = append(kept, r)

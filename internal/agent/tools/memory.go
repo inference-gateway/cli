@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -39,16 +40,21 @@ type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter domain.CustomFormatter
+	backend   domain.MemoryBackend
 }
 
-// NewMemoryTool creates a new memory tool.
-func NewMemoryTool(cfg *config.Config) *MemoryTool {
+// NewMemoryTool creates a new memory tool. backend syncs the memory directory to
+// a remote after a write/delete (nil-safe: a nil backend, or the local no-op
+// backend, means no remote sync). This is the chat push path - post_session
+// would push after every message, so the tool triggers the push instead.
+func NewMemoryTool(cfg *config.Config, backend domain.MemoryBackend) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
 		formatter: domain.NewCustomFormatter(ToolNameMemory, func(key string) bool {
 			return key == "content"
 		}),
+		backend: backend,
 	}
 }
 
@@ -97,7 +103,7 @@ func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the memory tool with the given arguments.
-func (t *MemoryTool) Execute(_ context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if !t.enabled {
@@ -113,11 +119,19 @@ func (t *MemoryTool) Execute(_ context.Context, args map[string]any) (*domain.To
 	case OperationRead:
 		return t.execRead(args, start)
 	case OperationWrite:
-		return t.execWrite(args, start)
+		return t.execWrite(ctx, args, start)
 	case OperationDelete:
-		return t.execDelete(args, start)
+		return t.execDelete(ctx, args, start)
 	default:
 		return t.errResult(args, start, fmt.Sprintf("unknown operation: %s", operation)), nil
+	}
+}
+
+// syncOut pushes the memory directory to the remote after a change (best-effort;
+// the backend logs its own failures and the local backend is a no-op).
+func (t *MemoryTool) syncOut(ctx context.Context) {
+	if t.backend != nil {
+		_ = t.backend.SyncOut(ctx)
 	}
 }
 
@@ -181,7 +195,7 @@ func (t *MemoryTool) readIndex(args map[string]any, start time.Time, dir string)
 }
 
 // execWrite creates or updates a fact-file and upserts its index entry.
-func (t *MemoryTool) execWrite(args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
 	name, _ := args["name"].(string)
 	description, _ := args["description"].(string)
 	memType, _ := args["type"].(string)
@@ -211,6 +225,8 @@ func (t *MemoryTool) execWrite(args map[string]any, start time.Time) (*domain.To
 		return t.errResult(args, start, fmt.Sprintf("failed to update memory index: %v", err)), nil
 	}
 
+	t.syncOut(ctx)
+
 	return t.okResult(args, start, &MemoryToolResult{
 		Operation:   OperationWrite,
 		Name:        slug,
@@ -223,7 +239,7 @@ func (t *MemoryTool) execWrite(args map[string]any, start time.Time) (*domain.To
 }
 
 // execDelete removes a fact-file and its index entry (idempotent).
-func (t *MemoryTool) execDelete(args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) execDelete(ctx context.Context, args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
 	name, _ := args["name"].(string)
 	slug := sanitizeSlug(name)
 	if slug == "" {
@@ -247,6 +263,8 @@ func (t *MemoryTool) execDelete(args map[string]any, start time.Time) (*domain.T
 	if err := removeIndexEntry(dir, slug); err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to update memory index: %v", err)), nil
 	}
+
+	t.syncOut(ctx)
 
 	message := fmt.Sprintf("Deleted memory %q.", slug)
 	if !existed {
@@ -453,7 +471,16 @@ func writeIndexEntries(indexPath string, entries []string) error {
 	return writeFileAtomic(indexPath, b.String())
 }
 
+// indexMu serializes the read-modify-write of the shared MEMORY.md index.
+// Memory tools run in the agent's parallel execution pool, so two writes in one
+// turn can otherwise both read the same index and the second's atomic rewrite
+// silently drops the first's entry (a last-writer-wins loss the -race detector
+// can't see because it is a file, not shared memory).
+var indexMu sync.Mutex
+
 func upsertIndexEntry(dir, slug, description string) error {
+	indexMu.Lock()
+	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
 	entries, err := readIndexEntries(indexPath)
 	if err != nil {
@@ -475,6 +502,8 @@ func upsertIndexEntry(dir, slug, description string) error {
 }
 
 func removeIndexEntry(dir, slug string) error {
+	indexMu.Lock()
+	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
 	entries, err := readIndexEntries(indexPath)
 	if err != nil {

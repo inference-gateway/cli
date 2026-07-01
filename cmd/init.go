@@ -202,15 +202,16 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
-	// --- Create userspace-only files (always ~/.infer/, only-if-absent) ---
-	kbCreated, err := createFileIfAbsent(keybindingsPath, func(p string) error {
+	userspaceOverwrite := overwrite && !project
+
+	kbCreated, err := createFileIfAbsent(keybindingsPath, userspaceOverwrite, func(p string) error {
 		return createKeybindingsConfigFile(p)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create keybindings config file: %w", err)
 	}
 
-	remindersCreated, err := createFileIfAbsent(remindersPath, func(p string) error {
+	remindersCreated, err := createFileIfAbsent(remindersPath, userspaceOverwrite, func(p string) error {
 		return createRemindersConfigFile(p)
 	})
 	if err != nil {
@@ -223,7 +224,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 	channelsCreated := !fileExists(channelsPath) || migrated
 
-	hbCreated, err := createFileIfAbsent(heartbeatPath, func(p string) error {
+	hbCreated, err := createFileIfAbsent(heartbeatPath, userspaceOverwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
 	if err != nil {
@@ -372,11 +373,13 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// createFileIfAbsent runs fn(path) only when the file does not yet exist,
-// returning whether a new file was written. Used for userspace-only files
-// that may already be present from a prior home init.
-func createFileIfAbsent(path string, fn func(string) error) (bool, error) {
-	if fileExists(path) {
+// createFileIfAbsent runs fn(path) when the file does not yet exist, or when
+// overwrite is set - so `init --overwrite` regenerates userspace-only files, not
+// just the project-overridable ones. Returns whether it wrote the file. Callers
+// pass overwrite=false in --project mode so a project init never clobbers files
+// that belong to a prior home init.
+func createFileIfAbsent(path string, overwrite bool, fn func(string) error) (bool, error) {
+	if fileExists(path) && !overwrite {
 		return false, nil
 	}
 	return true, fn(path)
