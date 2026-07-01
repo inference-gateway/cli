@@ -44,7 +44,6 @@ func (b *GitBackend) git() config.MemoryGitConfig { return b.cfg.Memory.Backend.
 // on_start is "pull".
 func (b *GitBackend) SyncIn(ctx context.Context) error {
 	if !b.git().PullOnStart() {
-		logger.Debug("memory git sync: sync-in skipped (sync.on_start is off)")
 		return nil
 	}
 	var err error
@@ -63,8 +62,6 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 
 	g := b.git()
 	branch := g.EffectiveBranch()
-	logger.Debug("memory git sync: syncing in",
-		"dir", dir, "repo", redactRepo(g.Repo), "branch", branch, "is_git_repo", isGitRepo(dir))
 
 	hasBranch, out, err := b.remoteHasBranch(ctx, g.Repo, branch)
 	if err != nil {
@@ -88,14 +85,12 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 		return err
 	}
 	if !remoteHasBranch {
-		logger.Debug("memory git sync: remote branch missing, seeding from local memory", "branch", branch)
 		return b.stageCommitPush(ctx, dir, branch, true)
 	}
 	if out, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
 		logger.Warn("memory git sync: pull failed", "error", err, "output", trim(out))
 		return err
 	}
-	logger.Debug("memory git sync: pulled memory", "dir", dir, "branch", branch)
 	return nil
 }
 
