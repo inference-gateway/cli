@@ -18,6 +18,24 @@ func TestNewShellHistory(t *testing.T) {
 	}
 }
 
+func TestNewShellHistoryWithName(t *testing.T) {
+	main, err := NewShellHistoryWithName("cfgdir", "")
+	if err != nil {
+		t.Fatalf("NewShellHistoryWithName(main) failed: %v", err)
+	}
+	if want := filepath.Join("cfgdir", "history", "history"); main.historyFile != want {
+		t.Errorf("main history path: expected %s, got %s", want, main.historyFile)
+	}
+
+	sub, err := NewShellHistoryWithName("cfgdir", "refactor")
+	if err != nil {
+		t.Fatalf("NewShellHistoryWithName(subagent) failed: %v", err)
+	}
+	if want := filepath.Join("cfgdir", "history", "history-refactor"); sub.historyFile != want {
+		t.Errorf("subagent history path: expected %s, got %s", want, sub.historyFile)
+	}
+}
+
 func TestLoadHistory(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "shell_history_test")
 	if err != nil {
@@ -88,7 +106,7 @@ func TestSaveToHistory(t *testing.T) {
 	}()
 
 	t.Run("save command", func(t *testing.T) {
-		historyFile := filepath.Join(tempDir, ".infer", "history")
+		historyFile := filepath.Join(tempDir, ".infer", "history", "history")
 
 		sh := &ShellHistory{
 			historyFile: historyFile,
@@ -111,7 +129,7 @@ func TestSaveToHistory(t *testing.T) {
 	})
 
 	t.Run("append to existing history", func(t *testing.T) {
-		historyFile := filepath.Join(tempDir, ".infer", "history2")
+		historyFile := filepath.Join(tempDir, ".infer", "history", "history-append")
 
 		if err := os.MkdirAll(filepath.Dir(historyFile), 0755); err != nil {
 			t.Fatalf("Failed to create directory: %v", err)
@@ -142,7 +160,7 @@ func TestSaveToHistory(t *testing.T) {
 	})
 
 	t.Run("skip empty commands", func(t *testing.T) {
-		historyFile := filepath.Join(tempDir, ".infer", "history3")
+		historyFile := filepath.Join(tempDir, ".infer", "history", "history-empty")
 
 		sh := &ShellHistory{
 			historyFile: historyFile,

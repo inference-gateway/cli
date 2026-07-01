@@ -63,9 +63,13 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		configDir = ".infer"
 	}
 
-	historyManager, err := history.NewHistoryManagerWithName(5, configDir, name)
-	if err != nil {
+	var historyManager *history.HistoryManager
+	if name == domain.SubagentHistoryMemoryOnly {
 		historyManager = history.NewMemoryOnlyHistoryManager(5)
+	} else if hm, err := history.NewHistoryManagerWithName(5, configDir, name); err != nil {
+		historyManager = history.NewMemoryOnlyHistoryManager(5)
+	} else {
+		historyManager = hm
 	}
 
 	return &InputView{

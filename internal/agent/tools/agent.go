@@ -437,9 +437,9 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
 
-	historyName := spec.Label
+	historyName := sanitizeSlug(spec.Label)
 	if historyName == "" {
-		historyName = sessionID
+		historyName = domain.SubagentHistoryMemoryOnly
 	}
 	parts = append(parts, domain.EnvSubagentHistoryName+"="+shellQuote(historyName))
 
