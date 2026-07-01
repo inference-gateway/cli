@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -607,4 +608,70 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	// but it must not block the constructor return. We do NOT assert
 	// !blocker.getClientsCalled here because background discovery is
 	// permissible; we only assert the constructor returned in time above.
+}
+
+// stubMCPManager is a minimal domain.MCPManager whose GetClient always
+// resolves, so RegisterMCPServerTools reaches the tools-map writes.
+type stubMCPManager struct{ client domain.MCPClient }
+
+func (m *stubMCPManager) GetClients() []domain.MCPClient     { return []domain.MCPClient{m.client} }
+func (m *stubMCPManager) GetClient(string) domain.MCPClient  { return m.client }
+func (m *stubMCPManager) GetTotalServers() int               { return 1 }
+func (m *stubMCPManager) UpdateToolCount(string, int)        {}
+func (m *stubMCPManager) ClearToolCount(string)              {}
+func (m *stubMCPManager) StartServers(context.Context) error { return nil }
+func (m *stubMCPManager) StopServers(context.Context) error  { return nil }
+func (m *stubMCPManager) Close() error                       { return nil }
+func (m *stubMCPManager) StartMonitoring(context.Context)    {}
+
+// TestRegistry_ConcurrentMCPToolAccess is a regression test for issue #708:
+// the MCP liveness probe registers/unregisters MCP_* tools from its own
+// goroutine while the main loop reads the same map via GetTool /
+// ListAvailableTools / GetToolDefinitions / IsToolEnabled. It is meaningful
+// under -race: without the registry's toolsMu it fails with a detected data
+// race (or a concurrent map read/write panic).
+func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"echo"}},
+				},
+			},
+		},
+		MCP: config.MCPConfig{
+			Enabled: true,
+			Servers: []config.MCPServerEntry{
+				{Name: "flappy", Enabled: true},
+			},
+		},
+		Prompts: *config.DefaultPromptsConfig(),
+	}
+
+	registry := NewRegistry(cfg, nil, &stubMCPManager{client: &mocks.FakeMCPClient{}}, nil, nil, nil, nil)
+
+	discovered := []domain.MCPDiscoveredTool{
+		{ServerName: "flappy", Name: "alpha", Description: "a", InputSchema: map[string]any{}},
+		{ServerName: "flappy", Name: "beta", Description: "b", InputSchema: map[string]any{}},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range 200 {
+			registry.RegisterMCPServerTools("flappy", discovered)
+			registry.UnregisterMCPServerTools("flappy")
+		}
+	}()
+
+	for range 200 {
+		_, _ = registry.GetTool("MCP_flappy_alpha")
+		registry.ListAvailableTools()
+		registry.GetToolDefinitions()
+		registry.IsToolEnabled("MCP_flappy_beta")
+	}
+	wg.Wait()
 }
