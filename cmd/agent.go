@@ -1113,10 +1113,8 @@ func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 	if s.memoryBackend != nil {
 		switch hook {
 		case domain.HookPreSession:
-			logger.Debug("memory sync: dispatching sync-in (headless pre_session)")
 			_ = s.memoryBackend.SyncIn(context.Background())
 		case domain.HookPostSession:
-			logger.Debug("memory sync: dispatching sync-out (headless post_session)")
 			_ = s.memoryBackend.SyncOut(context.Background())
 		}
 	}

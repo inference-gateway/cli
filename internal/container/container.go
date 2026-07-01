@@ -294,8 +294,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageBackend, err := storage.NewStorage(storageConfig)
 	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
 
-	// The supervisor is built before the conversation repo (above); now that the
-	// repo exists, give it to the supervisor so it can format finished jobs' results.
 	if c.jobSupervisor != nil {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
 	}

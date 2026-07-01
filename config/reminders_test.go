@@ -156,7 +156,6 @@ func TestRemindersDue_Triggers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := remindersCfg(true, tt.reminder)
-			// An empty Hook defaults to pre_stream (effective), so query that.
 			got := r.RemindersDue(query(domain.HookPreStream, tt.turn, tt.maxTurns, tt.fired))
 			if (len(got) > 0) != tt.want {
 				t.Fatalf("RemindersDue fired=%v, want %v (got %v)", len(got) > 0, tt.want, got)

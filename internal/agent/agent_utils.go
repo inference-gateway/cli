@@ -793,7 +793,6 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 // handed to the shared, allow-list-gated command runner.
 func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook domain.HookPoint) {
 	if hook == domain.HookPreSession && s.memoryBackend != nil {
-		logger.Debug("memory sync: dispatching sync-in (chat pre_session)")
 		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)
 	}
 

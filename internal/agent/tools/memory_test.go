@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
