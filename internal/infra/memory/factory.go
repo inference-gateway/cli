@@ -26,12 +26,5 @@ func NewMemoryBackend(cfg *config.Config) domain.MemoryBackend {
 		logger.Warn("memory sync backend: git selected but repo is empty; falling back to local no-op")
 		return NewLocalBackend()
 	}
-	g := cfg.Memory.Backend.Git
-	logger.Debug("memory sync backend: git",
-		"repo", redactRepo(g.Repo),
-		"branch", g.EffectiveBranch(),
-		"on_start", g.Sync.OnStart,
-		"on_finish", g.Sync.OnFinish,
-		"timeout", g.EffectiveTimeout().String())
 	return NewGitBackend(cfg)
 }
