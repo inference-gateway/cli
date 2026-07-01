@@ -119,7 +119,6 @@ func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remote
 // It is safe to call repeatedly (the git status check gates the commit).
 func (b *GitBackend) SyncOut(ctx context.Context) error {
 	if !b.git().PushOnFinish() {
-		logger.Debug("memory git sync: sync-out skipped (sync.on_finish is off)")
 		return nil
 	}
 	dir, err := b.cfg.ResolveMemoryDir()
@@ -128,10 +127,8 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		return err
 	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		logger.Debug("memory git sync: sync-out skipped (memory dir does not exist yet)", "dir", dir)
 		return nil
 	}
-	logger.Debug("memory git sync: syncing out", "dir", dir, "branch", b.git().EffectiveBranch())
 	unlock := lockDir(dir)
 	defer unlock()
 
