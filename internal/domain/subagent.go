@@ -42,6 +42,12 @@ const EnvSubagentResultFile = "INFER_SUBAGENT_RESULT_FILE"
 // for normal `infer chat`, which writes nothing.
 const EnvSubagentApprovalFile = "INFER_SUBAGENT_APPROVAL_FILE"
 
+// EnvSubagentHistoryName names the environment variable the Agent tool sets on
+// an interactive subagent's `infer chat` so it uses its own history file
+// (<configDir>/history/history-<name>) instead of the main agent's history.
+// When unset or empty, the subagent falls back to the main history file.
+const EnvSubagentHistoryName = "INFER_SUBAGENT_HISTORY_NAME"
+
 // SubagentApprovalFile is the JSON an interactive subagent's chat writes while it
 // is blocked on a tool-approval prompt. It is an authoritative signal (written
 // the moment the chat blocks, removed when it resolves) so the parent does not

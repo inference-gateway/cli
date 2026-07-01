@@ -437,6 +437,12 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
 
+	historyName := spec.Label
+	if historyName == "" {
+		historyName = sessionID
+	}
+	parts = append(parts, domain.EnvSubagentHistoryName+"="+shellQuote(historyName))
+
 	parts = append(parts, domain.EnvSubagentResultFile+"="+shellQuote(subagentResultFilePath(sessionID)))
 	parts = append(parts, domain.EnvSubagentApprovalFile+"="+shellQuote(subagentApprovalFilePath(sessionID)))
 	parts = append(parts, shellQuote(t.binary), "chat")
