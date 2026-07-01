@@ -104,15 +104,12 @@ func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remote
 			logger.Warn("memory git sync: clone failed", "repo", redactRepo(g.Repo), "error", err, "output", trim(out))
 			return err
 		}
-		logger.Debug("memory git sync: cloned memory", "dir", dir, "branch", branch)
 		return nil
 	}
 	if err := b.ensureRepo(ctx, dir); err != nil {
 		return err
 	}
-	logger.Debug("memory git sync: initialized repo in place", "dir", dir, "branch", branch)
 	if !remoteHasBranch {
-		logger.Debug("memory git sync: remote branch missing, seeding from local memory", "branch", branch)
 		return b.stageCommitPush(ctx, dir, branch, true)
 	}
 	return nil
