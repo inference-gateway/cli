@@ -37,6 +37,10 @@ func (t ReminderTrigger) Valid() bool { return slices.Contains(ReminderTriggers,
 
 const defaultReminderInterval = 4
 
+// defaultMemoryReminderInterval is the cadence of the memory-hygiene reminder -
+// less frequent than todo-hygiene since durable facts accrue more slowly.
+const defaultMemoryReminderInterval = 10
+
 const defaultTodoReminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`
@@ -96,7 +100,7 @@ The persistent memory index (MEMORY.md) is already injected into your context. B
 				Name:     "memory-hygiene",
 				Hook:     domain.HookPreStream,
 				Trigger:  ReminderTriggerInterval,
-				Interval: defaultReminderInterval,
+				Interval: defaultMemoryReminderInterval,
 				Text:     defaultMemoryHygieneReminderText,
 			},
 		},
