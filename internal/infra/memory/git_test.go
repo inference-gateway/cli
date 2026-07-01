@@ -5,9 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	zap "go.uber.org/zap"
+	zapcore "go.uber.org/zap/zapcore"
+	observer "go.uber.org/zap/zaptest/observer"
 )
 
 // isolatedGitEnv points git at empty global/system config and a fixed identity
@@ -226,6 +231,37 @@ func TestGitBackend_SyncInRunsOnce(t *testing.T) {
 	}
 	if fileExists(filepath.Join(memDir, "b.md")) {
 		t.Fatal("expected SyncIn to run at most once per process; the second call should not have pulled")
+	}
+}
+
+// A sync-in against an unreachable remote logs a Warn that carries git's own
+// stderr (e.g. "does not appear to be a git repository") in the "output" field,
+// not just the opaque "exit status 128" - so a misconfigured repo is diagnosable
+// from the logs.
+func TestGitBackend_SyncInFailureSurfacesGitOutput(t *testing.T) {
+	isolatedGitEnv(t)
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	prev := logger.GetGlobalLogger()
+	logger.SetGlobalLogger(zap.New(core))
+	defer logger.SetGlobalLogger(prev)
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(memDir, "fact.md"), "durable")
+
+	b := newGitBackend(t, memDir, filepath.Join(t.TempDir(), "does-not-exist.git"))
+	_ = b.SyncIn(context.Background())
+
+	entries := logs.FilterMessage("memory git sync: remote unreachable, skipping sync-in").All()
+	if len(entries) != 1 {
+		t.Fatalf("expected one 'remote unreachable' warning, got %d", len(entries))
+	}
+	out, _ := entries[0].ContextMap()["output"].(string)
+	if strings.TrimSpace(out) == "" {
+		t.Fatal("expected the warning to surface git's stderr in the 'output' field, but it was empty")
 	}
 }
 

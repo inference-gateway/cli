@@ -5,6 +5,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // NewMemoryBackend selects a memory backend from config, mirroring
@@ -16,13 +17,23 @@ import (
 // than constructing a broken git backend.
 func NewMemoryBackend(cfg *config.Config) domain.MemoryBackend {
 	if cfg == nil || !cfg.Memory.Enabled {
+		logger.Debug("memory sync backend: local no-op (memory disabled)")
 		return NewLocalBackend()
 	}
 	if cfg.Memory.Backend.Type != config.MemoryBackendGit {
+		logger.Debug("memory sync backend: local no-op", "type", cfg.Memory.Backend.Type)
 		return NewLocalBackend()
 	}
 	if strings.TrimSpace(cfg.Memory.Backend.Git.Repo) == "" {
+		logger.Warn("memory sync backend: git selected but repo is empty; falling back to local no-op")
 		return NewLocalBackend()
 	}
+	g := cfg.Memory.Backend.Git
+	logger.Debug("memory sync backend: git",
+		"repo", redactRepo(g.Repo),
+		"branch", g.EffectiveBranch(),
+		"on_start", g.Sync.OnStart,
+		"on_finish", g.Sync.OnFinish,
+		"timeout", g.EffectiveTimeout().String())
 	return NewGitBackend(cfg)
 }

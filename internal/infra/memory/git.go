@@ -44,6 +44,7 @@ func (b *GitBackend) git() config.MemoryGitConfig { return b.cfg.Memory.Backend.
 // on_start is "pull".
 func (b *GitBackend) SyncIn(ctx context.Context) error {
 	if !b.git().PullOnStart() {
+		logger.Debug("memory git sync: sync-in skipped (sync.on_start is off)")
 		return nil
 	}
 	var err error
@@ -62,6 +63,8 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 
 	g := b.git()
 	branch := g.EffectiveBranch()
+	logger.Debug("memory git sync: syncing in",
+		"dir", dir, "repo", redactRepo(g.Repo), "branch", branch, "is_git_repo", isGitRepo(dir))
 
 	if isGitRepo(dir) {
 		if out, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
@@ -72,10 +75,10 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 		return nil
 	}
 
-	remoteHasBranch, err := b.remoteHasBranch(ctx, g.Repo, branch)
+	remoteHasBranch, out, err := b.remoteHasBranch(ctx, g.Repo, branch)
 	if err != nil {
 		logger.Warn("memory git sync: remote unreachable, skipping sync-in",
-			"repo", redactRepo(g.Repo), "error", err)
+			"repo", redactRepo(g.Repo), "error", err, "output", trim(out))
 		return err
 	}
 
@@ -99,6 +102,7 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 // It is safe to call repeatedly (the git status check gates the commit).
 func (b *GitBackend) SyncOut(ctx context.Context) error {
 	if !b.git().PushOnFinish() {
+		logger.Debug("memory git sync: sync-out skipped (sync.on_finish is off)")
 		return nil
 	}
 	dir, err := b.cfg.ResolveMemoryDir()
@@ -107,8 +111,10 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		return err
 	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		logger.Debug("memory git sync: sync-out skipped (memory dir does not exist yet)", "dir", dir)
 		return nil
 	}
+	logger.Debug("memory git sync: syncing out", "dir", dir, "branch", b.git().EffectiveBranch())
 	unlock := lockDir(dir)
 	defer unlock()
 
@@ -125,8 +131,10 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		return err
 	}
 	if len(strings.TrimSpace(string(status))) == 0 {
+		logger.Debug("memory git sync: nothing to push (memory unchanged)")
 		return nil
 	}
+	logger.Debug("memory git sync: committing memory changes")
 	if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
 		logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
 		return err
@@ -194,13 +202,15 @@ func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 
 // remoteHasBranch reports whether the remote already has branch, via ls-remote.
 // A clean exit with empty output means the remote is reachable but empty (or
-// lacks the branch); a non-zero exit means unreachable/unauthorized.
-func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, error) {
+// lacks the branch); a non-zero exit means unreachable/unauthorized. The raw
+// command output is returned so the caller can surface git's stderr (e.g.
+// "Repository not found") instead of the opaque "exit status 128".
+func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, []byte, error) {
 	out, err := b.run(ctx, "", "ls-remote", "--heads", repo, branch)
 	if err != nil {
-		return false, err
+		return false, out, err
 	}
-	return len(strings.TrimSpace(string(out))) > 0, nil
+	return len(strings.TrimSpace(string(out))) > 0, out, nil
 }
 
 // run executes a git command under the per-op timeout. It does NOT set cmd.Env,
