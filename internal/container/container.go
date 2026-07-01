@@ -18,6 +18,7 @@ import (
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
+	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -80,6 +81,7 @@ type ServiceContainer struct {
 	titleGenerator         *services.ConversationTitleGenerator
 	backgroundJobManager   *services.BackgroundJobManager
 	backgroundShellService *services.BackgroundShellService
+	memoryBackend          domain.MemoryBackend
 	storage                storage.ConversationStorage
 
 	// Token polyfill - used by /context, conversation optimizer, and the
@@ -281,7 +283,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.initializeMCPManager()
 
 	c.ensureBackgroundTaskRegistry()
+	c.memoryBackend = memory.NewMemoryBackend(c.config)
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
+	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
@@ -349,7 +353,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.githubIssueService = githubissues.New()
 
 	agentClient := c.createAgentSDKClient()
-	c.agent = agent.NewAgent(
+	agentImpl := agent.NewAgent(
 		agentClient,
 		c.toolService,
 		c.config,
@@ -362,6 +366,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
 	)
+	agentImpl.SetMemoryBackend(c.memoryBackend)
+	c.agent = agentImpl
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
@@ -582,6 +588,12 @@ func (c *ServiceContainer) GetToolService() domain.ToolService {
 
 func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 	return c.toolRegistry
+}
+
+// GetMemoryBackend returns the shared memory sync backend (local no-op or git),
+// used by the headless AgentSession to sync memory at run start/finish.
+func (c *ServiceContainer) GetMemoryBackend() domain.MemoryBackend {
+	return c.memoryBackend
 }
 
 func (c *ServiceContainer) GetFileService() domain.FileService {

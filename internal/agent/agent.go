@@ -36,6 +36,7 @@ type AgentServiceImpl struct {
 	bgRegistry       domain.BackgroundTaskRegistry
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
+	memoryBackend    domain.MemoryBackend
 
 	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
 	// cumulative model turns across the whole chat session so an `interval`
@@ -361,6 +362,14 @@ func NewAgent(
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
+}
+
+// SetMemoryBackend wires the memory sync backend so the chat agent pulls memory
+// once at session start (SyncIn on HookPreSession). SyncOut is driven by the
+// Memory tool on write/delete, not here - chat fires HookPostSession after every
+// message, so pushing there would commit-storm. A nil backend disables sync.
+func (s *AgentServiceImpl) SetMemoryBackend(backend domain.MemoryBackend) {
+	s.memoryBackend = backend
 }
 
 // Run executes an agent task synchronously (for background/batch processing)

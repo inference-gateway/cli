@@ -684,19 +684,44 @@ func applyMemoryEnvOverrides(cfg *config.Config) {
 			cfg.Memory.MaxChars = n
 		}
 	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_TYPE"); ok {
+		cfg.Memory.Backend.Type = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_REPO"); ok {
+		cfg.Memory.Backend.Git.Repo = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_BRANCH"); ok {
+		cfg.Memory.Backend.Git.Branch = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_COMMIT_MESSAGE"); ok {
+		cfg.Memory.Backend.Git.CommitMessage = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_TIMEOUT"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			cfg.Memory.Backend.Git.Timeout = n
+		}
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_START"); ok {
+		cfg.Memory.Backend.Git.Sync.OnStart = v
+	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_FINISH"); ok {
+		cfg.Memory.Backend.Git.Sync.OnFinish = v
+	}
 }
 
-// pruneMemoryReminderIfDisabled drops the built-in "memory-consult" reminder when
-// memory is disabled, so the enabled-by-default reminder set does not tell the
-// agent to consult memory that isn't actually available. Run AFTER both reminders
-// and memory config are loaded.
+// pruneMemoryReminderIfDisabled drops the built-in memory reminders
+// ("memory-consult", "memory-hygiene") when memory is disabled, so the
+// enabled-by-default reminder set does not tell the agent to consult or record
+// memory that isn't actually available. Run AFTER both reminders and memory
+// config are loaded.
 func pruneMemoryReminderIfDisabled(cfg *config.Config) {
 	if cfg.Memory.Enabled {
 		return
 	}
+	memoryReminders := map[string]bool{"memory-consult": true, "memory-hygiene": true}
 	kept := make([]config.ReminderConfig, 0, len(cfg.Reminders.Reminders))
 	for _, r := range cfg.Reminders.Reminders {
-		if r.Name == "memory-consult" {
+		if memoryReminders[r.Name] {
 			continue
 		}
 		kept = append(kept, r)

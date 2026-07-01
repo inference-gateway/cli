@@ -47,6 +47,7 @@ type Registry struct {
 	shellService       domain.BackgroundShellService
 	stateManager       domain.StateManager
 	screenshotProvider domain.ScreenshotProvider
+	memoryBackend      domain.MemoryBackend
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -167,7 +168,19 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.Memory.Enabled {
-		r.tools["Memory"] = NewMemoryTool(cfg)
+		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend)
+	}
+}
+
+// SetMemoryBackend wires the memory sync backend into the Memory tool so a
+// write/delete pushes to the remote. The container calls this after
+// constructing the shared backend; it re-registers the Memory tool so the
+// backend takes effect. A nil backend (or the local no-op backend) means no
+// remote sync.
+func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
+	r.memoryBackend = backend
+	if r.config.Memory.Enabled {
+		r.tools["Memory"] = NewMemoryTool(r.config, backend)
 	}
 }
 

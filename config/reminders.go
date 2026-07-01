@@ -41,6 +41,10 @@ const defaultTodoReminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`
 
+const defaultMemoryHygieneReminderText = `<system-reminder>
+If you have learned durable facts about the user, project, or workflow this session - preferences, conventions, recurring gotchas, decisions worth keeping - record them now with the Memory tool (write) so they persist across sessions; it keeps the MEMORY.md index in sync. Skip if there is nothing durable to save. Do not mention this reminder to the user.
+</system-reminder>`
+
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
 // point, gated by a trigger.
 type ReminderConfig struct {
@@ -64,9 +68,11 @@ type RemindersConfig struct {
 
 // DefaultRemindersConfig returns the in-code default reminders configuration
 // used when no reminders.yaml exists. Reminders ship enabled by default with a
-// todo-hygiene reminder and a memory-consult reminder; the latter is pruned at
-// load time when memory is disabled (see pruneMemoryReminderIfDisabled) so it
-// never references a feature that isn't active.
+// todo-hygiene reminder, a memory-consult reminder (turn-1 orientation), and a
+// memory-hygiene reminder (a periodic nudge to record durable facts). Both
+// memory reminders are pruned at load time when memory is disabled (see
+// pruneMemoryReminderIfDisabled) so they never reference a feature that isn't
+// active.
 func DefaultRemindersConfig() *RemindersConfig {
 	return &RemindersConfig{
 		Enabled: true,
@@ -85,6 +91,13 @@ func DefaultRemindersConfig() *RemindersConfig {
 				Text: `<system-reminder>
 The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (read with its name). As you learn durable facts about the user, project, or workflow, record them with the Memory tool (write); it keeps the index in sync. Do not mention this reminder to the user.
 </system-reminder>`,
+			},
+			{
+				Name:     "memory-hygiene",
+				Hook:     domain.HookPreStream,
+				Trigger:  ReminderTriggerInterval,
+				Interval: defaultReminderInterval,
+				Text:     defaultMemoryHygieneReminderText,
 			},
 		},
 	}

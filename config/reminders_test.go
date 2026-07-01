@@ -87,6 +87,40 @@ func TestDefaultRemindersConfig(t *testing.T) {
 	}
 }
 
+// memory-hygiene is a periodic (every-4-turns) nudge to record durable facts,
+// mirroring todo-hygiene; it fires on pre_stream when SessionTurn % 4 == 0.
+func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
+	cfg := config.DefaultRemindersConfig()
+
+	var mh *config.ReminderConfig
+	for i := range cfg.Reminders {
+		if cfg.Reminders[i].Name == "memory-hygiene" {
+			mh = &cfg.Reminders[i]
+		}
+	}
+	if mh == nil {
+		t.Fatal("default reminders should include memory-hygiene")
+	}
+	if mh.Hook != domain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 4 {
+		t.Errorf("memory-hygiene should fire every 4 turns on pre_stream: %+v", *mh)
+	}
+
+	fires := func(turn int) bool {
+		for _, r := range cfg.RemindersDue(query(domain.HookPreStream, turn, 0, nil)) {
+			if r.Name == "memory-hygiene" {
+				return true
+			}
+		}
+		return false
+	}
+	if fires(1) {
+		t.Error("memory-hygiene should not fire at turn 1")
+	}
+	if !fires(4) || !fires(8) {
+		t.Error("memory-hygiene should fire at turns 4 and 8")
+	}
+}
+
 func TestRemindersDue_MasterGateDisabled(t *testing.T) {
 	r := remindersCfg(false, config.ReminderConfig{
 		Name: "a", Text: "x", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways,

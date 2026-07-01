@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
@@ -19,7 +20,41 @@ func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
 	cfg.Memory.Dir = t.TempDir()
 	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
 	cfg.Prompts = *config.DefaultPromptsConfig()
-	return NewMemoryTool(cfg), cfg.Memory.Dir
+	return NewMemoryTool(cfg, nil), cfg.Memory.Dir
+}
+
+func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Memory.Enabled = true
+	cfg.Memory.Dir = t.TempDir()
+	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
+	cfg.Prompts = *config.DefaultPromptsConfig()
+
+	fake := &mocks.FakeMemoryBackend{}
+	tool := NewMemoryTool(cfg, fake)
+
+	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "read"}); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got := fake.SyncOutCallCount(); got != 0 {
+		t.Fatalf("read must not sync out; got %d calls", got)
+	}
+
+	execOK(t, tool, map[string]any{
+		"operation":   "write",
+		"name":        "build-commands",
+		"description": "how to build",
+		"type":        "project",
+		"content":     "run task build",
+	})
+	if got := fake.SyncOutCallCount(); got != 1 {
+		t.Fatalf("write must sync out once; got %d calls", got)
+	}
+
+	execOK(t, tool, map[string]any{"operation": "delete", "name": "build-commands"})
+	if got := fake.SyncOutCallCount(); got != 2 {
+		t.Fatalf("delete must sync out; got %d calls", got)
+	}
 }
 
 func execOK(t *testing.T, tool *MemoryTool, args map[string]any) *MemoryToolResult {
@@ -94,12 +129,12 @@ func TestMemoryTool_Definition(t *testing.T) {
 
 func TestMemoryTool_IsEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
-	if NewMemoryTool(cfg).IsEnabled() {
+	if NewMemoryTool(cfg, nil).IsEnabled() {
 		t.Error("Memory tool should be disabled by default")
 	}
 
 	cfg.Memory.Enabled = true
-	if !NewMemoryTool(cfg).IsEnabled() {
+	if !NewMemoryTool(cfg, nil).IsEnabled() {
 		t.Error("Memory tool should be enabled when memory.enabled is true")
 	}
 }
@@ -151,7 +186,7 @@ func TestMemoryTool_Validate(t *testing.T) {
 func TestMemoryTool_Validate_Disabled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Memory.Enabled = false
-	tool := NewMemoryTool(cfg)
+	tool := NewMemoryTool(cfg, nil)
 	if err := tool.Validate(map[string]any{"operation": "read"}); err == nil {
 		t.Error("Expected validation error when memory is disabled")
 	}

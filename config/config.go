@@ -1099,8 +1099,8 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	if c.Memory.Enabled && c.Memory.MaxChars <= 0 {
-		return fmt.Errorf("invalid memory.max_chars %d: must be > 0 when memory is enabled", c.Memory.MaxChars)
+	if err := c.Memory.Validate(); err != nil {
+		return err
 	}
 
 	if err := c.Reminders.Validate(); err != nil {

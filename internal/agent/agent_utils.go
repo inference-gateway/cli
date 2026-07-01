@@ -792,6 +792,10 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 // session id are resolved here (from the live chat mode / request context) and
 // handed to the shared, allow-list-gated command runner.
 func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook domain.HookPoint) {
+	if hook == domain.HookPreSession && s.memoryBackend != nil {
+		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)
+	}
+
 	s.injectDueReminders(agentCtx, hook)
 
 	modeKey := domain.AgentModeStandard.AllowedlistKey()
