@@ -178,14 +178,14 @@ func (b *GitBackend) pushWithRetry(ctx context.Context, dir, branch string) erro
 // ensureRepo makes dir a git repo on the configured branch with the origin
 // remote set, initializing it in place if needed (idempotent).
 func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
+	g := b.git()
 	if isGitRepo(dir) {
-		return nil
+		return b.ensureOrigin(ctx, dir, g.Repo)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		logger.Warn("memory git sync: mkdir failed", "dir", dir, "error", err)
 		return err
 	}
-	g := b.git()
 	steps := [][]string{
 		{"init"},
 		{"remote", "add", "origin", g.Repo},
@@ -197,6 +197,30 @@ func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// ensureOrigin points the origin remote at repo, adding it when missing and
+// updating it when the configured URL changed. Without this, an already-
+// initialized memory dir keeps pushing to the URL captured at first init, so
+// switching memory.backend.git.repo (e.g. ssh -> https) would be silently
+// ignored. config --get is empty (not an error line) when origin is unset.
+func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
+	cur, _ := b.run(ctx, dir, "config", "--get", "remote.origin.url")
+	current := strings.TrimSpace(string(cur))
+	if current == repo {
+		return nil
+	}
+	verb := "set-url"
+	if current == "" {
+		verb = "add"
+	}
+	if out, err := b.run(ctx, dir, "remote", verb, "origin", repo); err != nil {
+		logger.Warn("memory git sync: failed to set origin remote", "error", err, "output", trim(out))
+		return err
+	}
+	logger.Debug("memory git sync: origin remote reconciled to config",
+		"repo", redactRepo(repo), "previous", redactRepo(current))
 	return nil
 }
 

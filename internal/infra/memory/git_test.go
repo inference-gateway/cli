@@ -265,6 +265,34 @@ func TestGitBackend_SyncInFailureSurfacesGitOutput(t *testing.T) {
 	}
 }
 
+// When memory.backend.git.repo changes after the memory dir was already
+// initialized (e.g. the user switches ssh -> https), sync-out reconciles the
+// origin remote to the new URL and pushes there, instead of silently pushing to
+// the URL captured at first init.
+func TestGitBackend_ReconcilesOriginOnRepoChange(t *testing.T) {
+	isolatedGitEnv(t)
+	oldRemote := initBareRemote(t)
+	seedRemote(t, oldRemote, "seed.md", "seed")
+	newRemote := initBareRemote(t)
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	mustGit(t, "", "clone", "-b", "main", oldRemote, memDir)
+
+	b := newGitBackend(t, memDir, newRemote)
+	writeFile(t, filepath.Join(memDir, "fact.md"), "hello")
+	if err := b.SyncOut(context.Background()); err != nil {
+		t.Fatalf("SyncOut: %v", err)
+	}
+
+	got := strings.TrimSpace(mustGit(t, memDir, "config", "--get", "remote.origin.url"))
+	if got != newRemote {
+		t.Fatalf("origin = %q, want reconciled to %q", got, newRemote)
+	}
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", newRemote, check)
+	requireFile(t, filepath.Join(check, "fact.md"))
+}
+
 func TestGitBackend_FailureDegrades(t *testing.T) {
 	isolatedGitEnv(t)
 	memDir := filepath.Join(t.TempDir(), "memory")
