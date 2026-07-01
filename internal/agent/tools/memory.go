@@ -12,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -131,7 +130,6 @@ func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*domain.
 // the backend logs its own failures and the local backend is a no-op).
 func (t *MemoryTool) syncOut(ctx context.Context) {
 	if t.backend != nil {
-		logger.Debug("memory sync: dispatching sync-out (memory tool mutation)")
 		_ = t.backend.SyncOut(ctx)
 	}
 }

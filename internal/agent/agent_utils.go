@@ -458,7 +458,6 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 
 	dir, err := s.config.ResolveMemoryDir()
 	if err != nil {
-		logger.Debug("failed to resolve memory dir", "error", err)
 		return ""
 	}
 
