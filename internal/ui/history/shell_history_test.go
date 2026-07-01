@@ -12,7 +12,7 @@ func TestNewShellHistory(t *testing.T) {
 		t.Fatalf("Failed to create shell history: %v", err)
 	}
 
-	expectedPath := filepath.Join(".infer", "history")
+	expectedPath := filepath.Join(".infer", "history", "history")
 	if sh.historyFile != expectedPath {
 		t.Errorf("Expected history file path %s, got %s", expectedPath, sh.historyFile)
 	}
@@ -165,7 +165,7 @@ func TestGetHistoryFile(t *testing.T) {
 		t.Fatalf("Failed to create shell history: %v", err)
 	}
 
-	expectedPath := filepath.Join(".infer", "history")
+	expectedPath := filepath.Join(".infer", "history", "history")
 	if sh.GetHistoryFile() != expectedPath {
 		t.Errorf("Expected GetHistoryFile() to return %s, got %s", expectedPath, sh.GetHistoryFile())
 	}

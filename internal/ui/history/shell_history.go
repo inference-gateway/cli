@@ -22,12 +22,21 @@ type ShellHistory struct {
 
 // NewShellHistory creates a new shell history provider
 func NewShellHistory() (*ShellHistory, error) {
-	return NewShellHistoryWithDir(".infer")
+	return NewShellHistoryWithName(".infer", "")
 }
 
-// NewShellHistoryWithDir creates a new shell history provider with a custom directory
-func NewShellHistoryWithDir(configDir string) (*ShellHistory, error) {
-	historyFile := filepath.Join(configDir, "history")
+// NewShellHistoryWithName creates a new shell history provider with a custom config
+// directory and an optional name. When name is empty, the history file is stored at
+// <configDir>/history/history (the main agent). When name is non-empty, the history
+// file is stored at <configDir>/history/history-<name> (e.g. for subagents).
+func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
+	historyDir := filepath.Join(configDir, "history")
+	var historyFile string
+	if name == "" {
+		historyFile = filepath.Join(historyDir, "history")
+	} else {
+		historyFile = filepath.Join(historyDir, "history-"+name)
+	}
 
 	return &ShellHistory{
 		historyFile: historyFile,

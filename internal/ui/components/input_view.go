@@ -55,15 +55,15 @@ type InputView struct {
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
-	return NewInputViewWithConfigDir(modelService, "")
+	return NewInputViewWithName(modelService, "", "")
 }
 
-func NewInputViewWithConfigDir(modelService domain.ModelService, configDir string) *InputView {
+func NewInputViewWithName(modelService domain.ModelService, configDir, name string) *InputView {
 	if configDir == "" {
 		configDir = ".infer"
 	}
 
-	historyManager, err := history.NewHistoryManagerWithDir(5, configDir)
+	historyManager, err := history.NewHistoryManagerWithName(5, configDir, name)
 	if err != nil {
 		historyManager = history.NewMemoryOnlyHistoryManager(5)
 	}

@@ -1,4 +1,4 @@
-package history_test
+package history_test //nolint:cyclop // Integration tests with temp dir setup
 
 import (
 	"os"
@@ -38,7 +38,12 @@ func TestHistoryManager_PublicAPI(t *testing.T) {
 		t.Fatalf("Failed to create .infer directory: %v", err)
 	}
 
-	historyFile := filepath.Join(inferDir, "history")
+	historyDir := filepath.Join(inferDir, "history")
+	if err := os.MkdirAll(historyDir, 0755); err != nil {
+		t.Fatalf("Failed to create history directory: %v", err)
+	}
+
+	historyFile := filepath.Join(historyDir, "history")
 	content := "existing command\n"
 	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test history file: %v", err)
@@ -115,7 +120,12 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 		t.Fatalf("Failed to create .infer directory: %v", err)
 	}
 
-	historyFile := filepath.Join(inferDir, "history")
+	historyDir := filepath.Join(inferDir, "history")
+	if err := os.MkdirAll(historyDir, 0755); err != nil {
+		t.Fatalf("Failed to create history directory: %v", err)
+	}
+
+	historyFile := filepath.Join(historyDir, "history")
 	content := "git status\nls -la\npwd\n"
 	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test history file: %v", err)

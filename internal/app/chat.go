@@ -223,7 +223,7 @@ func NewChatApplication(
 		cv.SetAgentModelResolver(buildAgentModelResolver())
 	}
 
-	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
+	app.inputView = factory.CreateInputViewWithName(app.modelService, configDir, "")
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
