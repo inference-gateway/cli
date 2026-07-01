@@ -17,11 +17,9 @@ import (
 // than constructing a broken git backend.
 func NewMemoryBackend(cfg *config.Config) domain.MemoryBackend {
 	if cfg == nil || !cfg.Memory.Enabled {
-		logger.Debug("memory sync backend: local no-op (memory disabled)")
 		return NewLocalBackend()
 	}
 	if cfg.Memory.Backend.Type != config.MemoryBackendGit {
-		logger.Debug("memory sync backend: local no-op", "type", cfg.Memory.Backend.Type)
 		return NewLocalBackend()
 	}
 	if strings.TrimSpace(cfg.Memory.Backend.Git.Repo) == "" {
