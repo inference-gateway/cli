@@ -438,7 +438,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Memory = *memoryCfg
 	applyMemoryEnvOverrides(cfg)
-	pruneMemoryReminderIfDisabled(cfg)
+	reconcileMemoryReminders(cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -709,24 +709,42 @@ func applyMemoryEnvOverrides(cfg *config.Config) {
 	}
 }
 
-// pruneMemoryReminderIfDisabled drops the built-in memory reminders
-// ("memory-consult", "memory-hygiene") when memory is disabled, so the
-// enabled-by-default reminder set does not tell the agent to consult or record
-// memory that isn't actually available. Run AFTER both reminders and memory
-// config are loaded.
-func pruneMemoryReminderIfDisabled(cfg *config.Config) {
-	if cfg.Memory.Enabled {
+// reconcileMemoryReminders keeps the built-in memory reminders in sync with the
+// memory feature flag, independent of the age of the user's reminders.yaml
+// (init is create-if-missing, so an existing file never gains newly-added
+// built-ins). When memory is disabled it drops them so the agent isn't told to
+// use memory that isn't active; when enabled it appends any built-in memory
+// reminder that is missing so the feature ships to existing users. Only absent
+// reminders are added - a user's edits to an existing memory reminder are
+// preserved. Run AFTER both reminders and memory config are loaded.
+func reconcileMemoryReminders(cfg *config.Config) {
+	builtins := config.MemoryReminders()
+	builtinNames := make(map[string]bool, len(builtins))
+	for _, r := range builtins {
+		builtinNames[r.Name] = true
+	}
+
+	if !cfg.Memory.Enabled {
+		kept := make([]config.ReminderConfig, 0, len(cfg.Reminders.Reminders))
+		for _, r := range cfg.Reminders.Reminders {
+			if builtinNames[r.Name] {
+				continue
+			}
+			kept = append(kept, r)
+		}
+		cfg.Reminders.Reminders = kept
 		return
 	}
-	memoryReminders := map[string]bool{"memory-consult": true, "memory-hygiene": true}
-	kept := make([]config.ReminderConfig, 0, len(cfg.Reminders.Reminders))
+
+	present := make(map[string]bool, len(cfg.Reminders.Reminders))
 	for _, r := range cfg.Reminders.Reminders {
-		if memoryReminders[r.Name] {
-			continue
-		}
-		kept = append(kept, r)
+		present[r.Name] = true
 	}
-	cfg.Reminders.Reminders = kept
+	for _, r := range builtins {
+		if !present[r.Name] {
+			cfg.Reminders.Reminders = append(cfg.Reminders.Reminders, r)
+		}
+	}
 }
 
 // applyHooksEnvOverrides applies INFER_HOOKS_* env vars onto the in-memory hooks

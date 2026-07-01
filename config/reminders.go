@@ -70,40 +70,53 @@ type RemindersConfig struct {
 	Reminders []ReminderConfig `yaml:"reminders" mapstructure:"reminders"`
 }
 
+const defaultMemoryConsultReminderText = `<system-reminder>
+The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (read with its name). As you learn durable facts about the user, project, or workflow, record them with the Memory tool (write); it keeps the index in sync. Do not mention this reminder to the user.
+</system-reminder>`
+
+// MemoryReminders returns the built-in reminders coupled to the memory feature:
+// memory-consult (turn-1 orientation) and memory-hygiene (a periodic nudge to
+// record durable facts). They are the single source of truth used both to seed a
+// fresh reminders.yaml and to reconcile at config load - added when memory is
+// enabled (so a new built-in ships to users whose reminders.yaml predates it)
+// and pruned when memory is disabled.
+func MemoryReminders() []ReminderConfig {
+	return []ReminderConfig{
+		{
+			Name:    "memory-consult",
+			Hook:    domain.HookPreSession,
+			Trigger: ReminderTriggerOnce,
+			Text:    defaultMemoryConsultReminderText,
+		},
+		{
+			Name:     "memory-hygiene",
+			Hook:     domain.HookPreStream,
+			Trigger:  ReminderTriggerInterval,
+			Interval: defaultMemoryReminderInterval,
+			Text:     defaultMemoryHygieneReminderText,
+		},
+	}
+}
+
 // DefaultRemindersConfig returns the in-code default reminders configuration
 // used when no reminders.yaml exists. Reminders ship enabled by default with a
-// todo-hygiene reminder, a memory-consult reminder (turn-1 orientation), and a
-// memory-hygiene reminder (a periodic nudge to record durable facts). Both
-// memory reminders are pruned at load time when memory is disabled (see
-// pruneMemoryReminderIfDisabled) so they never reference a feature that isn't
-// active.
+// todo-hygiene reminder plus the built-in memory reminders (see
+// MemoryReminders). The memory reminders are reconciled at load time against the
+// memory feature flag (see reconcileMemoryReminders) so they are present exactly
+// when memory is enabled, regardless of the age of the user's reminders.yaml.
 func DefaultRemindersConfig() *RemindersConfig {
-	return &RemindersConfig{
-		Enabled: true,
-		Reminders: []ReminderConfig{
-			{
-				Name:     "todo-hygiene",
-				Hook:     domain.HookPreStream,
-				Trigger:  ReminderTriggerInterval,
-				Interval: defaultReminderInterval,
-				Text:     defaultTodoReminderText,
-			},
-			{
-				Name:    "memory-consult",
-				Hook:    domain.HookPreSession,
-				Trigger: ReminderTriggerOnce,
-				Text: `<system-reminder>
-The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (read with its name). As you learn durable facts about the user, project, or workflow, record them with the Memory tool (write); it keeps the index in sync. Do not mention this reminder to the user.
-</system-reminder>`,
-			},
-			{
-				Name:     "memory-hygiene",
-				Hook:     domain.HookPreStream,
-				Trigger:  ReminderTriggerInterval,
-				Interval: defaultMemoryReminderInterval,
-				Text:     defaultMemoryHygieneReminderText,
-			},
+	reminders := []ReminderConfig{
+		{
+			Name:     "todo-hygiene",
+			Hook:     domain.HookPreStream,
+			Trigger:  ReminderTriggerInterval,
+			Interval: defaultReminderInterval,
+			Text:     defaultTodoReminderText,
 		},
+	}
+	return &RemindersConfig{
+		Enabled:   true,
+		Reminders: append(reminders, MemoryReminders()...),
 	}
 }
 
