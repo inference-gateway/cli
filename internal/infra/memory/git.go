@@ -66,22 +66,44 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 	logger.Debug("memory git sync: syncing in",
 		"dir", dir, "repo", redactRepo(g.Repo), "branch", branch, "is_git_repo", isGitRepo(dir))
 
-	if isGitRepo(dir) {
-		if out, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
-			logger.Warn("memory git sync: pull failed", "error", err, "output", trim(out))
-			return err
-		}
-		logger.Debug("memory git sync: pulled memory", "dir", dir, "branch", branch)
-		return nil
-	}
-
-	remoteHasBranch, out, err := b.remoteHasBranch(ctx, g.Repo, branch)
+	hasBranch, out, err := b.remoteHasBranch(ctx, g.Repo, branch)
 	if err != nil {
 		logger.Warn("memory git sync: remote unreachable, skipping sync-in",
 			"repo", redactRepo(g.Repo), "error", err, "output", trim(out))
 		return err
 	}
 
+	if isGitRepo(dir) {
+		return b.syncInExisting(ctx, dir, branch, hasBranch)
+	}
+	return b.syncInFresh(ctx, dir, branch, hasBranch)
+}
+
+// syncInExisting reconciles the origin remote, then pulls when the remote branch
+// exists. When it does not (a fresh/empty remote), it seeds the remote from
+// local memory - creating the branch and pushing - instead of failing on the
+// missing remote ref.
+func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, remoteHasBranch bool) error {
+	if err := b.ensureRepo(ctx, dir); err != nil {
+		return err
+	}
+	if !remoteHasBranch {
+		logger.Debug("memory git sync: remote branch missing, seeding from local memory", "branch", branch)
+		return b.stageCommitPush(ctx, dir, branch, true)
+	}
+	if out, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
+		logger.Warn("memory git sync: pull failed", "error", err, "output", trim(out))
+		return err
+	}
+	logger.Debug("memory git sync: pulled memory", "dir", dir, "branch", branch)
+	return nil
+}
+
+// syncInFresh clones when the remote already has the branch and the dir is
+// empty; otherwise it initializes a repo in place and, when the remote branch is
+// missing, seeds it from whatever local memory exists (creating the branch).
+func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remoteHasBranch bool) error {
+	g := b.git()
 	if remoteHasBranch && isEmptyOrMissing(dir) {
 		if out, err := b.run(ctx, "", "clone", "--branch", branch, "--single-branch", g.Repo, dir); err != nil {
 			logger.Warn("memory git sync: clone failed", "repo", redactRepo(g.Repo), "error", err, "output", trim(out))
@@ -90,11 +112,14 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 		logger.Debug("memory git sync: cloned memory", "dir", dir, "branch", branch)
 		return nil
 	}
-
 	if err := b.ensureRepo(ctx, dir); err != nil {
 		return err
 	}
 	logger.Debug("memory git sync: initialized repo in place", "dir", dir, "branch", branch)
+	if !remoteHasBranch {
+		logger.Debug("memory git sync: remote branch missing, seeding from local memory", "branch", branch)
+		return b.stageCommitPush(ctx, dir, branch, true)
+	}
 	return nil
 }
 
@@ -121,6 +146,16 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 	if err := b.ensureRepo(ctx, dir); err != nil {
 		return err
 	}
+	return b.stageCommitPush(ctx, dir, b.git().EffectiveBranch(), false)
+}
+
+// stageCommitPush stages all memory changes, commits when the tree is dirty, and
+// pushes. pushWhenClean forces a push even with nothing new to commit - used to
+// seed a remote whose branch does not exist yet from existing local commits;
+// sync-out passes false so an unchanged memory is a no-op. Pushing to a missing
+// remote branch creates it. With no local commits at all there is nothing to
+// push, so it is a no-op regardless.
+func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pushWhenClean bool) error {
 	if out, err := b.run(ctx, dir, "add", "-A"); err != nil {
 		logger.Warn("memory git sync: add failed", "error", err, "output", trim(out))
 		return err
@@ -130,16 +165,29 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 		logger.Warn("memory git sync: status failed", "error", err, "output", trim(status))
 		return err
 	}
-	if len(strings.TrimSpace(string(status))) == 0 {
+	dirty := len(strings.TrimSpace(string(status))) > 0
+	if dirty {
+		logger.Debug("memory git sync: committing memory changes")
+		if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
+			logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
+			return err
+		}
+	}
+	if !dirty && !pushWhenClean {
 		logger.Debug("memory git sync: nothing to push (memory unchanged)")
 		return nil
 	}
-	logger.Debug("memory git sync: committing memory changes")
-	if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
-		logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
-		return err
+	if !b.hasCommits(ctx, dir) {
+		logger.Debug("memory git sync: nothing to push (no local memory yet)")
+		return nil
 	}
-	return b.pushWithRetry(ctx, dir, b.git().EffectiveBranch())
+	return b.pushWithRetry(ctx, dir, branch)
+}
+
+// hasCommits reports whether the repo has at least one commit (HEAD resolves).
+func (b *GitBackend) hasCommits(ctx context.Context, dir string) bool {
+	_, err := b.run(ctx, dir, "rev-parse", "--verify", "HEAD")
+	return err == nil
 }
 
 // maxPushAttempts bounds the push / pull-rebase retry loop that reconciles with

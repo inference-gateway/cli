@@ -293,6 +293,54 @@ func TestGitBackend_ReconcilesOriginOnRepoChange(t *testing.T) {
 	requireFile(t, filepath.Join(check, "fact.md"))
 }
 
+// When the memory dir is already a git repo with local commits but the remote
+// branch does not exist yet (fresh/empty remote), sync-in must not fail on the
+// missing ref: it seeds the remote, creating the branch and pushing the local
+// memory.
+func TestGitBackend_SyncInSeedsMissingRemoteBranch(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t) // empty: no main branch yet
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	mustGit(t, "", "init", "-b", "main", memDir)
+	mustGit(t, memDir, "remote", "add", "origin", bare)
+	writeFile(t, filepath.Join(memDir, "MEMORY.md"), "# Memory Index\n")
+	mustGit(t, memDir, "add", "-A")
+	mustGit(t, memDir, "commit", "-m", "local memory")
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncIn(context.Background()); err != nil {
+		t.Fatalf("SyncIn should seed a missing remote branch, not error: %v", err)
+	}
+
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", bare, check)
+	requireFile(t, filepath.Join(check, "MEMORY.md"))
+}
+
+// A fresh (non-git) memory dir against an empty remote is initialized in place
+// and seeded on sync-in: the branch is created and the local files pushed,
+// without waiting for a later memory write.
+func TestGitBackend_SyncInSeedsFreshDirEmptyRemote(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t)
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(memDir, "MEMORY.md"), "# Memory Index\n")
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncIn(context.Background()); err != nil {
+		t.Fatalf("SyncIn: %v", err)
+	}
+
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", bare, check)
+	requireFile(t, filepath.Join(check, "MEMORY.md"))
+}
+
 func TestGitBackend_FailureDegrades(t *testing.T) {
 	isolatedGitEnv(t)
 	memDir := filepath.Join(t.TempDir(), "memory")
