@@ -466,9 +466,18 @@ func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	msg domain.PlanApprovalResponseEvent,
 ) tea.Cmd {
+	planPath := ""
+	if st := h.stateManager.GetPlanApprovalUIState(); st != nil {
+		planPath = st.PlanPath
+	}
+
 	cmd, restart := h.approvalCoordinator.HandlePlanApprovalResponse(msg)
 	if !restart {
 		return cmd
+	}
+
+	if h.conversationOptimizer != nil && planPath != "" {
+		return tea.Batch(cmd, h.compactThenExecutePlanCmd(planPath))
 	}
 	return tea.Batch(cmd, h.startChatCompletion())
 }

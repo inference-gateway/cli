@@ -432,11 +432,12 @@ type FakeStateManager struct {
 	setupFileSelectionArgsForCall []struct {
 		arg1 []string
 	}
-	SetupPlanApprovalUIStateStub        func(string, chan domain.PlanApprovalAction)
+	SetupPlanApprovalUIStateStub        func(string, string, chan domain.PlanApprovalAction)
 	setupPlanApprovalUIStateMutex       sync.RWMutex
 	setupPlanApprovalUIStateArgsForCall []struct {
 		arg1 string
-		arg2 chan domain.PlanApprovalAction
+		arg2 string
+		arg3 chan domain.PlanApprovalAction
 	}
 	SetupUserQuestionUIStateStub        func([]domain.UserQuestion, chan []domain.UserQuestionAnswer)
 	setupUserQuestionUIStateMutex       sync.RWMutex
@@ -2880,17 +2881,18 @@ func (fake *FakeStateManager) SetupFileSelectionArgsForCall(i int) []string {
 	return argsForCall.arg1
 }
 
-func (fake *FakeStateManager) SetupPlanApprovalUIState(arg1 string, arg2 chan domain.PlanApprovalAction) {
+func (fake *FakeStateManager) SetupPlanApprovalUIState(arg1 string, arg2 string, arg3 chan domain.PlanApprovalAction) {
 	fake.setupPlanApprovalUIStateMutex.Lock()
 	fake.setupPlanApprovalUIStateArgsForCall = append(fake.setupPlanApprovalUIStateArgsForCall, struct {
 		arg1 string
-		arg2 chan domain.PlanApprovalAction
-	}{arg1, arg2})
+		arg2 string
+		arg3 chan domain.PlanApprovalAction
+	}{arg1, arg2, arg3})
 	stub := fake.SetupPlanApprovalUIStateStub
-	fake.recordInvocation("SetupPlanApprovalUIState", []interface{}{arg1, arg2})
+	fake.recordInvocation("SetupPlanApprovalUIState", []interface{}{arg1, arg2, arg3})
 	fake.setupPlanApprovalUIStateMutex.Unlock()
 	if stub != nil {
-		fake.SetupPlanApprovalUIStateStub(arg1, arg2)
+		fake.SetupPlanApprovalUIStateStub(arg1, arg2, arg3)
 	}
 }
 
@@ -2900,17 +2902,17 @@ func (fake *FakeStateManager) SetupPlanApprovalUIStateCallCount() int {
 	return len(fake.setupPlanApprovalUIStateArgsForCall)
 }
 
-func (fake *FakeStateManager) SetupPlanApprovalUIStateCalls(stub func(string, chan domain.PlanApprovalAction)) {
+func (fake *FakeStateManager) SetupPlanApprovalUIStateCalls(stub func(string, string, chan domain.PlanApprovalAction)) {
 	fake.setupPlanApprovalUIStateMutex.Lock()
 	defer fake.setupPlanApprovalUIStateMutex.Unlock()
 	fake.SetupPlanApprovalUIStateStub = stub
 }
 
-func (fake *FakeStateManager) SetupPlanApprovalUIStateArgsForCall(i int) (string, chan domain.PlanApprovalAction) {
+func (fake *FakeStateManager) SetupPlanApprovalUIStateArgsForCall(i int) (string, string, chan domain.PlanApprovalAction) {
 	fake.setupPlanApprovalUIStateMutex.RLock()
 	defer fake.setupPlanApprovalUIStateMutex.RUnlock()
 	argsForCall := fake.setupPlanApprovalUIStateArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeStateManager) SetupUserQuestionUIState(arg1 []domain.UserQuestion, arg2 chan []domain.UserQuestionAnswer) {

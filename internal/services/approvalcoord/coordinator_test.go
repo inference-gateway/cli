@@ -33,6 +33,7 @@ func TestService_HandlePlanApprovalRequested(t *testing.T) {
 
 		cmd := svc.HandlePlanApprovalRequested(domain.PlanApprovalRequestedEvent{
 			PlanContent:  "# Plan\n- step 1",
+			PlanPath:     ".infer/plans/2026-06-28-090000-plan.md",
 			ResponseChan: responseChan,
 		})
 
@@ -42,9 +43,12 @@ func TestService_HandlePlanApprovalRequested(t *testing.T) {
 		if state.SetupPlanApprovalUIStateCallCount() != 1 {
 			t.Fatalf("expected SetupPlanApprovalUIState once, got %d", state.SetupPlanApprovalUIStateCallCount())
 		}
-		gotContent, gotChan := state.SetupPlanApprovalUIStateArgsForCall(0)
+		gotContent, gotPath, gotChan := state.SetupPlanApprovalUIStateArgsForCall(0)
 		if gotContent != "# Plan\n- step 1" {
 			t.Errorf("unexpected plan content: %q", gotContent)
+		}
+		if gotPath != ".infer/plans/2026-06-28-090000-plan.md" {
+			t.Errorf("expected plan path to be forwarded to state manager, got %q", gotPath)
 		}
 		if gotChan != responseChan {
 			t.Errorf("expected response channel to be forwarded to state manager")

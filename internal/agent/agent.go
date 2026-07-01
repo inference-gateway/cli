@@ -270,11 +270,12 @@ func (p *eventPublisher) publishTodoUpdate(todos []domain.TodoItem) {
 }
 
 // publishPlanApprovalRequest publishes a PlanApprovalRequestedEvent when RequestPlanApproval tool executes
-func (p *eventPublisher) publishPlanApprovalRequest(planContent string) {
+func (p *eventPublisher) publishPlanApprovalRequest(planContent, planPath string) {
 	event := domain.PlanApprovalRequestedEvent{
 		RequestID:    p.requestID,
 		Timestamp:    time.Now(),
 		PlanContent:  planContent,
+		PlanPath:     planPath,
 		ResponseChan: nil,
 	}
 
@@ -1066,7 +1067,7 @@ func (s *AgentServiceImpl) handleToolResults(
 	eventPublisher *eventPublisher,
 	req *domain.AgentRequest,
 ) bool {
-	hasRejection, planContent := s.checkToolResultsStatus(toolResults)
+	hasRejection, planContent, planPath := s.checkToolResultsStatus(toolResults)
 
 	s.addToolResultsToConversation(toolResults, conversation)
 
@@ -1077,7 +1078,7 @@ func (s *AgentServiceImpl) handleToolResults(
 	}
 
 	if planContent != "" {
-		s.createPlanMessage(planContent, conversation, eventPublisher, req)
+		s.createPlanMessage(planContent, planPath, conversation, eventPublisher, req)
 		return true
 	}
 
@@ -1085,19 +1086,20 @@ func (s *AgentServiceImpl) handleToolResults(
 }
 
 // checkToolResultsStatus checks for rejections and plan approval in tool results
-func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.ConversationEntry) (hasRejection bool, planContent string) {
+func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.ConversationEntry) (hasRejection bool, planContent, planPath string) {
 	for _, entry := range toolResults {
 		if entry.ToolExecution != nil {
 			if entry.ToolExecution.Rejected {
-				return true, ""
+				return true, "", ""
 			}
 			if entry.ToolExecution.ToolName == "RequestPlanApproval" && entry.ToolExecution.Success {
 				planContent = extractPlanContent(entry.ToolExecution)
+				planPath = extractPlanPath(entry.ToolExecution)
 				logger.Info("requestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
 			}
 		}
 	}
-	return false, planContent
+	return false, planContent, planPath
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
@@ -1117,6 +1119,7 @@ func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.Con
 // createPlanMessage creates and stores a plan message for approval
 func (s *AgentServiceImpl) createPlanMessage(
 	planContent string,
+	planPath string,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	req *domain.AgentRequest,
@@ -1137,7 +1140,7 @@ func (s *AgentServiceImpl) createPlanMessage(
 		logger.Error("failed to store plan message", "error", err)
 	}
 
-	eventPublisher.publishPlanApprovalRequest(planContent)
+	eventPublisher.publishPlanApprovalRequest(planContent, planPath)
 
 	logger.Info("plan approval requested - stopping agent loop")
 	eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
@@ -1160,6 +1163,27 @@ func extractPlanContent(result *domain.ToolExecutionResult) string {
 	}
 
 	return plan
+}
+
+// extractPlanPath extracts the saved plan file path from a RequestPlanApproval
+// tool result. The path lets the post-approval continuation prompt point the
+// agent back at the plan on disk after the planning context is compacted away.
+func extractPlanPath(result *domain.ToolExecutionResult) string {
+	if result == nil || result.Data == nil {
+		return ""
+	}
+
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	path, ok := data["path"].(string)
+	if !ok {
+		return ""
+	}
+
+	return path
 }
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message

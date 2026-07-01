@@ -314,19 +314,19 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
 	}
 
-	if c.config.Compact.Enabled {
-		summaryClient := c.createAgentSDKClient()
-		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:           c.config.Compact.Enabled,
-			AutoAt:            c.config.Compact.AutoAt,
-			BufferSize:        2,
-			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
-			Client:            summaryClient,
-			Config:            c.config,
-			Tokenizer:         c.tokenizer,
-			Repo:              c.conversationRepo,
-		})
+	summaryClient := c.createAgentSDKClient()
+	c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+		Enabled:           c.config.Compact.Enabled,
+		AutoAt:            c.config.Compact.AutoAt,
+		BufferSize:        2,
+		KeepFirstMessages: c.config.Compact.KeepFirstMessages,
+		Client:            summaryClient,
+		Config:            c.config,
+		Tokenizer:         c.tokenizer,
+		Repo:              c.conversationRepo,
+	})
 
+	if c.config.Compact.Enabled {
 		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 			c.sessionRolloverManager = services.NewSessionRolloverManager(
 				c.config,
