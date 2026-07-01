@@ -34,6 +34,7 @@ import (
 // Registry manages all available tools
 type Registry struct {
 	config             *config.Config
+	toolsMu            sync.RWMutex
 	tools              map[string]domain.Tool
 	readToolUsed       bool
 	readFiles          map[string]fileReadSnapshot
@@ -93,12 +94,16 @@ func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
 		displayProvider, err := display.DetectDisplay()
 		if err == nil {
 			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+			r.toolsMu.Lock()
 			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+			r.toolsMu.Unlock()
 		}
 	}
 }
 
-// registerTools initializes and registers all available tools
+// registerTools initializes and registers all available tools. It runs during
+// construction, before the Registry is shared with other goroutines, so it
+// does not take toolsMu.
 func (r *Registry) registerTools() {
 	cfg := r.config
 
@@ -180,13 +185,17 @@ func (r *Registry) registerTools() {
 func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
+		r.toolsMu.Lock()
 		r.tools["Memory"] = NewMemoryTool(r.config, backend)
+		r.toolsMu.Unlock()
 	}
 }
 
 // GetTool retrieves a tool by name
 func (r *Registry) GetTool(name string) (domain.Tool, error) {
+	r.toolsMu.RLock()
 	tool, exists := r.tools[name]
+	r.toolsMu.RUnlock()
 	if !exists {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -195,6 +204,8 @@ func (r *Registry) GetTool(name string) (domain.Tool, error) {
 
 // ListAvailableTools returns names of all available and enabled tools
 func (r *Registry) ListAvailableTools() []string {
+	r.toolsMu.RLock()
+	defer r.toolsMu.RUnlock()
 	var tools []string
 	for name, tool := range r.tools {
 		if tool.IsEnabled() {
@@ -206,6 +217,8 @@ func (r *Registry) ListAvailableTools() []string {
 
 // GetToolDefinitions returns definitions for all enabled tools
 func (r *Registry) GetToolDefinitions() []sdk.ChatCompletionTool {
+	r.toolsMu.RLock()
+	defer r.toolsMu.RUnlock()
 	var definitions []sdk.ChatCompletionTool
 	for _, tool := range r.tools {
 		if tool.IsEnabled() {
@@ -217,7 +230,9 @@ func (r *Registry) GetToolDefinitions() []sdk.ChatCompletionTool {
 
 // IsToolEnabled checks if a specific tool is enabled
 func (r *Registry) IsToolEnabled(name string) bool {
+	r.toolsMu.RLock()
 	tool, exists := r.tools[name]
+	r.toolsMu.RUnlock()
 	if !exists {
 		return false
 	}
@@ -241,6 +256,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 	toolCount := 0
 	cfg := r.config
 
+	r.toolsMu.Lock()
 	for _, tool := range tools {
 		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
 
@@ -261,6 +277,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 			"server", serverName,
 			"description", tool.Description)
 	}
+	r.toolsMu.Unlock()
 
 	r.mcpManager.UpdateToolCount(serverName, toolCount)
 
@@ -272,12 +289,14 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	removedCount := 0
 	prefix := fmt.Sprintf("MCP_%s_", serverName)
 
+	r.toolsMu.Lock()
 	for toolName := range r.tools {
 		if strings.HasPrefix(toolName, prefix) {
 			delete(r.tools, toolName)
 			removedCount++
 		}
 	}
+	r.toolsMu.Unlock()
 
 	if removedCount > 0 {
 		logger.Debug("unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
@@ -304,7 +323,9 @@ func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
 	r.SetScreenshotProvider(provider)
 
 	getLatestTool := NewGetLatestScreenshotTool(cfg, provider)
+	r.toolsMu.Lock()
 	r.tools["GetLatestScreenshot"] = getLatestTool
+	r.toolsMu.Unlock()
 
 	logger.Info("dynamically registered GetLatestScreenshot tool for streaming mode")
 }
