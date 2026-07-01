@@ -356,3 +356,82 @@ func TestGitBackend_FailureDegrades(t *testing.T) {
 
 	requireFile(t, filepath.Join(memDir, "fact.md"))
 }
+
+// clearGitIdentity strips any author identity (config + GIT_* env) so a bare
+// `git commit` would fail - the state of a fresh container or CI runner. Call it
+// AFTER any test setup that needs to commit (seedRemote/clone).
+func clearGitIdentity(t *testing.T) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "no-such-gitconfig"))
+	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(k, "") // register cleanup to restore the original value...
+		_ = os.Unsetenv(k)
+	}
+}
+
+// In an identity-less environment the backend must supply a fallback commit
+// identity, otherwise `git commit` fails ("Please tell me who you are") and
+// memory silently never syncs out. A configured identity is preserved elsewhere;
+// here there is none.
+func TestGitBackend_CommitsWithoutAmbientIdentity(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t)
+	seedRemote(t, bare, "seed.md", "seed")
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	mustGit(t, "", "clone", "-b", "main", bare, memDir)
+	writeFile(t, filepath.Join(memDir, "fact.md"), "hello")
+
+	clearGitIdentity(t)
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncOut(context.Background()); err != nil {
+		t.Fatalf("SyncOut must commit with a fallback identity in an identity-less env: %v", err)
+	}
+
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", bare, check)
+	requireFile(t, filepath.Join(check, "fact.md"))
+}
+
+// A user with pre-existing local memory (a non-git dir) who points the backend
+// at an already-populated remote must have sync-in ADOPT that remote's history
+// and union the files - not initialize an unrelated-history repo that can never
+// push or pull. Conflicting files resolve to the local copy (-X ours).
+func TestGitBackend_SyncInAdoptsPopulatedRemote(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t)
+	seedRemote(t, bare, "remote.md", "from-remote")
+	seedRemote(t, bare, "MEMORY.md", "# remote index\n") // conflicts with local below
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(memDir, "local.md"), "from-local")
+	writeFile(t, filepath.Join(memDir, "MEMORY.md"), "# local index\n")
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncIn(context.Background()); err != nil {
+		t.Fatalf("SyncIn should adopt the populated remote, not error: %v", err)
+	}
+	if !isGitRepo(memDir) {
+		t.Fatalf("expected repo initialized in place at %s", memDir)
+	}
+	requireFile(t, filepath.Join(memDir, "remote.md")) // remote-only file adopted
+	requireFile(t, filepath.Join(memDir, "local.md"))  // local file preserved
+	if got, _ := os.ReadFile(filepath.Join(memDir, "MEMORY.md")); !strings.Contains(string(got), "local index") {
+		t.Errorf("expected local MEMORY.md to win the conflict, got:\n%s", got)
+	}
+
+	// Adopt pushes the union, so a fresh clone sees both contributions and a later
+	// sync-out is a clean no-op (no unrelated-history failure).
+	if err := b.SyncOut(context.Background()); err != nil {
+		t.Fatalf("SyncOut after adopt: %v", err)
+	}
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", bare, check)
+	requireFile(t, filepath.Join(check, "remote.md"))
+	requireFile(t, filepath.Join(check, "local.md"))
+}

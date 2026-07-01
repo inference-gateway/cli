@@ -95,8 +95,10 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 }
 
 // syncInFresh clones when the remote already has the branch and the dir is
-// empty; otherwise it initializes a repo in place and, when the remote branch is
-// missing, seeds it from whatever local memory exists (creating the branch).
+// empty; otherwise it initializes a repo in place and either seeds a missing
+// remote branch from local memory, or - when local memory already exists and the
+// remote branch is populated - adopts the remote history into it (see
+// adoptRemoteBranch) rather than leaving an unrelated-history repo.
 func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remoteHasBranch bool) error {
 	g := b.git()
 	if remoteHasBranch && isEmptyOrMissing(dir) {
@@ -112,7 +114,49 @@ func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remote
 	if !remoteHasBranch {
 		return b.stageCommitPush(ctx, dir, branch, true)
 	}
-	return nil
+	return b.adoptRemoteBranch(ctx, dir, branch)
+}
+
+// adoptRemoteBranch unions pre-existing local memory with an already-populated
+// remote branch. ensureRepo has just init'd an in-place repo whose history is
+// unrelated to the remote's, so a plain pull --rebase would fail forever on the
+// unrelated histories; instead this commits the local files, fetches the remote
+// branch, and merges it with --allow-unrelated-histories so later push/pull
+// reconcile normally. Conflicting files resolve to the local copy (-X ours),
+// matching the backend's last-writer-wins posture; the merge still adopts every
+// remote-only fact file. (One known gap, in line with #683's out-of-scope
+// conflict-resolution: a conflicting MEMORY.md keeps the local index, so
+// remote-only facts may be present as files but not listed until the next write.)
+// Best-effort: on failure it aborts the merge, returns the error, and the caller
+// logs and continues.
+func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) error {
+	if out, err := b.run(ctx, dir, "add", "-A"); err != nil {
+		logger.Warn("memory git sync: adopt add failed", "error", err, "output", trim(out))
+		return err
+	}
+	status, err := b.run(ctx, dir, "status", "--porcelain")
+	if err != nil {
+		logger.Warn("memory git sync: adopt status failed", "error", err, "output", trim(status))
+		return err
+	}
+	if len(strings.TrimSpace(string(status))) > 0 {
+		if err := b.commit(ctx, dir); err != nil {
+			return err
+		}
+	}
+	if out, err := b.run(ctx, dir, "fetch", "origin", branch); err != nil {
+		logger.Warn("memory git sync: adopt fetch failed", "error", err, "output", trim(out))
+		return err
+	}
+	if out, err := b.run(ctx, dir, "merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit", "FETCH_HEAD"); err != nil {
+		logger.Warn("memory git sync: adopt merge failed", "error", err, "output", trim(out))
+		_, _ = b.run(ctx, dir, "merge", "--abort")
+		return err
+	}
+	// The merge commit is ahead of the remote but the tree is clean, so a later
+	// stageCommitPush would no-op; push the union now (like the seed path) so the
+	// local contribution reaches the remote instead of waiting for the next write.
+	return b.pushWithRetry(ctx, dir, branch)
 }
 
 // SyncOut commits and pushes the memory directory, but only when it has changes.
@@ -156,8 +200,7 @@ func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pu
 	}
 	dirty := len(strings.TrimSpace(string(status))) > 0
 	if dirty {
-		if out, err := b.run(ctx, dir, "commit", "-m", b.git().EffectiveCommitMessage()); err != nil {
-			logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
+		if err := b.commit(ctx, dir); err != nil {
 			return err
 		}
 	}
@@ -174,6 +217,49 @@ func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pu
 func (b *GitBackend) hasCommits(ctx context.Context, dir string) bool {
 	_, err := b.run(ctx, dir, "rev-parse", "--verify", "HEAD")
 	return err == nil
+}
+
+// Fallback commit identity, applied only for whichever of user.name/user.email
+// the ambient git config leaves unset. Without this a bare `git commit` fails
+// ("Please tell me who you are") in an identity-less environment - a fresh
+// container or CI runner, exactly where the channels/scheduler/heartbeat daemon
+// runs - and memory would silently never sync out.
+const (
+	fallbackCommitName  = "infer"
+	fallbackCommitEmail = "infer@localhost"
+)
+
+// commit records the staged memory changes, supplying the fallback identity for
+// any missing field so the commit succeeds without overriding a configured
+// user.name/user.email.
+func (b *GitBackend) commit(ctx context.Context, dir string) error {
+	args := append(b.identityArgs(ctx, dir), "commit", "-m", b.git().EffectiveCommitMessage())
+	if out, err := b.run(ctx, dir, args...); err != nil {
+		logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
+		return err
+	}
+	return nil
+}
+
+// identityArgs returns leading `-c user.name=... / -c user.email=...` overrides
+// for only the identity fields git currently resolves no value for, so a real
+// configured identity is preserved while an identity-less environment still gets
+// a usable committer.
+func (b *GitBackend) identityArgs(ctx context.Context, dir string) []string {
+	var args []string
+	if b.gitConfigMissing(ctx, dir, "user.name") {
+		args = append(args, "-c", "user.name="+fallbackCommitName)
+	}
+	if b.gitConfigMissing(ctx, dir, "user.email") {
+		args = append(args, "-c", "user.email="+fallbackCommitEmail)
+	}
+	return args
+}
+
+// gitConfigMissing reports whether git resolves no value for key in dir.
+func (b *GitBackend) gitConfigMissing(ctx context.Context, dir, key string) bool {
+	out, err := b.run(ctx, dir, "config", "--get", key)
+	return err != nil || strings.TrimSpace(string(out)) == ""
 }
 
 // maxPushAttempts bounds the push / pull-rebase retry loop that reconciles with
