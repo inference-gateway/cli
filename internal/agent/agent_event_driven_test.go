@@ -866,3 +866,32 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		}
 	})
 }
+
+// TestStart_DoesNotRedundantlyTransitionToIdle verifies Start() issues no
+// redundant Idle transition: the machine already starts in Idle, so the first
+// transition must be Idle -> CheckingQueue from the seeded MessageReceivedEvent.
+func TestStart_DoesNotRedundantlyTransitionToIdle(t *testing.T) {
+	mocks := setupTestMocks()
+	ctx := createTestContext(mocks)
+	agent := createTestAgent(mocks, ctx)
+	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+	mocks.stateMachine.TransitionReturns(nil)
+
+	agent.Start()
+
+	done := make(chan struct{})
+	go func() { agent.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("agent did not settle after Start(); processEvents never reached Idle")
+	}
+
+	if got := mocks.stateMachine.TransitionCallCount(); got < 1 {
+		t.Fatalf("expected Start() to drive at least one transition, got %d", got)
+	}
+	_, firstTarget := mocks.stateMachine.TransitionArgsForCall(0)
+	assert.NotEqual(t, domain.StateIdle, firstTarget,
+		"Start() must not issue a redundant Idle transition; the first should be "+
+			"Idle -> CheckingQueue from the seeded MessageReceivedEvent")
+}
