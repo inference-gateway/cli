@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // ShellHistoryProvider interface defines methods for shell history operations
@@ -31,6 +33,11 @@ func NewShellHistory() (*ShellHistory, error) {
 // file is stored at <configDir>/history/history-<name> (e.g. for subagents).
 func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
 	historyDir := filepath.Join(configDir, "history")
+
+	if err := migrateLegacyMainHistory(historyDir); err != nil {
+		logger.Warn("could not migrate legacy history file", "error", err)
+	}
+
 	var historyFile string
 	if name == "" {
 		historyFile = filepath.Join(historyDir, "history")
@@ -41,6 +48,37 @@ func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
 	return &ShellHistory{
 		historyFile: historyFile,
 	}, nil
+}
+
+// migrateLegacyMainHistory upgrades the pre-history/ layout in place. Older
+// versions stored the main history at <configDir>/history as a plain file;
+// the current layout needs <configDir>/history to be a directory (holding
+// history/history and history/history-<name>). When the legacy file is present
+// it is moved to history/history so existing history survives and directory
+// creation does not fail with ENOTDIR. No-op when the path is absent or is
+// already a directory.
+//
+// TODO: this one-time migration can be removed in a future version once
+// existing installs have upgraded past the history/ layout change.
+func migrateLegacyMainHistory(historyDir string) error {
+	info, err := os.Stat(historyDir)
+	if err != nil || info.IsDir() {
+		return nil
+	}
+
+	staged := historyDir + ".migrating"
+	if err := os.Rename(historyDir, staged); err != nil {
+		return fmt.Errorf("staging legacy history file: %w", err)
+	}
+	if err := os.MkdirAll(historyDir, 0755); err != nil {
+		_ = os.Rename(staged, historyDir)
+		return fmt.Errorf("creating history directory: %w", err)
+	}
+	if err := os.Rename(staged, filepath.Join(historyDir, "history")); err != nil {
+		return fmt.Errorf("moving legacy history into place: %w", err)
+	}
+
+	return nil
 }
 
 // LoadHistory loads commands from history file

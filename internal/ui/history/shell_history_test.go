@@ -36,6 +36,105 @@ func TestNewShellHistoryWithName(t *testing.T) {
 	}
 }
 
+func TestNewShellHistoryWithName_MigratesLegacyMainHistory(t *testing.T) {
+	tempDir := t.TempDir()
+
+	legacy := filepath.Join(tempDir, "history")
+	content := "echo one\necho two\n"
+	if err := os.WriteFile(legacy, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to seed legacy history file: %v", err)
+	}
+
+	sh, err := NewShellHistoryWithName(tempDir, "")
+	if err != nil {
+		t.Fatalf("NewShellHistoryWithName failed: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(tempDir, "history"))
+	if err != nil {
+		t.Fatalf("history path stat failed: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected %s to be a directory after migration", filepath.Join(tempDir, "history"))
+	}
+
+	want := filepath.Join(tempDir, "history", "history")
+	if sh.historyFile != want {
+		t.Errorf("history file: expected %s, got %s", want, sh.historyFile)
+	}
+
+	got, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatalf("failed to read migrated history: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("migrated content: expected %q, got %q", content, string(got))
+	}
+
+	cmds, err := sh.LoadHistory()
+	if err != nil {
+		t.Fatalf("LoadHistory failed: %v", err)
+	}
+	if len(cmds) != 2 || cmds[0] != "echo one" || cmds[1] != "echo two" {
+		t.Errorf("unexpected loaded history: %v", cmds)
+	}
+	if err := sh.SaveToHistory("echo three"); err != nil {
+		t.Fatalf("SaveToHistory after migration failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(tempDir, "history.migrating")); !os.IsNotExist(err) {
+		t.Errorf("expected staged temp file to be gone, stat err = %v", err)
+	}
+}
+
+func TestNewShellHistoryWithName_NoMigrationWhenDirExists(t *testing.T) {
+	tempDir := t.TempDir()
+
+	historyDir := filepath.Join(tempDir, "history")
+	if err := os.MkdirAll(historyDir, 0755); err != nil {
+		t.Fatalf("failed to create history dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(historyDir, "history"), []byte("echo kept\n"), 0644); err != nil {
+		t.Fatalf("failed to seed history: %v", err)
+	}
+
+	sh, err := NewShellHistoryWithName(tempDir, "")
+	if err != nil {
+		t.Fatalf("NewShellHistoryWithName failed: %v", err)
+	}
+
+	got, err := os.ReadFile(sh.historyFile)
+	if err != nil {
+		t.Fatalf("failed to read history: %v", err)
+	}
+	if string(got) != "echo kept\n" {
+		t.Errorf("expected existing history untouched, got %q", string(got))
+	}
+}
+
+func TestNewShellHistoryWithName_MigrationIsNameAgnostic(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "history"), []byte("echo main\n"), 0644); err != nil {
+		t.Fatalf("failed to seed legacy history: %v", err)
+	}
+
+	sh, err := NewShellHistoryWithName(tempDir, "refactor")
+	if err != nil {
+		t.Fatalf("NewShellHistoryWithName failed: %v", err)
+	}
+
+	if want := filepath.Join(tempDir, "history", "history-refactor"); sh.historyFile != want {
+		t.Errorf("subagent history file: expected %s, got %s", want, sh.historyFile)
+	}
+	got, err := os.ReadFile(filepath.Join(tempDir, "history", "history"))
+	if err != nil {
+		t.Fatalf("expected migrated main history: %v", err)
+	}
+	if string(got) != "echo main\n" {
+		t.Errorf("migrated main content: expected %q, got %q", "echo main\n", string(got))
+	}
+}
+
 func TestLoadHistory(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "shell_history_test")
 	if err != nil {
