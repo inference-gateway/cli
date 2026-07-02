@@ -292,9 +292,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			detached = true
 			detachedMux.Unlock()
 
-			time.Sleep(20 * time.Millisecond)
-
-			shellID, err := t.backgroundShellService.DetachToBackground(ctx, cmd, result.Command, outputBuffer)
+			shellID, err := t.backgroundShellService.DetachToBackground(ctx, cmd, result.Command, outputBuffer, done)
 			if err != nil {
 				logger.Debug("bash: DetachToBackground failed", "error", err)
 				result.ExitCode = -1
