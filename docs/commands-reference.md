@@ -298,9 +298,9 @@ The chat interface supports three operational modes that can be toggled with **s
   - Is instructed to analyze tasks and create detailed plans without executing changes
   - Provides step-by-step breakdowns of what would be done in Standard mode
   - **Plan Approval**: When the agent completes planning, you'll be prompted to:
-    - **Accept**: Approve the plan and continue (stays in Plan Mode)
+    - **Accept** (Enter/y): Accept the plan and switch to Auto-Accept mode for execution
     - **Reject** (n or Esc): Reject the plan and provide feedback or changes
-    - **Accept & Auto-Approve** (a): Accept the plan AND switch to Auto-Accept mode for execution
+    - **Approve Each Step** (s): Accept the plan but stay in Standard mode, approving each action
   - Useful for understanding codebases or previewing changes before implementation
 
 - **⚡ Auto-Accept Mode** (YOLO mode): All tool executions are automatically approved without prompting. The agent:

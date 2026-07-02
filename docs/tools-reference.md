@@ -534,7 +534,7 @@ is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
 **How it works:**
 
 - The plan is written atomically to `<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md` (e.g. `~/.infer/plans/2026-04-27-103015-add-login-flow.md`).
-- The chat TUI shows the rendered plan with **Accept**, **Reject**, and **Accept & Auto-Approve** options.
+- The chat TUI shows the rendered plan with **Accept** (auto-accept mode), **Reject**, and **Approve Each Step** (standard mode) options.
 - On accept, the agent switches out of plan mode and executes the plan.
 - On reject, the file remains on disk as an audit trail; the user can reply with feedback and the agent re-iterates.
 - The LLM is instructed to ask clarifying questions in normal assistant turns first, and only call this tool when the plan is complete.
