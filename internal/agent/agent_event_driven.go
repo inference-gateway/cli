@@ -128,7 +128,8 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		ToolExecutor:           &a.toolExecutor,
 		StartStreaming:         a.startStreaming,
 
-		GetMetrics: a.service.GetMetrics,
+		GetMetrics:   a.service.GetMetrics,
+		SessionTurns: func() int64 { return a.service.sessionTurns.Load() },
 		ShouldRequireApproval: func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
 			if a.service.approvalPolicy == nil {
 				return false
@@ -136,8 +137,6 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 			return a.service.approvalPolicy.ShouldRequireApproval(a.agentCtx.Ctx, toolCall, isChatMode)
 		},
 		ApprovalDelivery: func(toolCall *sdk.ChatCompletionMessageToolCall) string {
-			// This agent runs interactively (chat); no IPC broker is attached, so
-			// approval_behaviour=ipc has no approver and resolves to block too.
 			if a.service.config == nil {
 				return config.ApprovalBehaviourPrompt
 			}
@@ -254,7 +253,8 @@ func (a *EventDrivenAgent) processEvents() {
 
 			if currentState == domain.StateIdle {
 				logger.Debug("agent reached Idle state - turn complete",
-					"total_turns", a.agentCtx.Turns)
+					"total_turns", a.service.sessionTurns.Load(),
+					"run_turns", a.agentCtx.Turns)
 				return
 			}
 		}
