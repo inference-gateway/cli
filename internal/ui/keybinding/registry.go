@@ -33,7 +33,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 
 	if cfg != nil && cfg.Chat.Keybindings.Enabled {
 		if err := registry.ApplyConfigOverrides(cfg.Chat.Keybindings); err != nil {
-			logger.Warn("failed to apply keybinding overrides: %v", err)
+			logger.Warn("failed to apply keybinding overrides", "error", err)
 		}
 	}
 
@@ -358,10 +358,15 @@ func (r *Registry) ApplyConfigOverrides(cfg config.KeybindingsConfig) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
+	knownDefaults := config.DefaultKeybindingActionIDs()
+
 	for actionID, configBinding := range cfg.Bindings {
 		action, exists := r.actions[actionID]
 		if !exists {
-			logger.Warn("unknown keybinding action '%s' in config, ignoring", actionID)
+			if _, ok := knownDefaults[actionID]; ok {
+				continue
+			}
+			logger.Warn("unknown keybinding action in config, ignoring", "action", actionID)
 			continue
 		}
 
@@ -449,6 +454,32 @@ func (r *Registry) GetSequenceActionForPrefix(prefix string, app KeyHandlerConte
 	}
 
 	return nil
+}
+
+// KnownActionIDs returns every action ID the application recognises: the runtime
+// registry actions unioned with the default keybindings config IDs (which include
+// the namespace-path actions consumed directly via config.ResolveNamespaceBindings).
+// The CLI validator and ApplyConfigOverrides share this notion of "valid" so they
+// agree on what is a genuine typo.
+func (r *Registry) KnownActionIDs() []string {
+	ids := make(map[string]struct{})
+
+	r.mutex.RLock()
+	for id := range r.actions {
+		ids[id] = struct{}{}
+	}
+	r.mutex.RUnlock()
+
+	for id := range config.DefaultKeybindingActionIDs() {
+		ids[id] = struct{}{}
+	}
+
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // ListAllActions returns all registered actions for debugging/management

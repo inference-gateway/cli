@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -378,17 +377,11 @@ func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsCon
 	return path, kbConfig, nil
 }
 
-// getValidActionIDs returns all valid action IDs by creating a temporary registry
+// getValidActionIDs returns every recognised action ID: runtime registry actions
+// plus the namespace-path actions from the default keybindings config (which are
+// resolved directly by components via config.ResolveNamespaceBindings). Sharing this
+// union with the runtime keeps `infer keybindings validate/set/enable/disable` in
+// agreement with what actually takes effect.
 func getValidActionIDs() []string {
-	cfg := config.DefaultConfig()
-	registry := keybinding.NewRegistry(cfg)
-	actions := registry.ListAllActions()
-
-	ids := make([]string, 0, len(actions))
-	for _, action := range actions {
-		ids = append(ids, action.ID)
-	}
-	slices.Sort(ids)
-
-	return ids
+	return keybinding.NewRegistry(config.DefaultConfig()).KnownActionIDs()
 }
