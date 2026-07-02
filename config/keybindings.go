@@ -296,7 +296,7 @@ func addPlanApprovalBindings(bindings map[string]KeyBindingEntry) {
 	}
 	bindings[ActionID(NamespacePlanApproval, "plan_approval_accept")] = KeyBindingEntry{
 		Keys:        []string{"enter", "y"},
-		Description: "accept plan",
+		Description: "accept plan and enable auto-approve mode",
 		Category:    "plan_approval",
 		Enabled:     &enabled,
 	}
@@ -306,9 +306,9 @@ func addPlanApprovalBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "plan_approval",
 		Enabled:     &enabled,
 	}
-	bindings[ActionID(NamespacePlanApproval, "plan_approval_accept_and_auto_approve")] = KeyBindingEntry{
-		Keys:        []string{"a"},
-		Description: "accept plan and enable auto-approve mode",
+	bindings[ActionID(NamespacePlanApproval, "plan_approval_accept_standard")] = KeyBindingEntry{
+		Keys:        []string{"s"},
+		Description: "accept plan but approve each step (standard mode)",
 		Category:    "plan_approval",
 		Enabled:     &enabled,
 	}

@@ -131,17 +131,17 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 func (s *Service) applyPlanDecision(action domain.PlanApprovalAction) (string, bool) {
 	switch action {
 	case domain.PlanApprovalAccept:
-		logger.Info("switching to standard agent mode for plan execution")
-		s.stateManager.SetAgentMode(domain.AgentModeStandard)
-		logger.Info("adding hidden continue message to queue")
-		s.addHiddenContinueMessage()
-		return "Plan accepted - executing plan...", true
-	case domain.PlanApprovalAcceptAndAutoApprove:
 		logger.Info("switching to auto-accept mode for plan execution")
 		s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 		logger.Info("adding hidden continue message to queue (auto-approve mode)")
 		s.addHiddenContinueMessage()
 		return "Plan accepted - Auto-Approve mode enabled, executing plan...", true
+	case domain.PlanApprovalAcceptStandard:
+		logger.Info("switching to standard agent mode for plan execution")
+		s.stateManager.SetAgentMode(domain.AgentModeStandard)
+		logger.Info("adding hidden continue message to queue")
+		s.addHiddenContinueMessage()
+		return "Plan accepted - executing plan (approving each step)...", true
 	case domain.PlanApprovalReject:
 		logger.Info("ending chat session due to plan rejection")
 		s.stateManager.EndChatSession()

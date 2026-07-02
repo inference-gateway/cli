@@ -79,7 +79,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("Accept clears UI state, switches to standard mode, adds hidden continue, requests restart", func(t *testing.T) {
+	t.Run("Accept clears UI state, switches to auto-accept mode, adds hidden continue, requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
 		state.GetPlanApprovalUIStateReturns(&domain.PlanApprovalUIState{PlanContent: "p"})
 
@@ -99,8 +99,8 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if state.SetAgentModeCallCount() != 1 {
 			t.Errorf("expected SetAgentMode once")
 		}
-		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeStandard {
-			t.Errorf("expected AgentModeStandard, got %v", mode)
+		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeAutoAccept {
+			t.Errorf("expected AgentModeAutoAccept, got %v", mode)
 		}
 		if state.EndChatSessionCallCount() != 0 {
 			t.Errorf("EndChatSession should not be called on Accept")
@@ -110,19 +110,19 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("AcceptAndAutoApprove switches to auto-accept mode and requests restart", func(t *testing.T) {
+	t.Run("AcceptStandard switches to standard mode and requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
 		state.GetPlanApprovalUIStateReturns(&domain.PlanApprovalUIState{PlanContent: "p"})
 
 		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalAcceptAndAutoApprove,
+			Action: domain.PlanApprovalAcceptStandard,
 		})
 
 		if !restart {
-			t.Errorf("AcceptAndAutoApprove should request restart")
+			t.Errorf("AcceptStandard should request restart")
 		}
-		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeAutoAccept {
-			t.Errorf("expected AgentModeAutoAccept, got %v", mode)
+		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeStandard {
+			t.Errorf("expected AgentModeStandard, got %v", mode)
 		}
 		if got := len(repo.GetMessages()); got != 1 {
 			t.Errorf("expected 1 hidden continue message added, got %d", got)

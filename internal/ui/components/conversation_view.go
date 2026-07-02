@@ -2126,14 +2126,14 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 
 	acceptText := "Accept"
 	rejectText := "Reject"
-	autoApproveText := "Auto-Approve"
+	standardText := "Approve Each Step"
 
 	successColor := cv.styleProvider.GetThemeColor("success")
 	errorColor := cv.styleProvider.GetThemeColor("error")
 	accentColor := cv.styleProvider.GetThemeColor("accent")
 	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
 
-	var acceptStyled, rejectStyled, autoApproveStyled string
+	var acceptStyled, rejectStyled, standardStyled string
 	if selectedIndex == int(domain.PlanApprovalAccept) {
 		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
 			Foreground: successColor,
@@ -2154,17 +2154,17 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
 	}
 
-	if selectedIndex == int(domain.PlanApprovalAcceptAndAutoApprove) {
-		autoApproveStyled = cv.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
+	if selectedIndex == int(domain.PlanApprovalAcceptStandard) {
+		standardStyled = cv.styleProvider.RenderStyledText("[ "+standardText+" ]", styles.StyleOptions{
 			Foreground: accentColor,
 			Background: highlightBg,
 			Bold:       true,
 		})
 	} else {
-		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
+		standardStyled = cv.styleProvider.RenderWithColor("[ "+standardText+" ]", accentColor)
 	}
 
-	return fmt.Sprintf("  %s  %s  %s", acceptStyled, rejectStyled, autoApproveStyled)
+	return fmt.Sprintf("  %s  %s  %s", acceptStyled, rejectStyled, standardStyled)
 }
 
 // renderPendingToolEntry renders a pending tool call that requires approval

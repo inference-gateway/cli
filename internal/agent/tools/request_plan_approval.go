@@ -194,9 +194,9 @@ func (t *RequestPlanApprovalTool) FormatForLLM(result *domain.ToolExecutionResul
 
 	if result.Success {
 		if path := planPath(result); path != "" {
-			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept, reject, or enable auto-approve mode.", path)
+			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject.", path)
 		}
-		return "Plan approval requested. The user will review your plan and decide whether to accept, reject, or enable auto-approve mode."
+		return "Plan approval requested. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject."
 	}
 
 	return fmt.Sprintf("Failed to request plan approval: %s", result.Error)

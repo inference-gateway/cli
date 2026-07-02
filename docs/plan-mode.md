@@ -35,9 +35,9 @@ The cycle is:
 Standard → Plan Mode → Auto-Accept → Standard → …
 ```
 
-When a plan is **accepted**, the mode automatically flips back to Standard
-(or to Auto-Accept if you chose "Accept & Auto-Approve") and the agent
-begins executing.
+When a plan is **accepted**, the mode automatically switches to Auto-Accept
+(or to Standard if you chose "Approve Each Step") and the agent begins
+executing.
 
 ## What the model is told to do
 
@@ -122,11 +122,12 @@ When the model calls `RequestPlanApproval`, the chat TUI:
    to confirm`.
 3. Offers three options:
 
-   - **Accept** - agent flips to Standard mode and executes the plan.
-   - **Accept & Auto-Approve** - agent flips to Auto-Accept (no per-tool
-     approval prompts) and executes the plan.
-   - **Reject** - chat session ends; you can write a follow-up message
+   - **Accept** (`Enter`/`y`) - agent switches to Auto-Accept mode (no
+     per-tool approval prompts) and executes the plan.
+   - **Reject** (`n`) - chat session ends; you can write a follow-up message
      with feedback and the agent re-iterates the plan.
+   - **Approve Each Step** (`s`) - agent switches to Standard mode and
+     executes the plan, prompting for approval on each action.
 
 In all three cases the plan file remains on disk. Rejecting a plan does
 **not** delete it.
@@ -134,8 +135,8 @@ In all three cases the plan file remains on disk. Rejecting a plan does
 ## Context compaction on approval
 
 Planning is read-heavy: the model runs `Read`, `Grep`, and `Tree` across the
-codebase before it writes a plan. Once you **Accept** (or **Accept &
-Auto-Approve**), that exploration is dead weight for execution. So approving a
+codebase before it writes a plan. Once you **Accept** (or **Approve Each
+Step**), that exploration is dead weight for execution. So approving a
 plan always:
 
 1. Summarizes the planning conversation into a short `--- Context Summary ---`.

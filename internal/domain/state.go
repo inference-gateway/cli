@@ -359,7 +359,7 @@ type PlanApprovalAction int
 const (
 	PlanApprovalAccept PlanApprovalAction = iota
 	PlanApprovalReject
-	PlanApprovalAcceptAndAutoApprove
+	PlanApprovalAcceptStandard
 )
 
 func (a PlanApprovalAction) String() string {
@@ -368,8 +368,8 @@ func (a PlanApprovalAction) String() string {
 		return "Accept"
 	case PlanApprovalReject:
 		return "Reject"
-	case PlanApprovalAcceptAndAutoApprove:
-		return "Accept & Auto-Approve"
+	case PlanApprovalAcceptStandard:
+		return "Approve Each Step"
 	default:
 		return "Unknown"
 	}
