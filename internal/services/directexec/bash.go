@@ -367,18 +367,25 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 			}
 		}()
 
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
 		shellID, err := s.backgroundShellService.DetachToBackground(
 			ctx,
 			cmd,
 			command,
 			outputBuffer,
+			done,
 		)
 
 		if err != nil {
 			return
 		}
 
-		wg.Wait()
+		<-done
 
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{

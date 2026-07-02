@@ -40,7 +40,17 @@ func (j *shellJob) Meta() domain.JobMeta {
 }
 
 // Run waits for the shell process to exit and records the outcome on the shell.
+// It first waits for the pipe readers to drain (ReadersDone) so Cmd.Wait doesn't
+// close the pipes mid-read and lose output; the wait honours ctx so a kill or
+// shutdown can't wedge when a grandchild is holding the pipe open.
 func (j *shellJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+	if j.shell.ReadersDone != nil {
+		select {
+		case <-j.shell.ReadersDone:
+		case <-ctx.Done():
+		}
+	}
+
 	waitErr := j.shell.Cmd.Wait()
 
 	now := time.Now()
@@ -49,7 +59,6 @@ func (j *shellJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.Too
 
 	switch {
 	case ctx.Err() != nil:
-		// Terminated by Wind(WindStop) / supervisor shutdown rather than finishing.
 		code := -1
 		j.shell.ExitCode = &code
 		j.shell.State = domain.ShellStateCancelled

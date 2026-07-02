@@ -51,6 +51,7 @@ func (s *BackgroundShellService) DetachToBackground(
 	cmd *exec.Cmd,
 	command string,
 	outputBuffer domain.OutputRingBuffer,
+	readersDone <-chan struct{},
 ) (string, error) {
 	if !s.config.Tools.Bash.BackgroundShells.Enabled {
 		return "", fmt.Errorf("background shells are disabled in configuration")
@@ -66,6 +67,7 @@ func (s *BackgroundShellService) DetachToBackground(
 		State:        domain.ShellStateRunning,
 		OutputBuffer: outputBuffer,
 		ReadOffset:   0,
+		ReadersDone:  readersDone,
 	}
 
 	if err := s.shellTracker.Add(shell); err != nil {

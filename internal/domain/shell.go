@@ -38,6 +38,8 @@ type BackgroundShell struct {
 	OutputBuffer OutputRingBuffer
 	CancelFunc   context.CancelFunc
 	ReadOffset   int64
+
+	ReadersDone <-chan struct{}
 }
 
 // OutputRingBuffer defines the interface for the circular output buffer.
@@ -110,8 +112,10 @@ func NewShellInfo(shell *BackgroundShell) *ShellInfo {
 
 // BackgroundShellService defines the interface for managing background shells
 type BackgroundShellService interface {
-	// DetachToBackground moves a running command to background
-	DetachToBackground(ctx context.Context, cmd *exec.Cmd, command string, outputBuffer OutputRingBuffer) (string, error)
+	// DetachToBackground moves a running command to background. readersDone, when
+	// non-nil, is closed once the caller's pipe readers reach EOF; the supervisor
+	// waits on it before reaping so trailing output is not truncated.
+	DetachToBackground(ctx context.Context, cmd *exec.Cmd, command string, outputBuffer OutputRingBuffer, readersDone <-chan struct{}) (string, error)
 
 	// GetShellOutput retrieves output from a shell
 	GetShellOutput(shellID string, fromOffset int64) (string, int64, ShellState, error)

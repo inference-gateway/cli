@@ -21,13 +21,14 @@ type FakeBackgroundShellService struct {
 	cancelShellReturnsOnCall map[int]struct {
 		result1 error
 	}
-	DetachToBackgroundStub        func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer) (string, error)
+	DetachToBackgroundStub        func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) (string, error)
 	detachToBackgroundMutex       sync.RWMutex
 	detachToBackgroundArgsForCall []struct {
 		arg1 context.Context
 		arg2 *exec.Cmd
 		arg3 string
 		arg4 domain.OutputRingBuffer
+		arg5 <-chan struct{}
 	}
 	detachToBackgroundReturns struct {
 		result1 string
@@ -171,7 +172,7 @@ func (fake *FakeBackgroundShellService) CancelShellReturnsOnCall(i int, result1 
 	}{result1}
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context, arg2 *exec.Cmd, arg3 string, arg4 domain.OutputRingBuffer) (string, error) {
+func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context, arg2 *exec.Cmd, arg3 string, arg4 domain.OutputRingBuffer, arg5 <-chan struct{}) (string, error) {
 	fake.detachToBackgroundMutex.Lock()
 	ret, specificReturn := fake.detachToBackgroundReturnsOnCall[len(fake.detachToBackgroundArgsForCall)]
 	fake.detachToBackgroundArgsForCall = append(fake.detachToBackgroundArgsForCall, struct {
@@ -179,13 +180,14 @@ func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context,
 		arg2 *exec.Cmd
 		arg3 string
 		arg4 domain.OutputRingBuffer
-	}{arg1, arg2, arg3, arg4})
+		arg5 <-chan struct{}
+	}{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.DetachToBackgroundStub
 	fakeReturns := fake.detachToBackgroundReturns
-	fake.recordInvocation("DetachToBackground", []interface{}{arg1, arg2, arg3, arg4})
+	fake.recordInvocation("DetachToBackground", []interface{}{arg1, arg2, arg3, arg4, arg5})
 	fake.detachToBackgroundMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3, arg4)
+		return stub(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -199,17 +201,17 @@ func (fake *FakeBackgroundShellService) DetachToBackgroundCallCount() int {
 	return len(fake.detachToBackgroundArgsForCall)
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackgroundCalls(stub func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer) (string, error)) {
+func (fake *FakeBackgroundShellService) DetachToBackgroundCalls(stub func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) (string, error)) {
 	fake.detachToBackgroundMutex.Lock()
 	defer fake.detachToBackgroundMutex.Unlock()
 	fake.DetachToBackgroundStub = stub
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackgroundArgsForCall(i int) (context.Context, *exec.Cmd, string, domain.OutputRingBuffer) {
+func (fake *FakeBackgroundShellService) DetachToBackgroundArgsForCall(i int) (context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) {
 	fake.detachToBackgroundMutex.RLock()
 	defer fake.detachToBackgroundMutex.RUnlock()
 	argsForCall := fake.detachToBackgroundArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
 }
 
 func (fake *FakeBackgroundShellService) DetachToBackgroundReturns(result1 string, result2 error) {

@@ -45,6 +45,71 @@ func waitTerminal(t *testing.T, sup *Supervisor, id string) domain.JobStatus {
 	return ""
 }
 
+// isTerminal reports whether the job is currently in a terminal state without
+// blocking, for asserting that a job has NOT yet finished.
+func isTerminal(sup *Supervisor, id string) bool {
+	for _, j := range sup.Snapshot() {
+		if j.Meta.ID == id {
+			return j.Status.IsTerminal()
+		}
+	}
+	return false
+}
+
+// TestShellJob_WaitsForReadersDoneBeforeReaping asserts Run does not call
+// Cmd.Wait until the pipe readers have drained (ReadersDone closed), even after
+// the process has already exited — otherwise Wait closes the pipes mid-drain and
+// truncates trailing output.
+func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
+	tracker := utils.NewShellTracker(10)
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	defer sup.Stop()
+
+	// `true` exits immediately; the job must still park on ReadersDone.
+	shell := startShell(t, "s-drain", "true")
+	readersDone := make(chan struct{})
+	shell.ReadersDone = readersDone
+	_ = tracker.Add(shell)
+	sup.Submit(NewShellJob(shell, tracker))
+
+	time.Sleep(50 * time.Millisecond)
+	if isTerminal(sup, "s-drain") {
+		t.Fatal("shell reaped before the pipe readers signalled done")
+	}
+
+	close(readersDone)
+	if got := waitTerminal(t, sup, "s-drain"); got != domain.JobCompleted {
+		t.Fatalf("status = %s, want completed", got)
+	}
+	if shell.State != domain.ShellStateCompleted {
+		t.Fatalf("shell state = %s, want completed", shell.State)
+	}
+}
+
+// TestShellJob_WindStopUnblocksReadersWait guards the cancellable-wait escape:
+// when ReadersDone never closes (e.g. a grandchild holds the pipe open),
+// Wind(WindStop) must still reap the job via ctx cancellation rather than
+// wedging Run — which would also hang Supervisor.Stop().
+func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
+	tracker := utils.NewShellTracker(10)
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	defer sup.Stop()
+
+	shell := startShell(t, "s-stuck", "sleep", "60")
+	shell.ReadersDone = make(chan struct{}) // never closed
+	_ = tracker.Add(shell)
+	sup.Submit(NewShellJob(shell, tracker))
+
+	time.Sleep(20 * time.Millisecond)
+	if err := sup.Wind("s-stuck", domain.WindStop); err != nil {
+		t.Fatalf("Wind: %v", err)
+	}
+	waitTerminal(t, sup, "s-stuck")
+	if shell.State != domain.ShellStateCancelled {
+		t.Fatalf("shell state = %s, want cancelled", shell.State)
+	}
+}
+
 func TestShellJob_CompletesAndNotifies(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
 	queue := &domainmocks.FakeMessageQueue{}
