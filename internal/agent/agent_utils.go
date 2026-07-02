@@ -871,7 +871,6 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		}
 
 		logger.Debug("system reminder injected",
-			"turn", agentCtx.Turns,
 			"session_turn", sessionTurn,
 			"hook", string(hook),
 			"name", r.Name,
