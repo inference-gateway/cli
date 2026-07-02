@@ -151,9 +151,6 @@ func (t *A2ATaskTrackerImpl) RemoveContext(contextID string) {
 	}
 
 	for _, task := range ctx.Tasks {
-		if task.CancelFunc != nil {
-			task.CancelFunc()
-		}
 		delete(t.taskIndex, task.TaskID)
 	}
 
@@ -262,10 +259,6 @@ func (t *A2ATaskTrackerImpl) RemoveTask(taskID string) {
 		return
 	}
 
-	if task.CancelFunc != nil {
-		task.CancelFunc()
-	}
-
 	ctx := t.contextIndex[task.ContextID]
 	if ctx != nil {
 		for i, t := range ctx.Tasks {
@@ -319,12 +312,6 @@ func (t *A2ATaskTrackerImpl) ClearAllAgents() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	for _, task := range t.taskIndex {
-		if task.CancelFunc != nil {
-			task.CancelFunc()
-		}
-	}
-
 	t.agents = make([]*Agent, 0)
 	t.agentIndex = make(map[string]int)
 	t.contextIndex = make(map[string]*AgentContext)
@@ -339,12 +326,6 @@ func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPolli
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	if existingState, exists := t.taskIndex[taskID]; exists {
-		if existingState.CancelFunc != nil {
-			existingState.CancelFunc()
-		}
-	}
 
 	ctx, exists := t.contextIndex[state.ContextID]
 	if !exists {
@@ -379,10 +360,6 @@ func (t *A2ATaskTrackerImpl) StopPolling(taskID string) {
 		return
 	}
 
-	if task.CancelFunc != nil {
-		task.CancelFunc()
-	}
-
 	task.IsPolling = false
 
 	ctx := t.contextIndex[task.ContextID]
@@ -404,19 +381,6 @@ func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingS
 	defer t.mu.RUnlock()
 
 	return t.taskIndex[taskID]
-}
-
-// IsPolling returns whether a task currently has an active polling operation
-func (t *A2ATaskTrackerImpl) IsPolling(taskID string) bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	task, exists := t.taskIndex[taskID]
-	if !exists {
-		return false
-	}
-
-	return task.IsPolling
 }
 
 // GetPollingTasksForContext returns all task IDs that are currently being polled for a context

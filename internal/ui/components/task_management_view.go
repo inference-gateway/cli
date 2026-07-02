@@ -409,7 +409,7 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
-			if normalizeKind(task.Kind) == domain.JobKindA2A && task.TaskRef == nil {
+			if isCancellable(task) {
 				t.confirmCancel = true
 				return t, nil
 			}
@@ -513,10 +513,19 @@ func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	return t, nil
 }
 
+// isCancellable reports whether a task row can be cancelled from the view: an
+// active A2A task (a live row, not a retained/terminal one) or a running shell
+// or subagent. Completed rows are not cancellable.
+func isCancellable(task TaskInfo) bool {
+	if normalizeKind(task.Kind) == domain.JobKindA2A {
+		return task.TaskRef == nil
+	}
+	return task.Status == jobStatusLabel(domain.JobRunning)
+}
+
 func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	return func() tea.Msg {
-		err := t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
-
+		err := t.cancelTask(task)
 		if err != nil {
 			logger.Error("failed to cancel task", "task_id", task.TaskID, "error", err)
 			return domain.TaskCancelledEvent{
@@ -531,6 +540,21 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 			Error:  nil,
 		}
 	}
+}
+
+// cancelTask routes cancellation by kind. An A2A task goes through
+// CancelBackgroundTask, which cancels the remote task and cleans up the tracker
+// in addition to winding the supervised poll job; shells and subagents wind
+// their supervised job down through the registry (a2aJob.Wind is a no-op, so
+// WindJob alone would never reach the remote agent).
+func (t *TaskManagerImpl) cancelTask(task TaskInfo) error {
+	if normalizeKind(task.Kind) == domain.JobKindA2A {
+		return t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
+	}
+	if t.backgroundJobRegistry == nil {
+		return fmt.Errorf("background job registry not available")
+	}
+	return t.backgroundJobRegistry.WindJob(task.TaskID, domain.WindStop)
 }
 
 // mapTaskStatus maps task state to display status. Covers every

@@ -231,6 +231,128 @@ func TestSupervisor_CountRunning(t *testing.T) {
 	sup.Stop()
 }
 
+func TestSupervisor_IsRunning(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	job := newFakeJob("j1", domain.JobKindA2A)
+	sup.Submit(job)
+	<-job.started
+
+	if !sup.IsRunning("j1") {
+		t.Fatalf("IsRunning(j1) = false while the job is running")
+	}
+	if sup.IsRunning("missing") {
+		t.Fatalf("IsRunning(missing) = true, want false")
+	}
+
+	close(job.finish)
+	sup.Stop()
+
+	if sup.IsRunning("j1") {
+		t.Fatalf("IsRunning(j1) = true after the job finished")
+	}
+}
+
+// TestSupervisor_HasPending: only running jobs that hold the session count as
+// pending - a running non-session-holding job (an interactive pane) and
+// finished jobs do not.
+func TestSupervisor_HasPending(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	pane := newFakeJob("pane", domain.JobKindSubagent)
+	sup.Submit(pane)
+	<-pane.started
+	if sup.HasPending() {
+		t.Fatalf("a running non-session-holding job must not count as pending")
+	}
+
+	holder := newFakeJob("task", domain.JobKindA2A)
+	holder.meta.HoldsSession = true
+	sup.Submit(holder)
+	<-holder.started
+	if !sup.HasPending() {
+		t.Fatalf("a running session-holding job should count as pending")
+	}
+
+	close(holder.finish)
+	close(pane.finish)
+	sup.Stop()
+
+	if sup.HasPending() {
+		t.Fatalf("finished jobs must not count as pending")
+	}
+}
+
+// TestSupervisor_DiscardKind: discarding a kind stops and forgets its running
+// jobs - dropped from the snapshot immediately, hard-stopped, no queue note, no
+// retention entry - while other kinds keep running untouched.
+func TestSupervisor_DiscardKind(t *testing.T) {
+	queue := &domainmocks.FakeMessageQueue{}
+	retention := &domainmocks.FakeTaskRetentionService{}
+	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
+	sup.SetTaskRetention(retention)
+
+	a2a := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: domain.TaskInfo{}, ok: true}
+	sup.Submit(a2a)
+	<-a2a.started
+
+	shell := newFakeJob("shell-1", domain.JobKindShell)
+	sup.Submit(shell)
+	<-shell.started
+
+	sup.DiscardKind(domain.JobKindA2A)
+
+	if sup.CountRunning(domain.JobKindA2A) != 0 {
+		t.Fatalf("discarded A2A job still counted as running")
+	}
+	if sup.CountRunning(domain.JobKindShell) != 1 {
+		t.Fatalf("shell must keep running through an A2A discard")
+	}
+	for _, tj := range sup.Snapshot() {
+		if tj.Meta.ID == "t1" {
+			t.Fatalf("discarded job still in snapshot: %+v", tj)
+		}
+	}
+	if winds := a2a.winds(); len(winds) != 1 || winds[0] != domain.WindStop {
+		t.Fatalf("discard winds = %v, want [stop]", winds)
+	}
+
+	close(shell.finish)
+	sup.Stop()
+
+	if n := retention.AddTaskCallCount(); n != 0 {
+		t.Fatalf("discarded job landed %d retention entries, want 0", n)
+	}
+	if n := queue.EnqueueCallCount(); n != 1 {
+		t.Fatalf("Enqueue called %d times, want 1 (shell only - a discarded job must not note)", n)
+	}
+	if n := a2a.closes(); n != 1 {
+		t.Fatalf("discarded job Close called %d times, want 1", n)
+	}
+}
+
+// TestSupervisor_DiscardKind_ReapsTerminal: an already-finished (unreaped) job
+// of the kind is dropped and torn down by the discard sweep.
+func TestSupervisor_DiscardKind_ReapsTerminal(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	job := newFakeJob("t1", domain.JobKindA2A)
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	if len(sup.Snapshot()) != 1 {
+		t.Fatalf("terminal job should still be tracked before discard")
+	}
+	sup.DiscardKind(domain.JobKindA2A)
+	if len(sup.Snapshot()) != 0 {
+		t.Fatalf("terminal job should be reaped by discard")
+	}
+	if n := job.closes(); n != 1 {
+		t.Fatalf("Close called %d times, want 1", n)
+	}
+}
+
 func TestSupervisor_SubmitAfterStopIgnored(t *testing.T) {
 	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
 	sup.Stop()

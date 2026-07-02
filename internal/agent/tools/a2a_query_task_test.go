@@ -476,22 +476,28 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 	}
 }
 
+// TestA2AQueryTaskTool_PollingStateBlocking: the guard consults the supervisor's
+// per-id liveness keyed by task id - not agent URL - and blocks a manual query
+// only while that task's own job is still running.
 func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 	tests := []struct {
-		name                 string
-		isPolling            bool
-		expectBlocked        bool
-		expectedErrorMessage string
+		name          string
+		runningTaskID string
+		expectBlocked bool
 	}{
 		{
-			name:                 "blocks query when polling is active",
-			isPolling:            true,
-			expectBlocked:        true,
-			expectedErrorMessage: "Cannot query task manually - background polling is active",
+			name:          "blocks query while the task is being polled",
+			runningTaskID: "task456",
+			expectBlocked: true,
 		},
 		{
-			name:          "allows query when polling is not active",
-			isPolling:     false,
+			name:          "allows query when only a different task is running",
+			runningTaskID: "other-task",
+			expectBlocked: false,
+		},
+		{
+			name:          "allows query when nothing is running",
+			runningTaskID: "",
 			expectBlocked: false,
 		},
 	}
@@ -509,10 +515,12 @@ func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 				},
 			}
 
-			tracker := &mocks.FakeA2ATaskTracker{}
-			tracker.IsPollingReturns(tt.isPolling)
+			liveness := &mocks.FakeJobLivenessReporter{}
+			liveness.IsJobRunningCalls(func(id string) bool {
+				return tt.runningTaskID != "" && id == tt.runningTaskID
+			})
 
-			tool := NewA2AQueryTaskTool(cfg, tracker)
+			tool := NewA2AQueryTaskTool(cfg, liveness)
 
 			args := map[string]any{
 				"agent_url":  "http://test-agent.example.com",
@@ -521,24 +529,23 @@ func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 			}
 
 			result, err := tool.Execute(context.Background(), args)
-
 			if err != nil {
-				t.Errorf("Execute() returned unexpected error: %v", err)
+				t.Fatalf("Execute() returned unexpected error: %v", err)
 			}
 
-			if !tt.expectBlocked {
-				if result.Success {
-					t.Error("Expected Execute() to fail (no server available for test)")
-				}
-				return
+			if got := liveness.IsJobRunningCallCount(); got != 1 {
+				t.Fatalf("IsJobRunning called %d times, want 1", got)
+			}
+			if got := liveness.IsJobRunningArgsForCall(0); got != "task456" {
+				t.Errorf("guard keyed IsJobRunning by %q, want the task id %q", got, "task456")
 			}
 
 			if result.Success {
-				t.Error("Expected Execute() to fail when polling is active")
+				t.Error("Expected Execute() to fail (blocked, or no live server)")
 			}
-
-			if !strings.Contains(result.Error, tt.expectedErrorMessage) {
-				t.Errorf("Expected error to contain %q, got: %s", tt.expectedErrorMessage, result.Error)
+			blocked := strings.Contains(result.Error, "background polling is active")
+			if blocked != tt.expectBlocked {
+				t.Errorf("blocked = %v, want %v (error: %s)", blocked, tt.expectBlocked, result.Error)
 			}
 		})
 	}

@@ -43,6 +43,7 @@ type Registry struct {
 	subagentTracker    domain.SubagentTracker
 	jobSubmitter       domain.JobSubmitter
 	jobStopper         domain.JobStopper
+	jobLiveness        domain.JobLivenessReporter
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
 	shellService       domain.BackgroundShellService
@@ -79,6 +80,9 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 	}
 	if jst, ok := taskTracker.(domain.JobStopper); ok {
 		registry.jobStopper = jst
+	}
+	if lr, ok := taskTracker.(domain.JobLivenessReporter); ok {
+		registry.jobLiveness = lr
 	}
 
 	registry.registerTools()
@@ -153,7 +157,7 @@ func (r *Registry) registerTools() {
 
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
-		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.taskTracker)
+		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.jobLiveness)
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
 	}
 

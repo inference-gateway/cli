@@ -49,7 +49,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	if n := queue.EnqueueCallCount(); n != 1 {
 		t.Fatalf("Enqueue called %d times, want 1", n)
 	}
-	if tracker.IsPolling("t1") {
+	if tracker.GetPollingState("t1") != nil {
 		t.Fatalf("StopPolling was not called when the task completed")
 	}
 }

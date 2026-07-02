@@ -529,7 +529,7 @@ type MarkdownRenderer interface {
 
 // TaskPollingState is the data record for one in-flight A2A task that the task
 // view reads. Monitoring is owned by the job supervisor (a2aJob), which polls the
-// remote agent and updates LastKnownState/LastPollAt here.
+// remote agent and updates LastKnownState here.
 type TaskPollingState struct {
 	TaskID          string
 	ContextID       string
@@ -537,11 +537,7 @@ type TaskPollingState struct {
 	TaskDescription string
 	IsPolling       bool
 	StartedAt       time.Time
-	LastPollAt      time.Time
-	NextPollTime    time.Time
-	CurrentInterval time.Duration
 	LastKnownState  string
-	CancelFunc      context.CancelFunc
 }
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
@@ -617,7 +613,6 @@ type A2ATaskTracker interface {
 	StartPolling(taskID string, state *TaskPollingState)
 	StopPolling(taskID string)
 	GetPollingState(taskID string) *TaskPollingState
-	IsPolling(taskID string) bool
 	GetPollingTasksForContext(contextID string) []string
 	GetAllPollingTasks() []string
 }
@@ -660,6 +655,12 @@ type BackgroundTaskRegistry interface {
 	// CountRunningJobs returns how many supervised jobs are running, optionally
 	// filtered to one kind (pass "" for all kinds).
 	CountRunningJobs(kind JobKind) int
+
+	// IsJobRunning reports whether the supervised job with the given id is still
+	// running. It is the per-id liveness query a tool uses (via the narrow
+	// JobLivenessReporter projection) to defer to the supervisor - the single
+	// source of truth - instead of racing it with a manual read.
+	IsJobRunning(id string) bool
 
 	// WindJob sends a graceful wind-down or hard stop to one supervised job.
 	WindJob(id string, sig WindSignal) error

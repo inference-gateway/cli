@@ -250,7 +250,6 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		TaskDescription: taskDescription,
 		IsPolling:       false,
 		StartedAt:       time.Now(),
-		LastPollAt:      time.Now(),
 	}
 
 	if t.taskTracker != nil {
@@ -299,8 +298,6 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 
 	strategy := t.config.A2A.Task.PollingStrategy
 	currentInterval := t.initializePollingStrategy(agentURL, taskID, strategy)
-	state.CurrentInterval = currentInterval
-	state.NextPollTime = time.Now().Add(currentInterval)
 
 	pollAttempt := 0
 	var pollingDetails strings.Builder
@@ -329,8 +326,6 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 			pollAttempt++
 			fmt.Fprintf(&pollingDetails, "Poll #%d: interval=%v, elapsed=%v\n",
 				pollAttempt, currentInterval, time.Since(state.StartedAt))
-
-			state.LastPollAt = time.Now()
 
 			currentTask, err := t.queryTask(ctx, adkClient, taskID)
 			if err != nil || currentTask == nil {
@@ -387,7 +382,7 @@ func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AC
 	return &currentTask, nil
 }
 
-func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, state *domain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
+func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* state */ *domain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -398,8 +393,6 @@ func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ st
 		newInterval = maxInterval
 	}
 
-	state.CurrentInterval = newInterval
-	state.NextPollTime = time.Now().Add(newInterval)
 	ticker.Reset(newInterval)
 
 	return newInterval
@@ -531,7 +524,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 	return false, nil
 }
 
-func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, state *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
+func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, _ /* state */ *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -542,8 +535,6 @@ func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskI
 		newInterval = maxInterval
 	}
 
-	state.CurrentInterval = newInterval
-	state.NextPollTime = time.Now().Add(newInterval)
 	ticker.Reset(newInterval)
 
 	return newInterval

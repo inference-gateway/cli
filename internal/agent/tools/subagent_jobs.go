@@ -26,13 +26,14 @@ type headlessSubagentJob struct {
 // Meta describes the subagent for the task view.
 func (j *headlessSubagentJob) Meta() domain.JobMeta {
 	return domain.JobMeta{
-		ID:          j.state.ID,
-		Kind:        domain.JobKindSubagent,
-		Label:       labelOrSession(j.state.Label, j.state.SessionID),
-		Description: j.state.Description,
-		Detail:      domain.SubagentModeHeadless,
-		StartedAt:   j.state.StartedAt,
-		Silent:      j.state.Silent,
+		ID:           j.state.ID,
+		Kind:         domain.JobKindSubagent,
+		Label:        labelOrSession(j.state.Label, j.state.SessionID),
+		Description:  j.state.Description,
+		Detail:       domain.SubagentModeHeadless,
+		StartedAt:    j.state.StartedAt,
+		Silent:       j.state.Silent,
+		HoldsSession: true,
 	}
 }
 
@@ -109,17 +110,18 @@ func newInteractiveSubagentJob(tool *AgentTool, state *domain.SubagentState) *in
 
 // Meta describes the interactive subagent. It is Silent because each completed
 // turn's output is emitted as its own note, so the terminal result adds nothing.
-// (A user-driven interactive pane is kept out of the headless quiescence check by
-// the tracker's Mode filter in countPendingSubagents, not by this Meta.)
+// HoldsSession is false: a user-driven interactive pane must not keep a headless
+// session alive, so the supervisor's HasPending skips it.
 func (j *interactiveSubagentJob) Meta() domain.JobMeta {
 	return domain.JobMeta{
-		ID:          j.state.ID,
-		Kind:        domain.JobKindSubagent,
-		Label:       labelOrSession(j.state.Label, j.state.SessionID),
-		Description: j.state.Description,
-		Detail:      domain.SubagentModeInteractive,
-		StartedAt:   j.state.StartedAt,
-		Silent:      true,
+		ID:           j.state.ID,
+		Kind:         domain.JobKindSubagent,
+		Label:        labelOrSession(j.state.Label, j.state.SessionID),
+		Description:  j.state.Description,
+		Detail:       domain.SubagentModeInteractive,
+		StartedAt:    j.state.StartedAt,
+		Silent:       true,
+		HoldsSession: false,
 	}
 }
 

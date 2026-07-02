@@ -40,6 +40,11 @@ type JobMeta struct {
 	StartedAt   time.Time
 
 	Silent bool
+
+	// HoldsSession keeps a headless session alive until the job terminates (A2A
+	// tasks, shells, headless subagents). False for user-driven interactive
+	// subagent panes so a one-shot `infer agent` does not hang at exit.
+	HoldsSession bool
 }
 
 // JobSignal is an intermediate, non-terminal event a running job emits to the
@@ -115,6 +120,15 @@ type JobSubmitter interface {
 // pane-watcher next polls (or never, if a killed pane is not observed as gone).
 type JobStopper interface {
 	WindJob(id string, sig WindSignal) error
+}
+
+// JobLivenessReporter reports whether a supervised background job is still
+// running, by id. It is the narrow projection of BackgroundTaskRegistry a tool
+// uses to tell whether the supervisor is still driving a job it launched - an
+// A2A task being polled, a background shell, or a subagent - so a manual read
+// defers to the supervisor (the single source of truth) instead of racing it.
+type JobLivenessReporter interface {
+	IsJobRunning(id string) bool
 }
 
 // JobNotifier is an optional BackgroundJob extension. A job that implements it
