@@ -29,7 +29,7 @@ func TestApplyConfigOverrides_UnknownActionWarnings(t *testing.T) {
 		name      string
 		bindings  map[string]config.KeyBindingEntry
 		wantWarns int
-		wantField string // when set, asserted as the warn's action field
+		wantField string
 	}{
 		{
 			name:      "fresh default config is silent",
@@ -59,8 +59,6 @@ func TestApplyConfigOverrides_UnknownActionWarnings(t *testing.T) {
 			wantField: "diff_viewer_bogus",
 		},
 		{
-			// #714 renamed this action; a stale config keeps the old (doubled-prefix)
-			// ID, which is genuinely unknown now and should warn exactly once.
 			name:      "stale renamed action warns once",
 			bindings:  map[string]config.KeyBindingEntry{"plan_approval_plan_approval_accept_and_auto_approve": {Keys: []string{"a"}, Enabled: &enabled}},
 			wantWarns: 1,
@@ -78,15 +76,13 @@ func TestApplyConfigOverrides_UnknownActionWarnings(t *testing.T) {
 			cfg := &config.Config{}
 			cfg.Chat.Keybindings = config.KeybindingsConfig{Enabled: true, Bindings: tt.bindings}
 
-			_ = keybinding.NewRegistry(cfg) // triggers ApplyConfigOverrides
+			_ = keybinding.NewRegistry(cfg)
 
 			unknown := logs.FilterMessage("unknown keybinding action in config, ignoring").All()
 			if len(unknown) != tt.wantWarns {
 				t.Fatalf("unknown-keybinding warns = %d, want %d (all logs: %v)", len(unknown), tt.wantWarns, logs.All())
 			}
 
-			// Bug A regression guard: the structured logger must not emit zap's
-			// "Ignored key without a value." error from a dangling printf arg.
 			if n := logs.FilterMessageSnippet("Ignored key").Len(); n != 0 {
 				t.Fatalf("got %d spurious 'Ignored key without a value.' lines (Bug A regression)", n)
 			}
