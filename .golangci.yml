@@ -37,8 +37,6 @@ linters:
     nestif:
       min-complexity: 4
     loggercheck:
-      # Guard against printf-style format strings (%s/%v) passed to the
-      # structured key/value logger. Teach loggercheck our wrapper funcs.
       no-printf-like: true
       rules:
         - github.com/inference-gateway/cli/internal/logger.Debug
