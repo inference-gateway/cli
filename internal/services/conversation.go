@@ -99,7 +99,7 @@ func (r *InMemoryConversationRepository) UpdatePlanStatus(action domain.PlanAppr
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
 			case domain.PlanApprovalReject:
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalRejected
-			case domain.PlanApprovalAcceptAndAutoApprove:
+			case domain.PlanApprovalAcceptStandard:
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
 			}
 			break

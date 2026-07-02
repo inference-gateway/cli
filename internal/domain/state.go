@@ -357,9 +357,13 @@ func (a ApprovalAction) String() string {
 type PlanApprovalAction int
 
 const (
+	// PlanApprovalAccept is the default choice: accept the plan and switch to
+	// auto-accept mode so execution proceeds without per-action approval.
 	PlanApprovalAccept PlanApprovalAction = iota
 	PlanApprovalReject
-	PlanApprovalAcceptAndAutoApprove
+	// PlanApprovalAcceptStandard accepts the plan but stays in standard mode,
+	// so the user still approves each action during execution.
+	PlanApprovalAcceptStandard
 )
 
 func (a PlanApprovalAction) String() string {
@@ -368,8 +372,8 @@ func (a PlanApprovalAction) String() string {
 		return "Accept"
 	case PlanApprovalReject:
 		return "Reject"
-	case PlanApprovalAcceptAndAutoApprove:
-		return "Accept & Auto-Approve"
+	case PlanApprovalAcceptStandard:
+		return "Approve Each Step"
 	default:
 		return "Unknown"
 	}

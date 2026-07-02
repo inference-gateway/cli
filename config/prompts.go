@@ -540,7 +540,8 @@ When in doubt, use this tool. Being proactive with task management demonstrates 
 
 What happens:
 - The plan is written as a Markdown file to <configDir>/plans/<timestamp>-<slug>.md
-- The plan is displayed to the user with Accept / Reject / Accept-and-Auto-Approve options
+- The plan is displayed to the user with Accept / Reject / Approve Each Step options
+- Accept switches to auto-approve mode; Approve Each Step keeps standard mode (per-action approval)
 - If approved, you'll switch to execution mode with full tool access
 - If rejected, the file remains on disk as an audit trail and the user provides feedback
 
