@@ -418,9 +418,9 @@ func (c *ServiceContainer) handleStorageInitFailure(
 			"error", err,
 			"type", storageConfig.Type,
 			"enabled", c.config.Storage.Enabled)
-		logger.Error("storage backend '%s' is not available. "+
-			"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
-			storageConfig.Type)
+		logger.Error("storage backend is not available; "+
+			"either fix the configuration or disable storage by setting 'storage.enabled: false'",
+			"type", storageConfig.Type)
 		panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
 			"To use in-memory storage instead, set:\n"+
 			"  storage.enabled: false\n\n"+
