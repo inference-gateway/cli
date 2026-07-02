@@ -70,6 +70,20 @@ func GetDefaultKeybindings() map[string]KeyBindingEntry {
 	return bindings
 }
 
+// DefaultKeybindingActionIDs returns the set of every action ID present in the
+// default keybindings, including the namespace-path actions (chat_focus_attachments,
+// diff_viewer_*, explorer_*) that components resolve directly via ResolveNamespaceBindings
+// and that the runtime key registry never registers. Callers use it to tell a legitimate
+// (if unregistered) action from a typo.
+func DefaultKeybindingActionIDs() map[string]struct{} {
+	defaults := GetDefaultKeybindings()
+	ids := make(map[string]struct{}, len(defaults))
+	for id := range defaults {
+		ids[id] = struct{}{}
+	}
+	return ids
+}
+
 func addGlobalBindings(bindings map[string]KeyBindingEntry) {
 	enabled := true
 	bindings[ActionID(NamespaceGlobal, "quit")] = KeyBindingEntry{
