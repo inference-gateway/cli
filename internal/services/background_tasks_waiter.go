@@ -115,7 +115,7 @@ func (w *BackgroundTasksWaiter) WaitAndDrain(ctx context.Context) []DrainedMessa
 		case <-ticker.C:
 		case <-deadline.C:
 			logger.Warn("timed out waiting for background tasks to complete",
-				"pending_a2a_tasks", len(w.registry.GetAllPollingTasks()),
+				"pending_a2a_tasks", w.registry.CountRunningJobs(domain.JobKindA2A),
 				"running_shells", w.registry.CountRunning(),
 				"max_wait_seconds", maxWaitSec)
 			return w.drainQueue()

@@ -136,6 +136,14 @@ type TaskRetainer interface {
 	RetainedTask(result ToolExecutionResult) (TaskInfo, bool)
 }
 
+// A2AStateProvider is an optional BackgroundJob extension implemented by A2A task
+// jobs so the supervisor can surface their live polling state (context/agent/task
+// id and last known remote state) as the single source for the task view and
+// status bar, without the generic JobMeta/TrackedJob carrying A2A-specific fields.
+type A2AStateProvider interface {
+	A2APollingState() TaskPollingState
+}
+
 // TrackedJob is a point-in-time snapshot of one supervised job for the task view
 // and status line.
 type TrackedJob struct {

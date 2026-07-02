@@ -60,7 +60,7 @@ func (r *backgroundTaskRegistry) WindJob(id string, sig domain.WindSignal) error
 // cross-type query the BackgroundTasksWaiter uses to decide whether the session
 // is safe to close.
 func (r *backgroundTaskRegistry) HasPending() bool {
-	if len(r.GetAllPollingTasks()) > 0 {
+	if r.supervisor.CountRunning(domain.JobKindA2A) > 0 {
 		return true
 	}
 	if r.ShellTracker != nil && r.CountRunning() > 0 {

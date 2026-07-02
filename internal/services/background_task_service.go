@@ -12,40 +12,45 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
+// a2aJobController is the narrow job-supervisor surface this service needs: the
+// live A2A polling states (the single source for active A2A rows, shared with the
+// status-bar indicator) and the wind control used to stop a task on cancel.
+// *jobs.Supervisor satisfies it.
+type a2aJobController interface {
+	A2APollingStates() []domain.TaskPollingState
+	Wind(id string, sig domain.WindSignal) error
+}
+
 // BackgroundTaskService handles background task operations (A2A-specific)
 // Only instantiated when A2A tools are enabled
 type BackgroundTaskService struct {
 	taskTracker     domain.A2ATaskTracker
+	jobs            a2aJobController
 	createADKClient func(agentURL string) client.A2AClient
 	mutex           sync.RWMutex
 }
 
-// NewBackgroundTaskService creates a new background task service
-func NewBackgroundTaskService(taskTracker domain.A2ATaskTracker) *BackgroundTaskService {
+// NewBackgroundTaskService creates a new background task service. jobs is the job
+// supervisor - the single source of truth for which A2A tasks are running - while
+// taskTracker still resolves the context graph and a task's agent URL for cancel.
+func NewBackgroundTaskService(taskTracker domain.A2ATaskTracker, jobs a2aJobController) *BackgroundTaskService {
 	return &BackgroundTaskService{
 		taskTracker: taskTracker,
+		jobs:        jobs,
 		createADKClient: func(agentURL string) client.A2AClient {
 			return client.NewClient(agentURL)
 		},
 	}
 }
 
-// GetBackgroundTasks returns all current background polling tasks
+// GetBackgroundTasks returns the active A2A tasks from the job supervisor - the
+// single source of truth shared with the status-bar indicator - so the /tasks
+// active list and the indicator can no longer diverge.
 func (s *BackgroundTaskService) GetBackgroundTasks() []domain.TaskPollingState {
-	if s.taskTracker == nil {
+	if s.jobs == nil {
 		return []domain.TaskPollingState{}
 	}
-
-	pollingTasks := s.taskTracker.GetAllPollingTasks()
-	tasks := make([]domain.TaskPollingState, 0, len(pollingTasks))
-
-	for _, taskID := range pollingTasks {
-		if state := s.taskTracker.GetPollingState(taskID); state != nil {
-			tasks = append(tasks, *state)
-		}
-	}
-
-	return tasks
+	return s.jobs.A2APollingStates()
 }
 
 // CancelBackgroundTask cancels a background task by task ID
@@ -72,6 +77,12 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 
 	if targetTask.CancelFunc != nil {
 		targetTask.CancelFunc()
+	}
+
+	if s.jobs != nil {
+		if err := s.jobs.Wind(taskID, domain.WindStop); err != nil {
+			logger.Warn("failed to wind supervised A2A job on cancel", "task_id", taskID, "error", err)
+		}
 	}
 
 	s.taskTracker.StopPolling(taskID)

@@ -514,3 +514,42 @@ func TestSupervisor_FinishWithoutRetentionService(t *testing.T) {
 		t.Fatalf("job should complete normally, got ok=%v %+v", ok, j)
 	}
 }
+
+// fakeA2AJob is a fakeJob that also implements domain.A2AStateProvider, so it is
+// visible to Supervisor.A2APollingStates while running.
+type fakeA2AJob struct {
+	*fakeJob
+	state domain.TaskPollingState
+}
+
+func (f *fakeA2AJob) A2APollingState() domain.TaskPollingState { return f.state }
+
+// TestSupervisor_A2APollingStates asserts the supervisor is the single source for
+// active A2A rows: only running A2A jobs are returned, with their polling detail
+// intact, and a finished task drops out.
+func TestSupervisor_A2APollingStates(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	defer sup.Stop()
+
+	a2a := &fakeA2AJob{
+		fakeJob: newFakeJob("a1", domain.JobKindA2A),
+		state:   domain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
+	}
+	shell := newFakeJob("s1", domain.JobKindShell)
+
+	sup.Submit(a2a)
+	sup.Submit(shell)
+	<-a2a.started
+	<-shell.started
+
+	states := sup.A2APollingStates()
+	if len(states) != 1 {
+		t.Fatalf("A2APollingStates len = %d, want 1 (A2A only, excludes shell)", len(states))
+	}
+	if got := states[0]; got.TaskID != "a1" || got.ContextID != "ctx1" || got.AgentURL != "http://agent" || got.LastKnownState != "working" {
+		t.Errorf("A2A detail not preserved: %+v", got)
+	}
+
+	close(a2a.finish)
+	waitFor(t, func() bool { return len(sup.A2APollingStates()) == 0 })
+}

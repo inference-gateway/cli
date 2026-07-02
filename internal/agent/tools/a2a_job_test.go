@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -166,4 +167,55 @@ func TestRetainableA2AState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestA2AJob_A2APollingState asserts A2APollingState composes the immutable
+// identity fields with the mutex-guarded last known state, and is nil-state safe.
+func TestA2AJob_A2APollingState(t *testing.T) {
+	started := time.Now().Add(-time.Minute)
+	j := &a2aJob{
+		taskID:   "t1",
+		agentURL: "http://agent",
+		state:    &domain.TaskPollingState{ContextID: "ctx1", TaskDescription: "do work", StartedAt: started},
+	}
+	j.recordState(string(adk.TaskStateWorking))
+
+	got := j.A2APollingState()
+	if got.TaskID != "t1" || got.AgentURL != "http://agent" || got.ContextID != "ctx1" ||
+		got.TaskDescription != "do work" || got.LastKnownState != string(adk.TaskStateWorking) {
+		t.Errorf("A2APollingState = %+v, missing composed fields", got)
+	}
+	if !got.StartedAt.Equal(started) {
+		t.Errorf("StartedAt = %v, want %v", got.StartedAt, started)
+	}
+	if !got.IsPolling {
+		t.Error("IsPolling should be true for a running job")
+	}
+
+	if nilState := (&a2aJob{taskID: "t2", agentURL: "http://a"}).A2APollingState(); nilState.TaskID != "t2" || nilState.ContextID != "" {
+		t.Errorf("nil-state A2APollingState = %+v, want minimal without panic", nilState)
+	}
+}
+
+// TestA2AJob_A2APollingStateConcurrent runs the guarded write (recordState, the
+// poll goroutine's path) against the read (A2APollingState, the task view's path)
+// so `go test -race` proves the mutex closes the shared-state data race.
+func TestA2AJob_A2APollingStateConcurrent(t *testing.T) {
+	j := &a2aJob{taskID: "t1", agentURL: "http://a", state: &domain.TaskPollingState{ContextID: "ctx1", StartedAt: time.Now()}}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			j.recordState("working")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			_ = j.A2APollingState()
+		}
+	}()
+	wg.Wait()
 }

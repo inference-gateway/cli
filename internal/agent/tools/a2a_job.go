@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
@@ -15,10 +16,12 @@ import (
 // returning the terminal result. The supervisor owns the goroutine - this is the
 // A2A side of retiring A2ATaskPoller.
 type a2aJob struct {
-	tool     *A2ASubmitTaskTool
-	agentURL string
-	taskID   string
-	state    *domain.TaskPollingState
+	tool           *A2ASubmitTaskTool
+	agentURL       string
+	taskID         string
+	state          *domain.TaskPollingState
+	mu             sync.RWMutex
+	lastKnownState string
 }
 
 // Meta describes the A2A task for the task view.
@@ -33,9 +36,49 @@ func (j *a2aJob) Meta() domain.JobMeta {
 	}
 }
 
-// Run polls the remote agent until the task terminates.
+// Run polls the remote agent until the task terminates. It records each remote
+// state change through the emit wrapper so A2APollingState can report the live
+// status to the task view without racing the poll goroutine on the shared state.
 func (j *a2aJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.ToolExecutionResult {
-	return j.tool.runA2APolling(ctx, j.agentURL, j.taskID, j.state, emit)
+	return j.tool.runA2APolling(ctx, j.agentURL, j.taskID, j.state, func(sig domain.JobSignal) {
+		j.recordState(sig.State)
+		if emit != nil {
+			emit(sig)
+		}
+	})
+}
+
+// recordState stores the latest non-empty remote state under mu so A2APollingState
+// can read it without racing the poll goroutine.
+func (j *a2aJob) recordState(state string) {
+	if state == "" {
+		return
+	}
+	j.mu.Lock()
+	j.lastKnownState = state
+	j.mu.Unlock()
+}
+
+// A2APollingState implements domain.A2AStateProvider so the supervisor is the
+// single source for active A2A rows. Identity fields are immutable after submit;
+// only LastKnownState is read under mu (the poll goroutine writes it).
+func (j *a2aJob) A2APollingState() domain.TaskPollingState {
+	j.mu.RLock()
+	last := j.lastKnownState
+	j.mu.RUnlock()
+
+	st := domain.TaskPollingState{
+		TaskID:         j.taskID,
+		AgentURL:       j.agentURL,
+		LastKnownState: last,
+		IsPolling:      true,
+	}
+	if j.state != nil {
+		st.ContextID = j.state.ContextID
+		st.TaskDescription = j.state.TaskDescription
+		st.StartedAt = j.state.StartedAt
+	}
+	return st
 }
 
 // Wind is a no-op: the supervisor cancels Run's context on WindStop, which stops
