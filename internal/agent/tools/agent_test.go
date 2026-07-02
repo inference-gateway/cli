@@ -178,6 +178,23 @@ func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 	}
 }
 
+// buildChatPaneCommand must slugify the LLM-supplied label into a safe, dashcase
+// history name (no spaces, path separators, or traversal) and fall back to the
+// memory-only sentinel when there is no usable label — never the per-spawn session id.
+func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
+	tool := newTestAgentTool(t)
+
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "Refactor Auth"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='refactor-auth'") {
+		t.Fatalf("label must be slugified to dashcase; cmd = %q", got)
+	}
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
+		t.Fatalf("path separators/traversal must be sanitized out; cmd = %q", got)
+	}
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+domain.SubagentHistoryMemoryOnly+"'") {
+		t.Fatalf("unlabeled subagent must use the memory-only sentinel, not the session id; cmd = %q", got)
+	}
+}
+
 func TestSubagentExtraEnv_EmitsSubagentMode(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {

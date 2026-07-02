@@ -55,17 +55,21 @@ type InputView struct {
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
-	return NewInputViewWithConfigDir(modelService, "")
+	return NewInputViewWithName(modelService, "", "")
 }
 
-func NewInputViewWithConfigDir(modelService domain.ModelService, configDir string) *InputView {
+func NewInputViewWithName(modelService domain.ModelService, configDir, name string) *InputView {
 	if configDir == "" {
 		configDir = ".infer"
 	}
 
-	historyManager, err := history.NewHistoryManagerWithDir(5, configDir)
-	if err != nil {
+	var historyManager *history.HistoryManager
+	if name == domain.SubagentHistoryMemoryOnly {
 		historyManager = history.NewMemoryOnlyHistoryManager(5)
+	} else if hm, err := history.NewHistoryManagerWithName(5, configDir, name); err != nil {
+		historyManager = history.NewMemoryOnlyHistoryManager(5)
+	} else {
+		historyManager = hm
 	}
 
 	return &InputView{

@@ -19,12 +19,15 @@ type HistoryManager struct {
 
 // NewHistoryManager creates a new history manager
 func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
-	return NewHistoryManagerWithDir(maxInMemory, ".infer")
+	return NewHistoryManagerWithName(maxInMemory, ".infer", "")
 }
 
-// NewHistoryManagerWithDir creates a new history manager with a custom config directory
-func NewHistoryManagerWithDir(maxInMemory int, configDir string) (*HistoryManager, error) {
-	shellHistory, err := NewShellHistoryWithDir(configDir)
+// NewHistoryManagerWithName creates a new history manager with a custom config directory
+// and an optional name. When name is empty, the history file is stored at
+// <configDir>/history/history (the main agent). When name is non-empty, the history
+// file is stored at <configDir>/history/history-<name> (e.g. for subagents).
+func NewHistoryManagerWithName(maxInMemory int, configDir, name string) (*HistoryManager, error) {
+	shellHistory, err := NewShellHistoryWithName(configDir, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize shell history: %w", err)
 	}

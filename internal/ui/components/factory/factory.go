@@ -20,9 +20,11 @@ func CreateInputView(modelService domain.ModelService) ui.InputComponent {
 	return components.NewInputView(modelService)
 }
 
-// CreateInputViewWithConfigDir creates a new input view component with config directory
-func CreateInputViewWithConfigDir(modelService domain.ModelService, configDir string) ui.InputComponent {
-	return components.NewInputViewWithConfigDir(modelService, configDir)
+// CreateInputViewWithName creates a new input view component with config directory and name.
+// When name is empty, the history file is stored at <configDir>/history/history (the main agent).
+// When name is non-empty, the history file is stored at <configDir>/history/history-<name> (e.g. for subagents).
+func CreateInputViewWithName(modelService domain.ModelService, configDir, name string) ui.InputComponent {
+	return components.NewInputViewWithName(modelService, configDir, name)
 }
 
 // CreateAutocomplete creates a new autocomplete component

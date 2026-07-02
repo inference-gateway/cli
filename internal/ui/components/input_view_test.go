@@ -1,6 +1,7 @@
 package components
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,23 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 	iv.styleProvider = styles.NewProvider(fakeThemeService)
 
 	return iv
+}
+
+// NewInputViewWithName must map the memory-only sentinel to a manager with no backing
+// file (unlabeled subagents), and a real name to <configDir>/history/history-<name>.
+func TestNewInputViewWithName_HistorySelection(t *testing.T) {
+	ms := createMockModelService()
+
+	iv := NewInputViewWithName(ms, "cfgdir", domain.SubagentHistoryMemoryOnly)
+	if got := iv.historyManager.GetShellHistoryFile(); got != "" {
+		t.Errorf("memory-only sentinel must have no history file, got %q", got)
+	}
+
+	iv = NewInputViewWithName(ms, "cfgdir", "refactor")
+	want := filepath.Join("cfgdir", "history", "history-refactor")
+	if got := iv.historyManager.GetShellHistoryFile(); got != want {
+		t.Errorf("named subagent history: want %q, got %q", want, got)
+	}
 }
 
 func TestNewInputView(t *testing.T) {
