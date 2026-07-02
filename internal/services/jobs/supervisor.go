@@ -148,6 +148,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
+		logger.Warn("background job submit ignored: supervisor stopped", "id", meta.ID, "kind", meta.Kind)
 		return
 	}
 	var toClose domain.BackgroundJob
@@ -171,6 +172,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 		toClose.Close()
 	}
 
+	logger.Debug("background job submitted", "id", meta.ID, "kind", meta.Kind, "holds_session", meta.HoldsSession)
 	go s.monitor(ctx, sj)
 	s.notify(domain.BackgroundTasksChangedEvent{})
 }
@@ -232,6 +234,8 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	}
 	retention := s.taskRetention
 	s.mu.Unlock()
+
+	logger.Debug("background job finished", "id", sj.meta.ID, "kind", sj.meta.Kind, "status", string(status), "discarded", discarded)
 
 	if discarded {
 		sj.job.Close()
@@ -399,14 +403,14 @@ func (s *Supervisor) WindAll(sig domain.WindSignal) {
 func (s *Supervisor) DiscardKind(kind domain.JobKind) {
 	s.mu.Lock()
 	var toWind []*supervised
-	var toClose []domain.BackgroundJob
+	var toClose []*supervised
 	for id, sj := range s.jobs {
 		if sj.meta.Kind != kind {
 			continue
 		}
 		delete(s.jobs, id)
 		if sj.status.IsTerminal() {
-			toClose = append(toClose, sj.job)
+			toClose = append(toClose, sj)
 			continue
 		}
 		sj.discard = true
@@ -415,12 +419,14 @@ func (s *Supervisor) DiscardKind(kind domain.JobKind) {
 	s.mu.Unlock()
 
 	for _, sj := range toWind {
+		logger.Debug("discarding background job", "id", sj.meta.ID, "kind", sj.meta.Kind)
 		if err := s.wind(sj, domain.WindStop); err != nil {
 			logger.Warn("wind signal failed", "id", sj.meta.ID, "signal", domain.WindStop.String(), "error", err)
 		}
 	}
-	for _, job := range toClose {
-		job.Close()
+	for _, sj := range toClose {
+		logger.Debug("reaping terminal background job on discard", "id", sj.meta.ID, "kind", sj.meta.Kind)
+		sj.job.Close()
 	}
 	if len(toWind) > 0 || len(toClose) > 0 {
 		s.notify(domain.BackgroundTasksChangedEvent{})
@@ -428,6 +434,7 @@ func (s *Supervisor) DiscardKind(kind domain.JobKind) {
 }
 
 func (s *Supervisor) wind(sj *supervised, sig domain.WindSignal) error {
+	logger.Debug("winding background job", "id", sj.meta.ID, "kind", sj.meta.Kind, "signal", sig.String())
 	err := sj.job.Wind(context.Background(), sig)
 	if sig == domain.WindStop && sj.cancel != nil {
 		sj.cancel() // backstop: unblock Run even if the job ignored the signal
@@ -551,6 +558,7 @@ func (s *Supervisor) Cleanup(olderThan time.Duration) int {
 	s.mu.Unlock()
 
 	for _, sj := range reaped {
+		logger.Debug("reaping finished background job", "id", sj.meta.ID, "kind", sj.meta.Kind)
 		sj.job.Close()
 	}
 	for _, m := range longRunning {

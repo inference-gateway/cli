@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -170,8 +171,10 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 	if mode == domain.SubagentModeInteractive && !t.interactiveAvailable() {
 		switch t.config.Tools.Agent.Interactive.Fallback {
 		case "error":
+			logger.Error("interactive subagent unavailable", "reason", "not inside tmux ($TMUX unset)", "fallback", "error")
 			return t.errorResult(args, start, "interactive mode requires running inside tmux (no $TMUX session detected)"), nil
 		default:
+			logger.Debug("interactive subagent unavailable, falling back to headless", "reason", "not inside tmux ($TMUX unset)")
 			notes = append(notes, "not inside tmux - falling back to headless mode")
 			mode = domain.SubagentModeHeadless
 		}
@@ -179,9 +182,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 	parentSession := domain.GetSessionID(ctx)
 	parentModel := domain.GetModel(ctx)
-	// The subagent's capability comes from its per-task `type` (spec.Mode, resolved
-	// in parseAgentTasks), NOT from the parent's mode - a ReadOnly subagent stays
-	// read-only even when spawned from an AutoAccept chat.
+	logger.Debug("agent tool invoked", "mode", mode, "wait", wait, "tasks", len(specs), "parent_session", parentSession)
 	for i := range specs {
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
@@ -199,6 +200,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 // runWait spawns all subagents concurrently and blocks until they finish,
 // returning one aggregated result (fan-out / fan-in).
 func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+	logger.Debug("running subagents synchronously", "tasks", len(specs), "mode", mode)
 	results := make([]AgentSubResult, len(specs))
 	states := make([]*domain.SubagentState, len(specs))
 	var wg sync.WaitGroup
@@ -232,8 +234,6 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 	}
 	wg.Wait()
 
-	// This path is synchronous (the tool call blocks until all subagents finish),
-	// so it is not supervised; clean up the tracker entries here instead.
 	for _, state := range states {
 		_ = t.tracker.RemoveSubagent(state.ID)
 	}
@@ -262,6 +262,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 // runAsync dispatches subagents and returns immediately. Each subagent's
 // outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
 func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+	logger.Debug("dispatching subagents", "tasks", len(specs), "mode", mode)
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
@@ -288,6 +289,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 			t.submitter.Submit(&headlessSubagentJob{tool: t, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel})
 		} else {
 			cancel()
+			logger.Warn("headless subagent not supervised: no job submitter", "subagent_id", state.ID, "session_id", sessionID)
 		}
 
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
@@ -348,6 +350,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
 // them.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *domain.ToolExecutionResult {
+	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
@@ -359,9 +362,11 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		_ = os.Remove(subagentApprovalFilePath(sessionID))
 		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec, sessionID))
 		if err != nil {
+			logger.Error("failed to open tmux pane for interactive subagent", "label", labelOrSession(spec.Label, sessionID), "session_id", sessionID, "error", err)
 			notes = append(notes, fmt.Sprintf("%s: failed to open tmux pane: %v", labelOrSession(spec.Label, sessionID), err))
 			continue
 		}
+		logger.Debug("interactive subagent pane created", "pane_id", paneID, "session_id", sessionID, "label", spec.Label)
 		if err := t.sendTask(ctx, paneID, spec.Description); err != nil {
 			logger.Warn("failed to send task to interactive subagent pane", "pane", paneID, "error", err)
 		}
@@ -384,6 +389,8 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 
 		if t.submitter != nil {
 			t.submitter.Submit(newInteractiveSubagentJob(t, state))
+		} else {
+			logger.Warn("interactive subagent not supervised: no job submitter", "subagent_id", state.ID, "pane_id", paneID)
 		}
 
 		launched = append(launched, AgentSubResult{
@@ -504,10 +511,16 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (
 	args = append(args, "-P", "-F", "#{pane_id}", command)
 	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
 	if err != nil {
+		var stderr string
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			stderr = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		logger.Error("tmux pane creation failed", "tmux_args", strings.Join(args, " "), "error", err, "stderr", stderr)
 		return "", err
 	}
 	paneID := strings.TrimSpace(string(out))
 	if paneID == "" {
+		logger.Error("tmux split-window returned an empty pane id", "tmux_args", strings.Join(args, " "))
 		return "", nil
 	}
 

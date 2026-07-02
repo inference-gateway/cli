@@ -42,6 +42,7 @@ func (j *headlessSubagentJob) Meta() domain.JobMeta {
 // supervisor's context to it, so Wind/Stop/shutdown also cancel the subprocess
 // (via exec.CommandContext). Run returns promptly on either cancellation.
 func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+	logger.Debug("headless subagent starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID)
 	runCtx := j.runCtx
 	if runCtx == nil {
 		runCtx = ctx
@@ -60,6 +61,7 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 	if e := j.tool.tracker.SetSubagentStatus(j.state.ID, status); e != nil {
 		logger.Warn("subagent status update failed", "id", j.state.ID, "error", e)
 	}
+	logger.Debug("headless subagent finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", sub.Success)
 
 	return domain.ToolExecutionResult{
 		ToolName:  "Agent",
@@ -76,7 +78,10 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 func (j *headlessSubagentJob) Wind(_ context.Context, _ domain.WindSignal) error { return nil }
 
 // Close removes the subagent from the tracker on reap.
-func (j *headlessSubagentJob) Close() { _ = j.tool.tracker.RemoveSubagent(j.state.ID) }
+func (j *headlessSubagentJob) Close() {
+	logger.Debug("closing headless subagent", "subagent_id", j.state.ID, "session_id", j.state.SessionID)
+	_ = j.tool.tracker.RemoveSubagent(j.state.ID)
+}
 
 // interactiveSubagentJob monitors a live interactive subagent (a tmux pane
 // running `infer chat`) for its whole life. Run polls the pane and emits a
@@ -128,6 +133,7 @@ func (j *interactiveSubagentJob) Meta() domain.JobMeta {
 // Run watches the pane until it closes, emitting each completed turn's output and
 // any pending-approval prompts.
 func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.ToolExecutionResult {
+	logger.Debug("monitoring interactive subagent pane", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
 	ticker := time.NewTicker(j.pollInterval)
 	defer ticker.Stop()
 
@@ -141,11 +147,13 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Debug("interactive subagent monitor cancelled", "subagent_id", j.state.ID, "pane_id", j.state.PaneID)
 			return domain.ToolExecutionResult{ToolName: "Agent", Success: true}
 		case <-ticker.C:
 			obs := j.inspect(ctx, j.state.PaneID, j.state.SessionID)
 
 			if obs.Gone || obs.Dead {
+				logger.Debug("interactive subagent pane closed", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "gone", obs.Gone, "dead", obs.Dead)
 				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
 				return domain.ToolExecutionResult{ToolName: "Agent", Success: true}
 			}
@@ -192,6 +200,7 @@ func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emi
 		return
 	}
 	*last = body
+	logger.Debug("interactive subagent turn harvested", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "bytes", len(body))
 	emit(domain.JobSignal{Note: j.completedMessage(body), Enqueue: true})
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
 }
@@ -208,6 +217,7 @@ func (j *interactiveSubagentJob) Wind(ctx context.Context, sig domain.WindSignal
 // Close tears the subagent down on reap: kill the (remain-on-exit) pane, remove
 // temp files, and drop it from the tracker.
 func (j *interactiveSubagentJob) Close() {
+	logger.Debug("closing interactive subagent, killing pane", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
 	_ = tmuxKillPane(context.Background(), j.state.PaneID)
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
 	_ = os.Remove(subagentApprovalFilePath(j.state.SessionID))
