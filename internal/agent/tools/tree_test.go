@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
@@ -623,4 +625,52 @@ func TestTreeTool_ValidatePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTreeTool_ConcurrentGitignoreCache exercises getOrLoadDirGitignore from many
+// goroutines at once. TreeTool is a process singleton and a turn's tool calls run
+// concurrently, so the gitignore cache must be safe for concurrent access. Without
+// the cache mutex this fails under `go test -race` (and can trigger a fatal
+// "concurrent map read and map write"). See issue #712.
+func TestTreeTool_ConcurrentGitignoreCache(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Tree: config.TreeToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewTreeTool(cfg)
+
+	root := t.TempDir()
+	dirs := make([]string, 0, 16)
+	for i := range 16 {
+		dir := filepath.Join(root, fmt.Sprintf("dir%d", i))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("failed to create dir: %v", err)
+		}
+		// Half the directories carry a .gitignore so both cache-write branches run.
+		if i%2 == 0 {
+			if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.tmp\n"), 0o644); err != nil {
+				t.Fatalf("failed to write .gitignore: %v", err)
+			}
+		}
+		dirs = append(dirs, dir)
+	}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				for _, dir := range dirs {
+					_ = tool.getOrLoadDirGitignore(dir)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

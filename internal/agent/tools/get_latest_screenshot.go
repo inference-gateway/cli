@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -17,6 +18,7 @@ type GetLatestScreenshotTool struct {
 	enabled         bool
 	formatter       domain.BaseFormatter
 	provider        domain.ScreenshotProvider
+	lastCallMu      sync.Mutex
 	lastCallTime    time.Time
 	minCallInterval time.Duration
 }
@@ -57,10 +59,12 @@ func (t *GetLatestScreenshotTool) Definition() sdk.ChatCompletionTool {
 func (t *GetLatestScreenshotTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 
+	t.lastCallMu.Lock()
 	if !t.lastCallTime.IsZero() {
 		timeSinceLastCall := time.Since(t.lastCallTime)
 		if timeSinceLastCall < t.minCallInterval {
 			waitTime := t.minCallInterval - timeSinceLastCall
+			t.lastCallMu.Unlock()
 			return &domain.ToolExecutionResult{
 				ToolName:  "GetLatestScreenshot",
 				Arguments: args,
@@ -70,8 +74,8 @@ func (t *GetLatestScreenshotTool) Execute(ctx context.Context, args map[string]a
 			}, nil
 		}
 	}
-
 	t.lastCallTime = time.Now()
+	t.lastCallMu.Unlock()
 
 	if t.provider == nil {
 		return &domain.ToolExecutionResult{
