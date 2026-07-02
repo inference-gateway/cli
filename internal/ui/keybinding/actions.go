@@ -919,14 +919,14 @@ func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, i
 	tmpDir := filepath.Join(app.GetConfigDir(), "tmp")
 
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		logger.Warn("failed to create %s/tmp directory: %v", app.GetConfigDir(), err)
+		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)
 		return false
 	}
 
 	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("clipboard-image-%s.png", timestamp))
 
 	if err := os.WriteFile(tmpPath, imageData, 0644); err != nil {
-		logger.Warn("failed to save clipboard image to %s/tmp: %v", app.GetConfigDir(), err)
+		logger.Warn("failed to save clipboard image", "path", tmpPath, "error", err)
 		return false
 	}
 
@@ -935,7 +935,7 @@ func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, i
 
 	imageAttachment, err := imageService.ReadImageFromFile(finalPath)
 	if err != nil {
-		logger.Warn("failed to read saved clipboard image: %v", err)
+		logger.Warn("failed to read saved clipboard image", "path", finalPath, "error", err)
 		return false
 	}
 
@@ -949,13 +949,13 @@ func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, i
 // Returns the final file path (which may have a different extension)
 func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Config) string {
 	if cfg == nil || !cfg.Image.ClipboardOptimize.Enabled {
-		logger.Info("clipboard image saved to: %s (you can inspect this file)", tmpPath)
+		logger.Info("clipboard image saved (you can inspect this file)", "path", tmpPath)
 		return tmpPath
 	}
 
 	result, err := optimizeClipboardImage(tmpPath, cfg.Image.ClipboardOptimize)
 	if err != nil {
-		logger.Warn("failed to optimize clipboard image, using original: %v", err)
+		logger.Warn("failed to optimize clipboard image, using original", "error", err)
 		return tmpPath
 	}
 
@@ -965,7 +965,7 @@ func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Con
 	}
 
 	if err := os.WriteFile(finalPath, result.Data, 0644); err != nil {
-		logger.Warn("failed to save optimized image: %v", err)
+		logger.Warn("failed to save optimized image", "path", finalPath, "error", err)
 		return tmpPath
 	}
 
@@ -973,8 +973,8 @@ func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Con
 		_ = os.Remove(tmpPath)
 	}
 
-	logger.Info("clipboard image optimized and saved to: %s (original: %d bytes, optimized: %d bytes)",
-		finalPath, len(originalData), len(result.Data))
+	logger.Info("clipboard image optimized and saved",
+		"path", finalPath, "original_bytes", len(originalData), "optimized_bytes", len(result.Data))
 
 	return finalPath
 }

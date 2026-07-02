@@ -2281,7 +2281,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	for _, img := range images {
 		if img.SourcePath != "" {
 			if err := os.Remove(img.SourcePath); err != nil {
-				logger.Warn("failed to clean up temporary image file %s: %v", img.SourcePath, err)
+				logger.Warn("failed to clean up temporary image file", "path", img.SourcePath, "error", err)
 			}
 		}
 	}

@@ -16,6 +16,7 @@ linters:
     - funlen
     - gocognit
     - nestif
+    - loggercheck
   disable:
     - exhaustruct
     - varnamelen
@@ -35,12 +36,16 @@ linters:
       min-complexity: 45
     nestif:
       min-complexity: 4
+    loggercheck:
+      no-printf-like: true
+      rules:
+        - github.com/inference-gateway/cli/internal/logger.Debug
+        - github.com/inference-gateway/cli/internal/logger.Info
+        - github.com/inference-gateway/cli/internal/logger.Warn
+        - github.com/inference-gateway/cli/internal/logger.Error
+        - github.com/inference-gateway/cli/internal/logger.Fatal
   exclusions:
     rules:
-      # staticcheck SA5011 reports a "possible nil-pointer deref" after
-      # `if x == nil { t.Fatal(...) }` blocks. testing.T.Fatal is NoReturn
-      # so the deref is safe; on some toolchains/platforms staticcheck
-      # fails to recognise this and flags the pattern. Suppress in tests.
       - linters:
           - staticcheck
         text: "SA5011"
