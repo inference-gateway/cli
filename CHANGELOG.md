@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.127.0](https://github.com/inference-gateway/cli/compare/v0.126.0...v0.127.0) (2026-07-02)
+
+### 🚀 Features
+
+* **plan:** compact context and start a fresh session when a plan is approved ([#705](https://github.com/inference-gateway/cli/issues/705)) ([28ddba7](https://github.com/inference-gateway/cli/commit/28ddba70701a12aa5b2d2a6e9434601018c71938))
+* **memory:** configurable git sync backend ([#707](https://github.com/inference-gateway/cli/issues/707)) ([6a68c3d](https://github.com/inference-gateway/cli/commit/6a68c3dd725cf125f1d33324878cbc4e25dea471)), closes [#670](https://github.com/inference-gateway/cli/issues/670) [#670](https://github.com/inference-gateway/cli/issues/670)
+* **history:** each subagent gets its own history file ([#711](https://github.com/inference-gateway/cli/issues/711)) ([16c8fa1](https://github.com/inference-gateway/cli/commit/16c8fa1a0a3d0b36e25c344210d410d34c2e4e3c)), closes [#699](https://github.com/inference-gateway/cli/issues/699)
+
+### 🐛 Bug Fixes
+
+* **plan:** accepting a plan switches to auto-accept mode by default ([#714](https://github.com/inference-gateway/cli/issues/714)) ([7b0befc](https://github.com/inference-gateway/cli/commit/7b0befc7d6b0ffece2c892e0465d3f6d5d619860)), closes [#710](https://github.com/inference-gateway/cli/issues/710)
+* **tools:** guard concurrent gitignore and screenshot caches ([#713](https://github.com/inference-gateway/cli/issues/713)) ([0ff4276](https://github.com/inference-gateway/cli/commit/0ff42762fc70acb687ac01f863cb7353a9e70dcc)), closes [#712](https://github.com/inference-gateway/cli/issues/712)
+* **tools:** guard Registry.tools with RWMutex against concurrent MCP registration ([#709](https://github.com/inference-gateway/cli/issues/709)) ([8a70871](https://github.com/inference-gateway/cli/commit/8a70871ab404b713fba24c0885fbb3127526528f)), closes [#708](https://github.com/inference-gateway/cli/issues/708)
+* **ui:** update dim color from [#565f89](https://github.com/inference-gateway/cli/issues/565f89) to [#7a7f9a](https://github.com/inference-gateway/cli/issues/7a7f9a) for improved contrast ([#706](https://github.com/inference-gateway/cli/issues/706)) ([b2ee67e](https://github.com/inference-gateway/cli/commit/b2ee67edb71853cc1ccea68b6ea5c9ca9846ae57))
+
+### 🔧 Build System
+
+* **deps:** bump github.com/go-telegram/bot from 1.21.0 to 1.22.0 in the gomod group ([#703](https://github.com/inference-gateway/cli/issues/703)) ([3de5136](https://github.com/inference-gateway/cli/commit/3de5136a676e53f333e3b7a0875a25172f1640e9))
+* **deps:** bump the github-actions group with 5 updates ([#704](https://github.com/inference-gateway/cli/issues/704)) ([80221f7](https://github.com/inference-gateway/cli/commit/80221f7f7b9670e92e3598a6ea0287237df70c35))
+
 ## [0.126.0](https://github.com/inference-gateway/cli/compare/v0.125.0...v0.126.0) (2026-06-30)
 
 ### 🚀 Features
