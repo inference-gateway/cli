@@ -128,8 +128,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		ToolExecutor:           &a.toolExecutor,
 		StartStreaming:         a.startStreaming,
 
-		GetMetrics:   a.service.GetMetrics,
-		SessionTurns: func() int64 { return a.service.sessionTurns.Load() },
+		GetMetrics: a.service.GetMetrics,
 		ShouldRequireApproval: func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
 			if a.service.approvalPolicy == nil {
 				return false
@@ -253,8 +252,7 @@ func (a *EventDrivenAgent) processEvents() {
 
 			if currentState == domain.StateIdle {
 				logger.Debug("agent reached Idle state - turn complete",
-					"total_turns", a.service.sessionTurns.Load(),
-					"run_turns", a.agentCtx.Turns)
+					"total_turns", a.service.sessionTurns.Load())
 				return
 			}
 		}

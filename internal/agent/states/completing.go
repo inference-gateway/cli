@@ -45,8 +45,6 @@ func (s *CompletingState) Handle(event domain.AgentEvent) error {
 // otherwise it publishes the final completion event and transitions to Idle.
 func (s *CompletingState) complete() error {
 	logger.Debug("completing state: finalizing agent execution",
-		"total_turns", s.ctx.SessionTurns(),
-		"run_turns", s.ctx.AgentCtx.Turns,
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
 	logger.Debug("sleeping 20ms for final queue check")
@@ -78,9 +76,6 @@ func (s *CompletingState) complete() error {
 		logger.Error("failed to transition to idle", "error", err)
 		return err
 	}
-	logger.Debug("agent execution completed successfully",
-		"total_turns", s.ctx.SessionTurns(),
-		"run_turns", s.ctx.AgentCtx.Turns)
 
 	return nil
 }
