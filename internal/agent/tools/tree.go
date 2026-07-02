@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -22,6 +23,7 @@ type TreeTool struct {
 	enabled        bool
 	gitignore      *ignore.GitIgnore
 	gitignoreCache map[string]*ignore.GitIgnore
+	cacheMutex     sync.RWMutex
 	formatter      domain.BaseFormatter
 }
 
@@ -489,6 +491,16 @@ func (t *TreeTool) loadGitignore() {
 
 // getOrLoadDirGitignore loads and caches .gitignore for a specific directory
 func (t *TreeTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
+	t.cacheMutex.RLock()
+	if cached, exists := t.gitignoreCache[dirPath]; exists {
+		t.cacheMutex.RUnlock()
+		return cached
+	}
+	t.cacheMutex.RUnlock()
+
+	t.cacheMutex.Lock()
+	defer t.cacheMutex.Unlock()
+
 	if cached, exists := t.gitignoreCache[dirPath]; exists {
 		return cached
 	}
