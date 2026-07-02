@@ -194,12 +194,10 @@ func (a *EventDrivenAgent) registerHandler(handler domain.StateHandler) {
 	a.stateHandlers[handler.Name()] = handler
 }
 
-// Start begins the event-driven agent execution
+// Start begins the event-driven agent execution. The state machine already
+// begins in Idle, so seeding a MessageReceivedEvent drives the first transition
+// (Idle -> CheckingQueue) via the Idle state handler.
 func (a *EventDrivenAgent) Start() {
-	if err := a.stateMachine.Transition(a.agentCtx, domain.StateIdle); err != nil {
-		logger.Error("failed to transition to Idle state", "error", err)
-	}
-
 	a.wg.Add(1)
 	go a.processEvents()
 
