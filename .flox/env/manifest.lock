@@ -6,7 +6,7 @@
       "claude-code": {
         "pkg-path": "claude-code",
         "pkg-group": "claude-code",
-        "version": "^2.1.191"
+        "version": "^2.1.193"
       },
       "codex": {
         "pkg-path": "codex",
@@ -226,6 +226,7 @@
       "rev_date": "2026-06-16T02:33:49Z",
       "scrape_date": "2026-06-17T03:13:55.154733Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -256,6 +257,7 @@
       "rev_date": "2026-06-16T02:33:49Z",
       "scrape_date": "2026-06-17T03:45:09.661247Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -286,6 +288,7 @@
       "rev_date": "2026-06-16T02:33:49Z",
       "scrape_date": "2026-06-17T04:13:48.794023Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -316,11 +319,13 @@
       "rev_date": "2026-06-16T02:33:49Z",
       "scrape_date": "2026-06-17T04:48:10.054542Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
       "version": "4.5.1",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -593,6 +598,7 @@
       "version": "8.1",
       "outputs_to_install": [
         "bin",
+        "bin",
         "man"
       ],
       "outputs": {
@@ -629,6 +635,7 @@
       "unfree": false,
       "version": "8.1",
       "outputs_to_install": [
+        "bin",
         "bin",
         "man"
       ],
@@ -667,6 +674,7 @@
       "version": "8.1",
       "outputs_to_install": [
         "bin",
+        "bin",
         "man"
       ],
       "outputs": {
@@ -703,6 +711,7 @@
       "unfree": false,
       "version": "8.1",
       "outputs_to_install": [
+        "bin",
         "bin",
         "man"
       ],
@@ -860,6 +869,8 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -891,6 +902,7 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -923,6 +935,7 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -954,6 +967,7 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out",
         "out",
         "out",
@@ -1350,6 +1364,7 @@
       "unfree": false,
       "version": "0.22.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1380,6 +1395,7 @@
       "unfree": false,
       "version": "0.22.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1410,6 +1426,7 @@
       "unfree": false,
       "version": "0.22.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1440,6 +1457,7 @@
       "unfree": false,
       "version": "0.22.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1590,6 +1608,8 @@
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -1620,6 +1640,7 @@
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1650,6 +1671,7 @@
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1680,6 +1702,7 @@
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -1933,27 +1956,27 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/y8cxsm5iin6wrl3p0wq6k8jz8f4ql9n4-claude-code-2.1.191.drv",
+      "derivation": "/nix/store/sbnk2yb71lgfrrqwpxrlam07z5zgml5b-claude-code-2.1.193.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "name": "claude-code-2.1.191",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "name": "claude-code-2.1.193",
       "pname": "claude-code",
-      "rev": "e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "rev_count": 1022855,
-      "rev_date": "2026-06-26T09:58:34Z",
-      "scrape_date": "2026-06-27T03:16:43.332385Z",
+      "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "rev_count": 1024265,
+      "rev_date": "2026-06-29T09:01:53Z",
+      "scrape_date": "2026-07-01T03:12:47.413540Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "2.1.191",
+      "version": "2.1.193",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/86qqfllql74hpga0wgy7x6c9w0993p6l-claude-code-2.1.191"
+        "out": "/nix/store/ps5l33598d756pzvrnms18y6hgxlgy95-claude-code-2.1.193"
       },
       "system": "aarch64-darwin",
       "group": "claude-code",
@@ -1962,27 +1985,27 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/s8j4vv4386hvwv4r7bp7clpr3grhssck-claude-code-2.1.191.drv",
+      "derivation": "/nix/store/s37my3bqcgahg52id4wniczysyls61n5-claude-code-2.1.193.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "name": "claude-code-2.1.191",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "name": "claude-code-2.1.193",
       "pname": "claude-code",
-      "rev": "e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "rev_count": 1022855,
-      "rev_date": "2026-06-26T09:58:34Z",
-      "scrape_date": "2026-06-27T03:49:22.901292Z",
+      "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "rev_count": 1024265,
+      "rev_date": "2026-06-29T09:01:53Z",
+      "scrape_date": "2026-07-01T03:41:21.030809Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "2.1.191",
+      "version": "2.1.193",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/2lyvvzzwal1xv638cddvs5cz5a90f5sd-claude-code-2.1.191"
+        "out": "/nix/store/dv7ysbfcv9qqsg5llrnxm0xzc3g7wwvz-claude-code-2.1.193"
       },
       "system": "aarch64-linux",
       "group": "claude-code",
@@ -1991,27 +2014,27 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/lwy3vx9c53b7wv1jaifdp1dl73mihyyl-claude-code-2.1.191.drv",
+      "derivation": "/nix/store/myx7bq2y130id0qc8bgim6yhz4b81kkv-claude-code-2.1.193.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "name": "claude-code-2.1.191",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "name": "claude-code-2.1.193",
       "pname": "claude-code",
-      "rev": "e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "rev_count": 1022855,
-      "rev_date": "2026-06-26T09:58:34Z",
-      "scrape_date": "2026-06-27T04:21:04.556644Z",
+      "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "rev_count": 1024265,
+      "rev_date": "2026-06-29T09:01:53Z",
+      "scrape_date": "2026-07-01T04:08:47.884781Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "2.1.191",
+      "version": "2.1.193",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/fr5da5h9zxzvwrgrazx2287q4pkc8kzl-claude-code-2.1.191"
+        "out": "/nix/store/qzc1r0437lx14j39ffp56q1b1k7l364x-claude-code-2.1.193"
       },
       "system": "x86_64-darwin",
       "group": "claude-code",
@@ -2020,27 +2043,27 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/9ld6vlywwz1j6acfzk0990vjfg72zrch-claude-code-2.1.191.drv",
+      "derivation": "/nix/store/pivz7cnyms372ncr7v9hyyh8z865xp7k-claude-code-2.1.193.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "name": "claude-code-2.1.191",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "name": "claude-code-2.1.193",
       "pname": "claude-code",
-      "rev": "e73de5be04e0eff4190a1432b946d469c794e7b4",
-      "rev_count": 1022855,
-      "rev_date": "2026-06-26T09:58:34Z",
-      "scrape_date": "2026-06-27T04:55:44.528740Z",
+      "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+      "rev_count": 1024265,
+      "rev_date": "2026-06-29T09:01:53Z",
+      "scrape_date": "2026-07-01T04:39:20.737047Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "2.1.191",
+      "version": "2.1.193",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/9ry7kv1slxbdgg0cc2914bbjrk978i2l-claude-code-2.1.191"
+        "out": "/nix/store/x59sr3sd629c1vkwcs2974sbd694i4pb-claude-code-2.1.193"
       },
       "system": "x86_64-linux",
       "group": "claude-code",
