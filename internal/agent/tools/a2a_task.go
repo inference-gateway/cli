@@ -311,7 +311,19 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 	for {
 		select {
 		case <-ctx.Done():
-			return domain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task cancelled"}
+			return domain.ToolExecutionResult{
+				ToolName: "A2A_SubmitTask",
+				Success:  false,
+				Error:    "task cancelled",
+				Data: A2ASubmitTaskResult{
+					TaskID:    taskID,
+					ContextID: state.ContextID,
+					AgentURL:  agentURL,
+					State:     string(adk.TaskStateCancelled),
+					Success:   false,
+					Message:   "Task was canceled",
+				},
+			}
 
 		case <-ticker.C:
 			pollAttempt++

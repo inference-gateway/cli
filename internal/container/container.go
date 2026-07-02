@@ -448,7 +448,7 @@ func (c *ServiceContainer) initializeServices() {
 			c.jobSupervisor.SetTaskRetention(c.taskRetentionService)
 		}
 
-		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry)
+		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
 	}
 
 	c.initializeChatOrchestrationServices()

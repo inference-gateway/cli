@@ -38,3 +38,27 @@ func TestHasPending_ExcludesInteractiveSubagents(t *testing.T) {
 		t.Fatalf("a running headless subagent should count as pending")
 	}
 }
+
+// TestHasPending_A2AViaSupervisor asserts A2A pending-state is read from the job
+// supervisor (single source of truth), not the parallel tracker polling set: a
+// StartPolling entry with no supervised job is NOT pending, while a submitted
+// (running) A2A job IS.
+func TestHasPending_A2AViaSupervisor(t *testing.T) {
+	sup := jobs.NewSupervisor(nil, nil, nil)
+	defer sup.Stop()
+	reg := NewBackgroundTaskRegistry(4, sup)
+
+	reg.RegisterContext("http://agent", "c1")
+	reg.StartPolling("t1", &domain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	if reg.HasPending() {
+		t.Fatalf("StartPolling without a supervised job must not count as pending")
+	}
+
+	job := newFakeA2ABgJob("t1", domain.TaskPollingState{TaskID: "t1"})
+	reg.Submit(job)
+	<-job.started
+	if !reg.HasPending() {
+		t.Fatalf("a running supervised A2A job should count as pending")
+	}
+	close(job.finish)
+}

@@ -404,6 +404,26 @@ func (s *Supervisor) Snapshot() []domain.TrackedJob {
 	return out
 }
 
+// A2APollingStates returns the live polling state of every running A2A job, so
+// the task view and HasPending source A2A liveness from the supervisor (the
+// single source of truth) instead of the parallel A2ATaskTracker polling set.
+// Only running jobs are returned; terminal A2A tasks live in the retention view.
+func (s *Supervisor) A2APollingStates() []domain.TaskPollingState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]domain.TaskPollingState, 0)
+	for _, sj := range s.jobs {
+		if sj.meta.Kind != domain.JobKindA2A || sj.status != domain.JobRunning {
+			continue
+		}
+		if p, ok := sj.job.(domain.A2AStateProvider); ok {
+			out = append(out, p.A2APollingState())
+		}
+	}
+	return out
+}
+
 // CountRunning returns the number of jobs still running, optionally filtered to
 // one kind. Pass "" for all kinds.
 func (s *Supervisor) CountRunning(kind domain.JobKind) int {
