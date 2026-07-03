@@ -76,6 +76,7 @@ const (
 	ViewStateExplorer
 	ViewStateHelp
 	ViewStateToolsList
+	ViewStateA2AAgents
 )
 
 // AgentMode represents the operational mode of the agent
@@ -156,6 +157,8 @@ func (v ViewState) String() string {
 		return "Help"
 	case ViewStateToolsList:
 		return "ToolsList"
+	case ViewStateA2AAgents:
+		return "A2AAgents"
 	default:
 		return "Unknown"
 	}
@@ -529,6 +532,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateExplorer,
 			ViewStateHelp,
 			ViewStateToolsList,
+			ViewStateA2AAgents,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
@@ -540,6 +544,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateExplorer:              {ViewStateChat},
 		ViewStateHelp:                  {ViewStateChat},
 		ViewStateToolsList:             {ViewStateChat},
+		ViewStateA2AAgents:             {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]

@@ -187,3 +187,29 @@ func TestToolsShortcut_Execute_OpensToolsList(t *testing.T) {
 		t.Error("expected Success to be true")
 	}
 }
+
+func TestA2AAgentsShortcut_Execute_OpensAgentsView(t *testing.T) {
+	a2a := NewA2AAgentsShortcut()
+
+	if !a2a.CanExecute(nil) {
+		t.Error("expected /a2a to accept no arguments")
+	}
+	if a2a.CanExecute([]string{"extra"}) {
+		t.Error("expected /a2a to reject arguments")
+	}
+
+	res, err := a2a.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res.Output != "" {
+		t.Errorf("expected empty output so nothing is appended to the conversation, got: %q", res.Output)
+	}
+	if res.SideEffect != SideEffectShowA2AAgents {
+		t.Errorf("expected SideEffectShowA2AAgents to drive the view, got: %v", res.SideEffect)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
+	}
+}

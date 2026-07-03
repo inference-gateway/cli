@@ -122,6 +122,7 @@ const (
 	StatusIndicatorActionTaskManagement
 	StatusIndicatorActionThemeSelection
 	StatusIndicatorActionToolsList
+	StatusIndicatorActionA2AAgents
 )
 
 // InputStatusBarComponent interface for input status bar

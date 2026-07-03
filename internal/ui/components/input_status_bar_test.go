@@ -280,7 +280,7 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 				TotalAgents: 5,
 				ReadyAgents: 3,
 			},
-			expectedText: "Agents: 3/5",
+			expectedText: "A2A: 3/5",
 			expectEmpty:  false,
 		},
 		{
@@ -799,6 +799,9 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	statusBar := newSelectableStatusBar(true)
 	statusBar.toolService = &domainmocks.FakeToolService{}
 	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
+	stateManager := &domainmocks.FakeStateManager{}
+	stateManager.GetAgentReadinessReturns(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
+	statusBar.stateManager = stateManager
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}
@@ -813,13 +816,18 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	}
 
 	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionA2AAgents {
+		t.Errorf("after second SelectNext: %v, want A2A agents", got)
+	}
+
+	statusBar.SelectNext()
 	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionToolsList {
-		t.Errorf("after second SelectNext: %v, want tools list", got)
+		t.Errorf("after third SelectNext: %v, want tools list", got)
 	}
 
 	statusBar.SelectNext()
 	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionTaskManagement {
-		t.Errorf("after third SelectNext: %v, want task management", got)
+		t.Errorf("after fourth SelectNext: %v, want task management", got)
 	}
 
 	statusBar.SelectNext()

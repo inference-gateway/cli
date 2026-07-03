@@ -78,7 +78,7 @@ An agentic command-line assistant that writes code, understands project context,
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
 - **Selectable Status Indicators**: Press `↓` in chat to select the indicators below the input and
   open the matching view with `enter` (model → model selection, theme → theme selection,
-  `🔧` tools → available tools, `⚙` jobs → task management)
+  `A2A:` → registered agents, `Tools:` → available tools, `⚙` jobs → task management)
 - **Model Thinking Visualization**: When models use extended thinking,
   their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
@@ -1004,6 +1004,7 @@ actions.
 - `/diff` - Open the changes panel (interactive diff viewer)
 - `/explorer` - Open the file explorer (tree + fuzzy finder) - [Learn more →](docs/explorer.md)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
+- `/a2a` - Show registered A2A agents and their status (requires A2A)
 - `/tasks` - Show the A2A task-management interface (requires A2A) - [Learn more →](docs/tasks-management.md)
 - `/release-notes [version]` - Show release notes from GitHub Releases (latest, or a specific version)
 

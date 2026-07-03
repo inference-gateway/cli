@@ -96,6 +96,7 @@ type ChatApplication struct {
 	fileExplorer         *components.FileExplorerImpl
 	helpView             *components.HelpViewImpl
 	toolsView            *components.ToolsViewImpl
+	a2aAgentsView        *components.A2AAgentsViewImpl
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -296,6 +297,7 @@ func NewChatApplication(
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
+	app.a2aAgentsView = components.NewA2AAgentsView(app.stateManager, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
 	app.initGithubActionView.SetSecretsExistChecker(func(appID string) bool {
@@ -639,6 +641,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleHelpView(msg)
 	case domain.ViewStateToolsList:
 		return app.handleToolsListView(msg)
+	case domain.ViewStateA2AAgents:
+		return app.handleA2AAgentsView(msg)
 	default:
 		return nil
 	}
@@ -869,6 +873,15 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 				StatusType: domain.StatusDefault,
 			}
 		}}
+	case ui.StatusIndicatorActionA2AAgents:
+		_ = app.stateManager.TransitionToView(domain.ViewStateA2AAgents)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
 	case ui.StatusIndicatorActionTaskManagement:
 		if err := app.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
 			return []tea.Cmd{func() tea.Msg {
@@ -1069,6 +1082,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderHelp()
 	case domain.ViewStateToolsList:
 		return app.renderToolsList()
+	case domain.ViewStateA2AAgents:
+		return app.renderA2AAgents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1670,6 +1685,44 @@ func (app *ChatApplication) renderToolsList() string {
 	app.toolsView.SetWidth(width)
 	app.toolsView.SetHeight(height)
 	return app.toolsView.View().Content
+}
+
+// handleA2AAgentsView drives the read-only A2A agents list, mirroring
+// handleToolsListView: a leftover cancelled flag means re-entry, so Reset
+// rebuilds the items from the latest agent readiness.
+func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.a2aAgentsView.IsCancelled() {
+		app.a2aAgentsView.Reset()
+	}
+
+	model, cmd := app.a2aAgentsView.Update(msg)
+	app.a2aAgentsView = model.(*components.A2AAgentsViewImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.a2aAgentsView.IsCancelled() {
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+					Sticky: false,
+				}
+			})
+		}
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderA2AAgents() string {
+	width, height := app.stateManager.GetDimensions()
+	app.a2aAgentsView.SetWidth(width)
+	app.a2aAgentsView.SetHeight(height)
+	return app.a2aAgentsView.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

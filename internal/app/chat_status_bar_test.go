@@ -161,6 +161,32 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	}
 }
 
+func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
+	app, stateManager := newStatusBarTestApp(t, false, false)
+	statusBar := app.inputStatusBar.(*components.InputStatusBar)
+	barStateManager := &domainmocks.FakeStateManager{}
+	barStateManager.GetAgentReadinessReturns(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
+	statusBar.SetStateManager(barStateManager)
+
+	app.handleChatView(domain.FocusStatusBarEvent{})
+
+	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
+	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if stateManager.TransitionToViewCallCount() != 1 {
+		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
+	}
+	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateA2AAgents {
+		t.Errorf("transitioned to %v, want the A2A agents view", got)
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("expected one status command, got %d", len(cmds))
+	}
+	if _, ok := cmds[0]().(domain.SetStatusEvent); !ok {
+		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
+	}
+}
+
 func TestStatusBarEnterOpensTaskManagement(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, true, false)
 	app.handleChatView(domain.FocusStatusBarEvent{})

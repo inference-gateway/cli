@@ -287,8 +287,9 @@ select models and have conversations.
 - **↓** (when not navigating input history): Select the status indicators below the input.
   `←`/`→` (or `tab`/`shift+tab`) move between the actionable indicators, **enter** opens the
   matching view (model indicator → model selection, theme indicator → theme selection,
-  `🔧` tools indicator → available tools, background-jobs `⚙` indicator → task management),
-  **↑**/**esc** return to the input, and typing any other key lands back in the input seamlessly
+  `A2A:` indicator → registered A2A agents, `Tools:` indicator → available tools,
+  background-jobs `⚙` indicator → task management), **↑**/**esc** return to the input, and
+  typing any other key lands back in the input seamlessly
 
 **Agent Modes:**
 

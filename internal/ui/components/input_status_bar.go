@@ -337,7 +337,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("a2a_agents") {
 		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
-			parts = append(parts, indicatorPart{text: agentsPart})
+			parts = append(parts, indicatorPart{text: agentsPart, action: ui.StatusIndicatorActionA2AAgents})
 		}
 	}
 
@@ -582,7 +582,7 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 		return ""
 	}
 	if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-		return fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
+		return fmt.Sprintf("A2A: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
 	}
 	return ""
 }
@@ -718,7 +718,7 @@ func (isb *InputStatusBar) getToolInfo() string {
 		return ""
 	}
 
-	return fmt.Sprintf("🔧 %d (%d)", count, tokens)
+	return fmt.Sprintf("Tools: %d (%d)", count, tokens)
 }
 
 // getBackgroundInfo returns background process count information

@@ -61,6 +61,7 @@ These shortcuts are available out of the box:
 - `/diff` - Open the changes panel (interactive diff viewer)
 - `/explorer` - Open the file explorer (tree + fuzzy finder)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
+- `/a2a` - Show registered A2A agents and their status (requires A2A)
 - `/tasks` - Show the A2A task-management interface (requires A2A)
 - `/release-notes [version]` - Show GitHub release notes for a version or the latest (requires the `gh` CLI installed and authenticated)
 
