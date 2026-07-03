@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	list "charm.land/bubbles/v2/list"
@@ -97,6 +98,30 @@ func TestToolsView_MultilineDescriptionsCollapse(t *testing.T) {
 	}
 	if first.Title() != "Write" {
 		t.Errorf("Title() = %q, want the tool name", first.Title())
+	}
+}
+
+// TestToolsView_LongDescriptionsWrap: a description too wide for one line
+// continues on the next line instead of being cut, and one that exceeds the
+// wrapped-line budget ends with an ellipsis.
+func TestToolsView_LongDescriptionsWrap(t *testing.T) {
+	long := strings.Repeat("alpha ", 10) + "omega"
+	view, _, _ := newToolsViewForTest([]sdk.ChatCompletionTool{toolDef("Bash", long)})
+	view.SetWidth(40)
+	view.SetHeight(20)
+
+	if got := stripANSI(view.View().Content); !strings.Contains(got, "omega") {
+		t.Errorf("the tail of a long description must wrap into view, got:\n%s", got)
+	}
+
+	view, _, _ = newToolsViewForTest([]sdk.ChatCompletionTool{
+		toolDef("Bash", strings.Repeat("word ", 40)),
+	})
+	view.SetWidth(40)
+	view.SetHeight(20)
+
+	if got := stripANSI(view.View().Content); !strings.Contains(got, "…") {
+		t.Errorf("a description beyond %d wrapped lines must end with an ellipsis, got:\n%s", toolDescLines, got)
 	}
 }
 

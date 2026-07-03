@@ -2,11 +2,13 @@ package components
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -39,14 +41,49 @@ func summarizeDescription(s string) string {
 	return ""
 }
 
-// newToolDelegate builds the default two-line delegate restyled with the
-// current theme: accent bar + accent name on the selected row, dim
-// descriptions, underlined filter matches.
-func newToolDelegate(styleProvider *styles.Provider) list.DefaultDelegate {
+// toolDescLines is how many wrapped description lines an item may use before
+// the last one is cut with an ellipsis.
+const toolDescLines = 2
+
+// toolDelegate wraps the default delegate to word-wrap the description to the
+// list width at render time instead of cutting it to a single line.
+type toolDelegate struct {
+	list.DefaultDelegate
+}
+
+func (d toolDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	if it, ok := item.(toolItem); ok {
+		it.description = wrapDescription(it.description, m.Width()-4)
+		item = it
+	}
+	d.DefaultDelegate.Render(w, m, index, item)
+}
+
+// wrapDescription word-wraps a one-line description to at most toolDescLines
+// lines of the given width, ending the last line with an ellipsis when text
+// is cut. The width discounts the delegate's item padding; on absurdly narrow
+// widths the text is left for the delegate's own truncation.
+func wrapDescription(desc string, width int) string {
+	if desc == "" || width < 8 {
+		return desc
+	}
+	lines := strings.Split(ansi.Wrap(desc, width, ""), "\n")
+	if len(lines) > toolDescLines {
+		lines = lines[:toolDescLines]
+		lines[toolDescLines-1] = ansi.Truncate(lines[toolDescLines-1], width-1, "") + "…"
+	}
+	return strings.Join(lines, "\n")
+}
+
+// newToolDelegate builds the default delegate restyled with the current
+// theme - accent bar + accent name on the selected row, dim descriptions,
+// underlined filter matches - sized for a name plus wrapped description.
+func newToolDelegate(styleProvider *styles.Provider) toolDelegate {
 	accent := lipgloss.Color(styleProvider.GetThemeColor("accent"))
 	dim := lipgloss.Color(styleProvider.GetThemeColor("dim"))
 
 	d := list.NewDefaultDelegate()
+	d.SetHeight(1 + toolDescLines)
 	d.Styles.NormalTitle = lipgloss.NewStyle().Padding(0, 0, 0, 2)
 	d.Styles.NormalDesc = d.Styles.NormalTitle.Foreground(dim)
 	d.Styles.SelectedTitle = lipgloss.NewStyle().
@@ -59,7 +96,7 @@ func newToolDelegate(styleProvider *styles.Provider) list.DefaultDelegate {
 	d.Styles.DimmedTitle = lipgloss.NewStyle().Foreground(dim).Padding(0, 0, 0, 2)
 	d.Styles.DimmedDesc = d.Styles.DimmedTitle
 	d.Styles.FilterMatch = lipgloss.NewStyle().Underline(true).Foreground(accent)
-	return d
+	return toolDelegate{DefaultDelegate: d}
 }
 
 // toolsTitleStyle matches the status-bar selection pill: accent-on-background
