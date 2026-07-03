@@ -65,6 +65,10 @@ type SetInputEvent struct {
 	Text string
 }
 
+// FocusStatusBarEvent moves keyboard focus to the status-indicator row below
+// the input, fired when arrow-down would otherwise be a no-op
+type FocusStatusBarEvent struct{}
+
 // AutocompleteUpdateEvent is fired when input text changes and autocomplete should update
 type AutocompleteUpdateEvent struct {
 	Text      string

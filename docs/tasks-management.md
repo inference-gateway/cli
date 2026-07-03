@@ -17,8 +17,11 @@ system with better visibility into task status and history.
 
 ### Task Management Interface (`/tasks`)
 
-- **Access**: Type `/tasks` in the chat to open the task management interface
-- **Requirements**: Only available when A2A is enabled in configuration
+- **Access**: Type `/tasks` in the chat, or press `↓` in the chat input, select the `⚙`
+  background-jobs indicator with `←`/`→`, and press `enter`
+- **Requirements**: The `/tasks` shortcut requires A2A to be enabled in configuration; the
+  status-indicator route works whenever the `⚙` indicator shows running jobs (shells,
+  subagents, or A2A tasks)
 - **Default View**: Opens in "All" view showing both active and completed tasks
 - **Views**: Switch between Active, Completed, and All tasks using number keys 1, 2, 3
 
@@ -56,6 +59,9 @@ When viewing task details (`i` key), you can see:
 ```text
 /tasks
 ```
+
+Or, without typing a command: press `↓` in the chat input (while not navigating input
+history), move to the `⚙` background-jobs indicator with `←`/`→`, and press `enter`.
 
 ### Canceling a Task
 

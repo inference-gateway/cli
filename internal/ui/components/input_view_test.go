@@ -599,3 +599,27 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 
 	require.Empty(t, iv.gitBranchCache)
 }
+
+func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
+	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+
+	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
+
+	_, cmd := iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.NotNil(t, cmd, "expected a command handing focus to the status bar")
+	_, ok := cmd().(domain.FocusStatusBarEvent)
+	require.True(t, ok, "expected a FocusStatusBarEvent")
+}
+
+func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
+	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	require.NoError(t, iv.AddToHistory("previous message"))
+
+	_, _ = iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp})
+	require.True(t, iv.IsNavigatingHistory(), "arrow up should enter history navigation")
+	require.Equal(t, "previous message", iv.GetInput())
+
+	_, cmd := iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.Nil(t, cmd, "arrow down must keep navigating history, not hand off focus")
+	require.False(t, iv.IsNavigatingHistory(), "returning to the newest entry leaves history navigation")
+}

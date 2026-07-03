@@ -1,5 +1,5 @@
 ---
-name: a2a
+name: a2a-protocol
 description: >
   Build, consume, debug, or reason about Agent2Agent (A2A) protocol agents -
   Agent Cards and discovery, the Task lifecycle, Messages/Parts/Artifacts, the

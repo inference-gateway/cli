@@ -440,6 +440,12 @@ func (iv *InputView) NavigateHistoryDown() {
 	iv.navigateHistoryDown()
 }
 
+// IsNavigatingHistory reports whether input-history navigation is active,
+// i.e. whether arrow-down still has an entry to return to
+func (iv *InputView) IsNavigatingHistory() bool {
+	return iv.historyManager.IsNavigating()
+}
+
 // navigateHistoryUp moves up in history (to older messages)
 func (iv *InputView) navigateHistoryUp() {
 	newText := iv.historyManager.NavigateUp(iv.text)
@@ -529,6 +535,9 @@ func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		iv.navigateHistoryUp()
 		return iv, nil
 	case "down":
+		if !iv.IsNavigatingHistory() {
+			return iv, func() tea.Msg { return domain.FocusStatusBarEvent{} }
+		}
 		iv.navigateHistoryDown()
 		return iv, nil
 	}

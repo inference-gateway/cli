@@ -95,6 +95,8 @@ type ChatApplication struct {
 	diffViewer           *components.DiffViewerImpl
 	fileExplorer         *components.FileExplorerImpl
 	helpView             *components.HelpViewImpl
+	toolsView            *components.ToolsViewImpl
+	a2aAgentsView        *components.A2AAgentsViewImpl
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -113,6 +115,10 @@ type ChatApplication struct {
 	// below the input and sent (then cleared) with the next chat message.
 	pendingSnippets    []components.SnippetSelection
 	attachmentsFocused bool
+
+	// Keyboard focus on the status-indicator row below the input, entered
+	// with arrow-down when input-history navigation is idle.
+	statusBarFocused bool
 
 	// Key binding system
 	keyBindingManager *keybinding.KeyBindingManager
@@ -290,6 +296,8 @@ func NewChatApplication(
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
+	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
+	app.a2aAgentsView = components.NewA2AAgentsView(app.stateManager, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
 	app.initGithubActionView.SetSecretsExistChecker(func(appID string) bool {
@@ -592,20 +600,22 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
-	if inputView, ok := app.inputView.(*components.InputView); ok {
-		inHistoryMode := false
-		if cv, ok := app.conversationView.(*components.ConversationView); ok {
-			inHistoryMode = cv.IsInMessageHistoryMode()
-		}
+	inHistoryMode := false
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		inHistoryMode = cv.IsInMessageHistoryMode()
+	}
 
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
-			app.stateManager.GetUserQuestionUIState() != nil ||
-			inHistoryMode || currentView == domain.ViewStateDiffViewer ||
-			currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp {
-			inputView.SetDisabled(true)
-		} else {
-			inputView.SetDisabled(false)
-		}
+	inputBlocked := app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
+		app.stateManager.GetUserQuestionUIState() != nil ||
+		inHistoryMode || currentView == domain.ViewStateDiffViewer ||
+		currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp
+
+	if inputView, ok := app.inputView.(*components.InputView); ok {
+		inputView.SetDisabled(inputBlocked)
+	}
+
+	if app.statusBarFocused && (inputBlocked || currentView != domain.ViewStateChat) {
+		app.blurStatusBar()
 	}
 
 	switch currentView {
@@ -629,6 +639,10 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleExplorerView(msg)
 	case domain.ViewStateHelp:
 		return app.handleHelpView(msg)
+	case domain.ViewStateToolsList:
+		return app.handleToolsListView(msg)
+	case domain.ViewStateA2AAgents:
+		return app.handleA2AAgentsView(msg)
 	default:
 		return nil
 	}
@@ -697,6 +711,13 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if _, ok := msg.(domain.FocusStatusBarEvent); ok {
+		if app.inputStatusBar.Focus() {
+			app.statusBarFocused = true
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return cmds
@@ -721,6 +742,11 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
 		return app.handleAttachmentsKeys(keyMsg)
+	}
+	if app.statusBarFocused && keyMsg.String() != "ctrl+c" {
+		if cmds, handled := app.handleStatusBarKeys(keyMsg); handled {
+			return cmds
+		}
 	}
 	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = true
@@ -779,6 +805,105 @@ func (app *ChatApplication) removeFocusedSnippet() {
 	app.pendingSnippets = append(app.pendingSnippets[:idx], app.pendingSnippets[idx+1:]...)
 	if len(app.pendingSnippets) == 0 {
 		app.attachmentsFocused = false
+	}
+}
+
+// handleStatusBarKeys interprets keys while the status-indicator row holds
+// focus. Unhandled keys blur the row and report handled=false so they flow
+// on to the normal chain - typing lands back in the input.
+func (app *ChatApplication) handleStatusBarKeys(keyMsg tea.KeyPressMsg) ([]tea.Cmd, bool) {
+	switch keyMsg.String() {
+	case "left", "shift+tab":
+		app.inputStatusBar.SelectPrev()
+		return nil, true
+	case "right", "tab":
+		app.inputStatusBar.SelectNext()
+		return nil, true
+	case "down":
+		return nil, true
+	case "up", "esc":
+		app.blurStatusBar()
+		return nil, true
+	case "enter":
+		return app.activateSelectedIndicator(), true
+	default:
+		app.blurStatusBar()
+		return nil, false
+	}
+}
+
+// blurStatusBar returns keyboard focus from the indicator row to the input.
+func (app *ChatApplication) blurStatusBar() {
+	app.statusBarFocused = false
+	app.inputStatusBar.Blur()
+}
+
+// activateSelectedIndicator opens the view behind the selected indicator,
+// mirroring the /model and /tasks shortcut side effects. The task view is
+// not gated on A2A - it shows shells and subagents too.
+func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
+	action := app.inputStatusBar.SelectedAction()
+	app.blurStatusBar()
+
+	switch action {
+	case ui.StatusIndicatorActionModelSelection:
+		_ = app.stateManager.TransitionToView(domain.ViewStateModelSelection)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Select a model from the dropdown",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionThemeSelection:
+		_ = app.stateManager.TransitionToView(domain.ViewStateThemeSelection)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionToolsList:
+		_ = app.stateManager.TransitionToView(domain.ViewStateToolsList)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionA2AAgents:
+		_ = app.stateManager.TransitionToView(domain.ViewStateA2AAgents)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionTaskManagement:
+		if err := app.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
+			return []tea.Cmd{func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to show task management: %v", err),
+					Sticky: false,
+				}
+			}}
+		}
+		hasBackgroundTasks := false
+		if app.backgroundTaskService != nil {
+			hasBackgroundTasks = len(app.backgroundTaskService.GetBackgroundTasks()) > 0
+		}
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Task management interface",
+				Spinner:    hasBackgroundTasks,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	default:
+		return nil
 	}
 }
 
@@ -955,6 +1080,10 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderExplorer()
 	case domain.ViewStateHelp:
 		return app.renderHelp()
+	case domain.ViewStateToolsList:
+		return app.renderToolsList()
+	case domain.ViewStateA2AAgents:
+		return app.renderA2AAgents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1517,6 +1646,83 @@ func (app *ChatApplication) renderThemeSelection() string {
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
 	return app.themeSelector.View().Content
+}
+
+// handleToolsListView drives the read-only tools list. A cancelled flag left
+// over from the previous visit means we are re-entering: Reset rebuilds the
+// items so the list reflects the current agent mode and any MCP tools
+// registered since.
+func (app *ChatApplication) handleToolsListView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.toolsView.IsCancelled() {
+		app.toolsView.Reset()
+	}
+
+	model, cmd := app.toolsView.Update(msg)
+	app.toolsView = model.(*components.ToolsViewImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.toolsView.IsCancelled() {
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+					Sticky: false,
+				}
+			})
+		}
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderToolsList() string {
+	width, height := app.stateManager.GetDimensions()
+	app.toolsView.SetWidth(width)
+	app.toolsView.SetHeight(height)
+	return app.toolsView.View().Content
+}
+
+// handleA2AAgentsView drives the read-only A2A agents list, mirroring
+// handleToolsListView: a leftover cancelled flag means re-entry, so Reset
+// rebuilds the items from the latest agent readiness.
+func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.a2aAgentsView.IsCancelled() {
+		app.a2aAgentsView.Reset()
+	}
+
+	model, cmd := app.a2aAgentsView.Update(msg)
+	app.a2aAgentsView = model.(*components.A2AAgentsViewImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.a2aAgentsView.IsCancelled() {
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+					Sticky: false,
+				}
+			})
+		}
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderA2AAgents() string {
+	width, height := app.stateManager.GetDimensions()
+	app.a2aAgentsView.SetWidth(width)
+	app.a2aAgentsView.SetHeight(height)
+	return app.a2aAgentsView.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

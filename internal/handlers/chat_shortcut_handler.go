@@ -213,6 +213,10 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowDiffViewerSideEffect()
 	case shortcuts.SideEffectShowExplorer:
 		return s.handleShowExplorerSideEffect()
+	case shortcuts.SideEffectShowToolsList:
+		return s.handleShowToolsListSideEffect()
+	case shortcuts.SideEffectShowA2AAgents:
+		return s.handleShowA2AAgentsSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:
@@ -244,6 +248,24 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect() tea.Msg {
 
 func (s *ChatShortcutHandler) handleSwitchThemeSideEffect() tea.Msg {
 	_ = s.handler.stateManager.TransitionToView(domain.ViewStateThemeSelection)
+	return domain.SetStatusEvent{
+		Message:    "",
+		Spinner:    false,
+		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowToolsListSideEffect() tea.Msg {
+	_ = s.handler.stateManager.TransitionToView(domain.ViewStateToolsList)
+	return domain.SetStatusEvent{
+		Message:    "",
+		Spinner:    false,
+		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowA2AAgentsSideEffect() tea.Msg {
+	_ = s.handler.stateManager.TransitionToView(domain.ViewStateA2AAgents)
 	return domain.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,

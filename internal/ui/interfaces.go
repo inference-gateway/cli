@@ -86,6 +86,7 @@ type InputComponent interface {
 	CanHandle(key tea.KeyPressMsg) bool
 	NavigateHistoryUp()
 	NavigateHistoryDown()
+	IsNavigatingHistory() bool
 	AddImageAttachment(image domain.ImageAttachment)
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()
@@ -111,12 +112,31 @@ type StatusComponent interface {
 	HasSavedState() bool
 }
 
+// StatusIndicatorAction identifies the view a status-bar indicator opens when
+// activated; indicators without a view map to StatusIndicatorActionNone
+type StatusIndicatorAction int
+
+const (
+	StatusIndicatorActionNone StatusIndicatorAction = iota
+	StatusIndicatorActionModelSelection
+	StatusIndicatorActionTaskManagement
+	StatusIndicatorActionThemeSelection
+	StatusIndicatorActionToolsList
+	StatusIndicatorActionA2AAgents
+)
+
 // InputStatusBarComponent interface for input status bar
 type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
 	UpdateMCPStatus(status *domain.MCPServerStatus)
+	Focus() bool
+	Blur()
+	IsFocused() bool
+	SelectNext()
+	SelectPrev()
+	SelectedAction() StatusIndicatorAction
 	Render() string
 }
 

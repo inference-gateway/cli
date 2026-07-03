@@ -284,6 +284,12 @@ select models and have conversations.
 - **ctrl+o** (default): Toggle expanded view of tool results (configurable via `tools_toggle_tool_expansion`)
 - **ctrl+k** (default): Toggle expanded view of model thinking blocks (configurable via `display_toggle_thinking`)
 - **shift+tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
+- **↓** (when not navigating input history): Select the status indicators below the input.
+  `←`/`→` (or `tab`/`shift+tab`) move between the actionable indicators, **enter** opens the
+  matching view (model indicator → model selection, theme indicator → theme selection,
+  `A2A:` indicator → registered A2A agents, `Tools:` indicator → available tools,
+  background-jobs `⚙` indicator → task management), **↑**/**esc** return to the input, and
+  typing any other key lands back in the input seamlessly
 
 **Agent Modes:**
 
