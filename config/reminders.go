@@ -3,10 +3,12 @@ package config
 import (
 	"cmp"
 	"fmt"
+	"os"
 	"slices"
 
 	utils "github.com/inference-gateway/cli/config/utils"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
@@ -22,6 +24,7 @@ const (
 	ReminderTriggerInterval       ReminderTrigger = "interval"         // every N turns
 	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max" // within threshold of max_turns
 	ReminderTriggerOnce           ReminderTrigger = "once"             // first firing of its point this run
+	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"      // post_tool only: fires when the last tool call failed
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
@@ -30,6 +33,7 @@ var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerInterval,
 	ReminderTriggerTurnsBeforeMax,
 	ReminderTriggerOnce,
+	ReminderTriggerOnFailure,
 }
 
 // Valid reports whether t is one of the pre-defined triggers.
