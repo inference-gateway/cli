@@ -98,6 +98,8 @@ type ServiceContainer struct {
 	// Tool registry
 	toolRegistry *tools.Registry
 	mcpManager   domain.MCPManager
+	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
+	mcpStartupCancel context.CancelFunc
 
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
@@ -254,8 +256,9 @@ func (c *ServiceContainer) initializeMCPManager() {
 	}
 
 	logger.Info("starting MCP servers in background...")
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	c.mcpStartupCancel = cancel
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
 
 		if err := c.mcpManager.StartServers(ctx); err != nil {
@@ -852,6 +855,10 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 			logger.Error("failed to stop gateway container", "error", err)
 			return err
 		}
+	}
+
+	if c.mcpStartupCancel != nil {
+		c.mcpStartupCancel()
 	}
 
 	if c.mcpManager != nil {
