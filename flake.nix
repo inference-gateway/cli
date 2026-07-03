@@ -69,6 +69,8 @@
             "-skip=TestIntegration"
           ];
 
+          nativeCheckInputs = [ pkgs.git ];
+
           nativeBuildInputs = [
             pkgs.installShellFiles
           ]
