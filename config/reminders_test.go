@@ -270,6 +270,135 @@ reminders:
 	}
 }
 
+func TestMergeWithDefaults_AppendsNew(t *testing.T) {
+	cfg := config.RemindersConfig{
+		Enabled: true,
+		Merge:   true,
+		Reminders: []config.ReminderConfig{
+			{Name: "my-custom", Text: "do the thing", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+		},
+	}
+	merged := cfg.MergeWithDefaults()
+	if !merged.Enabled {
+		t.Error("merged config should keep Enabled=true")
+	}
+	// Should have built-ins plus the custom entry.
+	wantLen := len(config.DefaultRemindersConfig().Reminders) + 1
+	if len(merged.Reminders) != wantLen {
+		t.Fatalf("expected %d reminders (defaults + 1), got %d", wantLen, len(merged.Reminders))
+	}
+	// The custom entry must be present.
+	found := false
+	for _, r := range merged.Reminders {
+		if r.Name == "my-custom" {
+			found = true
+			if r.Text != "do the thing" {
+				t.Errorf("custom reminder text = %q, want %q", r.Text, "do the thing")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("custom reminder 'my-custom' not found in merged result")
+	}
+	// Built-in entries must survive.
+	hasTodo := false
+	hasMemoryConsult := false
+	hasMemoryHygiene := false
+	for _, r := range merged.Reminders {
+		switch r.Name {
+		case "todo-hygiene":
+			hasTodo = true
+		case "memory-consult":
+			hasMemoryConsult = true
+		case "memory-hygiene":
+			hasMemoryHygiene = true
+		}
+	}
+	if !hasTodo {
+		t.Error("merged result should include todo-hygiene")
+	}
+	if !hasMemoryConsult {
+		t.Error("merged result should include memory-consult")
+	}
+	if !hasMemoryHygiene {
+		t.Error("merged result should include memory-hygiene")
+	}
+}
+
+func TestMergeWithDefaults_OverridesByName(t *testing.T) {
+	cfg := config.RemindersConfig{
+		Enabled: true,
+		Merge:   true,
+		Reminders: []config.ReminderConfig{
+			{Name: "todo-hygiene", Text: "overridden text", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+		},
+	}
+	merged := cfg.MergeWithDefaults()
+	if !merged.Enabled {
+		t.Error("merged config should keep Enabled=true")
+	}
+	// The count should equal defaults (override, not append).
+	wantLen := len(config.DefaultRemindersConfig().Reminders)
+	if len(merged.Reminders) != wantLen {
+		t.Fatalf("expected %d reminders (same as defaults), got %d", wantLen, len(merged.Reminders))
+	}
+	// The todo-hygiene entry should have the overridden text at the same position.
+	for i, r := range merged.Reminders {
+		if r.Name == "todo-hygiene" {
+			if r.Text != "overridden text" {
+				t.Errorf("todo-hygiene text = %q, want %q", r.Text, "overridden text")
+			}
+			if i != 0 {
+				t.Errorf("todo-hygiene should remain at index 0, got %d", i)
+			}
+			break
+		}
+	}
+	// Memory reminders must still be present.
+	hasMemoryConsult := false
+	for _, r := range merged.Reminders {
+		if r.Name == "memory-consult" {
+			hasMemoryConsult = true
+			break
+		}
+	}
+	if !hasMemoryConsult {
+		t.Error("merged result should include memory-consult")
+	}
+}
+
+func TestMergeWithDefaults_PreservesEnabled(t *testing.T) {
+	cfg := config.RemindersConfig{
+		Enabled: false,
+		Merge:   true,
+		Reminders: []config.ReminderConfig{
+			{Name: "custom", Text: "x"},
+		},
+	}
+	merged := cfg.MergeWithDefaults()
+	if merged.Enabled {
+		t.Error("merged config should keep Enabled=false from the receiver")
+	}
+}
+
+func TestParseReminders_ReplaceIsDefault(t *testing.T) {
+	cfg, err := config.ParseReminders([]byte(`enabled: true
+reminders:
+  - name: only-this
+    text: only this reminder
+`))
+	if err != nil {
+		t.Fatalf("ParseReminders: %v", err)
+	}
+	if cfg.Merge {
+		t.Error("merge should default to false when not specified")
+	}
+	if len(cfg.Reminders) != 1 || cfg.Reminders[0].Name != "only-this" {
+		t.Fatalf("expected only the supplied reminder, got %+v", cfg.Reminders)
+	}
+}
+
 func TestReminders_Validate(t *testing.T) {
 	tests := []struct {
 		name      string

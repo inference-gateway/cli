@@ -322,14 +322,30 @@ func getEffectiveRemindersConfigPath() string {
 //  4. built-in defaults (LoadReminders returns them when the file is missing).
 //
 // Env wins over the flag, matching the documented flags < env layering.
+//
+// When the resolved config has Merge=true, its entries are merged onto the
+// built-in defaults by name instead of replacing them (see MergeWithDefaults).
+// This lets consumers add reminders without re-declaring the built-in set.
 func resolveRemindersConfig() (*config.RemindersConfig, error) {
+	var cfg *config.RemindersConfig
+	var err error
+
 	if inline := strings.TrimSpace(os.Getenv("INFER_REMINDERS_CONFIG")); inline != "" {
-		return config.ParseReminders([]byte(inline))
+		cfg, err = config.ParseReminders([]byte(inline))
+	} else if path := remindersFileOverride(); path != "" {
+		cfg, err = config.LoadReminders(path)
+	} else {
+		cfg, err = config.LoadReminders(getEffectiveRemindersConfigPath())
 	}
-	if path := remindersFileOverride(); path != "" {
-		return config.LoadReminders(path)
+	if err != nil {
+		return nil, err
 	}
-	return config.LoadReminders(getEffectiveRemindersConfigPath())
+
+	if cfg.Merge {
+		cfg = cfg.MergeWithDefaults()
+	}
+
+	return cfg, nil
 }
 
 // remindersFileOverride returns the --reminders-file persistent flag value when
