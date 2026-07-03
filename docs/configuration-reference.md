@@ -314,7 +314,7 @@ compact:
 - **agent.system_prompt_plan**: System prompt used in plan mode (falls back to `system_prompt` when empty)
 - **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
   actions) on top of full autonomy (falls back to `system_prompt` when empty)
-- System reminders are configured in their own `reminders.yaml`, not under `agent:` — see [System Reminders](#system-reminders-remindersyaml) below.
+- System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.verbose_tools**: Enable verbose tool output (default: false)
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
@@ -336,8 +336,8 @@ reminders:
       <system-reminder>Your todo list is empty ...</system-reminder>
     hook: pre_stream # where in the loop it fires (default: pre_stream)
     trigger: interval # when it fires at that hook (default: always)
-    interval: 4 # trigger: interval — fire every Nth session turn
-    threshold: 3 # trigger: turns_before_max — fire within N turns of max_turns
+    interval: 4 # trigger: interval - fire every Nth session turn
+    threshold: 3 # trigger: turns_before_max - fire within N turns of max_turns
 ```
 
 **Hook points** (`hook`): `pre_session`, `post_session`, `pre_stream`, `post_stream`,
@@ -351,7 +351,7 @@ reminders:
 | `interval` | Every Nth session turn (`interval`, default 4). |
 | `turns_before_max` | Within `threshold` turns of `max_turns` (requires `threshold > 0`). |
 | `once` | The first firing of its hook point this run. |
-| `on_failure` | **`post_tool` only** — fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
+| `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
 
 The `on_failure` trigger lets a consumer nudge the model only when a change did not
 happen (a failed tool call), instead of paying the per-turn cost of an `always` reminder.
@@ -360,9 +360,9 @@ happen (a failed tool call), instead of paying the per-turn cost of an `always` 
 
 Embedded/CI consumers can provide reminders without writing `reminders.yaml`:
 
-- **`INFER_REMINDERS_CONFIG`** — inline YAML with the same schema as the file; when set it
+- **`INFER_REMINDERS_CONFIG`** - inline YAML with the same schema as the file; when set it
   replaces the file-loaded config.
-- **`--reminders-file PATH`** — load reminders from an arbitrary path (not constrained to
+- **`--reminders-file PATH`** - load reminders from an arbitrary path (not constrained to
   `~/.infer/`), available on `infer agent` and `infer chat`.
 
 Precedence, highest first: `INFER_REMINDERS_CONFIG` → `--reminders-file` → project

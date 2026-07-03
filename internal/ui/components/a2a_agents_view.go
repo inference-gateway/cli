@@ -66,7 +66,7 @@ func (d a2aAgentDelegate) Render(w io.Writer, m list.Model, index int, item list
 		detail = it.url
 	}
 	if detail != "" {
-		detail = d.styleProvider.RenderWithColor(" — "+detail, d.styleProvider.GetThemeColor("dim"))
+		detail = d.styleProvider.RenderWithColor(" - "+detail, d.styleProvider.GetThemeColor("dim"))
 	}
 
 	_, _ = fmt.Fprint(w, name+state+detail)

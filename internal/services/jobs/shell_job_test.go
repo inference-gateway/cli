@@ -58,7 +58,7 @@ func isTerminal(sup *Supervisor, id string) bool {
 
 // TestShellJob_WaitsForReadersDoneBeforeReaping asserts Run does not call
 // Cmd.Wait until the pipe readers have drained (ReadersDone closed), even after
-// the process has already exited — otherwise Wait closes the pipes mid-drain and
+// the process has already exited - otherwise Wait closes the pipes mid-drain and
 // truncates trailing output.
 func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
@@ -89,7 +89,7 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 // TestShellJob_WindStopUnblocksReadersWait guards the cancellable-wait escape:
 // when ReadersDone never closes (e.g. a grandchild holds the pipe open),
 // Wind(WindStop) must still reap the job via ctx cancellation rather than
-// wedging Run — which would also hang Supervisor.Stop().
+// wedging Run - which would also hang Supervisor.Stop().
 func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
 	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)

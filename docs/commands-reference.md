@@ -327,7 +327,7 @@ of the agent loop (hook points) to keep durable guidance in context. They are co
 [System Reminders](configuration-reference.md#system-reminders-remindersyaml) for the full schema.
 
 - **Hook points**: fire at `pre_stream`, `post_tool`, `pre_session`, and more
-- **Triggers**: gate firing — `always`, every Nth turn (`interval`), near the turn limit
+- **Triggers**: gate firing - `always`, every Nth turn (`interval`), near the turn limit
   (`turns_before_max`), `once` per run, or only after a failed tool call (`on_failure`)
 - **Non-intrusive**: reminders are sent to the model but don't interrupt the user experience
 - **Inline/CI supply**: provide reminders without a file via `INFER_REMINDERS_CONFIG` (inline YAML)
