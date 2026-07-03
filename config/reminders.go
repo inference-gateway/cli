@@ -155,21 +155,19 @@ func ParseReminders(data []byte) (*RemindersConfig, error) {
 func (r *RemindersConfig) MergeWithDefaults() *RemindersConfig {
 	defaults := DefaultRemindersConfig()
 
-	// Index built-in reminders by name.
 	byName := make(map[string]int, len(defaults.Reminders))
 	for i, def := range defaults.Reminders {
 		byName[def.Name] = i
 	}
 
-	// Seed the result with built-ins, then apply overrides and appends.
 	out := make([]ReminderConfig, len(defaults.Reminders))
 	copy(out, defaults.Reminders)
 
 	for _, supplied := range r.Reminders {
 		if idx, ok := byName[supplied.Name]; ok {
-			out[idx] = supplied // override in-place
+			out[idx] = supplied
 		} else {
-			out = append(out, supplied) // append new
+			out = append(out, supplied)
 		}
 	}
 

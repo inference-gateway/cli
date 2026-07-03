@@ -282,12 +282,10 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 	if !merged.Enabled {
 		t.Error("merged config should keep Enabled=true")
 	}
-	// Should have built-ins plus the custom entry.
 	wantLen := len(config.DefaultRemindersConfig().Reminders) + 1
 	if len(merged.Reminders) != wantLen {
 		t.Fatalf("expected %d reminders (defaults + 1), got %d", wantLen, len(merged.Reminders))
 	}
-	// The custom entry must be present.
 	found := false
 	for _, r := range merged.Reminders {
 		if r.Name == "my-custom" {
@@ -301,7 +299,6 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 	if !found {
 		t.Error("custom reminder 'my-custom' not found in merged result")
 	}
-	// Built-in entries must survive.
 	hasTodo := false
 	hasMemoryConsult := false
 	hasMemoryHygiene := false
@@ -338,12 +335,10 @@ func TestMergeWithDefaults_OverridesByName(t *testing.T) {
 	if !merged.Enabled {
 		t.Error("merged config should keep Enabled=true")
 	}
-	// The count should equal defaults (override, not append).
 	wantLen := len(config.DefaultRemindersConfig().Reminders)
 	if len(merged.Reminders) != wantLen {
 		t.Fatalf("expected %d reminders (same as defaults), got %d", wantLen, len(merged.Reminders))
 	}
-	// The todo-hygiene entry should have the overridden text at the same position.
 	for i, r := range merged.Reminders {
 		if r.Name == "todo-hygiene" {
 			if r.Text != "overridden text" {
@@ -355,7 +350,6 @@ func TestMergeWithDefaults_OverridesByName(t *testing.T) {
 			break
 		}
 	}
-	// Memory reminders must still be present.
 	hasMemoryConsult := false
 	for _, r := range merged.Reminders {
 		if r.Name == "memory-consult" {
