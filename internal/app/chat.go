@@ -697,7 +697,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return cmds
 	}
@@ -705,7 +705,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	return app.handleChatViewKeyPress(keyMsg)
 }
 
-func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd {
+func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	// While an AskUserQuestion form is up it captures all keys (like the
@@ -742,13 +742,13 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 
 // matchesFocusAttachments reports whether the pressed key is bound to the
 // chat-namespace focus-attachments action.
-func (app *ChatApplication) matchesFocusAttachments(keyMsg tea.KeyMsg) bool {
+func (app *ChatApplication) matchesFocusAttachments(keyMsg tea.KeyPressMsg) bool {
 	return slices.Contains(app.chatKeys[actChatFocusAttachments], keyMsg.String())
 }
 
 // handleAttachmentsKeys interprets keys while the snippet attachments tree holds
 // focus: navigate, remove one, clear all, or leave. All keys are consumed.
-func (app *ChatApplication) handleAttachmentsKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+func (app *ChatApplication) handleAttachmentsKeys(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	if app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = false
 		return nil
@@ -787,7 +787,7 @@ func (app *ChatApplication) removeFocusedSnippet() {
 // is needed. On the final question's confirm it sends the answers on the
 // response channel (unblocking the tool); esc cancels (closing the channel
 // without a value, which the tool reads as "dismissed").
-func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	sm := app.stateManager
 	q := sm.GetUserQuestionUIState()
 	if q == nil {
@@ -817,7 +817,7 @@ func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyMsg) []tea.Cmd 
 
 // handleUserQuestionOtherKey edits the free-text "Other" buffer for the current
 // question. Enter confirms (and advances/submits); esc leaves text entry.
-func (app *ChatApplication) handleUserQuestionOtherKey(keyMsg tea.KeyMsg) {
+func (app *ChatApplication) handleUserQuestionOtherKey(keyMsg tea.KeyPressMsg) {
 	sm := app.stateManager
 	switch keyMsg.String() {
 	case "enter":
@@ -904,7 +904,7 @@ func userQuestionAnswered(q *domain.UserQuestionUIState) bool {
 func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -1914,7 +1914,7 @@ func (app *ChatApplication) renderFileSelection() string {
 	return app.fileSelectionHandler.RenderFileSelection(data)
 }
 
-func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
+func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyPressMsg) tea.Cmd {
 	fileState := app.stateManager.GetFileSelectionState()
 	if fileState == nil {
 		return nil
@@ -2028,7 +2028,7 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing
 func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if keyMsg.String() == app.lastHandledKey {
 			app.lastHandledKey = ""
 			if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
@@ -2043,7 +2043,7 @@ func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
 func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
 	switch msg.(type) {
-	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyMsg, tea.FocusMsg, tea.BlurMsg:
+	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyPressMsg, tea.FocusMsg, tea.BlurMsg:
 		return app.updateUIComponents(msg)
 	}
 
@@ -2082,7 +2082,7 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		}
 	}
 
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if app.keyBindingManager.IsKeyHandledByAction(keyMsg) {
 			return
 		}
@@ -2538,7 +2538,7 @@ func (app *ChatApplication) handleMessageHistoryEnter(cv *components.Conversatio
 }
 
 // handleMessageHistoryKeys handles key presses during message history navigation
-func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	cv, ok := app.conversationView.(*components.ConversationView)

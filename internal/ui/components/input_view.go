@@ -514,7 +514,7 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return iv, nil
 }
 
-func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
 	if keyStr == "tab" {
@@ -541,7 +541,7 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return iv, nil
 }
 
-func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
+func (iv *InputView) CanHandle(key tea.KeyPressMsg) bool {
 	return keys.CanInputHandle(key)
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 // KeyHandler represents a function that handles a key binding
-type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
+type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 
 // KeyHandlerContext provides access to application context for key handlers
 type KeyHandlerContext interface {

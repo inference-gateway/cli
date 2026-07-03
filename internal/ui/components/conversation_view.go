@@ -2045,7 +2045,7 @@ func computeElapsedString(display *BackgroundTaskDisplay) string {
 
 // handleDefaultEvents processes all other events
 func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+	if _, isKeyMsg := msg.(tea.KeyPressMsg); !isKeyMsg {
 		cv.Viewport, cmd = cv.Viewport.Update(msg)
 		if cv.Viewport.AtBottom() {
 			cv.userScrolledUp = false

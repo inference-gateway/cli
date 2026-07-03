@@ -92,7 +92,7 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.handleConversationsLoaded(msg)
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if c.loading {
 			return c, nil
 		}
@@ -142,7 +142,7 @@ func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (te
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if c.confirmDelete {
 		return c.handleDeleteConfirmation(msg)
 	}
@@ -227,7 +227,7 @@ func (c *ConversationSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelectorImpl) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if c.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
 		c.searchQuery += msg.String()
 		c.updateSearch()
@@ -306,7 +306,7 @@ func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		return c.performDelete()

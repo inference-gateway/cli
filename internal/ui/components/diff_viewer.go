@@ -348,7 +348,7 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		t.handleWheel(m)
 		return t, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if t.loading {
 			return t, nil
 		}
@@ -379,7 +379,7 @@ func (t *DiffViewerImpl) handleWheel(msg tea.MouseWheelMsg) {
 	}
 }
 
-func (t *DiffViewerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.patchMode {
 		return t.handlePatchKey(msg)
 	}
@@ -629,7 +629,7 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 // selection, the whole hunk under the cursor; split breaks the hunk into pieces;
 // [ / ] jump hunks; esc clears a selection or exits. New-action candidates are
 // listed before apply so they win any shared key.
-func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.match(normalizeKey(msg.String()),
 		actDiffCancel, actDiffNavUp, actDiffNavDown,
 		actDiffPatchSelect, actDiffPatchSplit, actDiffHunkPrev, actDiffHunkNext,

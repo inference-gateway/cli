@@ -246,7 +246,7 @@ func TestActionRegistration(t *testing.T) {
 		Keys:        []string{"ctrl+shift+t"},
 		Description: "test action",
 		Category:    "test",
-		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		},
 		Priority: 100,
@@ -285,7 +285,7 @@ func TestActionConflictDetection(t *testing.T) {
 		Keys:        []string{"ctrl+c"},
 		Description: "conflicting action",
 		Category:    "test",
-		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		},
 		Priority: 100,

@@ -43,10 +43,10 @@ type FakeAutocompleteComponent struct {
 	getUsageHintReturnsOnCall map[int]struct {
 		result1 string
 	}
-	HandleKeyStub        func(tea.KeyMsg) (bool, string)
+	HandleKeyStub        func(tea.KeyPressMsg) (bool, string)
 	handleKeyMutex       sync.RWMutex
 	handleKeyArgsForCall []struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}
 	handleKeyReturns struct {
 		result1 bool
@@ -287,11 +287,11 @@ func (fake *FakeAutocompleteComponent) GetUsageHintReturnsOnCall(i int, result1 
 	}{result1}
 }
 
-func (fake *FakeAutocompleteComponent) HandleKey(arg1 tea.KeyMsg) (bool, string) {
+func (fake *FakeAutocompleteComponent) HandleKey(arg1 tea.KeyPressMsg) (bool, string) {
 	fake.handleKeyMutex.Lock()
 	ret, specificReturn := fake.handleKeyReturnsOnCall[len(fake.handleKeyArgsForCall)]
 	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}{arg1})
 	stub := fake.HandleKeyStub
 	fakeReturns := fake.handleKeyReturns
@@ -312,13 +312,13 @@ func (fake *FakeAutocompleteComponent) HandleKeyCallCount() int {
 	return len(fake.handleKeyArgsForCall)
 }
 
-func (fake *FakeAutocompleteComponent) HandleKeyCalls(stub func(tea.KeyMsg) (bool, string)) {
+func (fake *FakeAutocompleteComponent) HandleKeyCalls(stub func(tea.KeyPressMsg) (bool, string)) {
 	fake.handleKeyMutex.Lock()
 	defer fake.handleKeyMutex.Unlock()
 	fake.HandleKeyStub = stub
 }
 
-func (fake *FakeAutocompleteComponent) HandleKeyArgsForCall(i int) tea.KeyMsg {
+func (fake *FakeAutocompleteComponent) HandleKeyArgsForCall(i int) tea.KeyPressMsg {
 	fake.handleKeyMutex.RLock()
 	defer fake.handleKeyMutex.RUnlock()
 	argsForCall := fake.handleKeyArgsForCall[i]

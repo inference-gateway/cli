@@ -669,7 +669,7 @@ func (a *AutocompleteImpl) filterSuggestions() {
 }
 
 // HandleKey processes key input for autocomplete navigation
-func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
+func (a *AutocompleteImpl) HandleKey(key tea.KeyPressMsg) (bool, string) {
 	if !a.visible || len(a.filtered) == 0 {
 		return false, ""
 	}
