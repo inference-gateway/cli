@@ -272,7 +272,7 @@ func addTextEditingBindings(bindings map[string]KeyBindingEntry) {
 	}
 	bindings[ActionID(NamespaceTextEditing, "history_down")] = KeyBindingEntry{
 		Keys:        []string{"down"},
-		Description: "navigate to next message in history",
+		Description: "navigate to next message in history / select status indicator",
 		Category:    "text_editing",
 		Enabled:     &enabled,
 	}

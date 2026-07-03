@@ -7,9 +7,12 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 type stubTokenEstimator struct {
@@ -727,5 +730,170 @@ func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
 
 	if len(lines) != 1 {
 		t.Fatalf("expected a single fallback row with a nil provider, got %d: %#v", len(lines), lines)
+	}
+}
+
+// newSelectableStatusBar builds a status bar with visible model and theme
+// indicators and, optionally, a background-jobs indicator (two running jobs
+// per kind).
+func newSelectableStatusBar(withJobs bool) *InputStatusBar {
+	modelService := &domainmocks.FakeModelService{}
+	modelService.GetCurrentModelReturns("test-model")
+
+	themeService := &domainmocks.FakeThemeService{}
+	themeService.GetCurrentThemeNameReturns("tokyo-night")
+
+	statusBar := &InputStatusBar{
+		width:        100,
+		modelService: modelService,
+		themeService: themeService,
+		config:       config.DefaultConfig(),
+	}
+
+	if withJobs {
+		registry := &domainmocks.FakeBackgroundTaskRegistry{}
+		registry.CountRunningJobsReturns(2)
+		statusBar.backgroundTaskRegistry = registry
+	}
+
+	return statusBar
+}
+
+func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
+	statusBar := &InputStatusBar{width: 100, config: config.DefaultConfig()}
+	if statusBar.Focus() {
+		t.Error("Focus should fail without a model service (no indicators at all)")
+	}
+
+	statusBar = newSelectableStatusBar(false)
+	statusBar.config.Chat.StatusBar.Indicators.Model = false
+	statusBar.config.Chat.StatusBar.Indicators.Theme = false
+	if statusBar.Focus() {
+		t.Error("Focus should fail when no visible indicator opens a view")
+	}
+	if statusBar.IsFocused() {
+		t.Error("a failed Focus must not leave the bar focused")
+	}
+
+	statusBar = newSelectableStatusBar(false)
+	if !statusBar.Focus() {
+		t.Fatal("Focus should succeed with the model indicator visible")
+	}
+	if !statusBar.IsFocused() {
+		t.Error("a successful Focus must report focused")
+	}
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionModelSelection {
+		t.Errorf("initial selection = %v, want model selection", got)
+	}
+
+	statusBar.Blur()
+	if statusBar.IsFocused() {
+		t.Error("Blur must clear focus")
+	}
+}
+
+func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
+	statusBar := newSelectableStatusBar(true)
+	if !statusBar.Focus() {
+		t.Fatal("Focus should succeed")
+	}
+
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionModelSelection {
+		t.Fatalf("initial selection = %v, want model selection", got)
+	}
+
+	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionThemeSelection {
+		t.Errorf("after SelectNext: %v, want theme selection", got)
+	}
+
+	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionTaskManagement {
+		t.Errorf("after second SelectNext: %v, want task management", got)
+	}
+
+	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionModelSelection {
+		t.Errorf("SelectNext should wrap back to model selection, got %v", got)
+	}
+
+	statusBar.SelectPrev()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionTaskManagement {
+		t.Errorf("SelectPrev should wrap to task management, got %v", got)
+	}
+}
+
+func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
+	statusBar := newSelectableStatusBar(true)
+	if !statusBar.Focus() {
+		t.Fatal("Focus should succeed")
+	}
+	statusBar.SelectNext()
+	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionTaskManagement {
+		t.Fatalf("precondition failed: expected task management selected, got %v", got)
+	}
+
+	registry := statusBar.backgroundTaskRegistry.(*domainmocks.FakeBackgroundTaskRegistry)
+	registry.CountRunningJobsReturns(0)
+
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionThemeSelection {
+		t.Errorf("selection should clamp to the last remaining indicator, got %v", got)
+	}
+}
+
+func TestInputStatusBar_MarkSelectedFlagsSelectedIndicator(t *testing.T) {
+	statusBar := newSelectableStatusBar(true)
+	if !statusBar.Focus() {
+		t.Fatal("Focus should succeed")
+	}
+	statusBar.SelectNext()
+
+	marked := statusBar.markSelected(statusBar.getAllIndicatorParts())
+
+	var flagged []string
+	for _, part := range marked {
+		if part.selected {
+			flagged = append(flagged, part.text)
+		}
+	}
+	if len(flagged) != 1 {
+		t.Fatalf("exactly one part must be flagged, got %d: %v", len(flagged), flagged)
+	}
+	if flagged[0] != "tokyo-night" {
+		t.Errorf("flagged part = %q, want the theme indicator", flagged[0])
+	}
+}
+
+func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+	fakeTheme.GetAccentColorReturns("#ff9e64")
+	fakeTheme.GetBorderColorReturns("#3b4261")
+	themeService := &domainmocks.FakeThemeService{}
+	themeService.GetCurrentThemeReturns(fakeTheme)
+
+	statusBar := newSelectableStatusBar(false)
+	statusBar.styleProvider = styles.NewProvider(themeService)
+
+	unfocused := statusBar.Render()
+	if !strings.Contains(unfocused, "test-model") {
+		t.Fatalf("render should contain the model indicator, got %q", unfocused)
+	}
+
+	if !statusBar.Focus() {
+		t.Fatal("Focus should succeed")
+	}
+	focused := statusBar.Render()
+	if !strings.Contains(focused, "test-model") {
+		t.Fatalf("focused render should still contain the model indicator, got %q", focused)
+	}
+	if focused == unfocused {
+		t.Error("focused render should apply the selection highlight and differ from the unfocused render")
+	}
+
+	statusBar.Blur()
+	if got := statusBar.Render(); got != unfocused {
+		t.Errorf("blurred render should match the original unfocused render")
 	}
 }

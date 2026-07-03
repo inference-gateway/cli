@@ -114,6 +114,10 @@ type ChatApplication struct {
 	pendingSnippets    []components.SnippetSelection
 	attachmentsFocused bool
 
+	// Keyboard focus on the status-indicator row below the input, entered
+	// with arrow-down when input-history navigation is idle.
+	statusBarFocused bool
+
 	// Key binding system
 	keyBindingManager *keybinding.KeyBindingManager
 
@@ -592,20 +596,22 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
-	if inputView, ok := app.inputView.(*components.InputView); ok {
-		inHistoryMode := false
-		if cv, ok := app.conversationView.(*components.ConversationView); ok {
-			inHistoryMode = cv.IsInMessageHistoryMode()
-		}
+	inHistoryMode := false
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		inHistoryMode = cv.IsInMessageHistoryMode()
+	}
 
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
-			app.stateManager.GetUserQuestionUIState() != nil ||
-			inHistoryMode || currentView == domain.ViewStateDiffViewer ||
-			currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp {
-			inputView.SetDisabled(true)
-		} else {
-			inputView.SetDisabled(false)
-		}
+	inputBlocked := app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
+		app.stateManager.GetUserQuestionUIState() != nil ||
+		inHistoryMode || currentView == domain.ViewStateDiffViewer ||
+		currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp
+
+	if inputView, ok := app.inputView.(*components.InputView); ok {
+		inputView.SetDisabled(inputBlocked)
+	}
+
+	if app.statusBarFocused && (inputBlocked || currentView != domain.ViewStateChat) {
+		app.blurStatusBar()
 	}
 
 	switch currentView {
@@ -697,6 +703,13 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if _, ok := msg.(domain.FocusStatusBarEvent); ok {
+		if app.inputStatusBar.Focus() {
+			app.statusBarFocused = true
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return cmds
@@ -721,6 +734,11 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
 		return app.handleAttachmentsKeys(keyMsg)
+	}
+	if app.statusBarFocused && keyMsg.String() != "ctrl+c" {
+		if cmds, handled := app.handleStatusBarKeys(keyMsg); handled {
+			return cmds
+		}
 	}
 	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = true
@@ -779,6 +797,87 @@ func (app *ChatApplication) removeFocusedSnippet() {
 	app.pendingSnippets = append(app.pendingSnippets[:idx], app.pendingSnippets[idx+1:]...)
 	if len(app.pendingSnippets) == 0 {
 		app.attachmentsFocused = false
+	}
+}
+
+// handleStatusBarKeys interprets keys while the status-indicator row holds
+// focus. Unhandled keys blur the row and report handled=false so they flow
+// on to the normal chain - typing lands back in the input.
+func (app *ChatApplication) handleStatusBarKeys(keyMsg tea.KeyPressMsg) ([]tea.Cmd, bool) {
+	switch keyMsg.String() {
+	case "left", "shift+tab":
+		app.inputStatusBar.SelectPrev()
+		return nil, true
+	case "right", "tab":
+		app.inputStatusBar.SelectNext()
+		return nil, true
+	case "down":
+		return nil, true
+	case "up", "esc":
+		app.blurStatusBar()
+		return nil, true
+	case "enter":
+		return app.activateSelectedIndicator(), true
+	default:
+		app.blurStatusBar()
+		return nil, false
+	}
+}
+
+// blurStatusBar returns keyboard focus from the indicator row to the input.
+func (app *ChatApplication) blurStatusBar() {
+	app.statusBarFocused = false
+	app.inputStatusBar.Blur()
+}
+
+// activateSelectedIndicator opens the view behind the selected indicator,
+// mirroring the /model and /tasks shortcut side effects. The task view is
+// not gated on A2A - it shows shells and subagents too.
+func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
+	action := app.inputStatusBar.SelectedAction()
+	app.blurStatusBar()
+
+	switch action {
+	case ui.StatusIndicatorActionModelSelection:
+		_ = app.stateManager.TransitionToView(domain.ViewStateModelSelection)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Select a model from the dropdown",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionThemeSelection:
+		_ = app.stateManager.TransitionToView(domain.ViewStateThemeSelection)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	case ui.StatusIndicatorActionTaskManagement:
+		if err := app.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
+			return []tea.Cmd{func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to show task management: %v", err),
+					Sticky: false,
+				}
+			}}
+		}
+		hasBackgroundTasks := false
+		if app.backgroundTaskService != nil {
+			hasBackgroundTasks = len(app.backgroundTaskService.GetBackgroundTasks()) > 0
+		}
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Task management interface",
+				Spinner:    hasBackgroundTasks,
+				StatusType: domain.StatusDefault,
+			}
+		}}
+	default:
+		return nil
 	}
 }
 

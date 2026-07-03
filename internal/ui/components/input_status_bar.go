@@ -11,6 +11,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -30,6 +31,19 @@ type InputStatusBar struct {
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
+
+	// Keyboard focus state: when focused, selected indexes the actionable
+	// indicators (those that open a view) in build order.
+	focused  bool
+	selected int
+}
+
+// indicatorPart is one status-bar segment plus the view it opens when
+// activated (StatusIndicatorActionNone for display-only segments).
+type indicatorPart struct {
+	text     string
+	action   ui.StatusIndicatorAction
+	selected bool
 }
 
 // NewInputStatusBar creates a new input status bar
@@ -109,6 +123,76 @@ func (isb *InputStatusBar) SetHeight(height int) {
 	// Status bar has fixed height
 }
 
+// Focus moves keyboard focus onto the indicator row, selecting the first
+// actionable indicator. Reports false when nothing is actionable so the
+// caller can keep focus in the input.
+func (isb *InputStatusBar) Focus() bool {
+	if len(isb.actionableActions()) == 0 {
+		return false
+	}
+	isb.focused = true
+	isb.selected = 0
+	return true
+}
+
+// Blur returns the indicator row to its passive display-only state.
+func (isb *InputStatusBar) Blur() {
+	isb.focused = false
+}
+
+// IsFocused reports whether the indicator row holds keyboard focus.
+func (isb *InputStatusBar) IsFocused() bool {
+	return isb.focused
+}
+
+// SelectNext moves the selection to the next actionable indicator, wrapping.
+func (isb *InputStatusBar) SelectNext() {
+	if count := len(isb.actionableActions()); count > 0 {
+		isb.clampSelection(count)
+		isb.selected = (isb.selected + 1) % count
+	}
+}
+
+// SelectPrev moves the selection to the previous actionable indicator, wrapping.
+func (isb *InputStatusBar) SelectPrev() {
+	if count := len(isb.actionableActions()); count > 0 {
+		isb.clampSelection(count)
+		isb.selected = (isb.selected - 1 + count) % count
+	}
+}
+
+// SelectedAction returns the action of the selected indicator, clamping the
+// selection when indicators disappeared since it was set (e.g. jobs finished).
+func (isb *InputStatusBar) SelectedAction() ui.StatusIndicatorAction {
+	actions := isb.actionableActions()
+	if len(actions) == 0 {
+		return ui.StatusIndicatorActionNone
+	}
+	isb.clampSelection(len(actions))
+	return actions[isb.selected]
+}
+
+// actionableActions lists the actions of the currently visible indicators
+// that open a view, in build order.
+func (isb *InputStatusBar) actionableActions() []ui.StatusIndicatorAction {
+	var actions []ui.StatusIndicatorAction
+	for _, part := range isb.getAllIndicatorParts() {
+		if part.action != ui.StatusIndicatorActionNone {
+			actions = append(actions, part.action)
+		}
+	}
+	return actions
+}
+
+func (isb *InputStatusBar) clampSelection(count int) {
+	if isb.selected >= count {
+		isb.selected = count - 1
+	}
+	if isb.selected < 0 {
+		isb.selected = 0
+	}
+}
+
 func (isb *InputStatusBar) Render() string {
 	if isb.config != nil && !isb.config.Chat.StatusBar.Enabled {
 		return ""
@@ -141,14 +225,16 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 		return []string{leftPadding + "\u00A0"}
 	}
 
+	if isb.focused {
+		parts = isb.markSelected(parts)
+	}
+
 	lineGroups := isb.splitPartsIntoLines(parts, availableWidth, maxLines, separatorWidth)
 	lineGroups = capIndicatorLines(lineGroups, maxLines)
 
 	var lines []string
 	for _, lineItems := range lineGroups {
-		lineText := strings.Join(lineItems, " • ")
-		renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
-		lines = append(lines, leftPadding+renderedLine)
+		lines = append(lines, leftPadding+isb.renderIndicatorLine(lineItems, dimColor))
 	}
 
 	if len(lines) == 0 {
@@ -158,15 +244,70 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 	return lines
 }
 
+// markSelected returns a copy of parts with the selected actionable part
+// flagged for highlighting.
+func (isb *InputStatusBar) markSelected(parts []indicatorPart) []indicatorPart {
+	marked := make([]indicatorPart, len(parts))
+	copy(marked, parts)
+
+	actionable := 0
+	for _, part := range marked {
+		if part.action != ui.StatusIndicatorActionNone {
+			actionable++
+		}
+	}
+	if actionable == 0 {
+		return marked
+	}
+	isb.clampSelection(actionable)
+
+	ordinal := 0
+	for i := range marked {
+		if marked[i].action == ui.StatusIndicatorActionNone {
+			continue
+		}
+		if ordinal == isb.selected {
+			marked[i].selected = true
+			break
+		}
+		ordinal++
+	}
+	return marked
+}
+
+// renderIndicatorLine styles one row of indicators. Unfocused rows keep the
+// single dim style; focused rows style per part so the selected one stands
+// out on a background highlight.
+func (isb *InputStatusBar) renderIndicatorLine(parts []indicatorPart, dimColor string) string {
+	texts := make([]string, len(parts))
+	for i, part := range parts {
+		texts[i] = part.text
+	}
+
+	if !isb.focused {
+		return isb.styleProvider.RenderWithColor(strings.Join(texts, " • "), dimColor)
+	}
+
+	styled := make([]string, len(parts))
+	for i, part := range parts {
+		if part.selected {
+			styled[i] = isb.styleProvider.RenderSelectedIndicator(texts[i])
+		} else {
+			styled[i] = isb.styleProvider.RenderWithColor(texts[i], dimColor)
+		}
+	}
+	return strings.Join(styled, isb.styleProvider.RenderWithColor(" • ", dimColor))
+}
+
 // getAllIndicatorParts returns all indicator parts as a slice
-func (isb *InputStatusBar) getAllIndicatorParts() []string {
+func (isb *InputStatusBar) getAllIndicatorParts() []indicatorPart {
 	if isb.modelService == nil {
-		return []string{}
+		return nil
 	}
 
 	currentModel := isb.modelService.GetCurrentModel()
 	if currentModel == "" {
-		return []string{}
+		return nil
 	}
 
 	return isb.buildIndicatorParts(currentModel)
@@ -175,64 +316,64 @@ func (isb *InputStatusBar) getAllIndicatorParts() []string {
 // buildIndicatorParts builds individual indicator parts without joining them.
 // The git branch is not included here - it is rendered in the input box top
 // border by InputView, not in the status bar.
-func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
-	parts := []string{}
+func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorPart {
+	parts := []indicatorPart{}
 
 	if isb.shouldShowIndicator("model") {
-		parts = append(parts, currentModel)
+		parts = append(parts, indicatorPart{text: currentModel, action: ui.StatusIndicatorActionModelSelection})
 	}
 
 	if isb.shouldShowIndicator("theme") {
 		if themePart := isb.buildThemeIndicator(); themePart != "" {
-			parts = append(parts, themePart)
+			parts = append(parts, indicatorPart{text: themePart, action: ui.StatusIndicatorActionThemeSelection})
 		}
 	}
 
 	if isb.shouldShowIndicator("max_output") {
 		if maxOutputPart := isb.buildMaxOutputIndicator(); maxOutputPart != "" {
-			parts = append(parts, maxOutputPart)
+			parts = append(parts, indicatorPart{text: maxOutputPart})
 		}
 	}
 
 	if isb.shouldShowIndicator("a2a_agents") {
 		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
-			parts = append(parts, agentsPart)
+			parts = append(parts, indicatorPart{text: agentsPart})
 		}
 	}
 
 	if isb.shouldShowIndicator("tools") {
 		if toolInfo := isb.getToolInfo(); toolInfo != "" {
-			parts = append(parts, toolInfo)
+			parts = append(parts, indicatorPart{text: toolInfo})
 		}
 	}
 
 	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
 		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
-			parts = append(parts, jobsInfo)
+			parts = append(parts, indicatorPart{text: jobsInfo, action: ui.StatusIndicatorActionTaskManagement})
 		}
 	}
 
 	if isb.shouldShowIndicator("mcp") {
 		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
-			parts = append(parts, mcpPart)
+			parts = append(parts, indicatorPart{text: mcpPart})
 		}
 	}
 
 	if isb.shouldShowIndicator("context_usage") {
 		if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
-			parts = append(parts, contextIndicator)
+			parts = append(parts, indicatorPart{text: contextIndicator})
 		}
 	}
 
 	if isb.shouldShowIndicator("session_tokens") {
 		if sessionTokensPart := isb.buildSessionTokensIndicator(); sessionTokensPart != "" {
-			parts = append(parts, sessionTokensPart)
+			parts = append(parts, indicatorPart{text: sessionTokensPart})
 		}
 	}
 
 	if isb.shouldShowIndicator("cost") {
 		if costPart := isb.buildCostIndicator(); costPart != "" {
-			parts = append(parts, costPart)
+			parts = append(parts, indicatorPart{text: costPart})
 		}
 	}
 
@@ -240,13 +381,13 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 }
 
 // splitPartsIntoLines splits indicator parts into line groups based on available width
-func (isb *InputStatusBar) splitPartsIntoLines(parts []string, availableWidth, maxLines, separatorWidth int) [][]string {
-	var lineGroups [][]string
-	currentLineItems := []string{}
+func (isb *InputStatusBar) splitPartsIntoLines(parts []indicatorPart, availableWidth, maxLines, separatorWidth int) [][]indicatorPart {
+	var lineGroups [][]indicatorPart
+	currentLineItems := []indicatorPart{}
 	currentLineWidth := 0
 
 	for i, part := range parts {
-		itemWidth := len(part)
+		itemWidth := len(part.text)
 		separatorLen := 0
 
 		if len(currentLineItems) > 0 {
@@ -256,7 +397,7 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []string, availableWidth, m
 		needsNewLine := len(currentLineItems) > 0 && currentLineWidth+separatorLen+itemWidth > availableWidth
 		if needsNewLine {
 			lineGroups = append(lineGroups, currentLineItems)
-			currentLineItems = []string{part}
+			currentLineItems = []indicatorPart{part}
 			currentLineWidth = itemWidth
 
 			if isb.shouldAddOverflowAndBreak(len(lineGroups), maxLines, i, len(parts), currentLineWidth, separatorWidth, availableWidth, &currentLineItems) {
@@ -280,7 +421,7 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []string, availableWidth, m
 // indicators never exceed their share of the status bar so the branch row keeps
 // the bar at a stable height. When rows are dropped, an ellipsis is appended to
 // the last kept row to signal the overflow.
-func capIndicatorLines(lineGroups [][]string, maxLines int) [][]string {
+func capIndicatorLines(lineGroups [][]indicatorPart, maxLines int) [][]indicatorPart {
 	if maxLines <= 0 {
 		return nil
 	}
@@ -290,14 +431,14 @@ func capIndicatorLines(lineGroups [][]string, maxLines int) [][]string {
 
 	capped := lineGroups[:maxLines]
 	last := capped[maxLines-1]
-	if n := len(last); n == 0 || (last[n-1] != "…" && last[n-1] != "...") {
-		capped[maxLines-1] = append(last, "…")
+	if n := len(last); n == 0 || (last[n-1].text != "…" && last[n-1].text != "...") {
+		capped[maxLines-1] = append(last, indicatorPart{text: "…"})
 	}
 	return capped
 }
 
 // shouldAddOverflowAndBreak checks if we've reached max lines and adds overflow indicator if needed
-func (isb *InputStatusBar) shouldAddOverflowAndBreak(currentLines, maxLines, currentIndex, totalParts, lineWidth, separatorWidth, availableWidth int, lineItems *[]string) bool {
+func (isb *InputStatusBar) shouldAddOverflowAndBreak(currentLines, maxLines, currentIndex, totalParts, lineWidth, separatorWidth, availableWidth int, lineItems *[]indicatorPart) bool {
 	if currentLines < maxLines {
 		return false
 	}
@@ -305,7 +446,7 @@ func (isb *InputStatusBar) shouldAddOverflowAndBreak(currentLines, maxLines, cur
 	if currentIndex < totalParts-1 {
 		overflowWidth := 3
 		if lineWidth+separatorWidth+overflowWidth <= availableWidth {
-			*lineItems = append(*lineItems, "...")
+			*lineItems = append(*lineItems, indicatorPart{text: "..."})
 		}
 	}
 

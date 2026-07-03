@@ -76,6 +76,8 @@ An agentic command-line assistant that writes code, understands project context,
   the agent works from full context without a redundant `gh issue view` lookup. Gracefully
   no-ops when `gh` is not installed or the repo has no remote.
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
+- **Selectable Status Indicators**: Press `↓` in chat to select the indicators below the input and
+  open the matching view with `enter` (model → model selection, theme → theme selection, `⚙` jobs → task management)
 - **Model Thinking Visualization**: When models use extended thinking,
   their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)

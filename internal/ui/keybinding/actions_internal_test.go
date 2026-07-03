@@ -148,3 +148,68 @@ func TestClipboardFlashDurationIsAFlash(t *testing.T) {
 		t.Errorf("clipboardFlashDuration must be a brief flash within 3s, got %s", clipboardFlashDuration)
 	}
 }
+
+// historyNavTestCtx is a minimal KeyHandlerContext for the arrow-down
+// history/status-bar handoff, overriding only the accessors handleHistoryDown
+// uses (hand-rolled for the same import-cycle reason as flashTestCtx).
+type historyNavTestCtx struct {
+	KeyHandlerContext
+	input        ui.InputComponent
+	autocomplete ui.AutocompleteComponent
+}
+
+func (c *historyNavTestCtx) GetInputView() ui.InputComponent           { return c.input }
+func (c *historyNavTestCtx) GetAutocomplete() ui.AutocompleteComponent { return c.autocomplete }
+
+// TestHandleHistoryDownNavigatesWhileInHistory verifies arrow-down keeps
+// walking the input history while navigation is active.
+func TestHandleHistoryDownNavigatesWhileInHistory(t *testing.T) {
+	input := &uimocks.FakeInputComponent{}
+	input.IsNavigatingHistoryReturns(true)
+	ctx := &historyNavTestCtx{input: input}
+
+	if cmd := handleHistoryDown(ctx, tea.KeyPressMsg{Code: tea.KeyDown}); cmd != nil {
+		t.Fatal("expected no command while navigating history")
+	}
+	if input.NavigateHistoryDownCallCount() != 1 {
+		t.Errorf("expected one NavigateHistoryDown call, got %d", input.NavigateHistoryDownCallCount())
+	}
+}
+
+// TestHandleHistoryDownFocusesStatusBarWhenIdle verifies arrow-down hands
+// focus to the status-indicator row exactly when it would otherwise no-op.
+func TestHandleHistoryDownFocusesStatusBarWhenIdle(t *testing.T) {
+	input := &uimocks.FakeInputComponent{}
+	input.IsNavigatingHistoryReturns(false)
+	ctx := &historyNavTestCtx{input: input}
+
+	cmd := handleHistoryDown(ctx, tea.KeyPressMsg{Code: tea.KeyDown})
+	if cmd == nil {
+		t.Fatal("expected a command when history navigation is idle")
+	}
+	if _, ok := cmd().(domain.FocusStatusBarEvent); !ok {
+		t.Fatalf("expected a FocusStatusBarEvent, got %T", cmd())
+	}
+	if input.NavigateHistoryDownCallCount() != 0 {
+		t.Errorf("history must not move when handing focus to the status bar, got %d calls", input.NavigateHistoryDownCallCount())
+	}
+}
+
+// TestHandleHistoryDownPrefersAutocomplete verifies a visible autocomplete
+// dropdown keeps owning arrow-down.
+func TestHandleHistoryDownPrefersAutocomplete(t *testing.T) {
+	input := &uimocks.FakeInputComponent{}
+	autocomplete := &uimocks.FakeAutocompleteComponent{}
+	autocomplete.IsVisibleReturns(true)
+	ctx := &historyNavTestCtx{input: input, autocomplete: autocomplete}
+
+	if cmd := handleHistoryDown(ctx, tea.KeyPressMsg{Code: tea.KeyDown}); cmd != nil {
+		t.Fatal("expected no command while autocomplete is visible")
+	}
+	if autocomplete.HandleKeyCallCount() != 1 {
+		t.Errorf("expected the key routed to autocomplete, got %d calls", autocomplete.HandleKeyCallCount())
+	}
+	if input.IsNavigatingHistoryCallCount() != 0 || input.NavigateHistoryDownCallCount() != 0 {
+		t.Error("history navigation must not be touched while autocomplete is visible")
+	}
+}

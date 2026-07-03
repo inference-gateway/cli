@@ -108,6 +108,16 @@ type FakeInputComponent struct {
 	isDisabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsNavigatingHistoryStub        func() bool
+	isNavigatingHistoryMutex       sync.RWMutex
+	isNavigatingHistoryArgsForCall []struct {
+	}
+	isNavigatingHistoryReturns struct {
+		result1 bool
+	}
+	isNavigatingHistoryReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	NavigateHistoryDownStub        func()
 	navigateHistoryDownMutex       sync.RWMutex
 	navigateHistoryDownArgsForCall []struct {
@@ -687,6 +697,59 @@ func (fake *FakeInputComponent) IsDisabledReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.isDisabledReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) IsNavigatingHistory() bool {
+	fake.isNavigatingHistoryMutex.Lock()
+	ret, specificReturn := fake.isNavigatingHistoryReturnsOnCall[len(fake.isNavigatingHistoryArgsForCall)]
+	fake.isNavigatingHistoryArgsForCall = append(fake.isNavigatingHistoryArgsForCall, struct {
+	}{})
+	stub := fake.IsNavigatingHistoryStub
+	fakeReturns := fake.isNavigatingHistoryReturns
+	fake.recordInvocation("IsNavigatingHistory", []interface{}{})
+	fake.isNavigatingHistoryMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) IsNavigatingHistoryCallCount() int {
+	fake.isNavigatingHistoryMutex.RLock()
+	defer fake.isNavigatingHistoryMutex.RUnlock()
+	return len(fake.isNavigatingHistoryArgsForCall)
+}
+
+func (fake *FakeInputComponent) IsNavigatingHistoryCalls(stub func() bool) {
+	fake.isNavigatingHistoryMutex.Lock()
+	defer fake.isNavigatingHistoryMutex.Unlock()
+	fake.IsNavigatingHistoryStub = stub
+}
+
+func (fake *FakeInputComponent) IsNavigatingHistoryReturns(result1 bool) {
+	fake.isNavigatingHistoryMutex.Lock()
+	defer fake.isNavigatingHistoryMutex.Unlock()
+	fake.IsNavigatingHistoryStub = nil
+	fake.isNavigatingHistoryReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) IsNavigatingHistoryReturnsOnCall(i int, result1 bool) {
+	fake.isNavigatingHistoryMutex.Lock()
+	defer fake.isNavigatingHistoryMutex.Unlock()
+	fake.IsNavigatingHistoryStub = nil
+	if fake.isNavigatingHistoryReturnsOnCall == nil {
+		fake.isNavigatingHistoryReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isNavigatingHistoryReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

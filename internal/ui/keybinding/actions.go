@@ -456,7 +456,7 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 			Namespace:   config.NamespaceTextEditing,
 			ID:          config.ActionID(config.NamespaceTextEditing, "history_down"),
 			Keys:        []string{"down"},
-			Description: "navigate to next message in history",
+			Description: "navigate to next message in history / select status indicator",
 			Category:    "text_editing",
 			Handler:     handleHistoryDown,
 			Priority:    200,
@@ -1283,6 +1283,9 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		if autocomplete != nil && autocomplete.IsVisible() {
 			autocomplete.HandleKey(keyMsg)
 			return nil
+		}
+		if !inputView.IsNavigatingHistory() {
+			return func() tea.Msg { return domain.FocusStatusBarEvent{} }
 		}
 		inputView.NavigateHistoryDown()
 	}
