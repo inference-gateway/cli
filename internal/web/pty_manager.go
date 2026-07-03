@@ -411,7 +411,7 @@ func (s *LocalPTYSession) setWindowSize(cols, rows int) error {
 		uintptr(unsafe.Pointer(ws)),
 	)
 	if errno != 0 {
-		return fmt.Errorf("failed to set window size: %v", errno)
+		return fmt.Errorf("failed to set window size: %w", errno)
 	}
 
 	return nil

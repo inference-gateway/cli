@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -503,7 +504,7 @@ func (s *SSHSession) Close() error {
 
 	s.cancel()
 
-	var errors []error
+	var errs []error
 
 	if s.tunnelCancel != nil {
 		s.tunnelCancel()
@@ -512,7 +513,7 @@ func (s *SSHSession) Close() error {
 
 	if s.tunnelListener != nil {
 		if err := s.tunnelListener.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close tunnel listener: %w", err))
+			errs = append(errs, fmt.Errorf("failed to close tunnel listener: %w", err))
 		}
 		s.tunnelListener = nil
 	}
@@ -523,21 +524,21 @@ func (s *SSHSession) Close() error {
 
 	if s.session != nil {
 		if err := s.session.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close session: %w", err))
+			errs = append(errs, fmt.Errorf("failed to close session: %w", err))
 		}
 		s.session = nil
 	}
 
 	if s.sshClient != nil {
 		if err := s.sshClient.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close SSH client: %w", err))
+			errs = append(errs, fmt.Errorf("failed to close SSH client: %w", err))
 		}
 	}
 
 	s.running = false
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors during close: %v", errors)
+	if len(errs) > 0 {
+		return fmt.Errorf("errors during close: %w", errors.Join(errs...))
 	}
 
 	return nil

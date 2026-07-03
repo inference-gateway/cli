@@ -48,7 +48,7 @@ func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 
 	parsedArgs, err := s.ParseArguments(argsStr)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to parse arguments: %v", err)
+		return "", nil, fmt.Errorf("failed to parse arguments: %w", err)
 	}
 
 	return toolName, parsedArgs, nil
