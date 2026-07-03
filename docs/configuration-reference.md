@@ -399,6 +399,12 @@ The `merge` flag works with all three supply paths (`INFER_REMINDERS_CONFIG`,
 `memory-consult`/`memory-hygiene` by name when memory is off) continues to work
 correctly against the merged list.
 
+> **Caveat:** `pruneMemoryRemindersIfDisabled` prunes by name, so any reminder
+> named `memory-consult` or `memory-hygiene` is dropped when memory is disabled,
+> **even if you overrode its content via `merge: true`**. If you override a
+> memory-named reminder and need it to survive with memory off, either rename it
+> or enable memory (`memory.enabled: true` in `memory.yaml`).
+
 ### Web Search Settings
 
 - **web_search.enabled**: Enable/disable web search tool for LLMs (default: true)

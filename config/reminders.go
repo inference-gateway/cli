@@ -152,7 +152,7 @@ func ParseReminders(data []byte) (*RemindersConfig, error) {
 // merged on top of DefaultRemindersConfig by name. A supplied entry whose Name
 // matches a built-in overrides it; entries with new names are appended. The
 // receiver's Enabled value is preserved so the consumer's intent wins.
-func (r *RemindersConfig) MergeWithDefaults() *RemindersConfig {
+func (r RemindersConfig) MergeWithDefaults() *RemindersConfig {
 	defaults := DefaultRemindersConfig()
 
 	byName := make(map[string]int, len(defaults.Reminders))
@@ -160,8 +160,7 @@ func (r *RemindersConfig) MergeWithDefaults() *RemindersConfig {
 		byName[def.Name] = i
 	}
 
-	out := make([]ReminderConfig, len(defaults.Reminders))
-	copy(out, defaults.Reminders)
+	out := slices.Clone(defaults.Reminders)
 
 	for _, supplied := range r.Reminders {
 		if idx, ok := byName[supplied.Name]; ok {

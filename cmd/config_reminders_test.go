@@ -91,3 +91,55 @@ func TestApplyRemindersEnvOverrides_Enabled(t *testing.T) {
 		t.Error("INFER_REMINDERS_ENABLED=false should disable reminders")
 	}
 }
+
+// Merge:true via INFER_REMINDERS_CONFIG should add custom entries on top of
+// built-in defaults instead of replacing them. This guards the cfg.Merge
+// branch at resolveRemindersConfig (cmd/config.go:344).
+func TestResolveRemindersConfig_MergeTrue(t *testing.T) {
+	t.Setenv("INFER_REMINDERS_CONFIG", `enabled: true
+merge: true
+reminders:
+  - name: my-custom
+    text: custom nudge
+    hook: pre_stream
+    trigger: interval
+    interval: 5
+`)
+	cfg, err := resolveRemindersConfig()
+	if err != nil {
+		t.Fatalf("resolveRemindersConfig: %v", err)
+	}
+	if !cfg.Enabled {
+		t.Error("merged config should be enabled")
+	}
+	// Should have the built-in defaults (todo-hygiene, memory-consult, memory-hygiene) + 1 custom
+	wantLen := len(config.DefaultRemindersConfig().Reminders) + 1
+	if len(cfg.Reminders) != wantLen {
+		t.Fatalf("expected %d reminders (defaults + 1 custom), got %d:\n%+v", wantLen, len(cfg.Reminders), cfg.Reminders)
+	}
+	// Custom reminder should be present
+	found := false
+	for _, r := range cfg.Reminders {
+		if r.Name == "my-custom" {
+			found = true
+			if r.Interval != 5 {
+				t.Errorf("custom reminder interval = %d, want 5", r.Interval)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("custom reminder 'my-custom' not found in merged result")
+	}
+	// Built-in defaults should survive
+	hasTodo := false
+	for _, r := range cfg.Reminders {
+		if r.Name == "todo-hygiene" {
+			hasTodo = true
+			break
+		}
+	}
+	if !hasTodo {
+		t.Error("merged result should include built-in todo-hygiene reminder")
+	}
+}
