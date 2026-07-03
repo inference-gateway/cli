@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.128.0](https://github.com/inference-gateway/cli/compare/v0.127.0...v0.128.0) (2026-07-03)
+
+### 🚀 Features
+
+* **chat:** make status indicators selectable with /tools and /a2a views ([#732](https://github.com/inference-gateway/cli/issues/732)) ([6882de0](https://github.com/inference-gateway/cli/commit/6882de02ac5d63e7b72a8e2df65a48552b40e385)), closes [#717](https://github.com/inference-gateway/cli/issues/717) [inference-gateway/cli#717](https://github.com/inference-gateway/cli/issues/717)
+
+### 🐛 Bug Fixes
+
+* **agent:** drop redundant Idle transition that errored on every run ([#726](https://github.com/inference-gateway/cli/issues/726)) ([469ec64](https://github.com/inference-gateway/cli/commit/469ec641941415f2819ba0b0aeda20fe8432fd3f)), closes [#722](https://github.com/inference-gateway/cli/issues/722) [#725](https://github.com/inference-gateway/cli/issues/725)
+* **agent:** report session-cumulative total_turns in completion logs ([#728](https://github.com/inference-gateway/cli/issues/728)) ([0d8fb08](https://github.com/inference-gateway/cli/commit/0d8fb08e15f48dd70f165441abb595e3db83aefc)), closes [#727](https://github.com/inference-gateway/cli/issues/727)
+* **a2a:** route active A2A reads and HasPending through the job supervisor ([#693](https://github.com/inference-gateway/cli/issues/693)) ([#721](https://github.com/inference-gateway/cli/issues/721)) ([dcd0670](https://github.com/inference-gateway/cli/commit/dcd06704e1328e39f2c0b8d5d8be22f3fc1ee89b)), closes [#718](https://github.com/inference-gateway/cli/issues/718) [#719](https://github.com/inference-gateway/cli/issues/719) [#720](https://github.com/inference-gateway/cli/issues/720)
+* **keybindings:** stop "unknown keybinding action" log flood ([#724](https://github.com/inference-gateway/cli/issues/724)) ([c828426](https://github.com/inference-gateway/cli/commit/c8284262e8f1dc5e9c767dd523ea2c856cfe92cf)), closes [#714](https://github.com/inference-gateway/cli/issues/714) [#722](https://github.com/inference-gateway/cli/issues/722)
+* **a2a:** unify background-job liveness, clear, and cancel on the supervisor contract ([#730](https://github.com/inference-gateway/cli/issues/730)) ([eb37fd0](https://github.com/inference-gateway/cli/commit/eb37fd0cad6fb0289926785cb3cda1883735ed7e)), closes [#693](https://github.com/inference-gateway/cli/issues/693) [#720](https://github.com/inference-gateway/cli/issues/720) [#718](https://github.com/inference-gateway/cli/issues/718) [#719](https://github.com/inference-gateway/cli/issues/719)
+* **logging:** use structured key/value form at misused call sites ([#729](https://github.com/inference-gateway/cli/issues/729)) ([cd96028](https://github.com/inference-gateway/cli/commit/cd9602861f9b69cb64efb46969f0fe9cabd39593)), closes [#722](https://github.com/inference-gateway/cli/issues/722) [#724](https://github.com/inference-gateway/cli/issues/724) [#724](https://github.com/inference-gateway/cli/issues/724) [#723](https://github.com/inference-gateway/cli/issues/723)
+* **tools:** wait for pipe readers before reaping detached bash shells ([#716](https://github.com/inference-gateway/cli/issues/716)) ([e1d0d84](https://github.com/inference-gateway/cli/commit/e1d0d8482b5523d7b8b51b0e5c63a1af048d1622)), closes [#696](https://github.com/inference-gateway/cli/issues/696)
+
+### ⚡ Performance Improvements
+
+* **tui:** cache per-entry rendering and keep the Update loop responsive ([#731](https://github.com/inference-gateway/cli/issues/731)) ([8c9db0d](https://github.com/inference-gateway/cli/commit/8c9db0d36d771b9655a620e4fbe86add7585121a))
+
+### 📚 Documentation
+
+* **a2a:** add SKILL.md documentation for Agent2Agent protocol ([defcd57](https://github.com/inference-gateway/cli/commit/defcd571ff7a019be6fe8140dde1e599cc736cf5))
+
+### 🔧 Build System
+
+* **deps:** bump golang.org/x/net from 0.47.0 to 0.55.0 in /examples/mcp/mcp-server ([#715](https://github.com/inference-gateway/cli/issues/715)) ([990803b](https://github.com/inference-gateway/cli/commit/990803bead83fdbd1229c9016b29c2ca7888adc2))
+
+### 🧹 Maintenance
+
+* **flox:** bump dev deps ([d0c8f6b](https://github.com/inference-gateway/cli/commit/d0c8f6bae22cc5b6d689788a04f2a5629241bc5b))
+
 ## [0.127.0](https://github.com/inference-gateway/cli/compare/v0.126.0...v0.127.0) (2026-07-02)
 
 ### 🚀 Features
