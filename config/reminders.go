@@ -21,11 +21,11 @@ const (
 type ReminderTrigger string
 
 const (
-	ReminderTriggerAlways         ReminderTrigger = "always"           // every time the hook point fires
-	ReminderTriggerInterval       ReminderTrigger = "interval"         // every N turns
-	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max" // within threshold of max_turns
-	ReminderTriggerOnce           ReminderTrigger = "once"             // first firing of its point this run
-	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"       // post_tool only: fires when the last tool call failed
+	ReminderTriggerAlways         ReminderTrigger = "always"
+	ReminderTriggerInterval       ReminderTrigger = "interval"
+	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max"
+	ReminderTriggerOnce           ReminderTrigger = "once"
+	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
