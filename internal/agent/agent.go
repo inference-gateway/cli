@@ -605,27 +605,21 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),
 	}
-	s.sessionMux.Lock()
-	s.activeSessions[req.RequestID] = sc
-	s.sessionMux.Unlock()
+	s.registerSession(req.RequestID, sc)
 
 	conversation := s.addSystemPrompt(req.Messages)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
 		sc.Cancel()
-		s.sessionMux.Lock()
-		delete(s.activeSessions, req.RequestID)
-		s.sessionMux.Unlock()
+		s.deregisterSession(req.RequestID)
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
 	go func() {
 		defer func() {
 			close(chatEvents)
-			s.sessionMux.Lock()
-			delete(s.activeSessions, req.RequestID)
-			s.sessionMux.Unlock()
+			s.deregisterSession(req.RequestID)
 			sc.Cancel()
 		}()
 
@@ -668,6 +662,18 @@ func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 	}
 
 	return nil
+}
+
+func (s *AgentServiceImpl) registerSession(requestID string, sc *sessionCancel) {
+	s.sessionMux.Lock()
+	defer s.sessionMux.Unlock()
+	s.activeSessions[requestID] = sc
+}
+
+func (s *AgentServiceImpl) deregisterSession(requestID string) {
+	s.sessionMux.Lock()
+	defer s.sessionMux.Unlock()
+	delete(s.activeSessions, requestID)
 }
 
 // GetMetrics returns metrics for a completed request
