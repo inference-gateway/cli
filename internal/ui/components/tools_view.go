@@ -2,7 +2,7 @@ package components
 
 import (
 	"fmt"
-	"io"
+	"strings"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -12,8 +12,8 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// toolItem is a single row in the tools list: a tool name and its (possibly
-// empty) description.
+// toolItem is a single row in the tools list: a tool name and a one-line
+// summary of its (possibly empty) description.
 type toolItem struct {
 	name        string
 	description string
@@ -22,44 +22,54 @@ type toolItem struct {
 // FilterValue is what the list filters against when the user searches (/).
 func (i toolItem) FilterValue() string { return i.name }
 
-// toolDelegate renders a toolItem as a single line: a caret on the highlighted
-// row, the tool name in accent, and the description dimmed and truncated to
-// the available width.
-type toolDelegate struct {
-	styleProvider *styles.Provider
+// Title and Description satisfy list.DefaultItem so the default delegate can
+// render the item as name + dim summary line.
+func (i toolItem) Title() string       { return i.name }
+func (i toolItem) Description() string { return i.description }
+
+// summarizeDescription collapses a tool description to a single line: the
+// first non-empty line with its whitespace normalized. Tool descriptions
+// often carry multi-line usage blocks that would wreck a list row.
+func summarizeDescription(s string) string {
+	for line := range strings.Lines(s) {
+		if fields := strings.Fields(line); len(fields) > 0 {
+			return strings.Join(fields, " ")
+		}
+	}
+	return ""
 }
 
-func (d toolDelegate) Height() int                             { return 1 }
-func (d toolDelegate) Spacing() int                            { return 0 }
-func (d toolDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+// newToolDelegate builds the default two-line delegate restyled with the
+// current theme: accent bar + accent name on the selected row, dim
+// descriptions, underlined filter matches.
+func newToolDelegate(styleProvider *styles.Provider) list.DefaultDelegate {
+	accent := lipgloss.Color(styleProvider.GetThemeColor("accent"))
+	dim := lipgloss.Color(styleProvider.GetThemeColor("dim"))
 
-func (d toolDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	it, ok := item.(toolItem)
-	if !ok {
-		return
-	}
+	d := list.NewDefaultDelegate()
+	d.Styles.NormalTitle = lipgloss.NewStyle().Padding(0, 0, 0, 2)
+	d.Styles.NormalDesc = d.Styles.NormalTitle.Foreground(dim)
+	d.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(accent).
+		Foreground(accent).
+		Bold(true).
+		Padding(0, 0, 0, 1)
+	d.Styles.SelectedDesc = d.Styles.SelectedTitle.Bold(false).Foreground(dim)
+	d.Styles.DimmedTitle = lipgloss.NewStyle().Foreground(dim).Padding(0, 0, 0, 2)
+	d.Styles.DimmedDesc = d.Styles.DimmedTitle
+	d.Styles.FilterMatch = lipgloss.NewStyle().Underline(true).Foreground(accent)
+	return d
+}
 
-	selected := index == m.Index()
-
-	prefix := "  "
-	if selected {
-		prefix = "▶ "
-	}
-
-	desc := it.description
-	if maxDesc := m.Width() - len(prefix) - len(it.name) - 3; maxDesc > 0 && len(desc) > maxDesc {
-		desc = desc[:maxDesc-1] + "…"
-	}
-
-	name := prefix + it.name
-	if selected {
-		name = d.styleProvider.RenderWithColor(name, d.styleProvider.GetThemeColor("accent"))
-	}
-	if desc != "" {
-		desc = d.styleProvider.RenderWithColor(" — "+desc, d.styleProvider.GetThemeColor("dim"))
-	}
-
-	_, _ = fmt.Fprint(w, name+desc)
+// toolsTitleStyle matches the status-bar selection pill: accent-on-background
+// via reverse video, padded.
+func toolsTitleStyle(styleProvider *styles.Provider) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
+		Reverse(true).
+		Bold(true).
+		Padding(0, 1)
 }
 
 // ToolsViewImpl is a read-only, filterable list of the tools currently
@@ -82,16 +92,14 @@ type ToolsViewImpl struct {
 func NewToolsView(toolService domain.ToolService, stateManager domain.StateManager, styleProvider *styles.Provider) *ToolsViewImpl {
 	l := list.New(
 		nil,
-		toolDelegate{styleProvider: styleProvider},
+		newToolDelegate(styleProvider),
 		80, 24,
 	)
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
 	l.DisableQuitKeybindings()
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
-		Bold(true)
+	l.SetStatusBarItemName("tool", "tools")
 
 	m := &ToolsViewImpl{
 		list:          l,
@@ -121,7 +129,7 @@ func (m *ToolsViewImpl) toolItems() []list.Item {
 	for i, tool := range tools {
 		item := toolItem{name: tool.Function.Name}
 		if tool.Function.Description != nil {
-			item.description = *tool.Function.Description
+			item.description = summarizeDescription(*tool.Function.Description)
 		}
 		items[i] = item
 	}
@@ -194,10 +202,13 @@ func (m *ToolsViewImpl) SetHeight(height int) {
 
 // Reset returns the view to its initial state and rebuilds the items so the
 // list reflects the current agent mode and any MCP tools registered since it
-// was last shown.
+// was last shown. The delegate and title styles are rebuilt too so a theme
+// switch is picked up on re-entry.
 func (m *ToolsViewImpl) Reset() {
 	m.cancelled = false
 	m.list.ResetFilter()
+	m.list.SetDelegate(newToolDelegate(m.styleProvider))
+	m.list.Styles.Title = toolsTitleStyle(m.styleProvider)
 	items := m.toolItems()
 	m.list.SetItems(items)
 	m.list.Select(0)

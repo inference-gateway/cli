@@ -3,6 +3,7 @@ package components
 import (
 	"testing"
 
+	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -13,6 +14,9 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
+
+// The default delegate renders items through the DefaultItem interface.
+var _ list.DefaultItem = toolItem{}
 
 func toolDef(name, description string) sdk.ChatCompletionTool {
 	tool := sdk.ChatCompletionTool{}
@@ -71,6 +75,28 @@ func TestToolsView_ItemsReflectAvailableTools(t *testing.T) {
 
 	if got := toolService.ListToolsForModeArgsForCall(0); got != domain.AgentModePlan {
 		t.Errorf("tools must be listed for the current agent mode, got %v", got)
+	}
+}
+
+// TestToolsView_MultilineDescriptionsCollapse guards the layout: tool
+// descriptions often carry multi-line usage blocks, and a newline in a list
+// row would wreck the whole view.
+func TestToolsView_MultilineDescriptionsCollapse(t *testing.T) {
+	view, _, _ := newToolsViewForTest([]sdk.ChatCompletionTool{
+		toolDef("Write", "Writes a file to disk.\n\nUsage:\n- overwrites the existing file"),
+		toolDef("Read", "\n\n  Reads   a file\t from disk.\nMore detail."),
+	})
+
+	first := view.list.Items()[0].(toolItem)
+	if got := first.Description(); got != "Writes a file to disk." {
+		t.Errorf("Description() = %q, want the first line only", got)
+	}
+	second := view.list.Items()[1].(toolItem)
+	if got := second.Description(); got != "Reads a file from disk." {
+		t.Errorf("Description() = %q, want the first non-empty line with whitespace collapsed", got)
+	}
+	if first.Title() != "Write" {
+		t.Errorf("Title() = %q, want the tool name", first.Title())
 	}
 }
 
