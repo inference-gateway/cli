@@ -99,7 +99,7 @@ func (h *HelpViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.SetWidth(msg.Width)
 		h.SetHeight(msg.Height)
 		return h, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return h.handleKey(msg)
 	}
 
@@ -108,7 +108,7 @@ func (h *HelpViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-func (h *HelpViewImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h *HelpViewImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "ctrl+c":
 		h.cancelled = true

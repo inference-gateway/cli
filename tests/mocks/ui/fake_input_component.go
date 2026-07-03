@@ -26,10 +26,10 @@ type FakeInputComponent struct {
 	addToHistoryReturnsOnCall map[int]struct {
 		result1 error
 	}
-	CanHandleStub        func(tea.KeyMsg) bool
+	CanHandleStub        func(tea.KeyPressMsg) bool
 	canHandleMutex       sync.RWMutex
 	canHandleArgsForCall []struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}
 	canHandleReturns struct {
 		result1 bool
@@ -85,10 +85,10 @@ type FakeInputComponent struct {
 	getUsageHintReturnsOnCall map[int]struct {
 		result1 string
 	}
-	HandleKeyStub        func(tea.KeyMsg) (tea.Model, tea.Cmd)
+	HandleKeyStub        func(tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	handleKeyMutex       sync.RWMutex
 	handleKeyArgsForCall []struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}
 	handleKeyReturns struct {
 		result1 tea.Model
@@ -253,11 +253,11 @@ func (fake *FakeInputComponent) AddToHistoryReturnsOnCall(i int, result1 error) 
 	}{result1}
 }
 
-func (fake *FakeInputComponent) CanHandle(arg1 tea.KeyMsg) bool {
+func (fake *FakeInputComponent) CanHandle(arg1 tea.KeyPressMsg) bool {
 	fake.canHandleMutex.Lock()
 	ret, specificReturn := fake.canHandleReturnsOnCall[len(fake.canHandleArgsForCall)]
 	fake.canHandleArgsForCall = append(fake.canHandleArgsForCall, struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}{arg1})
 	stub := fake.CanHandleStub
 	fakeReturns := fake.canHandleReturns
@@ -278,13 +278,13 @@ func (fake *FakeInputComponent) CanHandleCallCount() int {
 	return len(fake.canHandleArgsForCall)
 }
 
-func (fake *FakeInputComponent) CanHandleCalls(stub func(tea.KeyMsg) bool) {
+func (fake *FakeInputComponent) CanHandleCalls(stub func(tea.KeyPressMsg) bool) {
 	fake.canHandleMutex.Lock()
 	defer fake.canHandleMutex.Unlock()
 	fake.CanHandleStub = stub
 }
 
-func (fake *FakeInputComponent) CanHandleArgsForCall(i int) tea.KeyMsg {
+func (fake *FakeInputComponent) CanHandleArgsForCall(i int) tea.KeyPressMsg {
 	fake.canHandleMutex.RLock()
 	defer fake.canHandleMutex.RUnlock()
 	argsForCall := fake.canHandleArgsForCall[i]
@@ -574,11 +574,11 @@ func (fake *FakeInputComponent) GetUsageHintReturnsOnCall(i int, result1 string)
 	}{result1}
 }
 
-func (fake *FakeInputComponent) HandleKey(arg1 tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (fake *FakeInputComponent) HandleKey(arg1 tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	fake.handleKeyMutex.Lock()
 	ret, specificReturn := fake.handleKeyReturnsOnCall[len(fake.handleKeyArgsForCall)]
 	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, struct {
-		arg1 tea.KeyMsg
+		arg1 tea.KeyPressMsg
 	}{arg1})
 	stub := fake.HandleKeyStub
 	fakeReturns := fake.handleKeyReturns
@@ -599,13 +599,13 @@ func (fake *FakeInputComponent) HandleKeyCallCount() int {
 	return len(fake.handleKeyArgsForCall)
 }
 
-func (fake *FakeInputComponent) HandleKeyCalls(stub func(tea.KeyMsg) (tea.Model, tea.Cmd)) {
+func (fake *FakeInputComponent) HandleKeyCalls(stub func(tea.KeyPressMsg) (tea.Model, tea.Cmd)) {
 	fake.handleKeyMutex.Lock()
 	defer fake.handleKeyMutex.Unlock()
 	fake.HandleKeyStub = stub
 }
 
-func (fake *FakeInputComponent) HandleKeyArgsForCall(i int) tea.KeyMsg {
+func (fake *FakeInputComponent) HandleKeyArgsForCall(i int) tea.KeyPressMsg {
 	fake.handleKeyMutex.RLock()
 	defer fake.handleKeyMutex.RUnlock()
 	argsForCall := fake.handleKeyArgsForCall[i]

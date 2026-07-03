@@ -1,14 +1,15 @@
 package components
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	spinner "charm.land/bubbles/v2/spinner"
@@ -80,7 +81,9 @@ type subagentRemovalTickMsg struct {
 	ID string
 }
 
-// ConversationView handles the chat conversation display
+// ConversationView handles the chat conversation display. It is confined to
+// the Bubble Tea event loop: all state is read and written from Update/View
+// only, so it holds no locks. Off-loop producers must go through Program.Send.
 type ConversationView struct {
 	conversation           []domain.ConversationEntry
 	Viewport               viewport.Model
@@ -104,15 +107,16 @@ type ConversationView struct {
 	stateManager           domain.StateManager
 	renderedContent        string
 
-	// Streaming state with mutex protection
-	streamingMu              sync.RWMutex
+	// renderCache memoizes per-entry rendered output keyed by conversation
+	// index; an entry re-renders only when its fingerprint changes. Cleared
+	// on theme refresh, which restyles without touching entry state.
+	renderCache map[int]renderCacheEntry
+
+	// Streaming state
 	streamingBuffer          strings.Builder
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
 	streamingModel           string
-
-	// Viewport mutex to protect concurrent access
-	viewportMu sync.Mutex
 
 	keyHintFormatter *hints.Formatter
 
@@ -172,6 +176,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		backgroundTasks:        make(map[string]*BackgroundTaskDisplay),
 		subagentTasks:          make(map[string]*subagentDisplay),
 		backgroundSpinner:      bgSpin,
+		renderCache:            make(map[int]renderCacheEntry),
 	}
 }
 
@@ -222,6 +227,9 @@ func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) stri
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
 	wasAtBottom := cv.Viewport.AtBottom()
+	if len(conversation) < len(cv.conversation) {
+		cv.renderCache = make(map[int]renderCacheEntry)
+	}
 	cv.conversation = conversation
 	cv.updatePlainTextLines()
 
@@ -253,7 +261,6 @@ func (cv *ConversationView) ResetUserScroll() {
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		// Flip the effective state (an explicit override of any per-tool default).
 		cv.expandedToolResults[index] = !cv.IsToolResultExpanded(index)
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.updateViewportContentFull()
@@ -262,8 +269,6 @@ func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
-	// Direction follows the current effective state, so the first press collapses
-	// whatever is on screen (including diffs that are expanded by default).
 	expand := !cv.anyToolResultExpanded()
 	cv.allToolsExpanded = expand
 
@@ -357,6 +362,7 @@ func (cv *ConversationView) RefreshTheme() {
 	if cv.markdownRenderer != nil {
 		cv.markdownRenderer.RefreshTheme()
 	}
+	cv.renderCache = make(map[int]renderCacheEntry)
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContentFull()
 	}
@@ -400,9 +406,7 @@ func (cv *ConversationView) SetHeight(height int) {
 
 func (cv *ConversationView) Render() string {
 	if cv.navigationMode == NavigationModeMessageHistory {
-		cv.viewportMu.Lock()
 		viewportContent := cv.Viewport.View()
-		cv.viewportMu.Unlock()
 
 		lines := strings.Split(viewportContent, "\n")
 		leftPadding := "  "
@@ -413,12 +417,10 @@ func (cv *ConversationView) Render() string {
 		return result
 	}
 
-	cv.viewportMu.Lock()
 	if len(cv.conversation) == 0 {
 		cv.Viewport.SetContent(cv.renderWelcome())
 	}
 	viewportContent := cv.Viewport.View()
-	cv.viewportMu.Unlock()
 
 	lines := strings.Split(viewportContent, "\n")
 
@@ -435,21 +437,16 @@ func (cv *ConversationView) updateViewportContent() {
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
 func (cv *ConversationView) appendStreamingContent(content, reasoning, model string) {
-	cv.streamingMu.Lock()
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
 	cv.streamingReasoningBuffer.WriteString(reasoning)
-	cv.streamingMu.Unlock()
 
 	cv.updateViewportContentFull()
 }
 
 // flushStreamingBuffer clears the streaming buffer after completion
 func (cv *ConversationView) flushStreamingBuffer() {
-	cv.streamingMu.Lock()
-	defer cv.streamingMu.Unlock()
-
 	cv.streamingBuffer.Reset()
 	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
@@ -458,11 +455,9 @@ func (cv *ConversationView) flushStreamingBuffer() {
 
 // renderStreamingContent renders the currently streaming assistant message
 func (cv *ConversationView) renderStreamingContent() string {
-	cv.streamingMu.RLock()
 	streamingContent := cv.streamingBuffer.String()
 	streamingReasoning := cv.streamingReasoningBuffer.String()
 	model := cv.streamingModel
-	cv.streamingMu.RUnlock()
 
 	var result strings.Builder
 
@@ -508,7 +503,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 		if entry.Hidden {
 			continue
 		}
-		b.WriteString(cv.renderEntryWithIndex(entry, i))
+		b.WriteString(cv.renderEntryCached(entry, i))
 		b.WriteString("\n")
 		displayIndex++
 	}
@@ -521,10 +516,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 		}
 	}
 
-	cv.streamingMu.RLock()
 	shouldRenderStreaming := cv.isStreaming && (cv.streamingBuffer.Len() > 0 || cv.streamingReasoningBuffer.Len() > 0)
-	cv.streamingMu.RUnlock()
-
 	if shouldRenderStreaming {
 		streamingText := cv.renderStreamingContent()
 		b.WriteString(streamingText)
@@ -532,12 +524,10 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	cv.renderedContent = b.String()
 
-	cv.viewportMu.Lock()
 	cv.Viewport.SetContent(cv.renderedContent)
 	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
 	}
-	cv.viewportMu.Unlock()
 }
 
 func (cv *ConversationView) renderWelcome() string {
@@ -596,6 +586,85 @@ func (cv *ConversationView) renderCompactWelcome() string {
 	}
 
 	return cv.styleProvider.RenderBorderedBox(content, cv.styleProvider.GetThemeColor("accent"), 1, 1)
+}
+
+// renderCacheEntry is one memoized entry rendering.
+type renderCacheEntry struct {
+	fingerprint uint64
+	rendered    string
+}
+
+// renderEntryCached returns the memoized rendering for the entry at index,
+// re-rendering only when the fingerprint changes. Entries whose rendering
+// reads live external state (pending plan approval buttons) bypass the cache.
+func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, index int) string {
+	if entry.IsPlan && entry.PlanApprovalStatus == domain.PlanApprovalPending {
+		return cv.renderEntryWithIndex(entry, index)
+	}
+
+	fp := cv.entryFingerprint(entry, index)
+	if cached, ok := cv.renderCache[index]; ok && cached.fingerprint == fp {
+		return cached.rendered
+	}
+
+	rendered := cv.renderEntryWithIndex(entry, index)
+	cv.renderCache[index] = renderCacheEntry{fingerprint: fp, rendered: rendered}
+	return rendered
+}
+
+// entryFingerprint hashes every input that affects an entry's rendered output.
+// Message text is identified by the entry's creation time rather than hashed:
+// entries are append-only, so post-creation changes only touch the mutable
+// fields mixed in below (tool execution, approval statuses, expansion, width,
+// raw mode).
+func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, index int) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+
+	writeInt := func(v int64) {
+		binary.LittleEndian.PutUint64(buf[:], uint64(v))
+		_, _ = h.Write(buf[:])
+	}
+	writeBool := func(b bool) {
+		if b {
+			writeInt(1)
+		} else {
+			writeInt(0)
+		}
+	}
+	writeString := func(s string) {
+		_, _ = h.Write([]byte(s))
+		writeInt(int64(len(s)))
+	}
+
+	writeInt(entry.Time.UnixNano())
+	writeString(string(entry.Message.Role))
+	writeString(entry.Model)
+	writeInt(int64(len(entry.ReasoningContent)))
+	writeInt(int64(len(entry.Images)))
+	writeBool(entry.Hidden)
+	writeBool(entry.Rejected)
+	writeBool(entry.IsPlan)
+	writeInt(int64(entry.ToolApprovalStatus))
+	writeInt(int64(entry.PlanApprovalStatus))
+	writeBool(entry.PendingToolCall != nil)
+	if entry.Message.ToolCalls != nil {
+		writeInt(int64(len(*entry.Message.ToolCalls)))
+	}
+	if te := entry.ToolExecution; te != nil {
+		writeString(te.ToolName)
+		writeBool(te.Success)
+		writeBool(te.Rejected)
+		writeInt(int64(te.Duration))
+		writeInt(int64(len(te.Error)))
+		writeInt(int64(len(te.Diff)))
+	}
+
+	writeInt(int64(cv.width))
+	writeBool(cv.rawFormat)
+	writeBool(cv.IsToolResultExpanded(index))
+	writeBool(cv.IsThinkingExpanded(index))
+	return h.Sum64()
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
@@ -1976,7 +2045,7 @@ func computeElapsedString(display *BackgroundTaskDisplay) string {
 
 // handleDefaultEvents processes all other events
 func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+	if _, isKeyMsg := msg.(tea.KeyPressMsg); !isKeyMsg {
 		cv.Viewport, cmd = cv.Viewport.Update(msg)
 		if cv.Viewport.AtBottom() {
 			cv.userScrolledUp = false

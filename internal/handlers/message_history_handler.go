@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -161,7 +162,7 @@ func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEnt
 			continue
 		}
 
-		truncated := h.truncateMessage(content, 50)
+		truncated := formatting.TruncateText(content, 50)
 
 		message := domain.MessageSnapshot{
 			Index:        i,
@@ -179,12 +180,4 @@ func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEnt
 // isSystemReminder checks if a message content is a system reminder
 func (h *MessageHistoryHandler) isSystemReminder(content string) bool {
 	return strings.Contains(content, "<system-reminder>")
-}
-
-// truncateMessage truncates a message to the specified length
-func (h *MessageHistoryHandler) truncateMessage(content string, maxLen int) string {
-	if len(content) <= maxLen {
-		return content
-	}
-	return content[:maxLen-3] + "..."
 }

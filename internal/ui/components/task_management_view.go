@@ -304,7 +304,7 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd())
 	case tea.WindowSizeMsg:
 		return t.handleWindowResize(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if t.loading {
 			return t, nil
 		}
@@ -366,7 +366,7 @@ func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, 
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.confirmCancel {
 		return t.handleCancelConfirmation(msg)
 	}
@@ -444,7 +444,7 @@ func (t *TaskManagerImpl) handleViewSwitch(key string) {
 	t.applyFilters()
 }
 
-func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		t.confirmCancel = false
@@ -460,7 +460,7 @@ func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyMsg) (tea.Model, t
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleInfoView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg.String() {
@@ -486,7 +486,7 @@ func (t *TaskManagerImpl) handleInfoView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return t, cmd
 }
 
-func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		t.searchMode = false

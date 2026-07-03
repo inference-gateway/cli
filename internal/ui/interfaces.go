@@ -25,7 +25,7 @@ const (
 // AutocompleteComponent defines the interface for autocomplete functionality
 type AutocompleteComponent interface {
 	Update(inputText string, cursorPos int)
-	HandleKey(key tea.KeyMsg) (bool, string)
+	HandleKey(key tea.KeyPressMsg) (bool, string)
 	IsVisible() bool
 	SetWidth(width int)
 	SetHeight(height int)
@@ -82,8 +82,8 @@ type InputComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
-	HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
-	CanHandle(key tea.KeyMsg) bool
+	HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd)
+	CanHandle(key tea.KeyPressMsg) bool
 	NavigateHistoryUp()
 	NavigateHistoryDown()
 	AddImageAttachment(image domain.ImageAttachment)

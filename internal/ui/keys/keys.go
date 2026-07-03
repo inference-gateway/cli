@@ -64,19 +64,16 @@ func IsKnownKey(keyStr string) bool {
 
 // PrintableText returns the literal characters represented by a key press, or
 // "" if the key has no printable text (Enter, Backspace, arrow keys, modifier
-// combos, etc.). In Bubble Tea v2 the printable text lives in KeyPressMsg.Text;
-// KeyMsg.String() returns the human-readable key *name* ("space", "ctrl+c"),
-// which is what keybinding lookups want but is not what should be inserted
-// into a text buffer. Use this helper when you need the literal input.
-func PrintableText(key tea.KeyMsg) string {
-	if press, ok := key.(tea.KeyPressMsg); ok {
-		return press.Text
-	}
-	return ""
+// combos, etc.). The printable text lives in KeyPressMsg.Text; String()
+// returns the human-readable key *name* ("space", "ctrl+c"), which is what
+// keybinding lookups want but is not what should be inserted into a text
+// buffer. Use this helper when you need the literal input.
+func PrintableText(key tea.KeyPressMsg) string {
+	return key.Text
 }
 
 // CanInputHandle checks if a key can be handled by input components
-func CanInputHandle(key tea.KeyMsg) bool {
+func CanInputHandle(key tea.KeyPressMsg) bool {
 	if PrintableText(key) != "" {
 		return true
 	}

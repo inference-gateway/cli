@@ -12,6 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -668,7 +669,7 @@ func (a *AutocompleteImpl) filterSuggestions() {
 }
 
 // HandleKey processes key input for autocomplete navigation
-func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
+func (a *AutocompleteImpl) HandleKey(key tea.KeyPressMsg) (bool, string) {
 	if !a.visible || len(a.filtered) == 0 {
 		return false, ""
 	}
@@ -918,17 +919,6 @@ func (a *AutocompleteImpl) getShortcutDisplayText(cmd ShortcutOption) string {
 	return cmd.Shortcut
 }
 
-// truncateText truncates text to fit within maxWidth
-func truncateText(text string, maxWidth int) string {
-	if len(text) <= maxWidth {
-		return text
-	}
-	if maxWidth > 3 {
-		return text[:maxWidth-3] + "..."
-	}
-	return text[:maxWidth]
-}
-
 // renderItems renders all visible autocomplete items
 func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
 	const leftPadding = "  "
@@ -942,10 +932,10 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 
 		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
-		displayText = truncateText(displayText, maxShortcutWidth)
+		displayText = formatting.TruncateText(displayText, maxShortcutWidth)
 		paddedShortcut := displayText + strings.Repeat(" ", maxShortcutWidth-len(displayText))
 
-		description := truncateText(cmd.Description, descWidth)
+		description := formatting.TruncateText(cmd.Description, descWidth)
 		paddedDescription := description + strings.Repeat(" ", descWidth-len(description))
 
 		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription)

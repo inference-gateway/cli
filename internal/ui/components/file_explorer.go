@@ -289,7 +289,7 @@ func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		t.handleWheel(m)
 		return t, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return t.handleKey(m)
 	}
 	return t, nil
@@ -304,7 +304,7 @@ func (t *FileExplorerImpl) handleWheel(msg tea.MouseWheelMsg) {
 	}
 }
 
-func (t *FileExplorerImpl) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.annotateMode {
 		return t.handleAnnotateKey(msg)
 	}
@@ -496,7 +496,7 @@ func (t *FileExplorerImpl) exitFind() {
 	t.findCursor = 0
 }
 
-func (t *FileExplorerImpl) handleFindKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorerImpl) handleFindKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch normalizeKey(msg.String()) {
 	case "ctrl+c":
 		t.cancel = true
@@ -520,8 +520,8 @@ func (t *FileExplorerImpl) handleFindKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return t, nil
 	}
-	if kp, ok := msg.(tea.KeyPressMsg); ok && kp.Text != "" {
-		t.findQuery += kp.Text
+	if msg.Text != "" {
+		t.findQuery += msg.Text
 		t.applyFilter()
 	}
 	return t, nil
@@ -666,7 +666,7 @@ func (t *FileExplorerImpl) movePreviewCursor(delta int) {
 	// else: cursor already visible - leave YOffset unchanged.
 }
 
-func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	pressed := normalizeKey(msg.String())
 	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
 		t.cancel = true
@@ -711,7 +711,7 @@ func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 // handleAnnotateKey drives the inline annotation text input. enter confirms
 // (storing the selection), esc cancels (keeping the anchor so the user can
 // retry). Mirrors handleFindKey's typing model.
-func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch normalizeKey(msg.String()) {
 	case "ctrl+c":
 		t.cancel = true
@@ -729,8 +729,8 @@ func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		}
 		return t, nil
 	}
-	if kp, ok := msg.(tea.KeyPressMsg); ok && kp.Text != "" {
-		t.annotateInput += kp.Text
+	if msg.Text != "" {
+		t.annotateInput += msg.Text
 	}
 	return t, nil
 }

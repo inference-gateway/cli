@@ -135,7 +135,7 @@ func (m *ThemeSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.list.SetSize(msg.Width, msg.Height)
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if handled, cmd := m.handleKey(msg); handled {
 			return m, cmd
 		}
@@ -149,7 +149,7 @@ func (m *ThemeSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey intercepts selection/cancel keys when the list is not actively
 // filtering; otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter).
-func (m *ThemeSelectorImpl) handleKey(msg tea.KeyMsg) (handled bool, cmd tea.Cmd) {
+func (m *ThemeSelectorImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		return false, nil
 	}

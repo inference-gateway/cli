@@ -68,7 +68,7 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.handleWindowResize(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyInput(msg)
 	}
 
@@ -81,7 +81,7 @@ func (m *ModelSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model
 	return m, nil
 }
 
-func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m.handleCancel()
@@ -152,7 +152,7 @@ func (m *ModelSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *ModelSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ModelSelectorImpl) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
 		m.searchQuery += msg.String()
 		m.updateSearch()

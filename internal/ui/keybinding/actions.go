@@ -682,11 +682,11 @@ func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollAct
 }
 
 // Handler implementations
-func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleQuit(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return tea.Quit
 }
 
-func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
 	if stateManager.IsEditingMessage() {
@@ -751,7 +751,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
 	if chatSession := stateManager.GetChatSession(); chatSession != nil {
@@ -797,23 +797,23 @@ func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	)
 }
 
-func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	app.ToggleToolResultExpansion()
 	return nil
 }
 
-func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	app.ToggleThinkingExpansion()
 	return nil
 }
 
-func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.BackgroundShellRequestEvent{}
 	}
 }
 
-func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	app.ToggleRawFormat()
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
@@ -823,7 +823,7 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
 	approvalState := stateManager.GetApprovalUIState()
@@ -887,7 +887,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 // handleTabKey handles Tab key press: routes to autocomplete when visible,
 // otherwise delegates to input view for history suggestion cycling.
-func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	autocomplete := app.GetAutocomplete()
 	if autocomplete != nil && autocomplete.IsVisible() {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
@@ -1016,7 +1016,7 @@ func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
 	)
 }
 
-func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePaste(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -1065,7 +1065,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return flashStatus(app, "Text pasted from clipboard")
 }
 
-func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCopy(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -1080,7 +1080,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return flashStatus(app, "Copied to clipboard")
 }
 
-func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.NavigateBackInTimeEvent{
 			RequestID: "navigate-back-in-time",
@@ -1089,7 +1089,7 @@ func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1099,7 +1099,7 @@ func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1109,7 +1109,7 @@ func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1119,7 +1119,7 @@ func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1129,7 +1129,7 @@ func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	}
 }
 
-func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1139,7 +1139,7 @@ func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
@@ -1150,7 +1150,7 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 // Text editing handlers
-func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
 	approvalState := stateManager.GetApprovalUIState()
@@ -1187,7 +1187,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 	return nil
 }
 
-func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
 	approvalState := stateManager.GetApprovalUIState()
@@ -1242,7 +1242,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 	return nil
 }
 
-func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -1263,7 +1263,7 @@ func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	autocomplete := app.GetAutocomplete()
 	if inputView != nil {
@@ -1276,7 +1276,7 @@ func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	autocomplete := app.GetAutocomplete()
 	if inputView != nil {
@@ -1289,7 +1289,7 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -1303,7 +1303,7 @@ func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -1327,7 +1327,7 @@ func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	return nil
 }
 
-func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -1351,7 +1351,7 @@ func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -1371,7 +1371,7 @@ func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	return nil
 }
 
-func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -1391,7 +1391,7 @@ func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 	return nil
 }
 
-func handleMoveToBeginning(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleMoveToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		inputView.SetCursor(0)
@@ -1399,7 +1399,7 @@ func handleMoveToBeginning(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		text := inputView.GetInput()
@@ -1408,7 +1408,7 @@ func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -1420,19 +1420,19 @@ func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ToggleHelpBarEvent{}
 	}
 }
 
-func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ToggleTodoBoxEvent{}
 	}
 }
 
-func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 	statusView := app.GetStatusView()
 	newMode := stateManager.CycleAgentMode()
@@ -1471,7 +1471,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	)
 }
 
-func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	mouseEnabled := app.GetMouseEnabled()
 	app.SetMouseEnabled(!mouseEnabled)
 
@@ -1524,7 +1524,7 @@ func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBinding
 }
 
 // ProcessKey handles key input and executes the appropriate action
-func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
+func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyPressMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 	var cmds []tea.Cmd
 
@@ -1558,7 +1558,7 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 	return m.batchCmds(cmds)
 }
 
-func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyMsg) tea.Cmd {
+func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyPressMsg) tea.Cmd {
 	config := m.app.GetConfig()
 	if config == nil || !config.Logging.Debug {
 		return nil
@@ -1571,7 +1571,7 @@ func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyMsg) tea.Cm
 	return m.debugKeyBinding(keyMsg, debugInfo)
 }
 
-func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyMsg) tea.Cmd {
+func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if m.lastKeyTime.IsZero() || now.Sub(m.lastKeyTime) <= m.sequenceTimeout {
 		return nil
 	}
@@ -1591,7 +1591,7 @@ func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyM
 	return nil
 }
 
-func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg tea.KeyMsg, cmds []tea.Cmd) tea.Cmd {
+func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
 	if len(m.keySequenceBuffer) <= 1 {
 		return nil
 	}
@@ -1605,7 +1605,7 @@ func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg te
 	return m.batchCmds(cmds)
 }
 
-func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyMsg, cmds []tea.Cmd) tea.Cmd {
+func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
 	if len(m.keySequenceBuffer) != 1 {
 		return nil
 	}
@@ -1688,7 +1688,7 @@ func (m *KeyBindingManager) joinSequence(keys []string) string {
 }
 
 // IsKeyHandledByAction returns true if the key would be handled by a keybinding action
-func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyMsg) bool {
+func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
 	keyStr := keyMsg.String()
 	action := m.registry.Resolve(keyStr, m.app)
 	return action != nil
@@ -1718,7 +1718,7 @@ func (m *KeyBindingManager) GetHintFormatter() *hints.Formatter {
 }
 
 // debugKeyBinding logs key binding events when debug mode is enabled
-func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, info string) tea.Cmd {
+func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyPressMsg, info string) tea.Cmd {
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
@@ -1731,7 +1731,7 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, info string) tea.
 	return nil
 }
 
-func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 
 	if strings.Contains(keyStr, "???") ||
@@ -1854,7 +1854,7 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 // Approval handlers
 // Plan Approval handlers
 
-func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
@@ -1872,7 +1872,7 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
@@ -1890,7 +1890,7 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		stateManager := app.GetStateManager()
 		planApprovalState := stateManager.GetPlanApprovalUIState()
@@ -1909,7 +1909,7 @@ func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	}
 }
 
-func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalReject,
@@ -1917,7 +1917,7 @@ func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	}
 }
 
-func handlePlanApprovalAcceptStandard(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalAcceptStandard(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAcceptStandard,

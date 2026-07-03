@@ -236,7 +236,7 @@ func parseFrontmatter(data []byte) (frontmatter, error) {
 	}
 
 	if err := yaml.Unmarshal([]byte(parts[1]), &fm); err != nil {
-		return fm, fmt.Errorf("invalid YAML in frontmatter: %v", err)
+		return fm, fmt.Errorf("invalid YAML in frontmatter: %w", err)
 	}
 
 	return fm, nil

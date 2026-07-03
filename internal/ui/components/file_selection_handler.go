@@ -25,7 +25,7 @@ func NewFileSelectionHandler(styleProvider *styles.Provider) *FileSelectionHandl
 
 // HandleKeyEvent processes key events for file selection
 func (h *FileSelectionHandler) HandleKeyEvent(
-	keyMsg tea.KeyMsg,
+	keyMsg tea.KeyPressMsg,
 	files []string,
 	searchQuery string,
 	selectedIndex int,
