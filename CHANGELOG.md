@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.129.0](https://github.com/inference-gateway/cli/compare/v0.128.0...v0.129.0) (2026-07-03)
+
+### 🚀 Features
+
+* **reminders:** env/flag config path and on_failure trigger ([#734](https://github.com/inference-gateway/cli/issues/734)) ([96d5949](https://github.com/inference-gateway/cli/commit/96d59498e660d339eefb96ab860de444eefca41b)), closes [#733](https://github.com/inference-gateway/cli/issues/733)
+
+### ♻️ Code Refactoring
+
+* **release:** change deprecated macos-latest tag to macos-26 ([f2e5d89](https://github.com/inference-gateway/cli/commit/f2e5d89277349be66ab149823f05fd1eb207de3d))
+
+### 👷 CI/CD
+
+* **deps:** update inference workflow to version v0.14.9 ([1b257c5](https://github.com/inference-gateway/cli/commit/1b257c53d03e0328b3e3817c9a0148bd2f3f7160))
+
 ## [0.128.0](https://github.com/inference-gateway/cli/compare/v0.127.0...v0.128.0) (2026-07-03)
 
 ### 🚀 Features
