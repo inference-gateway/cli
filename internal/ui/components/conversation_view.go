@@ -1,8 +1,10 @@
 package components
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -104,6 +106,11 @@ type ConversationView struct {
 	stateManager           domain.StateManager
 	renderedContent        string
 
+	// renderCache memoizes per-entry rendered output keyed by conversation
+	// index; an entry re-renders only when its fingerprint changes. Cleared
+	// on theme refresh, which restyles without touching entry state.
+	renderCache map[int]renderCacheEntry
+
 	// Streaming state with mutex protection
 	streamingMu              sync.RWMutex
 	streamingBuffer          strings.Builder
@@ -172,6 +179,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		backgroundTasks:        make(map[string]*BackgroundTaskDisplay),
 		subagentTasks:          make(map[string]*subagentDisplay),
 		backgroundSpinner:      bgSpin,
+		renderCache:            make(map[int]renderCacheEntry),
 	}
 }
 
@@ -222,6 +230,9 @@ func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) stri
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
 	wasAtBottom := cv.Viewport.AtBottom()
+	if len(conversation) < len(cv.conversation) {
+		cv.renderCache = make(map[int]renderCacheEntry)
+	}
 	cv.conversation = conversation
 	cv.updatePlainTextLines()
 
@@ -253,7 +264,6 @@ func (cv *ConversationView) ResetUserScroll() {
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		// Flip the effective state (an explicit override of any per-tool default).
 		cv.expandedToolResults[index] = !cv.IsToolResultExpanded(index)
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.updateViewportContentFull()
@@ -262,8 +272,6 @@ func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
-	// Direction follows the current effective state, so the first press collapses
-	// whatever is on screen (including diffs that are expanded by default).
 	expand := !cv.anyToolResultExpanded()
 	cv.allToolsExpanded = expand
 
@@ -357,6 +365,7 @@ func (cv *ConversationView) RefreshTheme() {
 	if cv.markdownRenderer != nil {
 		cv.markdownRenderer.RefreshTheme()
 	}
+	cv.renderCache = make(map[int]renderCacheEntry)
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContentFull()
 	}
@@ -508,7 +517,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 		if entry.Hidden {
 			continue
 		}
-		b.WriteString(cv.renderEntryWithIndex(entry, i))
+		b.WriteString(cv.renderEntryCached(entry, i))
 		b.WriteString("\n")
 		displayIndex++
 	}
@@ -596,6 +605,85 @@ func (cv *ConversationView) renderCompactWelcome() string {
 	}
 
 	return cv.styleProvider.RenderBorderedBox(content, cv.styleProvider.GetThemeColor("accent"), 1, 1)
+}
+
+// renderCacheEntry is one memoized entry rendering.
+type renderCacheEntry struct {
+	fingerprint uint64
+	rendered    string
+}
+
+// renderEntryCached returns the memoized rendering for the entry at index,
+// re-rendering only when the fingerprint changes. Entries whose rendering
+// reads live external state (pending plan approval buttons) bypass the cache.
+func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, index int) string {
+	if entry.IsPlan && entry.PlanApprovalStatus == domain.PlanApprovalPending {
+		return cv.renderEntryWithIndex(entry, index)
+	}
+
+	fp := cv.entryFingerprint(entry, index)
+	if cached, ok := cv.renderCache[index]; ok && cached.fingerprint == fp {
+		return cached.rendered
+	}
+
+	rendered := cv.renderEntryWithIndex(entry, index)
+	cv.renderCache[index] = renderCacheEntry{fingerprint: fp, rendered: rendered}
+	return rendered
+}
+
+// entryFingerprint hashes every input that affects an entry's rendered output.
+// Message text is identified by the entry's creation time rather than hashed:
+// entries are append-only, so post-creation changes only touch the mutable
+// fields mixed in below (tool execution, approval statuses, expansion, width,
+// raw mode).
+func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, index int) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+
+	writeInt := func(v int64) {
+		binary.LittleEndian.PutUint64(buf[:], uint64(v))
+		_, _ = h.Write(buf[:])
+	}
+	writeBool := func(b bool) {
+		if b {
+			writeInt(1)
+		} else {
+			writeInt(0)
+		}
+	}
+	writeString := func(s string) {
+		_, _ = h.Write([]byte(s))
+		writeInt(int64(len(s)))
+	}
+
+	writeInt(entry.Time.UnixNano())
+	writeString(string(entry.Message.Role))
+	writeString(entry.Model)
+	writeInt(int64(len(entry.ReasoningContent)))
+	writeInt(int64(len(entry.Images)))
+	writeBool(entry.Hidden)
+	writeBool(entry.Rejected)
+	writeBool(entry.IsPlan)
+	writeInt(int64(entry.ToolApprovalStatus))
+	writeInt(int64(entry.PlanApprovalStatus))
+	writeBool(entry.PendingToolCall != nil)
+	if entry.Message.ToolCalls != nil {
+		writeInt(int64(len(*entry.Message.ToolCalls)))
+	}
+	if te := entry.ToolExecution; te != nil {
+		writeString(te.ToolName)
+		writeBool(te.Success)
+		writeBool(te.Rejected)
+		writeInt(int64(te.Duration))
+		writeInt(int64(len(te.Error)))
+		writeInt(int64(len(te.Diff)))
+	}
+
+	writeInt(int64(cv.width))
+	writeBool(cv.rawFormat)
+	writeBool(cv.IsToolResultExpanded(index))
+	writeBool(cv.IsThinkingExpanded(index))
+	return h.Sum64()
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {

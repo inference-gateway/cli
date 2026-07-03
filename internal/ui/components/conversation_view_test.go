@@ -1218,3 +1218,101 @@ func TestRenderPendingToolEntry_PendingRendersNothing(t *testing.T) {
 		t.Errorf("pending approval should render nothing, got %q", out)
 	}
 }
+
+func renderCacheConversation() []domain.ConversationEntry {
+	return []domain.ConversationEntry{
+		{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello **world**")},
+			Time:    time.Unix(1, 0),
+		},
+		{
+			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Hi *there*, a reply long enough to wrap somewhere")},
+			Model:   "org/model",
+			Time:    time.Unix(2, 0),
+		},
+	}
+}
+
+func TestConversationView_RenderCache(t *testing.T) {
+	t.Run("cached render matches fresh render", func(t *testing.T) {
+		cached := NewConversationView(createMockStyleProvider())
+		cached.SetConversation(renderCacheConversation())
+		cached.updateViewportContentFull()
+		if len(cached.renderCache) == 0 {
+			t.Fatal("expected render cache to be populated")
+		}
+
+		fresh := NewConversationView(createMockStyleProvider())
+		fresh.SetConversation(renderCacheConversation())
+
+		if cached.renderedContent != fresh.renderedContent {
+			t.Error("cached rendering diverged from fresh rendering")
+		}
+	})
+
+	t.Run("width change re-renders entries", func(t *testing.T) {
+		cv := NewConversationView(createMockStyleProvider())
+		cv.SetConversation(renderCacheConversation())
+		before := cv.renderCache[1].fingerprint
+
+		cv.SetWidth(40)
+		cv.updateViewportContentFull()
+
+		if cv.renderCache[1].fingerprint == before {
+			t.Error("expected fingerprint to change after width change")
+		}
+	})
+
+	t.Run("raw format toggle re-renders entries", func(t *testing.T) {
+		cv := NewConversationView(createMockStyleProvider())
+		cv.SetConversation(renderCacheConversation())
+		before := cv.renderCache[1].fingerprint
+
+		cv.ToggleRawFormat()
+
+		if cv.renderCache[1].fingerprint == before {
+			t.Error("expected fingerprint to change after raw format toggle")
+		}
+	})
+
+	t.Run("entry state change invalidates that entry only", func(t *testing.T) {
+		cv := NewConversationView(createMockStyleProvider())
+		cv.SetConversation(renderCacheConversation())
+		user := cv.renderCache[0].fingerprint
+		assistant := cv.renderCache[1].fingerprint
+
+		conv := renderCacheConversation()
+		conv[1].Rejected = true
+		cv.SetConversation(conv)
+
+		if cv.renderCache[0].fingerprint != user {
+			t.Error("unchanged entry should keep its fingerprint")
+		}
+		if cv.renderCache[1].fingerprint == assistant {
+			t.Error("changed entry should get a new fingerprint")
+		}
+	})
+
+	t.Run("shrinking conversation clears cache", func(t *testing.T) {
+		cv := NewConversationView(createMockStyleProvider())
+		cv.SetConversation(renderCacheConversation())
+
+		cv.SetConversation(renderCacheConversation()[:1])
+
+		if len(cv.renderCache) != 1 {
+			t.Errorf("expected cache rebuilt with 1 entry, got %d", len(cv.renderCache))
+		}
+	})
+
+	t.Run("pending plan entries bypass the cache", func(t *testing.T) {
+		cv := NewConversationView(createMockStyleProvider())
+		conv := renderCacheConversation()
+		conv[1].IsPlan = true
+		conv[1].PlanApprovalStatus = domain.PlanApprovalPending
+		cv.SetConversation(conv)
+
+		if _, ok := cv.renderCache[1]; ok {
+			t.Error("pending plan entry must not be cached")
+		}
+	})
+}
