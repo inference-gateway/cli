@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	spinner "charm.land/bubbles/v2/spinner"
@@ -82,7 +81,9 @@ type subagentRemovalTickMsg struct {
 	ID string
 }
 
-// ConversationView handles the chat conversation display
+// ConversationView handles the chat conversation display. It is confined to
+// the Bubble Tea event loop: all state is read and written from Update/View
+// only, so it holds no locks. Off-loop producers must go through Program.Send.
 type ConversationView struct {
 	conversation           []domain.ConversationEntry
 	Viewport               viewport.Model
@@ -111,15 +112,11 @@ type ConversationView struct {
 	// on theme refresh, which restyles without touching entry state.
 	renderCache map[int]renderCacheEntry
 
-	// Streaming state with mutex protection
-	streamingMu              sync.RWMutex
+	// Streaming state
 	streamingBuffer          strings.Builder
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
 	streamingModel           string
-
-	// Viewport mutex to protect concurrent access
-	viewportMu sync.Mutex
 
 	keyHintFormatter *hints.Formatter
 
@@ -409,9 +406,7 @@ func (cv *ConversationView) SetHeight(height int) {
 
 func (cv *ConversationView) Render() string {
 	if cv.navigationMode == NavigationModeMessageHistory {
-		cv.viewportMu.Lock()
 		viewportContent := cv.Viewport.View()
-		cv.viewportMu.Unlock()
 
 		lines := strings.Split(viewportContent, "\n")
 		leftPadding := "  "
@@ -422,12 +417,10 @@ func (cv *ConversationView) Render() string {
 		return result
 	}
 
-	cv.viewportMu.Lock()
 	if len(cv.conversation) == 0 {
 		cv.Viewport.SetContent(cv.renderWelcome())
 	}
 	viewportContent := cv.Viewport.View()
-	cv.viewportMu.Unlock()
 
 	lines := strings.Split(viewportContent, "\n")
 
@@ -444,21 +437,16 @@ func (cv *ConversationView) updateViewportContent() {
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
 func (cv *ConversationView) appendStreamingContent(content, reasoning, model string) {
-	cv.streamingMu.Lock()
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
 	cv.streamingReasoningBuffer.WriteString(reasoning)
-	cv.streamingMu.Unlock()
 
 	cv.updateViewportContentFull()
 }
 
 // flushStreamingBuffer clears the streaming buffer after completion
 func (cv *ConversationView) flushStreamingBuffer() {
-	cv.streamingMu.Lock()
-	defer cv.streamingMu.Unlock()
-
 	cv.streamingBuffer.Reset()
 	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
@@ -467,11 +455,9 @@ func (cv *ConversationView) flushStreamingBuffer() {
 
 // renderStreamingContent renders the currently streaming assistant message
 func (cv *ConversationView) renderStreamingContent() string {
-	cv.streamingMu.RLock()
 	streamingContent := cv.streamingBuffer.String()
 	streamingReasoning := cv.streamingReasoningBuffer.String()
 	model := cv.streamingModel
-	cv.streamingMu.RUnlock()
 
 	var result strings.Builder
 
@@ -530,10 +516,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 		}
 	}
 
-	cv.streamingMu.RLock()
 	shouldRenderStreaming := cv.isStreaming && (cv.streamingBuffer.Len() > 0 || cv.streamingReasoningBuffer.Len() > 0)
-	cv.streamingMu.RUnlock()
-
 	if shouldRenderStreaming {
 		streamingText := cv.renderStreamingContent()
 		b.WriteString(streamingText)
@@ -541,12 +524,10 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	cv.renderedContent = b.String()
 
-	cv.viewportMu.Lock()
 	cv.Viewport.SetContent(cv.renderedContent)
 	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
 	}
-	cv.viewportMu.Unlock()
 }
 
 func (cv *ConversationView) renderWelcome() string {

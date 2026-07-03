@@ -1129,44 +1129,30 @@ func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnLateStatusUpdate(t *
 	}
 }
 
-// TestConversationView_ConcurrentStreamingAccess tests thread-safety of streaming operations
-func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
+// TestConversationView_StreamingLifecycle exercises the append/render/flush
+// streaming flow. ConversationView is confined to the Bubble Tea event loop,
+// so the flow is sequential by contract.
+func TestConversationView_StreamingLifecycle(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetWidth(100)
 	cv.SetHeight(30)
 
-	done := make(chan bool)
-	go func() {
-		for i := 0; i < 1000; i++ {
-			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "", "test-model")
-			time.Sleep(time.Microsecond)
-		}
-		done <- true
-	}()
+	for i := range 1000 {
+		cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "", "test-model")
+		_ = cv.Render()
+	}
 
-	go func() {
-		for i := 0; i < 1000; i++ {
-			_ = cv.Render()
-			time.Sleep(time.Microsecond)
-		}
-		done <- true
-	}()
-
-	<-done
-	<-done
+	if !cv.isStreaming {
+		t.Error("Expected streaming to be active while chunks arrive")
+	}
 
 	cv.flushStreamingBuffer()
 
-	cv.streamingMu.RLock()
-	isStreaming := cv.isStreaming
-	bufLen := cv.streamingBuffer.Len()
-	cv.streamingMu.RUnlock()
-
-	if isStreaming {
+	if cv.isStreaming {
 		t.Error("Expected streaming to be stopped after flush")
 	}
-	if bufLen != 0 {
-		t.Errorf("Expected buffer length 0 after flush, got %d", bufLen)
+	if cv.streamingBuffer.Len() != 0 {
+		t.Errorf("Expected buffer length 0 after flush, got %d", cv.streamingBuffer.Len())
 	}
 }
 
