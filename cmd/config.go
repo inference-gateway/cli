@@ -311,6 +311,41 @@ func getEffectiveRemindersConfigPath() string {
 	return config.DefaultRemindersPath
 }
 
+// resolveRemindersConfig resolves the reminders configuration, layering the
+// content sources embedded consumers need (issue #733) on top of the on-disk
+// files. Precedence, highest first:
+//  1. INFER_REMINDERS_CONFIG - inline YAML, so a consumer (e.g. infer-action)
+//     never has to write ~/.infer/reminders.yaml.
+//  2. --reminders-file - an arbitrary path, not constrained to ~/.infer/.
+//  3. project .infer/reminders.yaml, then ~/.infer/reminders.yaml
+//     (getEffectiveRemindersConfigPath).
+//  4. built-in defaults (LoadReminders returns them when the file is missing).
+//
+// Env wins over the flag, matching the documented flags < env layering.
+func resolveRemindersConfig() (*config.RemindersConfig, error) {
+	if inline := strings.TrimSpace(os.Getenv("INFER_REMINDERS_CONFIG")); inline != "" {
+		return config.ParseReminders([]byte(inline))
+	}
+	if path := remindersFileOverride(); path != "" {
+		return config.LoadReminders(path)
+	}
+	return config.LoadReminders(getEffectiveRemindersConfigPath())
+}
+
+// remindersFileOverride returns the --reminders-file persistent flag value when
+// the user set it, mirroring resolveBashAllowOverride's flag lookup. Empty means
+// the flag was not provided.
+func remindersFileOverride() string {
+	if !rootCmd.PersistentFlags().Changed("reminders-file") {
+		return ""
+	}
+	path, err := rootCmd.PersistentFlags().GetString("reminders-file")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(path)
+}
+
 // getEffectiveHooksConfigPath returns the path to the hooks config file.
 // Searches in this order: 1) project .infer/hooks.yaml, 2) user home ~/.infer/hooks.yaml
 func getEffectiveHooksConfigPath() string {
@@ -385,10 +420,9 @@ func loadConfigFromViper() (*config.Config, error) {
 	cfg.Prompts = *prompts
 	applyPromptsEnvOverrides(cfg)
 
-	remindersPath := getEffectiveRemindersConfigPath()
-	remindersCfg, err := config.LoadReminders(remindersPath)
+	remindersCfg, err := resolveRemindersConfig()
 	if err != nil {
-		logger.Warn("failed to load reminders config, using defaults", "error", err, "path", remindersPath)
+		logger.Warn("failed to load reminders config, using defaults", "error", err)
 		remindersCfg = config.DefaultRemindersConfig()
 	}
 	cfg.Reminders = *remindersCfg

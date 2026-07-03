@@ -27,9 +27,23 @@ type AgentContext struct {
 	Turns            int
 	MaxTurns         int
 	HasToolResults   bool
+	LastToolFailed   bool
 	ApprovalPolicy   ApprovalPolicy
 	Ctx              context.Context
 	IsChatMode       bool
+}
+
+// AnyToolFailed reports whether any entry in a completed tool batch failed
+// (executed with a non-success result). It backs the post_tool `on_failure`
+// reminder trigger; callers set AgentContext.LastToolFailed from it when a batch
+// completes.
+func AnyToolFailed(results []ConversationEntry) bool {
+	for _, entry := range results {
+		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
+			return true
+		}
+	}
+	return false
 }
 
 // StateGuard is a function that determines if a state transition should occur

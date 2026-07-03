@@ -208,14 +208,6 @@ agent:
     5. Run lint/format with: task fmt and task lint
     6. Commit changes (only if explicitly asked)
     7. Create a pull request (only if explicitly asked)
-  system_reminders:
-    enabled: true
-    interval: 4
-    reminder_text: |
-      System reminder text for maintaining context
-    wrap_up_text: |
-      Wrap-up reminder text for final turns
-    wrap_up_threshold: 3
   verbose_tools: false
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 4096 # The maximum number of tokens that can be generated per request
@@ -322,15 +314,60 @@ compact:
 - **agent.system_prompt_plan**: System prompt used in plan mode (falls back to `system_prompt` when empty)
 - **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
   actions) on top of full autonomy (falls back to `system_prompt` when empty)
-- **agent.system_reminders.enabled**: Enable/disable system reminders (default: true)
-- **agent.system_reminders.interval**: Number of messages between reminders (default: 10)
-- **agent.system_reminders.reminder_text**: Custom reminder text to provide contextual guidance
-- **agent.system_reminders.wrap_up_text**: Custom reminder text injected near the turn limit (when `max_turns - turns <= wrap_up_threshold`)
-- **agent.system_reminders.wrap_up_threshold**: Turns before `max_turns` at which the wrap-up reminder replaces the regular one (0 = disabled)
+- System reminders are configured in their own `reminders.yaml`, not under `agent:` — see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.verbose_tools**: Enable verbose tool output (default: false)
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
+
+### System Reminders (reminders.yaml)
+
+System reminders inject short `<system-reminder>` messages into the conversation at
+defined points of the agent loop, keeping durable guidance in context without bloating
+the system prompt. They live in their own file, **`reminders.yaml`** (project
+`./.infer/reminders.yaml` or userspace `~/.infer/reminders.yaml`), seeded by `infer init`.
+When the file is absent the built-in defaults are used.
+
+```yaml
+enabled: true # master switch for all reminders
+reminders:
+  - name: todo-hygiene # unique identifier (required)
+    text: | # reminder body injected into the conversation (required)
+      <system-reminder>Your todo list is empty ...</system-reminder>
+    hook: pre_stream # where in the loop it fires (default: pre_stream)
+    trigger: interval # when it fires at that hook (default: always)
+    interval: 4 # trigger: interval — fire every Nth session turn
+    threshold: 3 # trigger: turns_before_max — fire within N turns of max_turns
+```
+
+**Hook points** (`hook`): `pre_session`, `post_session`, `pre_stream`, `post_stream`,
+`pre_tool`, `post_tool`, `pre_queue_drain`, `post_queue_drain`.
+
+**Triggers** (`trigger`) gate which firings of a hook a reminder acts on:
+
+| Trigger | Fires |
+| --- | --- |
+| `always` | Every time the hook point fires (default). |
+| `interval` | Every Nth session turn (`interval`, default 4). |
+| `turns_before_max` | Within `threshold` turns of `max_turns` (requires `threshold > 0`). |
+| `once` | The first firing of its hook point this run. |
+| `on_failure` | **`post_tool` only** — fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
+
+The `on_failure` trigger lets a consumer nudge the model only when a change did not
+happen (a failed tool call), instead of paying the per-turn cost of an `always` reminder.
+
+#### Supplying reminders without a file
+
+Embedded/CI consumers can provide reminders without writing `reminders.yaml`:
+
+- **`INFER_REMINDERS_CONFIG`** — inline YAML with the same schema as the file; when set it
+  replaces the file-loaded config.
+- **`--reminders-file PATH`** — load reminders from an arbitrary path (not constrained to
+  `~/.infer/`), available on `infer agent` and `infer chat`.
+
+Precedence, highest first: `INFER_REMINDERS_CONFIG` → `--reminders-file` → project
+`./.infer/reminders.yaml` → `~/.infer/reminders.yaml` → built-in defaults.
+`INFER_REMINDERS_ENABLED` toggles the master switch on top of whichever source is used.
 
 ### Web Search Settings
 
@@ -563,6 +600,14 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 - `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
 - `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)
+
+### Reminders Configuration
+
+Reminders live in their own `reminders.yaml` (see [System Reminders](#system-reminders-remindersyaml)); these env vars layer on top of it:
+
+- `INFER_REMINDERS_ENABLED`: Master switch for all reminders (default: `true`)
+- `INFER_REMINDERS_CONFIG`: Inline reminders YAML (same schema as `reminders.yaml`); when set it
+  replaces the file-loaded reminders so embedded consumers need not write `~/.infer/reminders.yaml`
 
 ### Chat Configuration
 

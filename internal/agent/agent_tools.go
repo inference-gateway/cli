@@ -25,11 +25,13 @@ func (a *EventDrivenAgent) executeTools() {
 
 	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
 
+	failed := domain.AnyToolFailed(toolResults)
+	a.mu.Lock()
+	a.agentCtx.LastToolFailed = failed
 	if !stop {
-		a.mu.Lock()
 		a.agentCtx.HasToolResults = true
-		a.mu.Unlock()
 	}
+	a.mu.Unlock()
 
 	logger.Debug("emitting tools completed event", "stop", stop)
 	a.events <- domain.ToolsCompletedEvent{Results: toolResults, Stop: stop}

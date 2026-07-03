@@ -214,6 +214,62 @@ func TestRemindersDue_OnceAcrossCalls(t *testing.T) {
 	}
 }
 
+// on_failure fires at post_tool only when the just-completed tool batch failed
+// (q.ToolFailed), so an embedded consumer can nudge the model only when a change
+// did not happen instead of paying the always-on injection cost.
+func TestRemindersDue_OnFailure(t *testing.T) {
+	r := remindersCfg(true, config.ReminderConfig{
+		Name: "fail-nudge", Text: "the change did not happen",
+		Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnFailure,
+	})
+
+	failed := domain.ReminderQuery{Hook: domain.HookPostTool, ToolFailed: true}
+	if got := r.RemindersDue(failed); len(got) != 1 || got[0].Name != "fail-nudge" {
+		t.Fatalf("on_failure should fire when a tool failed, got %v", got)
+	}
+
+	ok := domain.ReminderQuery{Hook: domain.HookPostTool, ToolFailed: false}
+	if got := r.RemindersDue(ok); got != nil {
+		t.Fatalf("on_failure must not fire when no tool failed, got %v", got)
+	}
+}
+
+// ParseReminders lets embedded consumers (INFER_REMINDERS_CONFIG) supply the
+// reminders config inline instead of writing reminders.yaml; it expands env
+// references in the body like the file loader.
+func TestParseReminders(t *testing.T) {
+	cfg, err := config.ParseReminders([]byte(`enabled: true
+reminders:
+  - name: fail-nudge
+    hook: post_tool
+    trigger: on_failure
+    text: boom
+`))
+	if err != nil {
+		t.Fatalf("ParseReminders(valid): %v", err)
+	}
+	if !cfg.Enabled || len(cfg.Reminders) != 1 ||
+		cfg.Reminders[0].Trigger != config.ReminderTriggerOnFailure || cfg.Reminders[0].Hook != domain.HookPostTool {
+		t.Fatalf("unexpected parse result: %+v", cfg)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("parsed config should validate: %v", err)
+	}
+
+	if _, err := config.ParseReminders([]byte("enabled: true\nreminders: [unterminated")); err == nil {
+		t.Error("malformed YAML should error")
+	}
+
+	t.Setenv("REMINDER_TEXT_FIXTURE", "expanded-text")
+	exp, err := config.ParseReminders([]byte("enabled: true\nreminders:\n  - name: n\n    text: ${REMINDER_TEXT_FIXTURE}\n"))
+	if err != nil {
+		t.Fatalf("ParseReminders(env): %v", err)
+	}
+	if len(exp.Reminders) != 1 || exp.Reminders[0].Text != "expanded-text" {
+		t.Fatalf("env expansion failed: %+v", exp.Reminders)
+	}
+}
+
 func TestReminders_Validate(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -228,6 +284,9 @@ func TestReminders_Validate(t *testing.T) {
 		{"unknown trigger", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTrigger("nope")}, true},
 		{"turns_before_max needs threshold", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax}, true},
 		{"negative interval", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: -1}, true},
+		{"on_failure with post_tool ok", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnFailure}, false},
+		{"on_failure rejects other hook", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerOnFailure}, true},
+		{"on_failure requires explicit hook", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerOnFailure}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

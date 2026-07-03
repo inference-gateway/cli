@@ -858,6 +858,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		SessionTurn: sessionTurn,
 		MaxTurns:    agentCtx.MaxTurns,
 		Fired:       s.firedReminders,
+		ToolFailed:  agentCtx.LastToolFailed,
 	}
 	for _, r := range provider.RemindersDue(q) {
 		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}

@@ -24,7 +24,7 @@ const (
 	ReminderTriggerInterval       ReminderTrigger = "interval"         // every N turns
 	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max" // within threshold of max_turns
 	ReminderTriggerOnce           ReminderTrigger = "once"             // first firing of its point this run
-	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"      // post_tool only: fires when the last tool call failed
+	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"       // post_tool only: fires when the last tool call failed
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
@@ -128,6 +128,20 @@ func LoadReminders(path string) (*RemindersConfig, error) {
 	return utils.LoadYAML(path, "reminders", DefaultRemindersConfig)
 }
 
+// ParseReminders parses inline reminders YAML (e.g. the INFER_REMINDERS_CONFIG
+// env var) into a RemindersConfig, so embedded consumers can supply reminders
+// without writing reminders.yaml to disk. Environment references in the body are
+// expanded, mirroring the file loader (LoadYAML); the result is validated by the
+// caller through Config.Validate.
+func ParseReminders(data []byte) (*RemindersConfig, error) {
+	expanded := os.ExpandEnv(string(data))
+	cfg := new(RemindersConfig)
+	if err := yaml.Unmarshal([]byte(expanded), cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse reminders config: %w", err)
+	}
+	return cfg, nil
+}
+
 // SaveReminders writes the reminders configuration to disk, creating any
 // missing parent directories.
 func SaveReminders(path string, cfg *RemindersConfig) error {
@@ -188,6 +202,8 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 		return q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
 	case ReminderTriggerOnce:
 		return !q.Fired[rc.Name]
+	case ReminderTriggerOnFailure:
+		return q.ToolFailed
 	case ReminderTriggerAlways:
 		return true
 	default:
@@ -210,6 +226,8 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): unknown hook %q (valid: %v)", i, rc.Name, rc.Hook, domain.HookPoints)
 		case rc.Trigger != "" && !rc.Trigger.Valid():
 			return fmt.Errorf("reminders[%d] (%s): unknown trigger %q (valid: %v)", i, rc.Name, rc.Trigger, ReminderTriggers)
+		case rc.Trigger == ReminderTriggerOnFailure && rc.Hook != domain.HookPostTool:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_failure requires hook %s", i, rc.Name, domain.HookPostTool)
 		case rc.Trigger == ReminderTriggerTurnsBeforeMax && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger turns_before_max requires threshold > 0", i, rc.Name)
 		case rc.Interval < 0:

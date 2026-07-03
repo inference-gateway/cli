@@ -97,6 +97,7 @@ type AgentSession struct {
 	hookProvider          domain.HookCommandProvider
 	memoryBackend         domain.MemoryBackend
 	firedReminders        map[string]bool
+	lastToolFailed        bool
 	saveEnabled           bool
 	bgWaiter              *services.BackgroundTasksWaiter
 	requireApproval       bool
@@ -574,7 +575,20 @@ func (s *AgentSession) drainBackgroundResults(ctx context.Context) int {
 	return len(drained)
 }
 
+// anyToolResultFailed reports whether any tool result in a headless batch
+// executed with a non-success result (error, rejection, or policy block). It
+// backs the post_tool on_failure reminder trigger.
+func anyToolResultFailed(results []ConversationMessage) bool {
+	for _, r := range results {
+		if r.ToolExecution != nil && !r.ToolExecution.Success {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *AgentSession) executeTurn() error {
+	s.lastToolFailed = false
 	ctx := context.Background()
 	requestID := uuid.New().String()
 
@@ -711,6 +725,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	}
 
 	toolResults := s.executeToolCalls(response.ToolCalls)
+	s.lastToolFailed = anyToolResultFailed(toolResults)
 
 	for _, result := range toolResults {
 		s.addMessage(result)
@@ -1152,6 +1167,7 @@ func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
 		SessionTurn: turn,
 		MaxTurns:    s.maxTurns,
 		Fired:       s.firedReminders,
+		ToolFailed:  s.lastToolFailed,
 	}
 	for _, r := range provider.RemindersDue(q) {
 		s.addMessage(ConversationMessage{

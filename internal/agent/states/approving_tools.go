@@ -243,6 +243,7 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)
 
+	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
 	s.ctx.Events <- domain.AllToolsProcessedEvent{}
 }
 
