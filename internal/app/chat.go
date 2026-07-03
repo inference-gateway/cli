@@ -545,6 +545,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case domain.TriggerGithubActionSetupEvent:
 		return tea.Batch(app.handleGithubActionSetupTrigger()...)
 
+	case githubSetupCheckedMsg:
+		return tea.Batch(app.handleGithubSetupChecked(m)...)
+
 	case domain.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
@@ -1044,61 +1047,82 @@ func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []te
 	return cmds
 }
 
+// githubSetupCheckedMsg carries the result of the repository checks that
+// precede the GitHub Action setup flow.
+type githubSetupCheckedMsg struct {
+	repo         string
+	isOrg        bool
+	secretsExist bool
+	err          error
+}
+
 func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
+	return []tea.Cmd{
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Checking repository...",
+				Spinner:    true,
+				StatusType: domain.StatusDefault,
+			}
+		},
+		app.checkGithubSetupPreconditions(),
+	}
+}
+
+// checkGithubSetupPreconditions runs the gh CLI checks off the Update loop;
+// each check shells out and can take seconds.
+func (app *ChatApplication) checkGithubSetupPreconditions() tea.Cmd {
+	return func() tea.Msg {
+		repo, err := app.getCurrentRepo()
+		if err != nil {
+			return githubSetupCheckedMsg{err: fmt.Errorf("failed to get repository info: %w", err)}
+		}
+
+		isOrg, err := app.isOrgRepo(repo)
+		if err != nil {
+			return githubSetupCheckedMsg{err: fmt.Errorf("failed to check repository type: %w", err)}
+		}
+
+		msg := githubSetupCheckedMsg{repo: repo, isOrg: isOrg}
+		if isOrg {
+			owner := strings.Split(repo, "/")[0]
+			if msg.secretsExist, err = app.checkOrgSecretsExist(owner); err != nil {
+				return githubSetupCheckedMsg{err: fmt.Errorf("failed to check org secrets: %w", err)}
+			}
+		}
+		return msg
+	}
+}
+
+func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	repo, err := app.getCurrentRepo()
-	if err != nil {
+	if msg.err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
+				Error:  fmt.Sprintf("GitHub Action setup failed: %v", msg.err),
 				Sticky: true,
 			}
 		})
 		return cmds
 	}
 
-	isOrg, err := app.isOrgRepo(repo)
-	if err != nil {
+	if msg.isOrg && msg.secretsExist {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
-				Sticky: true,
+			return domain.SetStatusEvent{
+				Message:    "Org secrets found, creating workflow...",
+				Spinner:    true,
+				StatusType: domain.StatusDefault,
 			}
 		})
+
+		cmds = append(cmds, app.performGithubActionSetup("", ""))
+
 		return cmds
 	}
 
-	owner := strings.Split(repo, "/")[0]
-
-	if isOrg {
-		secretsExist, err := app.checkOrgSecretsExist(owner)
-		if err != nil {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
-					Sticky: true,
-				}
-			})
-			return cmds
-		}
-
-		if secretsExist {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    "Org secrets found, creating workflow...",
-					Spinner:    true,
-					StatusType: domain.StatusDefault,
-				}
-			})
-
-			cmds = append(cmds, app.performGithubActionSetup("", ""))
-
-			return cmds
-		}
-	}
-
-	app.initGithubActionView.SetRepositoryInfo(owner, isOrg)
+	owner := strings.Split(msg.repo, "/")[0]
+	app.initGithubActionView.SetRepositoryInfo(owner, msg.isOrg)
 	app.initGithubActionView.Reset()
 	if cmd := app.initGithubActionView.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
