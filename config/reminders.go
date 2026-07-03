@@ -6,9 +6,10 @@ import (
 	"os"
 	"slices"
 
+	yaml "gopkg.in/yaml.v3"
+
 	utils "github.com/inference-gateway/cli/config/utils"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	yaml "gopkg.in/yaml.v3"
 )
 
 const (
