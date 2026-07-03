@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.130.1](https://github.com/inference-gateway/cli/compare/v0.130.0...v0.130.1) (2026-07-03)
+
+### 🐛 Bug Fixes
+
+* **flake:** add git to nativeCheckInputs for the memory git-backend tests ([#737](https://github.com/inference-gateway/cli/issues/737)) ([cc55278](https://github.com/inference-gateway/cli/commit/cc55278f88951304dbcd8fe0dd07f54c22e8d63a))
+
 ## [0.130.0](https://github.com/inference-gateway/cli/compare/v0.129.0...v0.130.0) (2026-07-03)
 
 ### 🚀 Features
