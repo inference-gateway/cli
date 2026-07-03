@@ -70,8 +70,13 @@ type ReminderConfig struct {
 // hook point (domain.HookPoint) with a trigger. RemindersConfig implements
 // domain.SystemReminderProvider. The companion executable hooks (#270) get their
 // own hooks.yaml so "inject text" and "run code" stay separate concerns.
+//
+// When Merge is true, the file's reminders are merged onto the built-in defaults
+// by name: a supplied entry with a built-in name overrides that entry; new names
+// are appended. When false (default), the file's reminders fully replace defaults.
 type RemindersConfig struct {
 	Enabled   bool             `yaml:"enabled" mapstructure:"enabled"`
+	Merge     bool             `yaml:"merge,omitempty" mapstructure:"merge"`
 	Reminders []ReminderConfig `yaml:"reminders" mapstructure:"reminders"`
 }
 
@@ -141,6 +146,34 @@ func ParseReminders(data []byte) (*RemindersConfig, error) {
 		return nil, fmt.Errorf("failed to parse reminders config: %w", err)
 	}
 	return cfg, nil
+}
+
+// MergeWithDefaults returns a new RemindersConfig with the receiver's entries
+// merged on top of DefaultRemindersConfig by name. A supplied entry whose Name
+// matches a built-in overrides it; entries with new names are appended. The
+// receiver's Enabled value is preserved so the consumer's intent wins.
+func (r RemindersConfig) MergeWithDefaults() *RemindersConfig {
+	defaults := DefaultRemindersConfig()
+
+	byName := make(map[string]int, len(defaults.Reminders))
+	for i, def := range defaults.Reminders {
+		byName[def.Name] = i
+	}
+
+	out := slices.Clone(defaults.Reminders)
+
+	for _, supplied := range r.Reminders {
+		if idx, ok := byName[supplied.Name]; ok {
+			out[idx] = supplied
+		} else {
+			out = append(out, supplied)
+		}
+	}
+
+	return &RemindersConfig{
+		Enabled:   r.Enabled,
+		Reminders: out,
+	}
 }
 
 // SaveReminders writes the reminders configuration to disk, creating any

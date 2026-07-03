@@ -330,6 +330,7 @@ When the file is absent the built-in defaults are used.
 
 ```yaml
 enabled: true # master switch for all reminders
+merge: false  # merge=true: merge entries onto built-in defaults by name instead of replacing them
 reminders:
   - name: todo-hygiene # unique identifier (required)
     text: | # reminder body injected into the conversation (required)
@@ -368,6 +369,41 @@ Embedded/CI consumers can provide reminders without writing `reminders.yaml`:
 Precedence, highest first: `INFER_REMINDERS_CONFIG` → `--reminders-file` → project
 `./.infer/reminders.yaml` → `~/.infer/reminders.yaml` → built-in defaults.
 `INFER_REMINDERS_ENABLED` toggles the master switch on top of whichever source is used.
+
+#### Merging onto defaults (`merge: true`)
+
+By default, a supplied reminders config **replaces** the built-in defaults entirely
+(`todo-hygiene` plus the memory reminders). Set `merge: true` at the top level to
+**merge** onto the built-in set by name instead:
+
+- A supplied entry whose `name` matches a built-in **overrides** that entry in-place.
+- Entries with new names are **appended** to the built-in list.
+- Built-in entries not overridden survive untouched.
+
+This lets consumers add a custom reminder without re-declaring `memory-consult` and
+`memory-hygiene`:
+
+```yaml
+enabled: true
+merge: true
+reminders:
+  - name: my-custom-reminder
+    text: "<system-reminder>Custom nudge</system-reminder>"
+    hook: pre_stream
+    trigger: interval
+    interval: 5
+```
+
+The `merge` flag works with all three supply paths (`INFER_REMINDERS_CONFIG`,
+`--reminders-file`, and file-based). `pruneMemoryRemindersIfDisabled` (which strips
+`memory-consult`/`memory-hygiene` by name when memory is off) continues to work
+correctly against the merged list.
+
+> **Caveat:** `pruneMemoryRemindersIfDisabled` prunes by name, so any reminder
+> named `memory-consult` or `memory-hygiene` is dropped when memory is disabled,
+> **even if you overrode its content via `merge: true`**. If you override a
+> memory-named reminder and need it to survive with memory off, either rename it
+> or enable memory (`memory.enabled: true` in `memory.yaml`).
 
 ### Web Search Settings
 
