@@ -30,12 +30,13 @@ func NewShellJob(shell *domain.BackgroundShell, tracker domain.ShellTracker) dom
 // Meta describes the shell for the task view.
 func (j *shellJob) Meta() domain.JobMeta {
 	return domain.JobMeta{
-		ID:          j.shell.ShellID,
-		Kind:        domain.JobKindShell,
-		Label:       j.shell.ShellID,
-		Description: j.shell.Command,
-		Detail:      j.shell.Command,
-		StartedAt:   j.shell.StartedAt,
+		ID:           j.shell.ShellID,
+		Kind:         domain.JobKindShell,
+		Label:        j.shell.ShellID,
+		Description:  j.shell.Command,
+		Detail:       j.shell.Command,
+		StartedAt:    j.shell.StartedAt,
+		HoldsSession: true,
 	}
 }
 

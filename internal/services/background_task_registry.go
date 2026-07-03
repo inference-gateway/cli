@@ -54,34 +54,28 @@ func (r *backgroundTaskRegistry) WindJob(id string, sig domain.WindSignal) error
 	return r.supervisor.Wind(id, sig)
 }
 
-// HasPending reports whether *any* background work is still in flight,
-// regardless of type. True when there is at least one A2A task being polled,
-// one running background shell, OR one running local subagent. This is the
-// cross-type query the BackgroundTasksWaiter uses to decide whether the session
-// is safe to close.
-func (r *backgroundTaskRegistry) HasPending() bool {
-	if r.supervisor.CountRunning(domain.JobKindA2A) > 0 {
-		return true
-	}
-	if r.ShellTracker != nil && r.CountRunning() > 0 {
-		return true
-	}
-	if r.SubagentTracker != nil && r.countPendingSubagents() > 0 {
-		return true
-	}
-	return false
+// IsJobRunning delegates to the supervisor - the single source of truth for
+// whether a supervised job (A2A task, shell, or subagent) is still running.
+func (r *backgroundTaskRegistry) IsJobRunning(id string) bool {
+	return r.supervisor.IsRunning(id)
 }
 
-// countPendingSubagents counts only headless running subagents. Interactive
-// subagents are live, user-driven tmux panes managed via the subagent tools;
-// they must not keep a session open waiting on them, or a headless run that
-// opened one would hang at exit until the background-task wait times out.
-func (r *backgroundTaskRegistry) countPendingSubagents() int {
-	n := 0
-	for _, s := range r.GetAllSubagents() {
-		if s.Status == domain.SubagentRunning && s.Mode != domain.SubagentModeInteractive {
-			n++
-		}
-	}
-	return n
+// ClearAllAgents wipes the A2A context/task graph AND discards the in-flight
+// supervised A2A jobs, so a conversation clear/switch cannot leave orphaned
+// pollers running (still counted in the status bar, listed in /tasks, and able
+// to land a late completion note). Shells and subagents are deliberately
+// untouched - they are session-scoped, not conversation-scoped.
+func (r *backgroundTaskRegistry) ClearAllAgents() {
+	r.supervisor.DiscardKind(domain.JobKindA2A)
+	r.A2ATaskTrackerImpl.ClearAllAgents()
+}
+
+// HasPending reports whether any session-holding background job is still in
+// flight, regardless of kind - the cross-type query the BackgroundTasksWaiter
+// uses to decide whether the session is safe to close. It defers to the
+// supervisor (the single source of truth); each job opts in via
+// JobMeta.HoldsSession, so interactive subagent panes are excluded there rather
+// than by a per-kind check here.
+func (r *backgroundTaskRegistry) HasPending() bool {
+	return r.supervisor.HasPending()
 }

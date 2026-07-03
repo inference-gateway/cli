@@ -75,10 +75,6 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 		logger.Info("successfully sent cancel request to agent", "task_id", taskID)
 	}
 
-	if targetTask.CancelFunc != nil {
-		targetTask.CancelFunc()
-	}
-
 	if s.jobs != nil {
 		if err := s.jobs.Wind(taskID, domain.WindStop); err != nil {
 			logger.Warn("failed to wind supervised A2A job on cancel", "task_id", taskID, "error", err)

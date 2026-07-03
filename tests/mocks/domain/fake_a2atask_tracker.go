@@ -158,17 +158,6 @@ type FakeA2ATaskTracker struct {
 	hasTaskReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	IsPollingStub        func(string) bool
-	isPollingMutex       sync.RWMutex
-	isPollingArgsForCall []struct {
-		arg1 string
-	}
-	isPollingReturns struct {
-		result1 bool
-	}
-	isPollingReturnsOnCall map[int]struct {
-		result1 bool
-	}
 	RegisterContextStub        func(string, string)
 	registerContextMutex       sync.RWMutex
 	registerContextArgsForCall []struct {
@@ -1022,67 +1011,6 @@ func (fake *FakeA2ATaskTracker) HasTaskReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.hasTaskReturnsOnCall[i] = struct {
-		result1 bool
-	}{result1}
-}
-
-func (fake *FakeA2ATaskTracker) IsPolling(arg1 string) bool {
-	fake.isPollingMutex.Lock()
-	ret, specificReturn := fake.isPollingReturnsOnCall[len(fake.isPollingArgsForCall)]
-	fake.isPollingArgsForCall = append(fake.isPollingArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.IsPollingStub
-	fakeReturns := fake.isPollingReturns
-	fake.recordInvocation("IsPolling", []interface{}{arg1})
-	fake.isPollingMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeA2ATaskTracker) IsPollingCallCount() int {
-	fake.isPollingMutex.RLock()
-	defer fake.isPollingMutex.RUnlock()
-	return len(fake.isPollingArgsForCall)
-}
-
-func (fake *FakeA2ATaskTracker) IsPollingCalls(stub func(string) bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = stub
-}
-
-func (fake *FakeA2ATaskTracker) IsPollingArgsForCall(i int) string {
-	fake.isPollingMutex.RLock()
-	defer fake.isPollingMutex.RUnlock()
-	argsForCall := fake.isPollingArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeA2ATaskTracker) IsPollingReturns(result1 bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = nil
-	fake.isPollingReturns = struct {
-		result1 bool
-	}{result1}
-}
-
-func (fake *FakeA2ATaskTracker) IsPollingReturnsOnCall(i int, result1 bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = nil
-	if fake.isPollingReturnsOnCall == nil {
-		fake.isPollingReturnsOnCall = make(map[int]struct {
-			result1 bool
-		})
-	}
-	fake.isPollingReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

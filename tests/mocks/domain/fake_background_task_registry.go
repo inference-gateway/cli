@@ -285,15 +285,15 @@ type FakeBackgroundTaskRegistry struct {
 	hasTaskReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	IsPollingStub        func(string) bool
-	isPollingMutex       sync.RWMutex
-	isPollingArgsForCall []struct {
+	IsJobRunningStub        func(string) bool
+	isJobRunningMutex       sync.RWMutex
+	isJobRunningArgsForCall []struct {
 		arg1 string
 	}
-	isPollingReturns struct {
+	isJobRunningReturns struct {
 		result1 bool
 	}
-	isPollingReturnsOnCall map[int]struct {
+	isJobRunningReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	RegisterContextStub        func(string, string)
@@ -1898,16 +1898,16 @@ func (fake *FakeBackgroundTaskRegistry) HasTaskReturnsOnCall(i int, result1 bool
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPolling(arg1 string) bool {
-	fake.isPollingMutex.Lock()
-	ret, specificReturn := fake.isPollingReturnsOnCall[len(fake.isPollingArgsForCall)]
-	fake.isPollingArgsForCall = append(fake.isPollingArgsForCall, struct {
+func (fake *FakeBackgroundTaskRegistry) IsJobRunning(arg1 string) bool {
+	fake.isJobRunningMutex.Lock()
+	ret, specificReturn := fake.isJobRunningReturnsOnCall[len(fake.isJobRunningArgsForCall)]
+	fake.isJobRunningArgsForCall = append(fake.isJobRunningArgsForCall, struct {
 		arg1 string
 	}{arg1})
-	stub := fake.IsPollingStub
-	fakeReturns := fake.isPollingReturns
-	fake.recordInvocation("IsPolling", []interface{}{arg1})
-	fake.isPollingMutex.Unlock()
+	stub := fake.IsJobRunningStub
+	fakeReturns := fake.isJobRunningReturns
+	fake.recordInvocation("IsJobRunning", []interface{}{arg1})
+	fake.isJobRunningMutex.Unlock()
 	if stub != nil {
 		return stub(arg1)
 	}
@@ -1917,44 +1917,44 @@ func (fake *FakeBackgroundTaskRegistry) IsPolling(arg1 string) bool {
 	return fakeReturns.result1
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPollingCallCount() int {
-	fake.isPollingMutex.RLock()
-	defer fake.isPollingMutex.RUnlock()
-	return len(fake.isPollingArgsForCall)
+func (fake *FakeBackgroundTaskRegistry) IsJobRunningCallCount() int {
+	fake.isJobRunningMutex.RLock()
+	defer fake.isJobRunningMutex.RUnlock()
+	return len(fake.isJobRunningArgsForCall)
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPollingCalls(stub func(string) bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = stub
+func (fake *FakeBackgroundTaskRegistry) IsJobRunningCalls(stub func(string) bool) {
+	fake.isJobRunningMutex.Lock()
+	defer fake.isJobRunningMutex.Unlock()
+	fake.IsJobRunningStub = stub
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPollingArgsForCall(i int) string {
-	fake.isPollingMutex.RLock()
-	defer fake.isPollingMutex.RUnlock()
-	argsForCall := fake.isPollingArgsForCall[i]
+func (fake *FakeBackgroundTaskRegistry) IsJobRunningArgsForCall(i int) string {
+	fake.isJobRunningMutex.RLock()
+	defer fake.isJobRunningMutex.RUnlock()
+	argsForCall := fake.isJobRunningArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPollingReturns(result1 bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = nil
-	fake.isPollingReturns = struct {
+func (fake *FakeBackgroundTaskRegistry) IsJobRunningReturns(result1 bool) {
+	fake.isJobRunningMutex.Lock()
+	defer fake.isJobRunningMutex.Unlock()
+	fake.IsJobRunningStub = nil
+	fake.isJobRunningReturns = struct {
 		result1 bool
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) IsPollingReturnsOnCall(i int, result1 bool) {
-	fake.isPollingMutex.Lock()
-	defer fake.isPollingMutex.Unlock()
-	fake.IsPollingStub = nil
-	if fake.isPollingReturnsOnCall == nil {
-		fake.isPollingReturnsOnCall = make(map[int]struct {
+func (fake *FakeBackgroundTaskRegistry) IsJobRunningReturnsOnCall(i int, result1 bool) {
+	fake.isJobRunningMutex.Lock()
+	defer fake.isJobRunningMutex.Unlock()
+	fake.IsJobRunningStub = nil
+	if fake.isJobRunningReturnsOnCall == nil {
+		fake.isJobRunningReturnsOnCall = make(map[int]struct {
 			result1 bool
 		})
 	}
-	fake.isPollingReturnsOnCall[i] = struct {
+	fake.isJobRunningReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

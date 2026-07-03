@@ -16,9 +16,9 @@ import (
 )
 
 type A2AQueryTaskTool struct {
-	config      *config.Config
-	formatter   domain.CustomFormatter
-	taskTracker domain.A2ATaskTracker
+	config    *config.Config
+	formatter domain.CustomFormatter
+	liveness  domain.JobLivenessReporter
 }
 
 type A2AQueryTaskResult struct {
@@ -31,13 +31,13 @@ type A2AQueryTaskResult struct {
 	Duration  time.Duration `json:"duration"`
 }
 
-func NewA2AQueryTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker) *A2AQueryTaskTool {
+func NewA2AQueryTaskTool(cfg *config.Config, liveness domain.JobLivenessReporter) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
 		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
 			return key == "metadata"
 		}),
-		taskTracker: taskTracker,
+		liveness: liveness,
 	}
 }
 
@@ -102,10 +102,8 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, startTime, "task_id parameter is required and must be a string")
 	}
 
-	if t.taskTracker != nil && t.taskTracker.IsPolling(agentURL) {
-		state := t.taskTracker.GetPollingState(agentURL)
-		errorMsg := t.buildPollingBlockedError(agentURL, state)
-		return t.errorResult(args, startTime, errorMsg)
+	if t.liveness != nil && t.liveness.IsJobRunning(taskID) {
+		return t.errorResult(args, startTime, t.buildPollingBlockedError(agentURL))
 	}
 
 	adkClient := client.NewClient(agentURL)
@@ -146,19 +144,12 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 	}, nil
 }
 
-func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string, state *domain.TaskPollingState) string {
-	if state == nil || state.NextPollTime.IsZero() {
-		return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. The A2A_SubmitTask tool is already polling for updates automatically. Please wait for the polling to complete.", agentURL)
-	}
-
-	timeUntilNextPoll := time.Until(state.NextPollTime)
-	if timeUntilNextPoll > 0 {
-		return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. Next automatic poll in %.1f seconds (interval: %v). The A2A_SubmitTask tool is already polling for updates. Wait for the next poll to complete before querying manually.",
-			agentURL, timeUntilNextPoll.Seconds(), state.CurrentInterval)
-	}
-
-	return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. Next automatic poll is happening now (interval: %v). The A2A_SubmitTask tool is already polling for updates. Wait for it to complete.",
-		agentURL, state.CurrentInterval)
+// buildPollingBlockedError explains that the supervisor is already polling this
+// task, so a manual query should defer to it. The message is intentionally
+// generic: liveness now comes from the supervisor, which does not carry the
+// next-poll timing the old A2ATracker state did.
+func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string) string {
+	return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. The A2A_SubmitTask tool is already polling for updates automatically. Please wait for the polling to complete.", agentURL)
 }
 
 func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {

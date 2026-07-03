@@ -27,12 +27,13 @@ type a2aJob struct {
 // Meta describes the A2A task for the task view.
 func (j *a2aJob) Meta() domain.JobMeta {
 	return domain.JobMeta{
-		ID:          j.taskID,
-		Kind:        domain.JobKindA2A,
-		Label:       j.taskID,
-		Description: j.state.TaskDescription,
-		Detail:      j.agentURL,
-		StartedAt:   j.state.StartedAt,
+		ID:           j.taskID,
+		Kind:         domain.JobKindA2A,
+		Label:        j.taskID,
+		Description:  j.state.TaskDescription,
+		Detail:       j.agentURL,
+		StartedAt:    j.state.StartedAt,
+		HoldsSession: true,
 	}
 }
 

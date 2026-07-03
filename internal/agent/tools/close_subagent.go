@@ -7,6 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -73,6 +74,7 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 		}, nil
 	}
 
+	logger.Debug("subagent close requested", "subagent_id", subagentID, "mode", s.Mode, "pane_id", s.PaneID)
 	if s.Mode == domain.SubagentModeInteractive {
 		return t.closeInteractive(ctx, args, s), nil
 	}

@@ -298,7 +298,6 @@ func TestA2ATaskTracker_ClearAllAgents(t *testing.T) {
 func TestA2ATaskTracker_PollingState(t *testing.T) {
 	tracker := NewA2ATaskTracker()
 
-	assert.False(t, tracker.IsPolling("task-1"))
 	assert.Nil(t, tracker.GetPollingState("task-1"))
 
 	agentURL := "http://agent1.com"
@@ -313,14 +312,12 @@ func TestA2ATaskTracker_PollingState(t *testing.T) {
 	}
 	tracker.StartPolling("task-1", state)
 
-	assert.True(t, tracker.IsPolling("task-1"))
 	retrievedState := tracker.GetPollingState("task-1")
 	assert.NotNil(t, retrievedState)
 	assert.Equal(t, "task-1", retrievedState.TaskID)
 	assert.Equal(t, agentURL, retrievedState.AgentURL)
 
 	tracker.StopPolling("task-1")
-	assert.False(t, tracker.IsPolling("task-1"))
 	assert.Nil(t, tracker.GetPollingState("task-1"))
 }
 

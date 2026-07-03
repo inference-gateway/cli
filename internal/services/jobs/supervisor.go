@@ -50,6 +50,7 @@ type supervised struct {
 	lastNote    string
 	cancel      context.CancelFunc
 	warnedLong  bool
+	discard     bool
 }
 
 // NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
@@ -147,6 +148,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
+		logger.Warn("background job submit ignored: supervisor stopped", "id", meta.ID, "kind", meta.Kind)
 		return
 	}
 	var toClose domain.BackgroundJob
@@ -170,6 +172,7 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 		toClose.Close()
 	}
 
+	logger.Debug("background job submitted", "id", meta.ID, "kind", meta.Kind, "holds_session", meta.HoldsSession)
 	go s.monitor(ctx, sj)
 	s.notify(domain.BackgroundTasksChangedEvent{})
 }
@@ -224,9 +227,21 @@ func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
 	s.mu.Lock()
 	sj.status = status
 	sj.completedAt = &now
-	evicted := s.evictOverCapLocked(sj.meta.Kind)
-	retention := s.taskRetention // set-once during construction; read under the lock that guards the setter
+	discarded := sj.discard
+	var evicted []*supervised
+	if !discarded {
+		evicted = s.evictOverCapLocked(sj.meta.Kind)
+	}
+	retention := s.taskRetention
 	s.mu.Unlock()
+
+	logger.Debug("background job finished", "id", sj.meta.ID, "kind", sj.meta.Kind, "status", string(status), "discarded", discarded)
+
+	if discarded {
+		sj.job.Close()
+		s.notify(domain.BackgroundTasksChangedEvent{})
+		return
+	}
 
 	for _, v := range evicted {
 		v.job.Close()
@@ -378,7 +393,48 @@ func (s *Supervisor) WindAll(sig domain.WindSignal) {
 	}
 }
 
+// DiscardKind stops and forgets every job of one kind: running jobs are dropped
+// from the map immediately (the status bar and task view clear synchronously),
+// hard-stopped, and finish without a queue note or retention entry; terminal
+// unreaped jobs are reaped on the spot. This is the conversation-clear semantic
+// - discarding the cleared conversation's A2A tasks without touching other
+// kinds. Unlike a user cancel it does not notify the remote agent; it only
+// stops and forgets the local monitor.
+func (s *Supervisor) DiscardKind(kind domain.JobKind) {
+	s.mu.Lock()
+	var toWind []*supervised
+	var toClose []*supervised
+	for id, sj := range s.jobs {
+		if sj.meta.Kind != kind {
+			continue
+		}
+		delete(s.jobs, id)
+		if sj.status.IsTerminal() {
+			toClose = append(toClose, sj)
+			continue
+		}
+		sj.discard = true
+		toWind = append(toWind, sj)
+	}
+	s.mu.Unlock()
+
+	for _, sj := range toWind {
+		logger.Debug("discarding background job", "id", sj.meta.ID, "kind", sj.meta.Kind)
+		if err := s.wind(sj, domain.WindStop); err != nil {
+			logger.Warn("wind signal failed", "id", sj.meta.ID, "signal", domain.WindStop.String(), "error", err)
+		}
+	}
+	for _, sj := range toClose {
+		logger.Debug("reaping terminal background job on discard", "id", sj.meta.ID, "kind", sj.meta.Kind)
+		sj.job.Close()
+	}
+	if len(toWind) > 0 || len(toClose) > 0 {
+		s.notify(domain.BackgroundTasksChangedEvent{})
+	}
+}
+
 func (s *Supervisor) wind(sj *supervised, sig domain.WindSignal) error {
+	logger.Debug("winding background job", "id", sj.meta.ID, "kind", sj.meta.Kind, "signal", sig.String())
 	err := sj.job.Wind(context.Background(), sig)
 	if sig == domain.WindStop && sj.cancel != nil {
 		sj.cancel() // backstop: unblock Run even if the job ignored the signal
@@ -443,6 +499,35 @@ func (s *Supervisor) CountRunning(kind domain.JobKind) int {
 	return n
 }
 
+// IsRunning reports whether a supervised job with the given id is still running.
+// It is the per-id liveness query - the single source of truth for "is this
+// background job still in flight?", consistent with Snapshot, CountRunning, and
+// A2APollingStates, which read the same jobs map under the same lock.
+func (s *Supervisor) IsRunning(id string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sj, ok := s.jobs[id]
+	return ok && sj.status == domain.JobRunning
+}
+
+// HasPending reports whether any session-holding job is still running - the
+// cross-kind "is the session safe to close?" query. A job opts in via
+// JobMeta.HoldsSession (A2A tasks, shells, headless subagents); interactive
+// subagent panes set it false so a one-shot `infer agent` does not wait on a
+// user-driven pane.
+func (s *Supervisor) HasPending() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, sj := range s.jobs {
+		if sj.status == domain.JobRunning && sj.meta.HoldsSession {
+			return true
+		}
+	}
+	return false
+}
+
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,
 // running each one's Wind(WindStop) teardown (kill pane, remove temp files)
 // before dropping it. Running jobs are never reaped. The same sweep emits a
@@ -473,6 +558,7 @@ func (s *Supervisor) Cleanup(olderThan time.Duration) int {
 	s.mu.Unlock()
 
 	for _, sj := range reaped {
+		logger.Debug("reaping finished background job", "id", sj.meta.ID, "kind", sj.meta.Kind)
 		sj.job.Close()
 	}
 	for _, m := range longRunning {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // NewPaneInspector returns a pane inspector (a func yielding a
@@ -74,6 +75,7 @@ func tmuxPaneState(ctx context.Context, paneID string) paneState {
 	}
 	out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", paneID, "-F", "#{pane_dead}").Output()
 	if err != nil {
+		logger.Debug("tmux pane state check failed, treating pane as gone", "pane_id", paneID, "error", err)
 		return paneGone
 	}
 	if strings.TrimSpace(string(out)) == "1" {

@@ -262,3 +262,60 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 		t.Fatalf("stale epoch: state must be untouched, got %v/%d", tm.tickLive, tm.tickEpoch)
 	}
 }
+
+// TestIsCancellable: active A2A rows and running shell/subagent rows can be
+// cancelled; retained A2A rows and terminal rows cannot.
+func TestIsCancellable(t *testing.T) {
+	if !isCancellable(TaskInfo{Kind: domain.JobKindA2A}) {
+		t.Fatal("active A2A row must be cancellable")
+	}
+	if isCancellable(TaskInfo{Kind: domain.JobKindA2A, TaskRef: &domain.TaskInfo{}}) {
+		t.Fatal("retained A2A row must not be cancellable")
+	}
+	if !isCancellable(TaskInfo{Kind: domain.JobKindShell, Status: "Running"}) {
+		t.Fatal("running shell row must be cancellable")
+	}
+	if isCancellable(TaskInfo{Kind: domain.JobKindShell, Status: "Completed"}) {
+		t.Fatal("completed shell row must not be cancellable")
+	}
+	if !isCancellable(TaskInfo{Kind: domain.JobKindSubagent, Status: "Running"}) {
+		t.Fatal("running subagent row must be cancellable")
+	}
+	if isCancellable(TaskInfo{Kind: domain.JobKindSubagent, Status: "Failed"}) {
+		t.Fatal("failed subagent row must not be cancellable")
+	}
+}
+
+// TestCancelTask_DispatchesByKind: an A2A row cancels through
+// CancelBackgroundTask (which also cancels the remote task); shell and subagent
+// rows wind their supervised job down with WindStop.
+func TestCancelTask_DispatchesByKind(t *testing.T) {
+	bg := &domainmocks.FakeBackgroundTaskService{}
+	reg := &domainmocks.FakeBackgroundTaskRegistry{}
+	tm := &TaskManagerImpl{backgroundTaskService: bg, backgroundJobRegistry: reg}
+
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: domain.TaskPollingState{TaskID: "a2a-1"}, Kind: domain.JobKindA2A}); err != nil {
+		t.Fatalf("cancelTask(a2a): %v", err)
+	}
+	if bg.CancelBackgroundTaskCallCount() != 1 || bg.CancelBackgroundTaskArgsForCall(0) != "a2a-1" {
+		t.Fatalf("A2A cancel must go through CancelBackgroundTask(a2a-1)")
+	}
+	if reg.WindJobCallCount() != 0 {
+		t.Fatalf("A2A cancel must not use WindJob")
+	}
+
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: domain.TaskPollingState{TaskID: "shell-1"}, Kind: domain.JobKindShell, Status: "Running"}); err != nil {
+		t.Fatalf("cancelTask(shell): %v", err)
+	}
+	id, sig := reg.WindJobArgsForCall(0)
+	if reg.WindJobCallCount() != 1 || id != "shell-1" || sig != domain.WindStop {
+		t.Fatalf("WindJob(%q, %v) x%d, want one WindJob(shell-1, WindStop)", id, sig, reg.WindJobCallCount())
+	}
+
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: domain.TaskPollingState{TaskID: "sub-1"}, Kind: domain.JobKindSubagent, Status: "Running"}); err != nil {
+		t.Fatalf("cancelTask(subagent): %v", err)
+	}
+	if reg.WindJobCallCount() != 2 {
+		t.Fatalf("subagent cancel must wind the supervised job")
+	}
+}

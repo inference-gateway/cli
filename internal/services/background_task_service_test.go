@@ -28,7 +28,7 @@ func newFakeA2ABgJob(id string, state domain.TaskPollingState) *fakeA2ABgJob {
 }
 
 func (f *fakeA2ABgJob) Meta() domain.JobMeta {
-	return domain.JobMeta{ID: f.id, Kind: domain.JobKindA2A, StartedAt: time.Now()}
+	return domain.JobMeta{ID: f.id, Kind: domain.JobKindA2A, StartedAt: time.Now(), HoldsSession: true}
 }
 
 func (f *fakeA2ABgJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
