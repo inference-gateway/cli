@@ -112,12 +112,10 @@ reminders:
 	if !cfg.Enabled {
 		t.Error("merged config should be enabled")
 	}
-	// Should have the built-in defaults (todo-hygiene, memory-consult, memory-hygiene) + 1 custom
 	wantLen := len(config.DefaultRemindersConfig().Reminders) + 1
 	if len(cfg.Reminders) != wantLen {
 		t.Fatalf("expected %d reminders (defaults + 1 custom), got %d:\n%+v", wantLen, len(cfg.Reminders), cfg.Reminders)
 	}
-	// Custom reminder should be present
 	found := false
 	for _, r := range cfg.Reminders {
 		if r.Name == "my-custom" {
@@ -131,7 +129,6 @@ reminders:
 	if !found {
 		t.Error("custom reminder 'my-custom' not found in merged result")
 	}
-	// Built-in defaults should survive
 	hasTodo := false
 	for _, r := range cfg.Reminders {
 		if r.Name == "todo-hygiene" {
