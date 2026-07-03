@@ -939,15 +939,6 @@ type ToolFormatter interface {
 	ShouldAlwaysExpandTool(toolName string) bool
 }
 
-// ToolFactory creates tool instances
-type ToolFactory interface {
-	// CreateTool creates a tool instance by name
-	CreateTool(name string) (Tool, error)
-
-	// ListAvailableTools returns names of all available tools
-	ListAvailableTools() []string
-}
-
 // ToolExecutionResult represents the complete result of a tool execution
 type ToolExecutionResult struct {
 	ToolName  string            `json:"tool_name"`

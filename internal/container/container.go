@@ -824,13 +824,6 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
 }
 
-// GetJobSupervisor returns the background job supervisor, constructing the
-// registry (and therefore the supervisor) on first use.
-func (c *ServiceContainer) GetJobSupervisor() *jobs.Supervisor {
-	c.ensureBackgroundTaskRegistry()
-	return c.jobSupervisor
-}
-
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	if c.backgroundShellService != nil {
