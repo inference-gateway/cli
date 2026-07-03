@@ -46,6 +46,7 @@ const (
 	SideEffectSendMessageWithModel
 	SideEffectShowDiffViewer
 	SideEffectShowExplorer
+	SideEffectShowToolsList
 )
 
 // PersistentConversationRepository interface for conversation persistence

@@ -307,14 +307,17 @@ func (p *Provider) RenderDimText(text string) string {
 }
 
 // RenderSelectedIndicator renders the status-bar indicator holding the
-// selection: the RenderButton selected palette without padding, so the
-// highlight adds no width.
+// selection as a padded pill: reverse video paints the cell background in the
+// accent color with the terminal background as text color, which works on any
+// theme (Theme exposes no background color). The one-column side padding adds
+// two columns of width - splitPartsIntoLines accounts for it.
 func (p *Provider) RenderSelectedIndicator(text string) string {
 	theme := p.themeService.GetCurrentTheme()
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.GetAccentColor())).
-		Background(lipgloss.Color(theme.GetBorderColor())).
-		Bold(true)
+		Reverse(true).
+		Bold(true).
+		Padding(0, 1)
 	return style.Render(text)
 }
 

@@ -529,6 +529,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
+	c.shortcutRegistry.Register(shortcuts.NewToolsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())

@@ -161,3 +161,29 @@ func TestHelpShortcut_Execute_UnknownShortcut(t *testing.T) {
 		t.Errorf("expected an 'Unknown shortcut' message, got: %q", res.Output)
 	}
 }
+
+func TestToolsShortcut_Execute_OpensToolsList(t *testing.T) {
+	tools := NewToolsShortcut()
+
+	if !tools.CanExecute(nil) {
+		t.Error("expected /tools to accept no arguments")
+	}
+	if tools.CanExecute([]string{"extra"}) {
+		t.Error("expected /tools to reject arguments")
+	}
+
+	res, err := tools.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res.Output != "" {
+		t.Errorf("expected empty output so nothing is appended to the conversation, got: %q", res.Output)
+	}
+	if res.SideEffect != SideEffectShowToolsList {
+		t.Errorf("expected SideEffectShowToolsList to drive the view, got: %v", res.SideEffect)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
+	}
+}

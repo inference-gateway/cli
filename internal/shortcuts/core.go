@@ -504,3 +504,23 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		Data:       themeName,
 	}, nil
 }
+
+// ToolsShortcut shows the tools currently available to the agent
+type ToolsShortcut struct{}
+
+func NewToolsShortcut() *ToolsShortcut {
+	return &ToolsShortcut{}
+}
+
+func (c *ToolsShortcut) GetName() string               { return "tools" }
+func (c *ToolsShortcut) GetDescription() string        { return "Show the tools available to the agent" }
+func (c *ToolsShortcut) GetUsage() string              { return "/tools" }
+func (c *ToolsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+
+func (c *ToolsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	return ShortcutResult{
+		Output:     "",
+		Success:    true,
+		SideEffect: SideEffectShowToolsList,
+	}, nil
+}

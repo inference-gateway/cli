@@ -5,6 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
@@ -115,6 +117,41 @@ func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
 	}
 	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateThemeSelection {
 		t.Errorf("transitioned to %v, want theme selection", got)
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("expected one status command, got %d", len(cmds))
+	}
+	if _, ok := cmds[0]().(domain.SetStatusEvent); !ok {
+		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
+	}
+}
+
+// toolStatsEstimator is a minimal domain.TokenEstimator so the tools
+// indicator renders in tests.
+type toolStatsEstimator struct{}
+
+func (toolStatsEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+	return 8017, 25
+}
+
+func (toolStatsEstimator) EstimateMessagesTokens([]sdk.Message) int { return 0 }
+
+func TestStatusBarEnterOpensToolsList(t *testing.T) {
+	app, stateManager := newStatusBarTestApp(t, false, false)
+	statusBar := app.inputStatusBar.(*components.InputStatusBar)
+	statusBar.SetToolService(&domainmocks.FakeToolService{})
+	statusBar.SetTokenEstimator(toolStatsEstimator{})
+
+	app.handleChatView(domain.FocusStatusBarEvent{})
+
+	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
+	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if stateManager.TransitionToViewCallCount() != 1 {
+		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
+	}
+	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateToolsList {
+		t.Errorf("transitioned to %v, want the tools list", got)
 	}
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))

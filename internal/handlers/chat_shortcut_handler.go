@@ -213,6 +213,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowDiffViewerSideEffect()
 	case shortcuts.SideEffectShowExplorer:
 		return s.handleShowExplorerSideEffect()
+	case shortcuts.SideEffectShowToolsList:
+		return s.handleShowToolsListSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:
@@ -244,6 +246,15 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect() tea.Msg {
 
 func (s *ChatShortcutHandler) handleSwitchThemeSideEffect() tea.Msg {
 	_ = s.handler.stateManager.TransitionToView(domain.ViewStateThemeSelection)
+	return domain.SetStatusEvent{
+		Message:    "",
+		Spinner:    false,
+		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowToolsListSideEffect() tea.Msg {
+	_ = s.handler.stateManager.TransitionToView(domain.ViewStateToolsList)
 	return domain.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,

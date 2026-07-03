@@ -95,6 +95,7 @@ type ChatApplication struct {
 	diffViewer           *components.DiffViewerImpl
 	fileExplorer         *components.FileExplorerImpl
 	helpView             *components.HelpViewImpl
+	toolsView            *components.ToolsViewImpl
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -294,6 +295,7 @@ func NewChatApplication(
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
+	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
 	app.initGithubActionView.SetSecretsExistChecker(func(appID string) bool {
@@ -635,6 +637,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleExplorerView(msg)
 	case domain.ViewStateHelp:
 		return app.handleHelpView(msg)
+	case domain.ViewStateToolsList:
+		return app.handleToolsListView(msg)
 	default:
 		return nil
 	}
@@ -856,6 +860,15 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 				StatusType: domain.StatusDefault,
 			}
 		}}
+	case ui.StatusIndicatorActionToolsList:
+		_ = app.stateManager.TransitionToView(domain.ViewStateToolsList)
+		return []tea.Cmd{func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}}
 	case ui.StatusIndicatorActionTaskManagement:
 		if err := app.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
 			return []tea.Cmd{func() tea.Msg {
@@ -1054,6 +1067,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderExplorer()
 	case domain.ViewStateHelp:
 		return app.renderHelp()
+	case domain.ViewStateToolsList:
+		return app.renderToolsList()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1616,6 +1631,45 @@ func (app *ChatApplication) renderThemeSelection() string {
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
 	return app.themeSelector.View().Content
+}
+
+// handleToolsListView drives the read-only tools list. A cancelled flag left
+// over from the previous visit means we are re-entering: Reset rebuilds the
+// items so the list reflects the current agent mode and any MCP tools
+// registered since.
+func (app *ChatApplication) handleToolsListView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.toolsView.IsCancelled() {
+		app.toolsView.Reset()
+	}
+
+	model, cmd := app.toolsView.Update(msg)
+	app.toolsView = model.(*components.ToolsViewImpl)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.toolsView.IsCancelled() {
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+					Sticky: false,
+				}
+			})
+		}
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderToolsList() string {
+	width, height := app.stateManager.GetDimensions()
+	app.toolsView.SetWidth(width)
+	app.toolsView.SetHeight(height)
+	return app.toolsView.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

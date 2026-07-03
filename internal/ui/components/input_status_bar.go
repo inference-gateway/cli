@@ -343,7 +343,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("tools") {
 		if toolInfo := isb.getToolInfo(); toolInfo != "" {
-			parts = append(parts, indicatorPart{text: toolInfo})
+			parts = append(parts, indicatorPart{text: toolInfo, action: ui.StatusIndicatorActionToolsList})
 		}
 	}
 
@@ -380,6 +380,10 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 	return parts
 }
 
+// selectedIndicatorPadding is the extra width the selected part's pill adds:
+// one column of padding on each side (see Provider.RenderSelectedIndicator).
+const selectedIndicatorPadding = 2
+
 // splitPartsIntoLines splits indicator parts into line groups based on available width
 func (isb *InputStatusBar) splitPartsIntoLines(parts []indicatorPart, availableWidth, maxLines, separatorWidth int) [][]indicatorPart {
 	var lineGroups [][]indicatorPart
@@ -388,6 +392,9 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []indicatorPart, availableW
 
 	for i, part := range parts {
 		itemWidth := len(part.text)
+		if part.selected {
+			itemWidth += selectedIndicatorPadding
+		}
 		separatorLen := 0
 
 		if len(currentLineItems) > 0 {

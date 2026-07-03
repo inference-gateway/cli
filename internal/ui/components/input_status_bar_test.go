@@ -1,6 +1,7 @@
 package components
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -16,11 +17,13 @@ import (
 )
 
 type stubTokenEstimator struct {
-	estimate int
+	estimate   int
+	toolTokens int
+	toolCount  int
 }
 
 func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
-	return 0, 0
+	return s.toolTokens, s.toolCount
 }
 
 func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
@@ -794,6 +797,8 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 
 func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	statusBar := newSelectableStatusBar(true)
+	statusBar.toolService = &domainmocks.FakeToolService{}
+	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}
@@ -808,8 +813,13 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	}
 
 	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionToolsList {
+		t.Errorf("after second SelectNext: %v, want tools list", got)
+	}
+
+	statusBar.SelectNext()
 	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionTaskManagement {
-		t.Errorf("after second SelectNext: %v, want task management", got)
+		t.Errorf("after third SelectNext: %v, want task management", got)
 	}
 
 	statusBar.SelectNext()
@@ -891,9 +901,31 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	if focused == unfocused {
 		t.Error("focused render should apply the selection highlight and differ from the unfocused render")
 	}
+	ansi := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	focusedWidth := len(ansi.ReplaceAllString(focused, ""))
+	unfocusedWidth := len(ansi.ReplaceAllString(unfocused, ""))
+	if focusedWidth != unfocusedWidth+2 {
+		t.Errorf("the selected pill should add one column of padding per side: focused width %d, unfocused %d", focusedWidth, unfocusedWidth)
+	}
 
 	statusBar.Blur()
 	if got := statusBar.Render(); got != unfocused {
 		t.Errorf("blurred render should match the original unfocused render")
+	}
+}
+
+func TestInputStatusBar_SelectedPillWidthForcesWrap(t *testing.T) {
+	statusBar := &InputStatusBar{}
+	parts := []indicatorPart{{text: "aaaa"}, {text: "bbbb"}}
+
+	groups := statusBar.splitPartsIntoLines(parts, 11, 2, 3)
+	if len(groups) != 1 {
+		t.Fatalf("unselected parts should fit on one line, got %d", len(groups))
+	}
+
+	parts[1].selected = true
+	groups = statusBar.splitPartsIntoLines(parts, 11, 2, 3)
+	if len(groups) != 2 {
+		t.Fatalf("the selected pill's padding must count toward the line width, got %d line(s)", len(groups))
 	}
 }
