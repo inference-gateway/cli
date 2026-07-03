@@ -61,12 +61,17 @@ type SystemReminder struct {
 //
 // Fired carries reminder names already emitted this session (consulted by the
 // `once` trigger); the caller marks names fired after injecting.
+//
+// ToolFailed reports whether the tool batch that just completed had any failed
+// call. It is meaningful only at the post_tool hook (set right before that
+// dispatch) and drives the `on_failure` trigger.
 type ReminderQuery struct {
 	Hook        HookPoint
 	Turn        int
 	SessionTurn int
 	MaxTurns    int
 	Fired       map[string]bool
+	ToolFailed  bool
 }
 
 // HookCommand is a resolved command hook ready to run at a hook point: a named

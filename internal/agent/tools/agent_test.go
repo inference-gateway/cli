@@ -180,7 +180,7 @@ func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 
 // buildChatPaneCommand must slugify the LLM-supplied label into a safe, dashcase
 // history name (no spaces, path separators, or traversal) and fall back to the
-// memory-only sentinel when there is no usable label — never the per-spawn session id.
+// memory-only sentinel when there is no usable label - never the per-spawn session id.
 func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 	tool := newTestAgentTool(t)
 

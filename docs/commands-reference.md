@@ -321,14 +321,17 @@ anytime during a chat session.
 
 **System Reminders:**
 
-The chat interface supports configurable system reminders that can provide periodic contextual
-information to the AI model during conversations. These reminders help maintain context and provide
-relevant guidance throughout the session.
+System reminders inject short `<system-reminder>` messages into the conversation at defined points
+of the agent loop (hook points) to keep durable guidance in context. They are configured in
+`reminders.yaml` (project `./.infer/` or `~/.infer/`), each with a `hook` and a `trigger`. See
+[System Reminders](configuration-reference.md#system-reminders-remindersyaml) for the full schema.
 
-- **Customizable interval**: Set how often reminders appear (in number of messages)
-- **Dynamic content**: Reminders can contain contextual information based on the current state
-- **Non-intrusive**: Reminders are sent to the AI model but don't interrupt the user experience
-- **Configurable**: Enable/disable and customize reminder content through configuration
+- **Hook points**: fire at `pre_stream`, `post_tool`, `pre_session`, and more
+- **Triggers**: gate firing - `always`, every Nth turn (`interval`), near the turn limit
+  (`turns_before_max`), `once` per run, or only after a failed tool call (`on_failure`)
+- **Non-intrusive**: reminders are sent to the model but don't interrupt the user experience
+- **Inline/CI supply**: provide reminders without a file via `INFER_REMINDERS_CONFIG` (inline YAML)
+  or `--reminders-file PATH`
 
 **Examples:**
 
@@ -361,6 +364,8 @@ task is considered complete. Particularly useful for SCM tickets like GitHub iss
 - `-f, --files`: Files or images to include (can be specified multiple times)
 - `--session-id`: Resume an existing agent session by conversation ID
 - `--no-save`: Disable saving conversation to database
+- `--reminders-file`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer`
+  reminders.yaml (`INFER_REMINDERS_CONFIG` inline YAML takes precedence)
 
 **Examples:**
 

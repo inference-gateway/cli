@@ -89,6 +89,7 @@ func (s *BlockingToolsState) processBlockedTools() {
 		s.ctx.Mutex.Unlock()
 	}
 
+	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
 	s.ctx.Events <- domain.AllToolsProcessedEvent{}
 }
 

@@ -156,10 +156,27 @@ func TestInjectDueReminders_UsesWiredProvider(t *testing.T) {
 	assert.Equal(t, 7, q.Turn, "per-request turn comes from AgentContext.Turns")
 	assert.Equal(t, 9, q.SessionTurn, "session turn comes from the cumulative counter")
 	assert.Equal(t, 12, q.MaxTurns)
+	assert.False(t, q.ToolFailed, "ToolFailed defaults to false when no tool failed")
 
 	require.Len(t, conv, 1)
 	content, _ := conv[0].Content.AsMessageContent0()
 	assert.Equal(t, "from provider", content)
+}
+
+// The post_tool on_failure trigger needs the just-completed batch's failure
+// state; injectDueReminders threads AgentContext.LastToolFailed into the query.
+func TestInjectDueReminders_PlumbsToolFailed(t *testing.T) {
+	fake := &domainmocks.FakeSystemReminderProvider{}
+	svc := &AgentServiceImpl{reminderProvider: fake}
+
+	conv := []sdk.Message{}
+	agentCtx := newReminderAgentCtx(&conv, 1, 0)
+	agentCtx.LastToolFailed = true
+	svc.injectDueReminders(agentCtx, domain.HookPostTool)
+
+	require.Equal(t, 1, fake.RemindersDueCallCount())
+	q := fake.RemindersDueArgsForCall(0)
+	assert.True(t, q.ToolFailed, "ToolFailed must reflect AgentContext.LastToolFailed")
 }
 
 func TestInjectDueReminders_DebugGateOff_AppendsButNoStream(t *testing.T) {
