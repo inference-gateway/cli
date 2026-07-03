@@ -109,7 +109,7 @@ jobs:
             goos: darwin
             goarch: amd64
             cgo: "1"
-          - os: macos-latest
+          - os: macos-26
             goos: darwin
             goarch: arm64
             cgo: "1"
