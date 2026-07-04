@@ -3,8 +3,10 @@ package config
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -26,6 +28,7 @@ const (
 	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max"
 	ReminderTriggerOnce           ReminderTrigger = "once"
 	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"
+	ReminderTriggerOnModeChange   ReminderTrigger = "on_mode_change"
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
@@ -35,6 +38,7 @@ var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerTurnsBeforeMax,
 	ReminderTriggerOnce,
 	ReminderTriggerOnFailure,
+	ReminderTriggerOnModeChange,
 }
 
 // Valid reports whether t is one of the pre-defined triggers.
@@ -56,13 +60,19 @@ If you have learned durable facts about the user, project, or workflow this sess
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
 // point, gated by a trigger.
+//
+// Guidance is consulted only by the on_mode_change trigger: it maps a mode key
+// ("standard"/"plan"/"auto", the same keys as tools.bash.mode.<key>) to the
+// text substituted for the {guidance} placeholder when that mode is entered.
+// Keys the user omits keep their built-in defaults (per-key merge).
 type ReminderConfig struct {
-	Name      string           `yaml:"name" mapstructure:"name"`
-	Text      string           `yaml:"text" mapstructure:"text"`
-	Hook      domain.HookPoint `yaml:"hook" mapstructure:"hook"`
-	Trigger   ReminderTrigger  `yaml:"trigger" mapstructure:"trigger"`
-	Interval  int              `yaml:"interval,omitempty" mapstructure:"interval"`
-	Threshold int              `yaml:"threshold,omitempty" mapstructure:"threshold"`
+	Name      string            `yaml:"name" mapstructure:"name"`
+	Text      string            `yaml:"text" mapstructure:"text"`
+	Hook      domain.HookPoint  `yaml:"hook" mapstructure:"hook"`
+	Trigger   ReminderTrigger   `yaml:"trigger" mapstructure:"trigger"`
+	Interval  int               `yaml:"interval,omitempty" mapstructure:"interval"`
+	Threshold int               `yaml:"threshold,omitempty" mapstructure:"threshold"`
+	Guidance  map[string]string `yaml:"guidance,omitempty" mapstructure:"guidance"`
 }
 
 // RemindersConfig is the content of reminders.yaml: the master switch plus the
@@ -78,6 +88,25 @@ type RemindersConfig struct {
 	Enabled   bool             `yaml:"enabled" mapstructure:"enabled"`
 	Merge     bool             `yaml:"merge,omitempty" mapstructure:"merge"`
 	Reminders []ReminderConfig `yaml:"reminders" mapstructure:"reminders"`
+}
+
+const DefaultModeChangeReminderName = "mode-change-reminder"
+
+const DefaultModeChangeReminderText = `<system-reminder>
+The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance} Adapt your behavior to the new mode for the rest of this session.
+</system-reminder>`
+
+// defaultModeChangeGuidance is the built-in {guidance} text per target-mode
+// key. Users override individual keys via the reminder's guidance map; omitted
+// keys keep these defaults (see effective).
+var defaultModeChangeGuidance = map[string]string{
+	"plan": "You are now in Plan Mode: a read-only mode. " +
+		"Writing, editing, deleting, and shell-execution tools are no longer available - " +
+		"do NOT attempt to make changes. Use the read-only tools (Read, Grep, Tree, TodoWrite) " +
+		"to investigate, then call RequestPlanApproval with a written plan. Do not write code.",
+	"auto": "You are now in Auto-Accept mode: tool approvals are bypassed. " +
+		"You may execute tools freely without waiting for per-call approval.",
+	"standard": "You are now in Standard mode: per-call tool approvals apply as configured.",
 }
 
 const defaultMemoryConsultReminderText = `<system-reminder>
@@ -120,6 +149,13 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Trigger:  ReminderTriggerInterval,
 			Interval: defaultReminderInterval,
 			Text:     defaultTodoReminderText,
+		},
+		{
+			Name:     DefaultModeChangeReminderName,
+			Hook:     domain.HookPreStream,
+			Trigger:  ReminderTriggerOnModeChange,
+			Text:     DefaultModeChangeReminderText,
+			Guidance: maps.Clone(defaultModeChangeGuidance),
 		},
 	}
 	return &RemindersConfig{
@@ -197,6 +233,16 @@ func (r RemindersConfig) effective() []ReminderConfig {
 		if rc.Trigger == ReminderTriggerInterval {
 			rc.Interval = cmp.Or(rc.Interval, defaultReminderInterval)
 		}
+		if rc.Trigger == ReminderTriggerOnModeChange {
+			guidance := make(map[string]string, len(defaultModeChangeGuidance))
+			for k, v := range defaultModeChangeGuidance {
+				guidance[k] = v
+			}
+			for k, v := range rc.Guidance {
+				guidance[k] = v
+			}
+			rc.Guidance = guidance
+		}
 		out[i] = rc
 	}
 	return out
@@ -222,9 +268,25 @@ func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemRem
 		if !reminderTriggerFires(rc, q) {
 			continue
 		}
-		due = append(due, domain.SystemReminder{Name: rc.Name, Text: rc.Text})
+		text := rc.Text
+		if rc.Trigger == ReminderTriggerOnModeChange {
+			text = resolveModeChangeText(rc, q)
+		}
+		due = append(due, domain.SystemReminder{Name: rc.Name, Text: text})
 	}
 	return due
+}
+
+// resolveModeChangeText substitutes the {prev_mode}/{new_mode}/{guidance}
+// placeholders of an on_mode_change reminder from the query's mode transition.
+func resolveModeChangeText(rc ReminderConfig, q domain.ReminderQuery) string {
+	guidance := rc.Guidance[q.Mode.AllowedlistKey()]
+	if guidance == "" {
+		guidance = "You are now in " + q.Mode.DisplayName() + " mode."
+	}
+	text := strings.ReplaceAll(rc.Text, "{prev_mode}", q.PrevMode.DisplayName())
+	text = strings.ReplaceAll(text, "{new_mode}", q.Mode.DisplayName())
+	return strings.ReplaceAll(text, "{guidance}", guidance)
 }
 
 func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
@@ -238,6 +300,8 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 		return !q.Fired[rc.Name]
 	case ReminderTriggerOnFailure:
 		return q.ToolFailed
+	case ReminderTriggerOnModeChange:
+		return q.ModeChanged
 	case ReminderTriggerAlways:
 		return true
 	default:
@@ -264,8 +328,15 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): trigger on_failure requires hook %s", i, rc.Name, domain.HookPostTool)
 		case rc.Trigger == ReminderTriggerTurnsBeforeMax && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger turns_before_max requires threshold > 0", i, rc.Name)
+		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != domain.HookPreStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, domain.HookPreStream)
 		case rc.Interval < 0:
 			return fmt.Errorf("reminders[%d] (%s): interval must be >= 0", i, rc.Name)
+		}
+		for key := range rc.Guidance {
+			if _, ok := domain.ParseAgentMode(key); !ok {
+				return fmt.Errorf("reminders[%d] (%s): unknown guidance mode key %q (valid: standard, plan, auto)", i, rc.Name, key)
+			}
 		}
 	}
 	return nil

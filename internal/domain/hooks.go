@@ -65,6 +65,11 @@ type SystemReminder struct {
 // ToolFailed reports whether the tool batch that just completed had any failed
 // call. It is meaningful only at the post_tool hook (set right before that
 // dispatch) and drives the `on_failure` trigger.
+//
+// ModeChanged reports whether the agent mode differs from the previous
+// streaming turn; PrevMode/Mode carry the transition. They are meaningful only
+// at the pre_stream hook (set right before that dispatch) and drive the
+// `on_mode_change` trigger.
 type ReminderQuery struct {
 	Hook        HookPoint
 	Turn        int
@@ -72,6 +77,9 @@ type ReminderQuery struct {
 	MaxTurns    int
 	Fired       map[string]bool
 	ToolFailed  bool
+	ModeChanged bool
+	PrevMode    AgentMode
+	Mode        AgentMode
 }
 
 // HookCommand is a resolved command hook ready to run at a hook point: a named

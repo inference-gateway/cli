@@ -75,6 +75,16 @@ type AgentServiceImpl struct {
 	memoryContextCache string
 	memoryContextTurn  int
 	contextCacheMux    sync.RWMutex
+
+	// Mode-change tracking: the mode used on the previous streaming turn. When
+	// the user cycles the mode mid-session (shift+tab), the next pre_stream
+	// reminder query reports the change (modeChangeSinceLastStream) so the
+	// on_mode_change reminder fires and the model adapts its behavior (e.g.
+	// stops writing code in Plan mode). modeInitialized distinguishes "no
+	// previous turn yet" from "previous turn was AgentModeStandard (zero value)".
+	lastStreamedMode domain.AgentMode
+	modeInitialized  bool
+	modeMux          sync.Mutex
 }
 
 // sessionCancel bundles the two cancellation primitives for a single
