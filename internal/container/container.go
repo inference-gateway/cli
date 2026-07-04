@@ -772,7 +772,7 @@ func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
 
 	if c.config.IsClaudeCodeMode() {
 		logger.Info("using Claude Code CLI mode (subscription-based)")
-		return adapters.NewClaudeCodeClient(&c.config.ClaudeCode, c.stateManager)
+		return adapters.NewClaudeCodeClient(&c.config.ClaudeCode, c.stateManager, c.config.Prompts.Agent.SystemPromptClaudeCode)
 	}
 
 	logger.Debug("using gateway mode (API-based)")
