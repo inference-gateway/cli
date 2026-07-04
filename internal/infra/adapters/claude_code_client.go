@@ -558,7 +558,6 @@ func (c *ClaudeCodeClient) maybeMapTaskCreateToTodoWrite(block ContentBlock) (st
 		return block.Name, string(block.Input)
 	}
 
-	// Parse the TaskCreate input to extract the subject
 	var taskInput struct {
 		Subject     string `json:"subject"`
 		Description string `json:"description,omitempty"`
@@ -568,10 +567,8 @@ func (c *ClaudeCodeClient) maybeMapTaskCreateToTodoWrite(block ContentBlock) (st
 		return block.Name, string(block.Input)
 	}
 
-	// Record the tool_use_id → subject mapping for result mapping
 	c.taskCreateIDs[block.ID] = taskInput.Subject
 
-	// Build a TodoWrite tool call with the subject as a todo item
 	todoInput := map[string]any{
 		"todos": []map[string]any{
 			{
@@ -599,10 +596,8 @@ func (c *ClaudeCodeClient) maybeMapTaskCreateResult(toolUseID, result string, is
 		return result, isError
 	}
 
-	// Clean up the tracking entry
 	delete(c.taskCreateIDs, toolUseID)
 
-	// Build a TodoWrite result
 	status := "completed"
 	if isError {
 		status = "pending"
@@ -633,19 +628,16 @@ func (c *ClaudeCodeClient) maybeMapTaskCreateResult(toolUseID, result string, is
 	return string(resultBytes), isError
 }
 
-// AssistantMessage represents the structure of an assistant message from Claude CLI
 type AssistantMessage struct {
 	Content []ContentBlock `json:"content"`
 	Role    string         `json:"role"`
 }
 
-// ToolResultMessage represents a user message containing tool results
 type ToolResultMessage struct {
 	Role    string              `json:"role"`
 	Content []ToolResultContent `json:"content"`
 }
 
-// ToolResultContent represents a tool result in the message
 type ToolResultContent struct {
 	Type      string `json:"type"`
 	ToolUseID string `json:"tool_use_id"`
@@ -658,9 +650,9 @@ type ContentBlock struct {
 	Type     string          `json:"type"`
 	Text     string          `json:"text,omitempty"`
 	Thinking string          `json:"thinking,omitempty"`
-	ID       string          `json:"id,omitempty"`    // For tool_use
-	Name     string          `json:"name,omitempty"`  // For tool_use
-	Input    json.RawMessage `json:"input,omitempty"` // For tool_use
+	ID       string          `json:"id,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	Input    json.RawMessage `json:"input,omitempty"`
 }
 
 // filterMessages removes unsupported content (like images) from messages
