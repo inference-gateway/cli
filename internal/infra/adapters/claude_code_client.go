@@ -139,7 +139,6 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 // buildArgs constructs the command-line arguments for the Claude CLI
 func (c *ClaudeCodeClient) buildArgs(model string) []string {
 	permissionMode := c.getPermissionMode()
-	maxTurns := c.config.MaxTurns
 
 	if idx := strings.LastIndex(model, "/"); idx != -1 {
 		model = model[idx+1:]
@@ -149,7 +148,6 @@ func (c *ClaudeCodeClient) buildArgs(model string) []string {
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-hook-events",
-		"--max-turns", fmt.Sprintf("%d", maxTurns),
 		"--model", model,
 		"--permission-mode", permissionMode,
 		"-p",
