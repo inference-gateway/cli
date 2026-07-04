@@ -513,11 +513,11 @@ func (c *ClaudeCodeClient) createSystemEvent(msg ClaudeCodeMessage) *sdk.SSEvent
 		return nil
 	}
 	initBytes, _ := json.Marshal(map[string]any{
-		"type":              "system_init",
-		"session_id":        msg.SessionID,
-		"model":             msg.ClaudeModel,
+		"type":                "system_init",
+		"session_id":          msg.SessionID,
+		"model":               msg.ClaudeModel,
 		"claude_code_version": msg.ClaudeCodeVersion,
-		"tools":             msg.Tools,
+		"tools":               msg.Tools,
 	})
 	eventType := sdk.SSEventEvent("system_init")
 	return &sdk.SSEvent{
@@ -600,15 +600,15 @@ type ClaudeCodeMessage struct {
 	ToolUseResult json.RawMessage `json:"tool_use_result,omitempty"`
 
 	// Final result fields (type: result)
-	IsError          bool         `json:"is_error,omitempty"`
-	DurationMS       int          `json:"duration_ms,omitempty"`
-	NumTurns         int          `json:"num_turns,omitempty"`
-	Result           string       `json:"result,omitempty"`
-	StopReason       string       `json:"stop_reason,omitempty"`
-	TotalCostUSD     float64      `json:"total_cost_usd,omitempty"`
-	PermissionDenials []string    `json:"permission_denials,omitempty"`
-	TerminalReason   string       `json:"terminal_reason,omitempty"`
-	Usage            *ClaudeUsage `json:"usage,omitempty"`
+	IsError           bool         `json:"is_error,omitempty"`
+	DurationMS        int          `json:"duration_ms,omitempty"`
+	NumTurns          int          `json:"num_turns,omitempty"`
+	Result            string       `json:"result,omitempty"`
+	StopReason        string       `json:"stop_reason,omitempty"`
+	TotalCostUSD      float64      `json:"total_cost_usd,omitempty"`
+	PermissionDenials []string     `json:"permission_denials,omitempty"`
+	TerminalReason    string       `json:"terminal_reason,omitempty"`
+	Usage             *ClaudeUsage `json:"usage,omitempty"`
 }
 
 // ClaudeUsage is Anthropic's token breakdown as reported on the result message.
