@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.132.0](https://github.com/inference-gateway/cli/compare/v0.131.0...v0.132.0) (2026-07-04)
+
+### 🚀 Features
+
+* improve Claude Code headless integration with streaming events ([#744](https://github.com/inference-gateway/cli/issues/744)) ([6c7ba09](https://github.com/inference-gateway/cli/commit/6c7ba09b93f9a268398b6f2048a9e80f95a9627a)), closes [#741](https://github.com/inference-gateway/cli/issues/741) [#743](https://github.com/inference-gateway/cli/issues/743)
+
+### 👷 CI/CD
+
+* **deps:** update inference workflow version to v0.14.16 ([d5d7ed4](https://github.com/inference-gateway/cli/commit/d5d7ed4e18da79139c32a7db1c7944a4e2d946dc))
+
 ## [0.131.0](https://github.com/inference-gateway/cli/compare/v0.130.1...v0.131.0) (2026-07-04)
 
 ### 🚀 Features
