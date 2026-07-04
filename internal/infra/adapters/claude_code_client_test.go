@@ -1,13 +1,32 @@
 package adapters
 
 import (
+	"bufio"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 )
+
+func transform(t *testing.T, c *ClaudeCodeClient, msg ClaudeCodeMessage) []sdk.SSEvent {
+	t.Helper()
+	raw, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal message: %v", err)
+	}
+	return c.transformMessage(msg, raw, "")
+}
+
+func eventName(ev sdk.SSEvent) string {
+	if ev.Event == nil {
+		return ""
+	}
+	return string(*ev.Event)
+}
 
 func TestClaudeUsageToCompletionUsage(t *testing.T) {
 	u := &ClaudeUsage{
@@ -32,6 +51,7 @@ func TestClaudeUsageToCompletionUsage(t *testing.T) {
 
 // chunkShape mirrors the JSON the adapter emits for a usage chunk.
 type chunkShape struct {
+	Model   string `json:"model"`
 	Choices []struct {
 		Delta map[string]any `json:"delta"`
 		Index int            `json:"index"`
@@ -39,23 +59,87 @@ type chunkShape struct {
 	Usage *sdk.CompletionUsage `json:"usage"`
 }
 
-func TestTransformMessageResultEmitsUsageChunk(t *testing.T) {
+// resultMetadataShape mirrors the result_metadata event payload.
+type resultMetadataShape struct {
+	SessionID         string          `json:"session_id"`
+	Model             string          `json:"model"`
+	Subtype           string          `json:"subtype"`
+	IsError           bool            `json:"is_error"`
+	DurationMS        int             `json:"duration_ms"`
+	DurationAPIMS     int             `json:"duration_api_ms"`
+	TTFTMS            int             `json:"ttft_ms"`
+	TTFTStreamMS      int             `json:"ttft_stream_ms"`
+	NumTurns          int             `json:"num_turns"`
+	StopReason        string          `json:"stop_reason"`
+	TerminalReason    string          `json:"terminal_reason"`
+	TotalCostUSD      float64         `json:"total_cost_usd"`
+	PermissionDenials json.RawMessage `json:"permission_denials"`
+	Usage             struct {
+		InputTokens              int64 `json:"input_tokens"`
+		OutputTokens             int64 `json:"output_tokens"`
+		CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+		CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	} `json:"usage"`
+}
+
+func assertResultMetadata(t *testing.T, ev sdk.SSEvent) {
+	t.Helper()
+
+	if eventName(ev) != "result_metadata" {
+		t.Fatalf("first event = %q, want result_metadata", eventName(ev))
+	}
+	if ev.Data == nil {
+		t.Fatal("result_metadata has nil data")
+	}
+	var meta resultMetadataShape
+	if err := json.Unmarshal(*ev.Data, &meta); err != nil {
+		t.Fatalf("unmarshal result_metadata: %v", err)
+	}
+	if meta.SessionID != "sess_1" || meta.Subtype != "success" || meta.StopReason != "end_turn" {
+		t.Errorf("metadata = %+v, want sess_1/success/end_turn", meta)
+	}
+	if meta.DurationMS != 1806 || meta.DurationAPIMS != 1764 || meta.TTFTMS != 1771 || meta.TTFTStreamMS != 1296 {
+		t.Errorf("durations = %d/%d/%d/%d, want 1806/1764/1771/1296",
+			meta.DurationMS, meta.DurationAPIMS, meta.TTFTMS, meta.TTFTStreamMS)
+	}
+	if meta.NumTurns != 3 || meta.TotalCostUSD != 0.0165 {
+		t.Errorf("num_turns/cost = %d/%f, want 3/0.0165", meta.NumTurns, meta.TotalCostUSD)
+	}
+	if meta.Usage.InputTokens != 100 || meta.Usage.OutputTokens != 20 ||
+		meta.Usage.CacheCreationInputTokens != 30 || meta.Usage.CacheReadInputTokens != 50 {
+		t.Errorf("usage = %+v, want 100/20/30/50", meta.Usage)
+	}
+}
+
+func TestTransformMessageResultEmitsMetadataUsageAndStop(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	events := c.transformMessage(ClaudeCodeMessage{
-		Type:  "result",
-		Usage: &ClaudeUsage{InputTokens: 100, OutputTokens: 20, CacheCreationInputTokens: 30, CacheReadInputTokens: 50},
+	events := transform(t, c, ClaudeCodeMessage{
+		Type:           "result",
+		Subtype:        "success",
+		SessionID:      "sess_1",
+		DurationMS:     1806,
+		DurationAPIMS:  1764,
+		TTFTMS:         1771,
+		TTFTStreamMS:   1296,
+		NumTurns:       3,
+		StopReason:     "end_turn",
+		TerminalReason: "completed",
+		TotalCostUSD:   0.0165,
+		Usage:          &ClaudeUsage{InputTokens: 100, OutputTokens: 20, CacheCreationInputTokens: 30, CacheReadInputTokens: 50},
 	})
 
-	if len(events) != 2 {
-		t.Fatalf("got %d events, want 2 (usage chunk + message_stop)", len(events))
+	if len(events) != 3 {
+		t.Fatalf("got %d events, want 3 (result_metadata + usage chunk + message_stop)", len(events))
 	}
 
-	if events[0].Data == nil {
+	assertResultMetadata(t, events[0])
+
+	if events[1].Data == nil {
 		t.Fatal("usage chunk has nil data")
 	}
 	var chunk chunkShape
-	if err := json.Unmarshal(*events[0].Data, &chunk); err != nil {
+	if err := json.Unmarshal(*events[1].Data, &chunk); err != nil {
 		t.Fatalf("unmarshal usage chunk: %v", err)
 	}
 	if chunk.Usage == nil {
@@ -68,24 +152,24 @@ func TestTransformMessageResultEmitsUsageChunk(t *testing.T) {
 		t.Errorf("want exactly one empty-delta choice, got %+v", chunk.Choices)
 	}
 
-	if events[1].Event == nil || string(*events[1].Event) != "message_stop" {
-		t.Errorf("second event = %v, want message_stop", events[1].Event)
+	if eventName(events[2]) != "message_stop" {
+		t.Errorf("last event = %q, want message_stop", eventName(events[2]))
 	}
-	if events[1].Data == nil || string(*events[1].Data) != "done" {
-		t.Errorf("second event data = %v, want done", events[1].Data)
+	if events[2].Data == nil || string(*events[2].Data) != "done" {
+		t.Errorf("message_stop data = %v, want done", events[2].Data)
 	}
 }
 
 func TestTransformMessageResultNilUsageEmitsZeroUsage(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	events := c.transformMessage(ClaudeCodeMessage{Type: "result"})
-	if len(events) != 2 {
-		t.Fatalf("got %d events, want 2", len(events))
+	events := transform(t, c, ClaudeCodeMessage{Type: "result"})
+	if len(events) != 3 {
+		t.Fatalf("got %d events, want 3", len(events))
 	}
 
 	var chunk chunkShape
-	if err := json.Unmarshal(*events[0].Data, &chunk); err != nil {
+	if err := json.Unmarshal(*events[1].Data, &chunk); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if chunk.Usage == nil {
@@ -96,17 +180,75 @@ func TestTransformMessageResultNilUsageEmitsZeroUsage(t *testing.T) {
 	}
 }
 
+// permission_denials arrives as an array of objects; the previous []string typing
+// made the whole result line fail to unmarshal, dropping usage and message_stop.
+func TestResultWithPermissionDenialObjectsParsesAndForwards(t *testing.T) {
+	rawJSON := `{
+		"type": "result",
+		"subtype": "success",
+		"session_id": "sess_pd",
+		"duration_ms": 100,
+		"total_cost_usd": 0.01,
+		"usage": {"input_tokens": 1, "output_tokens": 2},
+		"permission_denials": [{"tool_name":"Read","tool_use_id":"toolu_1","tool_input":{"file_path":"/x"}}]
+	}`
+
+	var msg ClaudeCodeMessage
+	if err := json.Unmarshal([]byte(rawJSON), &msg); err != nil {
+		t.Fatalf("unmarshal result with permission denial objects: %v", err)
+	}
+
+	c := &ClaudeCodeClient{}
+	events := c.transformMessage(msg, []byte(rawJSON), "claude-haiku-4-5")
+	if len(events) != 3 {
+		t.Fatalf("got %d events, want 3", len(events))
+	}
+
+	var meta resultMetadataShape
+	if err := json.Unmarshal(*events[0].Data, &meta); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	var denials []struct {
+		ToolName  string `json:"tool_name"`
+		ToolUseID string `json:"tool_use_id"`
+	}
+	if err := json.Unmarshal(meta.PermissionDenials, &denials); err != nil {
+		t.Fatalf("unmarshal denials: %v", err)
+	}
+	if len(denials) != 1 || denials[0].ToolName != "Read" || denials[0].ToolUseID != "toolu_1" {
+		t.Errorf("denials = %+v, want one Read/toolu_1", denials)
+	}
+}
+
+func TestResultEmptyPermissionDenialsOmitted(t *testing.T) {
+	rawJSON := `{"type":"result","subtype":"success","permission_denials":[]}`
+	var msg ClaudeCodeMessage
+	if err := json.Unmarshal([]byte(rawJSON), &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	c := &ClaudeCodeClient{}
+	events := c.transformMessage(msg, []byte(rawJSON), "")
+	var meta map[string]any
+	if err := json.Unmarshal(*events[0].Data, &meta); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	if _, ok := meta["permission_denials"]; ok {
+		t.Error("empty permission_denials should be omitted from metadata")
+	}
+}
+
 func TestProcessEventsCapturesUsage(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
 	ch := make(chan sdk.SSEvent, 8)
-	for _, ev := range c.transformMessage(ClaudeCodeMessage{
+	for _, ev := range transform(t, c, ClaudeCodeMessage{
 		Type:    "assistant",
 		Message: json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"hello"}]}`),
 	}) {
 		ch <- ev
 	}
-	for _, ev := range c.transformMessage(ClaudeCodeMessage{
+	for _, ev := range transform(t, c, ClaudeCodeMessage{
 		Type:  "result",
 		Usage: &ClaudeUsage{InputTokens: 10, OutputTokens: 5},
 	}) {
@@ -119,7 +261,7 @@ func TestProcessEventsCapturesUsage(t *testing.T) {
 		t.Fatalf("processEvents: %v", err)
 	}
 	if content != "hello" {
-		t.Errorf("content = %q, want hello (empty-delta usage chunk must not corrupt content)", content)
+		t.Errorf("content = %q, want hello (metadata/usage events must not corrupt content)", content)
 	}
 	if usage == nil {
 		t.Fatal("usage is nil")
@@ -178,39 +320,37 @@ func TestBuildArgsIncludesHookEvents(t *testing.T) {
 func TestTransformMessageUserWithToolFailure(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	// Simulate a user message with a failed tool result
 	msg := ClaudeCodeMessage{
 		Type:    "user",
 		Message: json.RawMessage(`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_xxx","is_error":true,"content":"File does not exist."}]}`),
 	}
 
-	events := c.transformMessage(msg)
+	events := transform(t, c, msg)
 
-	// Should get the delta event + tool_failure event
-	if len(events) < 2 {
-		t.Fatalf("got %d events, want at least 2 (delta + tool_failure)", len(events))
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2 (delta + tool_failure)", len(events))
 	}
 
-	// Last event should be a tool_failure
-	lastEvent := events[len(events)-1]
-	if lastEvent.Event == nil || string(*lastEvent.Event) != "tool_failure" {
-		t.Errorf("last event type = %v, want tool_failure", lastEvent.Event)
+	lastEvent := events[1]
+	if eventName(lastEvent) != "tool_failure" {
+		t.Fatalf("last event type = %q, want tool_failure", eventName(lastEvent))
+	}
+	if lastEvent.Data == nil {
+		t.Fatal("tool_failure has nil data")
 	}
 
-	if lastEvent.Data != nil {
-		var failure struct {
-			ToolUseID string `json:"tool_use_id"`
-			Error     string `json:"error"`
-		}
-		if err := json.Unmarshal(*lastEvent.Data, &failure); err != nil {
-			t.Fatalf("unmarshal tool_failure: %v", err)
-		}
-		if failure.ToolUseID != "toolu_xxx" {
-			t.Errorf("tool_use_id = %q, want toolu_xxx", failure.ToolUseID)
-		}
-		if failure.Error != "File does not exist." {
-			t.Errorf("error = %q, want File does not exist.", failure.Error)
-		}
+	var failure struct {
+		ToolUseID string `json:"tool_use_id"`
+		Error     string `json:"error"`
+	}
+	if err := json.Unmarshal(*lastEvent.Data, &failure); err != nil {
+		t.Fatalf("unmarshal tool_failure: %v", err)
+	}
+	if failure.ToolUseID != "toolu_xxx" {
+		t.Errorf("tool_use_id = %q, want toolu_xxx", failure.ToolUseID)
+	}
+	if failure.Error != "File does not exist." {
+		t.Errorf("error = %q, want File does not exist.", failure.Error)
 	}
 }
 
@@ -222,13 +362,12 @@ func TestTransformMessageUserWithSuccessfulTool(t *testing.T) {
 		Message: json.RawMessage(`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_success","is_error":false,"content":"Operation completed."}]}`),
 	}
 
-	events := c.transformMessage(msg)
+	events := transform(t, c, msg)
 
-	// Should only get the delta event, no tool_failure
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1 (delta only, no tool_failure)", len(events))
 	}
-	if events[0].Event != nil && string(*events[0].Event) == "tool_failure" {
+	if eventName(events[0]) == "tool_failure" {
 		t.Error("unexpected tool_failure event for successful tool result")
 	}
 }
@@ -240,128 +379,174 @@ func TestTransformMessageSystemInit(t *testing.T) {
 		Type:              "system",
 		Subtype:           "init",
 		SessionID:         "session_123",
-		ClaudeModel:       "claude-fable-5",
+		CWD:               "/home/user/repo",
+		ClaudeModel:       "claude-haiku-4-5",
+		PermissionMode:    "default",
 		ClaudeCodeVersion: "2.1.197",
 		Tools:             []string{"Read", "Bash", "Write"},
 	}
 
-	events := c.transformMessage(msg)
+	events := transform(t, c, msg)
 
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1 (system_init)", len(events))
 	}
-
-	if events[0].Event == nil || string(*events[0].Event) != "system_init" {
-		t.Errorf("event type = %v, want system_init", events[0].Event)
+	if eventName(events[0]) != "system_init" {
+		t.Fatalf("event type = %q, want system_init", eventName(events[0]))
+	}
+	if events[0].Data == nil {
+		t.Fatal("system_init has nil data")
 	}
 
-	if events[0].Data != nil {
-		var init struct {
-			Type    string   `json:"type"`
-			Model   string   `json:"model"`
-			Version string   `json:"claude_code_version"`
-			Tools   []string `json:"tools"`
-		}
-		if err := json.Unmarshal(*events[0].Data, &init); err != nil {
-			t.Fatalf("unmarshal system_init: %v", err)
-		}
-		if init.Type != "system_init" {
-			t.Errorf("type = %q, want system_init", init.Type)
-		}
-		if init.Model != "claude-fable-5" {
-			t.Errorf("model = %q, want claude-fable-5", init.Model)
-		}
-		if init.Version != "2.1.197" {
-			t.Errorf("version = %q, want 2.1.197", init.Version)
-		}
-		if len(init.Tools) != 3 || init.Tools[0] != "Read" {
-			t.Errorf("tools = %v, want [Read Bash Write]", init.Tools)
+	var init struct {
+		Type           string   `json:"type"`
+		CWD            string   `json:"cwd"`
+		Model          string   `json:"model"`
+		PermissionMode string   `json:"permission_mode"`
+		Version        string   `json:"claude_code_version"`
+		Tools          []string `json:"tools"`
+	}
+	if err := json.Unmarshal(*events[0].Data, &init); err != nil {
+		t.Fatalf("unmarshal system_init: %v", err)
+	}
+	if init.Type != "system_init" {
+		t.Errorf("type = %q, want system_init", init.Type)
+	}
+	if init.CWD != "/home/user/repo" || init.PermissionMode != "default" {
+		t.Errorf("cwd/permission_mode = %q/%q, want /home/user/repo/default", init.CWD, init.PermissionMode)
+	}
+	if init.Model != "claude-haiku-4-5" {
+		t.Errorf("model = %q, want claude-haiku-4-5", init.Model)
+	}
+	if init.Version != "2.1.197" {
+		t.Errorf("version = %q, want 2.1.197", init.Version)
+	}
+	if len(init.Tools) != 3 || init.Tools[0] != "Read" {
+		t.Errorf("tools = %v, want [Read Bash Write]", init.Tools)
+	}
+}
+
+func TestTransformMessageSystemNonInitSubtypeIgnored(t *testing.T) {
+	c := &ClaudeCodeClient{}
+
+	for _, subtype := range []string{"", "thinking_tokens", "other"} {
+		events := transform(t, c, ClaudeCodeMessage{Type: "system", Subtype: subtype})
+		if len(events) != 0 {
+			t.Errorf("subtype %q: got %d events, want 0", subtype, len(events))
 		}
 	}
 }
 
-func TestTransformMessageSystemNoSubtype(t *testing.T) {
+// Hook lifecycle events arrive as type=system with subtype hook_started /
+// hook_response; the raw line is forwarded verbatim as a hook_event.
+func TestTransformMessageHookEventForwardsRawLine(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	// system event without init subtype should not produce events
-	msg := ClaudeCodeMessage{Type: "system"}
-	events := c.transformMessage(msg)
-	if len(events) != 0 {
-		t.Errorf("got %d events, want 0 for non-init system event", len(events))
-	}
-}
-
-func TestTransformMessageHookEvent(t *testing.T) {
-	c := &ClaudeCodeClient{}
-
-	msg := ClaudeCodeMessage{
-		Type:    "hook",
-		Subtype: "pre_tool",
+	rawJSON := `{"type":"system","subtype":"hook_started","hook_id":"h1","hook_name":"PostToolUse:Bash","hook_event":"PostToolUse","session_id":"sess_1"}`
+	var msg ClaudeCodeMessage
+	if err := json.Unmarshal([]byte(rawJSON), &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
 
-	events := c.transformMessage(msg)
+	events := c.transformMessage(msg, []byte(rawJSON), "")
 
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1 (hook_event)", len(events))
 	}
-
-	if events[0].Event == nil || string(*events[0].Event) != "hook_event" {
-		t.Errorf("event type = %v, want hook_event", events[0].Event)
+	if eventName(events[0]) != "hook_event" {
+		t.Fatalf("event type = %q, want hook_event", eventName(events[0]))
 	}
-
-	if events[0].Data != nil {
-		var hook struct {
-			Type    string `json:"type"`
-			Subtype string `json:"subtype"`
-		}
-		if err := json.Unmarshal(*events[0].Data, &hook); err != nil {
-			t.Fatalf("unmarshal hook_event: %v", err)
-		}
-		if hook.Type != "hook" {
-			t.Errorf("type = %q, want hook", hook.Type)
-		}
-		if hook.Subtype != "pre_tool" {
-			t.Errorf("subtype = %q, want pre_tool", hook.Subtype)
-		}
+	if events[0].Data == nil || string(*events[0].Data) != rawJSON {
+		t.Errorf("hook_event data must be the raw line, got %s", *events[0].Data)
 	}
 }
 
 func TestTransformMessageUnknownType(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
-	msg := ClaudeCodeMessage{Type: "unknown_event_type"}
-	events := c.transformMessage(msg)
-
-	// Unknown events should be silently ignored
+	events := transform(t, c, ClaudeCodeMessage{Type: "rate_limit_event"})
 	if len(events) != 0 {
 		t.Errorf("got %d events, want 0 for unknown type", len(events))
 	}
 }
 
-func TestTransformMessageResultWithExtendedFields(t *testing.T) {
+func TestModelStampedOnChunks(t *testing.T) {
 	c := &ClaudeCodeClient{}
 
 	msg := ClaudeCodeMessage{
-		Type:           "result",
-		Subtype:        "success",
-		IsError:        false,
-		DurationMS:     14073,
-		NumTurns:       3,
-		Result:         "Task completed successfully.",
-		StopReason:     "end_turn",
-		TotalCostUSD:   0.378879,
-		TerminalReason: "completed",
+		Type:    "assistant",
+		Message: json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"hi"}]}`),
+	}
+	events := c.transformMessage(msg, nil, "claude-haiku-4-5")
+	if len(events) != 1 {
+		t.Fatalf("got %d events, want 1", len(events))
 	}
 
-	events := c.transformMessage(msg)
+	var chunk chunkShape
+	if err := json.Unmarshal(*events[0].Data, &chunk); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if chunk.Model != "claude-haiku-4-5" {
+		t.Errorf("model = %q, want claude-haiku-4-5", chunk.Model)
+	}
+}
 
-	// Should still produce 2 events (usage + message_stop)
-	if len(events) != 2 {
-		t.Fatalf("got %d events, want 2", len(events))
+// TestGoldenStreamFixture runs every captured real-CLI line (claude 2.1.197)
+// through the parse+transform path and asserts the event kinds produced.
+func TestGoldenStreamFixture(t *testing.T) {
+	f, err := os.Open(filepath.Join("testdata", "stream_events.jsonl"))
+	if err != nil {
+		t.Fatalf("open fixture: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	c := &ClaudeCodeClient{}
+	var model string
+	var eventNames []string
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 256*1024), 10*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		var msg ClaudeCodeMessage
+		if err := json.Unmarshal(line, &msg); err != nil {
+			t.Fatalf("fixture line failed to unmarshal: %v\n%s", err, line)
+		}
+		if msg.Type == "system" && msg.Subtype == "init" {
+			model = msg.ClaudeModel
+		}
+		for _, ev := range c.transformMessage(msg, line, model) {
+			eventNames = append(eventNames, eventName(ev))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner: %v", err)
 	}
 
-	if events[1].Event == nil || string(*events[1].Event) != "message_stop" {
-		t.Errorf("second event = %v, want message_stop", events[1].Event)
+	want := []string{
+		"system_init",         // system/init
+		"content_block_delta", // assistant text (or thinking)
+		"content_block_delta", // assistant tool_use
+		"hook_event",          // hook_started
+		"hook_event",          // hook_response
+		"content_block_delta", // tool_result success
+		"content_block_delta", // tool_result error delta
+		"tool_failure",        // tool_result error typed event
+		"result_metadata",     // result
+		"content_block_delta", // usage chunk
+		"message_stop",        // terminator
+	}
+	if len(eventNames) != len(want) {
+		t.Fatalf("event sequence = %v, want %v", eventNames, want)
+	}
+	for i := range want {
+		if eventNames[i] != want[i] {
+			t.Errorf("event[%d] = %q, want %q (full: %v)", i, eventNames[i], want[i], eventNames)
+		}
+	}
+
+	if model != "claude-haiku-4-5" {
+		t.Errorf("model from init = %q, want claude-haiku-4-5", model)
 	}
 }
 
@@ -370,55 +555,47 @@ func TestCreateToolFailureEvent(t *testing.T) {
 
 	event := c.createToolFailureEvent("toolu_fail_123", "Permission denied")
 
-	if event.Event == nil || string(*event.Event) != "tool_failure" {
-		t.Errorf("event type = %v, want tool_failure", event.Event)
+	if eventName(event) != "tool_failure" {
+		t.Fatalf("event type = %q, want tool_failure", eventName(event))
+	}
+	if event.Data == nil {
+		t.Fatal("tool_failure has nil data")
 	}
 
-	if event.Data != nil {
-		var data map[string]any
-		if err := json.Unmarshal(*event.Data, &data); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
-		if data["tool_use_id"] != "toolu_fail_123" {
-			t.Errorf("tool_use_id = %v, want toolu_fail_123", data["tool_use_id"])
-		}
-		if data["error"] != "Permission denied" {
-			t.Errorf("error = %v, want Permission denied", data["error"])
-		}
+	var data map[string]any
+	if err := json.Unmarshal(*event.Data, &data); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
-}
-
-func TestCreateSystemEventNonInitReturnsNil(t *testing.T) {
-	c := &ClaudeCodeClient{}
-
-	// System event without init subtype should return nil
-	msg := ClaudeCodeMessage{Type: "system", Subtype: "other"}
-	event := c.createSystemEvent(msg)
-	if event != nil {
-		t.Error("expected nil for non-init system event")
+	if data["tool_use_id"] != "toolu_fail_123" {
+		t.Errorf("tool_use_id = %v, want toolu_fail_123", data["tool_use_id"])
+	}
+	if data["error"] != "Permission denied" {
+		t.Errorf("error = %v, want Permission denied", data["error"])
 	}
 }
 
-func TestClaudeCodeMessageExtendedFieldsParsing(t *testing.T) {
-	// Verify that the JSONL stream JSON can be unmarshalled into ClaudeCodeMessage
-	// with the extended fields
+func TestClaudeCodeMessageResultFieldsParsing(t *testing.T) {
+	// Field names verified against real claude 2.1.197 stream-json output.
 	rawJSON := `{
 		"type": "result",
 		"subtype": "success",
 		"is_error": false,
 		"session_id": "sess_001",
 		"duration_ms": 5000,
+		"duration_api_ms": 4800,
+		"ttft_ms": 1771,
+		"ttft_stream_ms": 1296,
 		"num_turns": 5,
 		"result": "Done",
 		"stop_reason": "end_turn",
+		"terminal_reason": "completed",
 		"total_cost_usd": 0.15,
 		"permission_denials": [],
-		"terminal_reason": "completed",
 		"usage": {
 			"input_tokens": 100,
 			"output_tokens": 50,
-			"cache_creation_input_tokens": 0,
-			"cache_read_input_tokens": 0
+			"cache_creation_input_tokens": 10,
+			"cache_read_input_tokens": 20
 		}
 	}`
 
@@ -427,26 +604,20 @@ func TestClaudeCodeMessageExtendedFieldsParsing(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if msg.StopReason != "end_turn" {
-		t.Errorf("StopReason = %q, want end_turn", msg.StopReason)
+	if msg.StopReason != "end_turn" || msg.TerminalReason != "completed" {
+		t.Errorf("stop/terminal = %q/%q, want end_turn/completed", msg.StopReason, msg.TerminalReason)
 	}
-	if msg.TerminalReason != "completed" {
-		t.Errorf("TerminalReason = %q, want completed", msg.TerminalReason)
+	if msg.DurationMS != 5000 || msg.DurationAPIMS != 4800 {
+		t.Errorf("durations = %d/%d, want 5000/4800", msg.DurationMS, msg.DurationAPIMS)
 	}
-	if msg.Result != "Done" {
-		t.Errorf("Result = %q, want Done", msg.Result)
+	if msg.TTFTMS != 1771 || msg.TTFTStreamMS != 1296 {
+		t.Errorf("ttft = %d/%d, want 1771/1296", msg.TTFTMS, msg.TTFTStreamMS)
 	}
-	if msg.TotalCostUSD != 0.15 {
-		t.Errorf("TotalCostUSD = %f, want 0.15", msg.TotalCostUSD)
+	if msg.TotalCostUSD != 0.15 || msg.NumTurns != 5 || msg.Result != "Done" {
+		t.Errorf("cost/turns/result = %f/%d/%q", msg.TotalCostUSD, msg.NumTurns, msg.Result)
 	}
-	if msg.DurationMS != 5000 {
-		t.Errorf("DurationMS = %d, want 5000", msg.DurationMS)
-	}
-	if msg.NumTurns != 5 {
-		t.Errorf("NumTurns = %d, want 5", msg.NumTurns)
-	}
-	if msg.Usage == nil || msg.Usage.InputTokens != 100 {
-		t.Errorf("Usage.InputTokens = %d, want 100", msg.Usage.InputTokens)
+	if msg.Usage == nil || msg.Usage.InputTokens != 100 || msg.Usage.CacheReadInputTokens != 20 {
+		t.Errorf("usage = %+v, want input=100 cache_read=20", msg.Usage)
 	}
 }
 
@@ -456,8 +627,8 @@ func TestClaudeCodeMessageSystemInitParsing(t *testing.T) {
 		"subtype": "init",
 		"session_id": "sess_002",
 		"cwd": "/path/to/repo",
-		"model": "claude-fable-5",
-		"permissionMode": "auto",
+		"model": "claude-haiku-4-5",
+		"permissionMode": "default",
 		"claude_code_version": "2.1.197",
 		"tools": ["Read", "Bash", "Write", "Edit"]
 	}`
@@ -473,8 +644,8 @@ func TestClaudeCodeMessageSystemInitParsing(t *testing.T) {
 	if msg.CWD != "/path/to/repo" {
 		t.Errorf("CWD = %q, want /path/to/repo", msg.CWD)
 	}
-	if msg.ClaudeModel != "claude-fable-5" {
-		t.Errorf("ClaudeModel = %q, want claude-fable-5", msg.ClaudeModel)
+	if msg.ClaudeModel != "claude-haiku-4-5" {
+		t.Errorf("ClaudeModel = %q, want claude-haiku-4-5", msg.ClaudeModel)
 	}
 	if msg.ClaudeCodeVersion != "2.1.197" {
 		t.Errorf("ClaudeCodeVersion = %q, want 2.1.197", msg.ClaudeCodeVersion)
@@ -485,7 +656,6 @@ func TestClaudeCodeMessageSystemInitParsing(t *testing.T) {
 }
 
 func TestToolResultContentWithIsError(t *testing.T) {
-	// Verify that tool_result content blocks with is_error are parsed correctly
 	rawJSON := `{
 		"type": "user",
 		"session_id": "sess_003",

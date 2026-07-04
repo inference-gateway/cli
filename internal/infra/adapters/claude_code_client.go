@@ -225,9 +225,27 @@ func (c *ClaudeCodeClient) streamOutput(
 		}
 	}()
 
+	defer func() {
+		if err := cmd.Wait(); err != nil {
+			stderrDone.Wait()
+			stderrOutput := stderrBuf.String()
+			logger.Error(fmt.Sprintf("Claude CLI process error: %v, stderr: %s", err, stderrOutput))
+
+			if stderrOutput != "" && ctx.Err() == nil {
+				errMsg := []byte(fmt.Sprintf("Claude CLI error: %s", stderrOutput))
+				eventType := sdk.SSEventEvent("error")
+				select {
+				case events <- sdk.SSEvent{Event: &eventType, Data: &errMsg}:
+				case <-ctx.Done():
+				}
+			}
+		}
+	}()
+
 	scanner := bufio.NewScanner(stdout)
-	// Increase scanner buffer to handle large JSON lines (e.g. long tool inputs)
-	scanner.Buffer(make([]byte, 0, 256*1024), 512*1024)
+	scanner.Buffer(make([]byte, 0, 256*1024), 10*1024*1024)
+
+	var model string
 
 	for scanner.Scan() {
 		select {
@@ -251,7 +269,11 @@ func (c *ClaudeCodeClient) streamOutput(
 			continue
 		}
 
-		for _, event := range c.transformMessage(msg) {
+		if msg.Type == "system" && msg.Subtype == "init" && msg.ClaudeModel != "" {
+			model = msg.ClaudeModel
+		}
+
+		for _, event := range c.transformMessage(msg, []byte(line), model) {
 			select {
 			case events <- event:
 			case <-ctx.Done():
@@ -271,32 +293,15 @@ func (c *ClaudeCodeClient) streamOutput(
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
-		stderrDone.Wait()
-
-		stderrOutput := stderrBuf.String()
-		logger.Error(fmt.Sprintf("Claude CLI process error: %v, stderr: %s", err, stderrOutput))
-
-		if stderrOutput != "" {
-			errMsg := []byte(fmt.Sprintf("Claude CLI error: %s", stderrOutput))
-			eventType := sdk.SSEventEvent("error")
-			select {
-			case events <- sdk.SSEvent{Event: &eventType, Data: &errMsg}:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}
 }
 
-// transformMessage converts Claude Code CLI output to SDK SSEvent format
-// Returns a slice of events since a single message can contain multiple content blocks
-func (c *ClaudeCodeClient) createDeltaEvent(delta map[string]any) sdk.SSEvent {
+// createDeltaEvent wraps choices into a chat.completion.chunk SSE event
+func (c *ClaudeCodeClient) createDeltaEvent(delta map[string]any, model string) sdk.SSEvent {
 	streamResponse := map[string]any{
 		"id":      "chatcmpl-" + fmt.Sprintf("%d", time.Now().UnixNano()),
 		"object":  "chat.completion.chunk",
 		"created": time.Now().Unix(),
-		"model":   "",
+		"model":   model,
 		"choices": delta["choices"],
 	}
 
@@ -309,12 +314,12 @@ func (c *ClaudeCodeClient) createDeltaEvent(delta map[string]any) sdk.SSEvent {
 // single empty-delta choice (a no-op for the sync content/tool accumulator, and
 // required by the chat TUI consumer which only reads Usage inside its choices
 // loop) plus the top-level usage object that both consumers read.
-func (c *ClaudeCodeClient) createUsageEvent(usage *sdk.CompletionUsage) sdk.SSEvent {
+func (c *ClaudeCodeClient) createUsageEvent(usage *sdk.CompletionUsage, model string) sdk.SSEvent {
 	streamResponse := map[string]any{
 		"id":      "chatcmpl-" + fmt.Sprintf("%d", time.Now().UnixNano()),
 		"object":  "chat.completion.chunk",
 		"created": time.Now().Unix(),
-		"model":   "",
+		"model":   model,
 		"choices": []map[string]any{
 			{"delta": map[string]any{}, "index": 0},
 		},
@@ -330,164 +335,198 @@ func (c *ClaudeCodeClient) createUsageEvent(usage *sdk.CompletionUsage) sdk.SSEv
 	return sdk.SSEvent{Event: &eventType, Data: &responseBytes}
 }
 
-func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent {
-	var events []sdk.SSEvent
-
+// transformMessage converts one Claude Code JSONL line into SDK SSEvents.
+// raw is the original line, forwarded verbatim for hook events; model is the
+// model learned from the system/init event, stamped on every chunk.
+func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage, raw []byte, model string) []sdk.SSEvent {
 	switch msg.Type {
 	case "assistant":
-		var assistantMsg AssistantMessage
-		if err := json.Unmarshal(msg.Message, &assistantMsg); err != nil {
-			return events
-		}
+		return c.transformAssistantMessage(msg, model)
+	case "result":
+		return c.transformResultMessage(msg, model)
+	case "user":
+		return c.transformUserMessage(msg, model)
+	case "system":
+		return c.transformSystemMessage(msg, raw)
+	default:
+		logger.Debug(fmt.Sprintf("Claude Code unknown event type: %s", msg.Type))
+		return nil
+	}
+}
 
-		var lastBlockType string
-		for _, block := range assistantMsg.Content {
-			switch block.Type {
-			case "text":
-				content := block.Text
-				if lastBlockType == "text" && content != "" {
-					content = "\n" + content
-				}
+// transformAssistantMessage converts assistant content blocks (text, thinking,
+// tool_use) into content_block_delta chunks.
+func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, model string) []sdk.SSEvent {
+	var events []sdk.SSEvent
 
-				response := map[string]any{
-					"choices": []map[string]any{
-						{
-							"delta": map[string]any{
-								"content": content,
-							},
-							"index": 0,
-						},
-					},
-				}
+	var assistantMsg AssistantMessage
+	if err := json.Unmarshal(msg.Message, &assistantMsg); err != nil {
+		logger.Error(fmt.Sprintf("Failed to parse assistant message: %v", err))
+		return events
+	}
 
-				events = append(events, c.createDeltaEvent(response))
-				lastBlockType = "text"
-			case "thinking":
-				response := map[string]any{
-					"choices": []map[string]any{
-						{
-							"delta": map[string]any{
-								"reasoning_content": block.Thinking,
-							},
-							"index": 0,
-						},
-					},
-				}
-
-				events = append(events, c.createDeltaEvent(response))
-			case "tool_use":
-				response := map[string]any{
-					"choices": []map[string]any{
-						{
-							"delta": map[string]any{
-								"tool_calls": []map[string]any{
-									{
-										"index": 0,
-										"id":    block.ID,
-										"type":  "function",
-										"function": map[string]any{
-											"name":      block.Name,
-											"arguments": string(block.Input),
-										},
+	var lastBlockType string
+	for _, block := range assistantMsg.Content {
+		switch block.Type {
+		case "text":
+			content := block.Text
+			if lastBlockType == "text" && content != "" {
+				content = "\n" + content
+			}
+			events = append(events, c.createDeltaEvent(map[string]any{
+				"choices": []map[string]any{
+					{"delta": map[string]any{"content": content}, "index": 0},
+				},
+			}, model))
+			lastBlockType = "text"
+		case "thinking":
+			events = append(events, c.createDeltaEvent(map[string]any{
+				"choices": []map[string]any{
+					{"delta": map[string]any{"reasoning_content": block.Thinking}, "index": 0},
+				},
+			}, model))
+		case "tool_use":
+			events = append(events, c.createDeltaEvent(map[string]any{
+				"choices": []map[string]any{
+					{
+						"delta": map[string]any{
+							"tool_calls": []map[string]any{
+								{
+									"index": 0,
+									"id":    block.ID,
+									"type":  "function",
+									"function": map[string]any{
+										"name":      block.Name,
+										"arguments": string(block.Input),
 									},
 								},
 							},
-							"index": 0,
 						},
+						"index": 0,
 					},
-				}
-
-				events = append(events, c.createDeltaEvent(response))
-			}
+				},
+			}, model))
 		}
+	}
 
+	return events
+}
+
+// transformUserMessage converts tool_result blocks into tool-call delta chunks,
+// plus a typed tool_failure event when the result carries is_error=true.
+func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model string) []sdk.SSEvent {
+	var events []sdk.SSEvent
+
+	var toolResultMsg ToolResultMessage
+	if err := json.Unmarshal(msg.Message, &toolResultMsg); err != nil {
+		logger.Error(fmt.Sprintf("Failed to parse user message: %v", err))
 		return events
+	}
 
-	case "result":
-		usage := &ClaudeUsage{}
-		if msg.Usage != nil {
-			usage = msg.Usage
-		}
-		doneBytes := []byte("done")
-		stopType := sdk.SSEventEvent("message_stop")
-		return []sdk.SSEvent{
-			c.createUsageEvent(usage.toCompletionUsage()),
-			{Event: &stopType, Data: &doneBytes},
+	for _, content := range toolResultMsg.Content {
+		if content.Type != "tool_result" {
+			continue
 		}
 
-	case "user":
-		var toolResultMsg ToolResultMessage
-		if err := json.Unmarshal(msg.Message, &toolResultMsg); err != nil {
-			// Log but don't fail the stream for a single unparsable message
-			logger.Error(fmt.Sprintf("Failed to parse user message: %v", err))
-			return events
-		}
-
-		for _, content := range toolResultMsg.Content {
-			if content.Type == "tool_result" {
-				// Build a delta event for the tool result, including the is_error status
-				toolResultData := []map[string]any{
-					{
-						"index":    0,
-						"id":       content.ToolUseID,
-						"result":   content.Content,
-						"is_error": content.IsError,
-					},
-				}
-
-				response := map[string]any{
-					"choices": []map[string]any{
-						{
-							"delta": map[string]any{
-								"tool_calls": toolResultData,
+		events = append(events, c.createDeltaEvent(map[string]any{
+			"choices": []map[string]any{
+				{
+					"delta": map[string]any{
+						"tool_calls": []map[string]any{
+							{
+								"index":    0,
+								"id":       content.ToolUseID,
+								"result":   content.Content,
+								"is_error": content.IsError,
 							},
-							"finish_reason": "stop",
-							"index":         0,
 						},
 					},
-				}
+					"finish_reason": "stop",
+					"index":         0,
+				},
+			},
+		}, model))
 
-				events = append(events, c.createDeltaEvent(response))
-
-				// Emit a separate tool_failure event when the tool result indicates an error
-				if content.IsError {
-					failureEvent := c.createToolFailureEvent(content.ToolUseID, content.Content)
-					events = append(events, failureEvent)
-				}
-			}
+		if content.IsError {
+			events = append(events, c.createToolFailureEvent(content.ToolUseID, content.Content))
 		}
+	}
 
-		return events
+	return events
+}
 
-	case "system":
-		// Log system events (init, etc.) for debugging but don't forward as content
-		if msg.Subtype != "" {
-			logger.Debug(fmt.Sprintf("Claude Code system event: subtype=%s session=%s", msg.Subtype, msg.SessionID))
-		}
-		// Emit a lightweight notification that the session has started
-		systemEvent := c.createSystemEvent(msg)
-		if systemEvent != nil {
-			events = append(events, *systemEvent)
-		}
-		return events
+// transformResultMessage emits the final-result triple: a result_metadata event
+// carrying run metadata (durations, TTFT, cost, token breakdown incl. cache
+// splits, permission denials), the usage-bearing chunk both accumulators depend
+// on, and the message_stop terminator.
+func (c *ClaudeCodeClient) transformResultMessage(msg ClaudeCodeMessage, model string) []sdk.SSEvent {
+	usage := &ClaudeUsage{}
+	if msg.Usage != nil {
+		usage = msg.Usage
+	}
 
-	case "hook":
-		// Hook events from --include-hook-events are forwarded as a typed
-		// progress event so callers can observe hook lifecycle
-		hookBytes, _ := json.Marshal(map[string]any{
-			"type":    "hook",
-			"subtype": msg.Subtype,
+	metadata := map[string]any{
+		"session_id":      msg.SessionID,
+		"model":           model,
+		"subtype":         msg.Subtype,
+		"is_error":        msg.IsError,
+		"duration_ms":     msg.DurationMS,
+		"duration_api_ms": msg.DurationAPIMS,
+		"ttft_ms":         msg.TTFTMS,
+		"ttft_stream_ms":  msg.TTFTStreamMS,
+		"num_turns":       msg.NumTurns,
+		"stop_reason":     msg.StopReason,
+		"terminal_reason": msg.TerminalReason,
+		"total_cost_usd":  msg.TotalCostUSD,
+		"usage": map[string]any{
+			"input_tokens":                usage.InputTokens,
+			"output_tokens":               usage.OutputTokens,
+			"cache_creation_input_tokens": usage.CacheCreationInputTokens,
+			"cache_read_input_tokens":     usage.CacheReadInputTokens,
+		},
+	}
+	if denials := string(msg.PermissionDenials); denials != "" && denials != "[]" && denials != "null" {
+		metadata["permission_denials"] = msg.PermissionDenials
+	}
+
+	metadataBytes, _ := json.Marshal(metadata)
+	metadataType := sdk.SSEventEvent("result_metadata")
+	doneBytes := []byte("done")
+	stopType := sdk.SSEventEvent("message_stop")
+
+	return []sdk.SSEvent{
+		{Event: &metadataType, Data: &metadataBytes},
+		c.createUsageEvent(usage.toCompletionUsage(), model),
+		{Event: &stopType, Data: &doneBytes},
+	}
+}
+
+// transformSystemMessage handles system-typed lines: init becomes a system_init
+// event with session metadata; hook lifecycle events (from --include-hook-events,
+// emitted as subtype hook_started/hook_response) are forwarded verbatim as
+// hook_event so downstream consumers can derive tool/hook timings.
+func (c *ClaudeCodeClient) transformSystemMessage(msg ClaudeCodeMessage, raw []byte) []sdk.SSEvent {
+	switch msg.Subtype {
+	case "init":
+		initBytes, _ := json.Marshal(map[string]any{
+			"type":                "system_init",
+			"session_id":          msg.SessionID,
+			"cwd":                 msg.CWD,
+			"model":               msg.ClaudeModel,
+			"permission_mode":     msg.PermissionMode,
+			"claude_code_version": msg.ClaudeCodeVersion,
+			"tools":               msg.Tools,
 		})
+		eventType := sdk.SSEventEvent("system_init")
+		return []sdk.SSEvent{{Event: &eventType, Data: &initBytes}}
+	case "hook_started", "hook_response":
+		hookBytes := make([]byte, len(raw))
+		copy(hookBytes, raw)
 		eventType := sdk.SSEventEvent("hook_event")
-		events = append(events, sdk.SSEvent{
-			Event: &eventType,
-			Data:  &hookBytes,
-		})
-		return events
-
+		return []sdk.SSEvent{{Event: &eventType, Data: &hookBytes}}
 	default:
-		logger.Debug(fmt.Sprintf("Claude Code unknown event type: %s", msg.Type))
-		return events
+		logger.Debug(fmt.Sprintf("Claude Code system event: subtype=%s session=%s", msg.Subtype, msg.SessionID))
+		return nil
 	}
 }
 
@@ -503,26 +542,6 @@ func (c *ClaudeCodeClient) createToolFailureEvent(toolUseID, errorMsg string) sd
 	return sdk.SSEvent{
 		Event: &eventType,
 		Data:  &failureBytes,
-	}
-}
-
-// createSystemEvent emits a lightweight notification for system-level events
-// (e.g. session init).
-func (c *ClaudeCodeClient) createSystemEvent(msg ClaudeCodeMessage) *sdk.SSEvent {
-	if msg.Subtype != "init" {
-		return nil
-	}
-	initBytes, _ := json.Marshal(map[string]any{
-		"type":                "system_init",
-		"session_id":          msg.SessionID,
-		"model":               msg.ClaudeModel,
-		"claude_code_version": msg.ClaudeCodeVersion,
-		"tools":               msg.Tools,
-	})
-	eventType := sdk.SSEventEvent("system_init")
-	return &sdk.SSEvent{
-		Event: &eventType,
-		Data:  &initBytes,
 	}
 }
 
@@ -600,15 +619,20 @@ type ClaudeCodeMessage struct {
 	ToolUseResult json.RawMessage `json:"tool_use_result,omitempty"`
 
 	// Final result fields (type: result)
-	IsError           bool         `json:"is_error,omitempty"`
-	DurationMS        int          `json:"duration_ms,omitempty"`
-	NumTurns          int          `json:"num_turns,omitempty"`
-	Result            string       `json:"result,omitempty"`
-	StopReason        string       `json:"stop_reason,omitempty"`
-	TotalCostUSD      float64      `json:"total_cost_usd,omitempty"`
-	PermissionDenials []string     `json:"permission_denials,omitempty"`
-	TerminalReason    string       `json:"terminal_reason,omitempty"`
-	Usage             *ClaudeUsage `json:"usage,omitempty"`
+	IsError        bool    `json:"is_error,omitempty"`
+	DurationMS     int     `json:"duration_ms,omitempty"`
+	DurationAPIMS  int     `json:"duration_api_ms,omitempty"`
+	TTFTMS         int     `json:"ttft_ms,omitempty"`
+	TTFTStreamMS   int     `json:"ttft_stream_ms,omitempty"`
+	NumTurns       int     `json:"num_turns,omitempty"`
+	Result         string  `json:"result,omitempty"`
+	StopReason     string  `json:"stop_reason,omitempty"`
+	TotalCostUSD   float64 `json:"total_cost_usd,omitempty"`
+	TerminalReason string  `json:"terminal_reason,omitempty"`
+	// PermissionDenials is an array of objects ({tool_name, tool_use_id,
+	// tool_input}); kept raw and forwarded verbatim on result_metadata.
+	PermissionDenials json.RawMessage `json:"permission_denials,omitempty"`
+	Usage             *ClaudeUsage    `json:"usage,omitempty"`
 }
 
 // ClaudeUsage is Anthropic's token breakdown as reported on the result message.

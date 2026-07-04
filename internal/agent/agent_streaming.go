@@ -202,6 +202,11 @@ func (a *EventDrivenAgent) processStreamEvent(
 		return nil
 	}
 
+	switch string(*event.Event) {
+	case "message_stop", "system_init", "hook_event", "tool_failure", "result_metadata":
+		return nil
+	}
+
 	var streamResponse sdk.CreateChatCompletionStreamResponse
 	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
 		logger.Error("failed to unmarshal chat completion stream response",
