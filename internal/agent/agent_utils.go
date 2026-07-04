@@ -860,6 +860,9 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}
+	if hook == domain.HookPreStream {
+		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
+	}
 	for _, r := range provider.RemindersDue(q) {
 		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
 		*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
@@ -885,6 +888,29 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		})
 		s.firedReminders[r.Name] = true
 	}
+}
+
+// modeChangeSinceLastStream reads the live agent mode and compares it against
+// the previous streaming turn's mode, advancing the stored baseline. The first
+// call seeds the baseline without reporting a change; a nil stateManager (the
+// headless path has no mid-session mode) never reports a change. The result
+// drives the on_mode_change reminder trigger via ReminderQuery.
+func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur domain.AgentMode) {
+	if s.stateManager == nil {
+		return false, domain.AgentModeStandard, domain.AgentModeStandard
+	}
+	cur = s.stateManager.GetAgentMode()
+
+	s.modeMux.Lock()
+	defer s.modeMux.Unlock()
+	if !s.modeInitialized {
+		s.modeInitialized = true
+		s.lastStreamedMode = cur
+		return false, cur, cur
+	}
+	prev = s.lastStreamedMode
+	s.lastStreamedMode = cur
+	return prev != cur, prev, cur
 }
 
 // isCompleteJSON checks if a string is a complete, valid JSON
