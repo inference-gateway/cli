@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.131.0](https://github.com/inference-gateway/cli/compare/v0.130.1...v0.131.0) (2026-07-04)
+
+### 🚀 Features
+
+* **agent:** inject hidden reminder on mid-session mode change ([#740](https://github.com/inference-gateway/cli/issues/740)) ([17d688b](https://github.com/inference-gateway/cli/commit/17d688b5e8c8286b01a250cdbef052d14f15d2a7))
+
+### 👷 CI/CD
+
+* **deps:** update inference workflow to version 0.14.13 ([85673b1](https://github.com/inference-gateway/cli/commit/85673b192b64efa59fb3e07119e4d28f25668267))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.125.0 -> v0.130.1, infer-action v0.22.0 -> v0.23.1 ([#738](https://github.com/inference-gateway/cli/issues/738)) ([1d8b1bd](https://github.com/inference-gateway/cli/commit/1d8b1bdec137de09c7a28d675b71af5291ab4e48))
+
 ## [0.130.1](https://github.com/inference-gateway/cli/compare/v0.130.0...v0.130.1) (2026-07-03)
 
 ### 🐛 Bug Fixes
