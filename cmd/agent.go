@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -109,6 +110,15 @@ type AgentSession struct {
 	totalCompletionTokens int
 	totalTokens           int
 	requestCount          int
+	claudeTasks           []claudeTask
+}
+
+// claudeTask mirrors one entry of Claude Code's native task list (TaskCreate/
+// TaskUpdate). Claude assigns sequential ids, so index+1 == task id.
+type claudeTask struct {
+	Content string
+	Status  string
+	Deleted bool
 }
 
 // inheritedSubagentMode returns the coding mode a subagent should start in, read
@@ -702,6 +712,9 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 
 	if len(response.ToolCalls) > 0 {
 		assistantMsg.ToolCalls = &response.ToolCalls
+		if s.config.IsClaudeCodeMode() {
+			s.feedTaskAccumulator(response.ToolCalls)
+		}
 	}
 
 	s.addMessage(assistantMsg)
@@ -724,7 +737,12 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		return nil
 	}
 
-	toolResults := s.executeToolCalls(response.ToolCalls)
+	var toolResults []ConversationMessage
+	if s.config.IsClaudeCodeMode() {
+		toolResults = s.claudeToolResultMessages(response.ToolCalls, response.ToolResults)
+	} else {
+		toolResults = s.executeToolCalls(response.ToolCalls)
+	}
 	s.lastToolFailed = anyToolResultFailed(toolResults)
 
 	for _, result := range toolResults {
@@ -836,6 +854,163 @@ func (s *AgentSession) readApprovalResponses() {
 	if err := scanner.Err(); err != nil {
 		logger.Warn("error reading approval responses from stdin", "error", err)
 	}
+}
+
+// claudeToolResultMessages builds tool messages from the results claude
+// reported for tool calls it executed itself (Claude Code mode). A call with
+// no reported result gets a neutral placeholder so the tool_call is never
+// left unanswered in the replayed conversation.
+func (s *AgentSession) claudeToolResultMessages(
+	toolCalls []sdk.ChatCompletionMessageToolCall,
+	results map[string]domain.ToolCallResult,
+) []ConversationMessage {
+	messages := make([]ConversationMessage, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		result, ok := results[tc.ID]
+		content := result.Content
+		if !ok || content == "" {
+			content = "Executed by Claude Code (no result reported)."
+		}
+		execution := &domain.ToolExecutionResult{
+			ToolName: tc.Function.Name,
+			Success:  !result.IsError,
+		}
+		if result.IsError {
+			execution.Error = result.Content
+		}
+		messages = append(messages, ConversationMessage{
+			Role:          "tool",
+			Content:       content,
+			ToolCallID:    tc.ID,
+			ToolExecution: execution,
+			Timestamp:     time.Now(),
+		})
+	}
+	return messages
+}
+
+// feedTaskAccumulator tracks Claude Code's native task list from TaskCreate/
+// TaskUpdate tool calls so the headless output can mirror it as a TodoWrite
+// view. Claude assigns sequential task ids, so creation order == id.
+func (s *AgentSession) feedTaskAccumulator(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	for _, tc := range toolCalls {
+		switch tc.Function.Name {
+		case "TaskCreate":
+			var input struct {
+				Subject string `json:"subject"`
+			}
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil || input.Subject == "" {
+				logger.Debug("skipping unparsable TaskCreate input", "error", err)
+				continue
+			}
+			s.claudeTasks = append(s.claudeTasks, claudeTask{Content: input.Subject, Status: "pending"})
+		case "TaskUpdate":
+			s.applyTaskUpdate(tc.Function.Arguments)
+		}
+	}
+}
+
+// applyTaskUpdate applies a single TaskUpdate call to the accumulated task
+// list. The schema is parsed defensively (taskId may arrive as "1", "#1" or a
+// number; status/subject are optional) so drift in claude's tool schema
+// degrades to a no-op rather than corrupting the mirror.
+func (s *AgentSession) applyTaskUpdate(arguments string) {
+	var input struct {
+		TaskID  any    `json:"taskId"`
+		Status  string `json:"status"`
+		Subject string `json:"subject"`
+	}
+	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
+		logger.Debug("skipping unparsable TaskUpdate input", "error", err)
+		return
+	}
+
+	var id int
+	switch v := input.TaskID.(type) {
+	case string:
+		id, _ = strconv.Atoi(strings.TrimPrefix(v, "#"))
+	case float64:
+		id = int(v)
+	}
+	if id < 1 || id > len(s.claudeTasks) {
+		logger.Debug("TaskUpdate references unknown task", "task_id", input.TaskID)
+		return
+	}
+
+	task := &s.claudeTasks[id-1]
+	if input.Subject != "" {
+		task.Content = input.Subject
+	}
+	switch input.Status {
+	case "pending", "in_progress", "completed":
+		task.Status = input.Status
+	case "deleted":
+		task.Deleted = true
+	}
+}
+
+// isClaudeTaskTool reports whether the tool name is one of Claude Code's
+// native task tools mirrored into the TodoWrite output view.
+func isClaudeTaskTool(name string) bool {
+	return name == "TaskCreate" || name == "TaskUpdate"
+}
+
+// renderTodoWriteView returns a copy of the message where Claude Code's
+// TaskCreate/TaskUpdate tool calls are replaced by a single synthesized
+// TodoWrite call carrying the full accumulated todo list, so downstream
+// consumers (infer-action) can mirror progress. Non-task tool calls are
+// preserved; messages without task calls are returned unchanged.
+func (s *AgentSession) renderTodoWriteView(msg ConversationMessage) ConversationMessage {
+	if msg.ToolCalls == nil {
+		return msg
+	}
+
+	hasTaskCall := false
+	for _, tc := range *msg.ToolCalls {
+		if isClaudeTaskTool(tc.Function.Name) {
+			hasTaskCall = true
+			break
+		}
+	}
+	if !hasTaskCall {
+		return msg
+	}
+
+	todos := make([]map[string]any, 0, len(s.claudeTasks))
+	for _, task := range s.claudeTasks {
+		if task.Deleted {
+			continue
+		}
+		todos = append(todos, map[string]any{"content": task.Content, "status": task.Status})
+	}
+	arguments, err := json.Marshal(map[string]any{"todos": todos})
+	if err != nil {
+		return msg
+	}
+
+	rendered := make([]sdk.ChatCompletionMessageToolCall, 0, len(*msg.ToolCalls))
+	todoWriteAdded := false
+	for _, tc := range *msg.ToolCalls {
+		if !isClaudeTaskTool(tc.Function.Name) {
+			rendered = append(rendered, tc)
+			continue
+		}
+		if todoWriteAdded {
+			continue
+		}
+		todoWriteAdded = true
+		rendered = append(rendered, sdk.ChatCompletionMessageToolCall{
+			ID:   tc.ID,
+			Type: tc.Type,
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      "TodoWrite",
+				Arguments: string(arguments),
+			},
+		})
+	}
+
+	msg.ToolCalls = &rendered
+	return msg
 }
 
 // toolResultMessage builds the conversation message for a finished tool call,
@@ -1143,6 +1318,10 @@ func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 // pending tool_calls) - that guard is reminder-specific and must not block
 // command hooks, which is why it lives here rather than in dispatchHooks.
 func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
+	if s.config != nil && s.config.IsClaudeCodeMode() {
+		return
+	}
+
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders
@@ -1248,10 +1427,13 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	}
 
 	logMsg := msg
+	if s.config.IsClaudeCodeMode() {
+		logMsg = s.renderTodoWriteView(logMsg)
+	}
 
-	if !s.config.Agent.VerboseTools && msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
-		summaries := make([]string, len(*msg.ToolCalls))
-		for i, toolCall := range *msg.ToolCalls {
+	if !s.config.Agent.VerboseTools && logMsg.ToolCalls != nil && len(*logMsg.ToolCalls) > 0 {
+		summaries := make([]string, len(*logMsg.ToolCalls))
+		for i, toolCall := range *logMsg.ToolCalls {
 			summaries[i] = formatToolCallSummary(toolCall.Function.Name, toolCall.Function.Arguments)
 		}
 		logMsg.Tools = summaries

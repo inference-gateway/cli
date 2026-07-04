@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func transform(t *testing.T, c *ClaudeCodeClient, msg ClaudeCodeMessage) []sdk.SSEvent {
@@ -705,12 +707,6 @@ func TestToolResultContentWithIsError(t *testing.T) {
 	}
 }
 
-// todoWriteCounts tracks the counts collected during processing.
-type todoWriteCounts struct {
-	ToolUse int
-	Result  int
-}
-
 // extractToolCallsFromEvent extracts tool call maps from an SSE event's delta.
 // Returns nil if the event has no tool calls.
 func extractToolCallsFromEvent(ev sdk.SSEvent) []map[string]any {
@@ -746,104 +742,20 @@ func extractToolCallsFromEvent(ev sdk.SSEvent) []map[string]any {
 	return toolCalls
 }
 
-// todoWriteArgs holds the expected shape of TodoWrite arguments.
-type todoWriteArgs struct {
-	Todos []struct {
-		Content string `json:"content"`
-		Status  string `json:"status"`
-	} `json:"todos"`
-}
-
-// todoWriteResult holds the expected shape of a TodoWrite result.
-type todoWriteResult struct {
-	Todos          []any `json:"todos"`
-	TotalTasks     int   `json:"total_tasks"`
-	CompletedTasks int   `json:"completed_tasks"`
-	ValidationOK   bool  `json:"validation_ok"`
-}
-
-// validateTodoWriteArgs checks the shape of a TodoWrite arguments JSON string.
-func validateTodoWriteArgs(t *testing.T, args string) {
-	t.Helper()
-
-	var ta todoWriteArgs
-	if err := json.Unmarshal([]byte(args), &ta); err != nil {
-		t.Errorf("TodoWrite arguments not valid JSON: %v", err)
-		return
-	}
-	if len(ta.Todos) != 1 {
-		t.Errorf("TodoWrite arguments: got %d todos, want 1", len(ta.Todos))
-		return
-	}
-	if ta.Todos[0].Status != "in_progress" {
-		t.Errorf("TodoWrite todo status = %q, want in_progress", ta.Todos[0].Status)
-		return
-	}
-	if ta.Todos[0].Content == "" {
-		t.Error("TodoWrite todo content is empty")
-	}
-}
-
-// processToolCall inspects a single tool call map and updates counts.
-// It returns true if the tool call was a TodoWrite (for result matching).
-func processToolCall(t *testing.T, tc map[string]any, c *ClaudeCodeClient, counts *todoWriteCounts) bool {
-	t.Helper()
-
-	funcRaw, ok := tc["function"].(map[string]any)
-	if !ok {
-		return false
-	}
-	name, _ := funcRaw["name"].(string)
-	if name != "TodoWrite" {
-		return false
-	}
-	counts.ToolUse++
-	args, _ := funcRaw["arguments"].(string)
-	validateTodoWriteArgs(t, args)
-	return true
-}
-
-// processToolResult inspects a tool result and updates counts.
-func processToolResult(t *testing.T, tc map[string]any, c *ClaudeCodeClient, counts *todoWriteCounts) {
-	t.Helper()
-
-	resultStr, ok := tc["result"].(string)
-	if !ok {
-		return
-	}
-	if _, isTaskCreate := c.taskCreateIDs[tc["id"].(string)]; isTaskCreate {
-		// This was a mapped TaskCreate result; it should have been remapped.
-		// If we see it here, the mapping didn't work.
-		return
-	}
-	var tr todoWriteResult
-	if err := json.Unmarshal([]byte(resultStr), &tr); err != nil || !tr.ValidationOK {
-		return
-	}
-	counts.Result++
-	if tr.TotalTasks != 1 {
-		t.Errorf("TodoWrite result: total_tasks = %d, want 1", tr.TotalTasks)
-	}
-	if len(tr.Todos) != 1 {
-		t.Errorf("TodoWrite result: got %d todos, want 1", len(tr.Todos))
-	}
-}
-
-// TestTaskCreateToTodoWriteMapping uses the real claude-run.jsonl fixture to
-// verify that TaskCreate tool_use and tool_result events are mapped to TodoWrite
-// equivalents through the full transform pipeline.
-func TestTaskCreateToTodoWriteMapping(t *testing.T) {
+// TestTaskCreatePassthrough uses the real claude-run fixture to verify that
+// TaskCreate tool_use blocks and their results flow through the transform
+// pipeline verbatim - the stream is no longer rewritten to TodoWrite (the
+// rename now happens at the headless output layer in cmd/agent.go).
+func TestTaskCreatePassthrough(t *testing.T) {
 	f, err := os.Open(filepath.Join("testdata", "todos_write.jsonl"))
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}
 	defer func() { _ = f.Close() }()
 
-	c := &ClaudeCodeClient{
-		taskCreateIDs: make(map[string]string),
-	}
+	c := &ClaudeCodeClient{}
 	var model string
-	var counts todoWriteCounts
+	var taskCreateCalls, taskCreateResults, todoWriteCalls int
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 256*1024), 10*1024*1024)
@@ -858,8 +770,25 @@ func TestTaskCreateToTodoWriteMapping(t *testing.T) {
 		}
 		for _, ev := range c.transformMessage(msg, line, model) {
 			for _, tc := range extractToolCallsFromEvent(ev) {
-				processToolCall(t, tc, c, &counts)
-				processToolResult(t, tc, c, &counts)
+				if funcRaw, ok := tc["function"].(map[string]any); ok {
+					name, _ := funcRaw["name"].(string)
+					switch name {
+					case "TaskCreate":
+						taskCreateCalls++
+						args, _ := funcRaw["arguments"].(string)
+						var input struct {
+							Subject string `json:"subject"`
+						}
+						if err := json.Unmarshal([]byte(args), &input); err != nil || input.Subject == "" {
+							t.Errorf("TaskCreate arguments not passed through verbatim: %q", args)
+						}
+					case "TodoWrite":
+						todoWriteCalls++
+					}
+				}
+				if result, ok := tc["result"].(string); ok && strings.Contains(result, "created successfully") {
+					taskCreateResults++
+				}
 			}
 		}
 	}
@@ -867,13 +796,134 @@ func TestTaskCreateToTodoWriteMapping(t *testing.T) {
 		t.Fatalf("scanner: %v", err)
 	}
 
-	if counts.ToolUse != 3 {
-		t.Errorf("got %d TodoWrite tool_use events, want 3", counts.ToolUse)
+	if taskCreateCalls != 3 {
+		t.Errorf("got %d TaskCreate tool_use events, want 3", taskCreateCalls)
 	}
-	if counts.Result != 3 {
-		t.Errorf("got %d TodoWrite result events, want 3", counts.Result)
+	if taskCreateResults != 3 {
+		t.Errorf("got %d verbatim TaskCreate results, want 3", taskCreateResults)
 	}
-	if len(c.taskCreateIDs) != 0 {
-		t.Errorf("taskCreateIDs map not empty after processing, got %d entries", len(c.taskCreateIDs))
+	if todoWriteCalls != 0 {
+		t.Errorf("got %d TodoWrite tool_use events, want 0 (stream must not be rewritten)", todoWriteCalls)
+	}
+}
+
+func TestBuildArgs_AppendSystemPrompt(t *testing.T) {
+	base := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{}}
+	args := base.buildArgs("anthropic/claude-sonnet-4-6")
+	for _, a := range args {
+		if a == "--append-system-prompt" {
+			t.Fatal("--append-system-prompt must be omitted when no prompt is configured")
+		}
+	}
+
+	withPrompt := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{}, appendSystemPrompt: "extra context"}
+	args = withPrompt.buildArgs("claude-sonnet-4-6")
+	found := false
+	for i, a := range args {
+		if a == "--append-system-prompt" {
+			found = true
+			if i+1 >= len(args) || args[i+1] != "extra context" {
+				t.Fatalf("--append-system-prompt value missing, args: %v", args)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("--append-system-prompt not present, args: %v", args)
+	}
+}
+
+func TestBuildArgs_ExtraArgsAndTrailingP(t *testing.T) {
+	c := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{
+		ExtraArgs: []string{"--max-turns", "5"},
+	}, appendSystemPrompt: "extra context"}
+	args := c.buildArgs("claude-sonnet-4-6")
+
+	if args[len(args)-1] != "-p" {
+		t.Fatalf("-p must be the last argument, args: %v", args)
+	}
+	joined := strings.Join(args, "\x00")
+	if !strings.Contains(joined, "--max-turns\x005") {
+		t.Fatalf("extra args not appended in order, args: %v", args)
+	}
+
+	noExtra := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{}}
+	args = noExtra.buildArgs("claude-sonnet-4-6")
+	if args[len(args)-1] != "-p" {
+		t.Fatalf("-p must be the last argument without extra args, args: %v", args)
+	}
+}
+
+func TestProcessToolCalls_CapturesClaudeResults(t *testing.T) {
+	c := &ClaudeCodeClient{toolResults: map[string]domain.ToolCallResult{}}
+	toolCallsMap := map[string]*sdk.ChatCompletionMessageToolCall{}
+
+	c.processToolCalls([]any{
+		map[string]any{
+			"id": "call_1",
+			"function": map[string]any{
+				"name":      "Bash",
+				"arguments": `{"command":"ls"}`,
+			},
+		},
+	}, toolCallsMap)
+	c.processToolCalls([]any{
+		map[string]any{"id": "call_1", "result": "file.txt", "is_error": false},
+		map[string]any{"id": "call_2", "result": "boom", "is_error": true},
+	}, toolCallsMap)
+
+	results := c.TakeToolCallResults()
+	if len(results) != 2 {
+		t.Fatalf("expected 2 captured results, got %d", len(results))
+	}
+	if r := results["call_1"]; r.Content != "file.txt" || r.IsError {
+		t.Errorf("unexpected call_1 result: %+v", r)
+	}
+	if r := results["call_2"]; r.Content != "boom" || !r.IsError {
+		t.Errorf("unexpected call_2 result: %+v", r)
+	}
+	if again := c.TakeToolCallResults(); again != nil {
+		t.Errorf("TakeToolCallResults must drain, got %v", again)
+	}
+}
+
+// tool_result content arrives either as a plain string or as an array of
+// content blocks; the previous string typing made the whole user message fail
+// to unmarshal, silently dropping the tool results.
+func TestTransformUserMessage_BlockArrayContent(t *testing.T) {
+	rawJSON := `{
+		"type": "user",
+		"message": {
+			"role": "user",
+			"content": [
+				{"type":"tool_result","tool_use_id":"toolu_arr","is_error":false,"content":[{"type":"text","text":"line one"},{"type":"text","text":" line two"}]},
+				{"type":"tool_result","tool_use_id":"toolu_str","is_error":false,"content":"plain"}
+			]
+		}
+	}`
+
+	var msg ClaudeCodeMessage
+	if err := json.Unmarshal([]byte(rawJSON), &msg); err != nil {
+		t.Fatalf("unmarshal message: %v", err)
+	}
+
+	c := &ClaudeCodeClient{}
+	events := c.transformUserMessage(msg, "claude-haiku-4-5")
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+
+	results := map[string]string{}
+	for _, ev := range events {
+		for _, tc := range extractToolCallsFromEvent(ev) {
+			id, _ := tc["id"].(string)
+			result, _ := tc["result"].(string)
+			results[id] = result
+		}
+	}
+	if results["toolu_arr"] != "line one line two" {
+		t.Errorf("block-array content = %q, want flattened text", results["toolu_arr"])
+	}
+	if results["toolu_str"] != "plain" {
+		t.Errorf("string content = %q, want plain", results["toolu_str"])
 	}
 }

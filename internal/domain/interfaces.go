@@ -266,8 +266,23 @@ type ChatSyncResponse struct {
 	Content          string                              `json:"content"`
 	ReasoningContent string                              `json:"reasoning_content,omitempty"`
 	ToolCalls        []sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	ToolResults      map[string]ToolCallResult           `json:"tool_results,omitempty"`
 	Usage            *sdk.CompletionUsage                `json:"usage,omitempty"`
 	Duration         time.Duration                       `json:"duration"`
+}
+
+// ToolCallResult is the outcome of a tool call executed by the backend itself
+// (e.g. inside the Claude Code CLI) rather than by the local tool registry.
+type ToolCallResult struct {
+	Content string `json:"content"`
+	IsError bool   `json:"is_error"`
+}
+
+// ToolCallResultProvider is implemented by SDK clients that execute tools
+// themselves and can report per-call results after a GenerateContent call.
+// Take semantics: the returned map is drained from the client.
+type ToolCallResultProvider interface {
+	TakeToolCallResults() map[string]ToolCallResult
 }
 
 // ChatService handles chat completion operations

@@ -1282,6 +1282,33 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 	assert.Equal(t, sdk.User, result[1].Role)
 }
 
+func TestAgentServiceImpl_AddSystemPrompt_ClaudeCodeModePassthrough(t *testing.T) {
+	cfg := &config.Config{
+		ClaudeCode: config.ClaudeCodeConfig{Enabled: true},
+		Agent: config.AgentConfig{
+			SystemPromptWithDefaults: true,
+		},
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemPrompt: "You are a helpful assistant.",
+			},
+		},
+	}
+
+	agentService := &AgentServiceImpl{
+		config: cfg,
+	}
+
+	inputMessages := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
+	}
+
+	result := agentService.addSystemPrompt(inputMessages)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, sdk.User, result[0].Role)
+}
+
 func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 	cfg := &config.Config{
 		Agent: config.AgentConfig{

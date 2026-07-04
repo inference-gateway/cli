@@ -75,11 +75,12 @@ type GatewayConfig struct {
 
 // ClaudeCodeConfig contains Claude Code CLI integration settings
 type ClaudeCodeConfig struct {
-	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	CLIPath         string `yaml:"cli_path" mapstructure:"cli_path"`
-	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
-	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
-	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
+	Enabled         bool     `yaml:"enabled" mapstructure:"enabled"`
+	CLIPath         string   `yaml:"cli_path" mapstructure:"cli_path"`
+	Timeout         int      `yaml:"timeout" mapstructure:"timeout"`
+	MaxOutputTokens int      `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
+	ThinkingBudget  int      `yaml:"thinking_budget" mapstructure:"thinking_budget"`
+	ExtraArgs       []string `yaml:"extra_args,omitempty" mapstructure:"extra_args"`
 }
 
 // SpeechToTextConfig contains speech-to-text (Whisper) integration settings.

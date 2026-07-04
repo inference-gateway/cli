@@ -162,13 +162,29 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 
 // BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
 // send to the LLM. Exposed for the `infer debug agent system_prompt` command.
+// In Claude Code mode no prompt is sent at all - claude uses its own; only the
+// optional append (prompts.agent.system_prompt_claude_code) is reported.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
+	if s.config != nil && s.config.IsClaudeCodeMode() {
+		if appendPrompt := s.config.Prompts.Agent.SystemPromptClaudeCode; appendPrompt != "" {
+			return fmt.Sprintf("(claude_code mode: pass-through - appended to Claude Code's own system prompt via --append-system-prompt)\n\n%s", appendPrompt)
+		}
+		return "(claude_code mode: pass-through - no system prompt is sent; Claude Code uses its own)"
+	}
 	return s.buildSystemPromptText(nil)
 }
 
 // addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
-// info) to messages.
+// info) to messages. In Claude Code mode the conversation is passed through
+// untouched: claude uses its own system prompt (an optional append lives in
+// prompts.agent.system_prompt_claude_code, applied via --append-system-prompt
+// by the adapter). BuildSystemPrompt still renders the gateway-mode prompt for
+// the debug command.
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+	if s.config != nil && s.config.IsClaudeCodeMode() {
+		return messages
+	}
+
 	prompt := s.buildSystemPromptText(messages)
 	if prompt == "" {
 		return messages
@@ -833,6 +849,10 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 // guards the fired-set because the streaming goroutine (pre_session/pre_stream)
 // and the event-loop goroutine (the other points) can both reach here.
 func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
+	if s.config != nil && s.config.IsClaudeCodeMode() {
+		return
+	}
+
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders

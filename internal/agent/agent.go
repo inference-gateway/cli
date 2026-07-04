@@ -440,14 +440,20 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	content, reasoningContent, toolCalls := extractFirstChoice(response)
 
-	return &domain.ChatSyncResponse{
+	syncResponse := &domain.ChatSyncResponse{
 		RequestID:        req.RequestID,
 		Content:          content,
 		ReasoningContent: reasoningContent,
 		ToolCalls:        toolCalls,
 		Usage:            response.Usage,
 		Duration:         duration,
-	}, nil
+	}
+
+	if provider, ok := s.client.(domain.ToolCallResultProvider); ok {
+		syncResponse.ToolResults = provider.TakeToolCallResults()
+	}
+
+	return syncResponse, nil
 }
 
 // extractFirstChoice pulls content, reasoning, and tool calls from the first

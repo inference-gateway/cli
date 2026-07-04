@@ -328,6 +328,9 @@ claude_code:
   timeout: 600                   # Command timeout in seconds
   max_output_tokens: 32000       # Maximum output tokens per request
   thinking_budget: 10000         # Token budget for extended thinking
+  extra_args:                    # Extra arguments appended verbatim to the claude CLI invocation
+    - --max-turns
+    - "5"
 ```
 
 **Environment Variables:**
@@ -336,6 +339,27 @@ claude_code:
 export INFER_CLAUDE_CODE_ENABLED=true
 export INFER_CLAUDE_CODE_CLI_PATH=/usr/local/bin/claude
 export INFER_CLAUDE_CODE_TIMEOUT=600
+export INFER_CLAUDE_CODE_EXTRA_ARGS="--max-turns,5"  # comma/newline-separated; wins over --claude-code-extra-args
+```
+
+**Pass-through behavior:**
+
+Claude Code mode is a pure pass-through: infer does not inject its system prompt, context blocks, or
+system reminders, and does not re-execute claude's tool calls locally - claude runs with its own
+defaults and native tools. Infer's `prompts.yaml` and `reminders.yaml` do not apply in this mode.
+
+To add instructions on top of claude's built-in system prompt (passed via `--append-system-prompt`),
+set the dedicated prompt in `.infer/prompts.yaml` (empty by default):
+
+```yaml
+agent:
+  system_prompt_claude_code: "Always answer in English."
+```
+
+Or via environment variable:
+
+```bash
+export INFER_PROMPTS_AGENT_SYSTEM_PROMPT_CLAUDE_CODE="Always answer in English."
 ```
 
 ### Features and Limitations

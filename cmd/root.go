@@ -49,6 +49,9 @@ func init() {
 	rootCmd.PersistentFlags().String("tools-bash-allow-append", "",
 		"comma/newline-separated commands added to the bash allow-list in every mode "+
 			"(standard, plan, auto); INFER_TOOLS_BASH_ALLOW_APPEND takes precedence")
+	rootCmd.PersistentFlags().String("claude-code-extra-args", "",
+		"comma/newline-separated extra arguments appended to the claude CLI invocation "+
+			"in Claude Code mode; INFER_CLAUDE_CODE_EXTRA_ARGS takes precedence")
 	rootCmd.PersistentFlags().String("reminders-file", "",
 		"path to a reminders YAML file, overriding project .infer/ and ~/.infer reminders.yaml "+
 			"(INFER_REMINDERS_CONFIG inline YAML takes precedence)")
@@ -72,10 +75,10 @@ func parseDelimitedList(value string) []string {
 	return out
 }
 
-// resolveBashAllowOverride returns the override value for a bash allow-list,
+// resolveFlagEnvOverride returns the override value for a flag/env pair,
 // preferring the env var over the matching persistent flag (per the documented
 // flags < env layering). Empty means neither was provided.
-func resolveBashAllowOverride(flagName, envName string) string {
+func resolveFlagEnvOverride(flagName, envName string) string {
 	if env := os.Getenv(envName); env != "" {
 		return env
 	}
@@ -103,7 +106,7 @@ func applyBashAllowAppends(v *viper.Viper) {
 	}
 
 	for _, a := range appends {
-		if override := resolveBashAllowOverride(a.appendFlag, a.appendEnv); override != "" {
+		if override := resolveFlagEnvOverride(a.appendFlag, a.appendEnv); override != "" {
 			v.Set(a.key, append(v.GetStringSlice(a.key), parseDelimitedList(override)...))
 		}
 	}
@@ -183,6 +186,12 @@ func initConfig() {
 	loadLayeredConfig(v)
 
 	applyBashAllowAppends(v)
+
+	// claude_code.extra_args is a slice, which viper can't parse from a single
+	// env var generically - same special-casing as INFER_A2A_AGENTS above.
+	if extra := resolveFlagEnvOverride("claude-code-extra-args", "INFER_CLAUDE_CODE_EXTRA_ARGS"); extra != "" {
+		v.Set("claude_code.extra_args", parseDelimitedList(extra))
+	}
 
 	cfg, err := loadConfigFromViper()
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"strings"
@@ -23,23 +24,37 @@ import (
 // ClaudeCodeClient is a wrapper around the official Claude Code CLI
 // It implements the SDKClient interface by spawning the claude process
 type ClaudeCodeClient struct {
-	config         *config.ClaudeCodeConfig
-	stateManager   domain.StateManager
-	tools          *[]sdk.ChatCompletionTool
-	options        *sdk.CreateChatCompletionRequest
-	middlewareOpts *sdk.MiddlewareOptions
-	wg             *sync.WaitGroup
-	taskCreateIDs  map[string]string
+	config             *config.ClaudeCodeConfig
+	stateManager       domain.StateManager
+	tools              *[]sdk.ChatCompletionTool
+	options            *sdk.CreateChatCompletionRequest
+	middlewareOpts     *sdk.MiddlewareOptions
+	wg                 *sync.WaitGroup
+	appendSystemPrompt string
+	toolResults        map[string]domain.ToolCallResult
 }
 
 // NewClaudeCodeClient creates a new Claude Code CLI client
-func NewClaudeCodeClient(cfg *config.ClaudeCodeConfig, stateManager domain.StateManager) domain.SDKClient {
+func NewClaudeCodeClient(cfg *config.ClaudeCodeConfig, stateManager domain.StateManager, appendSystemPrompt string) domain.SDKClient {
 	return &ClaudeCodeClient{
-		config:        cfg,
-		stateManager:  stateManager,
-		wg:            &sync.WaitGroup{},
-		taskCreateIDs: make(map[string]string),
+		config:             cfg,
+		stateManager:       stateManager,
+		wg:                 &sync.WaitGroup{},
+		appendSystemPrompt: appendSystemPrompt,
+		toolResults:        make(map[string]domain.ToolCallResult),
 	}
+}
+
+// TakeToolCallResults returns and clears the tool results claude reported
+// during the last GenerateContent call. Implements domain.ToolCallResultProvider.
+func (c *ClaudeCodeClient) TakeToolCallResults() map[string]domain.ToolCallResult {
+	if len(c.toolResults) == 0 {
+		return nil
+	}
+	out := make(map[string]domain.ToolCallResult, len(c.toolResults))
+	maps.Copy(out, c.toolResults)
+	clear(c.toolResults)
+	return out
 }
 
 // WithOptions sets the chat completion request options
@@ -70,6 +85,8 @@ func (c *ClaudeCodeClient) GenerateContent(
 	model string,
 	messages []sdk.Message,
 ) (*sdk.CreateChatCompletionResponse, error) {
+	clear(c.toolResults)
+
 	eventChan, err := c.GenerateContentStream(ctx, provider, model, messages)
 	if err != nil {
 		return nil, err
@@ -93,6 +110,12 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 	messages []sdk.Message,
 ) (<-chan sdk.SSEvent, error) {
 	args := c.buildArgs(model)
+
+	logger.Debug("executing claude code cli",
+		"path", c.config.CLIPath,
+		"args", fmt.Sprintf("%q", args),
+		"messages", len(messages),
+	)
 
 	cmd := exec.CommandContext(ctx, c.config.CLIPath, args...)
 	cmd.Env = c.buildEnv()
@@ -121,6 +144,8 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal messages: %w", err)
 	}
+
+	logger.Debug("writing conversation to claude code stdin", "bytes", len(messagesJSON))
 
 	if _, err := stdin.Write(messagesJSON); err != nil {
 		return nil, fmt.Errorf("failed to write to stdin: %w", err)
@@ -152,12 +177,15 @@ func (c *ClaudeCodeClient) buildArgs(model string) []string {
 		"--include-hook-events",
 		"--model", model,
 		"--permission-mode", permissionMode,
-		"-p",
 	}
 
-	if c.tools != nil && len(*c.tools) > 0 {
-		args = append(args, "--disallowedTools", "all")
+	if c.appendSystemPrompt != "" {
+		args = append(args, "--append-system-prompt", c.appendSystemPrompt)
 	}
+
+	args = append(args, c.config.ExtraArgs...)
+
+	args = append(args, "-p")
 
 	return args
 }
@@ -386,7 +414,7 @@ func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, mode
 				},
 			}, model))
 		case "tool_use":
-			name, args := c.maybeMapTaskCreateToTodoWrite(block)
+			name, args := block.Name, string(block.Input)
 			events = append(events, c.createDeltaEvent(map[string]any{
 				"choices": []map[string]any{
 					{
@@ -415,7 +443,7 @@ func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, mode
 
 // transformUserMessage converts tool_result blocks into tool-call delta chunks,
 // plus a typed tool_failure event when the result carries is_error=true.
-// TaskCreate results are mapped to TodoWrite results.
+// Results are forwarded verbatim - claude executed the tool itself.
 func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model string) []sdk.SSEvent {
 	var events []sdk.SSEvent
 
@@ -430,7 +458,7 @@ func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model str
 			continue
 		}
 
-		result, isError := c.maybeMapTaskCreateResult(content.ToolUseID, content.Content, content.IsError)
+		result, isError := string(content.Content), content.IsError
 
 		events = append(events, c.createDeltaEvent(map[string]any{
 			"choices": []map[string]any{
@@ -549,85 +577,6 @@ func (c *ClaudeCodeClient) createToolFailureEvent(toolUseID, errorMsg string) sd
 	}
 }
 
-// maybeMapTaskCreateToTodoWrite checks if a tool_use block is a TaskCreate
-// call and if so, maps it to a TodoWrite call. Returns the tool name and
-// serialized arguments to use. For non-TaskCreate tools, returns the original
-// values unchanged.
-func (c *ClaudeCodeClient) maybeMapTaskCreateToTodoWrite(block ContentBlock) (string, string) {
-	if block.Name != "TaskCreate" {
-		return block.Name, string(block.Input)
-	}
-
-	var taskInput struct {
-		Subject     string `json:"subject"`
-		Description string `json:"description,omitempty"`
-	}
-	if err := json.Unmarshal(block.Input, &taskInput); err != nil {
-		logger.Error(fmt.Sprintf("Failed to parse TaskCreate input: %v", err))
-		return block.Name, string(block.Input)
-	}
-
-	c.taskCreateIDs[block.ID] = taskInput.Subject
-
-	todoInput := map[string]any{
-		"todos": []map[string]any{
-			{
-				"content": taskInput.Subject,
-				"status":  "in_progress",
-			},
-		},
-	}
-	todoInputBytes, err := json.Marshal(todoInput)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to marshal TodoWrite input: %v", err))
-		return block.Name, string(block.Input)
-	}
-
-	return "TodoWrite", string(todoInputBytes)
-}
-
-// maybeMapTaskCreateResult checks if a tool result corresponds to a previously
-// tracked TaskCreate call and if so, maps the result to a TodoWrite result.
-// Returns the result content and is_error flag to use. For non-TaskCreate
-// results, returns the original values unchanged.
-func (c *ClaudeCodeClient) maybeMapTaskCreateResult(toolUseID, result string, isError bool) (string, bool) {
-	subject, ok := c.taskCreateIDs[toolUseID]
-	if !ok {
-		return result, isError
-	}
-
-	delete(c.taskCreateIDs, toolUseID)
-
-	status := "completed"
-	if isError {
-		status = "pending"
-	}
-
-	todoResult := map[string]any{
-		"todos": []map[string]any{
-			{
-				"content": subject,
-				"status":  status,
-			},
-		},
-		"total_tasks":      1,
-		"completed_tasks":  0,
-		"in_progress_task": "",
-		"validation_ok":    true,
-	}
-	if !isError {
-		todoResult["completed_tasks"] = 1
-	}
-
-	resultBytes, err := json.Marshal(todoResult)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to marshal TodoWrite result: %v", err))
-		return result, isError
-	}
-
-	return string(resultBytes), isError
-}
-
 type AssistantMessage struct {
 	Content []ContentBlock `json:"content"`
 	Role    string         `json:"role"`
@@ -639,10 +588,42 @@ type ToolResultMessage struct {
 }
 
 type ToolResultContent struct {
-	Type      string `json:"type"`
-	ToolUseID string `json:"tool_use_id"`
-	IsError   bool   `json:"is_error"`
-	Content   string `json:"content"`
+	Type      string            `json:"type"`
+	ToolUseID string            `json:"tool_use_id"`
+	IsError   bool              `json:"is_error"`
+	Content   toolResultPayload `json:"content"`
+}
+
+// toolResultPayload accepts the two shapes claude uses for tool_result
+// content on the wire: a plain string, or an array of content blocks
+// ([{"type":"text","text":"..."}]). Block arrays are flattened to their
+// concatenated text; non-text blocks are skipped.
+type toolResultPayload string
+
+func (p *toolResultPayload) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*p = toolResultPayload(s)
+		return nil
+	}
+
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(data, &blocks); err != nil {
+		*p = toolResultPayload(data)
+		return nil
+	}
+
+	var sb strings.Builder
+	for _, b := range blocks {
+		if b.Type == "text" {
+			sb.WriteString(b.Text)
+		}
+	}
+	*p = toolResultPayload(sb.String())
+	return nil
 }
 
 // ContentBlock represents a content block in the assistant message
@@ -858,6 +839,11 @@ func (c *ClaudeCodeClient) processToolCalls(toolCallsRaw []any, toolCallsMap map
 		}
 
 		c.processToolCallFunction(tc, toolCall)
+
+		if result, ok := tc["result"].(string); ok {
+			isError, _ := tc["is_error"].(bool)
+			c.toolResults[id] = domain.ToolCallResult{Content: result, IsError: isError}
+		}
 	}
 }
 
