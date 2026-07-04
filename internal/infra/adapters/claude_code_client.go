@@ -148,6 +148,7 @@ func (c *ClaudeCodeClient) buildArgs(model string) []string {
 	args := []string{
 		"--output-format", "stream-json",
 		"--verbose",
+		"--include-hook-events",
 		"--max-turns", fmt.Sprintf("%d", maxTurns),
 		"--model", model,
 		"--permission-mode", permissionMode,
@@ -199,7 +200,10 @@ func (c *ClaudeCodeClient) buildEnv() []string {
 	return env
 }
 
-// streamOutput reads stdout and stderr from the Claude CLI process and sends events
+// streamOutput reads stdout and stderr from the Claude CLI process and sends events.
+// It parses each JSONL line incrementally and converts them into SSE events for the
+// downstream consumer. Stderr is buffered and only reported if the process exits with
+// an error. Malformed JSON lines are logged and skipped; the stream continues.
 func (c *ClaudeCodeClient) streamOutput(
 	ctx context.Context,
 	stdout io.Reader,
@@ -222,6 +226,9 @@ func (c *ClaudeCodeClient) streamOutput(
 	}()
 
 	scanner := bufio.NewScanner(stdout)
+	// Increase scanner buffer to handle large JSON lines (e.g. long tool inputs)
+	scanner.Buffer(make([]byte, 0, 256*1024), 512*1024)
+
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
@@ -245,7 +252,11 @@ func (c *ClaudeCodeClient) streamOutput(
 		}
 
 		for _, event := range c.transformMessage(msg) {
-			events <- event
+			select {
+			case events <- event:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
 
@@ -253,9 +264,10 @@ func (c *ClaudeCodeClient) streamOutput(
 		logger.Error(fmt.Sprintf("scanner error: %v", err))
 		errMsg := []byte(err.Error())
 		eventType := sdk.SSEventEvent("error")
-		events <- sdk.SSEvent{
-			Event: &eventType,
-			Data:  &errMsg,
+		select {
+		case events <- sdk.SSEvent{Event: &eventType, Data: &errMsg}:
+		case <-ctx.Done():
+			return
 		}
 	}
 
@@ -268,9 +280,10 @@ func (c *ClaudeCodeClient) streamOutput(
 		if stderrOutput != "" {
 			errMsg := []byte(fmt.Sprintf("Claude CLI error: %s", stderrOutput))
 			eventType := sdk.SSEventEvent("error")
-			events <- sdk.SSEvent{
-				Event: &eventType,
-				Data:  &errMsg,
+			select {
+			case events <- sdk.SSEvent{Event: &eventType, Data: &errMsg}:
+			case <-ctx.Done():
+				return
 			}
 		}
 	}
@@ -405,22 +418,28 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 	case "user":
 		var toolResultMsg ToolResultMessage
 		if err := json.Unmarshal(msg.Message, &toolResultMsg); err != nil {
+			// Log but don't fail the stream for a single unparsable message
+			logger.Error(fmt.Sprintf("Failed to parse user message: %v", err))
 			return events
 		}
 
 		for _, content := range toolResultMsg.Content {
 			if content.Type == "tool_result" {
+				// Build a delta event for the tool result, including the is_error status
+				toolResultData := []map[string]any{
+					{
+						"index":    0,
+						"id":       content.ToolUseID,
+						"result":   content.Content,
+						"is_error": content.IsError,
+					},
+				}
+
 				response := map[string]any{
 					"choices": []map[string]any{
 						{
 							"delta": map[string]any{
-								"tool_calls": []map[string]any{
-									{
-										"index":  0,
-										"id":     content.ToolUseID,
-										"result": content.Content,
-									},
-								},
+								"tool_calls": toolResultData,
 							},
 							"finish_reason": "stop",
 							"index":         0,
@@ -429,16 +448,81 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 				}
 
 				events = append(events, c.createDeltaEvent(response))
+
+				// Emit a separate tool_failure event when the tool result indicates an error
+				if content.IsError {
+					failureEvent := c.createToolFailureEvent(content.ToolUseID, content.Content)
+					events = append(events, failureEvent)
+				}
 			}
 		}
 
 		return events
 
 	case "system":
+		// Log system events (init, etc.) for debugging but don't forward as content
+		if msg.Subtype != "" {
+			logger.Debug(fmt.Sprintf("Claude Code system event: subtype=%s session=%s", msg.Subtype, msg.SessionID))
+		}
+		// Emit a lightweight notification that the session has started
+		systemEvent := c.createSystemEvent(msg)
+		if systemEvent != nil {
+			events = append(events, *systemEvent)
+		}
+		return events
+
+	case "hook":
+		// Hook events from --include-hook-events are forwarded as a typed
+		// progress event so callers can observe hook lifecycle
+		hookBytes, _ := json.Marshal(map[string]any{
+			"type":    "hook",
+			"subtype": msg.Subtype,
+		})
+		eventType := sdk.SSEventEvent("hook_event")
+		events = append(events, sdk.SSEvent{
+			Event: &eventType,
+			Data:  &hookBytes,
+		})
 		return events
 
 	default:
+		logger.Debug(fmt.Sprintf("Claude Code unknown event type: %s", msg.Type))
 		return events
+	}
+}
+
+// createToolFailureEvent emits a typed SSE event for tool call failures so that
+// downstream consumers can track which tool calls failed even when the overall
+// Claude Code run completes with is_error=false.
+func (c *ClaudeCodeClient) createToolFailureEvent(toolUseID, errorMsg string) sdk.SSEvent {
+	failureBytes, _ := json.Marshal(map[string]any{
+		"tool_use_id": toolUseID,
+		"error":       errorMsg,
+	})
+	eventType := sdk.SSEventEvent("tool_failure")
+	return sdk.SSEvent{
+		Event: &eventType,
+		Data:  &failureBytes,
+	}
+}
+
+// createSystemEvent emits a lightweight notification for system-level events
+// (e.g. session init).
+func (c *ClaudeCodeClient) createSystemEvent(msg ClaudeCodeMessage) *sdk.SSEvent {
+	if msg.Subtype != "init" {
+		return nil
+	}
+	initBytes, _ := json.Marshal(map[string]any{
+		"type":              "system_init",
+		"session_id":        msg.SessionID,
+		"model":             msg.ClaudeModel,
+		"claude_code_version": msg.ClaudeCodeVersion,
+		"tools":             msg.Tools,
+	})
+	eventType := sdk.SSEventEvent("system_init")
+	return &sdk.SSEvent{
+		Event: &eventType,
+		Data:  &initBytes,
 	}
 }
 
@@ -458,6 +542,7 @@ type ToolResultMessage struct {
 type ToolResultContent struct {
 	Type      string `json:"type"`
 	ToolUseID string `json:"tool_use_id"`
+	IsError   bool   `json:"is_error"`
 	Content   string `json:"content"`
 }
 
@@ -494,19 +579,36 @@ func (c *ClaudeCodeClient) wrapError(err error) error {
 	return err
 }
 
-// ClaudeCodeMessage represents a message from the Claude CLI JSON output
+// ClaudeCodeMessage represents a JSONL line from the Claude CLI streaming output.
+// It covers all event types: system init, assistant messages, user/tool results,
+// final result, and hook events.
 type ClaudeCodeMessage struct {
+	// Common fields
 	Type      string          `json:"type"`
 	Subtype   string          `json:"subtype,omitempty"`
 	Message   json.RawMessage `json:"message,omitempty"`
 	SessionID string          `json:"session_id,omitempty"`
 
-	// Result fields
-	TotalCostUSD float64      `json:"total_cost_usd,omitempty"`
-	IsError      bool         `json:"is_error,omitempty"`
-	DurationMS   int          `json:"duration_ms,omitempty"`
-	NumTurns     int          `json:"num_turns,omitempty"`
-	Usage        *ClaudeUsage `json:"usage,omitempty"`
+	// System init fields (type: system, subtype: init)
+	CWD               string   `json:"cwd,omitempty"`
+	ClaudeModel       string   `json:"model,omitempty"`
+	PermissionMode    string   `json:"permissionMode,omitempty"`
+	ClaudeCodeVersion string   `json:"claude_code_version,omitempty"`
+	Tools             []string `json:"tools,omitempty"`
+
+	// User/tool_result fields
+	ToolUseResult json.RawMessage `json:"tool_use_result,omitempty"`
+
+	// Final result fields (type: result)
+	IsError          bool         `json:"is_error,omitempty"`
+	DurationMS       int          `json:"duration_ms,omitempty"`
+	NumTurns         int          `json:"num_turns,omitempty"`
+	Result           string       `json:"result,omitempty"`
+	StopReason       string       `json:"stop_reason,omitempty"`
+	TotalCostUSD     float64      `json:"total_cost_usd,omitempty"`
+	PermissionDenials []string    `json:"permission_denials,omitempty"`
+	TerminalReason   string       `json:"terminal_reason,omitempty"`
+	Usage            *ClaudeUsage `json:"usage,omitempty"`
 }
 
 // ClaudeUsage is Anthropic's token breakdown as reported on the result message.
