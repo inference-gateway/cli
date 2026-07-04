@@ -53,8 +53,6 @@ func TestResolveRemindersConfig_EnvMalformedErrors(t *testing.T) {
 }
 
 func TestResolveRemindersConfig_FileFlag(t *testing.T) {
-	// Clear the env var that Infer Action may have set in CI so the
-	// --reminders-file flag is actually reached (env has higher precedence).
 	t.Setenv("INFER_REMINDERS_CONFIG", "")
 	path := filepath.Join(t.TempDir(), "custom.yaml")
 	if err := os.WriteFile(path, []byte("enabled: true\nreminders:\n  - name: flagged\n    text: hi\n"), 0o644); err != nil {
