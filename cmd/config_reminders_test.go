@@ -10,6 +10,8 @@ import (
 
 // setRemindersFileFlag sets the global --reminders-file persistent flag for the
 // duration of a test and resets it afterwards so tests stay isolated.
+// pflag.FlagSet.Set does not set Changed itself, so we set it explicitly so
+// remindersFileOverride (which checks Changed) picks up the value.
 func setRemindersFileFlag(t *testing.T, path string) {
 	t.Helper()
 	f := rootCmd.PersistentFlags().Lookup("reminders-file")
@@ -19,6 +21,7 @@ func setRemindersFileFlag(t *testing.T, path string) {
 	if err := rootCmd.PersistentFlags().Set("reminders-file", path); err != nil {
 		t.Fatalf("set reminders-file: %v", err)
 	}
+	f.Changed = true
 	t.Cleanup(func() {
 		_ = rootCmd.PersistentFlags().Set("reminders-file", "")
 		f.Changed = false
@@ -50,6 +53,7 @@ func TestResolveRemindersConfig_EnvMalformedErrors(t *testing.T) {
 }
 
 func TestResolveRemindersConfig_FileFlag(t *testing.T) {
+	t.Setenv("INFER_REMINDERS_CONFIG", "")
 	path := filepath.Join(t.TempDir(), "custom.yaml")
 	if err := os.WriteFile(path, []byte("enabled: true\nreminders:\n  - name: flagged\n    text: hi\n"), 0o644); err != nil {
 		t.Fatal(err)
