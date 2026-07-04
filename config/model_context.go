@@ -43,6 +43,7 @@ var ContextMatchers = []ModelMatcher{
 	{Patterns: []string{"mistral", "mixtral"}, ContextWindow: 32768},
 	{Patterns: []string{"minimax-m2"}, ContextWindow: 204800},
 	{Patterns: []string{"minimax-m3"}, ContextWindow: 1000000},
+	{Patterns: []string{"glm-5.2"}, ContextWindow: 1000000},
 	{Patterns: []string{"glm-4", "glm-5"}, ContextWindow: 200000},
 	{Patterns: []string{"nemotron-3"}, ContextWindow: 262144},
 	{Patterns: []string{"kimi-k2", "kimi-latest"}, ContextWindow: 262144},

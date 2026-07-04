@@ -242,6 +242,7 @@ func TestMiscOpenWeightContextWindow(t *testing.T) {
 		{"ollama_cloud/glm-4.7", 200000},
 		{"ollama_cloud/glm-5", 200000},
 		{"ollama_cloud/glm-5.1", 200000},
+		{"ollama_cloud/glm-5.2", 1000000},
 		{"ollama_cloud/nemotron-3-super", 262144},
 		{"ollama_cloud/nemotron-3-nano:30b", 262144},
 	}
