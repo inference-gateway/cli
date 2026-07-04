@@ -29,14 +29,16 @@ type ClaudeCodeClient struct {
 	options        *sdk.CreateChatCompletionRequest
 	middlewareOpts *sdk.MiddlewareOptions
 	wg             *sync.WaitGroup
+	taskCreateIDs  map[string]string
 }
 
 // NewClaudeCodeClient creates a new Claude Code CLI client
 func NewClaudeCodeClient(cfg *config.ClaudeCodeConfig, stateManager domain.StateManager) domain.SDKClient {
 	return &ClaudeCodeClient{
-		config:       cfg,
-		stateManager: stateManager,
-		wg:           &sync.WaitGroup{},
+		config:        cfg,
+		stateManager:  stateManager,
+		wg:            &sync.WaitGroup{},
+		taskCreateIDs: make(map[string]string),
 	}
 }
 
@@ -384,6 +386,7 @@ func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, mode
 				},
 			}, model))
 		case "tool_use":
+			name, args := c.maybeMapTaskCreateToTodoWrite(block)
 			events = append(events, c.createDeltaEvent(map[string]any{
 				"choices": []map[string]any{
 					{
@@ -394,8 +397,8 @@ func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, mode
 									"id":    block.ID,
 									"type":  "function",
 									"function": map[string]any{
-										"name":      block.Name,
-										"arguments": string(block.Input),
+										"name":      name,
+										"arguments": args,
 									},
 								},
 							},
@@ -412,6 +415,7 @@ func (c *ClaudeCodeClient) transformAssistantMessage(msg ClaudeCodeMessage, mode
 
 // transformUserMessage converts tool_result blocks into tool-call delta chunks,
 // plus a typed tool_failure event when the result carries is_error=true.
+// TaskCreate results are mapped to TodoWrite results.
 func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model string) []sdk.SSEvent {
 	var events []sdk.SSEvent
 
@@ -426,6 +430,8 @@ func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model str
 			continue
 		}
 
+		result, isError := c.maybeMapTaskCreateResult(content.ToolUseID, content.Content, content.IsError)
+
 		events = append(events, c.createDeltaEvent(map[string]any{
 			"choices": []map[string]any{
 				{
@@ -434,8 +440,8 @@ func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model str
 							{
 								"index":    0,
 								"id":       content.ToolUseID,
-								"result":   content.Content,
-								"is_error": content.IsError,
+								"result":   result,
+								"is_error": isError,
 							},
 						},
 					},
@@ -445,8 +451,8 @@ func (c *ClaudeCodeClient) transformUserMessage(msg ClaudeCodeMessage, model str
 			},
 		}, model))
 
-		if content.IsError {
-			events = append(events, c.createToolFailureEvent(content.ToolUseID, content.Content))
+		if isError {
+			events = append(events, c.createToolFailureEvent(content.ToolUseID, result))
 		}
 	}
 
@@ -541,6 +547,90 @@ func (c *ClaudeCodeClient) createToolFailureEvent(toolUseID, errorMsg string) sd
 		Event: &eventType,
 		Data:  &failureBytes,
 	}
+}
+
+// maybeMapTaskCreateToTodoWrite checks if a tool_use block is a TaskCreate
+// call and if so, maps it to a TodoWrite call. Returns the tool name and
+// serialized arguments to use. For non-TaskCreate tools, returns the original
+// values unchanged.
+func (c *ClaudeCodeClient) maybeMapTaskCreateToTodoWrite(block ContentBlock) (string, string) {
+	if block.Name != "TaskCreate" {
+		return block.Name, string(block.Input)
+	}
+
+	// Parse the TaskCreate input to extract the subject
+	var taskInput struct {
+		Subject     string `json:"subject"`
+		Description string `json:"description,omitempty"`
+	}
+	if err := json.Unmarshal(block.Input, &taskInput); err != nil {
+		logger.Error(fmt.Sprintf("Failed to parse TaskCreate input: %v", err))
+		return block.Name, string(block.Input)
+	}
+
+	// Record the tool_use_id → subject mapping for result mapping
+	c.taskCreateIDs[block.ID] = taskInput.Subject
+
+	// Build a TodoWrite tool call with the subject as a todo item
+	todoInput := map[string]any{
+		"todos": []map[string]any{
+			{
+				"content": taskInput.Subject,
+				"status":  "in_progress",
+			},
+		},
+	}
+	todoInputBytes, err := json.Marshal(todoInput)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to marshal TodoWrite input: %v", err))
+		return block.Name, string(block.Input)
+	}
+
+	return "TodoWrite", string(todoInputBytes)
+}
+
+// maybeMapTaskCreateResult checks if a tool result corresponds to a previously
+// tracked TaskCreate call and if so, maps the result to a TodoWrite result.
+// Returns the result content and is_error flag to use. For non-TaskCreate
+// results, returns the original values unchanged.
+func (c *ClaudeCodeClient) maybeMapTaskCreateResult(toolUseID, result string, isError bool) (string, bool) {
+	subject, ok := c.taskCreateIDs[toolUseID]
+	if !ok {
+		return result, isError
+	}
+
+	// Clean up the tracking entry
+	delete(c.taskCreateIDs, toolUseID)
+
+	// Build a TodoWrite result
+	status := "completed"
+	if isError {
+		status = "pending"
+	}
+
+	todoResult := map[string]any{
+		"todos": []map[string]any{
+			{
+				"content": subject,
+				"status":  status,
+			},
+		},
+		"total_tasks":      1,
+		"completed_tasks":  0,
+		"in_progress_task": "",
+		"validation_ok":    true,
+	}
+	if !isError {
+		todoResult["completed_tasks"] = 1
+	}
+
+	resultBytes, err := json.Marshal(todoResult)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to marshal TodoWrite result: %v", err))
+		return result, isError
+	}
+
+	return string(resultBytes), isError
 }
 
 // AssistantMessage represents the structure of an assistant message from Claude CLI
