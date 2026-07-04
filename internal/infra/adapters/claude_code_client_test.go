@@ -524,17 +524,17 @@ func TestGoldenStreamFixture(t *testing.T) {
 	}
 
 	want := []string{
-		"system_init",         // system/init
-		"content_block_delta", // assistant text (or thinking)
-		"content_block_delta", // assistant tool_use
-		"hook_event",          // hook_started
-		"hook_event",          // hook_response
-		"content_block_delta", // tool_result success
-		"content_block_delta", // tool_result error delta
-		"tool_failure",        // tool_result error typed event
-		"result_metadata",     // result
-		"content_block_delta", // usage chunk
-		"message_stop",        // terminator
+		"system_init",
+		"content_block_delta",
+		"content_block_delta",
+		"hook_event",
+		"hook_event",
+		"content_block_delta",
+		"content_block_delta",
+		"tool_failure",
+		"result_metadata",
+		"content_block_delta",
+		"message_stop",
 	}
 	if len(eventNames) != len(want) {
 		t.Fatalf("event sequence = %v, want %v", eventNames, want)
@@ -575,7 +575,6 @@ func TestCreateToolFailureEvent(t *testing.T) {
 }
 
 func TestClaudeCodeMessageResultFieldsParsing(t *testing.T) {
-	// Field names verified against real claude 2.1.197 stream-json output.
 	rawJSON := `{
 		"type": "result",
 		"subtype": "success",
