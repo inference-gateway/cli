@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.132.1](https://github.com/inference-gateway/cli/compare/v0.132.0...v0.132.1) (2026-07-04)
+
+### 🐛 Bug Fixes
+
+* allow agent to read plans from userspace config dir ([#748](https://github.com/inference-gateway/cli/issues/748)) ([d1c1be7](https://github.com/inference-gateway/cli/commit/d1c1be7df4698e337b65cbc4312ee74ed0ef87ad)), closes [#746](https://github.com/inference-gateway/cli/issues/746)
+* **config:** correct GLM 5.2 context window to 1M tokens ([#747](https://github.com/inference-gateway/cli/issues/747)) ([164ffaf](https://github.com/inference-gateway/cli/commit/164ffafa8e59cbd0d9ef3bcc81ca2e00f663d9f1)), closes [#745](https://github.com/inference-gateway/cli/issues/745)
+* **claude-code:** make subscription mode a true pass-through ([#749](https://github.com/inference-gateway/cli/issues/749)) ([10117b4](https://github.com/inference-gateway/cli/commit/10117b4786fe568513522b45c52df27c649ae7c6)), closes [inference-gateway/inference-gateway#412](https://github.com/inference-gateway/inference-gateway/issues/412)
+
+### 👷 CI/CD
+
+* **deps:** update inference workflow to version 0.15.0 ([c8e1522](https://github.com/inference-gateway/cli/commit/c8e15223bae841c6a4ddb0eb81f3eb6cf15c7553))
+
 ## [0.132.0](https://github.com/inference-gateway/cli/compare/v0.131.0...v0.132.0) (2026-07-04)
 
 ### 🚀 Features
