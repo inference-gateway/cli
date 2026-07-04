@@ -345,7 +345,7 @@ export INFER_CLAUDE_CODE_EXTRA_ARGS="--max-turns,5"  # comma/newline-separated; 
 **Pass-through behavior:**
 
 Claude Code mode is a pure pass-through: infer does not inject its system prompt, context blocks, or
-system reminders, and does not re-execute claude's tool calls locally — claude runs with its own
+system reminders, and does not re-execute claude's tool calls locally - claude runs with its own
 defaults and native tools. Infer's `prompts.yaml` and `reminders.yaml` do not apply in this mode.
 
 To add instructions on top of claude's built-in system prompt (passed via `--append-system-prompt`),
