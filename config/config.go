@@ -1237,9 +1237,12 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	// The skills carve-out is gated on agent.skills.enabled: when skills are off
 	// (the default) the directory is not allowed and falls through to the
-	// .infer/ protected-path check below. The tmp/plans carve-out stays unconditional.
+	// .infer/ protected-path check below. The tmp/plans carve-out stays
+	// unconditional and checks both the project-relative ConfigDirName and the
+	// resolved config dir (GetConfigDir) so plans written to the userspace
+	// ~/.infer/plans stay readable when the config was loaded from there.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
-		isWithinConfigSubdir(absPath, "tmp", "plans") ||
+		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
 		isWithinMemoryDir(absPath, c.Memory)
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
@@ -1311,17 +1314,26 @@ func isWithinSkillsDir(absPath string) bool {
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
-// subdirectories of the project config dir (./.infer/<name>). These are
-// operational areas - tmp scratch, persisted plans - that stay reachable even
-// though the rest of .infer/ is protected as a whole.
-func isWithinConfigSubdir(absPath string, names ...string) bool {
+// subdirectories of the config dir. It checks both the project-relative
+// ConfigDirName (./.infer/<name>) and the resolved config dir
+// (GetConfigDir()/<name>) so that operational areas - tmp scratch, persisted
+// plans - stay reachable even when the config was loaded from the userspace
+// location (~/.infer). This keeps the rest of .infer/ protected as a whole.
+func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
+	configDirs := []string{ConfigDirName}
+	if resolved := c.GetConfigDir(); resolved != "" && resolved != ConfigDirName {
+		configDirs = append(configDirs, resolved)
+	}
+
 	for _, name := range names {
-		dir, err := filepath.Abs(filepath.Join(ConfigDirName, name))
-		if err != nil {
-			continue
-		}
-		if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
-			return true
+		for _, base := range configDirs {
+			dir, err := filepath.Abs(filepath.Join(base, name))
+			if err != nil {
+				continue
+			}
+			if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+				return true
+			}
 		}
 	}
 	return false
