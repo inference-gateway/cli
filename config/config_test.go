@@ -1048,3 +1048,45 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 		})
 	}
 }
+
+// TestValidatePathInSandbox_ConfigDirUserspace locks in that the tmp/plans
+// carve-out also covers the resolved userspace config dir (~/.infer). When the
+// config is loaded from the userspace location, GetConfigDir() returns an
+// absolute home path and plans are written there - the sandbox must still
+// allow the agent to read them back.
+func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
+	cfg := DefaultConfig()
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("cannot determine home dir: %v", err)
+	}
+
+	userspaceConfigDir := filepath.Join(homeDir, ConfigDirName)
+	cfg.SetConfigDir(userspaceConfigDir)
+
+	allowed := []string{
+		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
+		filepath.Join(userspaceConfigDir, "plans", "2026-06-01-do-thing.md"),
+	}
+	for _, p := range allowed {
+		t.Run("allow "+p, func(t *testing.T) {
+			if err := cfg.ValidatePathInSandbox(p); err != nil {
+				t.Fatalf("expected %s allowed, got %v", p, err)
+			}
+		})
+	}
+
+	denied := []string{
+		filepath.Join(userspaceConfigDir, "config.yaml"),
+		filepath.Join(userspaceConfigDir, "agents.yaml"),
+		filepath.Join(userspaceConfigDir, "tmp", "leaked.env"),
+	}
+	for _, p := range denied {
+		t.Run("deny "+p, func(t *testing.T) {
+			if err := cfg.ValidatePathInSandbox(p); err == nil {
+				t.Fatalf("expected %s to be denied", p)
+			}
+		})
+	}
+}
