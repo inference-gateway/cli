@@ -80,7 +80,6 @@ type ClaudeCodeConfig struct {
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
 	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
 	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
-	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"`
 }
 
 // SpeechToTextConfig contains speech-to-text (Whisper) integration settings.
@@ -687,7 +686,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			Timeout:         600,
 			MaxOutputTokens: 32000,
 			ThinkingBudget:  10000,
-			MaxTurns:        10,
 		},
 		SpeechToText: SpeechToTextConfig{
 			Enabled:             false,

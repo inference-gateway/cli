@@ -272,7 +272,7 @@ func TestProcessEventsCapturesUsage(t *testing.T) {
 }
 
 func TestBuildArgsStripsProviderPrefix(t *testing.T) {
-	c := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{MaxTurns: 10}}
+	c := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{}}
 
 	if got := modelArg(c.buildArgs("anthropic/claude-sonnet-4-5-20250929")); got != "claude-sonnet-4-5-20250929" {
 		t.Errorf("--model = %q, want bare claude-sonnet-4-5-20250929", got)
@@ -302,7 +302,7 @@ func hasFlag(args []string, flag string) bool {
 }
 
 func TestBuildArgsIncludesHookEvents(t *testing.T) {
-	c := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{MaxTurns: 10}}
+	c := &ClaudeCodeClient{config: &config.ClaudeCodeConfig{}}
 
 	args := c.buildArgs("anthropic/claude-sonnet-4-5-20250929")
 
