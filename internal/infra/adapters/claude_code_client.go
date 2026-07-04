@@ -619,18 +619,16 @@ type ClaudeCodeMessage struct {
 	ToolUseResult json.RawMessage `json:"tool_use_result,omitempty"`
 
 	// Final result fields (type: result)
-	IsError        bool    `json:"is_error,omitempty"`
-	DurationMS     int     `json:"duration_ms,omitempty"`
-	DurationAPIMS  int     `json:"duration_api_ms,omitempty"`
-	TTFTMS         int     `json:"ttft_ms,omitempty"`
-	TTFTStreamMS   int     `json:"ttft_stream_ms,omitempty"`
-	NumTurns       int     `json:"num_turns,omitempty"`
-	Result         string  `json:"result,omitempty"`
-	StopReason     string  `json:"stop_reason,omitempty"`
-	TotalCostUSD   float64 `json:"total_cost_usd,omitempty"`
-	TerminalReason string  `json:"terminal_reason,omitempty"`
-	// PermissionDenials is an array of objects ({tool_name, tool_use_id,
-	// tool_input}); kept raw and forwarded verbatim on result_metadata.
+	IsError           bool            `json:"is_error,omitempty"`
+	DurationMS        int             `json:"duration_ms,omitempty"`
+	DurationAPIMS     int             `json:"duration_api_ms,omitempty"`
+	TTFTMS            int             `json:"ttft_ms,omitempty"`
+	TTFTStreamMS      int             `json:"ttft_stream_ms,omitempty"`
+	NumTurns          int             `json:"num_turns,omitempty"`
+	Result            string          `json:"result,omitempty"`
+	StopReason        string          `json:"stop_reason,omitempty"`
+	TotalCostUSD      float64         `json:"total_cost_usd,omitempty"`
+	TerminalReason    string          `json:"terminal_reason,omitempty"`
 	PermissionDenials json.RawMessage `json:"permission_denials,omitempty"`
 	Usage             *ClaudeUsage    `json:"usage,omitempty"`
 }
