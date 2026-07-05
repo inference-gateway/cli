@@ -46,6 +46,7 @@ var ContextMatchers = []ModelMatcher{
 	{Patterns: []string{"glm-5.2"}, ContextWindow: 1000000},
 	{Patterns: []string{"glm-4", "glm-5"}, ContextWindow: 200000},
 	{Patterns: []string{"nemotron-3"}, ContextWindow: 262144},
+	{Patterns: []string{"nemotron"}, ContextWindow: 131072},
 	{Patterns: []string{"kimi-k2", "kimi-latest"}, ContextWindow: 262144},
 	{Patterns: []string{"moonshot-v1-128k"}, ContextWindow: 131072},
 	{Patterns: []string{"moonshot-v1-32k"}, ContextWindow: 32768},
