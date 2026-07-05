@@ -35,6 +35,8 @@ var envVars = []string{
 	"MISTRAL_API_KEY",
 	"MINIMAX_API_KEY",
 	"MOONSHOT_API_KEY",
+	"NVIDIA_API_KEY",
+	"NVIDIA_API_URL",
 }
 
 // envExampleContent generates the content for .env.example
