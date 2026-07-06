@@ -609,3 +609,26 @@ func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
 	require.Greater(t, custom, base)
 	require.Greater(t, agentsMD, custom)
 }
+
+func TestBuildSystemPromptText_PluginInstructionsAfterAgentsMD(t *testing.T) {
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.WriteFile("AGENTS.md", []byte("project rules"), 0o644))
+
+	pluginsDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(pluginsDir, "ponytail"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginsDir, "ponytail", config.PluginAgentsMDName), []byte("be lazy"), 0o644))
+
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = "base prompt"
+	cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: true, MaxChars: config.DefaultInstructionsMaxChars, MaxLines: config.DefaultInstructionsMaxLines}
+	cfg.Plugins = *config.DefaultPluginsConfig()
+	cfg.Plugins.Dir = pluginsDir
+	cfg.Plugins.Plugins = []config.PluginEntry{{Name: "ponytail", Enabled: true}}
+	s := &AgentServiceImpl{config: cfg}
+
+	got := s.buildSystemPromptText(nil)
+	project := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules")
+	plugin := strings.Index(got, "PLUGIN INSTRUCTIONS (ponytail):\nbe lazy")
+	require.GreaterOrEqual(t, project, 0)
+	require.Greater(t, plugin, project)
+}

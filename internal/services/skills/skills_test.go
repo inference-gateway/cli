@@ -235,19 +235,25 @@ func TestPrecedence_AgentsMiddleScope(t *testing.T) {
 
 // TestSearchScopes_Order guards the scan order that the precedence dedup relies
 // on: project (.infer/skills), then the open-standard .agents/skills, then
-// user-global (~/.infer/skills).
+// user-global (~/.infer/skills), then enabled plugins in registry order.
 func TestSearchScopes_Order(t *testing.T) {
-	scopes := searchScopes()
+	pluginsDir := t.TempDir()
+	cfg := pluginTestCfg(pluginsDir, config.PluginEntry{Name: "last-plugin", Enabled: true})
+	scopes := New(cfg).searchScopes()
 
-	require.GreaterOrEqual(t, len(scopes), 2)
+	require.GreaterOrEqual(t, len(scopes), 3)
 	require.Equal(t, domain.SkillScopeProject, scopes[0].scope)
 	require.Equal(t, filepath.Join(config.ConfigDirName, skillsSubdir), scopes[0].dir)
 
 	require.Equal(t, domain.SkillScopeAgents, scopes[1].scope)
 	require.Equal(t, filepath.Join(config.AgentsDirName, skillsSubdir), scopes[1].dir)
 
+	last := scopes[len(scopes)-1]
+	require.Equal(t, domain.SkillScopePlugin, last.scope)
+	require.Equal(t, filepath.Join(pluginsDir, "last-plugin", skillsSubdir), last.dir)
+
 	if home, err := os.UserHomeDir(); err == nil {
-		require.Len(t, scopes, 3)
+		require.Len(t, scopes, 4)
 		require.Equal(t, domain.SkillScopeUser, scopes[2].scope)
 		require.Equal(t, filepath.Join(home, config.ConfigDirName, skillsSubdir), scopes[2].dir)
 	}
@@ -370,4 +376,88 @@ func TestGet(t *testing.T) {
 		_, ok := s.Get("nope")
 		require.False(t, ok)
 	})
+}
+
+// pluginTestCfg returns an enabled config whose plugins registry points at
+// dir and lists the given entries.
+func pluginTestCfg(dir string, entries ...config.PluginEntry) *config.Config {
+	cfg := enabledCfg()
+	cfg.Plugins = *config.DefaultPluginsConfig()
+	cfg.Plugins.Dir = dir
+	cfg.Plugins.Plugins = entries
+	return cfg
+}
+
+// writePluginSkill creates <pluginsDir>/<plugin>/skills/<name>/SKILL.md.
+func writePluginSkill(t *testing.T, pluginsDir, plugin, name, description string) {
+	t.Helper()
+	writeSkill(t, filepath.Join(pluginsDir, plugin, "skills"), name, validSkillBody(name, description))
+}
+
+func TestSearchScopes_IncludesEnabledPluginSkills(t *testing.T) {
+	t.Chdir(t.TempDir())
+	pluginsDir := t.TempDir()
+	writePluginSkill(t, pluginsDir, "ponytail", "ponytail", "Lazy senior dev mode.")
+	writePluginSkill(t, pluginsDir, "off-plugin", "hidden", "Should not load.")
+
+	cfg := pluginTestCfg(pluginsDir,
+		config.PluginEntry{Name: "ponytail", Enabled: true},
+		config.PluginEntry{Name: "off-plugin", Enabled: false},
+	)
+	s := New(cfg)
+	require.NoError(t, s.Load(context.Background()))
+
+	sk, ok := s.Get("ponytail")
+	require.True(t, ok, "enabled plugin skill must be discovered")
+	require.Equal(t, domain.SkillScopePlugin, sk.Scope)
+
+	_, ok = s.Get("hidden")
+	require.False(t, ok, "disabled plugin's skills must not be scanned")
+}
+
+func TestSearchScopes_PluginsMasterSwitchOff(t *testing.T) {
+	t.Chdir(t.TempDir())
+	pluginsDir := t.TempDir()
+	writePluginSkill(t, pluginsDir, "ponytail", "ponytail", "Lazy senior dev mode.")
+
+	cfg := pluginTestCfg(pluginsDir, config.PluginEntry{Name: "ponytail", Enabled: true})
+	cfg.Plugins.Enabled = false
+	s := New(cfg)
+	require.NoError(t, s.Load(context.Background()))
+
+	_, ok := s.Get("ponytail")
+	require.False(t, ok)
+}
+
+func TestPrecedence_ProjectOverridesPlugin(t *testing.T) {
+	projectRoot := t.TempDir()
+	t.Chdir(projectRoot)
+	writeSkill(t, filepath.Join(config.ConfigDirName, "skills"), "shared-name",
+		validSkillBody("shared-name", "Project version wins."))
+
+	pluginsDir := t.TempDir()
+	writePluginSkill(t, pluginsDir, "some-plugin", "shared-name", "Plugin version loses.")
+
+	cfg := pluginTestCfg(pluginsDir, config.PluginEntry{Name: "some-plugin", Enabled: true})
+	s := New(cfg)
+	require.NoError(t, s.Load(context.Background()))
+
+	sk, ok := s.Get("shared-name")
+	require.True(t, ok)
+	require.Equal(t, domain.SkillScopeProject, sk.Scope)
+	require.Contains(t, sk.Description, "Project version wins")
+}
+
+func TestLoadSkillMetadata_ExportedValidation(t *testing.T) {
+	tmp := t.TempDir()
+	writeSkill(t, tmp, "good-skill", validSkillBody("good-skill", "Valid."))
+	sk, loadErr := LoadSkillMetadata(filepath.Join(tmp, "good-skill"), "good-skill", domain.SkillScopePlugin)
+	require.Nil(t, loadErr)
+	require.NotNil(t, sk)
+	require.Equal(t, domain.SkillScopePlugin, sk.Scope)
+
+	writeSkill(t, tmp, "bad-skill", "---\ndescription: missing name\n---\n")
+	sk, loadErr = LoadSkillMetadata(filepath.Join(tmp, "bad-skill"), "bad-skill", domain.SkillScopePlugin)
+	require.Nil(t, sk)
+	require.NotNil(t, loadErr)
 }

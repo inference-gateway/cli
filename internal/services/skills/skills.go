@@ -88,7 +88,7 @@ func (s *Service) Load(_ context.Context) error {
 
 	scopes := s.scopes
 	if scopes == nil {
-		scopes = searchScopes()
+		scopes = s.searchScopes()
 	}
 
 	for _, scope := range scopes {
@@ -167,9 +167,10 @@ type scopedDir struct {
 
 // searchScopes returns the skill directories in precedence order: project
 // (.infer/skills), then the open-standard .agents/skills, then user-global
-// (~/.infer/skills). Precedence is implemented by the caller via the `seen`
-// map (first match wins on name collision).
-func searchScopes() []scopedDir {
+// (~/.infer/skills), then each enabled plugin's skills dir (registry order).
+// Precedence is implemented by the caller via the `seen` map (first match
+// wins on name collision), so local skills always override plugin skills.
+func (s *Service) searchScopes() []scopedDir {
 	scopes := []scopedDir{
 		{dir: filepath.Join(config.ConfigDirName, skillsSubdir), scope: domain.SkillScopeProject},
 		{dir: filepath.Join(config.AgentsDirName, skillsSubdir), scope: domain.SkillScopeAgents},
@@ -180,7 +181,24 @@ func searchScopes() []scopedDir {
 			scope: domain.SkillScopeUser,
 		})
 	}
+	if s.cfg != nil {
+		for _, p := range s.cfg.Plugins.EnabledEntries() {
+			dir, err := s.cfg.Plugins.PluginSkillsDir(p.Name)
+			if err != nil {
+				continue
+			}
+			scopes = append(scopes, scopedDir{dir: dir, scope: domain.SkillScopePlugin})
+		}
+	}
 	return scopes
+}
+
+// LoadSkillMetadata parses and validates a single skill directory
+// (<skillDir>/SKILL.md) without registering it. Exposed for the plugin
+// installer so plugin skills are validated with exactly the same rules the
+// runtime scan applies.
+func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill, *domain.SkillLoadError) {
+	return loadSkill(skillDir, dirName, scope)
 }
 
 // loadSkill reads <skillDir>/SKILL.md, parses frontmatter, validates the

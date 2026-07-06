@@ -20,6 +20,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
+	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -153,6 +154,10 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 		parts = append(parts, info)
 	}
 
+	if block := plugins.InstructionsBlock(s.config); block != "" {
+		parts = append(parts, block)
+	}
+
 	if agentConfig.SystemPromptWithDefaults {
 		contextInfo := s.buildContextInfo(len(messages)/2, messages)
 		if contextInfo != "" {
@@ -172,7 +177,7 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 // optional append (prompts.agent.system_prompt_claude_code) is reported.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
 	if s.config != nil && s.config.IsClaudeCodeMode() {
-		if appendPrompt := s.config.Prompts.Agent.SystemPromptClaudeCode; appendPrompt != "" {
+		if appendPrompt := plugins.ClaudeCodeAppend(s.config); appendPrompt != "" {
 			return fmt.Sprintf("(claude_code mode: pass-through - appended to Claude Code's own system prompt via --append-system-prompt)\n\n%s", appendPrompt)
 		}
 		return "(claude_code mode: pass-through - no system prompt is sent; Claude Code uses its own)"
@@ -504,8 +509,9 @@ func (s *AgentServiceImpl) buildAgentsMDInfo() string {
 		return ""
 	}
 
-	if maxChars := s.config.Agent.AgentsMD.MaxChars; maxChars > 0 && len(content) > maxChars {
-		content = content[:maxChars] + fmt.Sprintf("\n[truncated at %d chars]", maxChars)
+	content, marker := plugins.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
+	if marker != "" {
+		content += "\n" + marker
 	}
 
 	return "PROJECT INSTRUCTIONS (AGENTS.md):\n" + content

@@ -27,6 +27,12 @@ const (
 	// AGENTS.md and each plugin's AGENTS.md) in the system prompt. Truncation is
 	// always marked so the model never reads a silently cut-off ruleset.
 	DefaultInstructionsMaxChars = 8000
+	// DefaultInstructionsMaxLines caps injected instruction files at 399
+	// lines: the AGENTS.md standard keeps the file under 400 lines at
+	// creation, so anything beyond that is read as out-of-contract and
+	// dropped. Configurable via agent.agents_md.max_lines (project AGENTS.md)
+	// and plugins.max_instructions_lines (plugin rulesets).
+	DefaultInstructionsMaxLines = 399
 )
 
 // Config represents the CLI configuration
@@ -57,6 +63,7 @@ type Config struct {
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
+	Plugins          PluginsConfig          `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -455,6 +462,7 @@ type AgentSkillsConfig struct {
 type AgentsMDConfig struct {
 	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
 	MaxChars int  `yaml:"max_chars" mapstructure:"max_chars"`
+	MaxLines int  `yaml:"max_lines" mapstructure:"max_lines"`
 }
 
 // AgentConfig contains agent command-specific settings.
@@ -884,6 +892,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			AgentsMD: AgentsMDConfig{
 				Enabled:  true,
 				MaxChars: DefaultInstructionsMaxChars,
+				MaxLines: DefaultInstructionsMaxLines,
 			},
 			SystemPromptWithDefaults: true,
 			VerboseTools:             false,
@@ -1265,6 +1274,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	// resolved config dir (GetConfigDir) so plans written to the userspace
 	// ~/.infer/plans stay readable when the config was loaded from there.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
+		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
 		isWithinMemoryDir(absPath, c.Memory)
 
@@ -1360,6 +1370,23 @@ func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 		}
 	}
 	return false
+}
+
+// isWithinPluginsDir reports whether absPath lives inside the plugins storage
+// root (~/.infer/plugins or the Plugins.Dir override), so the model can Read
+// plugin SKILL.md bodies and files they reference even though the broader
+// .infer/ directory is in ProtectedPaths. Gated in ValidatePathInSandbox on
+// Plugins.Enabled; file-level protections like *.env still apply.
+func (c *Config) isWithinPluginsDir(absPath string) bool {
+	dir, err := c.Plugins.ResolveDir()
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
 }
 
 // isWithinMemoryDir reports whether absPath lives inside the global memory
