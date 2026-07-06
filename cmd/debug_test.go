@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // The fresh-CI-runner case: the git memory backend is configured but nothing
