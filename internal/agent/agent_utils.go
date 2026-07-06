@@ -396,9 +396,6 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions. ")
 	b.WriteString("To deterministically load a skill's full instructions, invoke it explicitly with /<name> or \"use the <name> skill\".\n\n")
 
-	// Cap the rendered block so many skills with long descriptions can't grow
-	// the system prompt unbounded; skills past the budget stay discoverable as
-	// a names-only list. Whole entries only - never a truncated description.
 	var maxChars int
 	if s.config != nil {
 		maxChars = s.config.GetAgentConfig().Skills.MaxChars
