@@ -644,6 +644,7 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 > respectively when agent prompts moved under the `prompts.agent.*` config tree.
 > The old names are silently ignored — if you are migrating an existing
 > configuration, update your env vars to the new names above.
+
 - `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
 - `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)

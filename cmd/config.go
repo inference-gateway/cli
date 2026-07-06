@@ -558,7 +558,7 @@ func warnDeadPromptEnvVars() {
 	}
 	for _, name := range deadVars {
 		if _, ok := os.LookupEnv(name); ok {
-			logger.Warn("environment variable %s is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN in docs/configuration-reference.md", "var", name)
+			logger.Warn("environment variable is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN in docs/configuration-reference.md", "var", name)
 		}
 	}
 }
