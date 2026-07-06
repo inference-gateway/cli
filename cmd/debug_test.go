@@ -15,7 +15,6 @@ import (
 // has cloned the memory repo yet. renderAgentSystemPrompt must SyncIn before
 // building the prompt so the PERSISTENT MEMORY INDEX section renders.
 func TestRenderAgentSystemPrompt_SyncsGitMemoryIn(t *testing.T) {
-	// Isolate git from the developer's config (identity, signing).
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "no-such-gitconfig"))
 	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 	t.Setenv("GIT_AUTHOR_NAME", "infer-test")
@@ -34,8 +33,6 @@ func TestRenderAgentSystemPrompt_SyncsGitMemoryIn(t *testing.T) {
 		require.NoError(t, err, "git %v: %s", args, out)
 	}
 
-	// Bare remote seeded with a MEMORY.md global fact (no project prefix, so
-	// filterMemoryIndex keeps it regardless of the detected project slug).
 	bare := filepath.Join(t.TempDir(), "remote.git")
 	mustGit("", "init", "--bare", "-b", "main", bare)
 	work := t.TempDir()
@@ -47,7 +44,6 @@ func TestRenderAgentSystemPrompt_SyncsGitMemoryIn(t *testing.T) {
 	mustGit(work, "commit", "-m", "seed memory")
 	mustGit(work, "push", "-u", "origin", "main")
 
-	// Memory dir does NOT exist yet.
 	memDir := filepath.Join(t.TempDir(), "memory")
 
 	cfg := config.DefaultConfig()
