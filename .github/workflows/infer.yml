@@ -43,7 +43,7 @@ jobs:
     with:
       language: "go"
       markdownlint: true
-      plugins: "DietrichGebert/ponytail
-"
+      plugins: |
+        DietrichGebert/ponytail
       prompt: ${{ inputs.prompt }}
     secrets: inherit
