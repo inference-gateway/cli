@@ -4,93 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	sdk "github.com/inference-gateway/sdk"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
-
-// mockConversationRepo implements domain.ConversationRepository for testing.
-type mockConversationRepo struct {
-	conversationID string
-	messages       []domain.ConversationEntry
-}
-
-func (m *mockConversationRepo) GetCurrentConversationID() string {
-	return m.conversationID
-}
-
-func (m *mockConversationRepo) GetMessages() []domain.ConversationEntry {
-	return m.messages
-}
-
-func (m *mockConversationRepo) AddMessage(entry domain.ConversationEntry) error {
-	m.messages = append(m.messages, entry)
-	return nil
-}
-
-func (m *mockConversationRepo) GetMessageCount() int {
-	return len(m.messages)
-}
-
-func (m *mockConversationRepo) Clear() error {
-	m.messages = nil
-	return nil
-}
-
-func (m *mockConversationRepo) ClearExceptFirstUserMessage() error {
-	return nil
-}
-
-func (m *mockConversationRepo) UpdateLastMessage(content string) error {
-	return nil
-}
-
-func (m *mockConversationRepo) UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error {
-	return nil
-}
-
-func (m *mockConversationRepo) DeleteMessagesAfterIndex(index int) error {
-	return nil
-}
-
-func (m *mockConversationRepo) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
-	return nil
-}
-
-func (m *mockConversationRepo) GetSessionTokens() domain.SessionTokenStats {
-	return domain.SessionTokenStats{}
-}
-
-func (m *mockConversationRepo) GetSessionCostStats() domain.SessionCostStats {
-	return domain.SessionCostStats{}
-}
-
-func (m *mockConversationRepo) GetCurrentConversationTitle() string {
-	return "test"
-}
-
-func (m *mockConversationRepo) StartNewConversation(title string) error {
-	return nil
-}
-
-func (m *mockConversationRepo) Export(format domain.ExportFormat) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *mockConversationRepo) RemovePendingToolCallByID(toolCallID string) {
-}
-
-func (m *mockConversationRepo) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
-	return ""
-}
-
-func (m *mockConversationRepo) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
-	return ""
-}
-
-func (m *mockConversationRepo) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
-	return ""
-}
 
 func TestChatExitMessageFormat(t *testing.T) {
 	t.Run("exit message includes session ID when available", func(t *testing.T) {
@@ -134,6 +50,30 @@ func TestChatExitMessageFormat(t *testing.T) {
 
 		if !strings.Contains(msg, "infer agent --session-id "+sessionID) {
 			t.Error("Expected the full command to be present for easy copy-paste")
+		}
+	})
+
+	t.Run("GetCurrentConversationID returns session ID from generated mock", func(t *testing.T) {
+		fakeRepo := &mocks.FakeConversationRepository{}
+		fakeRepo.GetCurrentConversationIDReturns("abc-123-def")
+
+		sessionID := fakeRepo.GetCurrentConversationID()
+		if sessionID != "abc-123-def" {
+			t.Errorf("Expected session ID 'abc-123-def', got %q", sessionID)
+		}
+
+		if fakeRepo.GetCurrentConversationIDCallCount() != 1 {
+			t.Error("Expected GetCurrentConversationID to be called once")
+		}
+	})
+
+	t.Run("GetCurrentConversationID returns empty string from generated mock", func(t *testing.T) {
+		fakeRepo := &mocks.FakeConversationRepository{}
+		fakeRepo.GetCurrentConversationIDReturns("")
+
+		sessionID := fakeRepo.GetCurrentConversationID()
+		if sessionID != "" {
+			t.Errorf("Expected empty session ID, got %q", sessionID)
 		}
 	})
 }
