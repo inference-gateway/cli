@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.133.1](https://github.com/inference-gateway/cli/compare/v0.133.0...v0.133.1) (2026-07-06)
+
+### 🐛 Bug Fixes
+
+* **debug:** sync memory in before rendering the agent system prompt ([#767](https://github.com/inference-gateway/cli/issues/767)) ([31af295](https://github.com/inference-gateway/cli/commit/31af29559adaa1ca9e58e835e48b04c1290d82a3))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.197 -> 2.1.201 ([#763](https://github.com/inference-gateway/cli/issues/763)) ([bdf5cdf](https://github.com/inference-gateway/cli/commit/bdf5cdfc3c115318a76d189941155cb55f28d1fb))
+* **deps:** bump infer CLI v0.132.1 -> v0.133.0, infer-action v0.23.7 -> v0.26.0 ([#764](https://github.com/inference-gateway/cli/issues/764)) ([43c3851](https://github.com/inference-gateway/cli/commit/43c38511b5f74940a027027de4374633a1f23e85))
+
 ## [0.133.0](https://github.com/inference-gateway/cli/compare/v0.132.1...v0.133.0) (2026-07-06)
 
 ### 🚀 Features
