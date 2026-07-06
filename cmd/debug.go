@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
+	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	cobra "github.com/spf13/cobra"
 )
@@ -25,10 +27,21 @@ var debugAgentSystemPromptCmd = &cobra.Command{
 		"instructions + dynamic context + date) that a fresh `infer chat` " +
 		"session would send to the model.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		services := container.NewServiceContainer(Cfg)
-		_, err := fmt.Fprintln(cmd.OutOrStdout(), services.GetAgentService().BuildSystemPrompt())
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), renderAgentSystemPrompt(cmd.Context(), Cfg))
 		return err
 	},
+}
+
+// renderAgentSystemPrompt syncs memory in and renders the system prompt a
+// fresh session would send. The sync mirrors the headless agent's pre-session
+// hook: with the git memory backend on a fresh machine, MEMORY.md only exists
+// locally after SyncIn, and without it the render silently omits the
+// PERSISTENT MEMORY INDEX section the real agent would receive. Fail-soft
+// like the agent: a sync failure must never break the debug render.
+func renderAgentSystemPrompt(ctx context.Context, cfg *config.Config) string {
+	services := container.NewServiceContainer(cfg)
+	_ = services.GetMemoryBackend().SyncIn(ctx)
+	return services.GetAgentService().BuildSystemPrompt()
 }
 
 func init() {
