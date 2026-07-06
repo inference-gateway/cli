@@ -132,26 +132,24 @@ When the model calls `RequestPlanApproval`, the chat TUI:
 In all three cases the plan file remains on disk. Rejecting a plan does
 **not** delete it.
 
-## Context compaction on approval
+## Fresh session on approval
 
 Planning is read-heavy: the model runs `Read`, `Grep`, and `Tree` across the
 codebase before it writes a plan. Once you **Accept** (or **Approve Each
 Step**), that exploration is dead weight for execution. So approving a
 plan always:
 
-1. Summarizes the planning conversation into a short `--- Context Summary ---`.
-2. Saves the planning session and continues in a **fresh session** seeded with
-   that summary - so execution starts with an optimized, much smaller context
-   window.
-3. Points the agent back at the saved plan file (`<configDir>/plans/…`), which
-   it re-reads to execute step by step. The plan itself is never lost - it lives
-   on disk and is captured in the summary.
+1. Starts a **fresh empty session** (like `/new`) - the planning conversation
+   is preserved in storage but no longer in the working context.
+2. Adds a hidden user message pointing the agent back at the saved plan file
+   (`<configDir>/plans/…`), which it re-reads to execute step by step. The plan
+   itself is never lost - it lives on disk and is captured in the instruction.
 
-This happens regardless of the `compact.enabled` setting - that flag only
-controls the *automatic* mid-conversation compaction (see the
-[Configuration Reference](configuration-reference.md)). Compaction on approval
-fails open: if summarization errors or times out, execution still proceeds on
-the un-compacted conversation.
+This is simpler and more efficient than summarizing the planning conversation:
+the plan is already saved on disk, so there is no need to compact the
+conversation. The `compact.enabled` setting is not involved in this flow - it
+only controls the *automatic* mid-conversation compaction (see the
+[Configuration Reference](configuration-reference.md)).
 
 ## Iterating on a plan
 

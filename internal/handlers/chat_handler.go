@@ -476,8 +476,8 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 		return cmd
 	}
 
-	if h.conversationOptimizer != nil && planPath != "" {
-		return tea.Batch(cmd, h.compactThenExecutePlanCmd(planPath))
+	if planPath != "" {
+		return tea.Batch(cmd, h.newSessionThenExecutePlanCmd(planPath))
 	}
 	return tea.Batch(cmd, h.startChatCompletion())
 }
