@@ -39,6 +39,8 @@ and have a conversational interface with the inference gateway.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := Cfg
 
+		sessionID, _ := cmd.Flags().GetString("session-id")
+
 		if os.Getenv("INFER_WEB_MODE") == "true" {
 			cfg.Web.Enabled = true
 			V.Set("web.enabled", true)
@@ -78,12 +80,16 @@ and have a conversational interface with the inference gateway.`,
 				}
 			}
 
+			if sessionID != "" {
+				fmt.Println(colors.CreateColoredText("--session-id is not supported in web mode; ignoring.", colors.DimColor))
+			}
 			return StartWebChatSession(cfg)
 		}
 
-		sessionID, _ := cmd.Flags().GetString("session-id")
-
 		if !isInteractiveTerminal() {
+			if sessionID != "" {
+				fmt.Println(colors.CreateColoredText("--session-id is not supported in non-interactive mode; ignoring.", colors.DimColor))
+			}
 			return runNonInteractiveChat(cfg)
 		}
 
@@ -171,19 +177,8 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	conversationOptimizer := services.GetConversationOptimizer()
 	sessionRolloverManager := services.GetSessionRolloverManager()
 
-	if sessionID != "" && sessionRolloverManager != nil {
-		if resolved, _, _ := sessionRolloverManager.ResolveSessionID(sessionID); resolved != "" {
-			sessionID = resolved
-		}
-	}
-
 	if sessionID != "" {
-		logger.Info("resuming chat session", "session_id", sessionID)
-		loadCtx, loadCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := conversationRepo.LoadConversation(loadCtx, sessionID); err != nil {
-			logger.Warn("failed to load chat session, starting fresh", "session_id", sessionID, "error", err)
-		}
-		loadCancel()
+		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
 	}
 
 	if mode := inheritedSubagentMode(); mode != domain.AgentModeStandard {
@@ -265,14 +260,47 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	application.PrintConversationHistory()
 
-	sessionID = application.GetCurrentConversationID()
-	if sessionID != "" {
+	endedSessionID := application.GetCurrentConversationID()
+	if endedSessionID != "" {
 		fmt.Println()
-		fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer chat --session-id "+sessionID, colors.DimColor))
-	} else {
-		fmt.Println(colors.CreateColoredText("Chat session ended.", colors.DimColor))
 	}
+	fmt.Println(colors.CreateColoredText(chatExitMessage(endedSessionID), colors.DimColor))
 	return nil
+}
+
+// chatExitMessage builds the message printed when a chat session ends.
+func chatExitMessage(sessionID string) string {
+	if sessionID == "" {
+		return "Chat session ended."
+	}
+	return "Chat session ended. Continue with: infer chat --session-id " + sessionID
+}
+
+// resumeChatSession loads the conversation for sessionID into the repository,
+// resolving rollover chains first. When the conversation cannot be loaded it
+// adopts the requested ID for the new session if the repository supports it,
+// mirroring `infer agent --session-id` semantics.
+func resumeChatSession(repo domain.ConversationRepository, rolloverManager *screenshotsvc.SessionRolloverManager, sessionID string) {
+	if rolloverManager != nil {
+		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
+		sessionID = resolved
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := repo.LoadConversation(ctx, sessionID); err != nil {
+		logger.Warn("failed to load chat session", "session_id", sessionID, "error", err)
+		if setter, ok := repo.(interface{ SetConversationID(string) }); ok {
+			setter.SetConversationID(sessionID)
+			fmt.Println(colors.CreateColoredText("Session "+sessionID+" not found; starting a new session with this ID.", colors.DimColor))
+		} else {
+			fmt.Println(colors.CreateColoredText("Could not resume session "+sessionID+"; starting fresh.", colors.DimColor))
+		}
+		return
+	}
+
+	logger.Info("resumed chat session", "session_id", sessionID)
 }
 
 // StartWebChatSession starts a web-based chat session with PTY and WebSocket

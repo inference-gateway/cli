@@ -185,9 +185,10 @@ func (r *InMemoryConversationRepository) StartNewConversation(title string) erro
 	return r.Clear()
 }
 
-// LoadConversation is a no-op for in-memory storage (no persistence).
+// LoadConversation always fails for in-memory storage: there is nothing
+// persisted to load from.
 func (r *InMemoryConversationRepository) LoadConversation(ctx context.Context, conversationID string) error {
-	return nil
+	return fmt.Errorf("conversation persistence is disabled; cannot load conversation %s", conversationID)
 }
 
 func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
