@@ -27,6 +27,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/web"
 )
 
@@ -247,7 +248,13 @@ func StartChatSession(cfg *config.Config) error {
 
 	application.PrintConversationHistory()
 
-	fmt.Println("• Chat session ended!")
+	sessionID := application.GetCurrentConversationID()
+	if sessionID != "" {
+			fmt.Println()
+			fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer agent --session-id " + sessionID, colors.DimColor))
+	} else {
+			fmt.Println(colors.CreateColoredText("Chat session ended.", colors.DimColor))
+	}
 	return nil
 }
 
