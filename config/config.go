@@ -23,6 +23,10 @@ const (
 	DefaultMemoryMaxChars      = 2000
 	DefaultMemoryMaxEntryChars = 2000
 	DefaultSkillsMaxChars      = 4000
+	// DefaultInstructionsMaxChars caps injected instruction files (the project
+	// AGENTS.md and each plugin's AGENTS.md) in the system prompt. Truncation is
+	// always marked so the model never reads a silently cut-off ruleset.
+	DefaultInstructionsMaxChars = 8000
 )
 
 // Config represents the CLI configuration
@@ -444,6 +448,15 @@ type AgentSkillsConfig struct {
 	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
 }
 
+// AgentsMDConfig controls native injection of the project-root AGENTS.md into
+// the system prompt (the file `infer init` / the /init shortcut generates).
+// Injection is additive - it never replaces prompts or custom instructions -
+// matching the merge semantics of the open AGENTS.md standard.
+type AgentsMDConfig struct {
+	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxChars int  `yaml:"max_chars" mapstructure:"max_chars"`
+}
+
 // AgentConfig contains agent command-specific settings.
 // All system prompts, custom instructions, and system reminder settings
 // live in prompts.yaml and are read from cfg.Prompts.Agent.* at runtime.
@@ -452,6 +465,7 @@ type AgentConfig struct {
 	SystemPromptWithDefaults bool               `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
 	Context                  AgentContextConfig `yaml:"context" mapstructure:"context"`
 	Skills                   AgentSkillsConfig  `yaml:"skills" mapstructure:"skills"`
+	AgentsMD                 AgentsMDConfig     `yaml:"agents_md" mapstructure:"agents_md"`
 	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
@@ -866,6 +880,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:        true,
 				DisabledSkills: nil,
 				MaxChars:       DefaultSkillsMaxChars,
+			},
+			AgentsMD: AgentsMDConfig{
+				Enabled:  true,
+				MaxChars: DefaultInstructionsMaxChars,
 			},
 			SystemPromptWithDefaults: true,
 			VerboseTools:             false,

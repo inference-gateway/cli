@@ -149,6 +149,10 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 		parts = append(parts, s.config.Prompts.Agent.CustomInstructions)
 	}
 
+	if info := s.buildAgentsMDInfo(); info != "" {
+		parts = append(parts, info)
+	}
+
 	if agentConfig.SystemPromptWithDefaults {
 		contextInfo := s.buildContextInfo(len(messages)/2, messages)
 		if contextInfo != "" {
@@ -473,6 +477,38 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildAgentsMDInfo natively injects the project-root AGENTS.md (the file the
+// /init shortcut generates) into the system prompt. Injection is additive -
+// appended after custom instructions, never replacing them - matching the
+// merge semantics of the open AGENTS.md standard (OpenCode, Codex, Gemini all
+// combine instruction files). Fail-soft: a missing or unreadable file yields
+// "". Content is capped at agent.agents_md.max_chars with an explicit
+// truncation marker. Empty when disabled via agent.agents_md.enabled=false.
+func (s *AgentServiceImpl) buildAgentsMDInfo() string {
+	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
+		return ""
+	}
+
+	data, err := os.ReadFile("AGENTS.md")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debug("failed to read project AGENTS.md", "error", err)
+		}
+		return ""
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return ""
+	}
+
+	if maxChars := s.config.Agent.AgentsMD.MaxChars; maxChars > 0 && len(content) > maxChars {
+		content = content[:maxChars] + fmt.Sprintf("\n[truncated at %d chars]", maxChars)
+	}
+
+	return "PROJECT INSTRUCTIONS (AGENTS.md):\n" + content
 }
 
 // buildMemoryInfo loads the MEMORY.md index once per session and injects it as a

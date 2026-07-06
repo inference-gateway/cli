@@ -548,3 +548,64 @@ func TestBuildMemoryInfo_TruncatesAtLineBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildAgentsMDInfo(t *testing.T) {
+	newSvc := func(enabled bool, maxChars int) *AgentServiceImpl {
+		cfg := &config.Config{}
+		cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: enabled, MaxChars: maxChars}
+		return &AgentServiceImpl{config: cfg}
+	}
+
+	t.Run("disabled returns empty", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("rules"), 0o644))
+		require.Empty(t, newSvc(false, 0).buildAgentsMDInfo())
+	})
+
+	t.Run("missing file returns empty", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.Empty(t, newSvc(true, 0).buildAgentsMDInfo())
+	})
+
+	t.Run("empty file returns empty", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("  \n"), 0o644))
+		require.Empty(t, newSvc(true, 0).buildAgentsMDInfo())
+	})
+
+	t.Run("injects content with header", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("# Rules\nBe lazy."), 0o644))
+		got := newSvc(true, 0).buildAgentsMDInfo()
+		require.True(t, strings.HasPrefix(got, "PROJECT INSTRUCTIONS (AGENTS.md):\n"))
+		require.Contains(t, got, "Be lazy.")
+	})
+
+	t.Run("caps content with truncation marker", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte(strings.Repeat("x", 100)), 0o644))
+		got := newSvc(true, 10).buildAgentsMDInfo()
+		require.Contains(t, got, strings.Repeat("x", 10))
+		require.NotContains(t, got, strings.Repeat("x", 11))
+		require.Contains(t, got, "[truncated at 10 chars]")
+	})
+}
+
+func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.WriteFile("AGENTS.md", []byte("project rules here"), 0o644))
+
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = "base prompt"
+	cfg.Prompts.Agent.CustomInstructions = "custom instructions here"
+	cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: true, MaxChars: config.DefaultInstructionsMaxChars}
+	s := &AgentServiceImpl{config: cfg}
+
+	got := s.buildSystemPromptText(nil)
+	base := strings.Index(got, "base prompt")
+	custom := strings.Index(got, "custom instructions here")
+	agentsMD := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules here")
+	require.GreaterOrEqual(t, base, 0)
+	require.Greater(t, custom, base)
+	require.Greater(t, agentsMD, custom)
+}
