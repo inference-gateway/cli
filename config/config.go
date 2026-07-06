@@ -18,11 +18,13 @@ const (
 	MemoryDirName       = "memory"
 	MemoryIndexFileName = "MEMORY.md"
 
-	DefaultConfigPath          = ConfigDirName + "/" + ConfigFileName
-	DefaultLogsPath            = ConfigDirName + "/" + LogsDirName
-	DefaultMemoryMaxChars      = 2000
-	DefaultMemoryMaxEntryChars = 2000
-	DefaultSkillsMaxChars      = 4000
+	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
+	DefaultLogsPath             = ConfigDirName + "/" + LogsDirName
+	DefaultMemoryMaxChars       = 2000
+	DefaultMemoryMaxEntryChars  = 2000
+	DefaultSkillsMaxChars       = 4000
+	DefaultInstructionsMaxChars = 8000
+	DefaultInstructionsMaxLines = 399
 )
 
 // Config represents the CLI configuration
@@ -53,6 +55,7 @@ type Config struct {
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
+	Plugins          PluginsConfig          `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
 
@@ -444,6 +447,14 @@ type AgentSkillsConfig struct {
 	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
 }
 
+// AgentsMDConfig controls native injection of the project-root AGENTS.md
+// into the system prompt.
+type AgentsMDConfig struct {
+	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxChars int  `yaml:"max_chars" mapstructure:"max_chars"`
+	MaxLines int  `yaml:"max_lines" mapstructure:"max_lines"`
+}
+
 // AgentConfig contains agent command-specific settings.
 // All system prompts, custom instructions, and system reminder settings
 // live in prompts.yaml and are read from cfg.Prompts.Agent.* at runtime.
@@ -452,6 +463,7 @@ type AgentConfig struct {
 	SystemPromptWithDefaults bool               `yaml:"system_prompt_with_defaults" mapstructure:"system_prompt_with_defaults"`
 	Context                  AgentContextConfig `yaml:"context" mapstructure:"context"`
 	Skills                   AgentSkillsConfig  `yaml:"skills" mapstructure:"skills"`
+	AgentsMD                 AgentsMDConfig     `yaml:"agents_md" mapstructure:"agents_md"`
 	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
@@ -867,6 +879,11 @@ func DefaultConfig() *Config { //nolint:funlen
 				DisabledSkills: nil,
 				MaxChars:       DefaultSkillsMaxChars,
 			},
+			AgentsMD: AgentsMDConfig{
+				Enabled:  true,
+				MaxChars: DefaultInstructionsMaxChars,
+				MaxLines: DefaultInstructionsMaxLines,
+			},
 			SystemPromptWithDefaults: true,
 			VerboseTools:             false,
 			MaxTurns:                 50,
@@ -1240,13 +1257,8 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	// The skills carve-out is gated on agent.skills.enabled: when skills are off
-	// (the default) the directory is not allowed and falls through to the
-	// .infer/ protected-path check below. The tmp/plans carve-out stays
-	// unconditional and checks both the project-relative ConfigDirName and the
-	// resolved config dir (GetConfigDir) so plans written to the userspace
-	// ~/.infer/plans stay readable when the config was loaded from there.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
+		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
 		isWithinMemoryDir(absPath, c.Memory)
 
@@ -1342,6 +1354,21 @@ func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 		}
 	}
 	return false
+}
+
+// isWithinPluginsDir reports whether absPath lives inside the plugins
+// storage root, so plugin SKILL.md bodies stay readable even though the
+// broader .infer/ directory is protected.
+func (c *Config) isWithinPluginsDir(absPath string) bool {
+	dir, err := c.Plugins.ResolveDir()
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
 }
 
 // isWithinMemoryDir reports whether absPath lives inside the global memory

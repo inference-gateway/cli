@@ -94,6 +94,8 @@ An agentic command-line assistant that writes code, understands project context,
   with a separate configurable system prompt - off by default - [Learn more →](docs/heartbeat.md)
 - **Agent Skills**: Drop-in `SKILL.md` instruction folders the agent discovers and loads on demand;
   install them straight from GitHub with `infer skills install` - on by default - [Learn more →](docs/skills.md)
+- **Plugins**: Install Claude Code-format plugins (skills + an always-on `AGENTS.md` ruleset) from GitHub with
+  `infer plugins install owner/repo` - content only, plugin code is never executed - [Learn more →](docs/plugins.md)
 - **Persistent Memory**: Cross-session memory stored as individual Markdown fact-files with an
   auto-maintained `MEMORY.md` index that is injected at session start - on by default - [Learn more →](#persistent-memory)
 - **Subagents**: Spawn parallel `infer agent` subprocesses from chat with the `Agent` tool to fan out
@@ -610,6 +612,18 @@ infer skills uninstall pdf                        # Remove a skill by name
 ```
 
 See [Agent Skills](#agent-skills) and [docs/skills.md](docs/skills.md) for the format.
+
+**`infer plugins`** - Manage Claude Code-format plugins (skills + instruction rulesets)
+
+```bash
+infer plugins install DietrichGebert/ponytail    # Install a plugin from GitHub
+infer plugins list                                # List installed plugins
+infer plugins disable ponytail                    # Unload its skills + instructions
+infer plugins update                              # Re-fetch all plugins
+infer plugins remove ponytail                     # Remove entirely
+```
+
+See [docs/plugins.md](docs/plugins.md) for the mapping and security model.
 
 **`infer export`** - Export a conversation to a Markdown file
 

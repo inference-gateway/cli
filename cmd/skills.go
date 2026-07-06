@@ -35,11 +35,12 @@ the enable flag so you can verify discovery.`,
 var skillsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List discovered skills",
-	Long: `List discovered Agent Skills from .infer/skills/, .agents/skills/, and ~/.infer/skills/.
+	Long: `List discovered Agent Skills from .infer/skills/, .agents/skills/,
+~/.infer/skills/, and enabled plugins (~/.infer/plugins/<name>/skills/).
 
-Output includes each skill's name, scope (project / agents / user), one-line
-description, and the absolute path to its SKILL.md. Validation errors for
-skipped skills are shown so you can fix authoring mistakes.`,
+Output includes each skill's name, scope (project / agents / user / plugin),
+one-line description, and the absolute path to its SKILL.md. Validation errors
+for skipped skills are shown so you can fix authoring mistakes.`,
 	RunE: listSkills,
 }
 
@@ -48,6 +49,9 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 		Agent: config.AgentConfig{
 			Skills: config.AgentSkillsConfig{Enabled: true},
 		},
+	}
+	if Cfg != nil {
+		scanCfg.Plugins = Cfg.Plugins
 	}
 
 	svc := skills.New(scanCfg)

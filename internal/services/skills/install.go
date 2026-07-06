@@ -162,7 +162,7 @@ func (i *Installer) setAuth(req *http.Request) {
 // <destBase>/<dirname>/, where dirname is the last path segment of the
 // repo URL. Existing folders are rejected unless overwrite is true.
 //
-// The downloaded folder is post-validated with loadSkill - if frontmatter
+// The downloaded folder is post-validated with LoadSkillMetadata - if frontmatter
 // fails the spec checks, the folder is removed and the validation error is
 // returned. There is never a half-installed state.
 //
@@ -226,7 +226,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		}
 	}
 
-	skill, loadErr := loadSkill(destDir, skillDirName, domain.SkillScopeProject)
+	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, domain.SkillScopeProject)
 	if loadErr != nil {
 		_ = os.RemoveAll(destDir)
 		return "", fmt.Errorf("downloaded skill failed validation: %s", loadErr.Reason)
