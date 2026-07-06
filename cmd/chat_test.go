@@ -132,7 +132,6 @@ func TestChatExitMessageFormat(t *testing.T) {
 		sessionID := "abc-123-def"
 		msg := "Chat session ended. Continue with: infer agent --session-id " + sessionID
 
-		// The command should be directly copy-pasteable
 		if !strings.Contains(msg, "infer agent --session-id "+sessionID) {
 			t.Error("Expected the full command to be present for easy copy-paste")
 		}
