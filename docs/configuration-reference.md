@@ -630,9 +630,21 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 ### Agent Configuration
 
 - `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-v4-pro`)
-- `INFER_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
-- `INFER_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_CLAUDE_CODE`: Custom system prompt for Claude Code mode
+- `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
 - `INFER_AGENT_VERBOSE_TOOLS`: Enable verbose tool output (default: `false`)
+
+> **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and
+> `INFER_AGENT_SYSTEM_PROMPT_PLAN` env vars were renamed to
+> `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`
+> respectively when agent prompts moved under the `prompts.agent.*` config tree.
+> The old names are silently ignored — if you are migrating an existing
+> configuration, update your env vars to the new names above.
+
 - `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
 - `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)
