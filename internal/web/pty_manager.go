@@ -9,7 +9,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	pty "github.com/creack/pty"
 	websocket "github.com/gorilla/websocket"
@@ -235,15 +234,8 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 
 	s.pty = ptyFile
 
-	ws := &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}
-	_, _, errno := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		s.pty.Fd(),
-		syscall.TIOCSWINSZ,
-		uintptr(unsafe.Pointer(ws)),
-	)
-	if errno != 0 {
-		logger.Warn("failed to set initial window size", "error", errno)
+	if err := pty.Setsize(s.pty, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}); err != nil {
+		logger.Warn("failed to set initial window size", "error", err)
 	}
 
 	logger.Info("pTY session started", "pid", s.cmd.Process.Pid, "size", fmt.Sprintf("%dx%d", cols, rows))
@@ -403,15 +395,8 @@ func (s *LocalPTYSession) setWindowSize(cols, rows int) error {
 		return fmt.Errorf("PTY not initialized")
 	}
 
-	ws := &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}
-	_, _, errno := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		s.pty.Fd(),
-		syscall.TIOCSWINSZ,
-		uintptr(unsafe.Pointer(ws)),
-	)
-	if errno != 0 {
-		return fmt.Errorf("failed to set window size: %w", errno)
+	if err := pty.Setsize(s.pty, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}); err != nil {
+		return fmt.Errorf("failed to set window size: %w", err)
 	}
 
 	return nil
