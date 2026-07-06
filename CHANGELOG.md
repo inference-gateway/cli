@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.134.0](https://github.com/inference-gateway/cli/compare/v0.133.1...v0.134.0) (2026-07-06)
+
+### 🚀 Features
+
+* **plugins:** install Claude Code-format plugins and natively inject AGENTS.md ([#770](https://github.com/inference-gateway/cli/issues/770)) ([82c430f](https://github.com/inference-gateway/cli/commit/82c430f1b59f863335c6ae87a8f26981e4bc8fb5))
+
+### 📚 Documentation
+
+* fix dead INFER_AGENT_SYSTEM_PROMPT env vars in configuration-reference.md ([#769](https://github.com/inference-gateway/cli/issues/769)) ([b353e6b](https://github.com/inference-gateway/cli/commit/b353e6b4bc384630d1b0934a68fe73070741b917)), closes [#766](https://github.com/inference-gateway/cli/issues/766)
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.133.0 -> v0.133.1, infer-action v0.26.0 -> v0.27.1 ([#768](https://github.com/inference-gateway/cli/issues/768)) ([0d9980c](https://github.com/inference-gateway/cli/commit/0d9980c545b4f1da389d72deb041e81c673f69ab))
+
 ## [0.133.1](https://github.com/inference-gateway/cli/compare/v0.133.0...v0.133.1) (2026-07-06)
 
 ### 🐛 Bug Fixes
