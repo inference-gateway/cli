@@ -97,8 +97,7 @@ func init() {
 	rootCmd.AddCommand(pluginsCmd)
 }
 
-// pluginsRoot resolves the plugins storage root from the effective config
-// (honoring plugins.dir and INFER_PLUGINS_DIR).
+// pluginsRoot resolves the plugins storage root from the effective config.
 func pluginsRoot() (string, error) {
 	if Cfg != nil {
 		return Cfg.Plugins.ResolveDir()
@@ -106,8 +105,7 @@ func pluginsRoot() (string, error) {
 	return config.PluginsConfig{}.ResolveDir()
 }
 
-// loadPluginsRegistry loads ~/.infer/plugins.yaml for mutation; the file is
-// created on first save.
+// loadPluginsRegistry loads ~/.infer/plugins.yaml; the file is created on first save.
 func loadPluginsRegistry() (*config.PluginsConfig, error) {
 	registry, err := config.LoadPlugins(getPluginsConfigPath())
 	if err != nil {
@@ -189,8 +187,7 @@ func installPlugin(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// printInstallSummary tells the user exactly what the plugin will activate
-// before they confirm.
+// printInstallSummary tells the user what the plugin will activate before they confirm.
 func printInstallSummary(res *plugins.InstallResult, src plugins.Source) {
 	fmt.Println(listTitle(fmt.Sprintf("Plugin: %s", res.Name)))
 	if res.Version != "" {
@@ -223,8 +220,7 @@ func printInstallSummary(res *plugins.InstallResult, src plugins.Source) {
 	}
 }
 
-// confirmInstall gates activation: interactive y/N on a TTY, hard error on
-// non-interactive stdin so scripts must opt in with --yes.
+// confirmInstall prompts y/N on a TTY; non-interactive stdin errors unless --yes.
 func confirmInstall(yes bool) error {
 	if yes {
 		return nil
@@ -255,9 +251,7 @@ func printPostInstallNotes() {
 	}
 }
 
-// cleanupStaleStaging best-effort removes .staging-* leftovers from crashed
-// installs. Registry enumeration never reads the directory listing, so stale
-// dirs are inert either way.
+// cleanupStaleStaging best-effort removes .staging-* leftovers from crashed installs.
 func cleanupStaleStaging(root string) {
 	matches, err := filepath.Glob(filepath.Join(root, ".staging-*"))
 	if err != nil {

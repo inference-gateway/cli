@@ -384,9 +384,7 @@ func getEffectiveHooksConfigPath() string {
 }
 
 // getPluginsConfigPath returns the path of the plugins registry. Plugins are
-// deliberately userspace-only (storage lives under ~/.infer/plugins), so
-// unlike the other sidecars there is no project-first search: a project-level
-// plugins.yaml would wholesale shadow the home registry rather than merge.
+// userspace-only, so unlike other sidecars there is no project-first search.
 func getPluginsConfigPath() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -395,8 +393,7 @@ func getPluginsConfigPath() string {
 	return filepath.Join(homeDir, config.ConfigDirName, config.PluginsFileName)
 }
 
-// applyPluginsEnvOverrides applies INFER_PLUGINS_* env overrides. The registry
-// list itself stays file-driven, like hooks.
+// applyPluginsEnvOverrides applies INFER_PLUGINS_* env overrides.
 func applyPluginsEnvOverrides(cfg *config.Config) {
 	if v, ok := os.LookupEnv("INFER_PLUGINS_ENABLED"); ok {
 		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {

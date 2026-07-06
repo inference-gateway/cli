@@ -12,14 +12,13 @@ import (
 )
 
 // pluginNameRegex mirrors the skills name rules so plugin names are safe as
-// directory names and can never smuggle path separators or traversal.
+// directory names.
 var pluginNameRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 const pluginNameMaxLen = 64
 
 // Manifest is the Claude Code plugin manifest (.claude-plugin/plugin.json).
-// The hooks/commands/mcpServers keys are parsed only to detect presence -
-// infer never executes plugin code.
+// The hooks/commands/mcpServers keys are parsed only to detect presence.
 type Manifest struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
@@ -51,8 +50,7 @@ func parseManifest(dir string) (*Manifest, error) {
 }
 
 // sanitizePluginName normalizes raw into a valid plugin name (lowercase
-// [a-z0-9-], max 64 chars): invalid runs become "-", which is then collapsed
-// and trimmed. Errors when nothing valid remains.
+// [a-z0-9-], max 64 chars). Errors when nothing valid remains.
 func sanitizePluginName(raw string) (string, error) {
 	lower := strings.ToLower(strings.TrimSpace(raw))
 	var b strings.Builder

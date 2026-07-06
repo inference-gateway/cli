@@ -15,10 +15,8 @@ const (
 	PluginManifestPath = ".claude-plugin/plugin.json"
 )
 
-// PluginsConfig represents the userspace-only ~/.infer/plugins.yaml registry
-// of installed Claude Code-format plugins. Unlike other sidecar files it is
-// never seeded by `infer init` - it is created lazily by the `infer plugins`
-// commands, so `init --overwrite` can never clobber it.
+// PluginsConfig is the userspace ~/.infer/plugins.yaml registry of installed
+// plugins. It is created lazily by `infer plugins`, never seeded by `infer init`.
 type PluginsConfig struct {
 	Enabled              bool          `yaml:"enabled" mapstructure:"enabled"`
 	Dir                  string        `yaml:"dir,omitempty" mapstructure:"dir,omitempty"`
@@ -31,9 +29,7 @@ type PluginsConfig struct {
 
 var _ CollectionConfig[PluginEntry] = (*PluginsConfig)(nil)
 
-// PluginEntry is one installed plugin in the registry. Source keeps the
-// canonical install source ("owner/repo", a github.com URL, or an absolute
-// local path) so `infer plugins update` can re-fetch it.
+// PluginEntry is one installed plugin in the registry.
 type PluginEntry struct {
 	Name    string `yaml:"name" mapstructure:"name"`
 	Source  string `yaml:"source" mapstructure:"source"`
@@ -52,9 +48,8 @@ func DefaultPluginsConfig() *PluginsConfig {
 	}
 }
 
-// LoadPlugins reads plugins.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "no plugins
-// installed" without special-casing.
+// LoadPlugins reads plugins.yaml from disk, returning defaults when the file
+// is missing.
 func LoadPlugins(path string) (*PluginsConfig, error) {
 	cfg, err := utils.LoadYAML(path, "Plugins", DefaultPluginsConfig)
 	if err != nil {
@@ -70,14 +65,13 @@ func LoadPlugins(path string) (*PluginsConfig, error) {
 	return cfg, nil
 }
 
-// SavePlugins writes the plugins registry to disk, creating any missing
-// parent directories.
+// SavePlugins writes the plugins registry to disk.
 func SavePlugins(path string, cfg *PluginsConfig) error {
 	return utils.SaveYAML(path, "Plugins", cfg)
 }
 
-// ResolveDir returns the plugins storage root: the Dir override when set
-// (mainly for tests), otherwise ~/.infer/plugins.
+// ResolveDir returns the plugins storage root: Dir when set, otherwise
+// ~/.infer/plugins.
 func (c PluginsConfig) ResolveDir() (string, error) {
 	if c.Dir != "" {
 		return c.Dir, nil
@@ -116,8 +110,8 @@ func (c PluginsConfig) PluginInstructionsPath(name string) (string, error) {
 	return filepath.Join(root, PluginAgentsMDName), nil
 }
 
-// EnabledEntries returns the registered plugins that are individually
-// enabled, in registry order. Empty when the master switch is off.
+// EnabledEntries returns the enabled plugins in registry order, or nil when
+// the master switch is off.
 func (c PluginsConfig) EnabledEntries() []PluginEntry {
 	if !c.Enabled {
 		return nil

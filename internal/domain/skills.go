@@ -5,8 +5,6 @@ import "context"
 // SkillScope identifies where a skill came from: the project (.infer/skills/),
 // the open-standard location (.agents/skills/), the user-global location
 // (~/.infer/skills/), or an installed plugin (~/.infer/plugins/<name>/skills/).
-// Used by the system-prompt injection and `infer skills list` to disambiguate
-// same-name skills and to tell the user where each skill lives.
 type SkillScope string
 
 const (

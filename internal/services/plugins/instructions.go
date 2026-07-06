@@ -1,9 +1,6 @@
 // Package plugins implements installation and runtime surfacing of Claude
-// Code-format plugins. A plugin is a content package - SKILL.md skills plus an
-// optional AGENTS.md instruction ruleset - mapped onto infer's native
-// primitives. Plugin code (hooks/, commands/) is never executed: unlike
-// executable plugin models (e.g. OpenCode's JS modules), infer maps content
-// only.
+// Code-format plugins: SKILL.md skills plus an optional AGENTS.md instruction
+// ruleset. Plugin code (hooks/, commands/) is never executed.
 package plugins
 
 import (
@@ -15,8 +12,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// Instruction is one enabled plugin's AGENTS.md ruleset, capped for prompt
-// injection.
+// Instruction is one enabled plugin's AGENTS.md ruleset, capped for prompt injection.
 type Instruction struct {
 	PluginName string
 	Content    string
@@ -24,12 +20,9 @@ type Instruction struct {
 	Marker     string
 }
 
-// CapInstructions bounds instruction-file content for prompt injection:
-// first at maxLines lines (the AGENTS.md standard keeps the file under 400
-// lines - default config.DefaultInstructionsMaxLines = 399), then at maxChars
-// characters. Returns the capped content and a human-readable truncation
-// marker ("" when nothing was cut) so callers always surface an explicit cut
-// point to the model.
+// CapInstructions bounds instruction-file content at maxLines lines, then at
+// maxChars characters. Returns the capped content and a truncation marker
+// ("" when nothing was cut).
 func CapInstructions(content string, maxLines, maxChars int) (string, string) {
 	marker := ""
 	if maxLines > 0 {
@@ -45,11 +38,9 @@ func CapInstructions(content string, maxLines, maxChars int) (string, string) {
 	return content, marker
 }
 
-// Instructions reads each enabled plugin's AGENTS.md in registry order.
-// Fail-soft: a plugin without an AGENTS.md (or with an unreadable one) is
-// skipped. Content is read verbatim - deliberately NOT through os.ExpandEnv -
-// so plugin-controlled text can never expand environment variables into the
-// system prompt. Each entry is capped at plugins.max_instructions_chars.
+// Instructions reads each enabled plugin's AGENTS.md in registry order,
+// skipping plugins without one. Content is read verbatim (never through
+// os.ExpandEnv) so plugin-controlled text cannot expand environment variables.
 func Instructions(cfg *config.Config) []Instruction {
 	if cfg == nil || !cfg.Plugins.Enabled {
 		return nil
@@ -88,10 +79,8 @@ func Instructions(cfg *config.Config) []Instruction {
 }
 
 // ClaudeCodeAppend composes the --append-system-prompt payload for Claude
-// Code mode: the configured prompts.agent.system_prompt_claude_code followed
-// by the enabled plugins' rulesets. The project AGENTS.md is deliberately NOT
-// included - the claude CLI reads project instruction files natively, so
-// appending it would double-inject.
+// Code mode. The project AGENTS.md is excluded - the claude CLI reads it
+// natively, so appending it would double-inject.
 func ClaudeCodeAppend(cfg *config.Config) string {
 	parts := make([]string, 0, 2)
 	if cfg != nil && cfg.Prompts.Agent.SystemPromptClaudeCode != "" {

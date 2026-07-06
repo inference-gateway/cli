@@ -18,20 +18,12 @@ const (
 	MemoryDirName       = "memory"
 	MemoryIndexFileName = "MEMORY.md"
 
-	DefaultConfigPath          = ConfigDirName + "/" + ConfigFileName
-	DefaultLogsPath            = ConfigDirName + "/" + LogsDirName
-	DefaultMemoryMaxChars      = 2000
-	DefaultMemoryMaxEntryChars = 2000
-	DefaultSkillsMaxChars      = 4000
-	// DefaultInstructionsMaxChars caps injected instruction files (the project
-	// AGENTS.md and each plugin's AGENTS.md) in the system prompt. Truncation is
-	// always marked so the model never reads a silently cut-off ruleset.
+	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
+	DefaultLogsPath             = ConfigDirName + "/" + LogsDirName
+	DefaultMemoryMaxChars       = 2000
+	DefaultMemoryMaxEntryChars  = 2000
+	DefaultSkillsMaxChars       = 4000
 	DefaultInstructionsMaxChars = 8000
-	// DefaultInstructionsMaxLines caps injected instruction files at 399
-	// lines: the AGENTS.md standard keeps the file under 400 lines at
-	// creation, so anything beyond that is read as out-of-contract and
-	// dropped. Configurable via agent.agents_md.max_lines (project AGENTS.md)
-	// and plugins.max_instructions_lines (plugin rulesets).
 	DefaultInstructionsMaxLines = 399
 )
 
@@ -455,10 +447,8 @@ type AgentSkillsConfig struct {
 	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
 }
 
-// AgentsMDConfig controls native injection of the project-root AGENTS.md into
-// the system prompt (the file `infer init` / the /init shortcut generates).
-// Injection is additive - it never replaces prompts or custom instructions -
-// matching the merge semantics of the open AGENTS.md standard.
+// AgentsMDConfig controls native injection of the project-root AGENTS.md
+// into the system prompt.
 type AgentsMDConfig struct {
 	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
 	MaxChars int  `yaml:"max_chars" mapstructure:"max_chars"`
@@ -1267,12 +1257,6 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	// The skills carve-out is gated on agent.skills.enabled: when skills are off
-	// (the default) the directory is not allowed and falls through to the
-	// .infer/ protected-path check below. The tmp/plans carve-out stays
-	// unconditional and checks both the project-relative ConfigDirName and the
-	// resolved config dir (GetConfigDir) so plans written to the userspace
-	// ~/.infer/plans stay readable when the config was loaded from there.
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
@@ -1372,11 +1356,9 @@ func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 	return false
 }
 
-// isWithinPluginsDir reports whether absPath lives inside the plugins storage
-// root (~/.infer/plugins or the Plugins.Dir override), so the model can Read
-// plugin SKILL.md bodies and files they reference even though the broader
-// .infer/ directory is in ProtectedPaths. Gated in ValidatePathInSandbox on
-// Plugins.Enabled; file-level protections like *.env still apply.
+// isWithinPluginsDir reports whether absPath lives inside the plugins
+// storage root, so plugin SKILL.md bodies stay readable even though the
+// broader .infer/ directory is protected.
 func (c *Config) isWithinPluginsDir(absPath string) bool {
 	dir, err := c.Plugins.ResolveDir()
 	if err != nil {

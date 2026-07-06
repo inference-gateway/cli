@@ -23,19 +23,15 @@ const (
 	installerUA      = "inference-gateway-cli"
 )
 
-// mappedPrefixes is the content subset a plugin install actually materializes
-// on disk: the manifest, the instruction ruleset, and the skills tree.
-// Everything else in a plugin repo is either unsupported-by-design
-// (executable hooks, host-specific command files) or irrelevant payload.
+// mappedPrefixes is the content subset a plugin install materializes on disk.
 var mappedPrefixes = []string{
 	config.PluginManifestPath,
 	config.PluginAgentsMDName,
 	"skills/",
 }
 
-// detectPrefixes are recognized plugin components that infer deliberately
-// does NOT execute or install; they are counted so the install summary can
-// tell the user what was ignored.
+// detectPrefixes are plugin components infer does not execute or install;
+// they are counted so the install summary can report what was ignored.
 var detectPrefixes = map[string]string{
 	"hooks/":    "hooks",
 	"commands/": "commands",
@@ -54,9 +50,8 @@ type InstallResult struct {
 	Unsupported     map[string]int
 }
 
-// Installer downloads the mapped subset of a plugin repo from GitHub. When
-// Token is non-empty its requests are authenticated (higher rate limits,
-// private repos). Tests substitute APIBase / RawBase with httptest servers.
+// Installer downloads the mapped subset of a plugin repo from GitHub.
+// Tests substitute APIBase / RawBase with httptest servers.
 type Installer struct {
 	Client  *http.Client
 	APIBase string
@@ -64,8 +59,8 @@ type Installer struct {
 	Token   string
 }
 
-// NewInstaller returns an Installer pointed at github.com with a 30s HTTP
-// timeout and the token from GITHUB_TOKEN / GH_TOKEN (matching the gh CLI).
+// NewInstaller returns an Installer pointed at github.com, authenticated via
+// GITHUB_TOKEN / GH_TOKEN when set.
 func NewInstaller() *Installer {
 	return &Installer{
 		Client:  &http.Client{Timeout: installerTimeout},
@@ -88,8 +83,7 @@ func (i *Installer) setAuth(req *http.Request) {
 	}
 }
 
-// isMapped reports whether a repo-relative slash path belongs to the
-// installed content subset.
+// isMapped reports whether a repo-relative slash path belongs to the installed subset.
 func isMapped(repoPath string) bool {
 	for _, p := range mappedPrefixes {
 		if repoPath == p || (strings.HasSuffix(p, "/") && strings.HasPrefix(repoPath, p)) {
@@ -113,8 +107,7 @@ func isSafeRelPath(repoPath string) bool {
 	return true
 }
 
-// countUnsupported attributes a repo path to a detected-but-ignored
-// component bucket.
+// countUnsupported attributes a repo path to a detected-but-ignored component bucket.
 func countUnsupported(unsupported map[string]int, repoPath string) {
 	for prefix, label := range detectPrefixes {
 		if strings.HasPrefix(repoPath, prefix) {
@@ -125,8 +118,7 @@ func countUnsupported(unsupported map[string]int, repoPath string) {
 }
 
 // Stage materializes the mapped subset of src into stagingDir and returns
-// the counts of recognized-but-unsupported component files. All-or-nothing:
-// on error the caller removes stagingDir.
+// the counts of unsupported component files. On error the caller removes stagingDir.
 func (i *Installer) Stage(ctx context.Context, src Source, stagingDir string) (map[string]int, error) {
 	if src.Kind == SourceLocal {
 		return stageLocal(src.Path, stagingDir)
@@ -170,8 +162,8 @@ func (i *Installer) stageGitHub(ctx context.Context, src Source, stagingDir stri
 	return unsupported, nil
 }
 
-// stageLocal copies the mapped subset of a local plugin directory (dev
-// workflow). Non-regular files (symlinks, devices) are skipped.
+// stageLocal copies the mapped subset of a local plugin directory,
+// skipping non-regular files.
 func stageLocal(srcDir, stagingDir string) (map[string]int, error) {
 	unsupported := map[string]int{}
 	found := false
@@ -212,9 +204,8 @@ func stageLocal(srcDir, stagingDir string) (map[string]int, error) {
 }
 
 // Inspect validates a staged or installed plugin dir: manifest (optional,
-// falling back to fallbackName), per-skill validation with the exact rules
-// the runtime scan applies, and instruction-file presence. Errors when the
-// plugin has no mappable content (no valid skill and no AGENTS.md).
+// falling back to fallbackName), skills, and instruction-file presence.
+// Errors when the plugin has no valid skill and no AGENTS.md.
 func Inspect(dir, fallbackName string) (*InstallResult, error) {
 	manifest, err := parseManifest(dir)
 	if err != nil {
@@ -265,9 +256,8 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 }
 
 // Commit atomically promotes stagingDir to finalDir. On overwrite the old
-// dir is trash-renamed first and restored if the promotion fails; on success
-// the trash is removed. Staging and final must share a filesystem (the
-// caller stages inside the plugins root) so os.Rename is atomic.
+// dir is trash-renamed first and restored if the promotion fails. Staging and
+// final must share a filesystem so os.Rename is atomic.
 func Commit(stagingDir, finalDir string, overwrite bool) error {
 	if _, err := os.Stat(finalDir); err == nil {
 		if !overwrite {
@@ -296,8 +286,7 @@ func Commit(stagingDir, finalDir string, overwrite bool) error {
 }
 
 // Uninstall removes the plugin folder named name from root. The name must
-// match the plugin-name regex so callers can't smuggle path traversal.
-// Missing folders are not an error (heals a stale registry entry).
+// match the plugin-name regex; missing folders are not an error.
 func Uninstall(name, root string) (string, error) {
 	if !pluginNameRegex.MatchString(name) {
 		return "", fmt.Errorf("invalid plugin name %q (must match %s)", name, pluginNameRegex.String())

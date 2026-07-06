@@ -105,7 +105,7 @@ func (s *Service) Load(_ context.Context) error {
 				continue
 			}
 			skillDir := filepath.Join(scope.dir, entry.Name())
-			skill, loadErr := loadSkill(skillDir, entry.Name(), scope.scope)
+			skill, loadErr := LoadSkillMetadata(skillDir, entry.Name(), scope.scope)
 			if loadErr != nil {
 				logger.Warn("skipping invalid skill", "path", skillDir, "reason", loadErr.Reason)
 				s.errs = append(s.errs, *loadErr)
@@ -165,11 +165,9 @@ type scopedDir struct {
 	scope domain.SkillScope
 }
 
-// searchScopes returns the skill directories in precedence order: project
-// (.infer/skills), then the open-standard .agents/skills, then user-global
-// (~/.infer/skills), then each enabled plugin's skills dir (registry order).
-// Precedence is implemented by the caller via the `seen` map (first match
-// wins on name collision), so local skills always override plugin skills.
+// searchScopes returns the skill directories in precedence order: project,
+// .agents/skills, user-global, then each enabled plugin's skills dir. The
+// caller's `seen` map makes the first match win on name collision.
 func (s *Service) searchScopes() []scopedDir {
 	scopes := []scopedDir{
 		{dir: filepath.Join(config.ConfigDirName, skillsSubdir), scope: domain.SkillScopeProject},
@@ -193,19 +191,10 @@ func (s *Service) searchScopes() []scopedDir {
 	return scopes
 }
 
-// LoadSkillMetadata parses and validates a single skill directory
-// (<skillDir>/SKILL.md) without registering it. Exposed for the plugin
-// installer so plugin skills are validated with exactly the same rules the
-// runtime scan applies.
+// LoadSkillMetadata reads <skillDir>/SKILL.md, parses frontmatter, validates
+// the fields, and returns the populated domain.Skill. Returns (nil, nil) when
+// the directory has no SKILL.md, (nil, err) when SKILL.md is invalid.
 func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill, *domain.SkillLoadError) {
-	return loadSkill(skillDir, dirName, scope)
-}
-
-// loadSkill reads <skillDir>/SKILL.md, parses frontmatter, validates the
-// fields, and returns the populated domain.Skill. Returns (nil, nil) when
-// the directory has no SKILL.md (silently skipped - not an error). Returns
-// (nil, err) when SKILL.md is present but invalid.
-func loadSkill(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill, *domain.SkillLoadError) {
 	entryPath := filepath.Join(skillDir, skillEntryFile)
 	absPath, absErr := filepath.Abs(entryPath)
 	if absErr != nil {

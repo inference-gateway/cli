@@ -21,9 +21,9 @@ type Source struct {
 	Kind  SourceKind
 	Owner string
 	Repo  string
-	Ref   string // "" means HEAD (the repository's default branch)
-	Path  string // local directory (SourceLocal only)
-	Raw   string // canonical form persisted to the registry
+	Ref   string
+	Path  string
+	Raw   string
 }
 
 // ParseSource accepts:
@@ -31,9 +31,6 @@ type Source struct {
 //   - "owner/repo" and "owner/repo@ref"
 //   - "https://github.com/owner/repo" and ".../tree/<ref>"
 //   - local paths starting with "./", "../", "/", or "~/"
-//
-// Refs containing "/" (e.g. "feature/foo" branches) are not supported in
-// /tree/ URLs, matching the skills installer's limitation.
 func ParseSource(raw string) (Source, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -121,9 +118,8 @@ func parseShorthandSource(raw string) (Source, error) {
 	return Source{Kind: SourceGitHub, Owner: parts[0], Repo: parts[1], Ref: ref, Raw: spec}, nil
 }
 
-// EffectiveRef returns the git ref to fetch: the parsed ref or HEAD, which
-// GitHub resolves to the repository's default branch on both the trees API
-// and raw.githubusercontent.com.
+// EffectiveRef returns the git ref to fetch: the parsed ref, or HEAD (which
+// GitHub resolves to the default branch).
 func (s Source) EffectiveRef() string {
 	if s.Ref == "" {
 		return "HEAD"

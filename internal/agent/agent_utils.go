@@ -484,13 +484,9 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	return b.String()
 }
 
-// buildAgentsMDInfo natively injects the project-root AGENTS.md (the file the
-// /init shortcut generates) into the system prompt. Injection is additive -
-// appended after custom instructions, never replacing them - matching the
-// merge semantics of the open AGENTS.md standard (OpenCode, Codex, Gemini all
-// combine instruction files). Fail-soft: a missing or unreadable file yields
-// "". Content is capped at agent.agents_md.max_chars with an explicit
-// truncation marker. Empty when disabled via agent.agents_md.enabled=false.
+// buildAgentsMDInfo injects the project-root AGENTS.md into the system
+// prompt, appended after custom instructions. Returns "" when the file is
+// missing/unreadable or agent.agents_md.enabled is false.
 func (s *AgentServiceImpl) buildAgentsMDInfo() string {
 	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
 		return ""
