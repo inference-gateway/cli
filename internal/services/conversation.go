@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -182,6 +183,12 @@ func (r *InMemoryConversationRepository) Clear() error {
 // StartNewConversation clears the current conversation (in-memory doesn't persist)
 func (r *InMemoryConversationRepository) StartNewConversation(title string) error {
 	return r.Clear()
+}
+
+// LoadConversation always fails for in-memory storage: there is nothing
+// persisted to load from.
+func (r *InMemoryConversationRepository) LoadConversation(ctx context.Context, conversationID string) error {
+	return fmt.Errorf("conversation persistence is disabled; cannot load conversation %s", conversationID)
 }
 
 func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {

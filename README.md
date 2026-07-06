@@ -491,6 +491,10 @@ infer init --userspace  # Initialize user-level configuration
 # Terminal mode (default)
 infer chat
 
+# Resume a previous chat session
+infer conversations list  # Find session IDs
+infer chat --session-id abc-123-def
+
 # Web terminal mode with browser interface
 infer chat --web
 infer chat --web --port 8080  # Custom port

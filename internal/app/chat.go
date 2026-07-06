@@ -422,6 +422,12 @@ func (app *ChatApplication) Init() tea.Cmd {
 		app.mcpManager.StartMonitoring(context.Background())
 	}
 
+	if msgs := app.conversationRepo.GetMessages(); len(msgs) > 0 {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UpdateHistoryEvent{History: msgs}
+		})
+	}
+
 	return tea.Batch(cmds...)
 }
 
