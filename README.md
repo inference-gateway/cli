@@ -125,8 +125,8 @@ infer --help
 
 > **Not recommended for production.** For production or CI, prefer the
 > [install script](#using-install-script), [container image](#using-container-image), or
-> [building from source](#build-from-source). Prebuilt binaries cover Linux and macOS on
-> amd64/arm64 - on Windows, use WSL.
+> [building from source](#build-from-source). Prebuilt binaries cover Linux, macOS, and Windows on
+> amd64/arm64.
 
 ### Using Go Install
 
@@ -162,6 +162,8 @@ docker run -it --rm --network inference-gateway ghcr.io/inference-gateway/cli:la
 
 ### Using Install Script
 
+**Linux/macOS:**
+
 ```bash
 # Latest version
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
@@ -173,9 +175,40 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
 ```
 
+**Windows (PowerShell 5.1+ / pwsh):**
+
+```powershell
+# Latest version
+.\install.ps1
+
+# Specific version
+.\install.ps1 -Version v0.1.0
+
+# Custom installation directory
+$env:INSTALL_DIR = "C:\tools"; .\install.ps1
+```
+
+Or run directly from GitHub:
+
+```powershell
+# Download and run
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/inference-gateway/cli/main/install.ps1'))
+```
+
 ### Manual Download
 
 Download the latest release binary for your platform from the [releases page](https://github.com/inference-gateway/cli/releases).
+
+Available binaries:
+
+| Platform | Binary |
+| -------- | ------ |
+| Linux amd64 | `infer-linux-amd64` |
+| Linux arm64 | `infer-linux-arm64` |
+| macOS amd64 (Intel) | `infer-darwin-amd64` |
+| macOS arm64 (Apple Silicon) | `infer-darwin-arm64` |
+| Windows amd64 | `infer-windows-amd64.exe` |
+| Windows arm64 | `infer-windows-arm64.exe` |
 
 **Verify the binary** (recommended for security):
 
@@ -204,6 +237,15 @@ git clone https://github.com/inference-gateway/cli.git
 cd cli
 go build -o infer cmd/infer/main.go
 sudo mv infer /usr/local/bin/
+```
+
+On Windows, build with:
+
+```powershell
+git clone https://github.com/inference-gateway/cli.git
+cd cli
+go build -o infer.exe cmd/infer/main.go
+# The binary is at .\infer.exe
 ```
 
 ## Quick Start
@@ -1359,6 +1401,10 @@ Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`
 governed by `computer_use.enabled` plus the configured rate limits. On macOS an optional **floating
 progress window** can mirror what the agent is doing. For a sandboxed desktop to drive, see
 [examples/computer-use](examples/computer-use/).
+
+> **⚠️ Windows note:** Computer use (mouse, keyboard, screenshot tools) is **not supported on Windows**.
+> The agent will log a warning and disable these tools when running on Windows. All other features
+> work normally.
 
 ## Persistent Memory
 
