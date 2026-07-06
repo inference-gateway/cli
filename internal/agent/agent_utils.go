@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	project "github.com/inference-gateway/cli/internal/project"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -490,12 +492,13 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	if index == "" {
 		return ""
 	}
+	index = filterMemoryIndex(index, project.Detect().Slug)
 	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
 		index = index[:maxChars] + "\n... (memory index truncated; use the Memory tool 'read' with a name for full facts)"
 	}
 
 	var b strings.Builder
-	b.WriteString("\n\nPERSISTENT MEMORY INDEX (durable facts from past sessions; use the Memory tool 'read' with a name to load one in full):\n")
+	b.WriteString("\n\nPERSISTENT MEMORY INDEX (global facts plus facts for the current project, from past sessions; use the Memory tool 'read' with a name to load one in full):\n")
 	b.WriteString(index)
 	b.WriteString("\n")
 
@@ -507,6 +510,55 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	s.contextCacheMux.Unlock()
 
 	return result
+}
+
+// memoryIndexLink extracts the link target from a MEMORY.md entry line.
+var memoryIndexLink = regexp.MustCompile(`\]\(([^)]+)\.md\)`)
+
+// filterMemoryIndex keeps index entry lines that are global (root-level link)
+// or belong to projectSlug, and collapses every other project into one summary
+// line so the injected index stays small while other projects remain
+// discoverable. Non-entry lines (header, blanks) and unparsable entry lines
+// are kept as-is (fail open).
+func filterMemoryIndex(index, projectSlug string) string {
+	var b strings.Builder
+	others := make(map[string]struct{})
+
+	for line := range strings.SplitSeq(index, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "- ") {
+			b.WriteString(line)
+			b.WriteString("\n")
+			continue
+		}
+		m := memoryIndexLink.FindStringSubmatch(trimmed)
+		if m == nil {
+			b.WriteString(line)
+			b.WriteString("\n")
+			continue
+		}
+		lineProject := ""
+		if i := strings.IndexByte(m[1], '/'); i >= 0 {
+			lineProject = m[1][:i]
+		}
+		if lineProject == "" || lineProject == projectSlug {
+			b.WriteString(line)
+			b.WriteString("\n")
+			continue
+		}
+		others[lineProject] = struct{}{}
+	}
+
+	out := strings.TrimRight(b.String(), "\n")
+	if len(others) > 0 {
+		names := make([]string, 0, len(others))
+		for p := range others {
+			names = append(names, p)
+		}
+		sort.Strings(names)
+		out += fmt.Sprintf("\n- other projects with memories (not shown; read with \"<project>/<name>\"): %s", strings.Join(names, ", "))
+	}
+	return out
 }
 
 // matchSkillTriggers scans user-role messages for explicit skill invocations
@@ -692,27 +744,7 @@ func isGitRepository() bool {
 
 // getGitRepositoryName extracts the repository name from the git remote URL
 func getGitRepositoryName() string {
-	cmd := exec.Command("git", "remote", "get-url", "origin")
-	output, err := cmd.Output()
-	if err != nil {
-		logger.Debug("failed to get git remote URL", "error", err)
-		return ""
-	}
-
-	remoteURL := strings.TrimSpace(string(output))
-
-	httpsPattern := regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+?)(?:\.git)?$`)
-	if matches := httpsPattern.FindStringSubmatch(remoteURL); len(matches) > 1 {
-		return matches[1]
-	}
-
-	sshPattern := regexp.MustCompile(`^git@[^:]+:([^/]+/[^/]+?)(?:\.git)?$`)
-	if matches := sshPattern.FindStringSubmatch(remoteURL); len(matches) > 1 {
-		return matches[1]
-	}
-
-	logger.Debug("could not parse git repository name from URL", "url", remoteURL)
-	return ""
+	return project.RemoteName()
 }
 
 // getGitBranch returns the current git branch name

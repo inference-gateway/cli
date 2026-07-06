@@ -46,10 +46,11 @@ const (
 // session reminder lives in reminders.yaml - keeping each concern in its own
 // file, like Heartbeat/ComputerUse/Channels.
 type MemoryConfig struct {
-	Enabled  bool                `yaml:"enabled" mapstructure:"enabled"`
-	Dir      string              `yaml:"dir" mapstructure:"dir"`             // "" => ~/.infer/memory
-	MaxChars int                 `yaml:"max_chars" mapstructure:"max_chars"` // cap on the injected MEMORY.md index
-	Backend  MemoryBackendConfig `yaml:"backend" mapstructure:"backend"`
+	Enabled       bool                `yaml:"enabled" mapstructure:"enabled"`
+	Dir           string              `yaml:"dir" mapstructure:"dir"`                         // "" => ~/.infer/memory
+	MaxChars      int                 `yaml:"max_chars" mapstructure:"max_chars"`             // cap on the injected MEMORY.md index
+	MaxEntryChars int                 `yaml:"max_entry_chars" mapstructure:"max_entry_chars"` // cap on a single fact's content at write time; 0 => default
+	Backend       MemoryBackendConfig `yaml:"backend" mapstructure:"backend"`
 }
 
 // MemoryBackendConfig selects how the memory directory is synced. type: local
@@ -86,9 +87,10 @@ type MemoryGitSyncConfig struct {
 // opts into git.
 func DefaultMemoryConfig() *MemoryConfig {
 	return &MemoryConfig{
-		Enabled:  true,
-		Dir:      "",
-		MaxChars: DefaultMemoryMaxChars,
+		Enabled:       true,
+		Dir:           "",
+		MaxChars:      DefaultMemoryMaxChars,
+		MaxEntryChars: DefaultMemoryMaxEntryChars,
 		Backend: MemoryBackendConfig{
 			Type: MemoryBackendLocal,
 			Git: MemoryGitConfig{
@@ -124,7 +126,20 @@ func (m MemoryConfig) Validate() error {
 	if m.Enabled && m.MaxChars <= 0 {
 		return fmt.Errorf("invalid memory.max_chars %d: must be > 0 when memory is enabled", m.MaxChars)
 	}
+	if m.MaxEntryChars < 0 {
+		return fmt.Errorf("invalid memory.max_entry_chars %d: must be >= 0 (0 means default %d)", m.MaxEntryChars, DefaultMemoryMaxEntryChars)
+	}
 	return m.Backend.validate(m.Enabled)
+}
+
+// EffectiveMaxEntryChars returns the per-entry content cap, defaulting when
+// unset. A pre-existing memory.yaml without the key unmarshals to 0 (LoadMemory
+// does not merge defaults), so 0 means "use the default" rather than invalid.
+func (m MemoryConfig) EffectiveMaxEntryChars() int {
+	if m.MaxEntryChars > 0 {
+		return m.MaxEntryChars
+	}
+	return DefaultMemoryMaxEntryChars
 }
 
 func (b MemoryBackendConfig) validate(memoryEnabled bool) error {

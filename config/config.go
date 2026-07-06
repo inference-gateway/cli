@@ -18,9 +18,10 @@ const (
 	MemoryDirName       = "memory"
 	MemoryIndexFileName = "MEMORY.md"
 
-	DefaultConfigPath     = ConfigDirName + "/" + ConfigFileName
-	DefaultLogsPath       = ConfigDirName + "/" + LogsDirName
-	DefaultMemoryMaxChars = 4000
+	DefaultConfigPath          = ConfigDirName + "/" + ConfigFileName
+	DefaultLogsPath            = ConfigDirName + "/" + LogsDirName
+	DefaultMemoryMaxChars      = 2000
+	DefaultMemoryMaxEntryChars = 2000
 )
 
 // Config represents the CLI configuration
@@ -1164,10 +1165,10 @@ func (c *Config) GetSandboxDirectories() []string {
 }
 
 // ResolveMemoryDir resolves the directory that holds the memory index
-// (MEMORY.md) and the individual fact-files. It honors an explicit Memory.Dir
-// override and otherwise defaults to the global userspace ~/.infer/memory. The
-// store is intentionally global (shared across all projects), so there is no
-// project-local branch.
+// (MEMORY.md) and the fact-files. It honors an explicit Memory.Dir override
+// and otherwise defaults to the global userspace ~/.infer/memory. The store is
+// shared across all projects: global facts live at the root and project facts
+// under a per-project subdirectory (<project-slug>/<slug>.md).
 func (c *Config) ResolveMemoryDir() (string, error) {
 	if strings.TrimSpace(c.Memory.Dir) != "" {
 		return c.Memory.Dir, nil

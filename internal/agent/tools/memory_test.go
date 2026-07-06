@@ -14,16 +14,29 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	project "github.com/inference-gateway/cli/internal/project"
 )
 
+// testProjectIdentity is the zero identity (global scope): the pre-existing
+// tests assert root-level fact files, which is exactly the no-project case.
+func testProjectIdentity() project.Identity {
+	return project.Identity{}
+}
+
 func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
+	t.Helper()
+	return newTestMemoryToolWithProject(t, testProjectIdentity())
+}
+
+func newTestMemoryToolWithProject(t *testing.T, proj project.Identity) (*MemoryTool, string) {
 	t.Helper()
 	cfg := config.DefaultConfig()
 	cfg.Memory.Enabled = true
 	cfg.Memory.Dir = t.TempDir()
 	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
 	cfg.Prompts = *config.DefaultPromptsConfig()
-	return NewMemoryTool(cfg, nil), cfg.Memory.Dir
+	return NewMemoryTool(cfg, nil, proj), cfg.Memory.Dir
 }
 
 func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
@@ -34,7 +47,7 @@ func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
 	cfg.Prompts = *config.DefaultPromptsConfig()
 
 	fake := &mocks.FakeMemoryBackend{}
-	tool := NewMemoryTool(cfg, fake)
+	tool := NewMemoryTool(cfg, fake, testProjectIdentity())
 
 	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "read"}); err != nil {
 		t.Fatalf("read: %v", err)
@@ -132,12 +145,12 @@ func TestMemoryTool_Definition(t *testing.T) {
 
 func TestMemoryTool_IsEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
-	if NewMemoryTool(cfg, nil).IsEnabled() {
+	if NewMemoryTool(cfg, nil, testProjectIdentity()).IsEnabled() {
 		t.Error("Memory tool should be disabled by default")
 	}
 
 	cfg.Memory.Enabled = true
-	if !NewMemoryTool(cfg, nil).IsEnabled() {
+	if !NewMemoryTool(cfg, nil, testProjectIdentity()).IsEnabled() {
 		t.Error("Memory tool should be enabled when memory.enabled is true")
 	}
 }
@@ -189,7 +202,7 @@ func TestMemoryTool_Validate(t *testing.T) {
 func TestMemoryTool_Validate_Disabled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Memory.Enabled = false
-	tool := NewMemoryTool(cfg, nil)
+	tool := NewMemoryTool(cfg, nil, testProjectIdentity())
 	if err := tool.Validate(map[string]any{"operation": "read"}); err == nil {
 		t.Error("Expected validation error when memory is disabled")
 	}
@@ -272,18 +285,18 @@ func TestMemoryTool_Write_SanitizesSlug(t *testing.T) {
 		t.Errorf("expected flat fact-file my-fact-v2.md: %v", err)
 	}
 
-	res = execOK(t, tool, map[string]any{
+	execRes, err := tool.Execute(context.Background(), map[string]any{
 		"operation":   "write",
 		"name":        "../evil",
 		"description": "d",
 		"type":        "reference",
 		"content":     "b",
 	})
-	if strings.ContainsAny(res.Name, "/.") {
-		t.Errorf("slug must not contain path separators or dots, got %q", res.Name)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, res.Name+".md")); err != nil {
-		t.Errorf("expected flat fact-file inside dir: %v", err)
+	if execRes.Success {
+		t.Error("a traversal name must be rejected")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "..", "evil.md")); err == nil {
 		t.Error("a file escaped the memory dir")
@@ -408,5 +421,210 @@ func TestMemoryTool_NoTempLeftovers(t *testing.T) {
 		if strings.HasPrefix(e.Name(), ".tmp-memory") {
 			t.Errorf("leftover temp file: %s", e.Name())
 		}
+	}
+}
+
+func TestMemoryTool_Write_ProjectScoping(t *testing.T) {
+	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	tool, dir := newTestMemoryToolWithProject(t, detected)
+
+	res := execOK(t, tool, map[string]any{
+		"operation": "write", "name": "build-commands", "description": "d", "type": "project", "content": "b",
+	})
+	if res.Name != "inference-gateway-cli/build-commands" {
+		t.Errorf("expected project-prefixed name, got %q", res.Name)
+	}
+	path := filepath.Join(dir, "inference-gateway-cli", "build-commands.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected project fact-file: %v", err)
+	}
+	fm := parseFrontmatter(t, string(data))
+	if fm.Metadata.Project != "inference-gateway/cli" {
+		t.Errorf("frontmatter project = %q, want inference-gateway/cli", fm.Metadata.Project)
+	}
+	if !strings.Contains(readIndexFile(t, dir), "](inference-gateway-cli/build-commands.md)") {
+		t.Errorf("index missing project entry:\n%s", readIndexFile(t, dir))
+	}
+}
+
+func TestMemoryTool_Write_UserTypeDefaultsGlobal(t *testing.T) {
+	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	tool, dir := newTestMemoryToolWithProject(t, detected)
+
+	res := execOK(t, tool, map[string]any{
+		"operation": "write", "name": "prefers-tabs", "description": "d", "type": "user", "content": "b",
+	})
+	if res.Name != "prefers-tabs" {
+		t.Errorf("user fact must be global, got %q", res.Name)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "prefers-tabs.md"))
+	if err != nil {
+		t.Fatalf("expected root fact-file: %v", err)
+	}
+	if fm := parseFrontmatter(t, string(data)); fm.Metadata.Project != "" {
+		t.Errorf("global fact must have no frontmatter project, got %q", fm.Metadata.Project)
+	}
+}
+
+func TestMemoryTool_Write_ExplicitProject(t *testing.T) {
+	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	tool, dir := newTestMemoryToolWithProject(t, detected)
+
+	res := execOK(t, tool, map[string]any{
+		"operation": "write", "name": "x", "description": "d", "type": "project", "content": "b", "project": "GLOBAL",
+	})
+	if res.Name != "x" {
+		t.Errorf("project=global must force root, got %q", res.Name)
+	}
+
+	res = execOK(t, tool, map[string]any{
+		"operation": "write", "name": "y", "description": "d", "type": "reference", "content": "b", "project": "other-org/other",
+	})
+	if res.Name != "other-org-other/y" {
+		t.Errorf("explicit project must be slugified, got %q", res.Name)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "other-org-other", "y.md"))
+	if err != nil {
+		t.Fatalf("expected other-project fact-file: %v", err)
+	}
+	if fm := parseFrontmatter(t, string(data)); fm.Metadata.Project != "other-org/other" {
+		t.Errorf("frontmatter project = %q, want other-org/other", fm.Metadata.Project)
+	}
+}
+
+func TestMemoryTool_Write_NameEmbeddedProject(t *testing.T) {
+	tool, dir := newTestMemoryToolWithProject(t, project.Identity{})
+
+	res := execOK(t, tool, map[string]any{
+		"operation": "write", "name": "p/s", "description": "d", "type": "project", "content": "b",
+	})
+	if res.Name != "p/s" {
+		t.Errorf("expected p/s, got %q", res.Name)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "p", "s.md")); err != nil {
+		t.Fatalf("expected fact under p/: %v", err)
+	}
+
+	execRes, err := tool.Execute(context.Background(), map[string]any{
+		"operation": "write", "name": "p/s", "description": "d", "type": "project", "content": "b", "project": "q",
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if execRes.Success || !strings.Contains(execRes.Error, "conflicting project") {
+		t.Errorf("conflicting name/project must error, got success=%v err=%q", execRes.Success, execRes.Error)
+	}
+}
+
+func TestMemoryTool_ReadDelete_ProjectAndLegacy(t *testing.T) {
+	tool, dir := newTestMemoryToolWithProject(t, project.Identity{Name: "o/r", Slug: "o-r"})
+
+	execOK(t, tool, map[string]any{
+		"operation": "write", "name": "x", "description": "global x", "type": "user", "content": "gx",
+	})
+	execOK(t, tool, map[string]any{
+		"operation": "write", "name": "x", "description": "project x", "type": "project", "content": "px",
+	})
+
+	res := execOK(t, tool, map[string]any{"operation": "read", "name": "x"})
+	if !strings.Contains(res.Content, "gx") {
+		t.Errorf("bare read must hit the global fact:\n%s", res.Content)
+	}
+	res = execOK(t, tool, map[string]any{"operation": "read", "name": "o-r/x"})
+	if !strings.Contains(res.Content, "px") {
+		t.Errorf("prefixed read must hit the project fact:\n%s", res.Content)
+	}
+
+	res = execOK(t, tool, map[string]any{"operation": "read", "name": "o-r/missing"})
+	if !strings.Contains(res.Message, "o-r/missing") {
+		t.Errorf("miss message must include the full name, got %q", res.Message)
+	}
+
+	execOK(t, tool, map[string]any{"operation": "delete", "name": "o-r/x"})
+	if _, err := os.Stat(filepath.Join(dir, "o-r", "x.md")); err == nil {
+		t.Error("project fact must be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x.md")); err != nil {
+		t.Error("global fact must survive the project delete")
+	}
+	index := readIndexFile(t, dir)
+	if strings.Contains(index, "](o-r/x.md)") || !strings.Contains(index, "](x.md)") {
+		t.Errorf("index must drop only the project entry:\n%s", index)
+	}
+}
+
+func TestMemoryTool_Write_EntryCap(t *testing.T) {
+	tool, _ := newTestMemoryTool(t)
+	maxChars := tool.config.Memory.EffectiveMaxEntryChars()
+
+	execOK(t, tool, map[string]any{
+		"operation": "write", "name": "at-cap", "description": "d", "type": "reference",
+		"content": strings.Repeat("a", maxChars),
+	})
+
+	res, err := tool.Execute(context.Background(), map[string]any{
+		"operation": "write", "name": "over-cap", "description": "d", "type": "reference",
+		"content": strings.Repeat("a", maxChars+1),
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if res.Success || !strings.Contains(res.Error, "max_entry_chars") {
+		t.Errorf("over-cap write must be rejected with an actionable error, got success=%v err=%q", res.Success, res.Error)
+	}
+}
+
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		in          string
+		wantProject string
+		wantSlug    string
+		wantOK      bool
+	}{
+		{"build-commands", "", "build-commands", true},
+		{"A B/C d", "a-b", "c-d", true},
+		{"p/s", "p", "s", true},
+		{"../evil", "", "", false},
+		{"a/b/c", "", "", false},
+		{"", "", "", false},
+		{"/s", "", "", false},
+		{"p/", "", "", false},
+	}
+	for _, tt := range tests {
+		p, s, ok := sanitizeName(tt.in)
+		if p != tt.wantProject || s != tt.wantSlug || ok != tt.wantOK {
+			t.Errorf("sanitizeName(%q) = (%q, %q, %v), want (%q, %q, %v)", tt.in, p, s, ok, tt.wantProject, tt.wantSlug, tt.wantOK)
+		}
+	}
+}
+
+func TestMemoryTool_Write_RecordsSessionID(t *testing.T) {
+	tool, dir := newTestMemoryTool(t)
+
+	ctx := domain.WithSessionID(context.Background(), "channel-telegram-12345")
+	res, err := tool.Execute(ctx, map[string]any{
+		"operation": "write", "name": "with-session", "description": "d", "type": "reference", "content": "b",
+	})
+	if err != nil || !res.Success {
+		t.Fatalf("write failed: err=%v res=%+v", err, res)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "with-session.md"))
+	if err != nil {
+		t.Fatalf("read fact: %v", err)
+	}
+	if fm := parseFrontmatter(t, string(data)); fm.Metadata.Session != "channel-telegram-12345" {
+		t.Errorf("frontmatter session = %q, want channel-telegram-12345", fm.Metadata.Session)
+	}
+
+	execOK(t, tool, map[string]any{
+		"operation": "write", "name": "no-session", "description": "d", "type": "reference", "content": "b",
+	})
+	data, err = os.ReadFile(filepath.Join(dir, "no-session.md"))
+	if err != nil {
+		t.Fatalf("read fact: %v", err)
+	}
+	if fm := parseFrontmatter(t, string(data)); fm.Metadata.Session != "" {
+		t.Errorf("session must be omitted without a session context, got %q", fm.Metadata.Session)
 	}
 }

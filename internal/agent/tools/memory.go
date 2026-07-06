@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	project "github.com/inference-gateway/cli/internal/project"
 )
 
 const (
@@ -30,7 +31,6 @@ const (
 	MemoryTypeReference = "reference"
 
 	memoryIndexHeader = "# Memory Index"
-	maxSlugLen        = 64
 )
 
 // MemoryTool implements persistent, cross-session agent memory as a directory of
@@ -41,16 +41,20 @@ type MemoryTool struct {
 	enabled   bool
 	formatter domain.CustomFormatter
 	backend   domain.MemoryBackend
+	project   project.Identity
 }
 
 // NewMemoryTool creates a new memory tool. backend syncs the memory directory to
 // a remote after a write/delete (nil-safe: a nil backend, or the local no-op
 // backend, means no remote sync). This is the chat push path - post_session
 // would push after every message, so the tool triggers the push instead.
-func NewMemoryTool(cfg *config.Config, backend domain.MemoryBackend) *MemoryTool {
+// proj is the detected project the process runs in (zero value = global scope);
+// it decides where project-scoped facts are filed.
+func NewMemoryTool(cfg *config.Config, backend domain.MemoryBackend, proj project.Identity) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
+		project: proj,
 		formatter: domain.NewCustomFormatter(ToolNameMemory, func(key string) bool {
 			return key == "content"
 		}),
@@ -79,8 +83,15 @@ func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
 					},
 					"name": map[string]any{
 						"type": "string",
-						"description": "Short slug identifying the memory (e.g. \"build-commands\"). " +
+						"description": "Name identifying the memory: \"<slug>\" for a global fact (e.g. \"build-commands\") or " +
+							"\"<project>/<slug>\" for a project fact (e.g. \"inference-gateway-cli/build-commands\"), exactly as shown in the index. " +
 							"Required for write and delete; optional for read.",
+					},
+					"project": map[string]any{
+						"type": "string",
+						"description": "Optional, write only. Where the fact belongs: omit to use the default " +
+							"(user facts are global; feedback/project/reference facts go under the current project), " +
+							"pass \"global\" to force a global fact, or an org/repo name to file it under another project.",
 					},
 					"description": map[string]any{
 						"type":        "string",
@@ -147,27 +158,28 @@ func (t *MemoryTool) execRead(args map[string]any, start time.Time) (*domain.Too
 		return t.readIndex(args, start, dir)
 	}
 
-	slug := sanitizeSlug(name)
-	if slug == "" {
+	projectSlug, slug, ok := sanitizeName(name)
+	if !ok {
 		return t.errResult(args, start, fmt.Sprintf("invalid memory name: %q", name)), nil
 	}
+	relKey := joinKey(projectSlug, slug)
 
-	filePath := filepath.Join(dir, slug+".md")
+	filePath := filepath.Join(dir, projectSlug, slug+".md")
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return t.okResult(args, start, &MemoryToolResult{
 				Operation: OperationRead,
-				Name:      slug,
-				Message:   fmt.Sprintf("No memory named %q.", slug),
+				Name:      relKey,
+				Message:   fmt.Sprintf("No memory named %q (project facts are read as \"<project>/<name>\" - see the index).", relKey),
 			}), nil
 		}
-		return t.errResult(args, start, fmt.Sprintf("failed to read memory %q: %v", slug, err)), nil
+		return t.errResult(args, start, fmt.Sprintf("failed to read memory %q: %v", relKey, err)), nil
 	}
 
 	return t.okResult(args, start, &MemoryToolResult{
 		Operation: OperationRead,
-		Name:      slug,
+		Name:      relKey,
 		Path:      filePath,
 		Content:   string(content),
 		Size:      int64(len(content)),
@@ -200,10 +212,18 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 	description, _ := args["description"].(string)
 	memType, _ := args["type"].(string)
 	content, _ := args["content"].(string)
+	projectArg, _ := args["project"].(string)
 
-	slug := sanitizeSlug(name)
-	if slug == "" {
-		return t.errResult(args, start, fmt.Sprintf("invalid memory name: %q", name)), nil
+	projectSlug, slug, err := resolveWriteTarget(name, projectArg, memType, t.project)
+	if err != nil {
+		return t.errResult(args, start, err.Error()), nil
+	}
+	relKey := joinKey(projectSlug, slug)
+
+	if maxChars := t.config.Memory.EffectiveMaxEntryChars(); len(content) > maxChars {
+		return t.errResult(args, start, fmt.Sprintf(
+			"memory content is %d chars, over the per-entry cap of %d; store a tighter summary or split into multiple facts (memory.max_entry_chars raises the cap)",
+			len(content), maxChars)), nil
 	}
 
 	dir, err := t.config.ResolveMemoryDir()
@@ -211,17 +231,17 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 		return t.errResult(args, start, fmt.Sprintf("failed to resolve memory dir: %v", err)), nil
 	}
 
-	fileBody, err := buildMemoryFile(slug, description, memType, content)
+	fileBody, err := buildMemoryFile(slug, description, memType, t.projectDisplayName(projectSlug, projectArg), domain.GetSessionID(ctx), content)
 	if err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to render memory file: %v", err)), nil
 	}
 
-	filePath := filepath.Join(dir, slug+".md")
+	filePath := filepath.Join(dir, projectSlug, slug+".md")
 	if err := writeFileAtomic(filePath, fileBody); err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to write memory file: %v", err)), nil
 	}
 
-	if err := upsertIndexEntry(dir, slug, description); err != nil {
+	if err := upsertIndexEntry(dir, relKey, description); err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to update memory index: %v", err)), nil
 	}
 
@@ -229,8 +249,9 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 
 	return t.okResult(args, start, &MemoryToolResult{
 		Operation:   OperationWrite,
-		Name:        slug,
+		Name:        relKey,
 		Type:        memType,
+		Project:     projectSlug,
 		Description: description,
 		Path:        filePath,
 		Size:        int64(len(fileBody)),
@@ -238,20 +259,76 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 	}), nil
 }
 
+// projectDisplayName returns the human-readable project name recorded in the
+// fact's frontmatter: the detected project's name when the fact is filed under
+// it, otherwise the explicit project argument as given; empty for global.
+func (t *MemoryTool) projectDisplayName(projectSlug, projectArg string) string {
+	if projectSlug == "" {
+		return ""
+	}
+	if projectSlug == t.project.Slug && t.project.Name != "" {
+		return t.project.Name
+	}
+	if arg := strings.TrimSpace(projectArg); arg != "" && !strings.EqualFold(arg, projectGlobal) {
+		return arg
+	}
+	return projectSlug
+}
+
+// projectGlobal is the sentinel project argument that forces a global fact.
+const projectGlobal = "global"
+
+// resolveWriteTarget decides where a write lands: a project subdirectory or the
+// global root. Precedence: a project embedded in the name ("p/s"), then the
+// explicit project argument ("global" forces the root), then a type-based
+// default - user facts are global, everything else goes under the detected
+// project (global when no project was detected).
+func resolveWriteTarget(name, projectArg, memType string, detected project.Identity) (projectSlug, slug string, err error) {
+	nameProject, slug, ok := sanitizeName(name)
+	if !ok {
+		return "", "", fmt.Errorf("invalid memory name: %q", name)
+	}
+
+	argSlug := ""
+	if arg := strings.TrimSpace(projectArg); arg != "" {
+		if !strings.EqualFold(arg, projectGlobal) {
+			argSlug = project.Slugify(arg)
+			if argSlug == "" {
+				return "", "", fmt.Errorf("invalid project: %q", projectArg)
+			}
+		}
+	}
+
+	if nameProject != "" {
+		if strings.TrimSpace(projectArg) != "" && argSlug != nameProject {
+			return "", "", fmt.Errorf("conflicting project: name says %q, project says %q", nameProject, projectArg)
+		}
+		return nameProject, slug, nil
+	}
+	if strings.TrimSpace(projectArg) != "" {
+		return argSlug, slug, nil
+	}
+	if memType == MemoryTypeUser {
+		return "", slug, nil
+	}
+	return detected.Slug, slug, nil
+}
+
 // execDelete removes a fact-file and its index entry (idempotent).
 func (t *MemoryTool) execDelete(ctx context.Context, args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
 	name, _ := args["name"].(string)
-	slug := sanitizeSlug(name)
-	if slug == "" {
+	projectSlug, slug, ok := sanitizeName(name)
+	if !ok {
 		return t.errResult(args, start, fmt.Sprintf("invalid memory name: %q", name)), nil
 	}
+	relKey := joinKey(projectSlug, slug)
 
 	dir, err := t.config.ResolveMemoryDir()
 	if err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to resolve memory dir: %v", err)), nil
 	}
 
-	filePath := filepath.Join(dir, slug+".md")
+	filePath := filepath.Join(dir, projectSlug, slug+".md")
 	existed := true
 	if err := os.Remove(filePath); err != nil {
 		if !os.IsNotExist(err) {
@@ -260,19 +337,19 @@ func (t *MemoryTool) execDelete(ctx context.Context, args map[string]any, start 
 		existed = false
 	}
 
-	if err := removeIndexEntry(dir, slug); err != nil {
+	if err := removeIndexEntry(dir, relKey); err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to update memory index: %v", err)), nil
 	}
 
 	t.syncOut(ctx)
 
-	message := fmt.Sprintf("Deleted memory %q.", slug)
+	message := fmt.Sprintf("Deleted memory %q.", relKey)
 	if !existed {
-		message = fmt.Sprintf("No memory named %q; nothing to delete.", slug)
+		message = fmt.Sprintf("No memory named %q; nothing to delete.", relKey)
 	}
 	return t.okResult(args, start, &MemoryToolResult{
 		Operation: OperationDelete,
-		Name:      slug,
+		Name:      relKey,
 		Path:      filePath,
 		Message:   message,
 	}), nil
@@ -332,6 +409,11 @@ func validateWriteArgs(args map[string]any) error {
 	if !validMemoryType(memType) {
 		return fmt.Errorf("type must be one of: user, feedback, project, reference")
 	}
+	if v, ok := args["project"]; ok {
+		if _, ok := v.(string); !ok {
+			return fmt.Errorf("project must be a string")
+		}
+	}
 	return nil
 }
 
@@ -340,6 +422,7 @@ type MemoryToolResult struct {
 	Operation   string `json:"operation"`
 	Name        string `json:"name,omitempty"`
 	Type        string `json:"type,omitempty"`
+	Project     string `json:"project,omitempty"`
 	Description string `json:"description,omitempty"`
 	Path        string `json:"path,omitempty"`
 	Content     string `json:"content,omitempty"`
@@ -353,24 +436,43 @@ type memoryFrontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Metadata    struct {
-		Type string `yaml:"type"`
+		Type    string `yaml:"type"`
+		Project string `yaml:"project,omitempty"` // human-readable, e.g. "inference-gateway/cli"; absent for global
+		Session string `yaml:"session,omitempty"` // session that last wrote the fact (chat conversation ID or headless session ID)
 	} `yaml:"metadata"`
 }
 
-var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
-
-// sanitizeSlug normalizes a memory name into a safe, flat filename stem:
-// lowercased, non-alphanumeric runs collapsed to single hyphens, trimmed, and
-// length-capped. The result contains no path separators or dots, so it always
-// resolves to a single file inside the memory dir (no traversal).
-func sanitizeSlug(name string) string {
-	s := strings.ToLower(strings.TrimSpace(name))
-	s = slugInvalidChars.ReplaceAllString(s, "-")
-	s = strings.Trim(s, "-")
-	if len(s) > maxSlugLen {
-		s = strings.Trim(s[:maxSlugLen], "-")
+// sanitizeName parses a memory name into (projectSlug, slug): "p/s" ->
+// ("p", "s"), "s" -> ("", "s"). Each segment is independently slugified
+// (lowercased, non-alphanumeric runs collapsed to single hyphens, trimmed,
+// length-capped), so no dots or separators survive and the joined path always
+// stays inside the memory dir (no traversal). More than one "/" or any empty
+// sanitized segment yields ok=false.
+func sanitizeName(name string) (projectSlug, slug string, ok bool) {
+	parts := strings.Split(strings.TrimSpace(name), "/")
+	switch len(parts) {
+	case 1:
+		slug = project.Slugify(parts[0])
+		return "", slug, slug != ""
+	case 2:
+		projectSlug = project.Slugify(parts[0])
+		slug = project.Slugify(parts[1])
+		if projectSlug == "" || slug == "" {
+			return "", "", false
+		}
+		return projectSlug, slug, true
+	default:
+		return "", "", false
 	}
-	return s
+}
+
+// joinKey renders the index key for a fact: "p/s" or bare "s". Always a
+// forward slash - the key doubles as a Markdown link target.
+func joinKey(projectSlug, slug string) string {
+	if projectSlug == "" {
+		return slug
+	}
+	return projectSlug + "/" + slug
 }
 
 func validMemoryType(memType string) bool {
@@ -403,10 +505,14 @@ func requireStringArgValue(args map[string]any, key string) (string, error) {
 }
 
 // buildMemoryFile renders a fact-file: YAML frontmatter (name/description/
-// metadata.type) followed by the body.
-func buildMemoryFile(slug, description, memType, content string) (string, error) {
+// metadata.type/metadata.project/metadata.session) followed by the body.
+// projectName is the human-readable project (empty for a global fact);
+// sessionID tracks provenance - the session that last wrote the fact.
+func buildMemoryFile(slug, description, memType, projectName, sessionID, content string) (string, error) {
 	fm := memoryFrontmatter{Name: slug, Description: description}
 	fm.Metadata.Type = memType
+	fm.Metadata.Project = projectName
+	fm.Metadata.Session = sessionID
 
 	var fmBuf bytes.Buffer
 	enc := yaml.NewEncoder(&fmBuf)
@@ -425,18 +531,21 @@ func buildMemoryFile(slug, description, memType, content string) (string, error)
 	return b.String(), nil
 }
 
-// indexEntryLine renders the one-line catalog entry for a memory.
-func indexEntryLine(slug, description string) string {
+// indexEntryLine renders the one-line catalog entry for a memory. relKey is
+// "slug" for a global fact or "project/slug" for a project fact.
+func indexEntryLine(relKey, description string) string {
 	desc := strings.TrimSpace(description)
 	if desc == "" {
-		return fmt.Sprintf("- [%s](%s.md)", slug, slug)
+		return fmt.Sprintf("- [%s](%s.md)", relKey, relKey)
 	}
-	return fmt.Sprintf("- [%s](%s.md) - %s", slug, slug, desc)
+	return fmt.Sprintf("- [%s](%s.md) - %s", relKey, relKey, desc)
 }
 
-// indexEntryMatches reports whether an index line points at slug's fact-file.
-func indexEntryMatches(line, slug string) bool {
-	return strings.Contains(line, fmt.Sprintf("](%s.md)", slug))
+// indexEntryMatches reports whether an index line points at relKey's fact-file.
+// The "](<relKey>.md)" needle is unambiguous across the global and project
+// forms: "](s.md)" never occurs inside "](p/s.md)".
+func indexEntryMatches(line, relKey string) bool {
+	return strings.Contains(line, fmt.Sprintf("](%s.md)", relKey))
 }
 
 // readIndexEntries returns the catalog entry lines (those beginning with "- ")
@@ -478,7 +587,7 @@ func writeIndexEntries(indexPath string, entries []string) error {
 // can't see because it is a file, not shared memory).
 var indexMu sync.Mutex
 
-func upsertIndexEntry(dir, slug, description string) error {
+func upsertIndexEntry(dir, relKey, description string) error {
 	indexMu.Lock()
 	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
@@ -486,10 +595,10 @@ func upsertIndexEntry(dir, slug, description string) error {
 	if err != nil {
 		return err
 	}
-	newEntry := indexEntryLine(slug, description)
+	newEntry := indexEntryLine(relKey, description)
 	found := false
 	for i, e := range entries {
-		if indexEntryMatches(e, slug) {
+		if indexEntryMatches(e, relKey) {
 			entries[i] = newEntry
 			found = true
 			break
@@ -501,7 +610,7 @@ func upsertIndexEntry(dir, slug, description string) error {
 	return writeIndexEntries(indexPath, entries)
 }
 
-func removeIndexEntry(dir, slug string) error {
+func removeIndexEntry(dir, relKey string) error {
 	indexMu.Lock()
 	defer indexMu.Unlock()
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
@@ -511,7 +620,7 @@ func removeIndexEntry(dir, slug string) error {
 	}
 	kept := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if indexEntryMatches(e, slug) {
+		if indexEntryMatches(e, relKey) {
 			continue
 		}
 		kept = append(kept, e)

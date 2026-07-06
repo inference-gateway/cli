@@ -666,12 +666,12 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled.`,
 		},
 		Memory: PromptsToolDescription{
-			Description: `Persistent, cross-session memory stored as individual fact-files in a global memory directory. Each fact is one Markdown file (<slug>.md) with YAML frontmatter (name, description, metadata.type); MEMORY.md is the index (one line per fact) and is injected into your context at the start of every session. Use this to remember durable facts: user preferences, project conventions, recurring gotchas, and decisions that should outlive the current conversation.
+			Description: `Persistent, cross-session memory stored as fact-files in a global memory directory, organized by project. Global facts live at the root (<name>.md); project facts live in a per-project subdirectory (<project>/<name>.md, e.g. inference-gateway-cli/build-commands.md). Each fact is one Markdown file with YAML frontmatter (name, description, metadata.type, metadata.project, metadata.session - the session that last wrote it); MEMORY.md is the index (one line per fact, linking to its path). At session start you are given the index entries for the current project and for global facts; other projects are listed by name only - read the full index (read with no name) to see them.
 
 Operations:
-- read: With no name, return the MEMORY.md index. With a name, return that fact-file's full content. Use this to load a specific fact in full before relying on it.
-- write: Create or update a fact. Required: name (a short slug), description (a one-line summary shown in the index), type (one of user, feedback, project, reference), and content (the fact body). This writes <slug>.md and keeps the MEMORY.md index in sync automatically.
-- delete: Remove a fact and its index entry. Required: name.
+- read: With no name, return the full MEMORY.md index (all projects). With a name, return that fact-file's full content. Use the exact name shown in the index: "build-commands" for a global fact, "inference-gateway-cli/build-commands" for a project fact.
+- write: Create or update a fact. Required: name (a short slug), description (a one-line summary shown in the index), type (one of user, feedback, project, reference), and content (the fact body in Markdown; writes over the per-entry size cap are rejected, so keep it tight). Optional: project - where the fact belongs. Defaults: "user" facts are global (they describe the user, not a project); feedback/project/reference facts go under the current project (detected from the git remote). Pass project "global" to force a global fact, or an org/repo name to file it under another project.
+- delete: Remove a fact and its index entry. Required: name (the exact name from the index, including the project prefix for project facts).
 
 Guidelines: record one fact per memory; keep description to a single line; before writing, check the index for an existing entry and update it rather than creating a duplicate; delete facts that turn out to be wrong. Never edit MEMORY.md by hand - the tool maintains it.`,
 		},
