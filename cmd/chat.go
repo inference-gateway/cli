@@ -250,10 +250,10 @@ func StartChatSession(cfg *config.Config) error {
 
 	sessionID := application.GetCurrentConversationID()
 	if sessionID != "" {
-			fmt.Println()
-			fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer agent --session-id " + sessionID, colors.DimColor))
+		fmt.Println()
+		fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer agent --session-id "+sessionID, colors.DimColor))
 	} else {
-			fmt.Println(colors.CreateColoredText("Chat session ended.", colors.DimColor))
+		fmt.Println(colors.CreateColoredText("Chat session ended.", colors.DimColor))
 	}
 	return nil
 }
