@@ -125,6 +125,14 @@ jobs:
             goos: darwin
             goarch: arm64
             cgo: "1"
+          - os: windows-2025
+            goos: windows
+            goarch: amd64
+            cgo: "0"
+          - os: windows-2025
+            goos: windows
+            goarch: arm64
+            cgo: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
@@ -159,6 +167,15 @@ jobs:
         if: matrix.goos == 'darwin'
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
+        run: |
+          go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+
+      - name: Build binary (Windows with CGO disabled - pure Go)
+        if: matrix.goos == 'windows'
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+          GOOS: windows
+          GOARCH: ${{ matrix.goarch }}
         run: |
           go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
@@ -280,6 +297,8 @@ jobs:
             infer-linux-arm64 \
             infer-darwin-amd64 \
             infer-darwin-arm64 \
+            infer-windows-amd64 \
+            infer-windows-arm64 \
             checksums.txt \
             checksums.txt.sigstore.json; do
             if [ ! -f "$f" ]; then

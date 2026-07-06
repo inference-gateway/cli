@@ -164,6 +164,16 @@ tasks:
             -o dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} .'
         echo "✓ Built portable dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} (pure Go, all storage backends supported)"
 
+  release:build:windows:
+    desc: Build Windows binary (cross-compiled, pure Go)
+    vars:
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - mkdir -p dist
+      - CGO_ENABLED=0 GOOS=windows GOARCH={{.GOARCH}} go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-windows-{{.GOARCH}} {{.MAIN_PACKAGE}}
+      - echo "✓ Built dist/{{.BINARY_NAME}}-windows-{{.GOARCH}}"
+
   container:build:
     desc: Build container image locally for testing
     cmds:
