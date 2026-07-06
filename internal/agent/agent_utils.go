@@ -20,6 +20,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
+	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -149,6 +150,14 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 		parts = append(parts, s.config.Prompts.Agent.CustomInstructions)
 	}
 
+	if info := s.buildAgentsMDInfo(); info != "" {
+		parts = append(parts, info)
+	}
+
+	if block := plugins.InstructionsBlock(s.config); block != "" {
+		parts = append(parts, block)
+	}
+
 	if agentConfig.SystemPromptWithDefaults {
 		contextInfo := s.buildContextInfo(len(messages)/2, messages)
 		if contextInfo != "" {
@@ -168,7 +177,7 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 // optional append (prompts.agent.system_prompt_claude_code) is reported.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
 	if s.config != nil && s.config.IsClaudeCodeMode() {
-		if appendPrompt := s.config.Prompts.Agent.SystemPromptClaudeCode; appendPrompt != "" {
+		if appendPrompt := plugins.ClaudeCodeAppend(s.config); appendPrompt != "" {
 			return fmt.Sprintf("(claude_code mode: pass-through - appended to Claude Code's own system prompt via --append-system-prompt)\n\n%s", appendPrompt)
 		}
 		return "(claude_code mode: pass-through - no system prompt is sent; Claude Code uses its own)"
@@ -473,6 +482,35 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildAgentsMDInfo injects the project-root AGENTS.md into the system
+// prompt, appended after custom instructions. Returns "" when the file is
+// missing/unreadable or agent.agents_md.enabled is false.
+func (s *AgentServiceImpl) buildAgentsMDInfo() string {
+	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
+		return ""
+	}
+
+	data, err := os.ReadFile("AGENTS.md")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debug("failed to read project AGENTS.md", "error", err)
+		}
+		return ""
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return ""
+	}
+
+	content, marker := plugins.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
+	if marker != "" {
+		content += "\n" + marker
+	}
+
+	return "PROJECT INSTRUCTIONS (AGENTS.md):\n" + content
 }
 
 // buildMemoryInfo loads the MEMORY.md index once per session and injects it as a

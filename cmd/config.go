@@ -383,6 +383,28 @@ func getEffectiveHooksConfigPath() string {
 	return config.DefaultHooksPath
 }
 
+// getPluginsConfigPath returns the path of the plugins registry. Plugins are
+// userspace-only, so unlike other sidecars there is no project-first search.
+func getPluginsConfigPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(config.ConfigDirName, config.PluginsFileName)
+	}
+	return filepath.Join(homeDir, config.ConfigDirName, config.PluginsFileName)
+}
+
+// applyPluginsEnvOverrides applies INFER_PLUGINS_* env overrides.
+func applyPluginsEnvOverrides(cfg *config.Config) {
+	if v, ok := os.LookupEnv("INFER_PLUGINS_ENABLED"); ok {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			cfg.Plugins.Enabled = b
+		}
+	}
+	if v, ok := os.LookupEnv("INFER_PLUGINS_DIR"); ok && strings.TrimSpace(v) != "" {
+		cfg.Plugins.Dir = strings.TrimSpace(v)
+	}
+}
+
 // getKeybindingsConfigWritePath returns the path to write keybindings to.
 // Keybindings are a userspace-only concern, so writes target ~/.infer/ by
 // default; --project (toProject) opts into a project-level override instead.
@@ -435,6 +457,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Prompts = *prompts
 	applyPromptsEnvOverrides(cfg)
+	warnDeadPromptEnvVars()
 
 	remindersCfg, err := resolveRemindersConfig()
 	if err != nil {
@@ -490,6 +513,15 @@ func loadConfigFromViper() (*config.Config, error) {
 	applyMemoryEnvOverrides(cfg)
 	pruneMemoryRemindersIfDisabled(cfg)
 
+	pluginsPath := getPluginsConfigPath()
+	pluginsCfg, err := config.LoadPlugins(pluginsPath)
+	if err != nil {
+		logger.Warn("failed to load plugins config, using defaults", "error", err, "path", pluginsPath)
+		pluginsCfg = config.DefaultPluginsConfig()
+	}
+	cfg.Plugins = *pluginsCfg
+	applyPluginsEnvOverrides(cfg)
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -543,6 +575,21 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	for envKey, target := range envOverrides {
 		if val, ok := os.LookupEnv(envKey); ok {
 			*target = val
+		}
+	}
+}
+
+// warnDeadPromptEnvVars logs a warning when a known-dead env var (renamed
+// in v0.105.0) is set, so consumers following stale docs get a visible
+// signal instead of silent ignore.
+func warnDeadPromptEnvVars() {
+	deadVars := []string{
+		"INFER_AGENT_SYSTEM_PROMPT",
+		"INFER_AGENT_SYSTEM_PROMPT_PLAN",
+	}
+	for _, name := range deadVars {
+		if _, ok := os.LookupEnv(name); ok {
+			logger.Warn("environment variable is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN in docs/configuration-reference.md", "var", name)
 		}
 	}
 }
