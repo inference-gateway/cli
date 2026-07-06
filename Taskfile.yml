@@ -356,17 +356,30 @@ tasks:
     cmds:
       - mkdir -p "{{.NPM_CONFIG_PREFIX}}"
       - |
-        npm install -g --prefix "{{.NPM_CONFIG_PREFIX}}" \
-          semantic-release@25.0.2 \
-          @semantic-release/commit-analyzer@13.0.1 \
-          @semantic-release/release-notes-generator@14.1.0 \
-          @semantic-release/changelog@6.0.3 \
-          @semantic-release/exec@7.1.0 \
-          @semantic-release/git@10.0.1 \
-          @semantic-release/github@1.0.0 \
-          conventional-changelog-conventionalcommits@9.1.0
+        cat > "{{.NPM_CONFIG_PREFIX}}/package.json" <<'EOF'
+        {
+          "private": true,
+          "devDependencies": {
+            "semantic-release": "25.0.5",
+            "@semantic-release/commit-analyzer": "13.0.1",
+            "@semantic-release/release-notes-generator": "14.1.1",
+            "@semantic-release/changelog": "6.0.3",
+            "@semantic-release/exec": "7.1.0",
+            "@semantic-release/git": "10.0.1",
+            "@semantic-release/github": "12.0.9",
+            "@semantic-release/npm": "13.1.5",
+            "conventional-changelog-conventionalcommits": "10.2.0"
+          },
+          "overrides": {
+            "conventional-changelog-writer": "^9.1.0"
+          }
+        }
+        EOF
+        npm install --prefix "{{.NPM_CONFIG_PREFIX}}"
+        mkdir -p "{{.NPM_CONFIG_PREFIX}}/bin"
+        ln -sf ../node_modules/.bin/semantic-release "{{.NPM_CONFIG_PREFIX}}/bin/semantic-release"
     status:
-      - test -d "{{.NPM_CONFIG_PREFIX}}/lib/node_modules/semantic-release"
+      - test -d "{{.NPM_CONFIG_PREFIX}}/node_modules/semantic-release"
 
   clean:release:
     desc: Clean release artifacts
