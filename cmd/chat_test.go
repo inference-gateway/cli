@@ -13,12 +13,10 @@ func TestChatExitMessageFormat(t *testing.T) {
 		sessionID := "abc-123-def"
 		expectedMsg := "Chat session ended. Continue with: infer agent --session-id " + sessionID
 
-		// Verify the message contains the session ID
 		if !strings.Contains(expectedMsg, sessionID) {
 			t.Errorf("Expected message to contain session ID %q", sessionID)
 		}
 
-		// Verify the message contains the continuation instruction
 		if !strings.Contains(expectedMsg, "infer agent --session-id") {
 			t.Error("Expected message to contain continuation instruction")
 		}
