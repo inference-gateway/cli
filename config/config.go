@@ -22,6 +22,7 @@ const (
 	DefaultLogsPath            = ConfigDirName + "/" + LogsDirName
 	DefaultMemoryMaxChars      = 2000
 	DefaultMemoryMaxEntryChars = 2000
+	DefaultSkillsMaxChars      = 4000
 )
 
 // Config represents the CLI configuration
@@ -440,6 +441,7 @@ type AgentContextConfig struct {
 type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
 	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
 }
 
 // AgentConfig contains agent command-specific settings.
@@ -863,6 +865,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Skills: AgentSkillsConfig{
 				Enabled:        true,
 				DisabledSkills: nil,
+				MaxChars:       DefaultSkillsMaxChars,
 			},
 			SystemPromptWithDefaults: true,
 			VerboseTools:             false,
