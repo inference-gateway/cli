@@ -81,18 +81,20 @@ and have a conversational interface with the inference gateway.`,
 			return StartWebChatSession(cfg)
 		}
 
+		sessionID, _ := cmd.Flags().GetString("session-id")
+
 		if !isInteractiveTerminal() {
 			return runNonInteractiveChat(cfg)
 		}
 
-		return StartChatSession(cfg)
+		return StartChatSession(cfg, sessionID)
 	},
 }
 
 // StartChatSession starts a chat session
 //
 //nolint:funlen // Chat session initialization requires multiple setup steps
-func StartChatSession(cfg *config.Config) error {
+func StartChatSession(cfg *config.Config, sessionID string) error {
 	_ = clipboard.Init()
 
 	_ = streamevent.SetWriter(io.Discard)
@@ -168,6 +170,21 @@ func StartChatSession(cfg *config.Config) error {
 	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
 	sessionRolloverManager := services.GetSessionRolloverManager()
+
+	if sessionID != "" && sessionRolloverManager != nil {
+		if resolved, _, _ := sessionRolloverManager.ResolveSessionID(sessionID); resolved != "" {
+			sessionID = resolved
+		}
+	}
+
+	if sessionID != "" {
+		logger.Info("resuming chat session", "session_id", sessionID)
+		loadCtx, loadCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := conversationRepo.LoadConversation(loadCtx, sessionID); err != nil {
+			logger.Warn("failed to load chat session, starting fresh", "session_id", sessionID, "error", err)
+		}
+		loadCancel()
+	}
 
 	if mode := inheritedSubagentMode(); mode != domain.AgentModeStandard {
 		stateManager.SetAgentMode(mode)
@@ -248,10 +265,10 @@ func StartChatSession(cfg *config.Config) error {
 
 	application.PrintConversationHistory()
 
-	sessionID := application.GetCurrentConversationID()
+	sessionID = application.GetCurrentConversationID()
 	if sessionID != "" {
 		fmt.Println()
-		fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer agent --session-id "+sessionID, colors.DimColor))
+		fmt.Println(colors.CreateColoredText("Chat session ended. Continue with: infer chat --session-id "+sessionID, colors.DimColor))
 	} else {
 		fmt.Println(colors.CreateColoredText("Chat session ended.", colors.DimColor))
 	}
@@ -477,4 +494,5 @@ func init() {
 	chatCmd.Flags().Int("ssh-port", 22, "Remote SSH port")
 	chatCmd.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
 	chatCmd.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
+	chatCmd.Flags().String("session-id", "", "Resume an existing chat session by conversation ID")
 }

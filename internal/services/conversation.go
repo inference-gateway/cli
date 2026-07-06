@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -182,6 +183,11 @@ func (r *InMemoryConversationRepository) Clear() error {
 // StartNewConversation clears the current conversation (in-memory doesn't persist)
 func (r *InMemoryConversationRepository) StartNewConversation(title string) error {
 	return r.Clear()
+}
+
+// LoadConversation is a no-op for in-memory storage (no persistence).
+func (r *InMemoryConversationRepository) LoadConversation(ctx context.Context, conversationID string) error {
+	return nil
 }
 
 func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {

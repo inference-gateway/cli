@@ -2,6 +2,7 @@
 package domain
 
 import (
+	"context"
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/domain"
@@ -172,6 +173,18 @@ type FakeConversationRepository struct {
 	}
 	getSessionTokensReturnsOnCall map[int]struct {
 		result1 domain.SessionTokenStats
+	}
+	LoadConversationStub        func(context.Context, string) error
+	loadConversationMutex       sync.RWMutex
+	loadConversationArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	loadConversationReturns struct {
+		result1 error
+	}
+	loadConversationReturnsOnCall map[int]struct {
+		result1 error
 	}
 	RemovePendingToolCallByIDStub        func(string)
 	removePendingToolCallByIDMutex       sync.RWMutex
@@ -1071,6 +1084,68 @@ func (fake *FakeConversationRepository) GetSessionTokensReturnsOnCall(i int, res
 	}
 	fake.getSessionTokensReturnsOnCall[i] = struct {
 		result1 domain.SessionTokenStats
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) LoadConversation(arg1 context.Context, arg2 string) error {
+	fake.loadConversationMutex.Lock()
+	ret, specificReturn := fake.loadConversationReturnsOnCall[len(fake.loadConversationArgsForCall)]
+	fake.loadConversationArgsForCall = append(fake.loadConversationArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.LoadConversationStub
+	fakeReturns := fake.loadConversationReturns
+	fake.recordInvocation("LoadConversation", []interface{}{arg1, arg2})
+	fake.loadConversationMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) LoadConversationCallCount() int {
+	fake.loadConversationMutex.RLock()
+	defer fake.loadConversationMutex.RUnlock()
+	return len(fake.loadConversationArgsForCall)
+}
+
+func (fake *FakeConversationRepository) LoadConversationCalls(stub func(context.Context, string) error) {
+	fake.loadConversationMutex.Lock()
+	defer fake.loadConversationMutex.Unlock()
+	fake.LoadConversationStub = stub
+}
+
+func (fake *FakeConversationRepository) LoadConversationArgsForCall(i int) (context.Context, string) {
+	fake.loadConversationMutex.RLock()
+	defer fake.loadConversationMutex.RUnlock()
+	argsForCall := fake.loadConversationArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeConversationRepository) LoadConversationReturns(result1 error) {
+	fake.loadConversationMutex.Lock()
+	defer fake.loadConversationMutex.Unlock()
+	fake.LoadConversationStub = nil
+	fake.loadConversationReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) LoadConversationReturnsOnCall(i int, result1 error) {
+	fake.loadConversationMutex.Lock()
+	defer fake.loadConversationMutex.Unlock()
+	fake.LoadConversationStub = nil
+	if fake.loadConversationReturnsOnCall == nil {
+		fake.loadConversationReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.loadConversationReturnsOnCall[i] = struct {
+		result1 error
 	}{result1}
 }
 

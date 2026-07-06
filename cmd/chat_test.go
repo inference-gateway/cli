@@ -11,13 +11,13 @@ import (
 func TestChatExitMessageFormat(t *testing.T) {
 	t.Run("exit message includes session ID when available", func(t *testing.T) {
 		sessionID := "abc-123-def"
-		expectedMsg := "Chat session ended. Continue with: infer agent --session-id " + sessionID
+		expectedMsg := "Chat session ended. Continue with: infer chat --session-id " + sessionID
 
 		if !strings.Contains(expectedMsg, sessionID) {
 			t.Errorf("Expected message to contain session ID %q", sessionID)
 		}
 
-		if !strings.Contains(expectedMsg, "infer agent --session-id") {
+		if !strings.Contains(expectedMsg, "infer chat --session-id") {
 			t.Error("Expected message to contain continuation instruction")
 		}
 	})
@@ -33,7 +33,7 @@ func TestChatExitMessageFormat(t *testing.T) {
 	})
 
 	t.Run("exit message does not contain emojis", func(t *testing.T) {
-		msg := "Chat session ended. Continue with: infer agent --session-id abc-123"
+		msg := "Chat session ended. Continue with: infer chat --session-id abc-123"
 		emojis := []string{"•", "⚠️", "✅", "🎉", "💬", "👋", "✨", "🚀", "📝"}
 		for _, emoji := range emojis {
 			if strings.Contains(msg, emoji) {
@@ -44,9 +44,9 @@ func TestChatExitMessageFormat(t *testing.T) {
 
 	t.Run("exit message is easy to copy and paste", func(t *testing.T) {
 		sessionID := "abc-123-def"
-		msg := "Chat session ended. Continue with: infer agent --session-id " + sessionID
+		msg := "Chat session ended. Continue with: infer chat --session-id " + sessionID
 
-		if !strings.Contains(msg, "infer agent --session-id "+sessionID) {
+		if !strings.Contains(msg, "infer chat --session-id "+sessionID) {
 			t.Error("Expected the full command to be present for easy copy-paste")
 		}
 	})

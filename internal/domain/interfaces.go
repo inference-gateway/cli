@@ -197,6 +197,7 @@ type PendingToolCallManager interface {
 // ConversationLifecycleManager handles conversation lifecycle operations
 type ConversationLifecycleManager interface {
 	StartNewConversation(title string) error
+	LoadConversation(ctx context.Context, conversationID string) error
 	GetCurrentConversationTitle() string
 	GetCurrentConversationID() string
 }
