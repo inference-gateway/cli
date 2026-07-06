@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.133.0](https://github.com/inference-gateway/cli/compare/v0.132.1...v0.133.0) (2026-07-06)
+
+### 🚀 Features
+
+* add nvidia provider support ([#753](https://github.com/inference-gateway/cli/issues/753)) ([e9ea883](https://github.com/inference-gateway/cli/commit/e9ea883fd61c7bf98d407a1031aafda8b5934b82)), closes [#751](https://github.com/inference-gateway/cli/issues/751)
+* **agent:** cap rendered skills list and harden system prompt injection ([#761](https://github.com/inference-gateway/cli/issues/761)) ([cb0f36e](https://github.com/inference-gateway/cli/commit/cb0f36ece0654b0e29ef6a97efecb970fef586a4))
+* scope memory entries by project ([#759](https://github.com/inference-gateway/cli/issues/759)) ([cabda08](https://github.com/inference-gateway/cli/commit/cabda08c7b118a3e30cad9e884b7335fc667ab2f)), references [#758](https://github.com/inference-gateway/cli/issues/758)
+* **chat:** show session continuation instructions on exit ([#757](https://github.com/inference-gateway/cli/issues/757)) ([8d04a3a](https://github.com/inference-gateway/cli/commit/8d04a3a5bf99f008b08bd8f4ef5531ed4fd61fdd)), closes [#756](https://github.com/inference-gateway/cli/issues/756)
+
+### 🐛 Bug Fixes
+
+* **chat:** add --session-id flag and fix exit message ([#760](https://github.com/inference-gateway/cli/issues/760)) ([a2202ba](https://github.com/inference-gateway/cli/commit/a2202ba6b085f202f7403c76924e771b74f2c65a))
+* **ci:** release notes are not being generated ([32b7acf](https://github.com/inference-gateway/cli/commit/32b7acfddfd192abaef3decf1ff40c9e864436cb))
+* replace /compact with /new when plan is accepted ([#755](https://github.com/inference-gateway/cli/issues/755)) ([30304ed](https://github.com/inference-gateway/cli/commit/30304ed95e4e5ee48815e4044ff4f1f95b2ac689)), closes [#754](https://github.com/inference-gateway/cli/issues/754)
+
+### ♻️ Code Refactoring
+
+* **agent:** remove comments about skill description capping ([e50aa30](https://github.com/inference-gateway/cli/commit/e50aa303d3d88f1d683438c601b4d99ad3eb4411))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code-action v1.0.161 -> v1.0.165 ([#752](https://github.com/inference-gateway/cli/issues/752)) ([44d1985](https://github.com/inference-gateway/cli/commit/44d1985b6f44bd8eb6965f6ee5ee09bd8e6ee90c))
+* **deps:** update flox packages ([8a35d5e](https://github.com/inference-gateway/cli/commit/8a35d5e2f5d65a476f7dc7bd0230277827527fcc))
+
 ## [0.132.1](https://github.com/inference-gateway/cli/compare/v0.132.0...v0.132.1) (2026-07-04)
 
 ### 🐛 Bug Fixes
