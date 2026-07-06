@@ -39,6 +39,21 @@ func TestApplyMemoryEnvOverrides_Backend(t *testing.T) {
 	}
 }
 
+func TestApplyMemoryEnvOverrides_Caps(t *testing.T) {
+	t.Setenv("INFER_MEMORY_MAX_CHARS", "1500")
+	t.Setenv("INFER_MEMORY_MAX_ENTRY_CHARS", "6000")
+
+	cfg := &config.Config{}
+	applyMemoryEnvOverrides(cfg)
+
+	if cfg.Memory.MaxChars != 1500 {
+		t.Errorf("MaxChars = %d, want 1500", cfg.Memory.MaxChars)
+	}
+	if cfg.Memory.MaxEntryChars != 6000 {
+		t.Errorf("MaxEntryChars = %d, want 6000", cfg.Memory.MaxEntryChars)
+	}
+}
+
 func TestPruneMemoryRemindersIfDisabled(t *testing.T) {
 	countMemory := func(rs []config.ReminderConfig) int {
 		n := 0

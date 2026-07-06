@@ -7,12 +7,14 @@ import (
 	"sync"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	project "github.com/inference-gateway/cli/internal/project"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	sdk "github.com/inference-gateway/sdk"
 
 	_ "github.com/inference-gateway/cli/internal/display/macos"
 	_ "github.com/inference-gateway/cli/internal/display/wayland"
@@ -177,7 +179,7 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.Memory.Enabled {
-		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend)
+		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend, project.Detect())
 	}
 }
 
@@ -190,7 +192,7 @@ func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
 		r.toolsMu.Lock()
-		r.tools["Memory"] = NewMemoryTool(r.config, backend)
+		r.tools["Memory"] = NewMemoryTool(r.config, backend, project.Detect())
 		r.toolsMu.Unlock()
 	}
 }

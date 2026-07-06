@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	project "github.com/inference-gateway/cli/internal/project"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -444,7 +445,7 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
 
-	historyName := sanitizeSlug(spec.Label)
+	historyName := project.Slugify(spec.Label)
 	if historyName == "" {
 		historyName = domain.SubagentHistoryMemoryOnly
 	}

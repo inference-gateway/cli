@@ -976,6 +976,12 @@ func (s *AgentServiceImpl) executeToolInternal(
 	if s.stateManager != nil {
 		execCtx = domain.WithAgentMode(execCtx, s.stateManager.GetAgentMode())
 	}
+
+	if domain.GetSessionID(execCtx) == "" && s.conversationRepo != nil {
+		if convID := s.conversationRepo.GetCurrentConversationID(); convID != "" {
+			execCtx = domain.WithSessionID(execCtx, convID)
+		}
+	}
 	if wasApproved {
 		execCtx = domain.WithToolApproved(execCtx)
 	}
@@ -997,9 +1003,6 @@ func (s *AgentServiceImpl) executeToolInternal(
 		execCtx = domain.WithBashDetachChannel(execCtx, detachChan)
 	}
 
-	// AskUserQuestion blocks on an interactive form. Only hand it the broker
-	// when a chat UI/event loop is present (GetChatHandler is set only on the
-	// chat path); headless runs see a nil broker and degrade gracefully.
 	if tc.Function.Name == "AskUserQuestion" && domain.GetChatHandler(ctx) != nil {
 		execCtx = domain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
 	}
