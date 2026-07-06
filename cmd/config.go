@@ -735,6 +735,11 @@ func applyMemoryEnvOverrides(cfg *config.Config) {
 			cfg.Memory.MaxChars = n
 		}
 	}
+	if v, ok := os.LookupEnv("INFER_MEMORY_MAX_ENTRY_CHARS"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			cfg.Memory.MaxEntryChars = n
+		}
+	}
 	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_TYPE"); ok {
 		cfg.Memory.Backend.Type = v
 	}

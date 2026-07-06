@@ -31,6 +31,8 @@ func TestMemoryConfig_Validate(t *testing.T) {
 		{"unknown on_finish", git(config.MemoryGitConfig{Repo: "r", Sync: config.MemoryGitSyncConfig{OnFinish: "commit"}}), true},
 		{"off sync values are valid", git(config.MemoryGitConfig{Repo: "r", Sync: config.MemoryGitSyncConfig{OnStart: config.MemorySyncOff, OnFinish: config.MemorySyncOff}}), false},
 		{"git without repo but disabled is valid", config.MemoryConfig{Enabled: false, Backend: config.MemoryBackendConfig{Type: config.MemoryBackendGit}}, false},
+		{"zero max_entry_chars is valid (means default)", config.MemoryConfig{Enabled: true, MaxChars: 100, MaxEntryChars: 0}, false},
+		{"negative max_entry_chars is invalid", config.MemoryConfig{Enabled: true, MaxChars: 100, MaxEntryChars: -1}, true},
 	}
 
 	for _, tt := range tests {
@@ -40,6 +42,21 @@ func TestMemoryConfig_Validate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestMemoryConfig_EffectiveMaxEntryChars(t *testing.T) {
+	if got := (config.MemoryConfig{}).EffectiveMaxEntryChars(); got != config.DefaultMemoryMaxEntryChars {
+		t.Errorf("EffectiveMaxEntryChars() zero = %d, want default %d", got, config.DefaultMemoryMaxEntryChars)
+	}
+	if got := (config.MemoryConfig{MaxEntryChars: 123}).EffectiveMaxEntryChars(); got != 123 {
+		t.Errorf("EffectiveMaxEntryChars() = %d, want 123", got)
+	}
+	if config.DefaultMemoryConfig().MaxEntryChars != config.DefaultMemoryMaxEntryChars {
+		t.Error("DefaultMemoryConfig must set max_entry_chars")
+	}
+	if config.DefaultMemoryMaxChars != 2000 {
+		t.Errorf("DefaultMemoryMaxChars = %d, want 2000", config.DefaultMemoryMaxChars)
 	}
 }
 

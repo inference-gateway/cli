@@ -457,3 +457,41 @@ func TestBuildActiveSkillInfo_AdjacentSlashTokens(t *testing.T) {
 	require.Contains(t, got, "FOO_DESC")
 	require.Contains(t, got, "BAR_DESC")
 }
+
+func TestFilterMemoryIndex(t *testing.T) {
+	index := "# Memory Index\n\n" +
+		"- [global-fact](global-fact.md) - a global fact\n" +
+		"- [inference-gateway-cli/build](inference-gateway-cli/build.md) - build steps\n" +
+		"- [other-proj/x](other-proj/x.md) - other\n" +
+		"- [zeta/y](zeta/y.md) - another\n" +
+		"- unparsable entry line\n"
+
+	got := filterMemoryIndex(index, "inference-gateway-cli")
+	for _, want := range []string{
+		"](global-fact.md)",
+		"](inference-gateway-cli/build.md)",
+		"- unparsable entry line",
+		"other projects with memories",
+		"other-proj, zeta",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("filtered index missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "](other-proj/x.md)") || strings.Contains(got, "](zeta/y.md)") {
+		t.Errorf("foreign entries must be collapsed:\n%s", got)
+	}
+
+	got = filterMemoryIndex(index, "")
+	if strings.Contains(got, "](inference-gateway-cli/build.md)") {
+		t.Errorf("empty project slug must keep only globals:\n%s", got)
+	}
+	if !strings.Contains(got, "inference-gateway-cli, other-proj, zeta") {
+		t.Errorf("all projects must be summarized (sorted):\n%s", got)
+	}
+
+	onlyGlobal := "# Memory Index\n\n- [a](a.md) - a\n"
+	if got := filterMemoryIndex(onlyGlobal, "p"); strings.Contains(got, "other projects") {
+		t.Errorf("no foreign projects must mean no summary line:\n%s", got)
+	}
+}
