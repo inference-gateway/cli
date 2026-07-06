@@ -97,7 +97,8 @@ func TestPlugins_EnabledEntries(t *testing.T) {
 }
 
 func TestValidatePathInSandbox_PluginsCarveOut(t *testing.T) {
-	pluginsDir := t.TempDir()
+	t.Chdir(t.TempDir())
+	pluginsDir := filepath.Join(ConfigDirName, PluginsDirName)
 	cfg := DefaultConfig()
 	cfg.Plugins = *DefaultPluginsConfig()
 	cfg.Plugins.Dir = pluginsDir
