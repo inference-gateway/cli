@@ -2,6 +2,9 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,6 +12,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
@@ -493,5 +497,54 @@ func TestFilterMemoryIndex(t *testing.T) {
 	onlyGlobal := "# Memory Index\n\n- [a](a.md) - a\n"
 	if got := filterMemoryIndex(onlyGlobal, "p"); strings.Contains(got, "other projects") {
 		t.Errorf("no foreign projects must mean no summary line:\n%s", got)
+	}
+}
+
+func TestBuildSkillsInfo_CapsRenderedList(t *testing.T) {
+	var skills []domain.Skill
+	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
+		skills = append(skills, domain.Skill{
+			Name:        name,
+			Description: strings.Repeat("x", 200),
+			Path:        "/abs/.infer/skills/" + name + "/SKILL.md",
+			Scope:       domain.SkillScopeProject,
+		})
+	}
+	cfg := &config.Config{Agent: config.AgentConfig{Skills: config.AgentSkillsConfig{Enabled: true, MaxChars: 700}}}
+	s := &AgentServiceImpl{config: cfg, skillsService: &stubSkillsService{skills: skills}}
+
+	got := s.buildSkillsInfo()
+
+	require.Contains(t, got, "/abs/.infer/skills/alpha/SKILL.md")
+	require.Contains(t, got, "more skills not expanded")
+	require.Contains(t, got, "delta")
+	require.NotContains(t, got, "/abs/.infer/skills/delta/SKILL.md")
+	require.Equal(t, 1, strings.Count(got, "Path: "))
+
+	cfg.Agent.Skills.MaxChars = 0
+	got = s.buildSkillsInfo()
+	require.NotContains(t, got, "more skills not expanded")
+	require.Equal(t, 4, strings.Count(got, "Path: "))
+}
+
+func TestBuildMemoryInfo_TruncatesAtLineBoundary(t *testing.T) {
+	dir := t.TempDir()
+	var src strings.Builder
+	src.WriteString("# Memory Index\n\n")
+	for i := range 30 {
+		fmt.Fprintf(&src, "- [fact-%02d](fact-%02d.md) - description of fact number %02d\n", i, i, i)
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, config.MemoryIndexFileName), []byte(src.String()), 0o600))
+
+	cfg := &config.Config{Memory: config.MemoryConfig{Enabled: true, Dir: dir, MaxChars: 500}}
+	s := &AgentServiceImpl{config: cfg}
+
+	got := s.buildMemoryInfo(1)
+
+	require.Contains(t, got, "memory index truncated")
+	for line := range strings.SplitSeq(got, "\n") {
+		if strings.HasPrefix(line, "- [") {
+			require.Contains(t, src.String(), line+"\n", "truncation left a partial entry: %q", line)
+		}
 	}
 }

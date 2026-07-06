@@ -156,8 +156,8 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 		}
 	}
 
-	currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
-	parts = append(parts, fmt.Sprintf("Current date and time: %s", currentTime))
+	currentDate := time.Now().Format("Monday, January 2, 2006")
+	parts = append(parts, fmt.Sprintf("Current date: %s", currentDate))
 
 	return strings.Join(parts, "\n\n")
 }
@@ -395,8 +395,28 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	b.WriteString("Skills are reusable instructions for specific tasks. ")
 	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions. ")
 	b.WriteString("To deterministically load a skill's full instructions, invoke it explicitly with /<name> or \"use the <name> skill\".\n\n")
-	for _, sk := range skills {
-		fmt.Fprintf(&b, "- %s (%s): %s\n  Path: %s\n", sk.Name, sk.Scope, sk.Description, sk.Path)
+
+	// Cap the rendered block so many skills with long descriptions can't grow
+	// the system prompt unbounded; skills past the budget stay discoverable as
+	// a names-only list. Whole entries only - never a truncated description.
+	var maxChars int
+	if s.config != nil {
+		maxChars = s.config.GetAgentConfig().Skills.MaxChars
+	}
+	var omitted []string
+	for i, sk := range skills {
+		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", sk.Name, sk.Scope, sk.Description, sk.Path)
+		if maxChars > 0 && b.Len()+len(entry) > maxChars {
+			for _, rest := range skills[i:] {
+				omitted = append(omitted, rest.Name)
+			}
+			break
+		}
+		b.WriteString(entry)
+	}
+	if len(omitted) > 0 {
+		fmt.Fprintf(&b, "... (%d more skills not expanded: %s - read their SKILL.md under the skills directories)\n",
+			len(omitted), strings.Join(omitted, ", "))
 	}
 	return b.String()
 }
@@ -494,7 +514,11 @@ func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
 	}
 	index = filterMemoryIndex(index, project.Detect().Slug)
 	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
-		index = index[:maxChars] + "\n... (memory index truncated; use the Memory tool 'read' with a name for full facts)"
+		cut := index[:maxChars]
+		if nl := strings.LastIndexByte(cut, '\n'); nl > 0 {
+			cut = cut[:nl]
+		}
+		index = cut + "\n... (memory index truncated; use the Memory tool 'read' with a name for full facts)"
 	}
 
 	var b strings.Builder

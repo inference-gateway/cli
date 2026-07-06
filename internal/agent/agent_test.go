@@ -1335,12 +1335,12 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 
 	assert.Contains(t, prompt, "You are a helpful assistant.")
 	assert.Contains(t, prompt, "SANDBOX RESTRICTIONS:")
-	assert.Contains(t, prompt, "Current date and time:")
+	assert.Contains(t, prompt, "Current date:")
 
 	systemMsg := agentService.addSystemPrompt(nil)[0]
 	content, err := systemMsg.Content.AsMessageContent0()
 	assert.NoError(t, err)
-	const tsMarker = "Current date and time:"
+	const tsMarker = "Current date:"
 	assert.Equal(t, strings.SplitN(content, tsMarker, 2)[0], strings.SplitN(prompt, tsMarker, 2)[0])
 }
 
