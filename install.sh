@@ -81,6 +81,10 @@ detect_platform() {
             ;;
         *)
             print_error "Unsupported operating system: $os"
+            print_error "If you are on Windows, use the PowerShell installer instead:"
+            print_error "  https://raw.githubusercontent.com/inference-gateway/cli/main/install.ps1"
+            print_error ""
+            print_error "Or run: iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/inference-gateway/cli/main/install.ps1'))"
             exit 1
             ;;
     esac

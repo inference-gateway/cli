@@ -20,7 +20,7 @@ const BASE_URL =
   `https://github.com/${REPO}/releases/download/v${version}`;
 
 // Maps Node's process.platform / process.arch onto the release asset names.
-const PLATFORMS = { linux: "linux", darwin: "darwin" };
+const PLATFORMS = { linux: "linux", darwin: "darwin", win32: "windows" };
 const ARCHES = { x64: "amd64", arm64: "arm64" };
 
 const binName = process.platform === "win32" ? "infer.exe" : "infer";
@@ -37,7 +37,7 @@ function resolveAsset() {
   if (!goos || !goarch) {
     fail(
       `unsupported platform ${process.platform}/${process.arch}. ` +
-        `Prebuilt binaries are published for linux and darwin on amd64/arm64 only. ` +
+        `Prebuilt binaries are published for linux, darwin, and win32 on amd64/arm64 only. ` +
         `Install from source instead: https://github.com/${REPO}#installation`
     );
   }

@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -164,23 +165,37 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.ComputerUse.Enabled {
-		displayProvider, err := display.DetectDisplay()
-		if err != nil {
-			logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
-		} else {
-			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
-			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
-			r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
-			r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
-			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
-		}
+		r.registerComputerUseTools()
 	}
 
 	if cfg.Memory.Enabled {
 		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend, project.Detect())
 	}
+}
+
+// registerComputerUseTools registers computer use tools (mouse, keyboard,
+// screenshot). On Windows these tools are not supported and a warning is
+// logged. On Linux/macOS the display platform is auto-detected.
+func (r *Registry) registerComputerUseTools() {
+	if runtime.GOOS == "windows" {
+		logger.Warn("computer use is not supported on Windows - mouse, keyboard, and screenshot tools will be disabled")
+		return
+	}
+
+	cfg := r.config
+	displayProvider, err := display.DetectDisplay()
+	if err != nil {
+		logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
+		return
+	}
+
+	rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+	r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
+	r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+	r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
+	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
+	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
+	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 }
 
 // SetMemoryBackend wires the memory sync backend into the Memory tool so a

@@ -719,6 +719,9 @@ func (s *AgentServiceImpl) buildOSInfo() string {
 	case "linux":
 		osInfo += "\n- Keyboard shortcuts use the 'ctrl' modifier (e.g. 'ctrl+c')."
 		osInfo += "\n- Open apps and files with 'xdg-open' or the command name."
+	case "windows":
+		osInfo += "\n- Keyboard shortcuts use the 'ctrl' modifier (e.g. 'ctrl+c')."
+		osInfo += "\n- Open apps and files with 'start' (e.g. 'start notepad.exe', 'start file.txt')."
 	}
 
 	return osInfo
