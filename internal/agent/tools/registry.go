@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -164,17 +165,21 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.ComputerUse.Enabled {
-		displayProvider, err := display.DetectDisplay()
-		if err != nil {
-			logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
+		if runtime.GOOS == "windows" {
+			logger.Warn("computer use is not supported on Windows - mouse, keyboard, and screenshot tools will be disabled")
 		} else {
-			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
-			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
-			r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
-			r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
-			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+			displayProvider, err := display.DetectDisplay()
+			if err != nil {
+				logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
+			} else {
+				rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+				r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
+				r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+				r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
+				r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
+				r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
+				r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+			}
 		}
 	}
 
