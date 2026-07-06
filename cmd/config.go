@@ -435,6 +435,7 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.Prompts = *prompts
 	applyPromptsEnvOverrides(cfg)
+	warnDeadPromptEnvVars()
 
 	remindersCfg, err := resolveRemindersConfig()
 	if err != nil {
@@ -543,6 +544,21 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	for envKey, target := range envOverrides {
 		if val, ok := os.LookupEnv(envKey); ok {
 			*target = val
+		}
+	}
+}
+
+// warnDeadPromptEnvVars logs a warning when a known-dead env var (renamed
+// in v0.105.0) is set, so consumers following stale docs get a visible
+// signal instead of silent ignore.
+func warnDeadPromptEnvVars() {
+	deadVars := []string{
+		"INFER_AGENT_SYSTEM_PROMPT",
+		"INFER_AGENT_SYSTEM_PROMPT_PLAN",
+	}
+	for _, name := range deadVars {
+		if _, ok := os.LookupEnv(name); ok {
+			logger.Warn("environment variable %s is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN in docs/configuration-reference.md", "var", name)
 		}
 	}
 }
