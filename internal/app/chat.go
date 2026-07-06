@@ -3096,3 +3096,9 @@ func (app *ChatApplication) PrintConversationHistory() {
 		}
 	}
 }
+
+// GetCurrentConversationID returns the current conversation ID from the repository.
+// Returns an empty string for in-memory (non-persistent) repositories.
+func (app *ChatApplication) GetCurrentConversationID() string {
+	return app.conversationRepo.GetCurrentConversationID()
+}
