@@ -21,7 +21,7 @@ const (
 	DefaultConfigPath          = ConfigDirName + "/" + ConfigFileName
 	DefaultLogsPath            = ConfigDirName + "/" + LogsDirName
 	DefaultMemoryMaxChars      = 2000
-	DefaultMemoryMaxEntryChars = 4000
+	DefaultMemoryMaxEntryChars = 2000
 )
 
 // Config represents the CLI configuration
