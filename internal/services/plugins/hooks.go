@@ -3,6 +3,7 @@ package plugins
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -19,15 +20,13 @@ import (
 // The master hooks.enabled switch (cfg.Hooks.Enabled) still applies on top:
 // when it is false, CommandsDue returns nil regardless of plugin hooks.
 type PluginHookCommandProvider struct {
-	cfg *config.Config
+	cfg        *config.Config
+	hooksCache sync.Map
 }
 
 // NewPluginHookCommandProvider creates a provider that merges user hooks with
 // enabled plugin hooks. Returns nil when cfg is nil or plugins are disabled.
 func NewPluginHookCommandProvider(cfg *config.Config) *PluginHookCommandProvider {
-	if cfg == nil {
-		return nil
-	}
 	return &PluginHookCommandProvider{cfg: cfg}
 }
 
@@ -54,7 +53,7 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 		if !entry.Enabled || !entry.HooksEnabled {
 			continue
 		}
-		pluginHooks := loadPluginHooks(p.cfg.Plugins, entry.Name)
+		pluginHooks := loadPluginHooks(p.cfg.Plugins, entry.Name, &p.hooksCache)
 		for _, hc := range pluginHooks {
 			if hc.Hook != hook {
 				continue
@@ -71,7 +70,10 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 
 // loadPluginHooks reads and parses a plugin's hooks.yaml. Returns nil when the
 // file is missing or unreadable (logged at debug level).
-func loadPluginHooks(pc config.PluginsConfig, name string) []config.HookCommandConfig {
+func loadPluginHooks(pc config.PluginsConfig, name string, cache *sync.Map) []config.HookCommandConfig {
+	if cached, ok := cache.Load(name); ok {
+		return cached.([]config.HookCommandConfig)
+	}
 	path, err := pc.PluginHooksPath(name)
 	if err != nil {
 		return nil
@@ -88,5 +90,6 @@ func loadPluginHooks(pc config.PluginsConfig, name string) []config.HookCommandC
 		logger.Debug("failed to parse plugin hooks", "plugin", name, "path", path, "error", err)
 		return nil
 	}
+	cache.Store(name, hooksCfg.Hooks)
 	return hooksCfg.Hooks
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	yaml "gopkg.in/yaml.v3"
+
 	utils "github.com/inference-gateway/cli/config/utils"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -87,7 +89,10 @@ func SaveHooks(path string, cfg *HooksConfig) error {
 // and the result is validated against domain.HookPoints). LoadHooks is the
 // higher-level path that reads from disk and applies defaults.
 func ParseHooksYAML(data []byte, cfg *HooksConfig) error {
-	return utils.ParseYAML(data, "hooks", cfg)
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return fmt.Errorf("failed to parse hooks config: %w", err)
+	}
+	return nil
 }
 
 // effective returns the hooks with per-entry defaults applied: a non-positive

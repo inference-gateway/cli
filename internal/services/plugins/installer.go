@@ -268,6 +268,8 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 // inspectPluginHooks reads and validates a plugin's hooks.yaml.
 // A missing or empty file is not an error - it simply means no hooks.
 // ponytail: extracted to reduce nestif complexity in Inspect.
+// ceiling: none - permanent extraction for readability.
+// upgrade: re-inline if Inspect is ever rewritten to avoid the extraction.
 func inspectPluginHooks(dir, pluginName string) (bool, []config.HookCommandConfig, error) {
 	data, err := os.ReadFile(filepath.Join(dir, config.HooksFileName))
 	if err != nil {

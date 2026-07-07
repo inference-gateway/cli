@@ -452,7 +452,7 @@ func updateOnePlugin(installer *plugins.Installer, registry *config.PluginsConfi
 	return nil
 }
 
-func setPluginEnabled(name string, enabled bool) error {
+func setPluginField(name string, enabled bool, fieldFn func(*config.PluginEntry, bool), label string) error {
 	registry, err := loadPluginsRegistry()
 	if err != nil {
 		return err
@@ -461,7 +461,7 @@ func setPluginEnabled(name string, enabled bool) error {
 	if err != nil {
 		return err
 	}
-	entry.Enabled = enabled
+	fieldFn(entry, enabled)
 	if err := registry.UpdateEntry(*entry); err != nil {
 		return err
 	}
@@ -469,27 +469,14 @@ func setPluginEnabled(name string, enabled bool) error {
 	if !enabled {
 		state = "disabled"
 	}
-	fmt.Printf("%s Plugin %s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), name, state)
+	fmt.Printf("%s %s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), label, state)
 	return nil
 }
 
+func setPluginEnabled(name string, enabled bool) error {
+	return setPluginField(name, enabled, func(e *config.PluginEntry, v bool) { e.Enabled = v }, "Plugin "+name)
+}
+
 func setPluginHooksEnabled(name string, enabled bool) error {
-	registry, err := loadPluginsRegistry()
-	if err != nil {
-		return err
-	}
-	entry, err := registry.ReadEntry(name)
-	if err != nil {
-		return err
-	}
-	entry.HooksEnabled = enabled
-	if err := registry.UpdateEntry(*entry); err != nil {
-		return err
-	}
-	state := "enabled"
-	if !enabled {
-		state = "disabled"
-	}
-	fmt.Printf("%s Plugin hooks %s for %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), state, name)
-	return nil
+	return setPluginField(name, enabled, func(e *config.PluginEntry, v bool) { e.HooksEnabled = v }, "Plugin hooks for "+name)
 }

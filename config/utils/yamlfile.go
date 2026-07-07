@@ -40,17 +40,6 @@ func LoadYAML[T any](path, label string, defaults func() *T) (*T, error) {
 	return cfg, nil
 }
 
-// ParseYAML unmarshals raw YAML bytes into cfg without environment-variable
-// expansion. It is the low-level parse used when the caller has already read
-// the file and wants to control expansion (e.g. plugin hooks.yaml must not
-// expand env vars from plugin-controlled content).
-func ParseYAML[T any](data []byte, label string, cfg *T) error {
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return fmt.Errorf("failed to parse %s config: %w", label, err)
-	}
-	return nil
-}
-
 // SaveYAML writes cfg to path, creating any missing parent directories.
 // It always emits the YAML document marker `---\n` and uses 2-space indent.
 func SaveYAML[T any](path, label string, cfg *T) error {
