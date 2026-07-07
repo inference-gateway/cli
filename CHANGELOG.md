@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.135.0](https://github.com/inference-gateway/cli/compare/v0.134.0...v0.135.0) (2026-07-07)
+
+### 🚀 Features
+
+* add Windows support ([#765](https://github.com/inference-gateway/cli/issues/765)) ([7a216c3](https://github.com/inference-gateway/cli/commit/7a216c353436efa3d688297b7baeff34d4e865bb)), closes [#762](https://github.com/inference-gateway/cli/issues/762)
+
+### 🐛 Bug Fixes
+
+* replace raw syscall.Syscall with pty.Setsize for cross-platform Windows support ([#773](https://github.com/inference-gateway/cli/issues/773)) ([996639f](https://github.com/inference-gateway/cli/commit/996639f53dfe07cff1f0e07be37471964e5c7aab))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.133.1 -> v0.134.0, infer-action v0.27.1 -> v0.28.0 ([#772](https://github.com/inference-gateway/cli/issues/772)) ([de67b06](https://github.com/inference-gateway/cli/commit/de67b06df19c658237c8d77fe951f861cf386296))
+
 ## [0.134.0](https://github.com/inference-gateway/cli/compare/v0.133.1...v0.134.0) (2026-07-06)
 
 ### 🚀 Features
