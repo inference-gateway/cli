@@ -271,7 +271,7 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 func inspectPluginHooks(dir, pluginName string) (bool, []config.HookCommandConfig, error) {
 	data, err := os.ReadFile(filepath.Join(dir, config.HooksFileName))
 	if err != nil {
-		return false, nil, nil // hooks.yaml is optional
+		return false, nil, nil
 	}
 	content := strings.TrimSpace(string(data))
 	if content == "" {

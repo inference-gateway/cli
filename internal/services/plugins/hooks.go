@@ -40,17 +40,13 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 		return nil
 	}
 
-	// Master switch: if user hooks are disabled, nothing runs.
 	if !p.cfg.Hooks.Enabled {
 		return nil
 	}
 
 	var due []domain.HookCommand
 
-	// 1. User's own hooks first.
 	due = append(due, p.cfg.Hooks.CommandsDue(hook)...)
-
-	// 2. Plugin hooks, additively, in registry order.
 	if !p.cfg.Plugins.Enabled {
 		return due
 	}

@@ -143,7 +143,6 @@ func TestInspect_ValidHooksYAML(t *testing.T) {
 func TestInspect_InvalidHooksYAML_Rejected(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644))
-	// Unknown hook point
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.yaml"), []byte("---\nenabled: true\nhooks:\n  - name: bad\n    hook: unknown_hook\n    command: echo hi\n"), 0o644))
 
 	_, err := Inspect(dir, "test-plugin")
@@ -154,7 +153,6 @@ func TestInspect_InvalidHooksYAML_Rejected(t *testing.T) {
 func TestInspect_EmptyHooksYAML_NoHooks(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644))
-	// Empty hooks.yaml (just enabled: false, no hooks)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.yaml"), []byte("---\nenabled: false\n"), 0o644))
 
 	res, err := Inspect(dir, "test-plugin")
