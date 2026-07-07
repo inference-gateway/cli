@@ -15,6 +15,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
@@ -349,6 +350,11 @@ func NewAgent(
 
 	approvalPolicy := services.NewStandardApprovalPolicy(cfg, stateManager)
 
+	hookProvider := domain.HookCommandProvider(cfg.Hooks)
+	if pluginProvider := plugins.NewPluginHookCommandProvider(cfg); pluginProvider != nil {
+			hookProvider = pluginProvider
+	}
+
 	return &AgentServiceImpl{
 		client:           client,
 		toolService:      toolService,
@@ -365,7 +371,7 @@ func NewAgent(
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
 		reminderProvider: cfg.Reminders,
-		hookProvider:     cfg.Hooks,
+		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),
 		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
