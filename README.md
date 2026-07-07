@@ -126,8 +126,8 @@ infer --help
 ```
 
 > **Not recommended for production.** For production or CI, prefer the
-> [install script](#using-install-script), [container image](#using-container-image), or
-> [building from source](#build-from-source). Prebuilt binaries cover Linux, macOS, and Windows on
+> [install script](#using-install-script), [Nix flake](#using-nix-flake--flox),
+> [container image](#using-container-image), or [building from source](#build-from-source). Prebuilt binaries cover Linux, macOS, and Windows on
 > amd64/arm64.
 
 ### Using Go Install
@@ -147,6 +147,32 @@ Or use an alias:
 ```bash
 alias infer="$(go env GOPATH)/bin/cli"
 ```
+
+### Using Nix Flake / Flox
+
+With Nix (flakes enabled), run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli
+
+# Pin a specific release
+nix run github:inference-gateway/cli/v0.135.0
+```
+
+Or install into your profile:
+
+```bash
+nix profile install github:inference-gateway/cli
+```
+
+With [Flox](https://flox.dev), pin it in your environment manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli"
+```
+
+Then `flox activate` makes `infer` available in the environment. Pin a release by appending the tag: `github:inference-gateway/cli/v0.135.0`.
 
 ### Using Container Image
 
@@ -209,8 +235,8 @@ Available binaries:
 | Linux arm64 | `infer-linux-arm64` |
 | macOS amd64 (Intel) | `infer-darwin-amd64` |
 | macOS arm64 (Apple Silicon) | `infer-darwin-arm64` |
-| Windows amd64 | `infer-windows-amd64.exe` |
-| Windows arm64 | `infer-windows-arm64.exe` |
+| Windows amd64 | `infer-windows-amd64` (rename to `infer.exe`) |
+| Windows arm64 | `infer-windows-arm64` (rename to `infer.exe`) |
 
 **Verify the binary** (recommended for security):
 
