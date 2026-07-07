@@ -1,6 +1,6 @@
 {
   "name": "@inference-gateway/cli",
-  "version": "0.135.1",
+  "version": "0.136.0",
   "description": "A Git-first CLI coding agent that turns ideas, issues, and tasks into real code changes.",
   "bin": {
     "infer": "bin/run.js"
