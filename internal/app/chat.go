@@ -2842,7 +2842,7 @@ func (app *ChatApplication) setOrgSecret(orgName, name, value string) error {
 // Version pins and defaults for the generated .github/workflows/infer.yml.
 // Bumping any of these is a one-line change picked up by both templates.
 const (
-	inferActionVersion     = "v0.28.0"
+	inferActionVersion     = "v0.29.0"
 	checkoutActionVersion  = "v7.0.0"
 	appTokenActionVersion  = "v3.2.0"
 	workflowDefaultModel   = "ollama_cloud/deepseek-v4-flash"
@@ -2856,18 +2856,20 @@ func workflowHeader(extraNote string) string {
 	return fmt.Sprintf(`---
 # Infer Agent CI
 #
-# Runs the Infer agent (inference-gateway/infer-action) in two ways:
+# Runs the Infer agent (inference-gateway/infer-action) in three ways:
 #
 # 1. Issue-driven: mention `+"`@infer`"+` in an issue title, body, or comment and
 #    the agent picks up the task, works on it, and opens a draft PR.
-# 2. Manual (workflow_dispatch): run it from the Actions tab with a free-text
+# 2. Review-comment-driven: mention `+"`@infer`"+` in a pull request review comment
+#    (inline or thread reply) and the agent works on the focused file/diff hunk.
+# 3. Manual (workflow_dispatch): run it from the Actions tab with a free-text
 #    prompt — useful for ad-hoc tasks like "find bugs and report them".
 #    Optionally tick "browser-agent" to spin up the A2A
 #    inference-gateway/browser-agent container so the agent can browse the web.
 #
 # Notes:
 # - Jobs are capped at %d minutes (timeout-minutes).
-# - Runs are deduplicated per issue (or per dispatch run) via concurrency.%s
+# - Runs are deduplicated per issue, PR, or dispatch run via concurrency.%s
 name: Infer
 
 on:
@@ -2876,6 +2878,9 @@ on:
       - opened
       - edited
   issue_comment:
+    types:
+      - created
+  pull_request_review_comment:
     types:
       - created
   workflow_dispatch:
@@ -2903,7 +2908,7 @@ permissions:
 jobs:
   infer:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
       cancel-in-progress: true
     if: |
       github.event_name == 'workflow_dispatch' ||
@@ -2912,6 +2917,7 @@ jobs:
         !endsWith(github.actor, '[bot]') &&
         (
           (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
+          (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@infer')) ||
           (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
         )
       )
