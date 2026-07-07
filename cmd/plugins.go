@@ -81,6 +81,24 @@ var pluginsDisableCmd = &cobra.Command{
 	RunE:  func(cmd *cobra.Command, args []string) error { return setPluginEnabled(args[0], false) },
 }
 
+var pluginsEnableHooksCmd = &cobra.Command{
+	Use:   "enable-hooks <name>",
+	Short: "Enable command hooks for a plugin",
+	Long: `Enable the hooks.yaml shipped by a plugin. Plugin hooks are disabled by
+default and must be explicitly enabled per plugin. The master hooks.enabled
+switch (or INFER_HOOKS_ENABLED) still applies on top: plugin hooks only run
+when both the master switch and the per-plugin flag are true.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error { return setPluginHooksEnabled(args[0], true) },
+}
+
+var pluginsDisableHooksCmd = &cobra.Command{
+	Use:   "disable-hooks <name>",
+	Short: "Disable command hooks for a plugin",
+	Args:  cobra.ExactArgs(1),
+	RunE:  func(cmd *cobra.Command, args []string) error { return setPluginHooksEnabled(args[0], false) },
+}
+
 func init() {
 	pluginsCmd.AddCommand(pluginsInstallCmd)
 	pluginsCmd.AddCommand(pluginsListCmd)
@@ -88,6 +106,8 @@ func init() {
 	pluginsCmd.AddCommand(pluginsUpdateCmd)
 	pluginsCmd.AddCommand(pluginsEnableCmd)
 	pluginsCmd.AddCommand(pluginsDisableCmd)
+	pluginsCmd.AddCommand(pluginsEnableHooksCmd)
+	pluginsCmd.AddCommand(pluginsDisableHooksCmd)
 
 	pluginsInstallCmd.Flags().String("ref", "", "Git ref (branch, tag, or commit) to install from")
 	pluginsInstallCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt")
@@ -210,6 +230,14 @@ func printInstallSummary(res *plugins.InstallResult, src plugins.Source) {
 	}
 	if res.HasInstructions {
 		fmt.Println(listField("Instructions", fmt.Sprintf("AGENTS.md (%d chars) - injected into EVERY system prompt while enabled", res.InstructionsLen)))
+	}
+	if res.HasHooks {
+		parts := make([]string, 0, len(res.Hooks))
+		for _, h := range res.Hooks {
+			parts = append(parts, fmt.Sprintf("%s (%s)", h.Name, h.Hook))
+		}
+		fmt.Println(listField(fmt.Sprintf("Hooks (%d)", len(res.Hooks)), strings.Join(parts, ", ")))
+		fmt.Println(listHint("hooks are disabled by default - use `infer plugins enable-hooks <name>` to opt in"))
 	}
 	if len(res.Unsupported) > 0 {
 		parts := make([]string, 0, len(res.Unsupported))
@@ -442,5 +470,26 @@ func setPluginEnabled(name string, enabled bool) error {
 		state = "disabled"
 	}
 	fmt.Printf("%s Plugin %s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), name, state)
+	return nil
+}
+
+func setPluginHooksEnabled(name string, enabled bool) error {
+	registry, err := loadPluginsRegistry()
+	if err != nil {
+		return err
+	}
+	entry, err := registry.ReadEntry(name)
+	if err != nil {
+		return err
+	}
+	entry.HooksEnabled = enabled
+	if err := registry.UpdateEntry(*entry); err != nil {
+		return err
+	}
+	state := "enabled"
+	if !enabled {
+		state = "disabled"
+	}
+	fmt.Printf("%s Plugin hooks %s for %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), state, name)
 	return nil
 }
