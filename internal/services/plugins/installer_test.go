@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	domain "github.com/inference-gateway/cli/internal/domain"
 	require "github.com/stretchr/testify/require"
 )
 
@@ -105,6 +106,61 @@ func TestStageGitHub_DownloadsOnlyMappedSubset(t *testing.T) {
 
 	require.Equal(t, 2, unsupported["hooks"])
 	require.Equal(t, 1, unsupported["commands"])
+}
+
+func TestStageGitHub_DownloadsHooksYAML(t *testing.T) {
+	repo := fakeRepo{Files: map[string]string{
+		"AGENTS.md":                       "rules",
+		"hooks.yaml":                      "---\nenabled: true\nhooks:\n  - name: fmt\n    hook: post_session\n    command: gofmt -w .\n    timeout: 30\n",
+		"hooks/old.js":                    "console.log('ignored')",
+	}}
+	srv := newMockServer(t, repo)
+	defer srv.Close()
+
+	staging := filepath.Join(t.TempDir(), "staging")
+	src, _ := ParseSource("o/r")
+	unsupported, err := newTestInstaller(srv.URL).Stage(context.Background(), src, staging)
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(staging, "hooks.yaml"))
+	require.NoFileExists(t, filepath.Join(staging, "hooks", "old.js"))
+	require.Equal(t, 1, unsupported["hooks"], "hooks/ JS files still detected as unsupported")
+}
+
+func TestInspect_ValidHooksYAML(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.yaml"), []byte("---\nenabled: true\nhooks:\n  - name: fmt\n    hook: post_session\n    command: gofmt -w .\n    timeout: 30\n"), 0o644))
+
+	res, err := Inspect(dir, "test-plugin")
+	require.NoError(t, err)
+	require.True(t, res.HasHooks)
+	require.Len(t, res.Hooks, 1)
+	require.Equal(t, "fmt", res.Hooks[0].Name)
+	require.Equal(t, domain.HookPostSession, res.Hooks[0].Hook)
+}
+
+func TestInspect_InvalidHooksYAML_Rejected(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644))
+	// Unknown hook point
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.yaml"), []byte("---\nenabled: true\nhooks:\n  - name: bad\n    hook: unknown_hook\n    command: echo hi\n"), 0o644))
+
+	_, err := Inspect(dir, "test-plugin")
+	require.ErrorContains(t, err, "invalid hooks.yaml")
+	require.ErrorContains(t, err, "unknown hook")
+}
+
+func TestInspect_EmptyHooksYAML_NoHooks(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644))
+	// Empty hooks.yaml (just enabled: false, no hooks)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.yaml"), []byte("---\nenabled: false\n"), 0o644))
+
+	res, err := Inspect(dir, "test-plugin")
+	require.NoError(t, err)
+	require.False(t, res.HasHooks)
+	require.Empty(t, res.Hooks)
 }
 
 func TestStageGitHub_NoMappableContent(t *testing.T) {
