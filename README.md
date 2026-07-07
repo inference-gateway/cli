@@ -1121,7 +1121,9 @@ actions.
 **Project setup:**
 
 - `/init` - Generate an `AGENTS.md` by analyzing the project
-- `/init-github-action` - Set up a GitHub Action via an interactive wizard
+- `/init-github-action` - Set up a GitHub Action via an interactive wizard. Generates `.github/workflows/infer.yml`
+  pinned to the latest `infer-action` (issue/comment-triggered plus a manual `workflow_dispatch` mode, 15-minute job
+  timeout); pre-scans common locations for your GitHub App `.pem` key so selecting it is instant
 
 **Git Shortcuts** (created by `infer init`):
 

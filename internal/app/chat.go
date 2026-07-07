@@ -2839,8 +2839,35 @@ func (app *ChatApplication) setOrgSecret(orgName, name, value string) error {
 	return nil
 }
 
-func (app *ChatApplication) generateStandardWorkflowContent() string {
-	return `---
+// Version pins and defaults for the generated .github/workflows/infer.yml.
+// Bumping any of these is a one-line change picked up by both templates.
+const (
+	inferActionVersion     = "v0.28.0"
+	checkoutActionVersion  = "v7.0.0"
+	appTokenActionVersion  = "v3.2.0"
+	workflowDefaultModel   = "ollama_cloud/deepseek-v4-flash"
+	workflowTimeoutMinutes = 15
+)
+
+// workflowHeader is the shared prologue of the generated workflow: header
+// comment, triggers (issue/comment mentions + manual workflow_dispatch),
+// permissions, and the gated job preamble with concurrency and timeout.
+func workflowHeader(extraNote string) string {
+	return fmt.Sprintf(`---
+# Infer Agent CI
+#
+# Runs the Infer agent (inference-gateway/infer-action) in two ways:
+#
+# 1. Issue-driven: mention `+"`@infer`"+` in an issue title, body, or comment and
+#    the agent picks up the task, works on it, and opens a draft PR.
+# 2. Manual (workflow_dispatch): run it from the Actions tab with a free-text
+#    prompt — useful for ad-hoc tasks like "find bugs and report them".
+#    Optionally tick "browser-agent" to spin up the A2A
+#    inference-gateway/browser-agent container so the agent can browse the web.
+#
+# Notes:
+# - Jobs are capped at %d minutes (timeout-minutes).
+# - Runs are deduplicated per issue (or per dispatch run) via concurrency.%s
 name: Infer
 
 on:
@@ -2851,37 +2878,57 @@ on:
   issue_comment:
     types:
       - created
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Free-text task for the agent (e.g. "find bugs and report them")'
+        type: string
+        required: true
+      browser-agent:
+        description: 'Start the A2A browser-agent (inference-gateway/browser-agent) so the agent can browse the web'
+        type: boolean
+        required: false
+        default: false
+      debug:
+        description: 'Enable debug output and mirror agent logs'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   issues: write
   contents: write
   pull-requests: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   infer:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}
+      cancel-in-progress: true
     if: |
-      github.event.sender.type != 'Bot' &&
-      !endsWith(github.actor, '[bot]') &&
+      github.event_name == 'workflow_dispatch' ||
       (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
+        github.event.sender.type != 'Bot' &&
+        !endsWith(github.actor, '[bot]') &&
+        (
+          (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
+          (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
+        )
       )
     runs-on: ubuntu-24.04
+    timeout-minutes: %d
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.0
+`, workflowTimeoutMinutes, extraNote, workflowTimeoutMinutes)
+}
 
-      - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.11.2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          trigger-phrase: "@infer"
-          model: deepseek/deepseek-v4-flash
-          max-turns: 50
+// workflowAgentInputs is the shared tail of the "Run Infer Agent" step: the
+// agent defaults and the provider API key pass-throughs.
+const workflowAgentInputs = `          trigger-phrase: '@infer'
+          model: ` + workflowDefaultModel + `
+          direct-prompt: ${{ inputs.prompt }}
+          agents: ${{ inputs.browser-agent && 'browser-agent' || '' }}
+          debug: ${{ inputs.debug }}
+          mirror-agent-logs: ${{ inputs.debug }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           google-api-key: ${{ secrets.GOOGLE_API_KEY }}
@@ -2892,75 +2939,60 @@ jobs:
           cohere-api-key: ${{ secrets.COHERE_API_KEY }}
           ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
           ollama-cloud-api-key: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
+          moonshot-api-key: ${{ secrets.MOONSHOT_API_KEY }}
+          minimax-api-key: ${{ secrets.MINIMAX_API_KEY }}
+          nvidia-api-key: ${{ secrets.NVIDIA_API_KEY }}
 `
+
+func (app *ChatApplication) generateStandardWorkflowContent() string {
+	return workflowHeader("") + fmt.Sprintf(`      - name: Checkout repository
+        uses: actions/checkout@%s
+
+      - name: Run Infer Agent
+        uses: inference-gateway/infer-action@%s
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+`, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
 }
 
 func (app *ChatApplication) generateGithubActionWorkflowContent() string {
-	return `---
-name: Infer
-
-on:
-  issues:
-    types:
-      - opened
-      - edited
-  issue_comment:
-    types:
-      - created
-
-permissions:
-  issues: write
-  contents: write
-  pull-requests: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
-jobs:
-  infer:
-    if: |
-      github.event.sender.type != 'Bot' &&
-      !endsWith(github.actor, '[bot]') &&
-      (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
-      )
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Generate GitHub App Token
-        uses: actions/create-github-app-token@v3.0.0
-        id: app_token
+	extraNote := `
+# - The GitHub App used for the token needs the "Workflows" (read & write)
+#   repository permission so the agent can push changes to .github/workflows.`
+	return workflowHeader(extraNote) + fmt.Sprintf(`      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@%s
         with:
-          app-id: ${{ secrets.INFER_APP_ID }}
+          client-id: ${{ secrets.INFER_APP_ID }}
           private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
             ${{ github.event.repository.name }}
 
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
+          git config --global commit.gpgsign false
+          git config --global commit.signoff true
+
       - name: Checkout repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@%s
         with:
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.11.2
+        uses: inference-gateway/infer-action@%s
         with:
-          github-token: ${{ steps.app_token.outputs.token }}
-          trigger-phrase: "@infer"
-          model: deepseek/deepseek-v4-flash
-          max-turns: 50
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
-          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
-          groq-api-key: ${{ secrets.GROQ_API_KEY }}
-          mistral-api-key: ${{ secrets.MISTRAL_API_KEY }}
-          cloudflare-api-key: ${{ secrets.CLOUDFLARE_API_KEY }}
-          cohere-api-key: ${{ secrets.COHERE_API_KEY }}
-          ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
-          ollama-cloud-api-key: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
-`
+          github-token: ${{ steps.app-token.outputs.token }}
+          github-app-slug: ${{ steps.app-token.outputs.app-slug }}
+`, appTokenActionVersion, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
 }
 
 func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string, error) {

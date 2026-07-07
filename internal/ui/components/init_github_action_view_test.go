@@ -1,6 +1,7 @@
 package components
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -37,6 +38,10 @@ func TestInitWizard_ResetClearsState(t *testing.T) {
 	v.phase = phaseDetails
 	v.appID = "12345"
 	v.privateKeyPath = "/tmp/key.pem"
+	v.pemCandidates = []pemCandidate{{Path: "/tmp/key.pem"}}
+	v.keyChoice = keyChoiceManual
+	v.manualKeyPath = "/tmp/key.pem"
+	v.browsedKeyPath = "/tmp/key.pem"
 	v.browserOpened = true
 
 	v.Reset()
@@ -49,6 +54,9 @@ func TestInitWizard_ResetClearsState(t *testing.T) {
 	}
 	if v.appID != "" || v.privateKeyPath != "" || v.browserOpened {
 		t.Fatalf("expected results cleared after Reset, got appID=%q key=%q browser=%v", v.appID, v.privateKeyPath, v.browserOpened)
+	}
+	if v.pemCandidates != nil || v.keyChoice != "" || v.manualKeyPath != "" || v.browsedKeyPath != "" {
+		t.Fatalf("expected key-selection state cleared after Reset")
 	}
 	if v.form == nil {
 		t.Fatal("expected a rebuilt form after Reset")
@@ -70,6 +78,51 @@ func TestInitWizard_GithubURLs(t *testing.T) {
 	install := v.GetInstallationURL("acme", "infra")
 	if !strings.Contains(install, "acme") || !strings.Contains(install, "infra") {
 		t.Fatalf("expected installation URL to include owner and repo, got %q", install)
+	}
+}
+
+func TestResolvePrivateKeyPath(t *testing.T) {
+	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+
+	v.keyChoice = "/tmp/scanned.pem"
+	v.resolvePrivateKeyPath()
+	if v.privateKeyPath != "/tmp/scanned.pem" {
+		t.Errorf("candidate choice: got %q", v.privateKeyPath)
+	}
+
+	v.keyChoice = keyChoiceManual
+	v.manualKeyPath = "/tmp/manual.pem"
+	v.resolvePrivateKeyPath()
+	if v.privateKeyPath != "/tmp/manual.pem" {
+		t.Errorf("manual choice: got %q", v.privateKeyPath)
+	}
+
+	v.keyChoice = keyChoiceBrowse
+	v.browsedKeyPath = "/tmp/browsed.pem"
+	v.resolvePrivateKeyPath()
+	if v.privateKeyPath != "/tmp/browsed.pem" {
+		t.Errorf("browse choice: got %q", v.privateKeyPath)
+	}
+}
+
+func TestValidatePemPath(t *testing.T) {
+	dir := t.TempDir()
+	pem := dir + "/key.pem"
+	if err := os.WriteFile(pem, []byte("key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validatePemPath(pem); err != nil {
+		t.Errorf("existing .pem: unexpected error %v", err)
+	}
+	if err := validatePemPath(""); err == nil {
+		t.Error("empty path: expected error")
+	}
+	if err := validatePemPath(dir + "/missing.pem"); err == nil {
+		t.Error("missing file: expected error")
+	}
+	if err := validatePemPath(pem + ".txt"); err == nil {
+		t.Error("wrong extension: expected error")
 	}
 }
 
