@@ -68,7 +68,11 @@ These shortcuts are available out of the box:
 **Project setup:**
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/init-github-action` - Set up a GitHub Action via an interactive wizard
+- `/init-github-action` - Set up a GitHub Action via an interactive wizard. Generates
+  `.github/workflows/infer.yml` pinned to the latest `infer-action` (issue/comment-triggered plus a
+  manual `workflow_dispatch` mode, 15-minute job timeout). For org repos it configures the GitHub App
+  org secrets; the private-key step pre-scans common locations (`~/Downloads`, `~/Desktop`, home, cwd)
+  for `.pem` files so you can pick one instantly, with manual entry and a file browser as fallbacks.
 
 ### Project Initialization Shortcut
 

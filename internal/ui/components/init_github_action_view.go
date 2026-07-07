@@ -3,7 +3,9 @@ package components
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -43,6 +45,14 @@ type InitGithubActionView struct {
 	privateKeyPath string
 	err            error
 
+	// Private-key selection state: pre-scanned candidates plus the select
+	// choice (a candidate path or one of the sentinels below) and the two
+	// fallback inputs it can route to.
+	pemCandidates  []pemCandidate
+	keyChoice      string
+	manualKeyPath  string
+	browsedKeyPath string
+
 	// Repository information.
 	repoOwner string
 	isOrgRepo bool
@@ -77,6 +87,12 @@ func (v *InitGithubActionView) buildConfirmForm() *huh.Form {
 	).WithShowHelp(true).WithWidth(v.width)
 }
 
+// Sentinel values for the private-key select's fallback entries.
+const (
+	keyChoiceManual = "__manual__"
+	keyChoiceBrowse = "__browse__"
+)
+
 func (v *InitGithubActionView) buildDetailsForm() *huh.Form {
 	appIDInput := huh.NewInput().
 		Key("appID").
@@ -85,22 +101,114 @@ func (v *InitGithubActionView) buildDetailsForm() *huh.Form {
 		Validate(validateAppID).
 		Value(&v.appID)
 
+	options := make([]huh.Option[string], 0, len(v.pemCandidates)+2)
+	for _, c := range v.pemCandidates {
+		options = append(options, huh.NewOption(pemCandidateLabel(c), c.Path))
+	}
+	options = append(options,
+		huh.NewOption("Enter path manually…", keyChoiceManual),
+		huh.NewOption("Browse files…", keyChoiceBrowse),
+	)
+
+	keySelect := huh.NewSelect[string]().
+		Key("privateKeySource").
+		Title("Private key (.pem)").
+		Description("Generate one under your app's 'Private keys' section. Recently found keys are listed first.").
+		Options(options...).
+		Value(&v.keyChoice)
+
+	manualInput := huh.NewInput().
+		Key("privateKeyManual").
+		Title("Private key path").
+		Description("Absolute or ~-relative path to the .pem file.").
+		Validate(validatePemPath).
+		Value(&v.manualKeyPath)
+
 	keyPicker := huh.NewFilePicker().
 		Key("privateKey").
 		Title("Private key (.pem)").
-		Description("Generate one under your app's 'Private keys' section, then pick the file.").
-		CurrentDirectory(".").
+		Description("Pick the private key file.").
+		CurrentDirectory(defaultBrowseDir()).
 		AllowedTypes([]string{".pem"}).
 		ShowHidden(false).
 		Height(10).
-		Value(&v.privateKeyPath)
+		Value(&v.browsedKeyPath)
+
+	secretsExist := func() bool {
+		return v.checkSecretsExist != nil && v.checkSecretsExist(v.appID)
+	}
 
 	return huh.NewForm(
 		huh.NewGroup(appIDInput),
+		huh.NewGroup(keySelect).WithHideFunc(secretsExist),
+		huh.NewGroup(manualInput).WithHideFunc(func() bool {
+			return secretsExist() || v.keyChoice != keyChoiceManual
+		}),
 		huh.NewGroup(keyPicker).WithHideFunc(func() bool {
-			return v.checkSecretsExist != nil && v.checkSecretsExist(v.appID)
+			return secretsExist() || v.keyChoice != keyChoiceBrowse
 		}),
 	).WithShowHelp(true).WithWidth(v.width)
+}
+
+// resolvePrivateKeyPath maps the completed details form onto privateKeyPath,
+// depending on whether the user picked a scanned candidate, typed a path, or
+// browsed for the file.
+func (v *InitGithubActionView) resolvePrivateKeyPath() {
+	switch v.keyChoice {
+	case keyChoiceManual:
+		v.privateKeyPath = expandHomePath(v.manualKeyPath)
+	case keyChoiceBrowse:
+		v.privateKeyPath = v.browsedKeyPath
+	default:
+		v.privateKeyPath = v.keyChoice
+	}
+}
+
+// defaultBrowseDir anchors the fallback file picker where GitHub App keys
+// usually download to.
+func defaultBrowseDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "."
+	}
+	if downloads := filepath.Join(home, "Downloads"); dirExists(downloads) {
+		return downloads
+	}
+	return home
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// expandHomePath expands a leading ~ to the user's home directory.
+func expandHomePath(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+		}
+	}
+	return path
+}
+
+// validatePemPath requires an existing regular .pem file.
+func validatePemPath(s string) error {
+	if s == "" {
+		return fmt.Errorf("path is required")
+	}
+	path := expandHomePath(s)
+	if !strings.EqualFold(filepath.Ext(path), ".pem") {
+		return fmt.Errorf("file must have a .pem extension")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("file not found: %s", path)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory")
+	}
+	return nil
 }
 
 func (v *InitGithubActionView) Init() tea.Cmd {
@@ -141,10 +249,12 @@ func (v *InitGithubActionView) advance() tea.Cmd {
 			v.browserOpened = true
 		}
 		v.phase = phaseDetails
+		v.pemCandidates = scanPemFiles()
 		v.form = v.buildDetailsForm()
 		return v.form.Init()
 	}
 
+	v.resolvePrivateKeyPath()
 	v.done = true
 	return nil
 }
@@ -230,6 +340,10 @@ func (v *InitGithubActionView) Reset() {
 	v.hasExisting = false
 	v.appID = ""
 	v.privateKeyPath = ""
+	v.pemCandidates = nil
+	v.keyChoice = ""
+	v.manualKeyPath = ""
+	v.browsedKeyPath = ""
 	v.browserOpened = false
 	v.err = nil
 	v.form = v.buildConfirmForm()
