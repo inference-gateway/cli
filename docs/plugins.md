@@ -19,6 +19,7 @@ A plugin repo is mapped onto native infer features — **content only**:
 | --- | --- |
 | `skills/<name>/SKILL.md` | Native skills system, new `plugin` scope (autocomplete, `/name` invocation, `infer skills list`) |
 | `AGENTS.md` (repo root) | Injected into the system prompt as a labeled `PLUGIN INSTRUCTIONS (<name>)` section while the plugin is enabled |
+| `hooks.yaml` (repo root) | Native Infer command hooks, materialized under `~/.infer/plugins/<name>/hooks.yaml` (disabled by default; opt in with `infer plugins enable-hooks <name>`) |
 | `.claude-plugin/plugin.json` | Name/version/description metadata (optional — falls back to the repo name) |
 | `hooks/`, `commands/`, `agents/` | **Detected and reported, never executed or installed** |
 
@@ -38,6 +39,8 @@ infer plugins list [--format text|json]
 infer plugins update [<name>]        # re-fetch from the install source
 infer plugins enable <name>
 infer plugins disable <name>         # skills unloaded, instructions removed
+infer plugins enable-hooks <name>    # opt in to plugin command hooks (off by default)
+infer plugins disable-hooks <name>   # opt out of plugin command hooks
 infer plugins remove <name>
 ```
 
