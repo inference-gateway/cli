@@ -19,12 +19,23 @@ A plugin repo is mapped onto native infer features — **content only**:
 | --- | --- |
 | `skills/<name>/SKILL.md` | Native skills system, new `plugin` scope (autocomplete, `/name` invocation, `infer skills list`) |
 | `AGENTS.md` (repo root) | Injected into the system prompt as a labeled `PLUGIN INSTRUCTIONS (<name>)` section while the plugin is enabled |
+| `hooks.yaml` (repo root) | Native Infer command hooks (disabled by default; enable with `infer plugins enable-hooks <name>`) |
 | `.claude-plugin/plugin.json` | Name/version/description metadata (optional — falls back to the repo name) |
 | `hooks/`, `commands/`, `agents/` | **Detected and reported, never executed or installed** |
 
 Only that mapped subset is downloaded. infer deliberately does not adopt
 executable plugin models (e.g. OpenCode's JavaScript plugins): a plugin can
-add instructions and skills, but it can never run code on your machine.
+add instructions and skills, but it never runs code on your machine by
+default. The one exception is strictly opt-in: a plugin-root `hooks.yaml` in
+infer's native command-hook format is installed disabled, must be enabled per
+plugin with `infer plugins enable-hooks <name>` (the master `hooks.enabled`
+switch still applies on top), merges additively after your own `hooks.yaml`
+(a plugin can never override or remove a user hook), and every command is
+gated by the per-mode bash allow-list exactly like a model-proposed command —
+off-list commands are skipped and reported, never run. Hook points are
+validated at install time and each hook is listed in the install summary
+before you confirm. Claude Code `hooks/*.js` remains detected-only, never
+executed.
 
 Because a plugin's `AGENTS.md` becomes always-on prompt content, `install`
 prints a summary of what the plugin provides and asks for confirmation
@@ -38,6 +49,8 @@ infer plugins list [--format text|json]
 infer plugins update [<name>]        # re-fetch from the install source
 infer plugins enable <name>
 infer plugins disable <name>         # skills unloaded, instructions removed
+infer plugins enable-hooks <name>    # opt in to plugin command hooks (off by default)
+infer plugins disable-hooks <name>   # opt out of plugin command hooks
 infer plugins remove <name>
 ```
 
@@ -82,6 +95,7 @@ plugins:
     source: DietrichGebert/ponytail
     version: 4.8.4
     enabled: true
+    # hooks_enabled: true       # per-plugin opt-in for the plugin's hooks.yaml
 ```
 
 Related toggles:

@@ -27,6 +27,7 @@ const (
 var mappedPrefixes = []string{
 	config.PluginManifestPath,
 	config.PluginAgentsMDName,
+	config.HooksFileName,
 	"skills/",
 }
 
@@ -47,6 +48,8 @@ type InstallResult struct {
 	SkillErrors     []domain.SkillLoadError
 	HasInstructions bool
 	InstructionsLen int
+	HasHooks        bool
+	Hooks           []config.HookCommandConfig
 	Unsupported     map[string]int
 }
 
@@ -232,6 +235,13 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 		res.InstructionsLen = len(content)
 	}
 
+	hasHooks, hooks, err := inspectPluginHooks(dir, res.Name)
+	if err != nil {
+		return nil, err
+	}
+	res.HasHooks = hasHooks
+	res.Hooks = hooks
+
 	skillsDir := filepath.Join(dir, "skills")
 	if entries, err := os.ReadDir(skillsDir); err == nil {
 		for _, entry := range entries {
@@ -253,6 +263,30 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 		return nil, fmt.Errorf("plugin %q has no installable content: no valid skills and no %s", res.Name, config.PluginAgentsMDName)
 	}
 	return res, nil
+}
+
+// inspectPluginHooks reads and validates a plugin's hooks.yaml.
+// A missing or empty file is not an error - it simply means no hooks.
+// ponytail: extracted to reduce nestif complexity in Inspect.
+// ceiling: none - permanent extraction for readability.
+// upgrade: re-inline if Inspect is ever rewritten to avoid the extraction.
+func inspectPluginHooks(dir, pluginName string) (bool, []config.HookCommandConfig, error) {
+	data, err := os.ReadFile(filepath.Join(dir, config.HooksFileName))
+	if err != nil {
+		return false, nil, nil
+	}
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return false, nil, nil
+	}
+	var hooksCfg config.HooksConfig
+	if err := config.ParseHooksYAML(data, &hooksCfg); err != nil {
+		return false, nil, fmt.Errorf("plugin %q has invalid hooks.yaml: %w", pluginName, err)
+	}
+	if err := hooksCfg.Validate(); err != nil {
+		return false, nil, fmt.Errorf("plugin %q has invalid hooks.yaml: %w", pluginName, err)
+	}
+	return len(hooksCfg.Hooks) > 0, hooksCfg.Hooks, nil
 }
 
 // Commit atomically promotes stagingDir to finalDir. On overwrite the old
