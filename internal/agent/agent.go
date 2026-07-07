@@ -15,8 +15,8 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	services "github.com/inference-gateway/cli/internal/services"
+	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -352,7 +352,7 @@ func NewAgent(
 
 	hookProvider := domain.HookCommandProvider(cfg.Hooks)
 	if pluginProvider := plugins.NewPluginHookCommandProvider(cfg); pluginProvider != nil {
-			hookProvider = pluginProvider
+		hookProvider = pluginProvider
 	}
 
 	return &AgentServiceImpl{

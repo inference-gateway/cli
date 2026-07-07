@@ -110,9 +110,9 @@ func TestStageGitHub_DownloadsOnlyMappedSubset(t *testing.T) {
 
 func TestStageGitHub_DownloadsHooksYAML(t *testing.T) {
 	repo := fakeRepo{Files: map[string]string{
-		"AGENTS.md":                       "rules",
-		"hooks.yaml":                      "---\nenabled: true\nhooks:\n  - name: fmt\n    hook: post_session\n    command: gofmt -w .\n    timeout: 30\n",
-		"hooks/old.js":                    "console.log('ignored')",
+		"AGENTS.md":    "rules",
+		"hooks.yaml":   "---\nenabled: true\nhooks:\n  - name: fmt\n    hook: post_session\n    command: gofmt -w .\n    timeout: 30\n",
+		"hooks/old.js": "console.log('ignored')",
 	}}
 	srv := newMockServer(t, repo)
 	defer srv.Close()
