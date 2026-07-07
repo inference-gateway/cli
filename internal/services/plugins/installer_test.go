@@ -10,8 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	require "github.com/stretchr/testify/require"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func validSkillBody(name, description string) string {
