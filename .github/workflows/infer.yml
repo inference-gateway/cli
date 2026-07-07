@@ -20,6 +20,9 @@ on:
   issue_comment:
     types:
       - created
+  pull_request_review_comment:
+    types:
+      - created
 
 permissions: {}
 
@@ -32,6 +35,7 @@ jobs:
         !endsWith(github.actor, '[bot]') &&
         (
           (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
+          (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@infer')) ||
           (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
         )
       )
