@@ -25,8 +25,12 @@ type PluginHookCommandProvider struct {
 }
 
 // NewPluginHookCommandProvider creates a provider that merges user hooks with
-// enabled plugin hooks. Returns nil when cfg is nil or plugins are disabled.
+// enabled plugin hooks. Returns nil when cfg is nil or plugins are disabled,
+// so the caller falls back to the plain user hooks provider.
 func NewPluginHookCommandProvider(cfg *config.Config) *PluginHookCommandProvider {
+	if cfg == nil || !cfg.Plugins.Enabled {
+		return nil
+	}
 	return &PluginHookCommandProvider{cfg: cfg}
 }
 
@@ -46,15 +50,11 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 	var due []domain.HookCommand
 
 	due = append(due, p.cfg.Hooks.CommandsDue(hook)...)
-	if !p.cfg.Plugins.Enabled {
-		return due
-	}
 	for _, entry := range p.cfg.Plugins.Plugins {
 		if !entry.Enabled || !entry.HooksEnabled {
 			continue
 		}
-		pluginHooks := loadPluginHooks(p.cfg.Plugins, entry.Name, &p.hooksCache)
-		for _, hc := range pluginHooks {
+		for _, hc := range p.loadPluginHooks(entry.Name) {
 			if hc.Hook != hook {
 				continue
 			}
@@ -70,11 +70,12 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 
 // loadPluginHooks reads and parses a plugin's hooks.yaml. Returns nil when the
 // file is missing or unreadable (logged at debug level).
-func loadPluginHooks(pc config.PluginsConfig, name string, cache *sync.Map) []config.HookCommandConfig {
+func (p *PluginHookCommandProvider) loadPluginHooks(name string) []config.HookCommandConfig {
+	cache := &p.hooksCache
 	if cached, ok := cache.Load(name); ok {
 		return cached.([]config.HookCommandConfig)
 	}
-	path, err := pc.PluginHooksPath(name)
+	path, err := p.cfg.Plugins.PluginHooksPath(name)
 	if err != nil {
 		return nil
 	}
