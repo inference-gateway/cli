@@ -82,6 +82,14 @@ func SaveHooks(path string, cfg *HooksConfig) error {
 	return utils.SaveYAML(path, "hooks", cfg)
 }
 
+// ParseHooksYAML unmarshals raw YAML bytes into a HooksConfig. It is the
+// low-level parse used by plugin inspection (where the file is read separately
+// and the result is validated against domain.HookPoints). LoadHooks is the
+// higher-level path that reads from disk and applies defaults.
+func ParseHooksYAML(data []byte, cfg *HooksConfig) error {
+	return utils.ParseYAML(data, "hooks", cfg)
+}
+
 // effective returns the hooks with per-entry defaults applied: a non-positive
 // timeout falls back to defaultHookTimeoutSeconds. The hook point is left as
 // configured (an explicit hook is required, enforced by Validate) so there is no

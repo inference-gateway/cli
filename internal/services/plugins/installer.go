@@ -27,6 +27,7 @@ const (
 var mappedPrefixes = []string{
 	config.PluginManifestPath,
 	config.PluginAgentsMDName,
+	config.HooksFileName,
 	"skills/",
 }
 
@@ -47,6 +48,8 @@ type InstallResult struct {
 	SkillErrors     []domain.SkillLoadError
 	HasInstructions bool
 	InstructionsLen int
+	HasHooks        bool
+	Hooks           []config.HookCommandConfig
 	Unsupported     map[string]int
 }
 
@@ -230,6 +233,21 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 		content := strings.TrimSpace(string(data))
 		res.HasInstructions = content != ""
 		res.InstructionsLen = len(content)
+	}
+
+	if data, err := os.ReadFile(filepath.Join(dir, config.HooksFileName)); err == nil {
+		content := strings.TrimSpace(string(data))
+		if content != "" {
+			var hooksCfg config.HooksConfig
+			if err := config.ParseHooksYAML(data, &hooksCfg); err != nil {
+				return nil, fmt.Errorf("plugin %q has invalid hooks.yaml: %w", res.Name, err)
+			}
+			if err := hooksCfg.Validate(); err != nil {
+				return nil, fmt.Errorf("plugin %q has invalid hooks.yaml: %w", res.Name, err)
+			}
+			res.HasHooks = len(hooksCfg.Hooks) > 0
+			res.Hooks = hooksCfg.Hooks
+		}
 	}
 
 	skillsDir := filepath.Join(dir, "skills")

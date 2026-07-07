@@ -31,11 +31,12 @@ var _ CollectionConfig[PluginEntry] = (*PluginsConfig)(nil)
 
 // PluginEntry is one installed plugin in the registry.
 type PluginEntry struct {
-	Name    string `yaml:"name" mapstructure:"name"`
-	Source  string `yaml:"source" mapstructure:"source"`
-	Ref     string `yaml:"ref,omitempty" mapstructure:"ref,omitempty"`
-	Version string `yaml:"version,omitempty" mapstructure:"version,omitempty"`
-	Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
+	Name         string `yaml:"name" mapstructure:"name"`
+	Source       string `yaml:"source" mapstructure:"source"`
+	Ref          string `yaml:"ref,omitempty" mapstructure:"ref,omitempty"`
+	Version      string `yaml:"version,omitempty" mapstructure:"version,omitempty"`
+	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
+	HooksEnabled bool   `yaml:"hooks_enabled,omitempty" mapstructure:"hooks_enabled,omitempty"`
 }
 
 // DefaultPluginsConfig returns the default plugins configuration.
@@ -108,6 +109,15 @@ func (c PluginsConfig) PluginInstructionsPath(name string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(root, PluginAgentsMDName), nil
+}
+
+// PluginHooksPath returns the hooks.yaml path of an installed plugin.
+func (c PluginsConfig) PluginHooksPath(name string) (string, error) {
+	root, err := c.PluginRoot(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, HooksFileName), nil
 }
 
 // EnabledEntries returns the enabled plugins in registry order, or nil when
