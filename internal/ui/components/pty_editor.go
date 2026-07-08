@@ -107,8 +107,9 @@ func resolveEditor() []string {
 // vim-family editors. A bare vim spawned with no vimrc can't detect the emulator's
 // background (it doesn't answer vim's OSC-11 query), so the default colorscheme
 // renders washed-out - looking like no highlighting at all. We pin the background to
-// the TUI theme and enable syntax. The flags run after the user's own vimrc (if any),
-// so they only force these two settings. Non-vim editors get nil (they do their own
+// the TUI theme, enable syntax, and show line numbers (matching the diff view's
+// line-numbered display). The flags run after the user's own vimrc (if any),
+// so they only force these settings. Non-vim editors get nil (they do their own
 // highlighting, or don't accept `-c`).
 func editorColorArgs(editorBin string, dark bool) []string {
 	switch strings.ToLower(filepath.Base(editorBin)) {
@@ -117,7 +118,7 @@ func editorColorArgs(editorBin string, dark bool) []string {
 		if !dark {
 			bg = "light"
 		}
-		return []string{"-c", "set background=" + bg, "-c", "syntax enable"}
+		return []string{"-c", "set background=" + bg, "-c", "syntax enable", "-c", "set number"}
 	}
 	return nil
 }
