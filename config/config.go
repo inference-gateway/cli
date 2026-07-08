@@ -1088,6 +1088,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
+	case "Wait":
+		return false
 	case "Memory":
 		return false
 	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":

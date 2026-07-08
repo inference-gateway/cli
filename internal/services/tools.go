@@ -62,6 +62,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 			"TodoWrite":           true,
 			"RequestPlanApproval": true,
 			"AskUserQuestion":     true,
+			"Wait":                true,
 		}
 
 		var definitions []sdk.ChatCompletionTool
