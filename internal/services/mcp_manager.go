@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	mcp "github.com/metoro-io/mcp-golang"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	mcp "github.com/metoro-io/mcp-golang"
 )
 
 // Compile-time interface checks
