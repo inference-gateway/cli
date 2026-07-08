@@ -2948,6 +2948,7 @@ const workflowAgentInputs = `          trigger-phrase: '@infer'
           moonshot-api-key: ${{ secrets.MOONSHOT_API_KEY }}
           minimax-api-key: ${{ secrets.MINIMAX_API_KEY }}
           nvidia-api-key: ${{ secrets.NVIDIA_API_KEY }}
+          zai-api-key: ${{ secrets.ZAI_API_KEY }}
 `
 
 func (app *ChatApplication) generateStandardWorkflowContent() string {

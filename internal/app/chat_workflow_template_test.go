@@ -29,6 +29,7 @@ func assertWorkflowCommon(t *testing.T, content string) {
 		"moonshot-api-key:",
 		"minimax-api-key:",
 		"nvidia-api-key:",
+		"zai-api-key:",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("workflow missing %q", want)
