@@ -3,8 +3,10 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 type WaitTool struct {
 	config       *config.Config
 	enabled      bool
+	formatter    domain.BaseFormatter
 	shellService domain.BackgroundShellService
 }
 
@@ -31,6 +34,7 @@ func NewWaitTool(cfg *config.Config, shellService domain.BackgroundShellService)
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
+		formatter:    domain.NewBaseFormatter("Wait"),
 		shellService: shellService,
 	}
 }
@@ -85,6 +89,16 @@ func (t *WaitTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the Wait tool with given arguments.
 func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
+
+	if err := t.Validate(args); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Wait",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
+	}
 
 	condition, _ := args["condition"].(string)
 	timeoutSec, _ := args["timeout_seconds"].(float64)
@@ -230,7 +244,19 @@ func (t *WaitTool) FormatPreview(result *domain.ToolExecutionResult) string {
 
 // FormatForUI formats the result for UI display.
 func (t *WaitTool) FormatForUI(result *domain.ToolExecutionResult) string {
-	return t.FormatForLLM(result)
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	fmt.Fprintf(&output, "%s\n", toolCall)
+	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
+
+	return output.String()
 }
 
 // FormatForLLM formats the result for LLM consumption.
@@ -346,7 +372,6 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any, start ti
 		}
 	}
 
-	// If no specific shell IDs given, wait for all running shells
 	if len(targetIDs) == 0 && t.shellService != nil {
 		allShells := t.shellService.GetAllShells()
 		for _, s := range allShells {
@@ -364,7 +389,6 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any, start ti
 		}
 	}
 
-	// Poll at 500ms intervals until all target shells reach a terminal state
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -394,6 +418,14 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any, start ti
 
 // shellResults collects exit codes and tail output for the given shell IDs.
 func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
+	if t.shellService == nil {
+		return map[string]any{
+			"condition": "shells",
+			"reason":    "no_shells",
+			"message":   "Shell service not available.",
+		}
+	}
+
 	results := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
 		shell := t.shellService.GetShell(id)
@@ -446,6 +478,18 @@ func (t *WaitTool) waitFile(ctx context.Context, args map[string]any, start time
 		}
 	}
 
+	if eventStr == "create" {
+		if _, err := os.Stat(absPath); err == nil {
+			return map[string]any{
+				"condition": "file",
+				"reason":    "condition_met",
+				"path":      absPath,
+				"event":     eventStr,
+				"op":        "exists",
+			}
+		}
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return map[string]any{
@@ -456,7 +500,6 @@ func (t *WaitTool) waitFile(ctx context.Context, args map[string]any, start time
 	}
 	defer func() { _ = watcher.Close() }()
 
-	// Watch the parent directory for the file
 	parentDir := filepath.Dir(absPath)
 	if err := watcher.Add(parentDir); err != nil {
 		return map[string]any{
@@ -525,13 +568,39 @@ func eventMatches(op fsnotify.Op, eventStr string) bool {
 	case "any":
 		return true
 	default:
-		return true
+		return false
 	}
 }
 
 // waitCommand re-runs a check command at a fixed interval until it exits 0.
 func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start time.Time) map[string]any {
 	cmdStr, _ := args["command"].(string)
+
+	if cmdStr == "" {
+		return map[string]any{
+			"condition": "command",
+			"reason":    "error",
+			"error":     "command is required when condition is 'command'",
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		logger.Warn("wait command condition requires bash which is not available on Windows")
+		return map[string]any{
+			"condition": "command",
+			"reason":    "error",
+			"error":     "command condition requires bash (not available on Windows)",
+		}
+	}
+
+	if !t.config.IsBashCommandAllowed(cmdStr, "standard") {
+		return map[string]any{
+			"condition": "command",
+			"reason":    "not_allowed",
+			"command":   cmdStr,
+			"error":     fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr),
+		}
+	}
 
 	pollInterval := t.config.Tools.Wait.CommandPollIntervalMs
 	if pollInterval <= 0 {
@@ -542,7 +611,6 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	// Run the command once immediately
 	lastOutput, exitCode := t.runCheckCommand(ctx, cmdStr)
 	if exitCode == 0 {
 		return map[string]any{
@@ -588,7 +656,6 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 
 // runCheckCommand executes a check command and returns its output and exit code.
 func (t *WaitTool) runCheckCommand(ctx context.Context, cmdStr string) (string, int) {
-	// Use a short timeout per check so we don't hang forever
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

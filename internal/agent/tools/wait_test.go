@@ -208,6 +208,68 @@ func TestWaitTool_FormatPreview(t *testing.T) {
 	}
 }
 
+func TestWaitTool_FormatForUI(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	tests := []struct {
+		name   string
+		result *domain.ToolExecutionResult
+		checks []string // substrings that should appear in output
+	}{
+		{
+			name:   "nil result",
+			result: nil,
+			checks: []string{"Tool execution result unavailable"},
+		},
+		{
+			name: "condition met",
+			result: &domain.ToolExecutionResult{
+				Success:  true,
+				Duration: 5 * time.Second,
+				Data: map[string]any{
+					"condition": "shells",
+					"reason":    "condition_met",
+				},
+				Arguments: map[string]any{
+					"condition":       "shells",
+					"timeout_seconds": float64(30),
+				},
+			},
+			checks: []string{"Wait", "shells", "condition met after"},
+		},
+		{
+			name: "timeout",
+			result: &domain.ToolExecutionResult{
+				Success:  false,
+				Duration: 30 * time.Second,
+				Error:    "timed out",
+				Data: map[string]any{
+					"condition": "file",
+					"reason":    "timeout",
+				},
+				Arguments: map[string]any{
+					"condition":       "file",
+					"timeout_seconds": float64(30),
+					"path":            "/tmp/test.txt",
+				},
+			},
+			checks: []string{"Wait", "file", "Wait failed: timed out"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tool.FormatForUI(tt.result)
+			for _, check := range tt.checks {
+				if !strings.Contains(got, check) {
+					t.Errorf("FormatForUI() missing %q in output: %s", check, got)
+				}
+			}
+		})
+	}
+}
+
 func TestWaitTool_FormatForLLM(t *testing.T) {
 	cfg := testWaitConfig()
 	tool := NewWaitTool(cfg, nil)
@@ -257,7 +319,7 @@ func TestEventMatches(t *testing.T) {
 		{"create matches any", fsnotify.Create, "any", true},
 		{"write matches any", fsnotify.Write, "any", true},
 		{"remove matches any", fsnotify.Remove, "any", true},
-		{"unknown event defaults to true", fsnotify.Create, "unknown", true},
+		{"unknown event defaults to false", fsnotify.Create, "unknown", false},
 	}
 
 	for _, tt := range tests {
@@ -284,8 +346,8 @@ func TestWaitTool_Execute_UnknownCondition(t *testing.T) {
 	if result.Success {
 		t.Error("Execute() should fail for unknown condition")
 	}
-	if !strings.Contains(result.Error, "unknown condition") {
-		t.Errorf("Execute() error = %q, want containing %q", result.Error, "unknown condition")
+	if !strings.Contains(result.Error, "condition must be one of") {
+		t.Errorf("Execute() error = %q, want containing %q", result.Error, "condition must be one of")
 	}
 }
 
@@ -339,11 +401,11 @@ func TestWaitTool_Execute_CommandTimeout(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Run a command that will never exit 0
+	// Run a command that is in the allow-list but will never exit 0
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"condition":       "command",
 		"timeout_seconds": float64(1),
-		"command":         "false",
+		"command":         "sleep 10",
 	})
 	if err != nil {
 		t.Fatalf("Execute() unexpected error: %v", err)
@@ -361,11 +423,11 @@ func TestWaitTool_Execute_CommandSuccess(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Run a command that exits 0 immediately
+	// Run a command that is in the allow-list and exits 0 immediately
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"condition":       "command",
 		"timeout_seconds": float64(5),
-		"command":         "true",
+		"command":         "echo hello",
 	})
 	if err != nil {
 		t.Fatalf("Execute() unexpected error: %v", err)
