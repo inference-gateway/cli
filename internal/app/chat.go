@@ -241,6 +241,7 @@ func NewChatApplication(
 		iv.SetShortcutRegistry(app.shortcutRegistry)
 		iv.SetFileService(app.fileService)
 		iv.SetGitHubIssueService(app.githubIssueService)
+		iv.SetMessageQueue(app.messageQueue)
 	}
 
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
