@@ -80,6 +80,11 @@ func (t *BashTool) Definition() sdk.ChatCompletionTool {
 						"enum":        []string{"text", "json"},
 						"default":     "text",
 					},
+					"detached": map[string]any{
+						"type":        "boolean",
+						"description": "Run the command in the background and return immediately. Use BashOutput to read output and Wait to wait for completion. Equivalent to pressing Ctrl+B during execution.",
+						"default":     false,
+					},
 				},
 				"required": []string{"command"},
 			},
@@ -99,6 +104,12 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 			Duration:  time.Since(start),
 			Error:     "command parameter is required and must be a string",
 		}, nil
+	}
+
+	if detached, ok := args["detached"].(bool); ok && detached {
+		detachChan := make(chan struct{}, 1)
+		detachChan <- struct{}{}
+		ctx = domain.WithBashDetachChannel(ctx, detachChan)
 	}
 
 	bashResult, err := t.executeBash(ctx, command)
