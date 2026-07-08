@@ -163,8 +163,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/inference-gateway/adk v0.20.0 h1:bUe2wGbfXulFl3VHnN6/6bFAkBXV88ZVP2vNPvoNeks=
 github.com/inference-gateway/adk v0.20.0/go.mod h1:MDvOYPi7y1ytZklZBELwuU02KumBjh9JkpyEZLd6xBY=
-github.com/inference-gateway/sdk v1.19.0 h1:KXjb/OvNNFrx66XRtmMAuWnBh0dhUwRNMvqP+oNlwR8=
-github.com/inference-gateway/sdk v1.19.0/go.mod h1:wNdS+uDyAwqMqK3MY2lHewaphl+PHLRw4+5KcUJtbe8=
+github.com/inference-gateway/sdk v1.20.0 h1:N+QP9ykoMz0fyw9TAjA6ol54u1sfQpNQu8zlJ0agw34=
+github.com/inference-gateway/sdk v1.20.0/go.mod h1:N2ML6hgB52lJUUwbcurKHTzxBjvXN1obIlkAg3NGYfA=
 github.com/invopop/jsonschema v0.12.0 h1:6ovsNSuvn9wEQVOyc72aycBMVQFKz7cPdMJn10CvzRI=
 github.com/invopop/jsonschema v0.12.0/go.mod h1:ffZ5Km5SWWRAIN6wbDXItl95euhFz2uON45H2qjYt+0=
 github.com/jezek/xgb v1.3.0 h1:Wa1pn4GVtcmNVAVB6/pnQVJ7xPFZVZ/W1Tc27msDhgI=
