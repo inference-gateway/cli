@@ -16,10 +16,6 @@ type StateManager struct {
 	state *domain.ApplicationState
 	mutex sync.RWMutex
 
-	// State change listeners
-	listeners   []StateChangeListener
-	listenersMu sync.RWMutex
-
 	// Event multicast for floating window (optional)
 	eventBridge domain.EventBridge
 
@@ -31,19 +27,6 @@ type StateManager struct {
 
 // Compile-time assertion that StateManager implements domain.StateManager interface
 var _ domain.StateManager = (*StateManager)(nil)
-
-// StateChangeListener interface for components that need to react to state changes
-type StateChangeListener interface {
-	OnStateChanged(oldState, newState domain.StateSnapshot)
-}
-
-// StateChangeEvent represents a state change event
-type StateChangeEvent struct {
-	Type      StateChangeType
-	OldState  domain.StateSnapshot
-	NewState  domain.StateSnapshot
-	Timestamp time.Time
-}
 
 // StateChangeType represents the type of state change
 type StateChangeType int
@@ -74,77 +57,20 @@ func (s StateChangeType) String() string {
 func NewStateManager(debugMode bool) *StateManager {
 	return &StateManager{
 		state:          domain.NewApplicationState(),
-		listeners:      make([]StateChangeListener, 0),
 		debugMode:      debugMode,
 		stateHistory:   make([]domain.StateSnapshot, 0),
 		maxHistorySize: 100,
 	}
 }
 
-// AddListener adds a state change listener
-func (sm *StateManager) AddListener(listener StateChangeListener) {
-	sm.listenersMu.Lock()
-	defer sm.listenersMu.Unlock()
-	sm.listeners = append(sm.listeners, listener)
-}
-
-// RemoveListener removes a state change listener
-func (sm *StateManager) RemoveListener(listener StateChangeListener) {
-	sm.listenersMu.Lock()
-	defer sm.listenersMu.Unlock()
-
-	for i, l := range sm.listeners {
-		if l == listener {
-			sm.listeners = append(sm.listeners[:i], sm.listeners[i+1:]...)
-			break
-		}
-	}
-}
-
-// notifyListeners notifies all listeners of a state change with coordination
-func (sm *StateManager) notifyListeners(oldState, newState domain.StateSnapshot) {
-	sm.listenersMu.RLock()
-	listeners := make([]StateChangeListener, len(sm.listeners))
-	copy(listeners, sm.listeners)
-	sm.listenersMu.RUnlock()
-
-	var wg sync.WaitGroup
-	for _, listener := range listeners {
-		wg.Add(1)
-		go func(l StateChangeListener) {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Error("listener panicked", "panic", r)
-				}
-			}()
-			l.OnStateChanged(oldState, newState)
-		}(listener)
-	}
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		logger.Warn("some listeners did not respond within timeout")
-	}
-}
-
 // captureStateChange captures a state change for debugging and audit trail
-func (sm *StateManager) captureStateChange(_ /* changeType */ StateChangeType, oldState domain.StateSnapshot) {
+func (sm *StateManager) captureStateChange(_ /* changeType */ StateChangeType, _ domain.StateSnapshot) {
 	newState := sm.state.GetStateSnapshot()
 
 	sm.stateHistory = append(sm.stateHistory, newState)
 	if len(sm.stateHistory) > sm.maxHistorySize {
 		sm.stateHistory = sm.stateHistory[1:]
 	}
-
-	sm.notifyListeners(oldState, newState)
 }
 
 // GetCurrentView returns the current view state
