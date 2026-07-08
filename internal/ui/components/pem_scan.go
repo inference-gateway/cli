@@ -28,9 +28,12 @@ var pemScanSkipDirs = map[string]bool{
 	"vendor":       true,
 }
 
-// scanPemFiles searches the places a GitHub App private key typically lives
-// (~/Downloads, ~/Desktop, the home directory, and the working directory) for
-// .pem files, newest first.
+// scanPemFiles searches the working directory, ~/.infer, and /tmp for .pem
+// files, newest first. ~/Downloads, ~/Desktop, and the home directory are
+// deliberately NOT scanned: on macOS reading them is TCC-gated, and the sweep
+// makes the OS nag the terminal app with Full Disk Access / folder-access
+// prompts on every session. Keys living there are entered via the wizard's
+// "Enter path manually…" option instead.
 func scanPemFiles() []pemCandidate {
 	type root struct {
 		dir   string
@@ -38,16 +41,13 @@ func scanPemFiles() []pemCandidate {
 	}
 
 	var roots []root
-	if home, err := os.UserHomeDir(); err == nil {
-		roots = append(roots,
-			root{filepath.Join(home, "Downloads"), 2},
-			root{filepath.Join(home, "Desktop"), 2},
-			root{home, 1},
-		)
-	}
 	if cwd, err := os.Getwd(); err == nil {
 		roots = append(roots, root{cwd, 2})
 	}
+	if home, err := os.UserHomeDir(); err == nil {
+		roots = append(roots, root{filepath.Join(home, ".infer"), 2})
+	}
+	roots = append(roots, root{"/tmp", 1})
 
 	seen := make(map[string]bool)
 	var candidates []pemCandidate
