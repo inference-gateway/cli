@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	fsnotify "github.com/fsnotify/fsnotify"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	fsnotify "github.com/fsnotify/fsnotify"
 )
 
 // testWaitConfig returns a minimal config with Wait tool enabled.
@@ -99,7 +99,7 @@ func TestWaitTool_Validate(t *testing.T) {
 			args: map[string]any{
 				"condition":       "command",
 				"timeout_seconds": float64(30),
-				"command":          "curl -sf localhost:8080/health",
+				"command":         "curl -sf localhost:8080/health",
 			},
 			wantErr: "",
 		},

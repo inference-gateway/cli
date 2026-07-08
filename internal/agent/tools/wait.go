@@ -523,10 +523,10 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 	if exitCode == 0 {
 		return map[string]any{
 			"condition":   "command",
-			"reason":       "condition_met",
-			"command":      cmdStr,
-			"last_output":  lastOutput,
-			"attempts":     1,
+			"reason":      "condition_met",
+			"command":     cmdStr,
+			"last_output": lastOutput,
+			"attempts":    1,
 		}
 	}
 
@@ -540,11 +540,11 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 				reason = "cancelled"
 			}
 			return map[string]any{
-				"condition":  "command",
-				"reason":     reason,
-				"command":    cmdStr,
+				"condition":   "command",
+				"reason":      reason,
+				"command":     cmdStr,
 				"last_output": lastOutput,
-				"attempts":   attempts,
+				"attempts":    attempts,
 			}
 		case <-ticker.C:
 			lastOutput, exitCode = t.runCheckCommand(ctx, cmdStr)
