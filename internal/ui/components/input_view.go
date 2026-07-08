@@ -43,6 +43,7 @@ type InputView struct {
 	themeService         domain.ThemeService
 	styleProvider        *styles.Provider
 	imageAttachments     []domain.ImageAttachment
+	messageQueue         domain.MessageQueue
 	historySuggestion    string
 	historySuggestions   []string
 	historySelectedIndex int
@@ -129,6 +130,12 @@ func (iv *InputView) SetShortcutRegistry(registry *shortcuts.Registry) {
 // be highlighted in the input.
 func (iv *InputView) SetFileService(fileService domain.FileService) {
 	iv.fileService = fileService
+}
+
+// SetMessageQueue sets the message queue so arrow-up can restore queued
+// message content into the input field instead of navigating history.
+func (iv *InputView) SetMessageQueue(mq domain.MessageQueue) {
+	iv.messageQueue = mq
 }
 
 // SetGitHubIssueService enables "#<number>" highlighting in the input. The
@@ -446,8 +453,20 @@ func (iv *InputView) IsNavigatingHistory() bool {
 	return iv.historyManager.IsNavigating()
 }
 
-// navigateHistoryUp moves up in history (to older messages)
+// navigateHistoryUp moves up in history (to older messages).
+// If the message queue is non-empty, it restores the queued message content
+// into the input field instead of navigating history, so the user can see
+// what is being processed and potentially edit or re-send it.
 func (iv *InputView) navigateHistoryUp() {
+	if iv.messageQueue != nil && !iv.messageQueue.IsEmpty() {
+		if qm := iv.messageQueue.Peek(); qm != nil {
+			if content, err := qm.Message.Content.AsMessageContent0(); err == nil && content != "" {
+				iv.text = content
+				iv.cursor = len(iv.text)
+				return
+			}
+		}
+	}
 	newText := iv.historyManager.NavigateUp(iv.text)
 	iv.text = newText
 	iv.cursor = len(iv.text)
