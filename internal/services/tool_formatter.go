@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -193,6 +195,7 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any, maxWidth i
 	var argPairs []string
 	for _, key := range keys {
 		valueStr := strings.ReplaceAll(fmt.Sprintf("%v", args[key]), "\n", " ")
+		valueStr = s.shortenPathInValue(valueStr)
 		valueStr = formatting.TruncateText(valueStr, maxWidth)
 		argPairs = append(argPairs, fmt.Sprintf("%s=%s", key, valueStr))
 	}
@@ -276,6 +279,28 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 		}
 		return "Execution failed"
 	}
+}
+
+// shortenPathInValue converts absolute file paths to relative paths for compact display.
+// If the value looks like an absolute path (starts with /), it's converted to a relative
+// path from the working directory. Falls back to just the filename if the path is not
+// under the working directory. Non-path values are returned unchanged.
+func (s *ToolFormatterService) shortenPathInValue(value string) string {
+	if !strings.HasPrefix(value, "/") {
+		return value
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return filepath.Base(value)
+	}
+	rel, err := filepath.Rel(wd, value)
+	if err != nil {
+		return filepath.Base(value)
+	}
+	if len(rel) < len(value) {
+		return rel
+	}
+	return filepath.Base(value)
 }
 
 // ShouldAlwaysExpandTool checks if a tool result should always be expanded

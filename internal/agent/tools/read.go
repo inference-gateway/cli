@@ -216,7 +216,7 @@ func (t *ReadTool) executeRead(filePath string, offset, limit int) (*FileReadRes
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s", ErrorNotFound)
+			return nil, fmt.Errorf("%s: %s", ErrorNotFound, absPath)
 		}
 		return nil, fmt.Errorf("cannot access file %s: %w", absPath, err)
 	}
@@ -478,7 +478,15 @@ func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		return "Tool execution result unavailable"
 	}
 
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	args := make(map[string]any, len(result.Arguments))
+	for k, v := range result.Arguments {
+		args[k] = v
+	}
+	if fp, ok := args["file_path"].(string); ok {
+		args["file_path"] = t.formatter.GetFileName(fp)
+	}
+
+	toolCall := t.formatter.FormatToolCall(args, false)
 	statusIcon := t.formatter.FormatStatusIcon(result.Success)
 	preview := t.FormatPreview(result)
 
@@ -548,7 +556,7 @@ func (t *ReadTool) formatReadData(data any) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *ReadTool) ShouldCollapseArg(key string) bool {
-	return false
+	return key == "file_path"
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI

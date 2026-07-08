@@ -508,6 +508,119 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 	})
 }
 
+func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
+			Read: config.ReadToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewReadTool(cfg)
+	ctx := context.Background()
+
+	tests := []struct {
+		name             string
+		content          string
+		args             map[string]any
+		wantStartLine    int
+		wantEndLine      int
+		wantContentEmpty bool
+	}{
+		{
+			name:          "normal read from start - EndLine matches actual file length",
+			content:       "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n",
+			args:          nil, // no offset/limit
+			wantStartLine: 1,
+			wantEndLine:   5,
+		},
+		{
+			name:             "offset beyond file - EndLine is 0",
+			content:          "Line 1\nLine 2",
+			args:             map[string]any{"offset": float64(10), "limit": float64(5)},
+			wantStartLine:    0,
+			wantEndLine:      0,
+			wantContentEmpty: true,
+		},
+		{
+			name:          "offset+limit beyond file - EndLine is actual last line read",
+			content:       "Line 1\nLine 2\nLine 3",
+			args:          map[string]any{"offset": float64(2), "limit": float64(10)},
+			wantStartLine: 2,
+			wantEndLine:   3,
+		},
+		{
+			name:          "specific offset and limit within file - EndLine is offset+limit-1",
+			content:       joinLines(1, 20),
+			args:          map[string]any{"offset": float64(5), "limit": float64(3)},
+			wantStartLine: 5,
+			wantEndLine:   7,
+		},
+		{
+			name:          "offset=1 limit=1 - EndLine is 1",
+			content:       "Only line",
+			args:          map[string]any{"offset": float64(1), "limit": float64(1)},
+			wantStartLine: 1,
+			wantEndLine:   1,
+		},
+		{
+			name:          "file shorter than default limit - EndLine is actual file length",
+			content:       joinLines(1, 5),
+			args:          nil,
+			wantStartLine: 1,
+			wantEndLine:   5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testFile := filepath.Join(tmpDir, tt.name+".txt")
+			if err := os.WriteFile(testFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			execArgs := map[string]any{"file_path": testFile}
+			for k, v := range tt.args {
+				execArgs[k] = v
+			}
+
+			result, err := tool.Execute(ctx, execArgs)
+			if err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+			if !result.Success {
+				t.Fatal("Expected successful execution")
+			}
+
+			data := result.Data.(*domain.FileReadToolResult)
+			if data.StartLine != tt.wantStartLine {
+				t.Errorf("Expected StartLine = %d, got %d", tt.wantStartLine, data.StartLine)
+			}
+			if data.EndLine != tt.wantEndLine {
+				t.Errorf("Expected EndLine = %d, got %d", tt.wantEndLine, data.EndLine)
+			}
+			if tt.wantContentEmpty && data.Content != "" {
+				t.Errorf("Expected empty content, got '%s'", data.Content)
+			}
+		})
+	}
+}
+
+// joinLines returns a newline-separated string of "Line N" for N in [start, end].
+func joinLines(start, end int) string {
+	var lines []string
+	for i := start; i <= end; i++ {
+		lines = append(lines, fmt.Sprintf("Line %d", i))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func TestReadTool_Execute_LineTruncation(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
