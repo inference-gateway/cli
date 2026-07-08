@@ -108,18 +108,25 @@ func TestWaitTool_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tool.Validate(tt.args)
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Errorf("Validate() unexpected error: %v", err)
-				}
-			} else {
-				if err == nil {
-					t.Errorf("Validate() expected error containing %q, got nil", tt.wantErr)
-				} else if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Errorf("Validate() error = %q, want containing %q", err.Error(), tt.wantErr)
-				}
-			}
+			assertValidateError(t, err, tt.wantErr)
 		})
+	}
+}
+
+// assertValidateError checks that err matches the expected error substring.
+// An empty wantErr means no error is expected.
+func assertValidateError(t *testing.T, err error, wantErr string) {
+	t.Helper()
+	if wantErr == "" {
+		if err != nil {
+			t.Errorf("Validate() unexpected error: %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Errorf("Validate() expected error containing %q, got nil", wantErr)
+	} else if !strings.Contains(err.Error(), wantErr) {
+		t.Errorf("Validate() error = %q, want containing %q", err.Error(), wantErr)
 	}
 }
 

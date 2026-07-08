@@ -256,50 +256,74 @@ func (t *WaitTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	fmt.Fprintf(&b, "Elapsed: %.1fs\n", elapsed)
 
 	if reason == "condition_met" {
-		switch condition {
-		case "shells":
-			if shells, ok := data["shells"].([]any); ok {
-				fmt.Fprintf(&b, "\nShell results:\n")
-				for _, s := range shells {
-					if sh, ok := s.(map[string]any); ok {
-						id, _ := sh["shell_id"].(string)
-						ec, _ := sh["exit_code"].(float64)
-						output, _ := sh["output"].(string)
-						fmt.Fprintf(&b, "  %s: exit %d\n", id, int(ec))
-						if output != "" {
-							lines := strings.Split(strings.TrimSpace(output), "\n")
-							limit := 10
-							if len(lines) < limit {
-								limit = len(lines)
-							}
-							for _, line := range lines[:limit] {
-								fmt.Fprintf(&b, "    %s\n", line)
-							}
-							if len(lines) > limit {
-								fmt.Fprintf(&b, "    ... (%d more lines)\n", len(lines)-limit)
-							}
-						}
-					}
-				}
-			}
-		case "file":
-			if path, _ := data["path"].(string); path != "" {
-				fmt.Fprintf(&b, "Path: %s\n", path)
-			}
-			if event, _ := data["event"].(string); event != "" {
-				fmt.Fprintf(&b, "Event: %s\n", event)
-			}
-		case "command":
-			if cmd, _ := data["command"].(string); cmd != "" {
-				fmt.Fprintf(&b, "Command: %s\n", cmd)
-			}
-			if output, _ := data["last_output"].(string); output != "" {
-				fmt.Fprintf(&b, "Last output: %s\n", strings.TrimSpace(output))
-			}
-		}
+		t.formatConditionDetails(data, condition, &b)
 	}
 
 	return b.String()
+}
+
+// formatConditionDetails appends condition-specific details to the builder.
+func (t *WaitTool) formatConditionDetails(data map[string]any, condition string, b *strings.Builder) {
+	switch condition {
+	case "shells":
+		t.formatShellsResult(data, b)
+	case "file":
+		t.formatFileResult(data, b)
+	case "command":
+		t.formatCommandResult(data, b)
+	}
+}
+
+// formatShellsResult appends shell result details to the builder.
+func (t *WaitTool) formatShellsResult(data map[string]any, b *strings.Builder) {
+	shells, ok := data["shells"].([]any)
+	if !ok {
+		return
+	}
+	fmt.Fprintf(b, "\nShell results:\n")
+	for _, s := range shells {
+		sh, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := sh["shell_id"].(string)
+		ec, _ := sh["exit_code"].(float64)
+		output, _ := sh["output"].(string)
+		fmt.Fprintf(b, "  %s: exit %d\n", id, int(ec))
+		if output != "" {
+			lines := strings.Split(strings.TrimSpace(output), "\n")
+			limit := 10
+			if len(lines) < limit {
+				limit = len(lines)
+			}
+			for _, line := range lines[:limit] {
+				fmt.Fprintf(b, "    %s\n", line)
+			}
+			if len(lines) > limit {
+				fmt.Fprintf(b, "    ... (%d more lines)\n", len(lines)-limit)
+			}
+		}
+	}
+}
+
+// formatFileResult appends file event details to the builder.
+func (t *WaitTool) formatFileResult(data map[string]any, b *strings.Builder) {
+	if path, _ := data["path"].(string); path != "" {
+		fmt.Fprintf(b, "Path: %s\n", path)
+	}
+	if event, _ := data["event"].(string); event != "" {
+		fmt.Fprintf(b, "Event: %s\n", event)
+	}
+}
+
+// formatCommandResult appends command result details to the builder.
+func (t *WaitTool) formatCommandResult(data map[string]any, b *strings.Builder) {
+	if cmd, _ := data["command"].(string); cmd != "" {
+		fmt.Fprintf(b, "Command: %s\n", cmd)
+	}
+	if output, _ := data["last_output"].(string); output != "" {
+		fmt.Fprintf(b, "Last output: %s\n", strings.TrimSpace(output))
+	}
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display.
@@ -430,7 +454,7 @@ func (t *WaitTool) waitFile(ctx context.Context, args map[string]any, start time
 			"error":     fmt.Sprintf("failed to create file watcher: %v", err),
 		}
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	// Watch the parent directory for the file
 	parentDir := filepath.Dir(absPath)
