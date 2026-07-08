@@ -95,6 +95,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
 	mergeToolDescription(&loaded.GetLatestScreenshot, &defaults.GetLatestScreenshot)
 	mergeToolDescription(&loaded.Memory, &defaults.Memory)
+	mergeToolDescription(&loaded.Wait, &defaults.Wait)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -201,6 +202,7 @@ type PromptsToolsConfig struct {
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
 	GetLatestScreenshot PromptsToolDescription `yaml:"GetLatestScreenshot" mapstructure:"GetLatestScreenshot"`
 	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
+	Wait                PromptsToolDescription `yaml:"Wait" mapstructure:"Wait"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -674,6 +676,20 @@ Operations:
 - delete: Remove a fact and its index entry. Required: name (the exact name from the index, including the project prefix for project facts).
 
 Guidelines: record one fact per memory; keep description to a single line; before writing, check the index for an existing entry and update it rather than creating a duplicate; delete facts that turn out to be wrong. Never edit MEMORY.md by hand - the tool maintains it.`,
+		},
+		Wait: PromptsToolDescription{
+			Description: `Block until a condition is met, then return once with the outcome. Use this instead of sleep-and-poll loops (Bash("sleep N") + BashOutput) to avoid wasting LLM round-trips.
+
+Conditions:
+- shells: block until the given background shell ID(s) exit (or all pending background tasks when omitted). Returns exit codes and tail output for each shell.
+- file: block until a file path is created, modified, or removed (uses fsnotify).
+- command: re-run a check command server-side at a fixed interval until it exits 0 (e.g. "curl -sf localhost:8080/health"). The check command goes through the same bash allow-list as the Bash tool. Optional pending_exit_codes lists non-zero exit codes that mean "still pending, keep polling"; any other non-zero exit ends the wait immediately with reason check_failed and the command's output, so checks that distinguish pending from failed return the moment the outcome is known.
+
+Waiting for CI after a push: Wait(condition=command, command="gh pr checks", pending_exit_codes=[8], timeout_seconds=600). gh pr checks exits 0 when all checks pass, 8 while checks are pending, and non-zero otherwise, so the wait returns as soon as CI concludes either way. On check_failed the last output lists the failing checks (dig deeper with "gh run view --log-failed"). If the wait times out while checks are still pending, call Wait again - waiting costs zero completions.
+
+Every mode requires timeout_seconds (bounded by the config ceiling). Returns a structured result: the outcome (condition_met, check_failed, or timeout), elapsed time, and the condition details (exit codes, last output) - included on failure too.
+
+Cancellation: Esc in chat or session cancel interrupts the wait immediately.`,
 		},
 	}
 }

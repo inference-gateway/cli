@@ -180,6 +180,7 @@ type ToolsConfig struct {
 	Schedule        ScheduleToolConfig        `yaml:"schedule" mapstructure:"schedule"`
 	Agent           AgentToolConfig           `yaml:"agent" mapstructure:"agent"`
 	AskUserQuestion AskUserQuestionToolConfig `yaml:"ask_user_question" mapstructure:"ask_user_question"`
+	Wait            WaitToolConfig            `yaml:"wait" mapstructure:"wait"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -281,6 +282,15 @@ type ScheduleToolConfig struct {
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	StorageDir      string `yaml:"storage_dir,omitempty" mapstructure:"storage_dir,omitempty"`
 	MaxJobs         int    `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
+}
+
+// WaitToolConfig contains settings for the Wait tool, which blocks inside a
+// single tool execution until a condition is met (shells exit, file event,
+// or check command succeeds), then returns once with the outcome.
+type WaitToolConfig struct {
+	Enabled               bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxTimeoutSeconds     int  `yaml:"max_timeout_seconds" mapstructure:"max_timeout_seconds"`
+	CommandPollIntervalMs int  `yaml:"command_poll_interval_ms" mapstructure:"command_poll_interval_ms"`
 }
 
 // AgentToolConfig contains settings for the Agent tool, which spawns local
@@ -833,6 +843,11 @@ func DefaultConfig() *Config { //nolint:funlen
 			AskUserQuestion: AskUserQuestionToolConfig{
 				Enabled: true,
 			},
+			Wait: WaitToolConfig{
+				Enabled:               true,
+				MaxTimeoutSeconds:     600,
+				CommandPollIntervalMs: 2000,
+			},
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
@@ -1073,6 +1088,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
+	case "Wait":
+		return false
 	case "Memory":
 		return false
 	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":

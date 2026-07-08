@@ -33,6 +33,23 @@ func TestBashTool_Definition(t *testing.T) {
 	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
+
+	props, ok := (*def.Function.Parameters)["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("parameters.properties is not a map")
+	}
+
+	if _, ok := props["detached"]; !ok {
+		t.Error("Expected 'detached' parameter in tool definition")
+	}
+
+	detached, ok := props["detached"].(map[string]any)
+	if !ok {
+		t.Fatal("detached parameter is not a map")
+	}
+	if detached["type"] != "boolean" {
+		t.Errorf("Expected detached type 'boolean', got %v", detached["type"])
+	}
 }
 
 func TestBashTool_IsEnabled(t *testing.T) {

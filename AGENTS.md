@@ -20,10 +20,12 @@ go test ./internal/agent -run TestBashTool  # single test
 task fmt                      # go fmt ./...
 task lint                     # golangci-lint run + markdownlint fix
 task vet                      # go vet ./...
-task precommit:run            # all pre-commit hooks
+task precommit:run            # all pre-commit hooks (MUST run before every push)
 task mocks:generate           # regenerate counterfeiter fakes in tests/mocks/
 task mod:tidy                 # go mod tidy
 ```
+
+**IMPORTANT:** Always run `task precommit:run` before pushing any changes. This runs all pre-commit hooks (formatting, linting, vetting, tests) and ensures CI passes locally. Never skip this step.
 
 ## Architecture
 

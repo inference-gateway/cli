@@ -140,6 +140,10 @@ func (r *Registry) registerTools() {
 		r.tools["Schedule"] = NewScheduleTool(cfg)
 	}
 
+	if cfg.Tools.Wait.Enabled {
+		r.tools["Wait"] = NewWaitTool(cfg, r.shellService)
+	}
+
 	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
 		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker, r.jobSubmitter)
 		r.tools["ListSubagents"] = NewListSubagentsTool(cfg, r.subagentTracker)
