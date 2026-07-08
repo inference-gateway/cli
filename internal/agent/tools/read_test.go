@@ -536,7 +536,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 		{
 			name:          "normal read from start - EndLine matches actual file length",
 			content:       "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n",
-			args:          nil, // no offset/limit
+			args:          nil,
 			wantStartLine: 1,
 			wantEndLine:   5,
 		},
