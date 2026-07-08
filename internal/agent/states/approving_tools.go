@@ -239,11 +239,19 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 // remaining results, and signals the state machine. Results are flushed
 // incrementally by completeSlot as they complete; this final drain covers
 // gaps left by cancellation.
+//
+// A user rejection ends the turn: HasToolResults is cleared so canComplete
+// lets PostToolExecution transition to Completing instead of streaming
+// another LLM turn, returning control to the user (same semantics as the
+// non-approval route's "tool was rejected - stopping agent loop", issue #786).
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)
 
 	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
+	if domain.AnyToolRejected(*s.ctx.ToolResults) {
+		s.ctx.AgentCtx.HasToolResults = false
+	}
 	s.ctx.Events <- domain.AllToolsProcessedEvent{}
 }
 
@@ -262,6 +270,12 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 	return domain.ConversationEntry{
 		Message: rejectionMessage,
 		Time:    time.Now(),
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName: tc.Function.Name,
+			Success:  false,
+			Error:    "rejected by user",
+			Rejected: true,
+		},
 	}
 }
 

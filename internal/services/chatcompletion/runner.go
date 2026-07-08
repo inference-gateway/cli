@@ -480,7 +480,7 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 // BuildAgentMessagesFromEntries converts conversation entries into the flat
 // slice of SDK messages sent to the model.
 //
-// Two classes of entries are filtered:
+// Three classes of entries are filtered:
 //
 //  1. Plan-mode entries (entry.IsPlan): synthesized assistant messages used
 //     for UI rendering only; their content duplicates the args of the
@@ -489,11 +489,18 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 //     when the user types `!command` directly in chat. Their assistant
 //     side has tool_calls but no reasoning_content (the user, not the
 //     model, generated them).
+//  3. Pending-approval placeholders (entry.PendingToolCall != nil): UI-only
+//     empty assistant entries added while a tool awaits approval. On
+//     rejection they stay in the repo; serializing one between an assistant
+//     tool_calls message and its tool response breaks the provider's
+//     adjacency requirement ("Messages with role 'tool' must be a response
+//     to a preceding message with 'tool_calls'", issue #786).
+//     SaveConversation applies the same filter for disk persistence.
 //
-// Sending either to a thinking-mode provider (DeepSeek, etc.) produces an
-// assistant turn lacking `reasoning_content`, which is rejected with HTTP
-// 400 ("The reasoning_content in the thinking mode must be passed back to
-// the API.").
+// Sending the first two to a thinking-mode provider (DeepSeek, etc.)
+// produces an assistant turn lacking `reasoning_content`, which is rejected
+// with HTTP 400 ("The reasoning_content in the thinking mode must be passed
+// back to the API.").
 func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
@@ -501,6 +508,9 @@ func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Mes
 			continue
 		}
 		if isUserInitiatedBashEntry(entry) {
+			continue
+		}
+		if entry.PendingToolCall != nil {
 			continue
 		}
 		msg := entry.Message

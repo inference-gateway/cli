@@ -24,3 +24,27 @@ func TestAnyToolFailed(t *testing.T) {
 		})
 	}
 }
+
+func TestAnyToolRejected(t *testing.T) {
+	ok := &ToolExecutionResult{Success: true}
+	failed := &ToolExecutionResult{Success: false}
+	rejected := &ToolExecutionResult{Success: false, Rejected: true}
+
+	tests := []struct {
+		name    string
+		results []ConversationEntry
+		want    bool
+	}{
+		{"empty", nil, false},
+		{"no rejection", []ConversationEntry{{ToolExecution: ok}, {ToolExecution: failed}}, false},
+		{"one rejection", []ConversationEntry{{ToolExecution: ok}, {ToolExecution: rejected}}, true},
+		{"nil execution ignored", []ConversationEntry{{ToolExecution: nil}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AnyToolRejected(tt.results); got != tt.want {
+				t.Fatalf("AnyToolRejected = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

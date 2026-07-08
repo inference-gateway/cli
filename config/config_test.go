@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	viper "github.com/spf13/viper"
-	yaml "go.yaml.in/yaml/v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 func TestDefaultConfig(t *testing.T) {

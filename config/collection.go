@@ -2,21 +2,6 @@ package config
 
 import "fmt"
 
-// CollectionConfig is implemented by file-backed configs whose payload is a
-// named, mutable collection of entries. MCPConfig (collection of
-// MCPServerEntry) and AgentsConfig (collection of AgentEntry) implement it.
-//
-// Methods mutate the file on disk; the in-memory receiver stays in sync.
-// Implementations must remember the file path they were loaded from so
-// each call can persist back to the same location.
-type CollectionConfig[E any] interface {
-	CreateEntry(entry E) error
-	ReadEntry(name string) (*E, error)
-	UpdateEntry(entry E) error
-	DeleteEntry(name string) error
-	ListEntries() []E
-}
-
 // appendEntry returns slice with entry appended, after rejecting duplicates
 // by name. kind is used in the duplicate-error message (e.g. "MCP server").
 func appendEntry[E any](slice []E, entry E, name string, nameOf func(E) string, kind string) ([]E, error) {

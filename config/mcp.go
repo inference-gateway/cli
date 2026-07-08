@@ -20,8 +20,6 @@ type MCPConfig struct {
 	path string
 }
 
-var _ CollectionConfig[MCPServerEntry] = (*MCPConfig)(nil)
-
 // MCPServerEntry represents a single MCP server configuration
 type MCPServerEntry struct {
 	Name           string            `yaml:"name" mapstructure:"name"`

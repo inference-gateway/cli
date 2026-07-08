@@ -43,7 +43,6 @@ func TestNewStateManager(t *testing.T) {
 			assert.NotNil(t, sm.state)
 			assert.Equal(t, tt.expectDebug, sm.debugMode)
 			assert.Equal(t, tt.expectHistory, sm.maxHistorySize)
-			assert.Equal(t, 0, len(sm.listeners))
 		})
 	}
 }

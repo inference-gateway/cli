@@ -27,8 +27,6 @@ type PluginsConfig struct {
 	path string
 }
 
-var _ CollectionConfig[PluginEntry] = (*PluginsConfig)(nil)
-
 // PluginEntry is one installed plugin in the registry.
 type PluginEntry struct {
 	Name         string `yaml:"name" mapstructure:"name"`

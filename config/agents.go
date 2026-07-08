@@ -15,8 +15,6 @@ type AgentsConfig struct {
 	path string
 }
 
-var _ CollectionConfig[AgentEntry] = (*AgentsConfig)(nil)
-
 // AgentEntry represents a single A2A agent configuration
 type AgentEntry struct {
 	Name         string            `yaml:"name" mapstructure:"name"`
