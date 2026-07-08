@@ -125,8 +125,6 @@ func TestEditorColorArgs(t *testing.T) {
 }
 
 func TestBuildEditorArgv(t *testing.T) {
-	// vim-family: color flags land between the editor's own args and the file,
-	// which stays last.
 	got := buildEditorArgv([]string{"nvim", "-p"}, "/tmp/f.go", true)
 	want := []string{"nvim", "-p", "-c", "set background=dark", "-c", "syntax enable", "-c", "set number", "/tmp/f.go"}
 	if !reflect.DeepEqual(got, want) {
