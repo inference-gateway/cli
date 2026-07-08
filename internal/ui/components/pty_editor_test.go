@@ -98,8 +98,8 @@ func TestVTTerm_AnswersQueries(t *testing.T) {
 }
 
 func TestEditorColorArgs(t *testing.T) {
-	dark := []string{"-c", "set background=dark", "-c", "syntax enable"}
-	light := []string{"-c", "set background=light", "-c", "syntax enable"}
+	dark := []string{"-c", "set background=dark", "-c", "syntax enable", "-c", "set number"}
+	light := []string{"-c", "set background=light", "-c", "syntax enable", "-c", "set number"}
 
 	tests := []struct {
 		bin  string
@@ -128,7 +128,7 @@ func TestBuildEditorArgv(t *testing.T) {
 	// vim-family: color flags land between the editor's own args and the file,
 	// which stays last.
 	got := buildEditorArgv([]string{"nvim", "-p"}, "/tmp/f.go", true)
-	want := []string{"nvim", "-p", "-c", "set background=dark", "-c", "syntax enable", "/tmp/f.go"}
+	want := []string{"nvim", "-p", "-c", "set background=dark", "-c", "syntax enable", "-c", "set number", "/tmp/f.go"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("vim-family argv = %v, want %v", got, want)
 	}
