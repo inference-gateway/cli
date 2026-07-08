@@ -7,10 +7,11 @@ import (
 	"os"
 	"strings"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture

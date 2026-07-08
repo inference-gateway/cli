@@ -9,9 +9,11 @@ import (
 	"time"
 
 	fsnotify "github.com/fsnotify/fsnotify"
+
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // testWaitConfig returns a minimal config with Wait tool enabled.
