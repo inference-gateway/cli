@@ -74,6 +74,13 @@ func (t *WaitTool) Definition() sdk.ChatCompletionTool {
 						"type":        "string",
 						"description": "Check command to re-run until it exits 0 (condition=command). Goes through the same bash allow-list as the Bash tool.",
 					},
+					"pending_exit_codes": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "number"},
+						"description": "Non-zero exit codes that mean 'still pending, keep polling' (condition=command). " +
+							"Any other non-zero exit ends the wait immediately with reason 'check_failed'. " +
+							"Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
+					},
 					"timeout_seconds": map[string]any{
 						"type":        "number",
 						"description": "Maximum time to wait in seconds (bounded by the config ceiling). Required.",
@@ -109,7 +116,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	maxTimeout := float64(t.config.Tools.Wait.MaxTimeoutSeconds)
 	if maxTimeout <= 0 {
-		maxTimeout = 300
+		maxTimeout = 600
 	}
 	if timeoutSec > maxTimeout {
 		timeoutSec = maxTimeout
@@ -124,11 +131,11 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	switch condition {
 	case "shells":
-		result = t.waitShells(waitCtx, args, start)
+		result = t.waitShells(waitCtx, args)
 	case "file":
-		result = t.waitFile(waitCtx, args, start)
+		result = t.waitFile(waitCtx, args)
 	case "command":
-		result = t.waitCommand(waitCtx, args, start)
+		result = t.waitCommand(waitCtx, args)
 	default:
 		return &domain.ToolExecutionResult{
 			ToolName:  "Wait",
@@ -144,12 +151,17 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	success := true
 	errMsg := ""
-	if reason, ok := result["reason"].(string); ok && reason == "timeout" {
+	switch result["reason"] {
+	case "timeout":
 		success = false
 		errMsg = fmt.Sprintf("timed out after %.0fs waiting for condition '%s'", elapsed.Seconds(), condition)
-	} else if reason, ok := result["reason"].(string); ok && reason == "cancelled" {
+	case "cancelled":
 		success = false
 		errMsg = "wait was cancelled"
+	case "check_failed":
+		success = false
+		exitCode, _ := result["last_exit_code"].(int)
+		errMsg = fmt.Sprintf("check command failed with exit code %d (not in pending_exit_codes)", exitCode)
 	}
 
 	return &domain.ToolExecutionResult{
@@ -198,8 +210,30 @@ func (t *WaitTool) Validate(args map[string]any) error {
 		if !ok || cmd == "" {
 			return fmt.Errorf("command is required when condition is 'command'")
 		}
+		if err := validatePendingExitCodes(args); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// validatePendingExitCodes checks that pending_exit_codes, when present, is
+// an array of numbers.
+func validatePendingExitCodes(args map[string]any) error {
+	raw, present := args["pending_exit_codes"]
+	if !present {
+		return nil
+	}
+	codes, ok := raw.([]any)
+	if !ok {
+		return fmt.Errorf("pending_exit_codes must be an array of numbers")
+	}
+	for _, c := range codes {
+		if _, ok := c.(float64); !ok {
+			return fmt.Errorf("pending_exit_codes must be an array of numbers")
+		}
+	}
 	return nil
 }
 
@@ -259,16 +293,18 @@ func (t *WaitTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	return output.String()
 }
 
-// FormatForLLM formats the result for LLM consumption.
+// FormatForLLM formats the result for LLM consumption. Condition details
+// (last output, exit codes, shell states) are included even on failure so
+// the model can see why the wait ended and decide what to do next.
 func (t *WaitTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-	if !result.Success {
-		return fmt.Sprintf("Error: %s", result.Error)
-	}
 	data, ok := result.Data.(map[string]any)
 	if !ok {
+		if !result.Success {
+			return fmt.Sprintf("Error: %s", result.Error)
+		}
 		return "Wait completed"
 	}
 
@@ -277,13 +313,13 @@ func (t *WaitTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	reason, _ := data["reason"].(string)
 	elapsed, _ := data["elapsed_seconds"].(float64)
 
+	if !result.Success && result.Error != "" {
+		fmt.Fprintf(&b, "Error: %s\n", result.Error)
+	}
 	fmt.Fprintf(&b, "Wait condition: %s\n", condition)
 	fmt.Fprintf(&b, "Outcome: %s\n", reason)
 	fmt.Fprintf(&b, "Elapsed: %.1fs\n", elapsed)
-
-	if reason == "condition_met" {
-		t.formatConditionDetails(data, condition, &b)
-	}
+	t.formatConditionDetails(data, condition, &b)
 
 	return b.String()
 }
@@ -347,6 +383,9 @@ func (t *WaitTool) formatCommandResult(data map[string]any, b *strings.Builder) 
 	if cmd, _ := data["command"].(string); cmd != "" {
 		fmt.Fprintf(b, "Command: %s\n", cmd)
 	}
+	if code, ok := data["last_exit_code"].(int); ok {
+		fmt.Fprintf(b, "Last exit code: %d\n", code)
+	}
 	if output, _ := data["last_output"].(string); output != "" {
 		fmt.Fprintf(b, "Last output: %s\n", strings.TrimSpace(output))
 	}
@@ -363,7 +402,7 @@ func (t *WaitTool) ShouldAlwaysExpand() bool {
 }
 
 // waitShells blocks until the referenced background shell(s) exit.
-func (t *WaitTool) waitShells(ctx context.Context, args map[string]any, start time.Time) map[string]any {
+func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[string]any {
 	shellIDs, _ := args["shell_ids"].([]any)
 	var targetIDs []string
 	for _, id := range shellIDs {
@@ -462,7 +501,7 @@ func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
 }
 
 // waitFile blocks on fsnotify events for a given path.
-func (t *WaitTool) waitFile(ctx context.Context, args map[string]any, start time.Time) map[string]any {
+func (t *WaitTool) waitFile(ctx context.Context, args map[string]any) map[string]any {
 	path, _ := args["path"].(string)
 	eventStr, _ := args["event"].(string)
 	if eventStr == "" {
@@ -573,7 +612,11 @@ func eventMatches(op fsnotify.Op, eventStr string) bool {
 }
 
 // waitCommand re-runs a check command at a fixed interval until it exits 0.
-func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start time.Time) map[string]any {
+// Exit codes listed in pending_exit_codes mean "still pending, keep polling";
+// any other non-zero exit ends the wait immediately with reason check_failed
+// so a check that distinguishes pending from failed (e.g. gh pr checks:
+// 0=passed, 8=pending, else failed) returns the moment the outcome is known.
+func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[string]any {
 	cmdStr, _ := args["command"].(string)
 
 	if cmdStr == "" {
@@ -593,13 +636,43 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 		}
 	}
 
-	if !t.config.IsBashCommandAllowed(cmdStr, "standard") {
+	if !t.config.IsBashCommandAllowed(cmdStr, domain.BashAllowModeKey(ctx)) {
 		return map[string]any{
 			"condition": "command",
 			"reason":    "not_allowed",
 			"command":   cmdStr,
 			"error":     fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr),
 		}
+	}
+
+	pendingCodes := map[int]bool{}
+	if raw, ok := args["pending_exit_codes"].([]any); ok {
+		for _, c := range raw {
+			if f, ok := c.(float64); ok {
+				pendingCodes[int(f)] = true
+			}
+		}
+	}
+
+	buildResult := func(reason, lastOutput string, exitCode, attempts int) map[string]any {
+		return map[string]any{
+			"condition":      "command",
+			"reason":         reason,
+			"command":        cmdStr,
+			"last_output":    lastOutput,
+			"last_exit_code": exitCode,
+			"attempts":       attempts,
+		}
+	}
+
+	classify := func(exitCode int) string {
+		if exitCode == 0 {
+			return "condition_met"
+		}
+		if len(pendingCodes) > 0 && !pendingCodes[exitCode] {
+			return "check_failed"
+		}
+		return ""
 	}
 
 	pollInterval := t.config.Tools.Wait.CommandPollIntervalMs
@@ -611,18 +684,11 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	lastOutput, exitCode := t.runCheckCommand(ctx, cmdStr)
-	if exitCode == 0 {
-		return map[string]any{
-			"condition":   "command",
-			"reason":      "condition_met",
-			"command":     cmdStr,
-			"last_output": lastOutput,
-			"attempts":    1,
-		}
-	}
-
 	attempts := 1
+	lastOutput, exitCode := t.runCheckCommand(ctx, cmdStr)
+	if reason := classify(exitCode); reason != "" {
+		return buildResult(reason, lastOutput, exitCode, attempts)
+	}
 
 	for {
 		select {
@@ -631,24 +697,12 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any, start t
 			if ctx.Err() == context.Canceled {
 				reason = "cancelled"
 			}
-			return map[string]any{
-				"condition":   "command",
-				"reason":      reason,
-				"command":     cmdStr,
-				"last_output": lastOutput,
-				"attempts":    attempts,
-			}
+			return buildResult(reason, lastOutput, exitCode, attempts)
 		case <-ticker.C:
 			lastOutput, exitCode = t.runCheckCommand(ctx, cmdStr)
 			attempts++
-			if exitCode == 0 {
-				return map[string]any{
-					"condition":   "command",
-					"reason":      "condition_met",
-					"command":     cmdStr,
-					"last_output": lastOutput,
-					"attempts":    attempts,
-				}
+			if reason := classify(exitCode); reason != "" {
+				return buildResult(reason, lastOutput, exitCode, attempts)
 			}
 		}
 	}

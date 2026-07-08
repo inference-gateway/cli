@@ -565,3 +565,160 @@ func TestWaitTool_Execute_ShellsWithShellService(t *testing.T) {
 		t.Errorf("Execute() reason = %q, want %q", reason, "condition_met")
 	}
 }
+
+func TestWaitTool_Validate_PendingExitCodes(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	tests := []struct {
+		name    string
+		codes   any
+		wantErr string
+	}{
+		{name: "valid codes", codes: []any{float64(8)}, wantErr: ""},
+		{name: "not an array", codes: "8", wantErr: "pending_exit_codes must be an array of numbers"},
+		{name: "non-numeric entry", codes: []any{"8"}, wantErr: "pending_exit_codes must be an array of numbers"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(map[string]any{
+				"condition":          "command",
+				"timeout_seconds":    float64(30),
+				"command":            "echo hi",
+				"pending_exit_codes": tt.codes,
+			})
+			assertValidateError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestWaitTool_Execute_CommandCheckFailed(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	start := time.Now()
+	result, err := tool.Execute(ctx, map[string]any{
+		"condition":          "command",
+		"timeout_seconds":    float64(10),
+		"command":            "exit 3",
+		"pending_exit_codes": []any{float64(8)},
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Error("Execute() should return immediately on check_failed, not wait for timeout")
+	}
+	if result.Success {
+		t.Error("Execute() should fail on check_failed")
+	}
+	if !strings.Contains(result.Error, "exit code 3") {
+		t.Errorf("Execute() error = %q, want containing %q", result.Error, "exit code 3")
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "check_failed" {
+		t.Errorf("Execute() reason = %q, want %q", reason, "check_failed")
+	}
+	if code, _ := data["last_exit_code"].(int); code != 3 {
+		t.Errorf("Execute() last_exit_code = %d, want 3", code)
+	}
+}
+
+func TestWaitTool_Execute_CommandPendingThenSuccess(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+
+	marker := filepath.Join(t.TempDir(), "done")
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		_ = os.WriteFile(marker, []byte("ok"), 0o600)
+	}()
+
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	result, err := tool.Execute(ctx, map[string]any{
+		"condition":          "command",
+		"timeout_seconds":    float64(10),
+		"command":            "test -f " + marker,
+		"pending_exit_codes": []any{float64(1)},
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Errorf("Execute() should succeed once the check flips to 0, got error: %s", result.Error)
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "condition_met" {
+		t.Errorf("Execute() reason = %q, want %q", reason, "condition_met")
+	}
+	if attempts, _ := data["attempts"].(int); attempts < 2 {
+		t.Errorf("Execute() attempts = %d, want at least 2", attempts)
+	}
+}
+
+func TestWaitTool_Execute_CommandModeFromContext(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"condition":       "command",
+		"timeout_seconds": float64(5),
+		"command":         "exit 0",
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	data, _ := result.Data.(map[string]any)
+	if reason, _ := data["reason"].(string); reason != "not_allowed" {
+		t.Errorf("Execute() reason without mode = %q, want %q (standard allow-list)", reason, "not_allowed")
+	}
+
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	result, err = tool.Execute(ctx, map[string]any{
+		"condition":       "command",
+		"timeout_seconds": float64(5),
+		"command":         "exit 0",
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Errorf("Execute() in auto mode should allow any command, got error: %s", result.Error)
+	}
+}
+
+func TestWaitTool_FormatForLLM_FailureKeepsDetails(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	result := &domain.ToolExecutionResult{
+		Success:  false,
+		Duration: 2 * time.Second,
+		Error:    "check command failed with exit code 1 (not in pending_exit_codes)",
+		Data: map[string]any{
+			"condition":       "command",
+			"reason":          "check_failed",
+			"elapsed_seconds": float64(2.0),
+			"command":         "gh pr checks",
+			"last_exit_code":  1,
+			"last_output":     "lint\tfail\t1m2s",
+		},
+	}
+
+	got := tool.FormatForLLM(result)
+	for _, want := range []string{"Error:", "Outcome: check_failed", "Last exit code: 1", "lint\tfail"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("FormatForLLM missing %q, got: %s", want, got)
+		}
+	}
+}

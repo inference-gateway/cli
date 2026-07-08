@@ -845,7 +845,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Wait: WaitToolConfig{
 				Enabled:               true,
-				MaxTimeoutSeconds:     300,
+				MaxTimeoutSeconds:     600,
 				CommandPollIntervalMs: 2000,
 			},
 			Agent: AgentToolConfig{
