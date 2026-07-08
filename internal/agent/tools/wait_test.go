@@ -215,7 +215,7 @@ func TestWaitTool_FormatForUI(t *testing.T) {
 	tests := []struct {
 		name   string
 		result *domain.ToolExecutionResult
-		checks []string // substrings that should appear in output
+		checks []string
 	}{
 		{
 			name:   "nil result",
@@ -353,7 +353,6 @@ func TestWaitTool_Execute_UnknownCondition(t *testing.T) {
 
 func TestWaitTool_Execute_ShellsNoShells(t *testing.T) {
 	cfg := testWaitConfig()
-	// No shell service - should return "no_shells"
 	tool := NewWaitTool(cfg, nil)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
@@ -379,7 +378,6 @@ func TestWaitTool_Execute_FileTimeout(t *testing.T) {
 	cfg := testWaitConfig()
 	tool := NewWaitTool(cfg, nil)
 
-	// Use a very short timeout so the wait times out quickly
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"condition":       "file",
 		"timeout_seconds": float64(1),
@@ -401,7 +399,6 @@ func TestWaitTool_Execute_CommandTimeout(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Run a command that is in the allow-list but will never exit 0
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"condition":       "command",
 		"timeout_seconds": float64(1),
@@ -423,7 +420,6 @@ func TestWaitTool_Execute_CommandSuccess(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Run a command that is in the allow-list and exits 0 immediately
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"condition":       "command",
 		"timeout_seconds": float64(5),
@@ -448,11 +444,9 @@ func TestWaitTool_Execute_FileEvent(t *testing.T) {
 	cfg := testWaitConfig()
 	tool := NewWaitTool(cfg, nil)
 
-	// Create a temp dir and file to watch
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test-wait.txt")
 
-	// Start the wait in a goroutine since it blocks
 	type waitResult struct {
 		result *domain.ToolExecutionResult
 		err    error
@@ -472,10 +466,8 @@ func TestWaitTool_Execute_FileEvent(t *testing.T) {
 		done <- waitResult{r, e}
 	}()
 
-	// Give the watcher time to start
 	time.Sleep(200 * time.Millisecond)
 
-	// Create the file to trigger the event
 	if err := os.WriteFile(testFile, []byte("hello"), 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
@@ -521,7 +513,6 @@ func TestWaitTool_Execute_Cancellation(t *testing.T) {
 		done <- waitResult{r, e}
 	}()
 
-	// Cancel the context to trigger cancellation
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 
