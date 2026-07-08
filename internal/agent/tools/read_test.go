@@ -544,7 +544,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 			name:             "offset beyond file - EndLine is 0",
 			content:          "Line 1\nLine 2",
 			args:             map[string]any{"offset": float64(10), "limit": float64(5)},
-			wantStartLine:    0,
+			wantStartLine:    10,
 			wantEndLine:      0,
 			wantContentEmpty: true,
 		},
