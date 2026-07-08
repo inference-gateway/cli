@@ -207,7 +207,6 @@ func (t *ReadTool) executeRead(filePath string, offset, limit int) (*FileReadRes
 	result := &FileReadResult{
 		FilePath:  absPath,
 		StartLine: offset,
-		EndLine:   offset + limit - 1,
 	}
 
 	if err := t.validatePathSecurity(absPath); err != nil {
@@ -236,36 +235,38 @@ func (t *ReadTool) executeRead(filePath string, offset, limit int) (*FileReadRes
 	ext := strings.ToLower(filepath.Ext(absPath))
 	switch ext {
 	case ".pdf":
-		content, err := t.readPDF(absPath, offset, limit)
+		content, actualEndLine, err := t.readPDF(absPath, offset, limit)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", ErrorPDFParseError, err)
 		}
 		result.Content = content
 		result.Size = int64(len(content))
+		result.EndLine = actualEndLine
 		return result, nil
 	default:
-		content, err := t.readTextFile(absPath, offset, limit)
+		content, actualEndLine, err := t.readTextFile(absPath, offset, limit)
 		if err != nil {
 			return nil, err
 		}
 		result.Content = content
 		result.Size = int64(len(content))
+		result.EndLine = actualEndLine
 		return result, nil
 	}
 }
 
 // readTextFile reads a text file with cat -n formatting
-func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, error) {
+func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, int, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open file %s: %w", filePath, err)
+		return "", 0, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
 	defer func() {
 		_ = file.Close()
 	}()
 
 	if !t.isTextFile(file) {
-		return "", fmt.Errorf("%s", ErrorUnreadableBinary)
+		return "", 0, fmt.Errorf("%s", ErrorUnreadableBinary)
 	}
 
 	_, _ = file.Seek(0, 0)
@@ -293,17 +294,21 @@ func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, err
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("error reading file %s: %w", filePath, err)
+		return "", 0, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
 
-	return strings.Join(lines, "\n"), nil
+	actualEndLine := 0
+	if len(lines) > 0 {
+		actualEndLine = offset + len(lines) - 1
+	}
+	return strings.Join(lines, "\n"), actualEndLine, nil
 }
 
 // readPDF reads a PDF file and extracts text with page headers
-func (t *ReadTool) readPDF(filePath string, offset, limit int) (string, error) {
+func (t *ReadTool) readPDF(filePath string, offset, limit int) (string, int, error) {
 	file, reader, err := pdf.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open PDF: %w", err)
+		return "", 0, fmt.Errorf("failed to open PDF: %w", err)
 	}
 	defer func() {
 		_ = file.Close()
@@ -352,7 +357,11 @@ func (t *ReadTool) readPDF(filePath string, offset, limit int) (string, error) {
 		}
 	}
 
-	return strings.Join(lines, "\n"), nil
+	actualEndLine := 0
+	if len(lines) > 0 {
+		actualEndLine = offset + len(lines) - 1
+	}
+	return strings.Join(lines, "\n"), actualEndLine, nil
 }
 
 // isTextFile checks if a file is likely to be text (not binary)
