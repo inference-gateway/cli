@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.138.0](https://github.com/inference-gateway/cli/compare/v0.137.0...v0.138.0) (2026-07-08)
+
+### 🚀 Features
+
+* **env:** add ZAI_API_KEY to .env.example ([799ee97](https://github.com/inference-gateway/cli/commit/799ee9721ce4a7ed337513ff8a40603b44cbf1b0))
+
+### 🐛 Bug Fixes
+
+* **pem-scan:** drop TCC-gated dirs, scan ~/.infer and /tmp instead ([#784](https://github.com/inference-gateway/cli/issues/784)) ([d400a31](https://github.com/inference-gateway/cli/commit/d400a3166e2a798804f807698a0707602c38cf75))
+* **agent:** stop agent loop on tool rejection and exclude approval placeholders from LLM requests ([#787](https://github.com/inference-gateway/cli/issues/787)) ([9aff1bc](https://github.com/inference-gateway/cli/commit/9aff1bc8ce28a53333d44f977964dd1254d2ca90)), closes [#786](https://github.com/inference-gateway/cli/issues/786)
+* **flake:** update vendorHash for dependency consistency ([bcc2bb8](https://github.com/inference-gateway/cli/commit/bcc2bb8adede1402c1c8e929e515683f053a3cf7))
+
+### 🔧 Build System
+
+* **deps:** bump the github-actions group with 3 updates ([#783](https://github.com/inference-gateway/cli/issues/783)) ([1e4ca39](https://github.com/inference-gateway/cli/commit/1e4ca39d6d3f6138d9a0a7734e178bf2859c2933))
+* **deps:** bump the gomod group with 5 updates ([#782](https://github.com/inference-gateway/cli/issues/782)) ([62d8880](https://github.com/inference-gateway/cli/commit/62d888035891748e608aa4724116914b9e9e6ca2))
+
+### 🧹 Maintenance
+
+* **deps:** bump infer CLI v0.134.0 -> v0.137.0, infer-action v0.28.0 -> v0.29.0 ([#781](https://github.com/inference-gateway/cli/issues/781)) ([6e9507c](https://github.com/inference-gateway/cli/commit/6e9507cc24890733b8fac30968aa763d49e5bab3))
+* **import:** reorder mcp import for consistency in mcp_manager.go ([05d778d](https://github.com/inference-gateway/cli/commit/05d778d9c62558283c54d0c6dc76e4771a74f535))
+* **deps:** update dependencies and Go version ([5a96a05](https://github.com/inference-gateway/cli/commit/5a96a05f46b8f778744ac181753e8e28955e66e3))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.138.0 --help
+npx @inference-gateway/cli@0.138.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.138.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.138.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.138.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.138.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.138.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.137.0](https://github.com/inference-gateway/cli/compare/v0.136.0...v0.137.0) (2026-07-07)
 
 ### 🚀 Features
