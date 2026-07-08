@@ -454,12 +454,13 @@ func (iv *InputView) IsNavigatingHistory() bool {
 }
 
 // navigateHistoryUp moves up in history (to older messages).
-// If the message queue is non-empty, it restores the queued message content
-// into the input field instead of navigating history, so the user can see
-// what is being processed and potentially edit or re-send it.
+// If the message queue is non-empty, it dequeues the queued message and
+// restores its content into the input field instead of navigating history,
+// so the user can edit and re-send it. The message is removed from the
+// queue so the agent stops processing it.
 func (iv *InputView) navigateHistoryUp() {
 	if iv.messageQueue != nil && !iv.messageQueue.IsEmpty() {
-		if qm := iv.messageQueue.Peek(); qm != nil {
+		if qm := iv.messageQueue.Dequeue(); qm != nil {
 			if content, err := qm.Message.Content.AsMessageContent0(); err == nil && content != "" {
 				iv.text = content
 				iv.cursor = len(iv.text)
