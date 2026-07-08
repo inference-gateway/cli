@@ -114,6 +114,59 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 	}
 }
 
+// TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries is a
+// regression test for issue #786: the UI-only pending-approval placeholder
+// (empty assistant entry) left behind by a rejected tool must not be
+// serialized between the assistant tool_calls message and its tool response.
+func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.T) {
+	entries := []domain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("edit the file")}},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(""),
+				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+					{
+						ID:   "call_1",
+						Type: sdk.Function,
+						Function: sdk.ChatCompletionMessageToolCallFunction{
+							Name:      "Edit",
+							Arguments: `{}`,
+						},
+					},
+				},
+			},
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(""),
+			},
+			PendingToolCall:    &sdk.ChatCompletionMessageToolCall{ID: "call_1"},
+			ToolApprovalStatus: domain.ToolApprovalRejected,
+		},
+		{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent("Tool execution rejected by user: Edit"),
+				ToolCallID: new("call_1"),
+			},
+		},
+	}
+
+	out := BuildAgentMessagesFromEntries(entries)
+
+	if len(out) != 3 {
+		t.Fatalf("expected 3 messages after filtering placeholder, got %d", len(out))
+	}
+	if out[1].ToolCalls == nil {
+		t.Fatalf("expected message[1] to carry tool_calls")
+	}
+	if out[2].Role != sdk.Tool {
+		t.Fatalf("expected tool response directly after tool_calls message, got role %s", out[2].Role)
+	}
+}
+
 func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 	entries := []domain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},

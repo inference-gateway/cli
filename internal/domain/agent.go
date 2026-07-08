@@ -46,6 +46,18 @@ func AnyToolFailed(results []ConversationEntry) bool {
 	return false
 }
 
+// AnyToolRejected reports whether any entry in a completed tool batch was
+// rejected by the user. A rejection ends the agent turn instead of feeding the
+// results back for another LLM response.
+func AnyToolRejected(results []ConversationEntry) bool {
+	for _, entry := range results {
+		if entry.ToolExecution != nil && entry.ToolExecution.Rejected {
+			return true
+		}
+	}
+	return false
+}
+
 // StateGuard is a function that determines if a state transition should occur
 type StateGuard func(ctx *AgentContext) bool
 

@@ -215,6 +215,59 @@ func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	waitForAllToolsProcessed(t, events)
 }
 
+// TestApprovingToolsState_RejectionStopsTurn is a regression test for issue
+// #786: rejecting a tool must end the turn instead of feeding the rejection
+// back for another LLM turn. The rejection entry must carry
+// ToolExecution.Rejected and HasToolResults must be cleared even when another
+// tool in the batch was approved and executed.
+func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+		return toolEntry(tc)
+	}
+	approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, error) {
+		return tc.ID != "call-0", nil
+	}
+
+	ctx, results, conv, events := newApprovingCtx(makeTools(2), domain.AgentModeStandard, execStub, approveStub)
+	s := &ApprovingToolsState{ctx: ctx}
+
+	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	waitForAllToolsProcessed(t, events)
+
+	require.Len(t, *results, 2)
+	require.Len(t, *conv, 2)
+
+	rejection := (*results)[0]
+	require.NotNil(t, rejection.ToolExecution)
+	assert.True(t, rejection.ToolExecution.Rejected, "rejection entry must be marked Rejected")
+	assert.False(t, rejection.ToolExecution.Success)
+	require.NotNil(t, rejection.Message.ToolCallID)
+	assert.Equal(t, "call-0", *rejection.Message.ToolCallID)
+
+	assert.True(t, ctx.AgentCtx.LastToolFailed, "rejection counts as a failed tool")
+	assert.False(t, ctx.AgentCtx.HasToolResults, "rejection must clear HasToolResults so the turn completes")
+}
+
+// TestApprovingToolsState_ApprovedBatchKeepsToolResults verifies the inverse of
+// the rejection case: a fully approved batch leaves HasToolResults set so the
+// agent streams a follow-up turn responding to the results.
+func TestApprovingToolsState_ApprovedBatchKeepsToolResults(t *testing.T) {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+		return toolEntry(tc)
+	}
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+
+	ctx, results, _, events := newApprovingCtx(makeTools(2), domain.AgentModeStandard, execStub, approveStub)
+	s := &ApprovingToolsState{ctx: ctx}
+
+	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	waitForAllToolsProcessed(t, events)
+
+	require.Len(t, *results, 2)
+	assert.True(t, ctx.AgentCtx.HasToolResults, "approved batch must keep HasToolResults for the follow-up turn")
+	assert.False(t, ctx.AgentCtx.LastToolFailed)
+}
+
 // TestApprovingToolsState_AutoAcceptExecutesAll verifies that in auto-accept
 // mode every tool is executed (concurrently) and results are collected in order.
 func TestApprovingToolsState_AutoAcceptExecutesAll(t *testing.T) {
