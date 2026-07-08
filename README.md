@@ -736,6 +736,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **BashOutput** | Read new output from a running background shell | Yes |
 | **KillShell** | Terminate a background shell | Yes |
 | **ListShells** | List background shells and their state | Yes |
+| **Wait** | Block until a condition is met (shells exit, file event, or check command succeeds) - no LLM round-trips wasted | No |
 
 **Task & planning** (`AskUserQuestion` needs `tools.ask_user_question.enabled`):
 
@@ -1051,6 +1052,7 @@ approval**; override per tool with `tools.<name>.require_approval`.
 | WebSearch, WebFetch | Yes | Make external requests (global default) |
 | A2A_SubmitTask | Yes | Dispatches work to another agent |
 | Bash | Optional | Governed by the per-mode bash allow-list |
+| Wait | No | Passive utility - blocks until condition met, no side effects |
 | Read, Grep, Tree | No | Read-only operations |
 | Memory, TodoWrite | No | Local agent state (explicitly exempt) |
 | Computer-use tools | No | Run silently in the background |
