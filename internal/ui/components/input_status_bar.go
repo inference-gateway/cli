@@ -550,6 +550,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.Cost
 	case "git_branch":
 		return indicators.GitBranch
+	case "git_pr":
+		return indicators.GitPR
 	default:
 		return true
 	}

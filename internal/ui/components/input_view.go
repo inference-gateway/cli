@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -53,6 +54,7 @@ type InputView struct {
 	gitBranchCache       string
 	gitBranchCacheTime   time.Time
 	gitBranchCacheTTL    time.Duration
+	gitPRCache           string
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -200,9 +202,11 @@ func (iv *InputView) Render() string {
 }
 
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
-// top border, or "" when the git_branch indicator is disabled or there is no
-// branch to show (not a repo / detached HEAD). Truncation to fit the border is
-// handled by the style provider, so no length cap is applied here.
+// top border, or "⎇ <branch> #<pr>" when a PR exists for the current branch
+// and git_pr is enabled. Returns "" when the git_branch indicator is disabled
+// or there is no branch to show (not a repo / detached HEAD). Truncation to
+// fit the border is handled by the style provider, so no length cap is applied
+// here.
 func (iv *InputView) buildGitBranchLabel() string {
 	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
 		return ""
@@ -213,7 +217,15 @@ func (iv *InputView) buildGitBranchLabel() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
+	label := fmt.Sprintf("%s %s", icons.GitBranch, branch)
+
+	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
+		if iv.gitPRCache != "" {
+			label += " #" + iv.gitPRCache
+		}
+	}
+
+	return label
 }
 
 // getCurrentGitBranch returns the current git branch with caching.
@@ -233,6 +245,9 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 	}
 
 	branch := strings.TrimSpace(string(output))
+	if iv.gitBranchCache != "" && branch != iv.gitBranchCache {
+		iv.gitPRCache = ""
+	}
 	iv.gitBranchCache = branch
 	return branch, branch != ""
 }
@@ -241,6 +256,26 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 func (iv *InputView) InvalidateGitBranchCache() {
 	iv.gitBranchCache = ""
 	iv.gitBranchCacheTime = time.Time{}
+}
+
+// fetchGitPRCmd resolves the PR number for the current branch off the UI
+// goroutine via "gh pr view --json number --jq .number". It must never run in
+// the render path: it is a network round-trip to GitHub. The error is
+// deliberately swallowed because gh exits non-zero for the normal "no PR"
+// case; the label simply omits the number.
+// ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
+// so a PR opened outside the TUI stays unknown until the next such event; add
+// a slow tea.Tick refetch if that ever matters.
+func fetchGitPRCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		output, err := exec.CommandContext(ctx, "gh", "pr", "view", "--json", "number", "--jq", ".number").Output()
+		if err != nil {
+			return domain.GitPRResolvedEvent{}
+		}
+		return domain.GitPRResolvedEvent{PR: strings.TrimSpace(string(output))}
+	}
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -511,7 +546,7 @@ func (iv *InputView) ClearCustomHint() {
 }
 
 // Bubble Tea interface
-func (iv *InputView) Init() tea.Cmd { return nil }
+func (iv *InputView) Init() tea.Cmd { return fetchGitPRCmd() }
 
 func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
 
@@ -533,8 +568,18 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
 		return iv, nil
+	case domain.GitPRResolvedEvent:
+		iv.gitPRCache = msg.PR
+		return iv, nil
 	case domain.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
+		return iv, fetchGitPRCmd()
+	case domain.ToolExecutionCompletedEvent:
+		for _, result := range msg.Results {
+			if result != nil && result.ToolName == "Bash" {
+				return iv, fetchGitPRCmd()
+			}
+		}
 		return iv, nil
 	}
 	return iv, nil

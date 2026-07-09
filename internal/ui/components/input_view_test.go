@@ -623,3 +623,161 @@ func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
 	require.Nil(t, cmd, "arrow down must keep navigating history, not hand off focus")
 	require.False(t, iv.IsNavigatingHistory(), "returning to the newest entry leaves history navigation")
 }
+
+// newInputViewWithPR builds an InputView with the git branch and PR caches
+// pre-seeded so getCurrentGitBranch returns without shelling out and the PR
+// label renders from state.
+func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
+	t.Helper()
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.gitBranchCache = branch
+	iv.gitBranchCacheTime = time.Now()
+	iv.gitBranchCacheTTL = 5 * time.Second
+	iv.gitPRCache = pr
+	return iv
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	require.Equal(t, "⎇ fix/issue-785 #792", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_DisabledByConfig(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitPR = false
+	iv.config = cfg
+
+	require.Equal(t, "⎇ fix/issue-785", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_NoPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+	require.Equal(t, "⎇ main", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_GitBranchDisabled(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+
+	require.Empty(t, iv.buildGitBranchLabel())
+}
+
+func TestInputView_RenderEmbedsBranchAndPRInTopBorder(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "fix/issue-785")
+	require.Contains(t, topLine, "#792")
+	require.Contains(t, topLine, "╮", "top border should keep its rounded right corner")
+}
+
+func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitPR = false
+	iv.config = cfg
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "fix/issue-785")
+	require.NotContains(t, topLine, "#792")
+}
+
+func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(domain.GitPRResolvedEvent{PR: "792"})
+
+	require.Nil(t, cmd)
+	require.Equal(t, "792", iv.gitPRCache)
+}
+
+func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+
+	_, cmd := iv.Update(domain.BashCommandCompletedEvent{})
+
+	require.NotNil(t, cmd, "bash completion must trigger an async PR refetch")
+	require.Equal(t, "123", iv.gitPRCache, "stale value must survive until the refetch resolves (no flicker)")
+}
+
+func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+
+	_, cmd := iv.Update(domain.ToolExecutionCompletedEvent{
+		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
+	})
+	require.NotNil(t, cmd, "a Bash tool result must trigger an async PR refetch")
+
+	_, cmd = iv.Update(domain.ToolExecutionCompletedEvent{
+		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}},
+	})
+	require.Nil(t, cmd, "non-Bash tool results must not refetch")
+}
+
+func TestInputView_InitFetchesPR(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	require.NotNil(t, iv.Init(), "Init must kick off the initial async PR fetch")
+}
+
+func TestInputView_BranchChangeClearsPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "definitely-not-the-real-branch", "123")
+	iv.gitBranchCacheTime = time.Now().Add(-10 * time.Second)
+
+	_, _ = iv.getCurrentGitBranch()
+
+	require.Empty(t, iv.gitPRCache, "a branch switch must drop the old branch's PR number")
+}
+
+func TestInputView_BranchRefreshAfterInvalidationKeepsPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	iv.InvalidateGitBranchCache()
+
+	_, _ = iv.getCurrentGitBranch()
+
+	require.Equal(t, "123", iv.gitPRCache, "refresh from an invalidated (empty) branch cache must not clear the PR")
+}
+
+func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		expected      bool
+	}{
+		{
+			name:          "git_pr enabled returns true",
+			configEnabled: true,
+			expected:      true,
+		},
+		{
+			name:          "git_pr disabled returns false",
+			configEnabled: false,
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Chat.StatusBar.Indicators.GitPR = tt.configEnabled
+
+			statusBar := &InputStatusBar{
+				config: cfg,
+			}
+
+			result := statusBar.shouldShowIndicator("git_pr")
+
+			if result != tt.expected {
+				t.Errorf("Expected %v but got %v", tt.expected, result)
+			}
+		})
+	}
+}

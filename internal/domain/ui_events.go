@@ -210,6 +210,15 @@ type TodoUpdateEvent struct {
 // ToggleTodoBoxEvent toggles the todo box expanded/collapsed state
 type ToggleTodoBoxEvent struct{}
 
+// GitPRResolvedEvent carries the PR number for the current branch, resolved
+// asynchronously by the input view's fetch command. An empty PR means no PR
+// exists (or gh is unavailable). Defined here rather than as a component-local
+// msg because the chat application only routes domain-prefixed messages to UI
+// components.
+type GitPRResolvedEvent struct {
+	PR string
+}
+
 // BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
 type BashCommandCompletedEvent struct {
 	History       []ConversationEntry
