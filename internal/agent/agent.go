@@ -626,6 +626,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		cancelChan: make(chan struct{}),
 	}
 	s.registerSession(req.RequestID, sc)
+	context.AfterFunc(sessionCtx, sc.Cancel)
 
 	conversation := s.addSystemPrompt(req.Messages)
 
