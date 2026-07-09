@@ -31,7 +31,6 @@ const (
 type Config struct {
 	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
-	ClaudeCode       ClaudeCodeConfig       `yaml:"claude_code" mapstructure:"claude_code"`
 	SpeechToText     SpeechToTextConfig     `yaml:"speech_to_text" mapstructure:"speech_to_text"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
@@ -76,16 +75,6 @@ type GatewayConfig struct {
 	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels    []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
 	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
-}
-
-// ClaudeCodeConfig contains Claude Code CLI integration settings
-type ClaudeCodeConfig struct {
-	Enabled         bool     `yaml:"enabled" mapstructure:"enabled"`
-	CLIPath         string   `yaml:"cli_path" mapstructure:"cli_path"`
-	Timeout         int      `yaml:"timeout" mapstructure:"timeout"`
-	MaxOutputTokens int      `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
-	ThinkingBudget  int      `yaml:"thinking_budget" mapstructure:"thinking_budget"`
-	ExtraArgs       []string `yaml:"extra_args,omitempty" mapstructure:"extra_args"`
 }
 
 // SpeechToTextConfig contains speech-to-text (Whisper) integration settings.
@@ -709,13 +698,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			VisionEnabled: true,
 		},
-		ClaudeCode: ClaudeCodeConfig{
-			Enabled:         false,
-			CLIPath:         "claude",
-			Timeout:         600,
-			MaxOutputTokens: 32000,
-			ThinkingBudget:  10000,
-		},
 		SpeechToText: SpeechToTextConfig{
 			Enabled:             false,
 			Engine:              "whisper.cpp",
@@ -1164,12 +1146,6 @@ func (c *Config) IsAgentToolEnabled() bool {
 	return c.Tools.Enabled && c.Tools.Agent.Enabled
 }
 
-// IsClaudeCodeMode checks if Claude Code CLI mode is enabled
-// When enabled, the CLI will use Claude Max/Pro subscription instead of gateway
-func (c *Config) IsClaudeCodeMode() bool {
-	return c.ClaudeCode.Enabled
-}
-
 // IsSpeechToTextEnabled checks if speech-to-text (Whisper) is enabled.
 // When enabled, the /voice chat shortcut and Telegram voice-message
 // transcription become available.
@@ -1293,16 +1269,6 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	if len(c.Tools.Sandbox.Directories) == 0 {
 		return nil
-	}
-
-	if c.ClaudeCode.Enabled {
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			claudeDir := filepath.Join(homeDir, ".claude")
-			if strings.HasPrefix(absPath, claudeDir) {
-				return nil
-			}
-		}
 	}
 
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {
