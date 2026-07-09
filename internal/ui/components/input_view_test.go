@@ -731,6 +731,7 @@ func TestInputView_InitFetchesPR(t *testing.T) {
 func TestInputView_BranchChangeClearsPRCache(t *testing.T) {
 	iv := newInputViewWithPR(t, "definitely-not-the-real-branch", "123")
 	iv.gitBranchCacheTime = time.Now().Add(-10 * time.Second)
+	iv.resolveGitBranch = func() (string, error) { return "main", nil }
 
 	_, _ = iv.getCurrentGitBranch()
 
@@ -740,6 +741,7 @@ func TestInputView_BranchChangeClearsPRCache(t *testing.T) {
 func TestInputView_BranchRefreshAfterInvalidationKeepsPRCache(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 	iv.InvalidateGitBranchCache()
+	iv.resolveGitBranch = func() (string, error) { return "main", nil }
 
 	_, _ = iv.getCurrentGitBranch()
 
