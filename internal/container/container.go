@@ -29,7 +29,6 @@ import (
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"

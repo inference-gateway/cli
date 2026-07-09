@@ -3,7 +3,6 @@ package components
 import (
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	"github.com/stretchr/testify/assert"
 )

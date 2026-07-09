@@ -211,10 +211,3 @@ func initConfig() {
 		Stdout:  stdout,
 	})
 }
-.Init(logger.Config{
-		Verbose: verbose,
-		Debug:   debug,
-		LogDir:  logDir,
-		Stdout:  stdout,
-	})
-}
