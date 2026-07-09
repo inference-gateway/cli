@@ -12,6 +12,7 @@ var InputHandlerKeys = []string{
 	"up", "down", "left", "right", "home", "end",
 	"ctrl+a", "ctrl+e", "ctrl+u", "ctrl+k", "ctrl+w", "ctrl+l",
 	"ctrl+z", "ctrl+y",
+	"super+v", "super+c",
 }
 
 // AllKnownKeys is a comprehensive list of all known keyboard combinations
@@ -46,6 +47,9 @@ var AllKnownKeys = []string{
 	"alt+o", "alt+p", "alt+q", "alt+r", "alt+s", "alt+t", "alt+u",
 	"alt+v", "alt+w", "alt+x", "alt+y", "alt+z",
 	"alt+enter", "alt+backspace", "alt+delete",
+
+	// Super (Cmd on macOS) combinations
+	"super+v", "super+c",
 
 	// Function keys
 	"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",

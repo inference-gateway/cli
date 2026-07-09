@@ -281,13 +281,13 @@ func addTextEditingBindings(bindings map[string]KeyBindingEntry) {
 func addClipboardBindings(bindings map[string]KeyBindingEntry) {
 	enabled := true
 	bindings[ActionID(NamespaceClipboard, "paste_text")] = KeyBindingEntry{
-		Keys:        []string{"ctrl+v"},
+		Keys:        []string{"ctrl+v", "super+v"},
 		Description: "paste text",
 		Category:    "clipboard",
 		Enabled:     &enabled,
 	}
 	bindings[ActionID(NamespaceClipboard, "copy_text")] = KeyBindingEntry{
-		Keys:        []string{"ctrl+shift+c"},
+		Keys:        []string{"ctrl+shift+c", "super+c"},
 		Description: "copy text",
 		Category:    "clipboard",
 		Enabled:     &enabled,
