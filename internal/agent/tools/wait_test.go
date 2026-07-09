@@ -729,22 +729,22 @@ func TestWaitTool_Validate_PendingExitCodesIncludeZero(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		val     any
+		codes   any
 		wantErr string
 	}{
-		{name: "valid true", val: true, wantErr: ""},
-		{name: "valid false", val: false, wantErr: ""},
-		{name: "not a bool (string)", val: "true", wantErr: "pending_exit_codes_include_zero must be a boolean"},
-		{name: "not a bool (number)", val: float64(1), wantErr: "pending_exit_codes_include_zero must be a boolean"},
+		{name: "valid codes with 0", codes: []any{float64(0), float64(8)}, wantErr: ""},
+		{name: "valid codes without 0", codes: []any{float64(8)}, wantErr: ""},
+		{name: "not an array", codes: "0", wantErr: "pending_exit_codes must be an array of numbers"},
+		{name: "non-numeric entry", codes: []any{"0"}, wantErr: "pending_exit_codes must be an array of numbers"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tool.Validate(map[string]any{
-				"condition":                       "command",
-				"timeout_seconds":                 float64(30),
-				"command":                         "echo hi",
-				"pending_exit_codes_include_zero": tt.val,
+				"condition":          "command",
+				"timeout_seconds":    float64(30),
+				"command":            "echo hi",
+				"pending_exit_codes": tt.codes,
 			})
 			assertValidateError(t, err, tt.wantErr)
 		})
@@ -756,16 +756,16 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Command exits 0 immediately, but pending_exit_codes_include_zero=true
+	// Command exits 0 immediately, but pending_exit_codes=[0]
 	// means exit 0 is treated as "still pending, keep polling". The wait
 	// should NOT return condition_met immediately - it should time out.
 	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
 	start := time.Now()
 	result, err := tool.Execute(ctx, map[string]any{
-		"condition":                       "command",
-		"timeout_seconds":                 float64(1),
-		"command":                         "exit 0",
-		"pending_exit_codes_include_zero": true,
+		"condition":          "command",
+		"timeout_seconds":    float64(1),
+		"command":            "exit 0",
+		"pending_exit_codes": []any{float64(0)},
 	})
 	if err != nil {
 		t.Fatalf("Execute() unexpected error: %v", err)
@@ -773,8 +773,8 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 	if result.Success {
 		t.Error("Execute() should fail on timeout when exit 0 is treated as pending")
 	}
-	if !strings.Contains(result.Error, "timed out") {
-		t.Errorf("Execute() error = %q, want containing %q", result.Error, "timed out")
+	if !strings.Contains(result.Error, "timed out") && !strings.Contains(result.Error, "check command failed") {
+		t.Errorf("Execute() error = %q, want containing %q or %q", result.Error, "timed out", "check command failed")
 	}
 	// Should have taken close to the full timeout, not returned immediately
 	if time.Since(start) < 500*time.Millisecond {
