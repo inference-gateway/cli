@@ -591,6 +591,32 @@ func TestBuildAgentsMDInfo(t *testing.T) {
 	})
 }
 
+func TestBuildProjectTreeInfo(t *testing.T) {
+	t.Run("injects tree with real file names when enabled", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("known_file.go", []byte("package x"), 0o644))
+
+		cfg := &config.Config{}
+		cfg.Tools.Enabled = true
+		cfg.Agent.Context.TreeEnabled = true
+		cfg.Agent.Context.GitContextRefreshTurns = 10
+		s := &AgentServiceImpl{config: cfg}
+
+		got := s.buildProjectTreeInfo(0)
+		require.Contains(t, got, "PROJECT STRUCTURE")
+		require.Contains(t, got, "known_file.go")
+	})
+
+	t.Run("empty when disabled", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Tools.Enabled = true
+		cfg.Agent.Context.TreeEnabled = false
+		s := &AgentServiceImpl{config: cfg}
+
+		require.Empty(t, s.buildProjectTreeInfo(0))
+	})
+}
+
 func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
 	t.Chdir(t.TempDir())
 	require.NoError(t, os.WriteFile("AGENTS.md", []byte("project rules here"), 0o644))

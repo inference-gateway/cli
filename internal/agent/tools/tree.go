@@ -81,8 +81,8 @@ func (t *TreeTool) Definition() sdk.ChatCompletionTool {
 					},
 					"format": map[string]any{
 						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
+						"description": "Output format: text (ASCII tree), json, or compact (one directory per line, root-first, git-tracked non-ignored files only)",
+						"enum":        []string{"text", "json", "compact"},
 						"default":     "text",
 					},
 				},
@@ -210,8 +210,8 @@ func (t *TreeTool) Validate(args map[string]any) error {
 		if !isString {
 			return fmt.Errorf("format must be a string")
 		}
-		if formatStr != "text" && formatStr != "json" {
-			return fmt.Errorf("format must be 'text' or 'json'")
+		if formatStr != "text" && formatStr != "json" && formatStr != "compact" {
+			return fmt.Errorf("format must be 'text', 'json', or 'compact'")
 		}
 	}
 
@@ -250,6 +250,15 @@ func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, showHidden, 
 
 	if err := t.validatePath(path); err != nil {
 		return nil, err
+	}
+
+	if format == "compact" {
+		if listing := compactProjectListing(path, maxFiles); listing != "" {
+			result.Output = listing
+			return result, nil
+		}
+		format = "text"
+		result.Format = format
 	}
 
 	output, files, dirs, truncated, err := t.buildTreeFallback(path, maxDepth, maxFiles, showHidden, respectGitignore, format)
