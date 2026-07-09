@@ -396,7 +396,7 @@ func defaultPromptsToolsConfig() PromptsToolsConfig { //nolint:funlen
 		},
 		Read: PromptsToolDescription{
 			Description: `Reads a file from the local filesystem. You can access any file directly by using this tool.
-Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+Assume this tool is able to read all files on the machine. Only read paths you have seen - in the PROJECT STRUCTURE context, Tree/Grep output, a previous tool result, or the user's message. Never guess or invent file paths; if unsure, run the Tree tool on the directory first.
 
 Usage:
 - The file_path parameter can be either an absolute path or a relative path (relative paths will be resolved to absolute paths)
@@ -480,7 +480,7 @@ If you want to create a new file, use:
 			Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use the Agent tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		},
 		Tree: PromptsToolDescription{
-			Description: `Display directory structure in a tree format, similar to the Unix tree command`,
+			Description: `Display directory structure in a tree format, similar to the Unix tree command. Use format "compact" for a token-efficient one-directory-per-line listing (root-first, git-tracked non-ignored files only) when you just need to see where files live.`,
 		},
 		TodoWrite: PromptsToolDescription{
 			Description: `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.

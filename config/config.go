@@ -444,6 +444,7 @@ type AgentContextConfig struct {
 	GitContextEnabled      bool `yaml:"git_context_enabled" mapstructure:"git_context_enabled"`
 	WorkingDirEnabled      bool `yaml:"working_dir_enabled" mapstructure:"working_dir_enabled"`
 	GitContextRefreshTurns int  `yaml:"git_context_refresh_turns" mapstructure:"git_context_refresh_turns"`
+	TreeEnabled            bool `yaml:"tree_enabled" mapstructure:"tree_enabled"`
 }
 
 // AgentSkillsConfig controls Agent Skills loading. Skills follow the
@@ -890,6 +891,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				GitContextEnabled:      true,
 				WorkingDirEnabled:      true,
 				GitContextRefreshTurns: 10,
+				TreeEnabled:            true,
 			},
 			Skills: AgentSkillsConfig{
 				Enabled:        true,

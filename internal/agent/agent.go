@@ -73,6 +73,8 @@ type AgentServiceImpl struct {
 	// Context caching
 	gitContextCache    string
 	gitContextTurn     int
+	treeContextCache   string
+	treeContextTurn    int
 	memoryContextCache string
 	memoryContextTurn  int
 	contextCacheMux    sync.RWMutex

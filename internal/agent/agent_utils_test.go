@@ -12,9 +12,10 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // stubSkillsService implements domain.SkillsService for testing the
@@ -588,6 +589,32 @@ func TestBuildAgentsMDInfo(t *testing.T) {
 		require.Contains(t, got, strings.Repeat("x", 10))
 		require.NotContains(t, got, strings.Repeat("x", 11))
 		require.Contains(t, got, "[truncated at 10 chars]")
+	})
+}
+
+func TestBuildProjectTreeInfo(t *testing.T) {
+	t.Run("injects tree with real file names when enabled", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("known_file.go", []byte("package x"), 0o644))
+
+		cfg := &config.Config{}
+		cfg.Tools.Enabled = true
+		cfg.Agent.Context.TreeEnabled = true
+		cfg.Agent.Context.GitContextRefreshTurns = 10
+		s := &AgentServiceImpl{config: cfg}
+
+		got := s.buildProjectTreeInfo(0)
+		require.Contains(t, got, "PROJECT STRUCTURE")
+		require.Contains(t, got, "known_file.go")
+	})
+
+	t.Run("empty when disabled", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Tools.Enabled = true
+		cfg.Agent.Context.TreeEnabled = false
+		s := &AgentServiceImpl{config: cfg}
+
+		require.Empty(t, s.buildProjectTreeInfo(0))
 	})
 }
 
