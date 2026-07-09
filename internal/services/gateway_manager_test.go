@@ -2,6 +2,7 @@ package services
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -97,10 +98,76 @@ func TestGatewayAssetPlatform(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gatewayAssetPlatform failed on supported platform: %v", err)
 	}
-	if assetOS != "Darwin" && assetOS != "Linux" {
+	if assetOS != "Darwin" && assetOS != "Linux" && assetOS != "Windows" {
 		t.Fatalf("unexpected asset OS %q", assetOS)
 	}
 	if assetArch == "" {
 		t.Fatal("empty asset arch")
+	}
+}
+
+func TestDownloadAndExtractGatewayBinaryZip(t *testing.T) {
+	binary := []byte("windows-gateway-binary")
+
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+	files := map[string][]byte{
+		"README.md":             []byte("readme"),
+		"inference-gateway.exe": binary,
+	}
+	for name, content := range files {
+		f, err := zipWriter.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zipWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	destPath := filepath.Join(t.TempDir(), "inference-gateway.exe")
+	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL+"/archive.zip", destPath); err != nil {
+		t.Fatalf("downloadAndExtractGatewayBinary with zip failed: %v", err)
+	}
+
+	got, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, binary) {
+		t.Fatalf("extracted binary content mismatch: got %q", got)
+	}
+}
+
+func TestDownloadAndExtractGatewayBinaryZipMissingEntry(t *testing.T) {
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+	f, err := zipWriter.Create("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("readme")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zipWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	destPath := filepath.Join(t.TempDir(), "inference-gateway.exe")
+	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL+"/archive.zip", destPath); err == nil {
+		t.Fatal("expected error for zip without the gateway binary")
 	}
 }
