@@ -538,7 +538,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN":                    &cfg.Prompts.Agent.SystemPromptPlan,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
-		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_CLAUDE_CODE":             &cfg.Prompts.Agent.SystemPromptClaudeCode,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,

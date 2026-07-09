@@ -187,12 +187,6 @@ func initConfig() {
 
 	applyBashAllowAppends(v)
 
-	// claude_code.extra_args is a slice, which viper can't parse from a single
-	// env var generically - same special-casing as INFER_A2A_AGENTS above.
-	if extra := resolveFlagEnvOverride("claude-code-extra-args", "INFER_CLAUDE_CODE_EXTRA_ARGS"); extra != "" {
-		v.Set("claude_code.extra_args", parseDelimitedList(extra))
-	}
-
 	cfg, err := loadConfigFromViper()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
@@ -214,6 +208,13 @@ func initConfig() {
 	}
 
 	logger.Init(logger.Config{
+		Verbose: verbose,
+		Debug:   debug,
+		LogDir:  logDir,
+		Stdout:  stdout,
+	})
+}
+.Init(logger.Config{
 		Verbose: verbose,
 		Debug:   debug,
 		LogDir:  logDir,
