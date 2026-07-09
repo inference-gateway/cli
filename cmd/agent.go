@@ -110,15 +110,6 @@ type AgentSession struct {
 	totalCompletionTokens int
 	totalTokens           int
 	requestCount          int
-	claudeTasks           []claudeTask
-}
-
-// claudeTask mirrors one entry of Claude Code's native task list (TaskCreate/
-// TaskUpdate). Claude assigns sequential ids, so index+1 == task id.
-type claudeTask struct {
-	Content string
-	Status  string
-	Deleted bool
 }
 
 // inheritedSubagentMode returns the coding mode a subagent should start in, read
@@ -184,10 +175,6 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	}
 
 	defaultModel := cfg.Agent.Model
-	if cfg.IsClaudeCodeMode() {
-		modelFlag = services.CanonicalClaudeModelID(modelFlag)
-		defaultModel = services.CanonicalClaudeModelID(defaultModel)
-	}
 
 	selectedModel, err := selectModel(models, modelFlag, defaultModel)
 	if err != nil {
@@ -712,9 +699,6 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 
 	if len(response.ToolCalls) > 0 {
 		assistantMsg.ToolCalls = &response.ToolCalls
-		if s.config.IsClaudeCodeMode() {
-			s.feedTaskAccumulator(response.ToolCalls)
-		}
 	}
 
 	s.addMessage(assistantMsg)
@@ -737,12 +721,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		return nil
 	}
 
-	var toolResults []ConversationMessage
-	if s.config.IsClaudeCodeMode() {
-		toolResults = s.claudeToolResultMessages(response.ToolCalls, response.ToolResults)
-	} else {
-		toolResults = s.executeToolCalls(response.ToolCalls)
-	}
+	toolResults := s.executeToolCalls(response.ToolCalls)
 	s.lastToolFailed = anyToolResultFailed(toolResults)
 
 	for _, result := range toolResults {
@@ -1318,10 +1297,6 @@ func (s *AgentSession) dispatchHooks(hook domain.HookPoint, turn int) {
 // pending tool_calls) - that guard is reminder-specific and must not block
 // command hooks, which is why it lives here rather than in dispatchHooks.
 func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
-	if s.config != nil && s.config.IsClaudeCodeMode() {
-		return
-	}
-
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders
@@ -1427,9 +1402,6 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	}
 
 	logMsg := msg
-	if s.config.IsClaudeCodeMode() {
-		logMsg = s.renderTodoWriteView(logMsg)
-	}
 
 	if !s.config.Agent.VerboseTools && logMsg.ToolCalls != nil && len(*logMsg.ToolCalls) > 0 {
 		summaries := make([]string, len(*logMsg.ToolCalls))
