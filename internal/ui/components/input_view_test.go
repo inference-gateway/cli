@@ -623,3 +623,146 @@ func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
 	require.Nil(t, cmd, "arrow down must keep navigating history, not hand off focus")
 	require.False(t, iv.IsNavigatingHistory(), "returning to the newest entry leaves history navigation")
 }
+
+// newInputViewWithPR builds an InputView with the git branch and PR caches
+// pre-seeded so getCurrentGitBranch and getCurrentGitPR return without
+// shelling out.
+func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
+	t.Helper()
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.gitBranchCache = branch
+	iv.gitBranchCacheTime = time.Now()
+	iv.gitBranchCacheTTL = 5 * time.Second
+	iv.gitPRCache = pr
+	iv.gitPRCacheTime = time.Now()
+	iv.gitPRCacheTTL = 5 * time.Second
+	return iv
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	require.Equal(t, "⎇ fix/issue-785 #792", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_DisabledByConfig(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitPR = false
+	iv.config = cfg
+
+	require.Equal(t, "⎇ fix/issue-785", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_NoPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+	require.Equal(t, "⎇ main", iv.buildGitBranchLabel())
+}
+
+func TestInputView_BuildGitBranchLabel_WithPR_GitBranchDisabled(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+
+	require.Empty(t, iv.buildGitBranchLabel())
+}
+
+func TestInputView_RenderEmbedsBranchAndPRInTopBorder(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "fix/issue-785")
+	require.Contains(t, topLine, "#792")
+	require.Contains(t, topLine, "╮", "top border should keep its rounded right corner")
+}
+
+func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
+	iv := newInputViewWithPR(t, "fix/issue-785", "792")
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitPR = false
+	iv.config = cfg
+	iv.SetWidth(80)
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, "⎇")
+	require.Contains(t, topLine, "fix/issue-785")
+	require.NotContains(t, topLine, "#792")
+}
+
+func TestInputView_BashCommandCompletedInvalidatesPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	require.NotEmpty(t, iv.gitPRCache)
+
+	_, _ = iv.Update(domain.BashCommandCompletedEvent{})
+
+	require.Empty(t, iv.gitPRCache)
+}
+
+func TestInputView_InvalidateGitPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	require.NotEmpty(t, iv.gitPRCache)
+
+	iv.InvalidateGitPRCache()
+
+	require.Empty(t, iv.gitPRCache)
+	require.True(t, iv.gitPRCacheTime.IsZero())
+}
+
+func TestInputView_GetCurrentGitPR_UsesCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "456")
+	iv.gitPRCacheTime = time.Now()
+
+	pr := iv.getCurrentGitPR()
+	require.Equal(t, "456", pr, "should return cached PR without shelling out")
+}
+
+func TestInputView_GetCurrentGitPR_ExpiredCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "456")
+	iv.gitPRCacheTime = time.Now().Add(-10 * time.Second)
+	iv.gitPRCacheTTL = 5 * time.Second
+
+	// Cache is expired, so getCurrentGitPR will try to shell out.
+	// In CI without a real gh connection, it should return "" on error.
+	pr := iv.getCurrentGitPR()
+	require.Empty(t, pr, "expired cache with no gh should return empty")
+}
+
+func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		expected      bool
+	}{
+		{
+			name:          "git_pr enabled returns true",
+			configEnabled: true,
+			expected:      true,
+		},
+		{
+			name:          "git_pr disabled returns false",
+			configEnabled: false,
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Chat.StatusBar.Indicators.GitPR = tt.configEnabled
+
+			statusBar := &InputStatusBar{
+				config: cfg,
+			}
+
+			result := statusBar.shouldShowIndicator("git_pr")
+
+			if result != tt.expected {
+				t.Errorf("Expected %v but got %v", tt.expected, result)
+			}
+		})
+	}
+}

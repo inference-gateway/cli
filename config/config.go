@@ -552,6 +552,7 @@ type StatusBarIndicators struct {
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
 	Cost             bool `yaml:"cost" mapstructure:"cost"`
 	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
+	GitPR            bool `yaml:"git_pr" mapstructure:"git_pr"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -676,6 +677,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			SessionTokens:    true,
 			Cost:             true,
 			GitBranch:        true,
+			GitPR:            true,
 		},
 	}
 }

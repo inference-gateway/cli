@@ -53,6 +53,9 @@ type InputView struct {
 	gitBranchCache       string
 	gitBranchCacheTime   time.Time
 	gitBranchCacheTTL    time.Duration
+	gitPRCache           string
+	gitPRCacheTime       time.Time
+	gitPRCacheTTL        time.Duration
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -200,9 +203,11 @@ func (iv *InputView) Render() string {
 }
 
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
-// top border, or "" when the git_branch indicator is disabled or there is no
-// branch to show (not a repo / detached HEAD). Truncation to fit the border is
-// handled by the style provider, so no length cap is applied here.
+// top border, or "⎇ <branch> #<pr>" when a PR exists for the current branch
+// and git_pr is enabled. Returns "" when the git_branch indicator is disabled
+// or there is no branch to show (not a repo / detached HEAD). Truncation to
+// fit the border is handled by the style provider, so no length cap is applied
+// here.
 func (iv *InputView) buildGitBranchLabel() string {
 	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
 		return ""
@@ -213,7 +218,16 @@ func (iv *InputView) buildGitBranchLabel() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
+	label := fmt.Sprintf("%s %s", icons.GitBranch, branch)
+
+	// Append PR number when git_pr is enabled and a PR exists.
+	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
+		if pr := iv.getCurrentGitPR(); pr != "" {
+			label += " #" + pr
+		}
+	}
+
+	return label
 }
 
 // getCurrentGitBranch returns the current git branch with caching.
@@ -241,6 +255,36 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 func (iv *InputView) InvalidateGitBranchCache() {
 	iv.gitBranchCache = ""
 	iv.gitBranchCacheTime = time.Time{}
+}
+
+// getCurrentGitPR returns the PR number for the current branch with caching.
+// Uses "gh pr view --json number --jq .number" and caches the result with the
+// same TTL as the git branch cache. Returns "" when no PR exists or gh is not
+// available.
+func (iv *InputView) getCurrentGitPR() string {
+	if time.Since(iv.gitPRCacheTime) < iv.gitPRCacheTTL {
+		return iv.gitPRCache
+	}
+
+	cmd := exec.Command("gh", "pr", "view", "--json", "number", "--jq", ".number")
+	output, err := cmd.Output()
+
+	iv.gitPRCacheTime = time.Now()
+
+	if err != nil {
+		iv.gitPRCache = ""
+		return ""
+	}
+
+	pr := strings.TrimSpace(string(output))
+	iv.gitPRCache = pr
+	return pr
+}
+
+// InvalidateGitPRCache clears the git PR cache to force a refresh.
+func (iv *InputView) InvalidateGitPRCache() {
+	iv.gitPRCache = ""
+	iv.gitPRCacheTime = time.Time{}
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -535,6 +579,7 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	case domain.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
+		iv.InvalidateGitPRCache()
 		return iv, nil
 	}
 	return iv, nil
