@@ -2,6 +2,8 @@ package services
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -439,7 +441,11 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
-	binaryPath := filepath.Join(binaryDir, "inference-gateway")
+	binaryName := "inference-gateway"
+	if runtime.GOOS == "windows" {
+		binaryName = "inference-gateway.exe"
+	}
+	binaryPath := filepath.Join(binaryDir, binaryName)
 
 	if _, err := os.Stat(binaryPath); err == nil {
 		return binaryPath, nil
@@ -459,9 +465,13 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	assetExt := "tar.gz"
+	if runtime.GOOS == "windows" {
+		assetExt = "zip"
+	}
 	assetURL := fmt.Sprintf(
-		"https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.tar.gz",
-		tag, assetOS, assetArch,
+		"https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.%s",
+		tag, assetOS, assetArch, assetExt,
 	)
 
 	if err := downloadAndExtractGatewayBinary(ctx, assetURL, binaryPath); err != nil {
@@ -529,6 +539,8 @@ func gatewayAssetPlatform() (string, string, error) {
 		assetOS = "Darwin"
 	case "linux":
 		assetOS = "Linux"
+	case "windows":
+		assetOS = "Windows"
 	default:
 		return "", "", fmt.Errorf("no gateway binary release for OS %q", runtime.GOOS)
 	}
@@ -548,8 +560,8 @@ func gatewayAssetPlatform() (string, string, error) {
 	return assetOS, assetArch, nil
 }
 
-// downloadAndExtractGatewayBinary downloads a release tarball and extracts
-// the inference-gateway binary from it to destPath
+// downloadAndExtractGatewayBinary downloads a release archive and extracts
+// the inference-gateway binary from it to destPath. Supports .tar.gz and .zip.
 func downloadAndExtractGatewayBinary(ctx context.Context, url string, destPath string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -567,7 +579,16 @@ func downloadAndExtractGatewayBinary(ctx context.Context, url string, destPath s
 		return fmt.Errorf("failed to download gateway release from %s: HTTP %d", url, resp.StatusCode)
 	}
 
-	gzReader, err := gzip.NewReader(resp.Body)
+	if strings.HasSuffix(url, ".zip") {
+		return extractGatewayZip(resp.Body, destPath)
+	}
+
+	return extractGatewayTarGz(resp.Body, destPath)
+}
+
+// extractGatewayTarGz extracts the inference-gateway binary from a gzipped tarball
+func extractGatewayTarGz(r io.Reader, destPath string) error {
+	gzReader, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("failed to read gateway release archive: %w", err)
 	}
@@ -599,6 +620,44 @@ func downloadAndExtractGatewayBinary(ctx context.Context, url string, destPath s
 	}
 
 	return fmt.Errorf("inference-gateway binary not found in release archive")
+}
+
+// extractGatewayZip extracts the inference-gateway.exe binary from a zip archive
+func extractGatewayZip(r io.Reader, destPath string) error {
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("failed to read gateway release archive: %w", err)
+	}
+
+	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		return fmt.Errorf("failed to read gateway release zip: %w", err)
+	}
+
+	for _, f := range zipReader.File {
+		if filepath.Base(f.Name) != "inference-gateway.exe" {
+			continue
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("failed to open entry in zip: %w", err)
+		}
+		defer func() { _ = rc.Close() }()
+
+		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create gateway binary: %w", err)
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			_ = out.Close()
+			_ = os.Remove(destPath)
+			return fmt.Errorf("failed to write gateway binary: %w", err)
+		}
+		return out.Close()
+	}
+
+	return fmt.Errorf("inference-gateway.exe binary not found in release archive")
 }
 
 // runBinary starts the gateway binary
