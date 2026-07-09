@@ -11,10 +11,11 @@ import (
 	"sync"
 	"time"
 
+	ignore "github.com/sabhiram/go-gitignore"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
-	ignore "github.com/sabhiram/go-gitignore"
 )
 
 // TreeTool handles directory tree visualization operations

@@ -6,12 +6,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	cobra "github.com/spf13/cobra"
 )
 
 var debugCmd = &cobra.Command{

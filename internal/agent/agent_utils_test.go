@@ -12,9 +12,10 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // stubSkillsService implements domain.SkillsService for testing the
