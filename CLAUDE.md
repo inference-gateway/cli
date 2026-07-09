@@ -34,10 +34,6 @@ The CLI is a Cobra app whose root subcommands all share one dependency-injected 
 
 **Service container** (`internal/container/container.go`): `NewServiceContainer(cfg)` wires every long-lived dependency in a fixed order — gateway manager → state manager → domain services (which also constructs the tool registry, MCP manager, conversation storage backend, agent state machine, optimizer) → agent manager (only if A2A enabled) → background services → UI components → extensibility (shortcuts). The container is the single source of truth for service identity; if you need a new service available from a Cobra command, add a `Get*()` accessor here rather than constructing it ad-hoc.
 
-**Two runtime modes for the LLM client** (selected by config, see `createAgentSDKClient` in `container.go`):
-- **Gateway mode** (default): HTTP via `inference-gateway/sdk` against a gateway URL. The container can auto-start the gateway binary or container itself when `gateway.run: true`.
-- **Claude Code mode** (`claude_code.enabled: true`): shells out to the `claude` CLI via `internal/infra/adapters/claude_code_client.go` and adapts its streaming output to `domain.SDKClient`. Subscription-based, Claude-only, no images/prompt-caching.
-
 **Agent core** (`internal/agent/`): the agent is an **event-driven state machine**, not a linear loop.
 - `agent.go` — `AgentServiceImpl` owns per-request streaming/cancellation, per-session cancellation (one `sessionCancel` cancels streaming, tool execution, approval waits, pollers, and the main loop via a single `sync.Once`), tool-call accumulation, and a cached git context.
 - `agent_state_machine.go` — registers transitions between `domain.AgentExecutionState` values. State flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue …  → Completing → Idle`. Each state's `Execute` method lives in `internal/agent/states/<state>.go`. To add a new state: add a constant in `internal/domain/state.go`, add transitions in `agent_state_machine.go::registerTransitions`, and create the executor file.
@@ -48,7 +44,7 @@ The CLI is a Cobra app whose root subcommands all share one dependency-injected 
 **Domain ↔ Infra split**:
 - `internal/domain/` — pure interfaces and value types. `interfaces.go` is the central contract; touching it triggers a mock regeneration in pre-commit.
 - `internal/infra/storage/` — pluggable conversation backends (`jsonl` default, `sqlite` via `modernc.org/sqlite` — pure Go, no CGO — `postgres`, `redis`, `memory`). Selected via `storage.type` in config; factory in `factory.go`. SQLite/Postgres run migrations from `internal/infra/storage/migrations/`.
-- `internal/infra/adapters/` — concrete adapters bridging external SDKs to domain interfaces (`sdk_client_adapter.go`, `claude_code_client.go`, `persistent_conversation_adapter.go`).
+- `internal/infra/adapters/` — concrete adapters bridging external SDKs to domain interfaces (`sdk_client_adapter.go`, `persistent_conversation_adapter.go`).
 - `internal/services/` — business logic implementing domain interfaces. Subpackages: `channels/` (Telegram), `scheduler/`, `heartbeat/`, `middleware/` (approval), `filewriter/`, `skills/`.
 
 **UI** (Bubble Tea TUI): `internal/app/chat.go::ChatApplication` is the root tea.Model. Domain events flow into the UI via `internal/handlers/` (`chat_handler.go`, `chat_message_processor.go`, `chat_shortcut_handler.go`). UI components in `internal/ui/components/`. Theme, autocomplete, keybindings, and history each have a subpackage under `internal/ui/`. There is also a **web terminal** mode (`infer chat --web`) that runs a PTY-backed multi-tab terminal server from `internal/web/`.

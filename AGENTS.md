@@ -37,8 +37,6 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
 - `internal/agent/tools/` — tool implementations. `registry.go` is the source of truth for registered tools.
 
-**Two LLM client modes:** Gateway (default, HTTP via `inference-gateway/sdk`) vs Claude Code (shells out to `claude` CLI, subscription-based, Claude-only, no images).
-
 ## Testing
 
 - Use Go's standard `testing` package. Colocate `_test.go` files with the package under test.
