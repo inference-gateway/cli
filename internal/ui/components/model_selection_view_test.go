@@ -61,29 +61,6 @@ func TestModelSelector_FilterBuckets(t *testing.T) {
 	assert.ElementsMatch(t, []string{"subscription-model"}, filteredFor(ModelViewSubscription, models))
 }
 
-// TestModelSelector_ClaudeCodeModeCategorizesAsSubscription verifies that in
-// Claude Code mode every offered model is bucketed under Subscription (not
-// Pay-as-you-go), regardless of the shared pricing table's per-token prices.
-func TestModelSelector_ClaudeCodeModeCategorizesAsSubscription(t *testing.T) {
-	pricing := &domainmocks.FakePricingService{}
-	pricing.IsEnabledReturns(true)
-	pricing.GetInputPriceReturns(5.0)
-	pricing.GetOutputPriceReturns(25.0)
-	pricing.RequiresProReturns(false)
-
-	cfg := &config.Config{ClaudeCode: config.ClaudeCodeConfig{Enabled: true}}
-	models := []string{"anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-6"}
-	m := NewModelSelector(models, nil, pricing, cfg, nil)
-
-	m.currentView = ModelViewSubscription
-	m.applyFilters()
-	assert.ElementsMatch(t, models, m.filteredModels)
-
-	m.currentView = ModelViewPayAsYouGo
-	m.applyFilters()
-	assert.Empty(t, m.filteredModels)
-}
-
 // TestModelSelector_SubscriptionModelExcludedFromFree is the core bug fix for
 // issue #590: a subscription model is $0/$0 but must never be shown under the
 // Free tab.

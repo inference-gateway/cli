@@ -960,9 +960,8 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 	return nil
 }
 
-// parseProvider parses provider and model name from model string
-// Claude Code mode uses anthropic/-prefixed ids (like gateway mode); the bare
-// fallback returns "claude" only for legacy un-prefixed inputs.
+// parseProvider parses provider and model name from model string.
+// The bare fallback returns "claude" only for legacy un-prefixed inputs.
 func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	if s.config != nil {
 		cfg := s.config.GetAgentConfig()
@@ -1032,10 +1031,6 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 // guards the fired-set because the streaming goroutine (pre_session/pre_stream)
 // and the event-loop goroutine (the other points) can both reach here.
 func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
-	if s.config != nil && s.config.IsClaudeCodeMode() {
-		return
-	}
-
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders

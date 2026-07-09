@@ -377,19 +377,3 @@ func TestPricingService_CalculateCost(t *testing.T) {
 	assert.InDelta(t, expectedOutputCost, outputCost, 0.01)
 	assert.InDelta(t, expectedTotalCost, totalCost, 0.01)
 }
-
-// TestPricingService_ClaudeCodeModelDefaults verifies that the anthropic/-prefixed
-// Claude Code model ids resolve against the default pricing table, so headless
-// Claude Code sessions can price token usage from infer's own list.
-func TestPricingService_ClaudeCodeModelDefaults(t *testing.T) {
-	cfg := &config.PricingConfig{
-		Enabled:      true,
-		CustomPrices: map[string]config.CustomPricing{},
-	}
-	service := NewPricingService(cfg)
-
-	inputCost, outputCost, totalCost := service.CalculateCost("anthropic/claude-sonnet-4-5-20250929", 1_000_000, 1_000_000)
-	assert.InDelta(t, 3.00, inputCost, 0.01)
-	assert.InDelta(t, 15.00, outputCost, 0.01)
-	assert.InDelta(t, 18.00, totalCost, 0.01)
-}

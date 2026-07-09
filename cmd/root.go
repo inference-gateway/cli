@@ -49,9 +49,6 @@ func init() {
 	rootCmd.PersistentFlags().String("tools-bash-allow-append", "",
 		"comma/newline-separated commands added to the bash allow-list in every mode "+
 			"(standard, plan, auto); INFER_TOOLS_BASH_ALLOW_APPEND takes precedence")
-	rootCmd.PersistentFlags().String("claude-code-extra-args", "",
-		"comma/newline-separated extra arguments appended to the claude CLI invocation "+
-			"in Claude Code mode; INFER_CLAUDE_CODE_EXTRA_ARGS takes precedence")
 	rootCmd.PersistentFlags().String("reminders-file", "",
 		"path to a reminders YAML file, overriding project .infer/ and ~/.infer reminders.yaml "+
 			"(INFER_REMINDERS_CONFIG inline YAML takes precedence)")
