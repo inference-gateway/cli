@@ -3,7 +3,6 @@ package services
 import (
 	"archive/tar"
 	"archive/zip"
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -624,15 +623,26 @@ func extractGatewayTarGz(r io.Reader, destPath string) error {
 
 // extractGatewayZip extracts the inference-gateway.exe binary from a zip archive
 func extractGatewayZip(r io.Reader, destPath string) error {
-	body, err := io.ReadAll(r)
+	tmpFile, err := os.CreateTemp("", "infer-gateway-*.zip")
 	if err != nil {
-		return fmt.Errorf("failed to read gateway release archive: %w", err)
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if _, err := io.Copy(tmpFile, r); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to write temp archive: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp archive: %w", err)
 	}
 
-	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	zipReader, err := zip.OpenReader(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to read gateway release zip: %w", err)
 	}
+	defer func() { _ = zipReader.Close() }()
 
 	for _, f := range zipReader.File {
 		if filepath.Base(f.Name) != "inference-gateway.exe" {
@@ -643,18 +653,24 @@ func extractGatewayZip(r io.Reader, destPath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to open entry in zip: %w", err)
 		}
-		defer func() { _ = rc.Close() }()
 
 		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 		if err != nil {
+			_ = rc.Close()
 			return fmt.Errorf("failed to create gateway binary: %w", err)
 		}
 		if _, err := io.Copy(out, rc); err != nil {
 			_ = out.Close()
 			_ = os.Remove(destPath)
+			_ = rc.Close()
 			return fmt.Errorf("failed to write gateway binary: %w", err)
 		}
-		return out.Close()
+		if err := out.Close(); err != nil {
+			_ = rc.Close()
+			return err
+		}
+		_ = rc.Close()
+		return nil
 	}
 
 	return fmt.Errorf("inference-gateway.exe binary not found in release archive")
