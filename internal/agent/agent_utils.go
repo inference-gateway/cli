@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,6 +17,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -209,19 +211,64 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
+// PromptSection is one labeled part of the assembled system prompt, exposed
+// for diagnostics (e.g. per-section token estimates in `infer debug`). Text is
+// the raw part as it appears in the prompt, including any separator prefix.
+type PromptSection struct {
+	Name string
+	Text string
+}
+
+// contextSections lists the dynamic context builders in prompt order; it is
+// the single source for both prompt assembly and diagnostics.
+func (s *AgentServiceImpl) contextSections(currentTurn int, messages []sdk.Message) []PromptSection {
+	return []PromptSection{
+		{Name: "sandbox", Text: s.buildSandboxInfo()},
+		{Name: "a2a_agents", Text: s.buildA2AAgentInfo()},
+		{Name: "os", Text: s.buildOSInfo()},
+		{Name: "working_directory", Text: s.buildWorkingDirectoryInfo()},
+		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn)},
+		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn)},
+		{Name: "github_guidance", Text: s.buildGitHubGuidanceInfo()},
+		{Name: "bash_allow_list", Text: s.buildBashAllowInfo()},
+		{Name: "tools", Text: s.buildToolsInfo()},
+		{Name: "skills", Text: s.buildSkillsInfo()},
+		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages)},
+		{Name: "memory", Text: s.buildMemoryInfo(currentTurn)},
+	}
+}
+
 // buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, tools, skills) for the system prompt
 func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Message) string {
-	return s.buildSandboxInfo() +
-		s.buildA2AAgentInfo() +
-		s.buildOSInfo() +
-		s.buildWorkingDirectoryInfo() +
-		s.buildGitContextInfo(currentTurn) +
-		s.buildGitHubGuidanceInfo() +
-		s.buildBashAllowInfo() +
-		s.buildToolsInfo() +
-		s.buildSkillsInfo() +
-		s.buildActiveSkillInfo(messages) +
-		s.buildMemoryInfo(currentTurn)
+	var b strings.Builder
+	for _, section := range s.contextSections(currentTurn, messages) {
+		b.WriteString(section.Text)
+	}
+	return b.String()
+}
+
+// SystemPromptSections returns the labeled parts of the system prompt a fresh
+// session (turn 0) would send, in prompt order and with empty parts omitted.
+// Exposed for the `infer debug agent system_prompt --tokens` breakdown.
+func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
+	agentConfig := s.config.GetAgentConfig()
+	sections := []PromptSection{
+		{Name: "base_prompt", Text: s.getSystemPromptForMode()},
+		{Name: "custom_instructions", Text: s.config.Prompts.Agent.CustomInstructions},
+		{Name: "agents_md", Text: s.buildAgentsMDInfo()},
+		{Name: "plugins", Text: plugins.InstructionsBlock(s.config)},
+	}
+	if agentConfig.SystemPromptWithDefaults {
+		sections = append(sections, s.contextSections(0, nil)...)
+	}
+
+	nonEmpty := sections[:0]
+	for _, section := range sections {
+		if section.Text != "" {
+			nonEmpty = append(nonEmpty, section)
+		}
+	}
+	return nonEmpty
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
@@ -796,6 +843,64 @@ func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 	s.contextCacheMux.Unlock()
 
 	return result
+}
+
+// projectTreeMaxLines caps the PROJECT STRUCTURE block in the system prompt.
+const projectTreeMaxLines = 100
+
+// buildProjectTreeInfo injects a root-first, depth-prioritized project listing
+// into the system prompt so the model reads real paths instead of guessing
+// them. It runs the Tree tool in compact format, which in a git repository
+// lists tracked plus untracked non-ignored files one directory per line
+// (shallow directories first, so the root and top-level layout always fit the
+// line budget) and outside a git repo falls back to the ASCII tree. Shares the
+// git-context caching scheme, refreshing every GitContextRefreshTurns turns.
+func (s *AgentServiceImpl) buildProjectTreeInfo(currentTurn int) string {
+	cfg := s.config.GetAgentConfig()
+	if !cfg.Context.TreeEnabled {
+		return ""
+	}
+
+	s.contextCacheMux.RLock()
+	if s.treeContextCache != "" && currentTurn-s.treeContextTurn < cfg.Context.GitContextRefreshTurns {
+		defer s.contextCacheMux.RUnlock()
+		return s.treeContextCache
+	}
+	s.contextCacheMux.RUnlock()
+
+	result := ""
+	if listing := s.compactProjectTree(); listing != "" {
+		result = fmt.Sprintf(
+			"\n\nPROJECT STRUCTURE (one directory per line, root and shallow directories first; hidden dot-files and dot-directories omitted; \"name.go*\" means name.go plus name_test.go; run the Tree or Grep tools for anything omitted):\n%s",
+			listing,
+		)
+	}
+
+	s.contextCacheMux.Lock()
+	s.treeContextCache = result
+	s.treeContextTurn = currentTurn
+	s.contextCacheMux.Unlock()
+
+	return result
+}
+
+// compactProjectTree renders the Tree tool's compact listing for the current
+// directory (falling back to the ASCII tree for non-git directories).
+func (s *AgentServiceImpl) compactProjectTree() string {
+	treeTool := tools.NewTreeTool(s.config)
+	execResult, err := treeTool.Execute(context.Background(), map[string]any{
+		"path":      ".",
+		"format":    "compact",
+		"max_files": float64(projectTreeMaxLines),
+	})
+	if err != nil {
+		logger.Debug("failed to build project tree context", "error", err)
+		return ""
+	}
+	if data, ok := execResult.Data.(*domain.TreeToolResult); ok {
+		return data.Output
+	}
+	return ""
 }
 
 // isGitRepository checks if the current directory is a git repository
