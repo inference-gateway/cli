@@ -122,12 +122,12 @@ type PromptsConfig struct {
 }
 
 type PromptsAgentConfig struct {
-	SystemPrompt           string `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemPromptPlan       string `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptAuto       string `yaml:"system_prompt_auto" mapstructure:"system_prompt_auto"`
-	SystemPromptRemote     string `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
-	SystemPromptHeartbeat  string `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
-	CustomInstructions     string `yaml:"custom_instructions" mapstructure:"custom_instructions"`
+	SystemPrompt          string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPromptPlan      string `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptAuto      string `yaml:"system_prompt_auto" mapstructure:"system_prompt_auto"`
+	SystemPromptRemote    string `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
+	SystemPromptHeartbeat string `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
+	CustomInstructions    string `yaml:"custom_instructions" mapstructure:"custom_instructions"`
 }
 
 type PromptsGitConfig struct {
