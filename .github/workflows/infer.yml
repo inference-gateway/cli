@@ -43,6 +43,7 @@ jobs:
     with:
       language: "go"
       markdownlint: true
+      precommit: true
       plugins: |
         DietrichGebert/ponytail
       prompt: ${{ inputs.prompt }}
