@@ -232,7 +232,7 @@ func (r *Registry) createClipboardActions() []*KeyAction {
 		{
 			Namespace:   config.NamespaceClipboard,
 			ID:          config.ActionID(config.NamespaceClipboard, "paste_text"),
-			Keys:        []string{"ctrl+v"},
+			Keys:        []string{"ctrl+v", "super+v"},
 			Description: "paste text",
 			Category:    "clipboard",
 			Handler:     handlePaste,
@@ -245,7 +245,7 @@ func (r *Registry) createClipboardActions() []*KeyAction {
 		{
 			Namespace:   config.NamespaceClipboard,
 			ID:          config.ActionID(config.NamespaceClipboard, "copy_text"),
-			Keys:        []string{"ctrl+shift+c"},
+			Keys:        []string{"ctrl+shift+c", "super+c"},
 			Description: "copy text",
 			Category:    "clipboard",
 			Handler:     handleCopy,
