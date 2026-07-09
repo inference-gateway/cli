@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.140.0](https://github.com/inference-gateway/cli/compare/v0.139.1...v0.140.0) (2026-07-09)
+
+### 🚀 Features
+
+* **shortcuts:** add PR diff to /diff view ([#806](https://github.com/inference-gateway/cli/issues/806)) ([cde304e](https://github.com/inference-gateway/cli/commit/cde304e2d2c20f095e3beb5f62966505b8a2a0db)), closes [#795](https://github.com/inference-gateway/cli/issues/795)
+* **agent:** inject project structure into system prompt to stop path guessing ([#807](https://github.com/inference-gateway/cli/issues/807)) ([8568cea](https://github.com/inference-gateway/cli/commit/8568cea72110337443a2ab0fe3409f4e5bf3f4b3))
+* **ui:** show PR number alongside branch name in input box label ([#802](https://github.com/inference-gateway/cli/issues/802)) ([186bba9](https://github.com/inference-gateway/cli/commit/186bba9e6619c3552deebd6e9a0c99a6882188c5)), closes [#796](https://github.com/inference-gateway/cli/issues/796)
+
+### 🐛 Bug Fixes
+
+* **ui:** add super+v and super+c keybindings for macOS clipboard support ([#805](https://github.com/inference-gateway/cli/issues/805)) ([15d03e9](https://github.com/inference-gateway/cli/commit/15d03e914ed49a1bafb30d485eb8d5f66be748c8)), closes [#797](https://github.com/inference-gateway/cli/issues/797)
+* **claude:** remove obsolete .claude file and create skills symlink ([21cd5dd](https://github.com/inference-gateway/cli/commit/21cd5ddb80847d3cf9d30d07d55df25e00c1fd9f))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.140.0 --help
+npx @inference-gateway/cli@0.140.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.140.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.140.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.140.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.140.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.140.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.139.1](https://github.com/inference-gateway/cli/compare/v0.139.0...v0.139.1) (2026-07-09)
 
 ### 🐛 Bug Fixes
