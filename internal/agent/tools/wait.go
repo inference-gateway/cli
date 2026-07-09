@@ -81,6 +81,12 @@ func (t *WaitTool) Definition() sdk.ChatCompletionTool {
 							"Any other non-zero exit ends the wait immediately with reason 'check_failed'. " +
 							"Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
 					},
+					"pending_exit_codes_include_zero": map[string]any{
+						"type": "boolean",
+						"description": "When true, exit code 0 is also treated as 'still pending, keep polling' (condition=command). " +
+							"Use this for commands like 'gh run view --exit-status' that exit 0 for both 'still running' " +
+							"and 'completed successfully'. Default: false.",
+					},
 					"timeout_seconds": map[string]any{
 						"type":        "number",
 						"description": "Maximum time to wait in seconds (bounded by the config ceiling). Required.",
@@ -213,6 +219,9 @@ func (t *WaitTool) Validate(args map[string]any) error {
 		if err := validatePendingExitCodes(args); err != nil {
 			return err
 		}
+		if err := validatePendingExitCodesIncludeZero(args); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -233,6 +242,19 @@ func validatePendingExitCodes(args map[string]any) error {
 		if _, ok := c.(float64); !ok {
 			return fmt.Errorf("pending_exit_codes must be an array of numbers")
 		}
+	}
+	return nil
+}
+
+// validatePendingExitCodesIncludeZero checks that pending_exit_codes_include_zero,
+// when present, is a boolean.
+func validatePendingExitCodesIncludeZero(args map[string]any) error {
+	raw, present := args["pending_exit_codes_include_zero"]
+	if !present {
+		return nil
+	}
+	if _, ok := raw.(bool); !ok {
+		return fmt.Errorf("pending_exit_codes_include_zero must be a boolean")
 	}
 	return nil
 }
@@ -654,6 +676,8 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 		}
 	}
 
+	pendingIncludeZero, _ := args["pending_exit_codes_include_zero"].(bool)
+
 	buildResult := func(reason, lastOutput string, exitCode, attempts int) map[string]any {
 		return map[string]any{
 			"condition":      "command",
@@ -667,6 +691,9 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 
 	classify := func(exitCode int) string {
 		if exitCode == 0 {
+			if pendingIncludeZero {
+				return ""
+			}
 			return "condition_met"
 		}
 		if len(pendingCodes) > 0 && !pendingCodes[exitCode] {

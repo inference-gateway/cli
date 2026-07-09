@@ -722,3 +722,62 @@ func TestWaitTool_FormatForLLM_FailureKeepsDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitTool_Validate_PendingExitCodesIncludeZero(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	tests := []struct {
+		name    string
+		val     any
+		wantErr string
+	}{
+		{name: "valid true", val: true, wantErr: ""},
+		{name: "valid false", val: false, wantErr: ""},
+		{name: "not a bool (string)", val: "true", wantErr: "pending_exit_codes_include_zero must be a boolean"},
+		{name: "not a bool (number)", val: float64(1), wantErr: "pending_exit_codes_include_zero must be a boolean"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(map[string]any{
+				"condition":                       "command",
+				"timeout_seconds":                 float64(30),
+				"command":                         "echo hi",
+				"pending_exit_codes_include_zero": tt.val,
+			})
+			assertValidateError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+
+	// Command exits 0 immediately, but pending_exit_codes_include_zero=true
+	// means exit 0 is treated as "still pending, keep polling". The wait
+	// should NOT return condition_met immediately - it should time out.
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	start := time.Now()
+	result, err := tool.Execute(ctx, map[string]any{
+		"condition":                       "command",
+		"timeout_seconds":                 float64(1),
+		"command":                         "exit 0",
+		"pending_exit_codes_include_zero": true,
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Error("Execute() should fail on timeout when exit 0 is treated as pending")
+	}
+	if !strings.Contains(result.Error, "timed out") {
+		t.Errorf("Execute() error = %q, want containing %q", result.Error, "timed out")
+	}
+	// Should have taken close to the full timeout, not returned immediately
+	if time.Since(start) < 500*time.Millisecond {
+		t.Error("Execute() returned too quickly - should have polled until timeout")
+	}
+}
