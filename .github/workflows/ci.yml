@@ -124,3 +124,20 @@ jobs:
 
     - name: Run tests with race detector
       run: go test -race ./...
+
+  e2e:
+    needs:
+      - build
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.0
+
+    - name: Setup Go
+      uses: actions/setup-go@v6.5.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Run hermetic end-to-end tests against the mock gateway
+      run: go test -race -tags e2e -timeout 5m ./tests/e2e/...
