@@ -93,7 +93,8 @@ func InstructionsBlock(cfg *config.Config) string {
 		}
 		fmt.Fprintf(&b, "PLUGIN INSTRUCTIONS (%s):\n%s", in.PluginName, in.Content)
 		if in.Marker != "" {
-			b.WriteString("\n" + in.Marker)
+			b.WriteByte('\n')
+			b.WriteString(in.Marker)
 		}
 	}
 	return b.String()

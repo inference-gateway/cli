@@ -1514,7 +1514,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 // allow-list. allow is the every-mode allow-list (empty means the command is
 // off-list). The command writes marker so the test can assert whether it ran -
 // independent of stream-event gating.
-func hookSession(command, marker string, allow []string) *AgentSession {
+func hookSession(command, _ string, allow []string) *AgentSession {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
