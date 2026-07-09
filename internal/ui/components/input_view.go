@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -54,8 +55,6 @@ type InputView struct {
 	gitBranchCacheTime   time.Time
 	gitBranchCacheTTL    time.Duration
 	gitPRCache           string
-	gitPRCacheTime       time.Time
-	gitPRCacheTTL        time.Duration
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -221,8 +220,8 @@ func (iv *InputView) buildGitBranchLabel() string {
 	label := fmt.Sprintf("%s %s", icons.GitBranch, branch)
 
 	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
-		if pr := iv.getCurrentGitPR(); pr != "" {
-			label += " #" + pr
+		if iv.gitPRCache != "" {
+			label += " #" + iv.gitPRCache
 		}
 	}
 
@@ -246,6 +245,9 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 	}
 
 	branch := strings.TrimSpace(string(output))
+	if iv.gitBranchCache != "" && branch != iv.gitBranchCache {
+		iv.gitPRCache = ""
+	}
 	iv.gitBranchCache = branch
 	return branch, branch != ""
 }
@@ -256,34 +258,24 @@ func (iv *InputView) InvalidateGitBranchCache() {
 	iv.gitBranchCacheTime = time.Time{}
 }
 
-// getCurrentGitPR returns the PR number for the current branch with caching.
-// Uses "gh pr view --json number --jq .number" and caches the result with the
-// same TTL as the git branch cache. Returns "" when no PR exists or gh is not
-// available.
-func (iv *InputView) getCurrentGitPR() string {
-	if time.Since(iv.gitPRCacheTime) < iv.gitPRCacheTTL {
-		return iv.gitPRCache
+// fetchGitPRCmd resolves the PR number for the current branch off the UI
+// goroutine via "gh pr view --json number --jq .number". It must never run in
+// the render path: it is a network round-trip to GitHub. The error is
+// deliberately swallowed because gh exits non-zero for the normal "no PR"
+// case; the label simply omits the number.
+// ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
+// so a PR opened outside the TUI stays unknown until the next such event; add
+// a slow tea.Tick refetch if that ever matters.
+func fetchGitPRCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		output, err := exec.CommandContext(ctx, "gh", "pr", "view", "--json", "number", "--jq", ".number").Output()
+		if err != nil {
+			return domain.GitPRResolvedEvent{}
+		}
+		return domain.GitPRResolvedEvent{PR: strings.TrimSpace(string(output))}
 	}
-
-	cmd := exec.Command("gh", "pr", "view", "--json", "number", "--jq", ".number")
-	output, err := cmd.Output()
-
-	iv.gitPRCacheTime = time.Now()
-
-	if err != nil {
-		iv.gitPRCache = ""
-		return ""
-	}
-
-	pr := strings.TrimSpace(string(output))
-	iv.gitPRCache = pr
-	return pr
-}
-
-// InvalidateGitPRCache clears the git PR cache to force a refresh.
-func (iv *InputView) InvalidateGitPRCache() {
-	iv.gitPRCache = ""
-	iv.gitPRCacheTime = time.Time{}
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -554,7 +546,7 @@ func (iv *InputView) ClearCustomHint() {
 }
 
 // Bubble Tea interface
-func (iv *InputView) Init() tea.Cmd { return nil }
+func (iv *InputView) Init() tea.Cmd { return fetchGitPRCmd() }
 
 func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
 
@@ -576,9 +568,18 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
 		return iv, nil
+	case domain.GitPRResolvedEvent:
+		iv.gitPRCache = msg.PR
+		return iv, nil
 	case domain.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
-		iv.InvalidateGitPRCache()
+		return iv, fetchGitPRCmd()
+	case domain.ToolExecutionCompletedEvent:
+		for _, result := range msg.Results {
+			if result != nil && result.ToolName == "Bash" {
+				return iv, fetchGitPRCmd()
+			}
+		}
 		return iv, nil
 	}
 	return iv, nil

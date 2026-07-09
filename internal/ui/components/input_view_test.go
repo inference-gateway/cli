@@ -625,8 +625,8 @@ func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
 }
 
 // newInputViewWithPR builds an InputView with the git branch and PR caches
-// pre-seeded so getCurrentGitBranch and getCurrentGitPR return without
-// shelling out.
+// pre-seeded so getCurrentGitBranch returns without shelling out and the PR
+// label renders from state.
 func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
 	t.Helper()
 	iv := createInputViewWithTheme(createMockModelService())
@@ -634,8 +634,6 @@ func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
 	iv.gitBranchCacheTime = time.Now()
 	iv.gitBranchCacheTTL = 5 * time.Second
 	iv.gitPRCache = pr
-	iv.gitPRCacheTime = time.Now()
-	iv.gitPRCacheTTL = 5 * time.Second
 	return iv
 }
 
@@ -693,40 +691,59 @@ func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
 	require.NotContains(t, topLine, "#792")
 }
 
-func TestInputView_BashCommandCompletedInvalidatesPRCache(t *testing.T) {
+func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(domain.GitPRResolvedEvent{PR: "792"})
+
+	require.Nil(t, cmd)
+	require.Equal(t, "792", iv.gitPRCache)
+}
+
+func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
-	require.NotEmpty(t, iv.gitPRCache)
 
-	_, _ = iv.Update(domain.BashCommandCompletedEvent{})
+	_, cmd := iv.Update(domain.BashCommandCompletedEvent{})
 
-	require.Empty(t, iv.gitPRCache)
+	require.NotNil(t, cmd, "bash completion must trigger an async PR refetch")
+	require.Equal(t, "123", iv.gitPRCache, "stale value must survive until the refetch resolves (no flicker)")
 }
 
-func TestInputView_InvalidateGitPRCache(t *testing.T) {
+func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
-	require.NotEmpty(t, iv.gitPRCache)
 
-	iv.InvalidateGitPRCache()
+	_, cmd := iv.Update(domain.ToolExecutionCompletedEvent{
+		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
+	})
+	require.NotNil(t, cmd, "a Bash tool result must trigger an async PR refetch")
 
-	require.Empty(t, iv.gitPRCache)
-	require.True(t, iv.gitPRCacheTime.IsZero())
+	_, cmd = iv.Update(domain.ToolExecutionCompletedEvent{
+		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}},
+	})
+	require.Nil(t, cmd, "non-Bash tool results must not refetch")
 }
 
-func TestInputView_GetCurrentGitPR_UsesCache(t *testing.T) {
-	iv := newInputViewWithPR(t, "main", "456")
-	iv.gitPRCacheTime = time.Now()
-
-	pr := iv.getCurrentGitPR()
-	require.Equal(t, "456", pr, "should return cached PR without shelling out")
+func TestInputView_InitFetchesPR(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	require.NotNil(t, iv.Init(), "Init must kick off the initial async PR fetch")
 }
 
-func TestInputView_GetCurrentGitPR_ExpiredCache(t *testing.T) {
-	iv := newInputViewWithPR(t, "main", "456")
-	iv.gitPRCacheTime = time.Now().Add(-10 * time.Second)
-	iv.gitPRCacheTTL = 5 * time.Second
+func TestInputView_BranchChangeClearsPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "definitely-not-the-real-branch", "123")
+	iv.gitBranchCacheTime = time.Now().Add(-10 * time.Second)
 
-	pr := iv.getCurrentGitPR()
-	require.Empty(t, pr, "expired cache with no gh should return empty")
+	_, _ = iv.getCurrentGitBranch()
+
+	require.Empty(t, iv.gitPRCache, "a branch switch must drop the old branch's PR number")
+}
+
+func TestInputView_BranchRefreshAfterInvalidationKeepsPRCache(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "123")
+	iv.InvalidateGitBranchCache()
+
+	_, _ = iv.getCurrentGitBranch()
+
+	require.Equal(t, "123", iv.gitPRCache, "refresh from an invalidated (empty) branch cache must not clear the PR")
 }
 
 func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
