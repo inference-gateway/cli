@@ -1145,14 +1145,4 @@ func getTruncationRecoveryGuidance(toolName string) string {
 			"Try breaking your request into smaller, incremental operations."
 	}
 }
-horter, more precise old_string to match. " +
-			"3. Make multiple smaller Edit calls instead of one large edit. " +
-			"DO NOT retry with the same large edit - it will fail again."
-	case "Bash":
-		return "Your command output or arguments were too large. " +
-			"Try breaking the command into smaller parts or redirecting output to a file."
-	default:
-		return "The tool arguments were too large. " +
-			"Try breaking your request into smaller, incremental operations."
-	}
-}
+
