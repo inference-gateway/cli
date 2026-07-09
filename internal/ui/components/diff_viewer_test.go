@@ -513,6 +513,70 @@ func TestDiffViewer_ConfigurableKeybinding(t *testing.T) {
 	}
 }
 
+// fakeReadSource is a hand-written read-only gitdiff.ReadSource for the PR tab.
+type fakeReadSource struct {
+	unstaged []gitdiff.FileChange
+	diffs    map[string][2]string
+	workdir  string
+}
+
+func (f *fakeReadSource) Changes() ([]gitdiff.FileChange, []gitdiff.FileChange, error) {
+	return nil, f.unstaged, nil
+}
+
+func (f *fakeReadSource) Diff(fc gitdiff.FileChange) (string, string, bool, error) {
+	d := f.diffs[fc.Path]
+	return d[0], d[1], false, nil
+}
+
+func (f *fakeReadSource) Workdir() string { return f.workdir }
+
+func TestDiffViewer_PRTab(t *testing.T) {
+	src := &fakeDiffSource{
+		unstaged: []gitdiff.FileChange{{Path: "local.go", Status: gitdiff.StatusModified}},
+		diffs:    map[string][2]string{},
+	}
+	v := newTestDiffViewer(src)
+
+	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if v.activeTab != diffTabPR {
+		t.Fatalf("activeTab = %d, want PR tab after Tab", v.activeTab)
+	}
+	if v.prSource == nil {
+		t.Fatal("prSource should be built lazily on entering the PR tab")
+	}
+
+	pr := &fakeReadSource{
+		unstaged: []gitdiff.FileChange{{Path: "pr.go", Status: gitdiff.StatusModified}},
+		diffs:    map[string][2]string{"pr.go": {"old\n", "new\n"}},
+	}
+	v.prSource = pr
+	v.Update(diffViewerLoadedMsg{unstaged: pr.unstaged})
+	if v.readSource() != gitdiff.ReadSource(pr) {
+		t.Error("readSource should return the PR source on the PR tab")
+	}
+
+	v.cursor = fileRowIndex(v, "pr.go", false)
+	v.Update(tea.KeyPressMsg{Text: "d", Code: 'd'})
+	if v.confirmDiscard != nil {
+		t.Error("discard must be inert on the read-only PR tab")
+	}
+	if _, cmd := v.Update(tea.KeyPressMsg{Text: "a", Code: 'a'}); cmd != nil {
+		t.Error("stage must be inert on the read-only PR tab")
+	}
+	if strings.Contains(v.HintText(), "stage") {
+		t.Errorf("PR-tab hint should not mention staging: %q", v.HintText())
+	}
+
+	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if v.activeTab != diffTabLocal {
+		t.Fatalf("activeTab = %d, want Local tab after second Tab", v.activeTab)
+	}
+	if v.readSource() != gitdiff.ReadSource(src) {
+		t.Error("readSource should return the local source on the Local tab")
+	}
+}
+
 func TestDiffViewer_EditKeyBound(t *testing.T) {
 	src := &fakeDiffSource{
 		unstaged: []gitdiff.FileChange{{Path: "a.go", Status: gitdiff.StatusModified}},
