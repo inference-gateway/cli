@@ -55,6 +55,67 @@ func findChange(list []FileChange, path string) (FileChange, bool) {
 	return FileChange{}, false
 }
 
+func TestRangeSource_PRDiff(t *testing.T) {
+	repo := newTestRepo(t)
+	base := revParse(t, repo, "HEAD")
+	writeFile(t, repo, "tracked.txt", "line1\nline2\nfeat\n")
+	writeFile(t, repo, "feature.txt", "brand new\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "feature")
+	writeFile(t, repo, "tracked.txt", "line1\nline2\nfeat\nuncommitted\n")
+
+	src := newPRSourceWithBase(repo, base)
+	if src.Workdir() != repo {
+		t.Errorf("Workdir = %q, want %q", src.Workdir(), repo)
+	}
+
+	staged, unstaged, err := src.Changes()
+	if err != nil {
+		t.Fatalf("Changes: %v", err)
+	}
+	if len(staged) != 0 {
+		t.Errorf("staged = %v, want empty (PR tab has no staged group)", staged)
+	}
+
+	modified, ok := findChange(unstaged, "tracked.txt")
+	if !ok || modified.Status != StatusModified {
+		t.Fatalf("tracked.txt = %+v (ok=%v), want modified", modified, ok)
+	}
+	oldC, newC, isBin, err := src.Diff(modified)
+	if err != nil || isBin {
+		t.Fatalf("Diff err=%v isBin=%v", err, isBin)
+	}
+	if oldC != "line1\nline2\n" {
+		t.Errorf("old = %q, want base content", oldC)
+	}
+	if newC != "line1\nline2\nfeat\nuncommitted\n" {
+		t.Errorf("new = %q, want working-tree content (committed + uncommitted)", newC)
+	}
+
+	added, ok := findChange(unstaged, "feature.txt")
+	if !ok || added.Status != StatusAdded {
+		t.Fatalf("feature.txt = %+v (ok=%v), want added", added, ok)
+	}
+	oldC, _, _, err = src.Diff(added)
+	if err != nil {
+		t.Fatalf("Diff added: %v", err)
+	}
+	if oldC != "" {
+		t.Errorf("added old = %q, want empty", oldC)
+	}
+}
+
+func revParse(t *testing.T, dir, ref string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", ref)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("rev-parse %s: %v", ref, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func TestIsRepo(t *testing.T) {
 	repo := newTestRepo(t)
 	if !IsRepo(repo) {
@@ -229,7 +290,6 @@ func TestApplyHunk_StagesSingleHunk(t *testing.T) {
 	runGit(t, dir, "add", "-A")
 	runGit(t, dir, "commit", "-q", "-m", "init")
 
-	// Two changes far apart so git produces two distinct hunks.
 	content := readFileLines(t, dir, "f.txt")
 	content[0] = "CHANGED1"
 	content[19] = "CHANGED20"
@@ -259,7 +319,6 @@ func TestApplyHunk_StagesSingleHunk(t *testing.T) {
 		t.Errorf("f.txt should still have unstaged changes (hunk 1)")
 	}
 
-	// The staged side should contain only the first change.
 	sfc, _ := findChange(staged, "f.txt")
 	_, newC, _, err := src.Diff(sfc)
 	if err != nil {

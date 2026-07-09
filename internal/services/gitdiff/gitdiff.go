@@ -117,6 +117,143 @@ func NewGitSource(workdir string) Source { return &gitSource{workdir: workdir} }
 // Workdir returns the repository working directory paths are relative to.
 func (g *gitSource) Workdir() string { return g.workdir }
 
+// ReadSource is the read-only subset of Source consumed by the diff viewer's PR
+// tab: it lists changed files and returns their before/after content, but cannot
+// stage, discard, or patch. gitSource satisfies it, and so does rangeSource.
+type ReadSource interface {
+	Changes() (staged, unstaged []FileChange, err error)
+	Diff(fc FileChange) (oldContent, newContent string, isBinary bool, err error)
+	Workdir() string
+}
+
+// rangeSource is a read-only ReadSource over the current branch's pull-request
+// diff: everything between the PR base's merge-base and the working tree. It
+// reuses gitSource for all git plumbing and resolves the PR base lazily via the
+// gh CLI, caching the merge-base commit.
+//
+// ponytail: the PR tab always reflects the *checked-out* branch's PR. Reviewing
+// an arbitrary un-checked-out PR would require `gh pr checkout <n>` first (we do
+// not mutate the user's checkout); add that only if the need shows up.
+type rangeSource struct {
+	g    *gitSource
+	base string // merge-base commit; resolved lazily on first use
+}
+
+// NewPRSource returns a read-only source for the current branch's PR diff,
+// rooted at workdir.
+func NewPRSource(workdir string) ReadSource {
+	return &rangeSource{g: &gitSource{workdir: workdir}}
+}
+
+// newPRSourceWithBase builds a rangeSource against an explicit base commit,
+// skipping the gh lookup. Used by tests to avoid a gh dependency.
+func newPRSourceWithBase(workdir, base string) *rangeSource {
+	return &rangeSource{g: &gitSource{workdir: workdir}, base: base}
+}
+
+// Workdir returns the repository working directory paths are relative to.
+func (r *rangeSource) Workdir() string { return r.g.workdir }
+
+// resolveBase resolves and caches the merge-base of the PR base branch and HEAD.
+func (r *rangeSource) resolveBase() (string, error) {
+	if r.base != "" {
+		return r.base, nil
+	}
+	base, err := r.prBaseRef()
+	if err != nil {
+		return "", err
+	}
+	out, err := r.g.run("merge-base", base, "HEAD")
+	if err != nil {
+		return "", err
+	}
+	r.base = strings.TrimSpace(string(out))
+	return r.base, nil
+}
+
+// prBaseRef returns the PR base branch for the current branch (via gh),
+// preferring the remote-tracking ref origin/<base> when it exists locally.
+func (r *rangeSource) prBaseRef() (string, error) {
+	cmd := exec.Command("gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName")
+	cmd.Dir = r.g.workdir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("no pull request for current branch: %s", msg)
+	}
+	base := strings.TrimSpace(stdout.String())
+	if base == "" {
+		return "", fmt.Errorf("could not determine PR base branch")
+	}
+	if _, err := r.g.run("rev-parse", "--verify", "--quiet", "origin/"+base); err == nil {
+		return "origin/" + base, nil
+	}
+	return base, nil
+}
+
+func (r *rangeSource) Changes() (staged, unstaged []FileChange, err error) {
+	base, err := r.resolveBase()
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err := r.g.run("diff", "--name-status", "-z", base)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, parseNameStatus(out), nil
+}
+
+// parseNameStatus parses NUL-separated `git diff --name-status -z` output into a
+// flat, read-only file list. Renames/copies carry the original path as a second
+// token (status\0old\0new); all others are status\0path.
+func parseNameStatus(data []byte) []FileChange {
+	tokens := strings.Split(string(data), "\x00")
+	var out []FileChange
+	for i := 0; i < len(tokens); i++ {
+		status := tokens[i]
+		if status == "" {
+			continue
+		}
+		code := status[0]
+		if isRenameOrCopy(code) {
+			if i+2 >= len(tokens) {
+				break
+			}
+			out = append(out, FileChange{Path: tokens[i+2], OrigPath: tokens[i+1], Status: Status(code)})
+			i += 2
+			continue
+		}
+		if i+1 >= len(tokens) {
+			break
+		}
+		out = append(out, FileChange{Path: tokens[i+1], Status: Status(code)})
+		i++
+	}
+	return out
+}
+
+func (r *rangeSource) Diff(fc FileChange) (oldContent, newContent string, isBinary bool, err error) {
+	base, err := r.resolveBase()
+	if err != nil {
+		return "", "", false, err
+	}
+	if fc.Status != StatusAdded {
+		oldContent = r.g.show(base + ":" + refPath(fc.OrigPath, fc.Path))
+	}
+	if fc.Status != StatusDeleted {
+		newContent = r.g.readWorking(fc.Path)
+	}
+	if notRenderable(oldContent) || notRenderable(newContent) {
+		return "", "", true, nil
+	}
+	return oldContent, newContent, false, nil
+}
+
 // IsRepo reports whether workdir is inside a git work tree.
 func IsRepo(workdir string) bool {
 	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")

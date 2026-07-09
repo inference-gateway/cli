@@ -46,7 +46,14 @@ var (
 	actDiffPatchSplit  = config.ActionID(config.NamespaceDiffViewer, "patch_split")
 	actDiffHunkPrev    = config.ActionID(config.NamespaceDiffViewer, "hunk_prev")
 	actDiffHunkNext    = config.ActionID(config.NamespaceDiffViewer, "hunk_next")
+	actDiffSwitchTab   = config.ActionID(config.NamespaceDiffViewer, "switch_tab")
 	actDiffCancel      = config.ActionID(config.NamespaceDiffViewer, "cancel")
+)
+
+// Diff viewer tabs: Local working-tree changes vs the current branch's PR diff.
+const (
+	diffTabLocal = 0
+	diffTabPR    = 1
 )
 
 // diffKeymap resolves pressed keys to configurable diff-panel action IDs and
@@ -181,6 +188,9 @@ type DiffViewerImpl struct {
 	editMode bool
 	editor   *ptyEditor
 
+	activeTab int
+	prSource  gitdiff.ReadSource
+
 	confirmDiscard *gitdiff.FileChange
 
 	loading bool
@@ -250,7 +260,54 @@ func (t *DiffViewerImpl) Reset() {
 	}
 	t.editMode = false
 	t.editor = nil
+	t.activeTab = diffTabLocal
+	t.prSource = nil
 	t.confirmDiscard = nil
+}
+
+// readSource returns the data source for the active tab: the PR (range) source
+// on the PR tab, else the local working-tree source. Only read paths route
+// through it; staging/discard/patch/commit are Local-tab only.
+func (t *DiffViewerImpl) readSource() gitdiff.ReadSource {
+	if t.activeTab == diffTabPR && t.prSource != nil {
+		return t.prSource
+	}
+	return t.source
+}
+
+// switchTab flips between the Local and PR tabs, lazily building the PR source,
+// clearing per-file/patch state, and reloading the tree from the new source.
+func (t *DiffViewerImpl) switchTab() tea.Cmd {
+	if t.activeTab == diffTabLocal {
+		t.activeTab = diffTabPR
+		if t.prSource == nil {
+			t.prSource = gitdiff.NewPRSource(t.source.Workdir())
+		}
+	} else {
+		t.activeTab = diffTabLocal
+	}
+	t.patchMode = false
+	t.patchMsg = ""
+	t.confirmDiscard = nil
+	t.cursor = 0
+	t.selectedKey = ""
+	t.sidebarScroll = 0
+	t.loadErr = nil
+	t.dirtyDiff = true
+	t.resetScroll = true
+	t.loading = true
+	return t.loadCmd()
+}
+
+// isMutatingAction reports whether an action changes the index/working tree, so
+// it can be gated off on the read-only PR tab.
+func isMutatingAction(action string) bool {
+	switch action {
+	case actDiffStage, actDiffUnstage, actDiffStageAll, actDiffUnstageAll,
+		actDiffDiscard, actDiffPatch, actDiffCommit:
+		return true
+	}
+	return false
 }
 
 func (t *DiffViewerImpl) IsDone() bool      { return t.done }
@@ -280,6 +337,13 @@ func (t *DiffViewerImpl) HintText() string {
 			t.keymap.display(actDiffHunkPrev), t.keymap.display(actDiffHunkNext),
 			t.keymap.display(actDiffCancel))
 	}
+	if t.activeTab == diffTabPR {
+		return fmt.Sprintf("%s/%s select · %s edit · %s tab Local · %s back",
+			t.keymap.display(actDiffNavUp), t.keymap.display(actDiffNavDown),
+			t.keymap.display(actDiffEdit), t.keymap.display(actDiffSwitchTab),
+			t.keymap.display(actDiffCancel))
+	}
+
 	fc := t.selectedFile()
 	stagedSel := fc != nil && fc.Staged
 
@@ -297,6 +361,7 @@ func (t *DiffViewerImpl) HintText() string {
 		fmt.Sprintf("%s patch", t.keymap.display(actDiffPatch)),
 		fmt.Sprintf("%s edit", t.keymap.display(actDiffEdit)),
 		fmt.Sprintf("%s commit", t.keymap.display(actDiffCommit)),
+		fmt.Sprintf("%s tab PR", t.keymap.display(actDiffSwitchTab)),
 		fmt.Sprintf("%s back", t.keymap.display(actDiffCancel)),
 	)
 	return strings.Join(parts, " · ")
@@ -337,8 +402,6 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.dirtyDiff = true
 		return t, nil
 	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
-		// The agent's edits and git commands are what change the staged/unstaged
-		// diff; re-poll off those in-loop events instead of a clock.
 		return t, t.loadCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
@@ -379,6 +442,7 @@ func (t *DiffViewerImpl) handleWheel(msg tea.MouseWheelMsg) {
 	}
 }
 
+//nolint:gocyclo,cyclop // cohesive key-dispatch switch; splitting it would obscure the flow
 func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.patchMode {
 		return t.handlePatchKey(msg)
@@ -387,18 +451,24 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.confirmDiscard != nil {
 		return t.handleDiscardConfirm(pressed)
 	}
-	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
+	if pressed == "ctrl+c" {
 		t.cancel = true
 		return t, nil
 	}
-	if pressed == "ctrl+r" { // manual refresh (replaces the deleted 1s git poll)
+	if pressed == "ctrl+r" {
 		return t, t.loadCmd()
 	}
-	switch t.keymap.match(pressed,
+	matched := t.keymap.match(pressed,
 		actDiffNavUp, actDiffNavDown, actDiffToggle, actDiffExpand, actDiffCollapse,
 		actDiffStage, actDiffUnstage, actDiffStageAll, actDiffUnstageAll,
-		actDiffDiscard, actDiffPatch, actDiffEdit, actDiffCommit,
-		actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown, actDiffCancel) {
+		actDiffDiscard, actDiffPatch, actDiffEdit, actDiffCommit, actDiffSwitchTab,
+		actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown, actDiffCancel)
+	if t.activeTab == diffTabPR && isMutatingAction(matched) {
+		return t, nil
+	}
+	switch matched {
+	case actDiffSwitchTab:
+		return t, t.switchTab()
 	case actDiffCancel:
 		t.cancel = true
 	case actDiffNavUp:
@@ -428,8 +498,6 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case actDiffUnstageAll:
 		return t, t.unstageAllCmd()
 	case actDiffDiscard:
-		// Discard reverts working-tree changes, so it only applies to unstaged
-		// entries; on a staged file it is a no-op (unstage it first).
 		if fc := t.selectedFile(); fc != nil && !fc.Staged {
 			t.confirmDiscard = fc
 		}
@@ -586,8 +654,9 @@ func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
 	if fc == nil || fc.Status == gitdiff.StatusDeleted {
 		return nil
 	}
-	abs := filepath.Join(t.source.Workdir(), fc.Path)
-	editor, readCmd, err := startPTYEditor(abs, t.source.Workdir(), t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
+	workdir := t.readSource().Workdir()
+	abs := filepath.Join(workdir, fc.Path)
+	editor, readCmd, err := startPTYEditor(abs, workdir, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
 	if err != nil {
 		t.patchMsg = "Failed to open editor: " + err.Error()
 		return nil
@@ -635,7 +704,7 @@ func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		actDiffPatchSelect, actDiffPatchSplit, actDiffHunkPrev, actDiffHunkNext,
 		actDiffPatchApply, actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown) {
 	case actDiffCancel:
-		if t.patchSelAnchor >= 0 { // first esc cancels the selection, not the mode
+		if t.patchSelAnchor >= 0 {
 			t.patchSelAnchor = -1
 			t.rebuildPatchContent()
 			return t, nil
@@ -748,13 +817,12 @@ func (t *DiffViewerImpl) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, t
 	}
 	t.patchFile = msg.patch
 	if len(msg.patch.Hunks) == 0 {
-		// Whole file staged/unstaged - leave patch mode and refresh the tree.
 		t.patchMode = false
 		t.dirtyDiff = true
 		return t, t.loadCmd()
 	}
 	t.patchSelAnchor = -1
-	t.rebuildPatchRows() // change set may have shrunk; clamps the cursor
+	t.rebuildPatchRows()
 	t.rebuildPatchContent()
 	t.scrollToCursor()
 	return t, t.loadCmd()
@@ -1011,7 +1079,7 @@ func (t *DiffViewerImpl) renderPatch(width, height int) string {
 }
 
 func (t *DiffViewerImpl) loadCmd() tea.Cmd {
-	src := t.source
+	src := t.readSource()
 	return func() tea.Msg {
 		staged, unstaged, err := src.Changes()
 		return diffViewerLoadedMsg{staged: staged, unstaged: unstaged, err: err}
@@ -1233,24 +1301,46 @@ func (t *DiffViewerImpl) renderDivider(height int) string {
 }
 
 func (t *DiffViewerImpl) renderSidebar(width, height int) string {
+	tabBar := t.renderTabBar(width)
+	rowsHeight := height - 1
+	if rowsHeight <= 0 {
+		return tabBar
+	}
+
 	lines := t.sidebarLines(width)
 
 	start := 0
-	if len(lines) > height {
-		start = clampInt(t.cursor-height/2, 0, len(lines)-height)
+	if len(lines) > rowsHeight {
+		start = clampInt(t.cursor-rowsHeight/2, 0, len(lines)-rowsHeight)
 	}
 	t.sidebarScroll = start
 
 	blank := strings.Repeat(" ", width)
-	out := make([]string, height)
-	for i := range height {
+	out := make([]string, rowsHeight)
+	for i := range rowsHeight {
 		if idx := start + i; idx < len(lines) {
 			out[i] = lines[idx]
 		} else {
 			out[i] = blank
 		}
 	}
-	return strings.Join(out, "\n")
+	return tabBar + "\n" + strings.Join(out, "\n")
+}
+
+// renderTabBar draws the "Local · PR" tab header atop the sidebar, highlighting
+// the active tab.
+func (t *DiffViewerImpl) renderTabBar(width int) string {
+	accent := t.styleProvider.GetThemeColor("accent")
+	local, pr := "Local", "PR"
+	if t.activeTab == diffTabPR {
+		local = t.styleProvider.RenderDimText(local)
+		pr = t.styleProvider.RenderWithColorAndBold(pr, accent)
+	} else {
+		local = t.styleProvider.RenderWithColorAndBold(local, accent)
+		pr = t.styleProvider.RenderDimText(pr)
+	}
+	bar := local + t.styleProvider.RenderDimText(" · ") + pr
+	return t.padPlain(bar, "Local · PR", width)
 }
 
 func (t *DiffViewerImpl) sidebarLines(width int) []string {
@@ -1295,9 +1385,7 @@ func rowText(r diffRow) (left, badge string) {
 		return indent + chevron(r.collapsed) + " " + r.label, fmt.Sprintf("%d", r.count)
 	case rowFolder:
 		return indent + chevron(r.collapsed) + " " + r.label, ""
-	default: // rowFile
-		// Two-space placeholder where a chevron would be, so file labels sit one
-		// level deeper than their (chevron-prefixed) folder header.
+	default:
 		return indent + "  " + r.label, string(statusLetter(r.fc.Status))
 	}
 }
@@ -1390,7 +1478,7 @@ func (t *DiffViewerImpl) ensureDiff(fc gitdiff.FileChange, width int) {
 }
 
 func (t *DiffViewerImpl) computeDiff(fc gitdiff.FileChange, width int) string {
-	oldContent, newContent, isBinary, err := t.source.Diff(fc)
+	oldContent, newContent, isBinary, err := t.readSource().Diff(fc)
 	switch {
 	case err != nil:
 		return t.styleProvider.RenderErrorText("Failed to load diff: " + err.Error())

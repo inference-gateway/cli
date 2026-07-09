@@ -400,6 +400,7 @@ func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
 	add("patch", "stage hunks (enter patch mode)", "p")
 	add("edit", "edit the selected file (vim mode)", "v")
 	add("commit", "commit staged changes", "c")
+	add("switch_tab", "switch between the Local and PR tabs", "tab")
 	add("scroll_up", "scroll the diff up", "pgup")
 	add("scroll_down", "scroll the diff down", "pgdown", "pgdn")
 	add("halfpage_up", "scroll the diff up half a page", "ctrl+u")

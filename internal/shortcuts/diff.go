@@ -6,7 +6,9 @@ import (
 
 // DiffShortcut opens the changes panel (interactive diff viewer). It is a pure
 // view trigger with no dependencies - the side effect transitions the UI to the
-// diff viewer, which loads working-tree changes itself.
+// diff viewer, which loads working-tree changes itself. The viewer has two tabs
+// (Local working-tree changes and the current branch's PR diff), switched with
+// Tab; the PR tab is read-only.
 type DiffShortcut struct{}
 
 // NewDiffShortcut creates a new diff shortcut.
