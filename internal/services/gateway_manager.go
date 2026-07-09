@@ -1,13 +1,17 @@
 package services
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -426,7 +430,9 @@ func (gm *GatewayManager) isBinaryRunning() bool {
 	return false
 }
 
-// downloadBinary downloads the latest gateway binary using the installer script
+// downloadBinary downloads the latest gateway binary release directly from
+// GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
+// available to avoid the 60 req/hour unauthenticated rate limit
 func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	binaryDir := filepath.Join(".infer", "bin")
 	if err := os.MkdirAll(binaryDir, 0755); err != nil {
@@ -439,33 +445,160 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 		return binaryPath, nil
 	}
 
-	logger.Info("downloading latest gateway binary using installer")
+	logger.Info("downloading latest gateway binary")
 
 	fmt.Println("• Downloading gateway binary...")
 
-	absBinaryDir, err := filepath.Abs(binaryDir)
+	tag, err := latestGatewayTag(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %w", err)
+		return "", err
 	}
 
-	installCmd := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/inference-gateway/inference-gateway/main/install.sh | INSTALL_DIR=%s bash", absBinaryDir)
-
-	cmd := exec.CommandContext(ctx, "bash", "-c", installCmd)
-	cmd.Stdin = nil
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("installer failed: %w", err)
+	assetOS, assetArch, err := gatewayAssetPlatform()
+	if err != nil {
+		return "", err
 	}
 
-	if _, err := os.Stat(binaryPath); err != nil {
-		return "", fmt.Errorf("binary not found after installation: %w", err)
+	assetURL := fmt.Sprintf(
+		"https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.tar.gz",
+		tag, assetOS, assetArch,
+	)
+
+	if err := downloadAndExtractGatewayBinary(ctx, assetURL, binaryPath); err != nil {
+		return "", err
 	}
 
 	fmt.Println("• Gateway binary downloaded successfully")
-	logger.Info("gateway binary installed successfully", "path", binaryPath)
+	logger.Info("gateway binary installed successfully", "path", binaryPath, "version", tag)
 	return binaryPath, nil
+}
+
+// githubToken returns the GitHub token from the environment, preferring
+// GITHUB_TOKEN and falling back to GH_TOKEN (matching the gh CLI)
+func githubToken() string {
+	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
+		return t
+	}
+	return strings.TrimSpace(os.Getenv("GH_TOKEN"))
+}
+
+// latestGatewayTag resolves the latest gateway release tag via the GitHub
+// API, sending an Authorization header when a token is available
+func latestGatewayTag(ctx context.Context) (string, error) {
+	apiURL := "https://api.github.com/repos/inference-gateway/inference-gateway/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create release request: %w", err)
+	}
+	if t := githubToken(); t != "" {
+		req.Header.Set("Authorization", "Bearer "+t)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to query latest gateway release: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests) - set GITHUB_TOKEN (or GH_TOKEN) to raise the limit to 5,000/hour, or try again later")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to query latest gateway release: HTTP %d", resp.StatusCode)
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", fmt.Errorf("failed to decode release response: %w", err)
+	}
+	if release.TagName == "" {
+		return "", fmt.Errorf("latest gateway release has no tag name")
+	}
+	return release.TagName, nil
+}
+
+// gatewayAssetPlatform maps the current OS/arch to the gateway release asset
+// naming scheme (inference-gateway_<Os>_<arch>.tar.gz)
+func gatewayAssetPlatform() (string, string, error) {
+	var assetOS string
+	switch runtime.GOOS {
+	case "darwin":
+		assetOS = "Darwin"
+	case "linux":
+		assetOS = "Linux"
+	default:
+		return "", "", fmt.Errorf("no gateway binary release for OS %q", runtime.GOOS)
+	}
+
+	var assetArch string
+	switch runtime.GOARCH {
+	case "amd64":
+		assetArch = "x86_64"
+	case "arm64":
+		assetArch = "arm64"
+	case "arm":
+		assetArch = "armv7"
+	default:
+		return "", "", fmt.Errorf("no gateway binary release for architecture %q", runtime.GOARCH)
+	}
+
+	return assetOS, assetArch, nil
+}
+
+// downloadAndExtractGatewayBinary downloads a release tarball and extracts
+// the inference-gateway binary from it to destPath
+func downloadAndExtractGatewayBinary(ctx context.Context, url string, destPath string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create download request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to download gateway release: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download gateway release from %s: HTTP %d", url, resp.StatusCode)
+	}
+
+	gzReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read gateway release archive: %w", err)
+	}
+	defer func() { _ = gzReader.Close() }()
+
+	tarReader := tar.NewReader(gzReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read gateway release archive: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg || filepath.Base(header.Name) != "inference-gateway" {
+			continue
+		}
+
+		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create gateway binary: %w", err)
+		}
+		if _, err := io.Copy(out, tarReader); err != nil {
+			_ = out.Close()
+			_ = os.Remove(destPath)
+			return fmt.Errorf("failed to write gateway binary: %w", err)
+		}
+		return out.Close()
+	}
+
+	return fmt.Errorf("inference-gateway binary not found in release archive")
 }
 
 // runBinary starts the gateway binary
