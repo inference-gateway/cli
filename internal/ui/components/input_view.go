@@ -220,7 +220,6 @@ func (iv *InputView) buildGitBranchLabel() string {
 
 	label := fmt.Sprintf("%s %s", icons.GitBranch, branch)
 
-	// Append PR number when git_pr is enabled and a PR exists.
 	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
 		if pr := iv.getCurrentGitPR(); pr != "" {
 			label += " #" + pr
