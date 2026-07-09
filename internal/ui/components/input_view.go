@@ -55,6 +55,19 @@ type InputView struct {
 	gitBranchCacheTime   time.Time
 	gitBranchCacheTTL    time.Duration
 	gitPRCache           string
+	resolveGitBranch     func() (string, error)
+}
+
+// gitCurrentBranch returns the current git branch by shelling out to git. It is
+// the default resolver wired into getCurrentGitBranch; tests inject a stub via
+// the resolveGitBranch field so branch resolution is deterministic without a
+// real repository.
+func gitCurrentBranch() (string, error) {
+	output, err := exec.Command("git", "branch", "--show-current").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -87,6 +100,7 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		imageAttachments:  []domain.ImageAttachment{},
 		focused:           true,
 		gitBranchCacheTTL: 5 * time.Second,
+		resolveGitBranch:  gitCurrentBranch,
 	}
 }
 
@@ -234,8 +248,11 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 		return iv.gitBranchCache, true
 	}
 
-	cmd := exec.Command("git", "branch", "--show-current")
-	output, err := cmd.Output()
+	resolve := iv.resolveGitBranch
+	if resolve == nil {
+		resolve = gitCurrentBranch
+	}
+	branch, err := resolve()
 
 	iv.gitBranchCacheTime = time.Now()
 
@@ -244,7 +261,6 @@ func (iv *InputView) getCurrentGitBranch() (string, bool) {
 		return "", false
 	}
 
-	branch := strings.TrimSpace(string(output))
 	if iv.gitBranchCache != "" && branch != iv.gitBranchCache {
 		iv.gitPRCache = ""
 	}
