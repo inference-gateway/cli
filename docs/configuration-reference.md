@@ -634,7 +634,6 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_CLAUDE_CODE`: Custom system prompt for Claude Code mode
 - `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
 - `INFER_AGENT_VERBOSE_TOOLS`: Enable verbose tool output (default: `false`)
 

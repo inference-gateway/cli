@@ -190,12 +190,6 @@ func (m *ModelSelectorImpl) viewContent() string {
 	accentColor := m.styleProvider.GetThemeColor("accent")
 	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
 
-	if m.config != nil && m.config.ClaudeCode.Enabled {
-		successColor := m.styleProvider.GetThemeColor("success")
-		b.WriteString(" ")
-		b.WriteString(m.styleProvider.RenderWithColor("● Claude Subscription", successColor))
-	}
-
 	b.WriteString("\n\n")
 
 	m.writeViewTabs(&b)
@@ -371,13 +365,9 @@ func (m *ModelSelectorImpl) isModelFree(model string) bool {
 }
 
 // isModelSubscription reports whether a model is accessed via a flat-fee
-// subscription rather than per-token billing. All models are subscription in
-// Claude Code mode; otherwise it follows the pricing table's RequiresPro flag.
+// subscription rather than per-token billing. It follows the pricing table's
+// RequiresPro flag.
 func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
-	if m.config != nil && m.config.IsClaudeCodeMode() {
-		return true
-	}
-
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}

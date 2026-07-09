@@ -124,17 +124,3 @@ func TestInstructionsBlock_TruncationMarker(t *testing.T) {
 	block := InstructionsBlock(cfg)
 	require.Contains(t, block, "[truncated at 3 lines]")
 }
-
-func TestClaudeCodeAppend(t *testing.T) {
-	dir := t.TempDir()
-	writeInstructions(t, dir, "p", "plugin rules")
-	cfg := pluginsCfg(t, dir, config.PluginEntry{Name: "p", Enabled: true})
-	cfg.Prompts.Agent.SystemPromptClaudeCode = "base append"
-
-	got := ClaudeCodeAppend(cfg)
-	require.True(t, strings.HasPrefix(got, "base append"))
-	require.Contains(t, got, "PLUGIN INSTRUCTIONS (p):\nplugin rules")
-
-	cfg.Prompts.Agent.SystemPromptClaudeCode = ""
-	require.Equal(t, "PLUGIN INSTRUCTIONS (p):\nplugin rules", ClaudeCodeAppend(cfg))
-}

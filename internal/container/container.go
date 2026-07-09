@@ -29,7 +29,6 @@ import (
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -302,13 +301,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
 	}
 
-	if c.config.IsClaudeCodeMode() {
-		logger.Info("using static Claude model list (Claude Code mode)")
-		c.modelService = services.NewClaudeCodeModelService()
-	} else {
-		modelClient := c.createRawSDKClient()
-		c.modelService = services.NewHTTPModelService(modelClient)
-	}
+	modelClient := c.createRawSDKClient()
+	c.modelService = services.NewHTTPModelService(modelClient)
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
@@ -765,15 +759,9 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 }
 
 // createAgentSDKClient creates the SDK client for the agent
-// Returns domain.SDKClient which can be either ClaudeCodeClient or SDKClientAdapter
 func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
 	if c.config == nil {
 		panic("ServiceContainer: config is nil when creating SDK client")
-	}
-
-	if c.config.IsClaudeCodeMode() {
-		logger.Info("using Claude Code CLI mode (subscription-based)")
-		return adapters.NewClaudeCodeClient(&c.config.ClaudeCode, c.stateManager, plugins.ClaudeCodeAppend(c.config))
 	}
 
 	logger.Debug("using gateway mode (API-based)")

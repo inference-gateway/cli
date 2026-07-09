@@ -175,29 +175,13 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 
 // BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
 // send to the LLM. Exposed for the `infer debug agent system_prompt` command.
-// In Claude Code mode no prompt is sent at all - claude uses its own; only the
-// optional append (prompts.agent.system_prompt_claude_code) is reported.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
-	if s.config != nil && s.config.IsClaudeCodeMode() {
-		if appendPrompt := plugins.ClaudeCodeAppend(s.config); appendPrompt != "" {
-			return fmt.Sprintf("(claude_code mode: pass-through - appended to Claude Code's own system prompt via --append-system-prompt)\n\n%s", appendPrompt)
-		}
-		return "(claude_code mode: pass-through - no system prompt is sent; Claude Code uses its own)"
-	}
 	return s.buildSystemPromptText(nil)
 }
 
 // addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
-// info) to messages. In Claude Code mode the conversation is passed through
-// untouched: claude uses its own system prompt (an optional append lives in
-// prompts.agent.system_prompt_claude_code, applied via --append-system-prompt
-// by the adapter). BuildSystemPrompt still renders the gateway-mode prompt for
-// the debug command.
+// info) to messages.
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
-	if s.config != nil && s.config.IsClaudeCodeMode() {
-		return messages
-	}
-
 	prompt := s.buildSystemPromptText(messages)
 	if prompt == "" {
 		return messages
@@ -976,9 +960,8 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 	return nil
 }
 
-// parseProvider parses provider and model name from model string
-// Claude Code mode uses anthropic/-prefixed ids (like gateway mode); the bare
-// fallback returns "claude" only for legacy un-prefixed inputs.
+// parseProvider parses provider and model name from model string.
+// The bare fallback returns "claude" only for legacy un-prefixed inputs.
 func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	if s.config != nil {
 		cfg := s.config.GetAgentConfig()
@@ -1048,10 +1031,6 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 // guards the fired-set because the streaming goroutine (pre_session/pre_stream)
 // and the event-loop goroutine (the other points) can both reach here.
 func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
-	if s.config != nil && s.config.IsClaudeCodeMode() {
-		return
-	}
-
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders

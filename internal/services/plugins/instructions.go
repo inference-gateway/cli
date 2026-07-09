@@ -78,20 +78,6 @@ func Instructions(cfg *config.Config) []Instruction {
 	return out
 }
 
-// ClaudeCodeAppend composes the --append-system-prompt payload for Claude
-// Code mode. The project AGENTS.md is excluded - the claude CLI reads it
-// natively, so appending it would double-inject.
-func ClaudeCodeAppend(cfg *config.Config) string {
-	parts := make([]string, 0, 2)
-	if cfg != nil && cfg.Prompts.Agent.SystemPromptClaudeCode != "" {
-		parts = append(parts, cfg.Prompts.Agent.SystemPromptClaudeCode)
-	}
-	if block := InstructionsBlock(cfg); block != "" {
-		parts = append(parts, block)
-	}
-	return strings.Join(parts, "\n\n")
-}
-
 // InstructionsBlock renders the enabled plugins' rulesets as labeled system
 // prompt sections. Empty when no enabled plugin ships instructions.
 func InstructionsBlock(cfg *config.Config) string {

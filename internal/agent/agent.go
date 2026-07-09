@@ -457,10 +457,6 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		Duration:         duration,
 	}
 
-	if provider, ok := s.client.(domain.ToolCallResultProvider); ok {
-		syncResponse.ToolResults = provider.TakeToolCallResults()
-	}
-
 	return syncResponse, nil
 }
 
