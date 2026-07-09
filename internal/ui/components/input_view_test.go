@@ -725,8 +725,6 @@ func TestInputView_GetCurrentGitPR_ExpiredCache(t *testing.T) {
 	iv.gitPRCacheTime = time.Now().Add(-10 * time.Second)
 	iv.gitPRCacheTTL = 5 * time.Second
 
-	// Cache is expired, so getCurrentGitPR will try to shell out.
-	// In CI without a real gh connection, it should return "" on error.
 	pr := iv.getCurrentGitPR()
 	require.Empty(t, pr, "expired cache with no gh should return empty")
 }
