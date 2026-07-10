@@ -78,7 +78,10 @@ func (m *ModelSelectorImpl) buildForm() {
 	}
 
 	m.choice = ""
+	// The title line is also where huh renders the / filter input - without
+	// one the filter is invisible while typing.
 	m.sel = huh.NewSelect[string]().
+		Title(fmt.Sprintf("Press / to filter • %d models available", len(tabModels))).
 		Options(options...).
 		Height(m.selectHeight(len(tabModels))).
 		Value(&m.choice)

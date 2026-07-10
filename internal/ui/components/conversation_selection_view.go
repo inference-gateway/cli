@@ -68,6 +68,7 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 		}),
 		table.WithFocused(true),
 		table.WithHeight(c.tableHeight()),
+		table.WithWidth(c.width),
 		table.WithStyles(c.tableStyles()),
 	)
 
@@ -204,6 +205,7 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	c.width = msg.Width
 	c.height = msg.Height
+	c.table.SetWidth(c.width)
 	c.table.SetHeight(c.tableHeight())
 	return c, nil
 }
@@ -424,11 +426,13 @@ func (c *ConversationSelectorImpl) GetSelected() shortcuts.ConversationSummary {
 // SetWidth sets the width of the conversation selector
 func (c *ConversationSelectorImpl) SetWidth(width int) {
 	c.width = width
+	c.table.SetWidth(width)
 }
 
 // SetHeight sets the height of the conversation selector
 func (c *ConversationSelectorImpl) SetHeight(height int) {
 	c.height = height
+	c.table.SetHeight(c.tableHeight())
 }
 
 // Reset resets the conversation selector state for reuse
