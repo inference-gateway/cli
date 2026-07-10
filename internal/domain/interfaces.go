@@ -327,6 +327,7 @@ type ChatSessionManager interface {
 	IsAgentBusy() bool
 	SetRetryStatus(status *RetryStatus)
 	GetRetryStatus() *RetryStatus
+	TouchChatActivity()
 }
 
 // EventBridgeManager handles event multicast for floating window

@@ -90,6 +90,7 @@ gateway:
     - ollama_cloud/deepseek-v3.1:671b # Block specific models by default
 client:
   timeout: 200
+  stall_threshold_sec: 5
   retry:
     enabled: true
     max_attempts: 5
@@ -266,6 +267,7 @@ compact:
 ### Client Settings
 
 - **client.timeout**: HTTP client timeout in seconds
+- **client.stall_threshold_sec**: Seconds without a streamed chunk before the chat UI shows a reconnecting indicator (default: `5`, `0` disables)
 - **client.retry.enabled**: Enable automatic retries for failed requests
 - **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds

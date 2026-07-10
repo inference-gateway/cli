@@ -239,9 +239,7 @@ func (h *ChatHandler) HandleChatStartEvent(
 func (h *ChatHandler) HandleChatChunkEvent(
 	msg domain.ChatChunkEvent,
 ) tea.Cmd {
-	if h.stateManager.GetRetryStatus() != nil {
-		h.stateManager.SetRetryStatus(nil)
-	}
+	h.stateManager.TouchChatActivity()
 	return h.completionRunner.HandleChatChunk(msg)
 }
 

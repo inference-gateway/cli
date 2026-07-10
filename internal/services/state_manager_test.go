@@ -245,6 +245,56 @@ func TestStateManager_ChatSessionLifecycle(t *testing.T) {
 	assert.False(t, sm.IsAgentBusy())
 }
 
+func TestStateManager_RetryStatus(t *testing.T) {
+	sm := createTestStateManager()
+
+	assert.Nil(t, sm.GetRetryStatus(), "no session means no retry status")
+
+	err := sm.StartChatSession("req-123", "test-model", make(chan domain.ChatEvent))
+	assert.NoError(t, err)
+	assert.Nil(t, sm.GetRetryStatus(), "fresh session is not stalled")
+
+	sm.SetRetryStatus(&domain.RetryStatus{Attempt: 2, MaxAttempts: 5})
+	status := sm.GetRetryStatus()
+	assert.NotNil(t, status)
+	assert.Equal(t, 2, status.Attempt)
+
+	sm.TouchChatActivity()
+	assert.Nil(t, sm.GetRetryStatus(), "a chunk clears the retry status")
+}
+
+func TestStateManager_StallDetection(t *testing.T) {
+	sm := createTestStateManager()
+	sm.SetStallThreshold(10 * time.Millisecond)
+
+	err := sm.StartChatSession("req-123", "test-model", make(chan domain.ChatEvent))
+	assert.NoError(t, err)
+
+	assert.Nil(t, sm.GetRetryStatus(), "not stalled before the threshold elapses")
+
+	time.Sleep(20 * time.Millisecond)
+	status := sm.GetRetryStatus()
+	assert.NotNil(t, status, "no chunks past the threshold reads as stalled")
+	assert.Zero(t, status.Attempt, "synthesized stall status has no attempt count")
+
+	sm.TouchChatActivity()
+	assert.Nil(t, sm.GetRetryStatus(), "a chunk resets the stall clock")
+
+	time.Sleep(20 * time.Millisecond)
+	assert.NotNil(t, sm.GetRetryStatus(), "silence after the last chunk stalls again")
+
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusGenerating))
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusReceivingTools))
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusWaitingTools))
+	time.Sleep(20 * time.Millisecond)
+	assert.Nil(t, sm.GetRetryStatus(), "local tool execution is not a stalled connection")
+
+	sm.SetStallThreshold(0)
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusStarting))
+	time.Sleep(20 * time.Millisecond)
+	assert.Nil(t, sm.GetRetryStatus(), "zero threshold disables stall detection")
+}
+
 func TestStateManager_StateHistory(t *testing.T) {
 	sm := createTestStateManager()
 

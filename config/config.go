@@ -116,8 +116,9 @@ func (c SpeechToTextConfig) ResolveRecordingsDir() (string, error) {
 
 // ClientConfig contains HTTP client settings
 type ClientConfig struct {
-	Timeout int         `yaml:"timeout" mapstructure:"timeout"`
-	Retry   RetryConfig `yaml:"retry" mapstructure:"retry"`
+	Timeout           int         `yaml:"timeout" mapstructure:"timeout"`
+	StallThresholdSec int         `yaml:"stall_threshold_sec" mapstructure:"stall_threshold_sec"`
+	Retry             RetryConfig `yaml:"retry" mapstructure:"retry"`
 }
 
 // RetryConfig contains retry logic settings
@@ -725,7 +726,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			RecordingsDir:       "",
 		},
 		Client: ClientConfig{
-			Timeout: 200,
+			Timeout:           200,
+			StallThresholdSec: 5,
 			Retry: RetryConfig{
 				Enabled:              true,
 				MaxAttempts:          5,

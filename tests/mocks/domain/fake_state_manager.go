@@ -489,6 +489,10 @@ type FakeStateManager struct {
 	toggleUserQuestionOptionArgsForCall []struct {
 		arg1 int
 	}
+	TouchChatActivityStub        func()
+	touchChatActivityMutex       sync.RWMutex
+	touchChatActivityArgsForCall []struct {
+	}
 	TransitionToViewStub        func(domain.ViewState) error
 	transitionToViewMutex       sync.RWMutex
 	transitionToViewArgsForCall []struct {
@@ -3212,6 +3216,30 @@ func (fake *FakeStateManager) ToggleUserQuestionOptionArgsForCall(i int) int {
 	defer fake.toggleUserQuestionOptionMutex.RUnlock()
 	argsForCall := fake.toggleUserQuestionOptionArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) TouchChatActivity() {
+	fake.touchChatActivityMutex.Lock()
+	fake.touchChatActivityArgsForCall = append(fake.touchChatActivityArgsForCall, struct {
+	}{})
+	stub := fake.TouchChatActivityStub
+	fake.recordInvocation("TouchChatActivity", []interface{}{})
+	fake.touchChatActivityMutex.Unlock()
+	if stub != nil {
+		fake.TouchChatActivityStub()
+	}
+}
+
+func (fake *FakeStateManager) TouchChatActivityCallCount() int {
+	fake.touchChatActivityMutex.RLock()
+	defer fake.touchChatActivityMutex.RUnlock()
+	return len(fake.touchChatActivityArgsForCall)
+}
+
+func (fake *FakeStateManager) TouchChatActivityCalls(stub func()) {
+	fake.touchChatActivityMutex.Lock()
+	defer fake.touchChatActivityMutex.Unlock()
+	fake.TouchChatActivityStub = stub
 }
 
 func (fake *FakeStateManager) TransitionToView(arg1 domain.ViewState) error {

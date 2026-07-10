@@ -292,6 +292,7 @@ func NewChatApplication(
 	}
 	if sv, ok := app.statusView.(*components.StatusView); ok {
 		sv.SetKeyHintFormatter(keyHintFormatter)
+		sv.SetStateManager(app.stateManager)
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)

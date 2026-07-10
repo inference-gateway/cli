@@ -727,6 +727,17 @@ func (s *ApplicationState) GetRetryStatus() *RetryStatus {
 	return &status
 }
 
+// TouchChatActivity records that the stream produced output: it bumps the
+// session's LastActivity and clears any retry status, since receiving a
+// chunk means the connection is healthy again.
+func (s *ApplicationState) TouchChatActivity() {
+	if s.chatSession == nil {
+		return
+	}
+	s.chatSession.LastActivity = time.Now()
+	s.chatSession.RetryStatus = nil
+}
+
 // GetChatSession returns the current chat session
 func (s *ApplicationState) GetChatSession() *ChatSession {
 	return s.chatSession

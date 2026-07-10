@@ -377,10 +377,6 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		}
 	}
 
-	if reconnectingPart := isb.buildReconnectingIndicator(); reconnectingPart != "" {
-		parts = append(parts, indicatorPart{text: reconnectingPart})
-	}
-
 	return parts
 }
 
@@ -706,21 +702,6 @@ func (isb *InputStatusBar) buildCostIndicator() string {
 	} else {
 		return fmt.Sprintf("💰 $%.2f", costStats.TotalCost)
 	}
-}
-
-// buildReconnectingIndicator returns a "Reconnecting" indicator when the
-// HTTP client is retrying a failed request. Reads the retry status from
-// the active chat session so the user sees visual feedback during network
-// or provider outages.
-func (isb *InputStatusBar) buildReconnectingIndicator() string {
-	if isb.stateManager == nil {
-		return ""
-	}
-	status := isb.stateManager.GetRetryStatus()
-	if status == nil {
-		return ""
-	}
-	return fmt.Sprintf("Reconnecting (%d/%d)", status.Attempt, status.MaxAttempts)
 }
 
 // getToolInfo returns tool count and token information
