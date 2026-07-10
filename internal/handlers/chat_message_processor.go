@@ -109,7 +109,14 @@ func (p *ChatMessageProcessor) isSkillInvocation(content string) bool {
 	if !ok {
 		return false
 	}
-	_, found := p.handler.skillsService.Get(strings.ToLower(name))
+	lower := strings.ToLower(name)
+
+	if parts := strings.SplitN(lower, ":", 2); len(parts) == 2 {
+		_, found := p.handler.skillsService.Get(parts[1])
+		return found
+	}
+
+	_, found := p.handler.skillsService.Get(lower)
 	return found
 }
 
