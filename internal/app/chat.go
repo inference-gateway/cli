@@ -456,7 +456,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 
-	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
+	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
 	if event, ok := msg.(domain.MCPServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
@@ -606,16 +606,7 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
-
-	inHistoryMode := false
-	if cv, ok := app.conversationView.(*components.ConversationView); ok {
-		inHistoryMode = cv.IsInMessageHistoryMode()
-	}
-
-	inputBlocked := app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
-		app.stateManager.GetUserQuestionUIState() != nil ||
-		inHistoryMode || currentView == domain.ViewStateDiffViewer ||
-		currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp
+	inputBlocked := app.isInputBlocked(currentView)
 
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetDisabled(inputBlocked)
@@ -653,6 +644,23 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	default:
 		return nil
 	}
+}
+
+// ponytail: extracted to reduce cyclomatic complexity of handleViewSpecificMessages
+func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
+	inHistoryMode := false
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		inHistoryMode = cv.IsInMessageHistoryMode()
+	}
+
+	return currentView != domain.ViewStateChat ||
+		app.stateManager.GetApprovalUIState() != nil ||
+		app.stateManager.GetPlanApprovalUIState() != nil ||
+		app.stateManager.GetUserQuestionUIState() != nil ||
+		inHistoryMode ||
+		currentView == domain.ViewStateDiffViewer ||
+		currentView == domain.ViewStateExplorer ||
+		currentView == domain.ViewStateHelp
 }
 
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
@@ -1459,7 +1467,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 	model, cmd := app.conversationSelector.Update(msg)
 	app.conversationSelector = model.(*components.ConversationSelectorImpl)
 
-	if cmd != nil {
+	if cmd != nil && !app.conversationSelector.IsSelected() {
 		cmds = append(cmds, cmd)
 	}
 
@@ -1481,9 +1489,11 @@ func (app *ChatApplication) handleConversationSelection(cmds []tea.Cmd) []tea.Cm
 func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd {
 	selectedConv := app.conversationSelector.GetSelected()
 	if selectedConv.ID != "" {
-		cmds = append(cmds, func() tea.Msg {
+		cmds = append(cmds, tea.Sequence(clearStatusCmd(), func() tea.Msg {
 			return domain.ConversationSelectedEvent{ConversationID: selectedConv.ID}
-		})
+		}))
+	} else {
+		cmds = append(cmds, clearStatusCmd())
 	}
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
@@ -1495,12 +1505,24 @@ func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd
 }
 
 func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cmd {
+	cmds = append(cmds, clearStatusCmd())
+
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
 	app.focusedComponent = app.inputView
 	return cmds
+}
+
+func clearStatusCmd() tea.Cmd {
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
 }
 
 func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
@@ -2199,7 +2221,7 @@ func (app *ChatApplication) findAtSymbolBeforeCursor(input string, cursor int) i
 	return -1
 }
 
-func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView domain.ViewState) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if handled := app.handleWindowAndSetupEvents(msg, &cmds); handled {
@@ -2210,7 +2232,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	app.updateMainUIComponents(msg, &cmds)
+	app.updateMainUIComponents(msg, activeView, &cmds)
 
 	app.updateOptionalComponents(msg, &cmds)
 
@@ -2254,15 +2276,15 @@ func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) 
 }
 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
-func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg, activeView domain.ViewState) []tea.Cmd {
 	switch msg.(type) {
 	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyPressMsg, tea.FocusMsg, tea.BlurMsg:
-		return app.updateUIComponents(msg)
+		return app.updateUIComponents(msg, activeView)
 	}
 
 	msgType := fmt.Sprintf("%T", msg)
 	if strings.HasPrefix(msgType, "domain.") || strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
-		return app.updateUIComponents(msg)
+		return app.updateUIComponents(msg, activeView)
 	}
 
 	return nil
@@ -2280,7 +2302,7 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 }
 
 // updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
-func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd) {
+func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView domain.ViewState, cmds *[]tea.Cmd) {
 	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if convModel, ok := model.(ui.ConversationRenderer); ok {
@@ -2296,7 +2318,7 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		if app.keyBindingManager.ShouldSkipInputUpdate(keyMsg) {
+		if app.shouldSkipInputKeyUpdate(keyMsg, activeView) {
 			return
 		}
 	}
@@ -2322,6 +2344,19 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		}
 	}
 
+}
+
+func (app *ChatApplication) shouldSkipInputKeyUpdate(keyMsg tea.KeyPressMsg, activeView domain.ViewState) bool {
+	if activeView != domain.ViewStateChat {
+		return true
+	}
+	if app.inputView != nil && app.inputView.IsDisabled() {
+		return true
+	}
+	if app.keyBindingManager == nil {
+		return false
+	}
+	return app.keyBindingManager.ShouldSkipInputUpdate(keyMsg)
 }
 
 // updateOptionalComponents updates optional components (conversation selector, task manager)
