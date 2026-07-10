@@ -245,9 +245,6 @@ func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
 	stdout, code := runAgent(t, url, dir, "create a file named blocked.txt")
 	require.Zero(t, code)
 
-	// In headless agent mode the approval policy bypasses approval for all
-	// tools (see StandardApprovalPolicy.ShouldRequireApproval), so the Write
-	// tool executes normally and the file is created.
 	require.FileExists(t, filepath.Join(dir, "blocked.txt"),
 		"Write executes in headless mode (no approval gate)")
 
