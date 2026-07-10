@@ -9,10 +9,34 @@ import (
 	"testing"
 )
 
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
+}
+
+func fileCount(t *testing.T, dir string) int {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(entries)
+}
+
 func TestArchiveLogFile(t *testing.T) {
 	t.Run("non-existent file is a no-op", func(t *testing.T) {
-		err := archiveLogFile("/tmp/nonexistent-test-file.log", 1024)
-		if err != nil {
+		if err := archiveLogFile("/tmp/nonexistent-test-file.log", 1024); err != nil {
 			t.Fatalf("expected no error for non-existent file, got: %v", err)
 		}
 	})
@@ -20,12 +44,9 @@ func TestArchiveLogFile(t *testing.T) {
 	t.Run("file below threshold is a no-op", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.log")
-		if err := os.WriteFile(path, []byte("small log content"), 0644); err != nil {
-			t.Fatal(err)
-		}
+		writeTestFile(t, path, "small log content")
 
-		err := archiveLogFile(path, 1024)
-		if err != nil {
+		if err := archiveLogFile(path, 1024); err != nil {
 			t.Fatalf("expected no error for small file, got: %v", err)
 		}
 
@@ -36,53 +57,34 @@ func TestArchiveLogFile(t *testing.T) {
 		if string(data) != "small log content" {
 			t.Fatalf("expected file content unchanged, got: %s", string(data))
 		}
-
-		entries, _ := os.ReadDir(dir)
-		if len(entries) != 1 {
-			t.Fatalf("expected 1 file (no archive), got %d", len(entries))
+		if n := fileCount(t, dir); n != 1 {
+			t.Fatalf("expected 1 file (no archive), got %d", n)
 		}
 	})
 
 	t.Run("file above threshold is archived and truncated", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.log")
-
 		size := 10 * 1024 * 1024
-		data := []byte(strings.Repeat("A", size))
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			t.Fatal(err)
-		}
+		writeTestFile(t, path, strings.Repeat("A", size))
 
-		err := archiveLogFile(path, 1)
-		if err != nil {
+		if err := archiveLogFile(path, 1); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 
-		info, err := os.Stat(path)
-		if err != nil {
-			t.Fatal(err)
+		if s := fileSize(t, path); s != 0 {
+			t.Fatalf("expected truncated file (size 0), got %d", s)
 		}
-		if info.Size() != 0 {
-			t.Fatalf("expected truncated file (size 0), got %d", info.Size())
-		}
-
-		entries, _ := os.ReadDir(dir)
-		if len(entries) != 2 {
-			t.Fatalf("expected 2 files (log + archive), got %d", len(entries))
+		if n := fileCount(t, dir); n != 2 {
+			t.Fatalf("expected 2 files (log + archive), got %d", n)
 		}
 
-		var archivePath string
-		for _, e := range entries {
-			if strings.HasSuffix(e.Name(), ".gz") {
-				archivePath = filepath.Join(dir, e.Name())
-				break
-			}
-		}
-		if archivePath == "" {
-			t.Fatal("no archive file found")
+		matches, err := filepath.Glob(filepath.Join(dir, "*.gz"))
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("expected exactly one archive file, got %v (err: %v)", matches, err)
 		}
 
-		f, err := os.Open(archivePath)
+		f, err := os.Open(matches[0])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,27 +105,21 @@ func TestArchiveLogFile(t *testing.T) {
 		}
 	})
 
-	t.Run("disabled archiving does nothing", func(t *testing.T) {
+	t.Run("zero threshold disables archiving", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.log")
-
 		size := 10 * 1024 * 1024
-		data := []byte(strings.Repeat("B", size))
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			t.Fatal(err)
-		}
+		writeTestFile(t, path, strings.Repeat("B", size))
 
-		err := archiveLogFile(path, 0)
-		if err != nil {
+		if err := archiveLogFile(path, 0); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 
-		info, err := os.Stat(path)
-		if err != nil {
-			t.Fatal(err)
+		if s := fileSize(t, path); s != int64(size) {
+			t.Fatalf("expected file untouched (size %d), got %d", size, s)
 		}
-		if info.Size() != 0 {
-			t.Fatalf("expected truncated file (size 0), got %d", info.Size())
+		if n := fileCount(t, dir); n != 1 {
+			t.Fatalf("expected 1 file (no archive), got %d", n)
 		}
 	})
 }

@@ -52,7 +52,7 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 
 	logFile := fmt.Sprintf("%s/app-%s.log", logDir, time.Now().Format("2006-01-02"))
 
-	if cfg.ArchiveEnabled && cfg.ArchiveMaxSizeMB > 0 {
+	if cfg.ArchiveEnabled {
 		if err := archiveLogFile(logFile, cfg.ArchiveMaxSizeMB); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to archive log file %s: %v\n", logFile, err)
 		}
@@ -169,6 +169,10 @@ func Close() {
 // the file is gzip-compressed and renamed with a timestamp suffix, then
 // truncated so the logger can continue writing to the original path.
 func archiveLogFile(path string, maxSizeMB int) error {
+	if maxSizeMB <= 0 {
+		return nil
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
