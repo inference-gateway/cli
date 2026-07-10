@@ -111,6 +111,10 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stream {
+		if turn.Stall != nil && s.consumeFailure("stall:"+name, step, &ErrorInject{Times: turn.Stall.Times}) {
+			renderStalledStream(w, r)
+			return
+		}
 		s.renderStream(w, r, req.Model, step, turn)
 		return
 	}
@@ -165,6 +169,24 @@ func (s *Server) renderSync(w http.ResponseWriter, r *http.Request, model string
 		Choices: []sdk.ChatCompletionChoice{{Index: 0, FinishReason: turn.finishReason(), Message: msg}},
 		Usage:   turn.usage(),
 	})
+}
+
+// renderStalledStream emits the initial role delta and then holds the
+// connection open without further frames until the client disconnects.
+func renderStalledStream(w http.ResponseWriter, r *http.Request) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "mockgateway: streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+
+	sw := &streamWriter{w: w, fl: fl, ctx: r.Context()}
+	if !sw.delta(sdk.ChatCompletionStreamResponseDelta{Role: sdk.Assistant}, "") {
+		return
+	}
+	<-r.Context().Done()
 }
 
 func (s *Server) renderStream(w http.ResponseWriter, r *http.Request, model string, step int, turn Turn) {

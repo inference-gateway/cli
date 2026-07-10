@@ -31,19 +31,6 @@ func (a *EventDrivenAgent) startStreaming() {
 		time.Sleep(constants.AgentIterationDelay)
 	}
 
-	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
-	defer requestCancel()
-
-	a.service.requestsMux.Lock()
-	a.service.activeRequests[a.req.RequestID] = requestCancel
-	a.service.requestsMux.Unlock()
-
-	defer func() {
-		a.service.requestsMux.Lock()
-		delete(a.service.activeRequests, a.req.RequestID)
-		a.service.requestsMux.Unlock()
-	}()
-
 	a.eventPublisher.publishChatStart()
 
 	if a.agentCtx.Turns == 1 {
@@ -74,6 +61,54 @@ func (a *EventDrivenAgent) startStreaming() {
 
 	a.service.ensureConversationIntegrity(a.agentCtx.Conversation, a.eventPublisher, a.req.RequestID, false)
 
+	maxReconnects := 0
+	if retryCfg := a.service.config.Client.Retry; retryCfg.Enabled {
+		maxReconnects = retryCfg.MaxAttempts
+	}
+
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			if a.service.stateManager != nil {
+				a.service.stateManager.SetRetryStatus(&domain.RetryStatus{Attempt: attempt, MaxAttempts: maxReconnects})
+			}
+			a.eventPublisher.publishChatStart()
+		}
+
+		if !a.streamOnce(client, iterationStartTime) {
+			return
+		}
+
+		if attempt >= maxReconnects {
+			a.failStream(fmt.Errorf("connection lost: stream stalled after %d reconnect attempts", maxReconnects))
+			return
+		}
+
+		select {
+		case <-a.agentCtx.Ctx.Done():
+			return
+		case <-time.After(a.reconnectBackoff(attempt)):
+		}
+	}
+}
+
+// streamOnce runs a single streaming request end to end. It returns true when
+// the stream broke mid-flight (stalled or transport error) and the caller
+// should reconnect, false when the turn finished - successfully, cancelled, or
+// with a non-recoverable error that has already been published.
+func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTime time.Time) bool {
+	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
+	defer requestCancel()
+
+	a.service.requestsMux.Lock()
+	a.service.activeRequests[a.req.RequestID] = requestCancel
+	a.service.requestsMux.Unlock()
+
+	defer func() {
+		a.service.requestsMux.Lock()
+		delete(a.service.activeRequests, a.req.RequestID)
+		a.service.requestsMux.Unlock()
+	}()
+
 	events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
 	if err != nil {
 		logger.Error("failed to create stream",
@@ -81,44 +116,92 @@ func (a *EventDrivenAgent) startStreaming() {
 			"turn", a.agentCtx.Turns,
 			"conversationLength", len(*a.agentCtx.Conversation),
 			"provider", a.provider)
-		a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
-			RequestID: a.req.RequestID,
-			Timestamp: time.Now(),
-			Error:     err,
-		}
-		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
-			logger.Error("failed to transition to Error state after stream failure", "error", err)
-		}
-		a.events <- domain.MessageReceivedEvent{}
-		return
+		a.failStream(err)
+		return false
 	}
 
-	a.processStreamEvents(requestCtx, events, iterationStartTime)
+	return a.processStreamEvents(requestCtx, events, iterationStartTime)
 }
 
-// processStreamEvents processes streaming events from the LLM
+// failStream publishes a terminal stream error and moves the state machine to
+// StateError.
+func (a *EventDrivenAgent) failStream(err error) {
+	a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
+		RequestID: a.req.RequestID,
+		Timestamp: time.Now(),
+		Error:     err,
+	}
+	if terr := a.stateMachine.Transition(a.agentCtx, domain.StateError); terr != nil {
+		logger.Error("failed to transition to Error state after stream failure", "error", terr)
+	}
+	a.events <- domain.MessageReceivedEvent{}
+}
+
+// reconnectBackoff returns the exponential backoff delay before reconnect
+// attempt number attempt+1, derived from the client retry config.
+func (a *EventDrivenAgent) reconnectBackoff(attempt int) time.Duration {
+	retryCfg := a.service.config.Client.Retry
+	delay := time.Duration(retryCfg.InitialBackoffSec) * time.Second
+	if delay <= 0 {
+		delay = time.Second
+	}
+	for range attempt {
+		delay = time.Duration(float64(delay) * float64(retryCfg.BackoffMultiplier))
+	}
+	if maxDelay := time.Duration(retryCfg.MaxBackoffSec) * time.Second; maxDelay > 0 && delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay
+}
+
+// processStreamEvents processes streaming events from the LLM. It returns true
+// when the stream broke mid-flight - no events for the configured stall
+// threshold, or a transport read error - so the caller can reconnect.
 func (a *EventDrivenAgent) processStreamEvents(
 	requestCtx context.Context,
 	events <-chan sdk.SSEvent,
 	iterationStartTime time.Time,
-) {
+) bool {
 	var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
 	var message sdk.Message
 	var streamUsage *sdk.CompletionUsage
+
+	var stallC <-chan time.Time
+	var stallTimer *time.Timer
+	stallAfter := time.Duration(a.service.config.Client.StallThresholdSec) * time.Second
+	if stallAfter > 0 {
+		stallTimer = time.NewTimer(stallAfter)
+		defer stallTimer.Stop()
+		stallC = stallTimer.C
+	}
 
 	for {
 		select {
 		case <-requestCtx.Done():
 			a.handleStreamInterrupted(requestCtx, message)
-			return
+			return false
+
+		case <-stallC:
+			logger.Warn("stream stalled, reconnecting",
+				"request_id", a.req.RequestID,
+				"stalled_for", stallAfter.String())
+			return true
 
 		case event, ok := <-events:
 			if !ok {
 				a.finalizeStream(message, allToolCallDeltas, streamUsage, iterationStartTime)
-				return
+				return false
 			}
 
-			if usage := a.processStreamEvent(event, &message, &allToolCallDeltas); usage != nil {
+			if stallTimer != nil {
+				stallTimer.Reset(stallAfter)
+			}
+
+			usage, broken := a.processStreamEvent(event, &message, &allToolCallDeltas)
+			if broken {
+				return true
+			}
+			if usage != nil {
 				streamUsage = usage
 			}
 		}
@@ -189,24 +272,30 @@ func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 	}
 }
 
-// processStreamEvent processes a single SSE event from the stream
+// processStreamEvent processes a single SSE event from the stream. The second
+// return value is true when the event signals a broken transport - the SDK
+// emits an event with a nil Event type and an error payload when the
+// connection drops mid-stream.
 func (a *EventDrivenAgent) processStreamEvent(
 	event sdk.SSEvent,
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
-) *sdk.CompletionUsage {
+) (*sdk.CompletionUsage, bool) {
 	if event.Event == nil {
-		logger.Error("event is nil")
-		return nil
+		if event.Data != nil {
+			logger.Error("stream transport error", "data", string(*event.Data))
+			return nil, true
+		}
+		return nil, false
 	}
 
 	if event.Data == nil {
-		return nil
+		return nil, false
 	}
 
 	switch string(*event.Event) {
 	case "message_stop", "system_init", "hook_event", "tool_failure", "result_metadata":
-		return nil
+		return nil, false
 	}
 
 	var streamResponse sdk.CreateChatCompletionStreamResponse
@@ -214,7 +303,7 @@ func (a *EventDrivenAgent) processStreamEvent(
 		logger.Error("failed to unmarshal chat completion stream response",
 			"error", err,
 			"raw_data", string(*event.Data))
-		return nil
+		return nil, false
 	}
 
 	var streamUsage *sdk.CompletionUsage
@@ -226,7 +315,7 @@ func (a *EventDrivenAgent) processStreamEvent(
 		a.processChoiceDelta(choice, message, allToolCallDeltas)
 	}
 
-	return streamUsage
+	return streamUsage, false
 }
 
 // processChoiceDelta processes a single choice delta from the stream response

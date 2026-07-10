@@ -74,6 +74,12 @@ scenarios:
     turns:
       - error: { status: 500, times: -1 }
 
+  - name: stalled-stream
+    match: '(?i)stall the stream'
+    turns:
+      - stall: { times: 1 }
+        content: "Reconnected after the stall."
+
   - name: malformed-sse
     match: '(?i)garbled stream'
     turns:
