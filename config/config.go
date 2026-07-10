@@ -132,9 +132,18 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug  bool   `yaml:"debug" mapstructure:"debug"`
-	Dir    string `yaml:"dir" mapstructure:"dir"`
-	Stdout bool   `yaml:"stdout" mapstructure:"stdout"`
+	Debug   bool          `yaml:"debug" mapstructure:"debug"`
+	Dir     string        `yaml:"dir" mapstructure:"dir"`
+	Stdout  bool          `yaml:"stdout" mapstructure:"stdout"`
+	Archive ArchiveConfig `yaml:"archive" mapstructure:"archive"`
+}
+
+// ArchiveConfig contains log archiving/rotation settings.
+// When enabled, log files exceeding MaxSizeMB are automatically archived
+// (compressed and renamed) to prevent unbounded disk usage.
+type ArchiveConfig struct {
+	Enabled   bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxSizeMB int  `yaml:"max_size_mb" mapstructure:"max_size_mb"`
 }
 
 // ImageConfig contains image service settings
@@ -730,6 +739,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			Debug:  false,
 			Dir:    "",
 			Stdout: false,
+			Archive: ArchiveConfig{
+				Enabled:   true,
+				MaxSizeMB: 1024,
+			},
 		},
 		Tools: ToolsConfig{
 			Enabled: true,

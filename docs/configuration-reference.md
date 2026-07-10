@@ -101,6 +101,9 @@ logging:
   debug: false
   dir: "" # Override log directory (defaults to <config-dir>/logs)
   stdout: false # Also write logs to stdout/stderr in addition to the log file
+  archive:
+    enabled: true # Automatically archive oversized log files (default: true)
+    max_size_mb: 1024 # Threshold in MB; files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
   sandbox:
@@ -273,6 +276,10 @@ compact:
 - **logging.debug**: Enable debug logging for verbose output
 - **logging.dir**: Override the log directory (defaults to `<config-dir>/logs`)
 - **logging.stdout**: Also write logs to stdout/stderr in addition to the log file (default: `false`)
+- **logging.archive.enabled**: Enable automatic log archiving (default: `true`).
+  When enabled, log files exceeding the size threshold are gzip-compressed and
+  truncated.
+- **logging.archive.max_size_mb**: Maximum log file size in MB before archiving is triggered (default: `1024`, i.e. 1 GB). Set via `INFER_LOGGING_ARCHIVE_MAX_SIZE_MB`.
 
 ### Tool Settings
 

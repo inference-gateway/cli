@@ -199,15 +199,19 @@ func initConfig() {
 	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")
 	stdout := v.GetBool("logging.stdout")
+	archiveEnabled := v.GetBool("logging.archive.enabled")
+	archiveMaxSizeMB := v.GetInt("logging.archive.max_size_mb")
 
 	if logDir == "" {
 		logDir = config.DefaultLogsPath
 	}
 
 	logger.Init(logger.Config{
-		Verbose: verbose,
-		Debug:   debug,
-		LogDir:  logDir,
-		Stdout:  stdout,
+		Verbose:          verbose,
+		Debug:            debug,
+		LogDir:           logDir,
+		Stdout:           stdout,
+		ArchiveEnabled:   archiveEnabled,
+		ArchiveMaxSizeMB: archiveMaxSizeMB,
 	})
 }
