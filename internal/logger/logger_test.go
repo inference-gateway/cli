@@ -29,7 +29,6 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatalf("expected no error for small file, got: %v", err)
 		}
 
-		// File should still exist and be unchanged
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -38,7 +37,6 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatalf("expected file content unchanged, got: %s", string(data))
 		}
 
-		// No archive should have been created
 		entries, _ := os.ReadDir(dir)
 		if len(entries) != 1 {
 			t.Fatalf("expected 1 file (no archive), got %d", len(entries))
@@ -49,20 +47,17 @@ func TestArchiveLogFile(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.log")
 
-		// Write 10 MB of data
 		size := 10 * 1024 * 1024
 		data := []byte(strings.Repeat("A", size))
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			t.Fatal(err)
 		}
 
-		// Archive with threshold of 1 MB
 		err := archiveLogFile(path, 1)
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 
-		// Original file should be truncated (empty)
 		info, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)
@@ -71,13 +66,11 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatalf("expected truncated file (size 0), got %d", info.Size())
 		}
 
-		// An archive file should exist
 		entries, _ := os.ReadDir(dir)
 		if len(entries) != 2 {
 			t.Fatalf("expected 2 files (log + archive), got %d", len(entries))
 		}
 
-		// Find the archive file
 		var archivePath string
 		for _, e := range entries {
 			if strings.HasSuffix(e.Name(), ".gz") {
@@ -89,7 +82,6 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatal("no archive file found")
 		}
 
-		// Verify the archive is valid gzip and contains the original data
 		f, err := os.Open(archivePath)
 		if err != nil {
 			t.Fatal(err)
@@ -115,7 +107,6 @@ func TestArchiveLogFile(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.log")
 
-		// Write 10 MB of data
 		size := 10 * 1024 * 1024
 		data := []byte(strings.Repeat("B", size))
 		if err := os.WriteFile(path, data, 0644); err != nil {
@@ -131,7 +122,6 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 
-		// With threshold 0, any file is above threshold
 		info, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)

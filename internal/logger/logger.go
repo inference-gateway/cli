@@ -172,24 +172,22 @@ func archiveLogFile(path string, maxSizeMB int) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // nothing to archive
+			return nil
 		}
 		return fmt.Errorf("stat: %w", err)
 	}
 
 	maxBytes := int64(maxSizeMB) * 1024 * 1024
 	if info.Size() <= maxBytes {
-		return nil // below threshold
+		return nil
 	}
 
-	// Open the file for reading
 	src, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
 	defer func() { _ = src.Close() }()
 
-	// Build the archive path: app-{date}-{timestamp}.log.gz
 	ts := time.Now().Unix()
 	archivePath := path + fmt.Sprintf(".%d.gz", ts)
 
@@ -208,7 +206,6 @@ func archiveLogFile(path string, maxSizeMB int) error {
 		return fmt.Errorf("close gzip: %w", err)
 	}
 
-	// Truncate the original file so the logger starts fresh
 	if err := os.Truncate(path, 0); err != nil {
 		return fmt.Errorf("truncate: %w", err)
 	}
