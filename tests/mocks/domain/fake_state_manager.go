@@ -406,6 +406,11 @@ type FakeStateManager struct {
 	setPlanApprovalSelectedIndexArgsForCall []struct {
 		arg1 int
 	}
+	SetRetryStatusStub        func(*domain.RetryStatus)
+	setRetryStatusMutex       sync.RWMutex
+	setRetryStatusArgsForCall []struct {
+		arg1 *domain.RetryStatus
+	}
 	SetTodosStub        func([]domain.TodoItem)
 	setTodosMutex       sync.RWMutex
 	setTodosArgsForCall []struct {
@@ -2707,6 +2712,38 @@ func (fake *FakeStateManager) SetPlanApprovalSelectedIndexArgsForCall(i int) int
 	fake.setPlanApprovalSelectedIndexMutex.RLock()
 	defer fake.setPlanApprovalSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setPlanApprovalSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetRetryStatus(arg1 *domain.RetryStatus) {
+	fake.setRetryStatusMutex.Lock()
+	fake.setRetryStatusArgsForCall = append(fake.setRetryStatusArgsForCall, struct {
+		arg1 *domain.RetryStatus
+	}{arg1})
+	stub := fake.SetRetryStatusStub
+	fake.recordInvocation("SetRetryStatus", []interface{}{arg1})
+	fake.setRetryStatusMutex.Unlock()
+	if stub != nil {
+		fake.SetRetryStatusStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetRetryStatusCallCount() int {
+	fake.setRetryStatusMutex.RLock()
+	defer fake.setRetryStatusMutex.RUnlock()
+	return len(fake.setRetryStatusArgsForCall)
+}
+
+func (fake *FakeStateManager) SetRetryStatusCalls(stub func(*domain.RetryStatus)) {
+	fake.setRetryStatusMutex.Lock()
+	defer fake.setRetryStatusMutex.Unlock()
+	fake.SetRetryStatusStub = stub
+}
+
+func (fake *FakeStateManager) SetRetryStatusArgsForCall(i int) *domain.RetryStatus {
+	fake.setRetryStatusMutex.RLock()
+	defer fake.setRetryStatusMutex.RUnlock()
+	argsForCall := fake.setRetryStatusArgsForCall[i]
 	return argsForCall.arg1
 }
 

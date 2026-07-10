@@ -738,6 +738,17 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
+
+			// Update the retry status on the chat session so the UI
+			// can show a "Reconnecting" indicator in the status bar.
+			if c.stateManager != nil {
+				c.stateManager.SetRetryStatus(&domain.RetryStatus{
+					Attempt:     attempt,
+					MaxAttempts: c.config.Client.Retry.MaxAttempts,
+					IsRetrying:  true,
+				})
+			}
+
 			if originalOnRetry != nil {
 				originalOnRetry(attempt, err, delay)
 			}

@@ -152,6 +152,15 @@ func (sm *StateManager) SetChatPending() {
 	}
 }
 
+// SetRetryStatus updates the retry status on the current chat session.
+// Called by the HTTP client's OnRetry callback to provide visual feedback
+// in the status bar when the client is reconnecting after a failure.
+func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetRetryStatus(status)
+}
+
 func isTerminalChatStatus(s domain.ChatStatus) bool {
 	switch s {
 	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:

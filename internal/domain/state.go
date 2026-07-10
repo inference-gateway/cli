@@ -202,6 +202,13 @@ type QueuedMessage struct {
 	RequestID string
 }
 
+// RetryStatus tracks the current retry state for reconnection attempts
+type RetryStatus struct {
+	Attempt     int
+	MaxAttempts int
+	IsRetrying  bool
+}
+
 // ChatSession represents an active chat session state
 type ChatSession struct {
 	RequestID    string
@@ -212,6 +219,7 @@ type ChatSession struct {
 	IsFirstChunk bool
 	HasToolCalls bool
 	LastActivity time.Time
+	RetryStatus  *RetryStatus
 }
 
 // ChatStatus represents the current chat operation status
@@ -699,6 +707,13 @@ func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool
 // EndChatSession cleans up the chat session
 func (s *ApplicationState) EndChatSession() {
 	s.chatSession = nil
+}
+
+// SetRetryStatus updates the retry status on the current chat session
+func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
+	if s.chatSession != nil {
+		s.chatSession.RetryStatus = status
+	}
 }
 
 // GetChatSession returns the current chat session
