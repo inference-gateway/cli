@@ -692,10 +692,7 @@ func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
 		for _, field := range strings.Fields(text) {
 			if name, ok := strings.CutPrefix(field, "/"); ok {
 				lower := strings.ToLower(name)
-				// Try "/plugin:skill" syntax first
 				if m := skillPluginRef.FindStringSubmatch(lower); m != nil {
-					// m[1] = plugin name, m[2] = skill name
-					// Look up by skill name - the skills service already has it
 					add(m[2])
 				} else {
 					add(skillNameLead.FindString(lower))

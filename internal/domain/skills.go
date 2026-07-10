@@ -23,7 +23,7 @@ type Skill struct {
 	Description string
 	Path        string
 	Scope       SkillScope
-	PluginName  string // non-empty only when Scope is SkillScopePlugin
+	PluginName  string
 }
 
 // SkillLoadError records a per-skill validation failure so `infer skills

@@ -163,7 +163,7 @@ func (s *Service) Errors() []domain.SkillLoadError {
 type scopedDir struct {
 	dir        string
 	scope      domain.SkillScope
-	pluginName string // non-empty only when scope is SkillScopePlugin
+	pluginName string
 }
 
 // searchScopes returns the skill directories in precedence order: project,
