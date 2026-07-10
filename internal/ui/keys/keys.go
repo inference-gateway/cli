@@ -2,6 +2,8 @@ package keys
 
 import (
 	"slices"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -57,7 +59,8 @@ var AllKnownKeys = []string{
 
 // IsPrintableCharacter checks if a key string represents a single printable character
 func IsPrintableCharacter(keyStr string) bool {
-	return len(keyStr) == 1 && keyStr[0] >= ' ' && keyStr[0] <= '~'
+	r, size := utf8.DecodeRuneInString(keyStr)
+	return size == len(keyStr) && r != utf8.RuneError && unicode.IsPrint(r)
 }
 
 // IsKnownKey checks if a key string represents a known keyboard key combination

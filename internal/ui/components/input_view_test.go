@@ -898,3 +898,89 @@ func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
 		})
 	}
 }
+
+func TestInputView_CursorMultibyteRoundTrip(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	text := "héllo 🎉\nwörld"
+	iv.SetText(text)
+
+	for _, pos := range []int{0, len("héllo "), len("héllo 🎉"), len(text)} {
+		iv.SetCursor(pos)
+		require.Equal(t, pos, iv.GetCursor(), "round-trip byte offset %d", pos)
+	}
+
+	iv.SetCursor(len(text))
+	require.Equal(t, len(text), iv.GetCursor())
+}
+
+func TestInputView_SetCursorWithSoftWrappedLines(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.SetWidth(20)
+	long := strings.Repeat("abcdefgh ", 6)
+	text := long + "\nsecond"
+	iv.SetText(text)
+
+	pos := len(long) + 1 + 3
+	iv.SetCursor(pos)
+	require.Equal(t, pos, iv.GetCursor())
+}
+
+func TestInputView_ApplyKeybindingsRemapsTextarea(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.focused = true
+	_ = iv.ta.Focus()
+
+	off := false
+	cfg := &config.Config{}
+	cfg.Chat.Keybindings = config.KeybindingsConfig{
+		Enabled: true,
+		Bindings: map[string]config.KeyBindingEntry{
+			config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"): {Keys: []string{"ctrl+n"}},
+			config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"):  {Enabled: &off},
+		},
+	}
+	iv.SetConfig(cfg)
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ := iv.Update(tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
+	iv = model.(*InputView)
+	require.Equal(t, "hi\n", iv.GetInput(), "remapped key must insert newline")
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ = iv.Update(tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl})
+	iv = model.(*InputView)
+	require.Equal(t, "hi", iv.GetInput(), "unbound default key must no longer insert newline")
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ = iv.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+	iv = model.(*InputView)
+	require.Equal(t, "hi", iv.GetInput(), "disabled action's key must no longer insert newline")
+}
+
+func TestInputView_UpdateEmitsAutocompleteWithSettledValues(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.focused = true
+	_ = iv.ta.Focus()
+
+	model, cmd := iv.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	iv = model.(*InputView)
+	require.NotNil(t, cmd)
+
+	iv.SetText("later state")
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok, "expected BatchMsg, got %T", msg)
+	found := false
+	for _, sub := range batch {
+		if ev, isEv := sub().(domain.AutocompleteUpdateEvent); isEv {
+			require.Equal(t, "a", ev.Text)
+			require.Equal(t, 1, ev.CursorPos)
+			found = true
+		}
+	}
+	require.True(t, found, "expected AutocompleteUpdateEvent in batch")
+}

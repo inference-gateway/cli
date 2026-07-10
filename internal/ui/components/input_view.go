@@ -3,9 +3,11 @@ package components
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os/exec"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	key "charm.land/bubbles/v2/key"
 	textarea "charm.land/bubbles/v2/textarea"
@@ -141,6 +143,45 @@ func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 // SetConfig sets the config for this input view
 func (iv *InputView) SetConfig(cfg *config.Config) {
 	iv.config = cfg
+	iv.applyKeybindings(cfg.Chat.Keybindings)
+}
+
+// applyKeybindings rebuilds the textarea KeyMap entries that correspond to
+// user-configurable text_editing actions, so remaps and disables in
+// keybindings.yaml take effect inside the textarea (which applies the edits
+// the keybinding registry passes through to it).
+func (iv *InputView) applyKeybindings(kb config.KeybindingsConfig) {
+	if !kb.Enabled {
+		return
+	}
+
+	effective := config.GetDefaultKeybindings()
+	maps.Copy(effective, kb.Bindings)
+
+	bind := func(binding *key.Binding, actionNames ...string) {
+		var keyStrs []string
+		for _, name := range actionNames {
+			entry, ok := effective[config.ActionID(config.NamespaceTextEditing, name)]
+			if !ok || (entry.Enabled != nil && !*entry.Enabled) {
+				continue
+			}
+			keyStrs = append(keyStrs, entry.Keys...)
+		}
+		*binding = key.NewBinding(key.WithKeys(keyStrs...))
+		binding.SetEnabled(len(keyStrs) > 0)
+	}
+
+	bind(&iv.ta.KeyMap.InsertNewline, "insert_newline_alt", "insert_newline_ctrl")
+	bind(&iv.ta.KeyMap.CharacterBackward, "move_cursor_left")
+	bind(&iv.ta.KeyMap.CharacterForward, "move_cursor_right")
+	bind(&iv.ta.KeyMap.DeleteCharacterBackward, "backspace")
+	bind(&iv.ta.KeyMap.DeleteBeforeCursor, "delete_to_beginning")
+	bind(&iv.ta.KeyMap.DeleteWordBackward, "delete_word_backward")
+	bind(&iv.ta.KeyMap.DeleteWordForward, "delete_word_forward")
+	bind(&iv.ta.KeyMap.WordBackward, "move_cursor_word_left")
+	bind(&iv.ta.KeyMap.WordForward, "move_cursor_word_right")
+	bind(&iv.ta.KeyMap.InputBegin, "move_to_beginning")
+	bind(&iv.ta.KeyMap.InputEnd, "move_to_end")
 }
 
 // SetImageService sets the image service for this input view
@@ -199,6 +240,9 @@ func (iv *InputView) SetPlaceholder(text string) {
 	iv.ta.Placeholder = text
 }
 
+// GetCursor returns the cursor position as a byte offset into GetInput().
+// The textarea reports a rune column, so the current line's rune prefix is
+// converted back to bytes before adding it to the preceding lines' lengths.
 func (iv *InputView) GetCursor() int {
 	text := iv.ta.Value()
 	if text == "" {
@@ -209,23 +253,27 @@ func (iv *InputView) GetCursor() int {
 	col := iv.ta.Column()
 	pos := 0
 	for i := 0; i < line && i < len(lines); i++ {
-		pos += len(lines[i]) + 1 // +1 for newline
+		pos += len(lines[i]) + 1
 	}
-	if pos+col > len(text) {
+	if line < len(lines) {
+		runes := []rune(lines[line])
+		if col > len(runes) {
+			col = len(runes)
+		}
+		pos += len(string(runes[:col]))
+	}
+	if pos > len(text) {
 		return len(text)
 	}
-	return pos + col
+	return pos
 }
 
+// SetCursor moves the cursor to the given byte offset into GetInput().
 func (iv *InputView) SetCursor(position int) {
 	text := iv.ta.Value()
-	if position < 0 || position > len(text) {
+	if position < 0 || position > len(text) || text == "" {
 		return
 	}
-	if text == "" {
-		return
-	}
-	// Calculate line and column from the string position
 	lines := strings.Split(text, "\n")
 	line := 0
 	col := 0
@@ -233,18 +281,19 @@ func (iv *InputView) SetCursor(position int) {
 	for i, l := range lines {
 		if remaining <= len(l) {
 			line = i
-			col = remaining
+			col = utf8.RuneCountInString(l[:remaining])
 			break
 		}
-		remaining -= len(l) + 1 // +1 for newline
+		remaining -= len(l) + 1
 		if i == len(lines)-1 {
 			line = i
-			col = len(l)
+			col = utf8.RuneCountInString(l)
 		}
 	}
-	// Move cursor to the calculated position
-	iv.ta.CursorStart()
+
+	iv.ta.MoveToBegin()
 	for i := 0; i < line; i++ {
+		iv.ta.CursorEnd()
 		iv.ta.CursorDown()
 	}
 	iv.ta.SetCursorColumn(col)
@@ -744,7 +793,17 @@ func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
 
 func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	textBefore, cursorBefore := iv.ta.Value(), iv.GetCursor()
 	iv.ta, cmd = iv.ta.Update(msg)
+
+	if _, isKey := msg.(tea.KeyPressMsg); isKey && !iv.disabled {
+		if text, cursor := iv.ta.Value(), iv.GetCursor(); text != textBefore || cursor != cursorBefore {
+			autocompleteCmd := func() tea.Msg {
+				return domain.AutocompleteUpdateEvent{Text: text, CursorPos: cursor}
+			}
+			return iv, tea.Batch(cmd, autocompleteCmd)
+		}
+	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:

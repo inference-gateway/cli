@@ -1469,7 +1469,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 	model, cmd := app.conversationSelector.Update(msg)
 	app.conversationSelector = model.(*components.ConversationSelectorImpl)
 
-	if cmd != nil && !app.conversationSelector.IsSelected() {
+	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 

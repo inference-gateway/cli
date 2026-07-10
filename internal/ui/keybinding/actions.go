@@ -1381,11 +1381,12 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 
 // KeyBindingManager manages the key binding system for ChatApplication
 type KeyBindingManager struct {
-	registry          KeyRegistry
-	app               KeyHandlerContext
-	keySequenceBuffer []string
-	lastKeyTime       time.Time
-	sequenceTimeout   time.Duration
+	registry            KeyRegistry
+	app                 KeyHandlerContext
+	keySequenceBuffer   []string
+	lastKeyTime         time.Time
+	sequenceTimeout     time.Duration
+	sequenceConsumedKey string
 }
 
 const maxSequenceLength = 2
@@ -1491,6 +1492,7 @@ func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg te
 	sequenceAction := m.registry.Resolve(sequenceKey, m.app)
 	if sequenceAction != nil {
 		m.keySequenceBuffer = m.keySequenceBuffer[:0]
+		m.sequenceConsumedKey = keyMsg.String()
 		actionCmd := sequenceAction.Handler(m.app, keyMsg)
 		return m.batchCmds(append(cmds, actionCmd))
 	}
@@ -1590,6 +1592,10 @@ func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
 // key. Textarea-owned editing actions still pass through to InputView.Update.
 func (m *KeyBindingManager) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
 	keyStr := keyMsg.String()
+	if m.sequenceConsumedKey == keyStr {
+		m.sequenceConsumedKey = ""
+		return true
+	}
 	action := m.registry.Resolve(keyStr, m.app)
 	if action == nil {
 		return false
@@ -1685,27 +1691,17 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 		return nil
 	}
 
-	autocompleteCmd := func() tea.Msg {
-		inputView := app.GetInputView()
-		if inputView == nil {
-			return nil
-		}
-		return domain.AutocompleteUpdateEvent{
-			Text:      inputView.GetInput(),
-			CursorPos: inputView.GetCursor(),
+	scrollCmd := func() tea.Msg {
+		return domain.ScrollRequestEvent{
+			ComponentID: "conversation",
+			Direction:   domain.ScrollToBottom,
+			Amount:      0,
 		}
 	}
 
 	if openFileSelection {
 		return tea.Batch(
-			autocompleteCmd,
-			func() tea.Msg {
-				return domain.ScrollRequestEvent{
-					ComponentID: "conversation",
-					Direction:   domain.ScrollToBottom,
-					Amount:      0,
-				}
-			},
+			scrollCmd,
 			func() tea.Msg {
 				return domain.FileSelectionRequestEvent{}
 			},
@@ -1713,14 +1709,7 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 	}
 
 	return tea.Batch(
-		autocompleteCmd,
-		func() tea.Msg {
-			return domain.ScrollRequestEvent{
-				ComponentID: "conversation",
-				Direction:   domain.ScrollToBottom,
-				Amount:      0,
-			}
-		},
+		scrollCmd,
 		func() tea.Msg {
 			return domain.HideHelpBarEvent{}
 		},

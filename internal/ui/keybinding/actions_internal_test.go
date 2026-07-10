@@ -257,20 +257,20 @@ func TestTextareaKeyFlowPrintableIsInsertedOnce(t *testing.T) {
 	manager := NewKeyBindingManager(ctx, nil)
 	keyMsg := tea.KeyPressMsg{Text: "a"}
 
-	cmd := manager.ProcessKey(keyMsg)
+	if manager.ProcessKey(keyMsg) == nil {
+		t.Fatal("expected side-effect command from ProcessKey")
+	}
 	if got := input.GetInput(); got != "" {
 		t.Fatalf("ProcessKey must not mutate textarea input, got %q", got)
 	}
 
-	if model, inputCmd := input.Update(keyMsg); inputCmd != nil {
-		input = model.(*components.InputView)
-		_ = inputCmd()
-	}
+	model, inputCmd := input.Update(keyMsg)
+	input = model.(*components.InputView)
 	if got := input.GetInput(); got != "a" {
 		t.Fatalf("textarea should insert one character, got %q", got)
 	}
 
-	assertAutocompleteEventText(t, cmd, "a")
+	assertAutocompleteEventText(t, inputCmd, "a")
 }
 
 func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
@@ -280,7 +280,7 @@ func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
 	input.SetCursor(2)
 
 	keyMsg := tea.KeyPressMsg{Code: tea.KeyBackspace}
-	cmd := manager.ProcessKey(keyMsg)
+	_ = manager.ProcessKey(keyMsg)
 	if got := input.GetInput(); got != "ab" {
 		t.Fatalf("ProcessKey must not apply backspace directly, got %q", got)
 	}
@@ -288,15 +288,13 @@ func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
 		t.Fatal("backspace must pass through to textarea")
 	}
 
-	if model, inputCmd := input.Update(keyMsg); inputCmd != nil {
-		input = model.(*components.InputView)
-		_ = inputCmd()
-	}
+	model, inputCmd := input.Update(keyMsg)
+	input = model.(*components.InputView)
 	if got := input.GetInput(); got != "a" {
 		t.Fatalf("textarea should apply one backspace, got %q", got)
 	}
 
-	assertAutocompleteEventText(t, cmd, "a")
+	assertAutocompleteEventText(t, inputCmd, "a")
 }
 
 func TestTextareaKeyFlowAltEnterInsertsNewline(t *testing.T) {
@@ -306,7 +304,7 @@ func TestTextareaKeyFlowAltEnterInsertsNewline(t *testing.T) {
 	input.SetCursor(5)
 
 	keyMsg := tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt}
-	cmd := manager.ProcessKey(keyMsg)
+	_ = manager.ProcessKey(keyMsg)
 	if got := input.GetInput(); got != "hello" {
 		t.Fatalf("ProcessKey must not insert newline directly, got %q", got)
 	}
@@ -314,15 +312,13 @@ func TestTextareaKeyFlowAltEnterInsertsNewline(t *testing.T) {
 		t.Fatal("alt+enter must pass through to textarea")
 	}
 
-	if model, inputCmd := input.Update(keyMsg); inputCmd != nil {
-		input = model.(*components.InputView)
-		_ = inputCmd()
-	}
+	model, inputCmd := input.Update(keyMsg)
+	input = model.(*components.InputView)
 	if got := input.GetInput(); got != "hello\n" {
 		t.Fatalf("textarea should insert one newline, got %q", got)
 	}
 
-	assertAutocompleteEventText(t, cmd, "hello\n")
+	assertAutocompleteEventText(t, inputCmd, "hello\n")
 }
 
 func TestTextareaKeyFlowCtrlJInsertsNewline(t *testing.T) {
@@ -332,7 +328,7 @@ func TestTextareaKeyFlowCtrlJInsertsNewline(t *testing.T) {
 	input.SetCursor(5)
 
 	keyMsg := tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl}
-	cmd := manager.ProcessKey(keyMsg)
+	_ = manager.ProcessKey(keyMsg)
 	if got := input.GetInput(); got != "hello" {
 		t.Fatalf("ProcessKey must not insert newline directly, got %q", got)
 	}
@@ -340,15 +336,13 @@ func TestTextareaKeyFlowCtrlJInsertsNewline(t *testing.T) {
 		t.Fatal("ctrl+j must pass through to textarea")
 	}
 
-	if model, inputCmd := input.Update(keyMsg); inputCmd != nil {
-		input = model.(*components.InputView)
-		_ = inputCmd()
-	}
+	model, inputCmd := input.Update(keyMsg)
+	input = model.(*components.InputView)
 	if got := input.GetInput(); got != "hello\n" {
 		t.Fatalf("textarea should insert one newline, got %q", got)
 	}
 
-	assertAutocompleteEventText(t, cmd, "hello\n")
+	assertAutocompleteEventText(t, inputCmd, "hello\n")
 }
 
 func TestShouldSkipInputUpdateKeepsAppLevelKeysConsumed(t *testing.T) {
@@ -387,19 +381,24 @@ func assertAutocompleteEventText(t *testing.T, cmd tea.Cmd, want string) {
 	}
 
 	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("expected BatchMsg, got %T", msg)
-	}
-	if len(batch) == 0 {
-		t.Fatal("expected at least one batched command")
+	if ev, ok := msg.(domain.AutocompleteUpdateEvent); ok {
+		if ev.Text != want {
+			t.Fatalf("AutocompleteUpdateEvent.Text = %q, want %q", ev.Text, want)
+		}
+		return
 	}
 
-	ev, ok := batch[0]().(domain.AutocompleteUpdateEvent)
+	batch, ok := msg.(tea.BatchMsg)
 	if !ok {
-		t.Fatalf("expected first batched command to be AutocompleteUpdateEvent, got %T", batch[0]())
+		t.Fatalf("expected AutocompleteUpdateEvent or BatchMsg, got %T", msg)
 	}
-	if ev.Text != want {
-		t.Fatalf("AutocompleteUpdateEvent.Text = %q, want %q", ev.Text, want)
+	for _, sub := range batch {
+		if ev, ok := sub().(domain.AutocompleteUpdateEvent); ok {
+			if ev.Text != want {
+				t.Fatalf("AutocompleteUpdateEvent.Text = %q, want %q", ev.Text, want)
+			}
+			return
+		}
 	}
+	t.Fatal("expected an AutocompleteUpdateEvent in the batch")
 }
