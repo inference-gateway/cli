@@ -34,11 +34,11 @@ type ScenarioFile struct {
 type Scenario struct {
 	// Name uniquely identifies the scenario in recordings and logs.
 	Name string `yaml:"name"`
-	// Match is a Go regular expression tested (unanchored) against the first
-	// user message of each request.
+	// Match is a Go regular expression tested (unanchored) against the latest
+	// user message of each request that is not an injected <system-reminder>.
 	Match string `yaml:"match"`
 	// Turns are the scripted assistant responses, indexed by the number of
-	// assistant messages already present in the request.
+	// assistant messages following the matched user message.
 	Turns []Turn `yaml:"turns"`
 
 	re *regexp.Regexp
@@ -191,12 +191,12 @@ func (t *Turn) validate(where string) error {
 
 // resolve picks the scenario and turn for a request. It returns the matched
 // scenario name ("" when only the fallback applies), the step derived from
-// the request's assistant-message count, and the turn to render.
+// the assistant-message count after the anchor, and the turn to render.
 func (f *ScenarioFile) resolve(req *sdk.CreateChatCompletionRequest) (string, int, Turn) {
-	prompt := firstUserPrompt(req.Messages)
+	prompt, anchor := anchorUserMessage(req.Messages)
 
 	step := 0
-	for _, m := range req.Messages {
+	for _, m := range req.Messages[anchor+1:] {
 		if m.Role == sdk.Assistant {
 			step++
 		}
@@ -215,16 +215,24 @@ func (f *ScenarioFile) resolve(req *sdk.CreateChatCompletionRequest) (string, in
 	return "", step, f.Fallback
 }
 
-// firstUserPrompt returns the text of the first user message. Later user
-// messages (e.g. the CLI's injected automated-check reminder) must never
-// re-route a conversation to a different scenario.
-func firstUserPrompt(messages []sdk.Message) string {
-	for _, m := range messages {
-		if m.Role == sdk.User {
-			return textContent(m.Content)
+// anchorUserMessage returns the text and index of the latest user message that
+// is not injected CLI content (<system-reminder>). Anchoring on the latest real
+// prompt lets an interactive chat session re-route to a new scenario on every
+// message, while the headless loop's automated-check reminder never re-routes
+// a run mid-loop. Steps count the assistant messages after the anchor, so each
+// new prompt restarts its scenario at turn 0.
+func anchorUserMessage(messages []sdk.Message) (string, int) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != sdk.User {
+			continue
 		}
+		text := textContent(messages[i].Content)
+		if strings.Contains(text, "<system-reminder>") {
+			continue
+		}
+		return text, i
 	}
-	return ""
+	return "", -1
 }
 
 // textContent extracts plain text from either content form: a bare string or

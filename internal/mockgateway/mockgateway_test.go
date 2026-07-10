@@ -114,6 +114,17 @@ func TestResolveIgnoresLaterUserMessages(t *testing.T) {
 	require.Equal(t, 1, step)
 }
 
+func TestResolveReroutesOnNewChatPrompt(t *testing.T) {
+	defs := Default()
+	req := chatRequest(t, "Hi", 1, false)
+	req.Messages = append(req.Messages, mustText(t, sdk.User, "Say hello"))
+
+	name, step, turn := defs.resolve(req)
+	require.Equal(t, "text-only", name)
+	require.Equal(t, 0, step)
+	require.Equal(t, "Hello! How can I help?", turn.Content)
+}
+
 func TestResolveConcatenatesContentParts(t *testing.T) {
 	defs := Default()
 
