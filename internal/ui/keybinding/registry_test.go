@@ -3,6 +3,7 @@ package keybinding_test
 import (
 	"testing"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -81,28 +82,28 @@ func TestKeyResolution(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
 	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
-	action := registry.Resolve("ctrl+c", mockContext)
+	action := registry.ResolveKey("ctrl+c", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to an action")
 	} else if action.ID != "global_quit" {
 		t.Errorf("Expected ctrl+c to resolve to 'global_quit', got %s", action.ID)
 	}
 
-	action = registry.Resolve("ctrl+o", mockContext)
+	action = registry.ResolveKey("ctrl+o", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+o to resolve to an action")
 	} else if action.ID != "tools_toggle_tool_expansion" {
 		t.Errorf("Expected ctrl+o to resolve to 'tools_toggle_tool_expansion', got %s", action.ID)
 	}
 
-	action = registry.Resolve("ctrl+r", mockContext)
+	action = registry.ResolveKey("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to an action")
 	} else if action.ID != "display_toggle_raw_format" {
 		t.Errorf("Expected ctrl+r to resolve to 'display_toggle_raw_format', got %s", action.ID)
 	}
 
-	action = registry.Resolve("ctrl+z", mockContext)
+	action = registry.ResolveKey("ctrl+z", mockContext)
 	if action != nil {
 		t.Errorf("Expected ctrl+z to not resolve to any action, got %s", action.ID)
 	}
@@ -144,7 +145,7 @@ func TestActionHandlers(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
 	mockContext := newTestContext(domain.ViewStateChat, "")
 
-	action := registry.Resolve("ctrl+c", mockContext)
+	action := registry.ResolveKey("ctrl+c", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to quit action")
 	} else {
@@ -154,7 +155,7 @@ func TestActionHandlers(t *testing.T) {
 		}
 	}
 
-	action = registry.Resolve("ctrl+o", mockContext)
+	action = registry.ResolveKey("ctrl+o", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+o to resolve to toggle action")
 	} else {
@@ -206,7 +207,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
 
 	emptyInputContext := newTestContext(domain.ViewStateChat, "")
-	action := registry.Resolve("enter", emptyInputContext)
+	action := registry.ResolveKey("enter", emptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to chat_enter_key_handler even when input is empty")
 	} else if action.ID != "chat_enter_key_handler" {
@@ -214,7 +215,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 	}
 
 	nonEmptyInputContext := newTestContext(domain.ViewStateChat, "hello")
-	action = registry.Resolve("enter", nonEmptyInputContext)
+	action = registry.ResolveKey("enter", nonEmptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to chat_enter_key_handler when input has content")
 	} else if action.ID != "chat_enter_key_handler" {
@@ -222,18 +223,62 @@ func TestConditionalKeyBindings(t *testing.T) {
 	}
 }
 
-func TestLayerPriority(t *testing.T) {
+// TestResolveKeyPressMsg exercises the key.Matches dispatch path with a real
+// tea.KeyPressMsg, complementing the string-based ResolveKey tests.
+func TestResolveKeyPressMsg(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
+	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
-	layers := registry.GetLayers()
-	if len(layers) == 0 {
-		t.Fatal("Expected layers to be initialized")
+	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	if got := msg.String(); got != "ctrl+c" {
+		t.Fatalf("test setup: msg.String() = %q, want ctrl+c", got)
 	}
 
-	for i := 1; i < len(layers); i++ {
-		if layers[i-1].Priority < layers[i].Priority {
-			t.Errorf("Layers not sorted by priority: layer %d has priority %d, layer %d has priority %d",
-				i-1, layers[i-1].Priority, i, layers[i].Priority)
+	action := registry.Resolve(msg, mockContext)
+	if action == nil {
+		t.Fatal("Expected ctrl+c key press to resolve to an action")
+	}
+	if action.ID != "global_quit" {
+		t.Errorf("Expected ctrl+c to resolve to 'global_quit', got %s", action.ID)
+	}
+}
+
+// TestDefaultsSingleSourceOfTruth is the drift guard: every runtime action must
+// have its keys defined in config.GetDefaultKeybindings() (the single source of
+// truth), and no two actions active in the same view may share a key.
+func TestDefaultsSingleSourceOfTruth(t *testing.T) {
+	registry := keybinding.NewRegistry(nil)
+	defaults := config.GetDefaultKeybindings()
+
+	type claim struct {
+		actionID string
+		global   bool
+	}
+	claimed := make(map[string][]claim)
+
+	for _, action := range registry.ListAllActions() {
+		def, ok := defaults[action.ID]
+		if !ok {
+			t.Errorf("action %s has no entry in config.GetDefaultKeybindings()", action.ID)
+			continue
+		}
+		if len(def.Keys) == 0 {
+			t.Errorf("action %s has an empty default key list", action.ID)
+		}
+
+		for _, k := range action.Binding.Keys() {
+			for _, view := range action.Context.Views {
+				claimed[string(rune(view))+"|"+k] = append(claimed[string(rune(view))+"|"+k], claim{action.ID, false})
+			}
+			if len(action.Context.Views) == 0 {
+				claimed["global|"+k] = append(claimed["global|"+k], claim{action.ID, true})
+			}
+		}
+	}
+
+	for key, claims := range claimed {
+		if len(claims) > 1 {
+			t.Errorf("key %q is bound by multiple actions in the same view scope: %v", key, claims)
 		}
 	}
 }
@@ -242,15 +287,12 @@ func TestActionRegistration(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
 
 	customAction := &keybinding.KeyAction{
-		ID:          "test_action",
-		Keys:        []string{"ctrl+shift+t"},
-		Description: "test action",
-		Category:    "test",
+		ID:       "test_action",
+		Category: "test",
+		Binding:  key.NewBinding(key.WithKeys("ctrl+shift+t"), key.WithHelp("ctrl+shift+t", "test action")),
 		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		},
-		Priority: 100,
-		Enabled:  true,
 		Context: keybinding.KeyContext{
 			Views: []domain.ViewState{domain.ViewStateChat},
 		},
@@ -269,7 +311,7 @@ func TestActionRegistration(t *testing.T) {
 	}
 
 	mockContext := newTestContext(domain.ViewStateChat, "")
-	resolvedAction := registry.Resolve("ctrl+shift+t", mockContext)
+	resolvedAction := registry.ResolveKey("ctrl+shift+t", mockContext)
 	if resolvedAction == nil {
 		t.Fatal("Expected custom action to be resolved")
 	} else if resolvedAction.ID != "test_action" {
@@ -281,15 +323,12 @@ func TestActionConflictDetection(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
 
 	conflictingAction := &keybinding.KeyAction{
-		ID:          "test_conflicting_action",
-		Keys:        []string{"ctrl+c"},
-		Description: "conflicting action",
-		Category:    "test",
+		ID:       "test_conflicting_action",
+		Category: "test",
+		Binding:  key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "conflicting action")),
 		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		},
-		Priority: 100,
-		Enabled:  true,
 		Context: keybinding.KeyContext{
 			Views: []domain.ViewState{domain.ViewStateChat},
 		},
@@ -309,7 +348,7 @@ func TestDeleteWordBackwardBindings(t *testing.T) {
 		t.Helper()
 		ctx := newTestContext(domain.ViewStateChat, "hello world")
 		for _, key := range wordDeleteKeys {
-			action := registry.Resolve(key, ctx)
+			action := registry.ResolveKey(key, ctx)
 			if action == nil {
 				t.Fatalf("expected %q to resolve to an action", key)
 			}

@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -123,9 +123,9 @@ type ChatApplication struct {
 	// Key binding system
 	keyBindingManager *keybinding.KeyBindingManager
 
-	// Resolved chat-namespace keybindings (actionID -> keys), used for the
-	// snippet-attachments focus shim that runs ahead of the key binding manager.
-	chatKeys map[string][]string
+	// Config-backed binding that moves key focus to the snippet attachments
+	// tree; the fixed guard bindings live in the package-level guardKeys.
+	focusAttachments key.Binding
 
 	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
@@ -273,7 +273,7 @@ func NewChatApplication(
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
-	app.chatKeys = config.ResolveNamespaceBindings(app.config.Chat.Keybindings, config.NamespaceChat)
+	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -761,7 +761,7 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	// While an AskUserQuestion form is up it captures all keys (like the
 	// tool-approval box). It floats over the chat, so the view stays Chat.
 	// ctrl+c falls through so the user can still cancel the whole turn.
-	if app.stateManager.GetUserQuestionUIState() != nil && keyMsg.String() != "ctrl+c" {
+	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {
 		return app.handleUserQuestionKeys(keyMsg)
 	}
 
@@ -769,11 +769,11 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 		return app.handleMessageHistoryKeys(keyMsg)
 	}
 
-	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
+	if app.attachmentsFocused && !key.Matches(keyMsg, guardKeys.interrupt) {
 		app.lastHandledKey = keyMsg.String()
 		return app.handleAttachmentsKeys(keyMsg)
 	}
-	if app.statusBarFocused && keyMsg.String() != "ctrl+c" {
+	if app.statusBarFocused && !key.Matches(keyMsg, guardKeys.interrupt) {
 		if cmds, handled := app.handleStatusBarKeys(keyMsg); handled {
 			app.lastHandledKey = keyMsg.String()
 			return cmds
@@ -800,7 +800,7 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 // matchesFocusAttachments reports whether the pressed key is bound to the
 // chat-namespace focus-attachments action.
 func (app *ChatApplication) matchesFocusAttachments(keyMsg tea.KeyPressMsg) bool {
-	return slices.Contains(app.chatKeys[actChatFocusAttachments], keyMsg.String())
+	return key.Matches(keyMsg, app.focusAttachments)
 }
 
 // handleAttachmentsKeys interprets keys while the snippet attachments tree holds
@@ -810,17 +810,18 @@ func (app *ChatApplication) handleAttachmentsKeys(keyMsg tea.KeyPressMsg) []tea.
 		app.attachmentsFocused = false
 		return nil
 	}
-	switch keyMsg.String() {
-	case "up", "k":
+	gk := guardKeys
+	switch {
+	case key.Matches(keyMsg, gk.navUp):
 		app.snippetAttachmentsView.MoveCursor(-1)
-	case "down", "j":
+	case key.Matches(keyMsg, gk.navDown):
 		app.snippetAttachmentsView.MoveCursor(1)
-	case "d", "x", "backspace", "delete":
+	case key.Matches(keyMsg, gk.attachRemove):
 		app.removeFocusedSnippet()
-	case "c":
+	case key.Matches(keyMsg, gk.attachClear):
 		app.pendingSnippets = nil
 		app.attachmentsFocused = false
-	case "esc", "q":
+	case key.Matches(keyMsg, gk.attachExit):
 		app.attachmentsFocused = false
 	}
 	return nil
@@ -843,19 +844,20 @@ func (app *ChatApplication) removeFocusedSnippet() {
 // focus. Unhandled keys blur the row and report handled=false so they flow
 // on to the normal chain - typing lands back in the input.
 func (app *ChatApplication) handleStatusBarKeys(keyMsg tea.KeyPressMsg) ([]tea.Cmd, bool) {
-	switch keyMsg.String() {
-	case "left", "shift+tab":
+	gk := guardKeys
+	switch {
+	case key.Matches(keyMsg, gk.statusPrev):
 		app.inputStatusBar.SelectPrev()
 		return nil, true
-	case "right", "tab":
+	case key.Matches(keyMsg, gk.statusNext):
 		app.inputStatusBar.SelectNext()
 		return nil, true
-	case "down":
+	case key.Matches(keyMsg, gk.statusHold):
 		return nil, true
-	case "up", "esc":
+	case key.Matches(keyMsg, gk.statusBlur):
 		app.blurStatusBar()
 		return nil, true
-	case "enter":
+	case key.Matches(keyMsg, gk.confirm):
 		return app.activateSelectedIndicator(), true
 	default:
 		app.blurStatusBar()
@@ -956,16 +958,17 @@ func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyPressMsg) []tea
 		return nil
 	}
 
-	switch keyMsg.String() {
-	case "up", "k":
+	gk := guardKeys
+	switch {
+	case key.Matches(keyMsg, gk.navUp):
 		app.moveUserQuestionCursor(-1)
-	case "down", "j":
+	case key.Matches(keyMsg, gk.navDown):
 		app.moveUserQuestionCursor(1)
-	case " ", "space":
+	case key.Matches(keyMsg, gk.questionToggle):
 		app.toggleUserQuestionAtCursor()
-	case "enter":
+	case key.Matches(keyMsg, gk.confirm):
 		app.confirmUserQuestion()
-	case "esc":
+	case key.Matches(keyMsg, gk.cancel):
 		sm.ClearUserQuestionUIState()
 	}
 	return nil
@@ -975,12 +978,13 @@ func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyPressMsg) []tea
 // question. Enter confirms (and advances/submits); esc leaves text entry.
 func (app *ChatApplication) handleUserQuestionOtherKey(keyMsg tea.KeyPressMsg) {
 	sm := app.stateManager
-	switch keyMsg.String() {
-	case "enter":
+	gk := guardKeys
+	switch {
+	case key.Matches(keyMsg, gk.confirm):
 		app.confirmUserQuestion()
-	case "esc":
+	case key.Matches(keyMsg, gk.cancel):
 		sm.SetUserQuestionOtherActive(false)
-	case "backspace":
+	case key.Matches(keyMsg, gk.questionBackspace):
 		sm.BackspaceUserQuestionOtherText()
 	default:
 		if text := keys.PrintableText(keyMsg); text != "" {
@@ -2130,7 +2134,7 @@ func (app *ChatApplication) syncSnippetAttachmentsView() {
 // focusAttachmentsKeyLabel returns the primary key bound to the focus-attachments
 // action, for display in the attachments tree header ("" when unbound).
 func (app *ChatApplication) focusAttachmentsKeyLabel() string {
-	if ks := app.chatKeys[actChatFocusAttachments]; len(ks) > 0 {
+	if ks := app.focusAttachments.Keys(); len(ks) > 0 {
 		return ks[0]
 	}
 	return ""
@@ -2813,14 +2817,15 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyPressMsg) []t
 		return cmds
 	}
 
-	switch keyMsg.String() {
-	case "up", "k":
+	gk := guardKeys
+	switch {
+	case key.Matches(keyMsg, gk.navUp):
 		cv.NavigateHistoryUp()
-	case "down", "j":
+	case key.Matches(keyMsg, gk.navDown):
 		cv.NavigateHistoryDown()
-	case "enter":
+	case key.Matches(keyMsg, gk.confirm):
 		cmds = app.handleMessageHistoryEnter(cv, iv, cmds)
-	case "esc":
+	case key.Matches(keyMsg, gk.cancel):
 		cv.ExitMessageHistoryMode()
 		iv.ClearCustomHint()
 	}

@@ -19,415 +19,26 @@ import (
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 )
 
-// registerDefaultBindings registers all default key bindings
-func (r *Registry) registerDefaultBindings() {
-	globalActions := r.createGlobalActions()
-	chatActions := r.createChatActions()
-	scrollActions := r.createScrollActions()
-	approvalActions := r.createApprovalActions()
+// defaultActions declares every built-in action: its ID, handler, and the
+// view/condition context it is active in. Keys, descriptions, and categories
+// deliberately do NOT live here — they come from config.GetDefaultKeybindings()
+// (merged with keybindings.yaml overrides) when NewRegistry builds each
+// action's key.Binding, so there is a single source of truth for defaults.
+func defaultActions() []*KeyAction {
+	chatView := func(conds ...ContextCondition) KeyContext {
+		return KeyContext{
+			Views:      []domain.ViewState{domain.ViewStateChat},
+			Conditions: conds,
+		}
+	}
+	planApprovalView := KeyContext{Views: []domain.ViewState{domain.ViewStatePlanApproval}}
 
-	r.registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions)
-}
-
-// createGlobalActions creates global key actions available in all views
-func (r *Registry) createGlobalActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			ID:          config.ActionID(config.NamespaceGlobal, "quit"),
-			Namespace:   config.NamespaceGlobal,
-			Keys:        []string{"ctrl+c"},
-			Description: "exit application",
-			Category:    "global",
-			Handler:     handleQuit,
-			Priority:    100,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{},
-			},
-		},
-		{
-			ID:          config.ActionID(config.NamespaceGlobal, "cancel"),
-			Namespace:   config.NamespaceGlobal,
-			Keys:        []string{"esc"},
-			Description: "cancel current operation",
-			Category:    "global",
-			Handler:     handleCancel,
-			Priority:    100,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{},
-			},
-		},
-		{
-			ID:          config.ActionID(config.NamespaceGlobal, "new_session"),
-			Namespace:   config.NamespaceGlobal,
-			Keys:        []string{"ctrl+l"},
-			Description: "clear chat and start a new session",
-			Category:    "global",
-			Handler:     handleNewSession,
-			Priority:    100,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{},
-			},
+	inputIsEmpty := ContextCondition{
+		Name: "input_is_empty",
+		Check: func(app KeyHandlerContext) bool {
+			return strings.TrimSpace(app.GetInputView().GetInput()) == ""
 		},
 	}
-}
-
-// createChatActions creates key actions specific to chat view
-func (r *Registry) createChatActions() []*KeyAction {
-	actions := []*KeyAction{
-		{
-			Namespace:   config.NamespaceMode,
-			ID:          config.ActionID(config.NamespaceMode, "cycle_agent_mode"),
-			Keys:        []string{"shift+tab"},
-			Description: "cycle agent mode (Standard/Plan/Auto-Accept)",
-			Category:    "mode",
-			Handler:     handleCycleAgentMode,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTools,
-			ID:          config.ActionID(config.NamespaceTools, "toggle_tool_expansion"),
-			Keys:        []string{"ctrl+o"},
-			Description: "expand/collapse tool results",
-			Category:    "tools",
-			Handler:     handleToggleToolExpansion,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTools,
-			ID:          config.ActionID(config.NamespaceTools, "background_shell"),
-			Keys:        []string{"ctrl+b"},
-			Description: "move running bash command to background",
-			Category:    "tools",
-			Handler:     handleBackgroundShell,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceDisplay,
-			ID:          config.ActionID(config.NamespaceDisplay, "toggle_raw_format"),
-			Keys:        []string{"ctrl+r"},
-			Description: "toggle raw/rendered markdown",
-			Category:    "display",
-			Handler:     handleToggleRawFormat,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceSelection,
-			ID:          config.ActionID(config.NamespaceSelection, "toggle_mouse_mode"),
-			Keys:        []string{"ctrl+s"},
-			Description: "toggle mouse scrolling/text selection",
-			Category:    "selection",
-			Handler:     handleToggleMouseMode,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceChat,
-			ID:          config.ActionID(config.NamespaceChat, "tab_key_handler"),
-			Keys:        []string{"tab"},
-			Description: "complete autocomplete or cycle history suggestion",
-			Category:    "chat",
-			Handler:     handleTabKey,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceChat,
-			ID:          config.ActionID(config.NamespaceChat, "enter_key_handler"),
-			Keys:        []string{"enter"},
-			Description: "send message or insert newline",
-			Category:    "chat",
-			Handler:     handleEnterKey,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceHelp,
-			ID:          config.ActionID(config.NamespaceHelp, "toggle_help"),
-			Keys:        []string{"?"},
-			Description: "toggle help when input is empty",
-			Category:    "help",
-			Handler:     handleToggleHelp,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-				Conditions: []ContextCondition{
-					{
-						Name: "input_is_empty",
-						Check: func(app KeyHandlerContext) bool {
-							input := strings.TrimSpace(app.GetInputView().GetInput())
-							return len(input) == 0
-						},
-					},
-				},
-			},
-		},
-		{
-			Namespace:   config.NamespaceDisplay,
-			ID:          config.ActionID(config.NamespaceDisplay, "toggle_todo_box"),
-			Keys:        []string{"ctrl+t"},
-			Description: "toggle todo list",
-			Category:    "display",
-			Handler:     handleToggleTodoBox,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceDisplay,
-			ID:          config.ActionID(config.NamespaceDisplay, "toggle_thinking"),
-			Keys:        []string{"ctrl+k"},
-			Description: "expand/collapse thinking blocks",
-			Category:    "display",
-			Handler:     handleToggleThinkingExpansion,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-	}
-
-	actions = append(actions, r.createClipboardActions()...)
-	actions = append(actions, r.createTextEditingActions()...)
-	actions = append(actions, r.createWordEditingActions()...)
-	actions = append(actions, r.createHistoryActions()...)
-
-	return actions
-}
-
-// createClipboardActions creates clipboard-related key actions
-func (r *Registry) createClipboardActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			Namespace:   config.NamespaceClipboard,
-			ID:          config.ActionID(config.NamespaceClipboard, "paste_text"),
-			Keys:        []string{"ctrl+v", "super+v"},
-			Description: "paste text",
-			Category:    "clipboard",
-			Handler:     handlePaste,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceClipboard,
-			ID:          config.ActionID(config.NamespaceClipboard, "copy_text"),
-			Keys:        []string{"ctrl+shift+c", "super+c"},
-			Description: "copy text",
-			Category:    "clipboard",
-			Handler:     handleCopy,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-	}
-}
-
-// createTextEditingActions creates text editing key actions
-func (r *Registry) createTextEditingActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"),
-			Keys:        []string{"alt+enter"},
-			Description: "insert newline",
-			Category:    "text_editing",
-			Handler:     handleInsertNewline,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"),
-			Keys:        []string{"ctrl+j"},
-			Description: "insert newline",
-			Category:    "text_editing",
-			Handler:     handleInsertNewline,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_left"),
-			Keys:        []string{"left"},
-			Description: "move cursor left",
-			Category:    "text_editing",
-			Handler:     handleCursorLeftOrPlanNav,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_right"),
-			Keys:        []string{"right"},
-			Description: "move cursor right",
-			Category:    "text_editing",
-			Handler:     handleCursorRightOrPlanNav,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "backspace"),
-			Keys:        []string{"backspace"},
-			Description: "delete character",
-			Category:    "text_editing",
-			Handler:     handleBackspace,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "delete_to_beginning"),
-			Keys:        []string{"ctrl+u"},
-			Description: "delete to beginning of line",
-			Category:    "text_editing",
-			Handler:     handleDeleteToBeginning,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "delete_word_backward"),
-			Keys:        []string{"ctrl+w", "alt+backspace", "ctrl+backspace"},
-			Description: "delete word backward",
-			Category:    "text_editing",
-			Handler:     handleDeleteWordBackward,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_to_beginning"),
-			Keys:        []string{"ctrl+a"},
-			Description: "move cursor to beginning",
-			Category:    "text_editing",
-			Handler:     handleMoveToBeginning,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_to_end"),
-			Keys:        []string{"ctrl+e"},
-			Description: "move cursor to end",
-			Category:    "text_editing",
-			Handler:     handleMoveToEnd,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-	}
-}
-
-// createWordEditingActions creates word-wise cursor movement and deletion actions
-func (r *Registry) createWordEditingActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_word_left"),
-			Keys:        []string{"alt+left", "ctrl+left", "alt+b"},
-			Description: "move cursor one word left",
-			Category:    "text_editing",
-			Handler:     handleMoveCursorWordLeft,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_word_right"),
-			Keys:        []string{"alt+right", "ctrl+right", "alt+f"},
-			Description: "move cursor one word right",
-			Category:    "text_editing",
-			Handler:     handleMoveCursorWordRight,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "delete_word_forward"),
-			Keys:        []string{"alt+d"},
-			Description: "delete word forward",
-			Category:    "text_editing",
-			Handler:     handleDeleteWordForward,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-	}
-}
-
-// createHistoryActions creates history navigation key actions
-func (r *Registry) createHistoryActions() []*KeyAction {
 	noApprovalPending := ContextCondition{
 		Name: "no_approval_pending",
 		Check: func(app KeyHandlerContext) bool {
@@ -436,248 +47,64 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 				stateManager.GetApprovalUIState() == nil
 		},
 	}
+	chatIdleOrCompleted := ContextCondition{
+		Name: "chat_idle_or_completed",
+		Check: func(app KeyHandlerContext) bool {
+			stateManager := app.GetStateManager()
+			chatSession := stateManager.GetChatSession()
+			return stateManager.GetPlanApprovalUIState() == nil &&
+				stateManager.GetApprovalUIState() == nil &&
+				(chatSession == nil || chatSession.Status == domain.ChatStatusIdle || chatSession.Status == domain.ChatStatusCompleted)
+		},
+	}
 
 	return []*KeyAction{
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "history_up"),
-			Keys:        []string{"up"},
-			Description: "navigate to previous message in history",
-			Category:    "text_editing",
-			Handler:     handleHistoryUp,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views:      []domain.ViewState{domain.ViewStateChat},
-				Conditions: []ContextCondition{noApprovalPending},
-			},
-		},
-		{
-			Namespace:   config.NamespaceTextEditing,
-			ID:          config.ActionID(config.NamespaceTextEditing, "history_down"),
-			Keys:        []string{"down"},
-			Description: "navigate to next message in history / select status indicator",
-			Category:    "text_editing",
-			Handler:     handleHistoryDown,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views:      []domain.ViewState{domain.ViewStateChat},
-				Conditions: []ContextCondition{noApprovalPending},
-			},
-		},
-	}
-}
+		{ID: config.ActionID(config.NamespaceGlobal, "quit"), Handler: handleQuit},
+		{ID: config.ActionID(config.NamespaceGlobal, "cancel"), Handler: handleCancel},
+		{ID: config.ActionID(config.NamespaceGlobal, "new_session"), Handler: handleNewSession},
 
-// createScrollActions creates scroll-related key actions
-func (r *Registry) createScrollActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "go_back_in_time"),
-			Keys:        []string{"esc,esc"},
-			Description: "go back in time to previous message (double esc)",
-			Category:    "navigation",
-			Handler:     handleGoBackInTime,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-				Conditions: []ContextCondition{
-					{
-						Name: "chat_idle_or_completed",
-						Check: func(app KeyHandlerContext) bool {
-							stateManager := app.GetStateManager()
-							chatSession := stateManager.GetChatSession()
-							planApprovalState := stateManager.GetPlanApprovalUIState()
-							approvalState := stateManager.GetApprovalUIState()
+		{ID: config.ActionID(config.NamespaceMode, "cycle_agent_mode"), Handler: handleCycleAgentMode, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTools, "toggle_tool_expansion"), Handler: handleToggleToolExpansion, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTools, "background_shell"), Handler: handleBackgroundShell, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceDisplay, "toggle_raw_format"), Handler: handleToggleRawFormat, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceDisplay, "toggle_todo_box"), Handler: handleToggleTodoBox, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceDisplay, "toggle_thinking"), Handler: handleToggleThinkingExpansion, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceSelection, "toggle_mouse_mode"), Handler: handleToggleMouseMode, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceChat, "tab_key_handler"), Handler: handleTabKey, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceChat, "enter_key_handler"), Handler: handleEnterKey, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceHelp, "toggle_help"), Handler: handleToggleHelp, Context: chatView(inputIsEmpty)},
 
-							return planApprovalState == nil &&
-								approvalState == nil &&
-								(chatSession == nil || chatSession.Status == domain.ChatStatusIdle || chatSession.Status == domain.ChatStatusCompleted)
-						},
-					},
-				},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "scroll_to_top"),
-			Keys:        []string{"home"},
-			Description: "scroll to top",
-			Category:    "navigation",
-			Handler:     handleScrollToTop,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "scroll_to_bottom"),
-			Keys:        []string{"end"},
-			Description: "scroll to bottom",
-			Category:    "navigation",
-			Handler:     handleScrollToBottom,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "scroll_up_half_page"),
-			Keys:        []string{"shift+up"},
-			Description: "scroll up half page",
-			Category:    "navigation",
-			Handler:     handleScrollUpHalfPage,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "scroll_down_half_page"),
-			Keys:        []string{"shift+down"},
-			Description: "scroll down half page",
-			Category:    "navigation",
-			Handler:     handleScrollDownHalfPage,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "page_up"),
-			Keys:        []string{"pgup", "page_up"},
-			Description: "page up",
-			Category:    "navigation",
-			Handler:     handlePageUp,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			Namespace:   config.NamespaceNavigation,
-			ID:          config.ActionID(config.NamespaceNavigation, "page_down"),
-			Keys:        []string{"pgdn", "pgdown", "page_down"},
-			Description: "page down",
-			Category:    "navigation",
-			Handler:     handlePageDown,
-			Priority:    120,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-	}
-}
+		{ID: config.ActionID(config.NamespaceClipboard, "paste_text"), Handler: handlePaste, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceClipboard, "copy_text"), Handler: handleCopy, Context: chatView()},
 
-// createApprovalActions creates key actions specific to approval view
-func (r *Registry) createApprovalActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			Namespace:   config.NamespacePlanApproval,
-			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_left"),
-			Keys:        []string{"left", "h"},
-			Description: "move selection left",
-			Category:    "plan_approval",
-			Handler:     handlePlanApprovalLeft,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStatePlanApproval},
-			},
-		},
-		{
-			Namespace:   config.NamespacePlanApproval,
-			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_right"),
-			Keys:        []string{"right", "l"},
-			Description: "move selection right",
-			Category:    "plan_approval",
-			Handler:     handlePlanApprovalRight,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStatePlanApproval},
-			},
-		},
-		{
-			Namespace:   config.NamespacePlanApproval,
-			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_accept"),
-			Keys:        []string{"enter", "y"},
-			Description: "accept plan and enable auto-approve mode",
-			Category:    "plan_approval",
-			Handler:     handlePlanApprovalAccept,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStatePlanApproval},
-			},
-		},
-		{
-			Namespace:   config.NamespacePlanApproval,
-			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_reject"),
-			Keys:        []string{"n"},
-			Description: "reject plan",
-			Category:    "plan_approval",
-			Handler:     handlePlanApprovalReject,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStatePlanApproval},
-			},
-		},
-		{
-			Namespace:   config.NamespacePlanApproval,
-			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_accept_standard"),
-			Keys:        []string{"s"},
-			Description: "accept plan but approve each step (standard mode)",
-			Category:    "plan_approval",
-			Handler:     handlePlanApprovalAcceptStandard,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStatePlanApproval},
-			},
-		},
-	}
-}
+		{ID: config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"), Handler: handleInsertNewline, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"), Handler: handleInsertNewline, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_cursor_left"), Handler: handleCursorLeftOrPlanNav, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_cursor_right"), Handler: handleCursorRightOrPlanNav, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "backspace"), Handler: handleBackspace, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "delete_to_beginning"), Handler: handleDeleteToBeginning, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "delete_word_backward"), Handler: handleDeleteWordBackward, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "delete_word_forward"), Handler: handleDeleteWordForward, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_cursor_word_left"), Handler: handleMoveCursorWordLeft, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_cursor_word_right"), Handler: handleMoveCursorWordRight, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_to_beginning"), Handler: handleMoveToBeginning, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "move_to_end"), Handler: handleMoveToEnd, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceTextEditing, "history_up"), Handler: handleHistoryUp, Context: chatView(noApprovalPending)},
+		{ID: config.ActionID(config.NamespaceTextEditing, "history_down"), Handler: handleHistoryDown, Context: chatView(noApprovalPending)},
 
-// registerActionsToLayers registers actions to their appropriate layers
-func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions []*KeyAction) {
-	allActions := append(globalActions, chatActions...)
-	allActions = append(allActions, scrollActions...)
-	allActions = append(allActions, approvalActions...)
+		{ID: config.ActionID(config.NamespaceNavigation, "go_back_in_time"), Handler: handleGoBackInTime, Context: chatView(chatIdleOrCompleted)},
+		{ID: config.ActionID(config.NamespaceNavigation, "scroll_to_top"), Handler: handleScrollToTop, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceNavigation, "scroll_to_bottom"), Handler: handleScrollToBottom, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceNavigation, "scroll_up_half_page"), Handler: handleScrollUpHalfPage, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceNavigation, "scroll_down_half_page"), Handler: handleScrollDownHalfPage, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceNavigation, "page_up"), Handler: handlePageUp, Context: chatView()},
+		{ID: config.ActionID(config.NamespaceNavigation, "page_down"), Handler: handlePageDown, Context: chatView()},
 
-	for _, action := range allActions {
-		if err := r.Register(action); err != nil {
-			continue
-		}
-	}
-
-	for _, action := range globalActions {
-		_ = r.addActionToLayer("global", action)
-	}
-
-	for _, action := range chatActions {
-		_ = r.addActionToLayer("chat_view", action)
-	}
-
-	for _, action := range scrollActions {
-		_ = r.addActionToLayer("chat_view", action)
-	}
-
-	for _, action := range approvalActions {
-		_ = r.addActionToLayer("approval_view", action)
+		{ID: config.ActionID(config.NamespacePlanApproval, "plan_approval_left"), Handler: handlePlanApprovalLeft, Context: planApprovalView},
+		{ID: config.ActionID(config.NamespacePlanApproval, "plan_approval_right"), Handler: handlePlanApprovalRight, Context: planApprovalView},
+		{ID: config.ActionID(config.NamespacePlanApproval, "plan_approval_accept"), Handler: handlePlanApprovalAccept, Context: planApprovalView},
+		{ID: config.ActionID(config.NamespacePlanApproval, "plan_approval_reject"), Handler: handlePlanApprovalReject, Context: planApprovalView},
+		{ID: config.ActionID(config.NamespacePlanApproval, "plan_approval_accept_standard"), Handler: handlePlanApprovalAcceptStandard, Context: planApprovalView},
 	}
 }
 
@@ -1381,7 +808,7 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 
 // KeyBindingManager manages the key binding system for ChatApplication
 type KeyBindingManager struct {
-	registry            KeyRegistry
+	registry            *Registry
 	app                 KeyHandlerContext
 	keySequenceBuffer   []string
 	lastKeyTime         time.Time
@@ -1473,7 +900,7 @@ func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyP
 		pendingKey := m.keySequenceBuffer[0]
 		m.keySequenceBuffer = m.keySequenceBuffer[:0]
 
-		action := m.registry.Resolve(pendingKey, m.app)
+		action := m.registry.ResolveKey(pendingKey, m.app)
 		if action != nil {
 			pendingCmd := action.Handler(m.app, tea.KeyPressMsg{})
 			newKeyCmd := m.ProcessKey(keyMsg)
@@ -1489,7 +916,7 @@ func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg te
 		return nil
 	}
 
-	sequenceAction := m.registry.Resolve(sequenceKey, m.app)
+	sequenceAction := m.registry.ResolveKey(sequenceKey, m.app)
 	if sequenceAction != nil {
 		m.keySequenceBuffer = m.keySequenceBuffer[:0]
 		m.sequenceConsumedKey = keyMsg.String()
@@ -1508,7 +935,7 @@ func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyPressMs
 		return m.batchCmds(append(cmds, statusCmds...))
 	}
 
-	action := m.registry.Resolve(keyStr, m.app)
+	action := m.registry.Resolve(keyMsg, m.app)
 	if action != nil {
 		m.keySequenceBuffer = m.keySequenceBuffer[:0]
 		actionCmd := action.Handler(m.app, keyMsg)
@@ -1521,19 +948,14 @@ func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyPressMs
 }
 
 func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
-	registry, ok := m.registry.(*Registry)
-	if !ok {
-		return nil
-	}
-
-	sequenceAction := registry.GetSequenceActionForPrefix(keyStr, m.app)
+	sequenceAction := m.registry.GetSequenceActionForPrefix(keyStr, m.app)
 	if sequenceAction == nil {
 		return nil
 	}
 
 	statusCmd := func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message: sequenceAction.Description,
+			Message: sequenceAction.Binding.Help().Desc,
 			Spinner: false,
 		}
 	}
@@ -1583,9 +1005,7 @@ func (m *KeyBindingManager) joinSequence(keys []string) string {
 
 // IsKeyHandledByAction returns true if the key would be handled by a keybinding action
 func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
-	keyStr := keyMsg.String()
-	action := m.registry.Resolve(keyStr, m.app)
-	return action != nil
+	return m.registry.Resolve(keyMsg, m.app) != nil
 }
 
 // ShouldSkipInputUpdate reports whether a keybinding action fully consumed the
@@ -1596,7 +1016,7 @@ func (m *KeyBindingManager) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
 		m.sequenceConsumedKey = ""
 		return true
 	}
-	action := m.registry.Resolve(keyStr, m.app)
+	action := m.registry.Resolve(keyMsg, m.app)
 	if action == nil {
 		return false
 	}
@@ -1609,22 +1029,14 @@ func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
 	return m.registry.GetHelpShortcuts(m.app)
 }
 
-// RegisterCustomAction registers a new custom key action
-func (m *KeyBindingManager) RegisterCustomAction(action *KeyAction) error {
-	return m.registry.Register(action)
-}
-
 // GetRegistry returns the underlying registry (for advanced usage)
-func (m *KeyBindingManager) GetRegistry() KeyRegistry {
+func (m *KeyBindingManager) GetRegistry() *Registry {
 	return m.registry
 }
 
 // GetHintFormatter returns a hint formatter for displaying keybinding hints in UI
 func (m *KeyBindingManager) GetHintFormatter() *hints.Formatter {
-	if registry, ok := m.registry.(*Registry); ok {
-		return NewHintFormatterFromRegistry(registry)
-	}
-	return nil
+	return NewHintFormatterFromRegistry(m.registry)
 }
 
 // debugKeyBinding logs key binding events when debug mode is enabled

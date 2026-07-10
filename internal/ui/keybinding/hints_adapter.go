@@ -10,11 +10,11 @@ type keyActionAdapter struct {
 }
 
 func (a *keyActionAdapter) GetKeys() []string {
-	return a.Keys
+	return a.Binding.Keys()
 }
 
 func (a *keyActionAdapter) IsEnabled() bool {
-	return a.Enabled
+	return a.Binding.Enabled()
 }
 
 // registryAdapter adapts Registry to hints.KeyRegistry interface

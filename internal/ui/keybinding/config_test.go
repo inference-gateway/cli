@@ -28,11 +28,11 @@ func TestConfigOverrides(t *testing.T) {
 		t.Fatal("Expected mode_cycle_agent_mode action to exist")
 	}
 
-	if len(action.Keys) != 1 || action.Keys[0] != "ctrl+m" {
-		t.Errorf("Expected keys to be [ctrl+m], got %v", action.Keys)
+	if len(action.Binding.Keys()) != 1 || action.Binding.Keys()[0] != "ctrl+m" {
+		t.Errorf("Expected keys to be [ctrl+m], got %v", action.Binding.Keys())
 	}
 
-	if !action.Enabled {
+	if !action.Binding.Enabled() {
 		t.Error("Expected action to be enabled")
 	}
 }
@@ -57,7 +57,7 @@ func TestConfigDisableAction(t *testing.T) {
 		t.Fatal("Expected tools_toggle_tool_expansion action to exist")
 	}
 
-	if action.Enabled {
+	if action.Binding.Enabled() {
 		t.Error("Expected action to be disabled")
 	}
 }
@@ -82,12 +82,12 @@ func TestConfigMultipleKeys(t *testing.T) {
 		t.Fatal("Expected chat_enter_key_handler action to exist")
 	}
 
-	if len(action.Keys) != 2 {
-		t.Errorf("Expected 2 keys, got %d", len(action.Keys))
+	if len(action.Binding.Keys()) != 2 {
+		t.Errorf("Expected 2 keys, got %d", len(action.Binding.Keys()))
 	}
 
 	expectedKeys := map[string]bool{"ctrl+enter": true, "enter": true}
-	for _, key := range action.Keys {
+	for _, key := range action.Binding.Keys() {
 		if !expectedKeys[key] {
 			t.Errorf("Unexpected key: %s", key)
 		}
@@ -106,7 +106,7 @@ func TestConfigWithoutOverrides(t *testing.T) {
 		t.Fatal("Expected global_quit action to exist even without custom bindings")
 	}
 
-	if len(action.Keys) == 0 {
+	if len(action.Binding.Keys()) == 0 {
 		t.Error("Expected default keys to be present")
 	}
 }
@@ -204,7 +204,7 @@ func TestConfigNoRuntimeValidation(t *testing.T) {
 	}
 
 	hasConfigKey := false
-	for _, key := range action.Keys {
+	for _, key := range action.Binding.Keys() {
 		if key == "ctrl+c" {
 			hasConfigKey = true
 			break
