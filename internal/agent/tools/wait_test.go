@@ -756,9 +756,6 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	// Command exits 0 immediately, but pending_exit_codes=[0]
-	// means exit 0 is treated as "still pending, keep polling". The wait
-	// should NOT return condition_met immediately - it should time out.
 	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
 	start := time.Now()
 	result, err := tool.Execute(ctx, map[string]any{
@@ -776,7 +773,6 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 	if !strings.Contains(result.Error, "timed out") && !strings.Contains(result.Error, "check command failed") {
 		t.Errorf("Execute() error = %q, want containing %q or %q", result.Error, "timed out", "check command failed")
 	}
-	// Should have taken close to the full timeout, not returned immediately
 	if time.Since(start) < 500*time.Millisecond {
 		t.Error("Execute() returned too quickly - should have polled until timeout")
 	}
