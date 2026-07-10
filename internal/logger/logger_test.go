@@ -113,10 +113,6 @@ func TestArchiveLogFile(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// With maxSizeMB=0, the guard in NewLogger skips archiving
-		// But archiveLogFile itself with 0 threshold would still trigger.
-		// This tests that the caller guard works - we just verify the function
-		// with a 0 threshold archives everything.
 		err := archiveLogFile(path, 0)
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
