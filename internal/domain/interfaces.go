@@ -381,13 +381,6 @@ type PlanApprovalUIManager interface {
 type UserQuestionUIManager interface {
 	SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer)
 	GetUserQuestionUIState() *UserQuestionUIState
-	SetUserQuestionOptionCursor(idx int)
-	ToggleUserQuestionOption(optIdx int)
-	AdvanceUserQuestion() bool
-	SetUserQuestionOtherActive(active bool)
-	AppendUserQuestionOtherText(text string)
-	BackspaceUserQuestionOtherText()
-	BuildUserQuestionAnswers() []UserQuestionAnswer
 	ClearUserQuestionUIState()
 }
 

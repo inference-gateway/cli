@@ -38,9 +38,35 @@ func TestQuestionFormReproChain(t *testing.T) {
 
 	fv := components.NewQuestionFormView(styles.NewProvider(domain.NewThemeProvider()), sm)
 	fv.SetWidth(80)
+	_ = fv.Begin()
 	if out := fv.Render(); !strings.Contains(out, "Backend") || !strings.Contains(out, "sqlite") {
 		t.Fatalf("form did not render from shared StateManager:\n%q", out)
 	}
+}
+
+// pumpApp executes the commands returned by app.Update and feeds their
+// messages back in, like the Bubble Tea runtime would. Depth is bounded so
+// self-rearming commands (spinner ticks) can't loop forever.
+func pumpApp(app *ChatApplication, msg tea.Msg, depth int) {
+	_, cmd := app.Update(msg)
+	drainAppCmd(app, cmd, depth)
+}
+
+func drainAppCmd(app *ChatApplication, cmd tea.Cmd, depth int) {
+	if cmd == nil || depth <= 0 {
+		return
+	}
+	msg := cmd()
+	if msg == nil {
+		return
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			drainAppCmd(app, c, depth-1)
+		}
+		return
+	}
+	pumpApp(app, msg, depth-1)
 }
 
 // TestChatApplication_QuestionFormRendersOnEvent reproduces the FULL live path:
@@ -122,7 +148,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		t.Fatalf("form disappeared after a tool progress tick; got:\n%s", out2)
 	}
 
-	_, _ = app.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	pumpApp(app, tea.KeyPressMsg{Code: tea.KeyEnter}, 10)
 
 	if c.GetStateManager().GetUserQuestionUIState() != nil {
 		t.Fatal("form was not cleared after Enter/submit")

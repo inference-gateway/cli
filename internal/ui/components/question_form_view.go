@@ -2,33 +2,52 @@ package components
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// minQuestionOptionWidth is the floor for a truncated option row so a narrow
-// terminal still shows a usable amount of each label/description.
+// minQuestionOptionWidth is the floor for the form width so a narrow terminal
+// still shows a usable amount of each label/description.
 const minQuestionOptionWidth = 20
 
 // otherOptionLabel is the synthesized free-text choice appended to every
 // question. It is not one of the model-provided options.
 const otherOptionLabel = "Other (type your own)"
 
-// QuestionFormView renders the interactive AskUserQuestion form as a bordered
-// box floating above the input (mirroring ApprovalBoxView). It reads the
-// in-progress answer state from the StateManager and renders the current
-// question's options, a checkbox/radio marker per option, the synthesized
-// "Other" free-text row, and a one-line key hint.
+// otherSentinel is the option value standing in for the synthesized "Other"
+// row; real options are their index into question.Options.
+const otherSentinel = -1
+
+// QuestionFormView drives the interactive AskUserQuestion form as a bordered
+// box floating above the input (mirroring ApprovalBoxView). It owns the
+// answer-in-progress state as one huh form per question; the StateManager only
+// carries the questions, the overlay-active flag, and the response channel.
+// The agent loop is blocked in the tool goroutine until the answers are sent
+// on the channel (or it is closed, signalling cancellation).
 type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
 	stateManager  domain.StateManager
+
+	// active is the state this form was built for; if the StateManager's
+	// state no longer matches (cancelled externally), the form is stale.
+	active  *domain.UserQuestionUIState
+	idx     int
+	form    *huh.Form
+	answers []domain.UserQuestionAnswer
+
+	// Form-bound values, reset per question.
+	single int
+	multi  []int
+	other  string
 }
 
 func NewQuestionFormView(styleProvider *styles.Provider, stateManager domain.StateManager) *QuestionFormView {
@@ -47,113 +66,193 @@ func (qv *QuestionFormView) SetHeight(height int) {
 	qv.height = height
 }
 
-func (qv *QuestionFormView) Render() string {
-	if qv.stateManager == nil {
-		return ""
-	}
+// Begin starts a new form for the questions currently in the StateManager.
+// Call it when a UserQuestionRequestedEvent has set up the state.
+func (qv *QuestionFormView) Begin() tea.Cmd {
 	state := qv.stateManager.GetUserQuestionUIState()
-	if state == nil || len(state.Questions) == 0 || state.CurrentIndex >= len(state.Questions) {
-		return ""
+	if state == nil || len(state.Questions) == 0 {
+		return nil
 	}
-	return qv.renderForm(state)
+	qv.active = state
+	qv.idx = 0
+	qv.answers = nil
+	qv.buildForm()
+	return qv.form.Init()
 }
 
-// renderForm frames the current question, its options, and a key hint in a
-// bordered box. The accent border echoes the focused input box below it.
-func (qv *QuestionFormView) renderForm(state *domain.UserQuestionUIState) string {
-	accentColor := qv.styleProvider.GetThemeColor("accent")
-	dimColor := qv.styleProvider.GetThemeColor("dim")
-
-	question := state.Questions[state.CurrentIndex]
-
-	header := fmt.Sprintf(" %s ", strings.TrimSpace(question.Header))
-	progress := fmt.Sprintf("(%d/%d)", state.CurrentIndex+1, len(state.Questions))
-	title := qv.styleProvider.RenderWithColorAndBold(header, accentColor) + " " +
-		qv.styleProvider.RenderWithColor(progress, dimColor)
-
-	parts := []string{
-		title,
-		formatting.TruncateText(question.Question, qv.textBudget()),
-		"",
+// Forward delegates a message to the active form and reacts to completion or
+// abort. All messages (keys and huh's internal command messages) must be
+// routed here while the form is up, or group/field navigation breaks.
+func (qv *QuestionFormView) Forward(msg tea.Msg) tea.Cmd {
+	state := qv.stateManager.GetUserQuestionUIState()
+	if state == nil || state != qv.active || qv.form == nil {
+		qv.reset()
+		return nil
 	}
-	parts = append(parts, qv.renderOptions(state, question)...)
-	parts = append(parts, "", qv.styleProvider.RenderWithColor(qv.hint(state, question), dimColor))
 
-	content := strings.Join(parts, "\n")
-	return qv.styleProvider.RenderBorderedBox(content, accentColor, 0, 1)
+	model, cmd := qv.form.Update(msg)
+	if f, ok := model.(*huh.Form); ok {
+		qv.form = f
+	}
+
+	switch qv.form.State {
+	case huh.StateCompleted:
+		return qv.advance()
+	case huh.StateAborted:
+		qv.stateManager.ClearUserQuestionUIState()
+		qv.reset()
+		return nil
+	default:
+		return cmd
+	}
 }
 
-// renderOptions renders one row per option plus the synthesized "Other" row.
-func (qv *QuestionFormView) renderOptions(state *domain.UserQuestionUIState, question domain.UserQuestion) []string {
-	rows := make([]string, 0, len(question.Options)+1)
+// advance records the completed question's answer and moves to the next one;
+// after the last question it delivers the answers and clears the state.
+func (qv *QuestionFormView) advance() tea.Cmd {
+	qv.answers = append(qv.answers, qv.buildAnswer())
+	qv.idx++
+	if qv.idx < len(qv.active.Questions) {
+		qv.buildForm()
+		return qv.form.Init()
+	}
+
+	if qv.active.ResponseChan != nil {
+		qv.active.ResponseChan <- qv.answers
+	}
+	qv.stateManager.ClearUserQuestionUIState()
+	qv.reset()
+	return nil
+}
+
+func (qv *QuestionFormView) reset() {
+	qv.active = nil
+	qv.form = nil
+	qv.answers = nil
+}
+
+// buildForm builds one huh form for the current question: a select (or
+// multi-select) over the options plus the synthesized "Other" row, and a
+// conditional free-text group shown only when "Other" is chosen.
+func (qv *QuestionFormView) buildForm() {
+	question := qv.active.Questions[qv.idx]
+
+	options := make([]huh.Option[int], 0, len(question.Options)+1)
 	for i, opt := range question.Options {
-		selected := state.Selected[state.CurrentIndex][i]
 		label := opt.Label
 		if opt.Description != "" {
 			label = fmt.Sprintf("%s - %s", opt.Label, opt.Description)
 		}
-		rows = append(rows, qv.renderRow(label, i == state.OptionCursor, selected, question.MultiSelect))
+		options = append(options, huh.NewOption(label, i))
+	}
+	options = append(options, huh.NewOption(otherOptionLabel, otherSentinel))
+
+	title := fmt.Sprintf("%s (%d/%d)", strings.TrimSpace(question.Header), qv.idx+1, len(qv.active.Questions))
+	qv.other = ""
+
+	var choiceField huh.Field
+	if question.MultiSelect {
+		qv.multi = nil
+		choiceField = huh.NewMultiSelect[int]().
+			Title(title).
+			Description(question.Question).
+			Options(options...).
+			Validate(func(v []int) error {
+				if len(v) == 0 {
+					return fmt.Errorf("select at least one option")
+				}
+				return nil
+			}).
+			Value(&qv.multi)
+	} else {
+		qv.single = defaultUserQuestionOption(question)
+		choiceField = huh.NewSelect[int]().
+			Title(title).
+			Description(question.Question).
+			Options(options...).
+			Value(&qv.single)
 	}
 
-	otherCursor := state.OptionCursor == state.OtherRowIndex()
-	otherText := strings.TrimSpace(state.OtherText[state.CurrentIndex])
-	otherActive := state.OtherActive[state.CurrentIndex]
-	otherLabel := otherOptionLabel
-	switch {
-	case otherActive:
-		otherLabel = fmt.Sprintf("Other: %s▏", otherText)
-	case otherText != "":
-		otherLabel = fmt.Sprintf("Other: %s", otherText)
-	}
-	rows = append(rows, qv.renderRow(otherLabel, otherCursor, otherText != "" || otherActive, question.MultiSelect))
-	return rows
+	otherInput := huh.NewInput().
+		Title(otherOptionLabel).
+		Validate(func(s string) error {
+			if strings.TrimSpace(s) == "" {
+				return fmt.Errorf("answer is required")
+			}
+			return nil
+		}).
+		Value(&qv.other)
+
+	// huh's default quit key is only ctrl+c, which chat.go reserves for
+	// interrupting the whole turn - rebind quit to esc so esc still cancels
+	// the form (StateAborted) like it always has.
+	keymap := huh.NewDefaultKeyMap()
+	keymap.Quit = key.NewBinding(key.WithKeys("esc"))
+
+	qv.form = huh.NewForm(
+		huh.NewGroup(choiceField),
+		huh.NewGroup(otherInput).WithHideFunc(func() bool { return !qv.otherChosen(question) }),
+	).
+		WithShowHelp(true).
+		WithWidth(qv.textBudget()).
+		WithKeyMap(keymap).
+		WithTheme(huhTheme(qv.styleProvider))
 }
 
-// renderRow renders a single option line: a cursor caret, a checkbox (multi) or
-// radio (single) marker, and the label. The highlighted row gets a background.
-func (qv *QuestionFormView) renderRow(label string, cursor, selected, multi bool) string {
-	caret := "  "
-	if cursor {
-		caret = "▸ "
+// otherChosen reports whether the synthesized "Other" row is currently chosen.
+func (qv *QuestionFormView) otherChosen(question domain.UserQuestion) bool {
+	if question.MultiSelect {
+		return slices.Contains(qv.multi, otherSentinel)
 	}
-
-	var marker string
-	switch {
-	case multi && selected:
-		marker = "[x] "
-	case multi:
-		marker = "[ ] "
-	case selected:
-		marker = "(•) "
-	default:
-		marker = "( ) "
-	}
-
-	text := formatting.TruncateText(label, qv.textBudget()-len(caret)-len(marker))
-	line := caret + marker + text
-
-	if cursor {
-		return qv.styleProvider.RenderStyledText(line, styles.StyleOptions{
-			Background: qv.styleProvider.GetThemeColor("selection_bg"),
-			Bold:       true,
-		})
-	}
-	return line
+	return qv.single == otherSentinel
 }
 
-// hint returns the dim key-help line, adapted to the current input mode.
-func (qv *QuestionFormView) hint(state *domain.UserQuestionUIState, question domain.UserQuestion) string {
-	if state.OtherActive[state.CurrentIndex] {
-		return "type your answer · enter continue · esc back"
+// buildAnswer materializes the completed current question's answer.
+func (qv *QuestionFormView) buildAnswer() domain.UserQuestionAnswer {
+	question := qv.active.Questions[qv.idx]
+	answer := domain.UserQuestionAnswer{
+		Header:   question.Header,
+		Question: question.Question,
 	}
 	if question.MultiSelect {
-		return "↑/↓ move · space toggle · enter continue · esc cancel"
+		for _, i := range qv.multi {
+			if i >= 0 && i < len(question.Options) {
+				answer.SelectedLabels = append(answer.SelectedLabels, question.Options[i].Label)
+			}
+		}
+	} else if qv.single >= 0 && qv.single < len(question.Options) {
+		answer.SelectedLabels = []string{question.Options[qv.single].Label}
 	}
-	return "↑/↓ select · enter confirm · esc cancel"
+	if qv.otherChosen(question) {
+		answer.OtherText = strings.TrimSpace(qv.other)
+	}
+	return answer
 }
 
-// textBudget is the display width available for a row after reserving room for
-// the box border (2) and horizontal padding (2), plus slack from the right edge.
+// defaultUserQuestionOption returns the option index to pre-select for a
+// single-select question: the first option whose label is marked
+// "(Recommended)" (case-insensitive), otherwise the first option.
+func defaultUserQuestionOption(q domain.UserQuestion) int {
+	for i, opt := range q.Options {
+		if strings.Contains(strings.ToLower(opt.Label), "(recommended)") {
+			return i
+		}
+	}
+	return 0
+}
+
+func (qv *QuestionFormView) Render() string {
+	state := qv.stateManager.GetUserQuestionUIState()
+	if state == nil || state != qv.active || qv.form == nil {
+		return ""
+	}
+	accentColor := qv.styleProvider.GetThemeColor("accent")
+	return qv.styleProvider.RenderBorderedBox(qv.form.View(), accentColor, 0, 1)
+}
+
+// textBudget is the display width available inside the bordered box after
+// reserving room for the border (2) and horizontal padding (2), plus slack
+// from the right edge.
 func (qv *QuestionFormView) textBudget() int {
 	budget := qv.width - 6
 	if budget < minQuestionOptionWidth {
