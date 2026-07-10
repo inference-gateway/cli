@@ -11,7 +11,9 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the
@@ -71,6 +73,35 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 	app.handleChatView(domain.FocusStatusBarEvent{})
 	if app.statusBarFocused {
 		t.Fatal("nothing actionable: focus must stay in the input")
+	}
+}
+
+func TestDuplicateKeyGuardLetsTextareaEditingKeysThrough(t *testing.T) {
+	stateManager := services.NewStateManager(false)
+	if err := stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		t.Fatalf("transitioning to chat: %v", err)
+	}
+	app := &ChatApplication{stateManager: stateManager}
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, nil)
+
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+		want bool
+	}{
+		{name: "enter remains consumed", key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: true},
+		{name: "backspace reaches textarea", key: tea.KeyPressMsg{Code: tea.KeyBackspace}, want: false},
+		{name: "ctrl+j reaches textarea", key: tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app.lastHandledKey = tt.key.String()
+			var cmds []tea.Cmd
+			if got := app.handleDuplicateKeyEvents(tt.key, &cmds); got != tt.want {
+				t.Fatalf("handleDuplicateKeyEvents() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

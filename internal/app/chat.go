@@ -766,7 +766,7 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 		cmds = append(cmds, cmd)
 	}
 
-	if isHandledByAction {
+	if isHandledByAction && app.keyBindingManager.ShouldSkipInputUpdate(keyMsg) {
 		app.lastHandledKey = keyMsg.String()
 	}
 
@@ -2237,16 +2237,20 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing
 func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		if keyMsg.String() == app.lastHandledKey {
-			app.lastHandledKey = ""
-			if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
-				return false
-			}
-			return true
-		}
+	keyMsg, ok := msg.(tea.KeyPressMsg)
+	if !ok {
+		return false
 	}
-	return false
+	if keyMsg.String() != app.lastHandledKey {
+		return false
+	}
+
+	app.lastHandledKey = ""
+	if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
+		return false
+	}
+
+	return app.keyBindingManager.ShouldSkipInputUpdate(keyMsg)
 }
 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
@@ -2292,7 +2296,7 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		if app.keyBindingManager.IsKeyHandledByAction(keyMsg) {
+		if app.keyBindingManager.ShouldSkipInputUpdate(keyMsg) {
 			return
 		}
 	}

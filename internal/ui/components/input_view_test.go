@@ -8,7 +8,6 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
@@ -16,6 +15,7 @@ import (
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -33,12 +33,7 @@ func createMockModelService() *domainmocks.FakeModelService {
 
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
-	ta := textarea.New()
-	ta.Placeholder = "Type your message..."
-	ta.CharLimit = 0
-	ta.MaxHeight = 5
-	ta.ShowLineNumbers = false
-	ta.EndOfBufferCharacter = 0
+	ta := newInputTextarea("Type your message...")
 
 	iv := &InputView{
 		ta:               ta,
@@ -53,6 +48,9 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
+	fakeTheme.GetStatusColorReturns("#00ff00")
+	fakeTheme.GetAccentColorReturns("#00ffff")
+	fakeTheme.GetBorderColorReturns("#555555")
 
 	fakeThemeService := &domainmocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
@@ -252,12 +250,119 @@ func TestInputView_Render(t *testing.T) {
 	}
 }
 
+func TestInputView_RenderUsesCompactTextareaHeight(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+	iv.SetWidth(80)
+	iv.SetHeight(4)
+
+	iv.SetText("say hello")
+	if got := iv.textareaContentHeight(); got != 1 {
+		t.Fatalf("expected short input to use one textarea row, got %d", got)
+	}
+
+	output := stripANSI(iv.Render())
+	if lines := strings.Split(output, "\n"); len(lines) != 3 {
+		t.Fatalf("expected one content row plus border, got %d lines:\n%s", len(lines), output)
+	}
+
+	iv.SetText("say\nhello")
+	if got := iv.textareaContentHeight(); got != 2 {
+		t.Fatalf("expected two explicit lines to use two textarea rows, got %d", got)
+	}
+}
+
+func TestInputView_TextareaEditingKeyCompatibility(t *testing.T) {
+	tests := []struct {
+		name   string
+		start  string
+		cursor int
+		key    tea.KeyPressMsg
+		want   string
+		wantAt int
+	}{
+		{
+			name:   "ctrl+j inserts newline",
+			start:  "hello",
+			cursor: 5,
+			key:    tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl},
+			want:   "hello\n",
+			wantAt: 6,
+		},
+		{
+			name:   "alt+enter inserts newline",
+			start:  "hello",
+			cursor: 5,
+			key:    tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt},
+			want:   "hello\n",
+			wantAt: 6,
+		},
+		{
+			name:   "ctrl+backspace deletes previous word",
+			start:  "hello world",
+			cursor: 11,
+			key:    tea.KeyPressMsg{Code: tea.KeyBackspace, Mod: tea.ModCtrl},
+			want:   "hello ",
+			wantAt: 6,
+		},
+		{
+			name:   "ctrl+a moves to input beginning",
+			start:  "hello\nworld",
+			cursor: 11,
+			key:    tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl},
+			want:   "hello\nworld",
+			wantAt: 0,
+		},
+		{
+			name:   "ctrl+e moves to input end",
+			start:  "hello\nworld",
+			cursor: 0,
+			key:    tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl},
+			want:   "hello\nworld",
+			wantAt: 11,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := createInputViewWithTheme(createMockModelService())
+			iv.SetText(tt.start)
+			iv.SetCursor(tt.cursor)
+			_, _ = iv.Update(tea.FocusMsg{})
+
+			_, _ = iv.Update(tt.key)
+
+			if got := iv.GetInput(); got != tt.want {
+				t.Fatalf("input = %q, want %q", got, tt.want)
+			}
+			if got := iv.GetCursor(); got != tt.wantAt {
+				t.Fatalf("cursor = %d, want %d", got, tt.wantAt)
+			}
+		})
+	}
+}
+
+func TestInputView_RenderHighlightsRegisteredShortcut(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	registry := shortcuts.NewRegistry()
+	registry.Register(shortcuts.NewInitShortcut(config.DefaultConfig()))
+	iv.SetShortcutRegistry(registry)
+	iv.focused = false
+	iv.SetText("/init")
+
+	out := iv.renderTextWithCursor()
+	if got := stripANSI(out); got != "/init" {
+		t.Fatalf("plain rendered text = %q, want /init", got)
+	}
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatalf("expected rendered shortcut to contain ANSI highlighting, got %q", out)
+	}
+}
+
 func TestInputView_CanHandle(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	// Bubble Tea v2: KeyMsg is an interface; KeyPressMsg is the concrete
-	// type. Printable text lives in Text, special keys in Code.
 	charKey := tea.KeyPressMsg{Text: "a"}
 	if !iv.CanHandle(charKey) {
 		t.Error("Expected CanHandle to return true for character input")
@@ -609,7 +714,7 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 }
 
 func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
-	ta := textarea.New()
+	ta := newInputTextarea("")
 	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 
 	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
@@ -621,7 +726,7 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 }
 
 func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
-	ta := textarea.New()
+	ta := newInputTextarea("")
 	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 	require.NoError(t, iv.AddToHistory("previous message"))
 

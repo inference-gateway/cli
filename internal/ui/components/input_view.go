@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textarea"
+	key "charm.land/bubbles/v2/key"
+	textarea "charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
@@ -89,16 +90,12 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		historyManager = hm
 	}
 
-	ta := textarea.New()
-	ta.Placeholder = "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
-	ta.CharLimit = 0
-	ta.MaxHeight = 5
-	ta.ShowLineNumbers = false
-	ta.EndOfBufferCharacter = 0 // no end-of-buffer marker
+	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
+	ta := newInputTextarea(placeholder)
 
 	return &InputView{
 		ta:                ta,
-		placeholder:       "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)",
+		placeholder:       placeholder,
 		width:             80,
 		height:            5,
 		modelService:      modelService,
@@ -109,6 +106,25 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		gitBranchCacheTTL: 5 * time.Second,
 		resolveGitBranch:  gitCurrentBranch,
 	}
+}
+
+func newInputTextarea(placeholder string) textarea.Model {
+	ta := textarea.New()
+	ta.Placeholder = placeholder
+	ta.CharLimit = 0
+	ta.MaxHeight = 5
+	ta.ShowLineNumbers = false
+	ta.EndOfBufferCharacter = 0
+	ta.Prompt = ""
+	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("enter", "ctrl+m", "ctrl+j", "alt+enter"))
+	ta.KeyMap.WordBackward = key.NewBinding(key.WithKeys("alt+left", "ctrl+left", "alt+b"))
+	ta.KeyMap.WordForward = key.NewBinding(key.WithKeys("alt+right", "ctrl+right", "alt+f"))
+	ta.KeyMap.DeleteWordBackward = key.NewBinding(key.WithKeys("alt+backspace", "ctrl+w", "ctrl+backspace"))
+	ta.KeyMap.LineStart = key.NewBinding(key.WithKeys("home"))
+	ta.KeyMap.LineEnd = key.NewBinding(key.WithKeys("end"))
+	ta.KeyMap.InputBegin = key.NewBinding(key.WithKeys("ctrl+a", "alt+<", "ctrl+home"))
+	ta.KeyMap.InputEnd = key.NewBinding(key.WithKeys("ctrl+e", "alt+>", "ctrl+end"))
+	return ta
 }
 
 // SetThemeService sets the theme service for this input view
@@ -236,16 +252,42 @@ func (iv *InputView) SetCursor(position int) {
 
 func (iv *InputView) SetText(text string) {
 	iv.ta.SetValue(text)
+	iv.resizeTextarea()
 }
 
 func (iv *InputView) SetWidth(width int) {
 	iv.width = width
 	iv.ta.SetWidth(width - 4) // account for border and "> " prefix
+	iv.resizeTextarea()
 }
 
 func (iv *InputView) SetHeight(height int) {
 	iv.height = height
-	iv.ta.SetHeight(height)
+	iv.resizeTextarea()
+}
+
+func (iv *InputView) resizeTextarea() {
+	iv.ta.SetHeight(iv.textareaContentHeight())
+}
+
+func (iv *InputView) textareaContentHeight() int {
+	maxHeight := max(1, iv.height-2)
+	if iv.ta.MaxHeight > 0 {
+		maxHeight = min(maxHeight, iv.ta.MaxHeight)
+	}
+
+	text := iv.ta.Value()
+	if text == "" {
+		return 1
+	}
+
+	availableWidth := max(1, iv.width-8)
+	lines := 0
+	for _, line := range strings.Split(text, "\n") {
+		lineWidth := max(1, len([]rune(line)))
+		lines += (lineWidth + availableWidth - 1) / availableWidth
+	}
+	return min(maxHeight, max(1, lines))
 }
 
 func (iv *InputView) Render() string {
@@ -421,23 +463,18 @@ func (iv *InputView) renderFocusedPlaceholder() string {
 func (iv *InputView) renderTextWithCursor() string {
 	text := iv.ta.Value()
 	displayText, cursorOffset := iv.getDisplayTextAndCursorOffset()
+	iv.resizeTextarea()
 
-	// Use the textarea's rendered view for the text content
-	taView := iv.ta.View()
-
-	// When in bash/tools mode, we need to prepend the mode prefix
-	// The textarea renders the raw text; we add the mode prefix on top
-	if cursorOffset > 0 {
-		taView = displayText[:cursorOffset] + taView
-	}
-
+	adjustedCursor := iv.calculateAdjustedCursor(cursorOffset, len(displayText))
+	before := displayText[:adjustedCursor]
+	after := displayText[adjustedCursor:]
 	availableWidth := iv.width - 8
 
 	var result string
 	if availableWidth > 0 {
-		result = formatting.WrapText(taView, availableWidth)
+		result = iv.renderWrappedText(before, after, availableWidth)
 	} else {
-		result = taView
+		result = iv.renderUnwrappedText(before, after)
 	}
 
 	result = iv.applyModePrefixStyling(result)
@@ -448,6 +485,109 @@ func (iv *InputView) renderTextWithCursor() string {
 		}
 	}
 	return result
+}
+
+func (iv *InputView) calculateAdjustedCursor(cursorOffset int, displayTextLen int) int {
+	adjustedCursor := iv.GetCursor()
+	if cursorOffset > 0 {
+		adjustedCursor = iv.calculateModeCursorOffset()
+	}
+	return min(adjustedCursor, displayTextLen)
+}
+
+func (iv *InputView) calculateModeCursorOffset() int {
+	cursor := iv.GetCursor()
+	text := iv.ta.Value()
+	isToolsMode := strings.HasPrefix(text, "!!")
+
+	if isToolsMode && cursor >= 2 {
+		return cursor + 1
+	}
+	if !isToolsMode && cursor >= 1 {
+		return cursor + 1
+	}
+	return cursor
+}
+
+func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
+	wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
+	wrappedAfter := formatting.WrapText(after, availableWidth)
+	return iv.buildTextWithCursor(wrappedBefore, wrappedAfter)
+}
+
+func (iv *InputView) renderUnwrappedText(before, after string) string {
+	return iv.buildTextWithCursor(before, after)
+}
+
+func (iv *InputView) buildTextWithCursor(before, after string) string {
+	if !iv.focused {
+		return iv.buildUnfocusedText(before, after)
+	}
+
+	if len(after) == 0 {
+		return iv.buildEndOfTextWithCursor(before)
+	}
+
+	cursorChar := iv.styleProvider.RenderCursor(string(after[0]))
+	restAfter := ""
+	if len(after) > 1 {
+		restAfter = after[1:]
+	}
+	return fmt.Sprintf("%s%s%s", before, cursorChar, restAfter)
+}
+
+func (iv *InputView) buildUnfocusedText(before, after string) string {
+	if len(after) == 0 {
+		cursor := iv.GetCursor()
+		text := iv.ta.Value()
+		if cursor == len(text) && iv.usageHint != "" {
+			return before + iv.styleProvider.RenderDimText(iv.usageHint)
+		}
+		if cursor == len(text) && iv.historySuggestion != "" {
+			return before + iv.styleProvider.RenderDimText(iv.historySuggestion)
+		}
+		return before
+	}
+	return before + after
+}
+
+func (iv *InputView) buildEndOfTextWithCursor(before string) string {
+	cursor := iv.GetCursor()
+	text := iv.ta.Value()
+	if cursor == len(text) && iv.usageHint != "" {
+		return before + iv.styleProvider.RenderCursor(" ") + iv.styleProvider.RenderDimText(iv.usageHint)
+	}
+
+	if cursor == len(text) && iv.historySuggestion != "" {
+		firstGhostChar := string(iv.historySuggestion[0])
+		cursorChar := iv.styleProvider.RenderCursor(firstGhostChar)
+		restGhost := ""
+		if len(iv.historySuggestion) > 1 {
+			restGhost = iv.styleProvider.RenderDimText(iv.historySuggestion[1:])
+		}
+		return before + cursorChar + restGhost
+	}
+
+	return before + iv.styleProvider.RenderCursor(" ")
+}
+
+func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
+	wrappedText := formatting.WrapText(text, availableWidth)
+
+	trailingSpaces := 0
+	for i := len(text) - 1; i >= 0 && text[i] == ' '; i-- {
+		trailingSpaces++
+	}
+
+	wrappedTrailingSpaces := 0
+	for i := len(wrappedText) - 1; i >= 0 && wrappedText[i] == ' '; i-- {
+		wrappedTrailingSpaces++
+	}
+
+	if trailingSpaces > wrappedTrailingSpaces {
+		wrappedText += strings.Repeat(" ", trailingSpaces-wrappedTrailingSpaces)
+	}
+	return wrappedText
 }
 
 // ensureHighlighter lazily builds the input-token highlighter the first time it
