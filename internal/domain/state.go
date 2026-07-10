@@ -718,7 +718,7 @@ func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
 
 // GetRetryStatus returns a copy of the current retry status, or nil when no
 // retry is in progress. Returning a copy keeps callers from sharing the
-// mutable pointer with the HTTP client's OnRetry goroutine.
+// mutable pointer with the agent's streaming goroutine.
 func (s *ApplicationState) GetRetryStatus() *RetryStatus {
 	if s.chatSession == nil || s.chatSession.RetryStatus == nil {
 		return nil

@@ -58,7 +58,6 @@ func (s StateChangeType) String() string {
 func NewStateManager(debugMode bool) *StateManager {
 	return &StateManager{
 		state:          domain.NewApplicationState(),
-		stallThreshold: 5 * time.Second,
 		debugMode:      debugMode,
 		stateHistory:   make([]domain.StateSnapshot, 0),
 		maxHistorySize: 100,
@@ -155,8 +154,8 @@ func (sm *StateManager) SetChatPending() {
 }
 
 // SetRetryStatus updates the retry status on the current chat session.
-// Called by the HTTP client's OnRetry callback to provide visual feedback
-// in the status bar when the client is reconnecting after a failure.
+// Called by the agent's reconnect loop to provide visual feedback in the
+// status bar while it is reconnecting after a failure.
 func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
@@ -164,8 +163,8 @@ func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
 }
 
 // GetRetryStatus returns a copy of the current retry status, or nil when the
-// connection is healthy. Besides explicit HTTP retries (set by the client's
-// OnRetry callback), it synthesizes a zero-attempt status when a streaming
+// connection is healthy. Besides explicit reconnect attempts (set by the
+// agent's reconnect loop), it synthesizes a zero-attempt status when a streaming
 // session has produced no chunks for stallThreshold - the render tick calls
 // this on every frame, so a stalled connection surfaces without any timer of
 // its own. A synthesized status has Attempt == 0. Terminal sessions never

@@ -50,11 +50,6 @@ type AgentServiceImpl struct {
 	firedReminders map[string]bool
 	reminderMux    sync.Mutex
 
-	// Request tracking: per-iteration streaming timeout contexts.
-	// Lifetime is one LLM turn (created in startStreaming, deleted via defer).
-	activeRequests map[string]context.CancelFunc
-	requestsMux    sync.RWMutex
-
 	// Session tracking: covers the full lifetime of a RunWithStream call.
 	// Cancelling a session aborts streaming, tool execution, approval waits,
 	// and the main event loop in one shot. Idempotent via sync.Once so
@@ -375,7 +370,6 @@ func NewAgent(
 		reminderProvider: cfg.Reminders,
 		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),
-		activeRequests:   make(map[string]context.CancelFunc),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),

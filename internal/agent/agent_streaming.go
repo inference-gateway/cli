@@ -102,16 +102,6 @@ func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTim
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
-	a.service.requestsMux.Lock()
-	a.service.activeRequests[a.req.RequestID] = requestCancel
-	a.service.requestsMux.Unlock()
-
-	defer func() {
-		a.service.requestsMux.Lock()
-		delete(a.service.activeRequests, a.req.RequestID)
-		a.service.requestsMux.Unlock()
-	}()
-
 	events, err := a.openStream(requestCtx, requestCancel, client)
 	if err != nil {
 		if errors.Is(err, errConnectStalled) {
@@ -129,7 +119,20 @@ func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTim
 		return false
 	}
 
-	return a.processStreamEvents(requestCtx, events, iterationStartTime)
+	broken := a.processStreamEvents(requestCtx, events, iterationStartTime)
+	if broken {
+		go drainStream(events)
+	}
+	return broken
+}
+
+// drainStream consumes an abandoned event channel until the SDK closes it,
+// so the SDK's reader goroutine can never block on a send after a reconnect
+// decision. It terminates promptly: the caller cancels the request context,
+// which fails the body read and closes the channel.
+func drainStream(events <-chan sdk.SSEvent) {
+	for range events {
+	}
 }
 
 // openStream issues the streaming request bounded by the stall threshold: a
@@ -159,7 +162,10 @@ func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context
 		return o.events, o.err
 	case <-timer.C:
 		cancel()
-		<-done
+		o := <-done
+		if o.events != nil {
+			go drainStream(o.events)
+		}
 		return nil, errConnectStalled
 	}
 }

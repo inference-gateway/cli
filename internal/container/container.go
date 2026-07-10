@@ -740,7 +740,6 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
-
 			if originalOnRetry != nil {
 				originalOnRetry(attempt, err, delay)
 			}
