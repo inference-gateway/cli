@@ -183,9 +183,6 @@ func (qv *QuestionFormView) buildForm() {
 		}).
 		Value(&qv.other)
 
-	// huh's default quit key is only ctrl+c, which chat.go reserves for
-	// interrupting the whole turn - rebind quit to esc so esc still cancels
-	// the form (StateAborted) like it always has.
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Quit = key.NewBinding(key.WithKeys("esc"))
 

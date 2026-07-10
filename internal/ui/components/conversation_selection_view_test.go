@@ -43,7 +43,6 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 	if selector.cancelled {
 		t.Error("Expected cancelled to be false after reset")
 	}
-	// An empty bubbles table parks its cursor at -1.
 	if selector.table.Cursor() > 0 {
 		t.Errorf("Expected cursor at the top after reset, got %d", selector.table.Cursor())
 	}

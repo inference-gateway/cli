@@ -443,9 +443,6 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	viewBefore := app.stateManager.GetCurrentView()
 
-	// View transitions can happen inside commands, between Updates - detect
-	// re-entry into the model selector here and clear its done flag from the
-	// previous selection, or the view bounces straight back to chat.
 	if viewBefore == domain.ViewStateModelSelection && app.lastView != domain.ViewStateModelSelection {
 		app.modelSelector.Reset()
 	}
@@ -716,8 +713,6 @@ func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Always reassign and check selection state: huh-driven completion can
-	// return a nil cmd on the final keypress.
 	model, cmd := app.modelSelector.Update(msg)
 	app.modelSelector = model.(*components.ModelSelectorImpl)
 	if cmd != nil {
@@ -796,8 +791,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	var cmds []tea.Cmd
 
 	// While an AskUserQuestion form is up it captures all keys (like the
-	// tool-approval box). It floats over the chat, so the view stays Chat.
-	// ctrl+c falls through so the user can still cancel the whole turn.
 	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {
 		if cmd := app.questionFormView.Forward(keyMsg); cmd != nil {
 			return []tea.Cmd{cmd}
@@ -805,8 +798,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 		return nil
 	}
 
-	// The tool-approval inline select takes left/right/enter; everything else
-	// (esc reject, ctrl+c interrupt, typing) keeps its existing binding.
 	if app.stateManager.GetApprovalUIState() != nil {
 		switch keyMsg.Code {
 		case tea.KeyLeft, tea.KeyRight, tea.KeyEnter:

@@ -7,7 +7,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 )
 
 // newFilterTestSelector builds a selector backed by a fake pricing service with

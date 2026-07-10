@@ -2,7 +2,7 @@ package components
 
 import (
 	huh "charm.land/huh/v2"
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )

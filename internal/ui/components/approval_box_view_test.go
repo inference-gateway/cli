@@ -245,7 +245,7 @@ func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
-	av.SetHeight(60) // previewLineLimit -> 30; the small diff is not capped
+	av.SetHeight(60)
 	_ = av.Begin()
 	out := stripANSI(av.Render())
 

@@ -9,7 +9,7 @@ import (
 	spinner "charm.land/bubbles/v2/spinner"
 	table "charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
