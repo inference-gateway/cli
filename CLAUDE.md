@@ -26,6 +26,16 @@ A single test: `flox activate -- go test ./internal/agent/tools -run TestBashToo
 
 Commits use Conventional Commits (`.commitlintrc.json`); release tooling (semantic-release on `main`) maps `feat:` → minor, `fix:` → patch, `feat!:` / `BREAKING CHANGE:` → major.
 
+## Hermetic testing (mock gateway)
+
+`internal/mockgateway/` is an embedded mock inference-gateway serving canned OpenAI-compatible SSE responses. Scenario routing (`internal/mockgateway/scenarios.yaml`) matches the **latest real user message** — injected `<system-reminder>` content is skipped — against each scenario's regex; unmatched prompts get a `Done.` fallback. Three ways in:
+
+- **In-process**: `INFER_GATEWAY_MOCK=true` (config `gateway.mock`) makes the service container start the mock on an ephemeral port and point the CLI at it — no real LLM, no network. Works for interactive `infer chat` too.
+- **Integration tests** (`tests/integration/agent_gateway_test.go`): the agent against the mock over real HTTP — real SDK client, SSE parsing, tool-call accumulation, state machine; no interface fakes on the LLM path.
+- **E2E tests** (`tests/e2e/`, build tag `e2e`): run the built `infer` binary as a subprocess against the mock. `task test:e2e` (= `go test -race -tags e2e -timeout 5m ./tests/e2e/...`); plain `task test` skips them (build tag), CI runs them in a dedicated job.
+
+For manual testing with custom scenarios: `task build:mockgateway` → `.infer/bin/mock-gateway --scenarios my.yaml`, then point the CLI at its printed listen address via `INFER_GATEWAY_URL`. To drive the chat TUI end-to-end (tmux + `send-keys`/`capture-pane`, including pitfalls like `-l` for literal text), follow the recipe in `AGENTS.md` § "Driving the chat TUI via tmux" — don't duplicate it here.
+
 ## Big-picture architecture
 
 The CLI is a Cobra app whose root subcommands all share one dependency-injected service container.
