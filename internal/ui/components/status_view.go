@@ -218,27 +218,12 @@ func (sv *StatusView) Render() string {
 		}
 	}
 
-	statusLine := fmt.Sprintf("%s %s", prefix, displayMessage)
+	statusLine := displayMessage
+	if prefix != "" {
+		statusLine = fmt.Sprintf("%s %s", prefix, displayMessage)
+	}
 	styledStatusLine := sv.styleProvider.RenderWithColor(statusLine, color)
 	return styledStatusLine
-}
-
-// getStatusIcon returns the appropriate icon for the current status type
-func (sv *StatusView) getStatusIcon() string {
-	switch sv.statusType {
-	case domain.StatusThinking:
-		return ""
-	case domain.StatusGenerating:
-		return ""
-	case domain.StatusWorking:
-		return ""
-	case domain.StatusProcessing:
-		return ""
-	case domain.StatusPreparing:
-		return ""
-	default:
-		return ""
-	}
 }
 
 // formatStatusWithType enhances the status message with type-specific formatting and progress
@@ -274,12 +259,7 @@ func (sv *StatusView) formatErrorStatus() (string, string, string) {
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
-	var prefix string
-	if sv.statusType == domain.StatusThinking {
-		prefix = fmt.Sprintf("%s %s", sv.getStatusIcon(), sv.spinner.View())
-	} else {
-		prefix = sv.spinner.View()
-	}
+	prefix := sv.spinner.View()
 
 	elapsed := time.Since(sv.startTime)
 	seconds := elapsed.Seconds()
@@ -316,11 +296,10 @@ func (sv *StatusView) reconnectingMessage() string {
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {
-	prefix := sv.getStatusIcon()
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	displayMessage := sv.formatStatusWithType(sv.message)
 
-	return prefix, statusColor, displayMessage
+	return "", statusColor, displayMessage
 }
 
 // Bubble Tea interface
