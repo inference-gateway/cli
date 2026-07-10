@@ -77,9 +77,10 @@ func (t *WaitTool) Definition() sdk.ChatCompletionTool {
 					"pending_exit_codes": map[string]any{
 						"type":  "array",
 						"items": map[string]any{"type": "number"},
-						"description": "Non-zero exit codes that mean 'still pending, keep polling' (condition=command). " +
-							"Any other non-zero exit ends the wait immediately with reason 'check_failed'. " +
-							"Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
+						"description": "Exit codes that mean 'still pending, keep polling' (condition=command). " +
+							"Include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' " +
+							"and 'completed successfully'. Any exit code not in this list ends the wait immediately " +
+							"with reason 'check_failed'. Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
 					},
 					"timeout_seconds": map[string]any{
 						"type":        "number",
@@ -667,6 +668,9 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 
 	classify := func(exitCode int) string {
 		if exitCode == 0 {
+			if pendingCodes[0] {
+				return ""
+			}
 			return "condition_met"
 		}
 		if len(pendingCodes) > 0 && !pendingCodes[exitCode] {

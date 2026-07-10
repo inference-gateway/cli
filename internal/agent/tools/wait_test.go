@@ -722,3 +722,58 @@ func TestWaitTool_FormatForLLM_FailureKeepsDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitTool_Validate_PendingExitCodesIncludeZero(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	tests := []struct {
+		name    string
+		codes   any
+		wantErr string
+	}{
+		{name: "valid codes with 0", codes: []any{float64(0), float64(8)}, wantErr: ""},
+		{name: "valid codes without 0", codes: []any{float64(8)}, wantErr: ""},
+		{name: "not an array", codes: "0", wantErr: "pending_exit_codes must be an array of numbers"},
+		{name: "non-numeric entry", codes: []any{"0"}, wantErr: "pending_exit_codes must be an array of numbers"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(map[string]any{
+				"condition":          "command",
+				"timeout_seconds":    float64(30),
+				"command":            "echo hi",
+				"pending_exit_codes": tt.codes,
+			})
+			assertValidateError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+
+	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	start := time.Now()
+	result, err := tool.Execute(ctx, map[string]any{
+		"condition":          "command",
+		"timeout_seconds":    float64(1),
+		"command":            "exit 0",
+		"pending_exit_codes": []any{float64(0)},
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Error("Execute() should fail on timeout when exit 0 is treated as pending")
+	}
+	if !strings.Contains(result.Error, "timed out") && !strings.Contains(result.Error, "check command failed") {
+		t.Errorf("Execute() error = %q, want containing %q or %q", result.Error, "timed out", "check command failed")
+	}
+	if time.Since(start) < 500*time.Millisecond {
+		t.Error("Execute() returned too quickly - should have polled until timeout")
+	}
+}
