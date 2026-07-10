@@ -92,11 +92,13 @@ client:
   timeout: 200
   retry:
     enabled: true
-    max_attempts: 3
+    max_attempts: 5
     initial_backoff_sec: 5
     max_backoff_sec: 60
     backoff_multiplier: 2
-    retryable_status_codes: [400, 408, 429, 500, 502, 503, 504]
+    retryable_status_codes: [400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410,
+      411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 425, 426, 428,
+      429, 431, 451, 500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511]
 logging:
   debug: false
   dir: "" # Override log directory (defaults to <config-dir>/logs)
@@ -265,7 +267,7 @@ compact:
 
 - **client.timeout**: HTTP client timeout in seconds
 - **client.retry.enabled**: Enable automatic retries for failed requests
-- **client.retry.max_attempts**: Maximum number of retry attempts
+- **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
 - **client.retry.max_backoff_sec**: Maximum delay between retries in seconds
 - **client.retry.backoff_multiplier**: Backoff multiplier for exponential delay
@@ -623,7 +625,7 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 - `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds (default: `200`)
 - `INFER_CLIENT_RETRY_ENABLED`: Enable retry logic (default: `true`)
-- `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `3`)
+- `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `5`)
 - `INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC`: Initial backoff delay in seconds (default: `5`)
 - `INFER_CLIENT_RETRY_MAX_BACKOFF_SEC`: Maximum backoff delay in seconds (default: `60`)
 - `INFER_CLIENT_RETRY_BACKOFF_MULTIPLIER`: Backoff multiplier (default: `2`)
