@@ -590,7 +590,7 @@ func (s stubSkillsService) Get(name string) (domain.Skill, bool) {
 func (s stubSkillsService) Errors() []domain.SkillLoadError { return nil }
 
 func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
-	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}}}
+	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}, "ponytail": {}}}
 	p := NewChatMessageProcessor(&ChatHandler{skillsService: skills})
 
 	tests := []struct {
@@ -603,6 +603,9 @@ func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
 		{"unknown skill falls through to shortcut", "/clear", false},
 		{"non-slash message", "use the maintainer skill", false},
 		{"unknown slash token", "/totally-unknown", false},
+		{"plugin skill", "/ponytail:ponytail do something", true},
+		{"plugin skill unknown name", "/ponytail:unknown-skill hello", false},
+		{"plugin skill unknown plugin", "/unknown:totally-unknown hello", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,6 +1,7 @@
 package inputsyntax
 
 import (
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -20,7 +21,12 @@ func knownSet(names ...string) func(string) bool {
 	for _, n := range names {
 		set[n] = true
 	}
-	return func(name string) bool { return set[name] }
+	return func(name string) bool {
+		if parts := strings.SplitN(name, ":", 2); len(parts) == 2 {
+			return set[parts[1]]
+		}
+		return set[name]
+	}
 }
 
 func newSkillHighlighter(known ...string) *Highlighter {
@@ -28,7 +34,7 @@ func newSkillHighlighter(known ...string) *Highlighter {
 }
 
 func TestHighlight_Skill(t *testing.T) {
-	h := newSkillHighlighter("plan", "review")
+	h := newSkillHighlighter("plan", "review", "ponytail")
 
 	tests := []struct {
 		name string
@@ -43,6 +49,9 @@ func TestHighlight_Skill(t *testing.T) {
 		{"midword slash not matched", "path/plan", "path/plan"},
 		{"bare slash not matched", "/ x", "/ x"},
 		{"empty string", "", ""},
+		{"plugin skill format", "/ponytail:ponytail fix", "<accent>/ponytail:ponytail</> fix"},
+		{"plugin skill unknown name", "/ponytail:unknown-skill", "/ponytail:unknown-skill"},
+		{"plugin skill unknown plugin", "/unknown:totally-unknown", "/unknown:totally-unknown"},
 	}
 
 	for _, tt := range tests {

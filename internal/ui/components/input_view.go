@@ -654,7 +654,12 @@ func (iv *InputView) ensureHighlighter() {
 	var rules []inputsyntax.Rule
 	if iv.skillsService != nil {
 		rules = append(rules, inputsyntax.SkillRule(func(name string) bool {
-			_, found := iv.skillsService.Get(strings.ToLower(name))
+			lower := strings.ToLower(name)
+			if parts := strings.SplitN(lower, ":", 2); len(parts) == 2 {
+				_, found := iv.skillsService.Get(parts[1])
+				return found
+			}
+			_, found := iv.skillsService.Get(lower)
 			return found
 		}))
 	}

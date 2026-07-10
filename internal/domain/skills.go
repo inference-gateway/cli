@@ -23,6 +23,16 @@ type Skill struct {
 	Description string
 	Path        string
 	Scope       SkillScope
+	PluginName  string
+}
+
+// DisplayName returns the qualified name for display. Plugin skills are shown
+// as "pluginName:skillName" so the user/LLM can reference them unambiguously.
+func (s Skill) DisplayName() string {
+	if s.Scope == SkillScopePlugin && s.PluginName != "" {
+		return s.PluginName + ":" + s.Name
+	}
+	return s.Name
 }
 
 // SkillLoadError records a per-skill validation failure so `infer skills

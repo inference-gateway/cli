@@ -3,11 +3,11 @@ package inputsyntax
 import "regexp"
 
 // slashRe matches a "/<name>" token at start-of-string or after whitespace. The
-// [a-z0-9-] charset mirrors the skill/shortcut name validation. Skills and
-// shortcuts share this pattern; they are distinguished by their Validate funcs
-// and applied in order (skills first) so a known skill is never re-colored as a
-// shortcut.
-var slashRe = regexp.MustCompile(`(^|\s)(/[a-z0-9-]+)`)
+// [a-z0-9:-] charset mirrors the skill/shortcut name validation plus ':' for
+// the /pluginName:skillName format. Skills and shortcuts share this pattern;
+// they are distinguished by their Validate funcs and applied in order (skills
+// first) so a known skill is never re-colored as a shortcut.
+var slashRe = regexp.MustCompile(`(^|\s)(/[a-z0-9:-]+)`)
 
 // fileRe matches an "@<path>" token at start-of-string or after whitespace,
 // mirroring the file-reference grammar used during message expansion. The body

@@ -226,7 +226,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		}
 	}
 
-	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, domain.SkillScopeProject)
+	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, domain.SkillScopeProject, "")
 	if loadErr != nil {
 		_ = os.RemoveAll(destDir)
 		return "", fmt.Errorf("downloaded skill failed validation: %s", loadErr.Reason)

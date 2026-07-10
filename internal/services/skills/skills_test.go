@@ -451,13 +451,14 @@ func TestPrecedence_ProjectOverridesPlugin(t *testing.T) {
 func TestLoadSkillMetadata_ExportedValidation(t *testing.T) {
 	tmp := t.TempDir()
 	writeSkill(t, tmp, "good-skill", validSkillBody("good-skill", "Valid."))
-	sk, loadErr := LoadSkillMetadata(filepath.Join(tmp, "good-skill"), "good-skill", domain.SkillScopePlugin)
+	sk, loadErr := LoadSkillMetadata(filepath.Join(tmp, "good-skill"), "good-skill", domain.SkillScopePlugin, "test-plugin")
 	require.Nil(t, loadErr)
 	require.NotNil(t, sk)
 	require.Equal(t, domain.SkillScopePlugin, sk.Scope)
+	require.Equal(t, "test-plugin", sk.PluginName)
 
 	writeSkill(t, tmp, "bad-skill", "---\ndescription: missing name\n---\n")
-	sk, loadErr = LoadSkillMetadata(filepath.Join(tmp, "bad-skill"), "bad-skill", domain.SkillScopePlugin)
+	sk, loadErr = LoadSkillMetadata(filepath.Join(tmp, "bad-skill"), "bad-skill", domain.SkillScopePlugin, "")
 	require.Nil(t, sk)
 	require.NotNil(t, loadErr)
 }
