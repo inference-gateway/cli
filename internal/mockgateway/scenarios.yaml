@@ -1,0 +1,100 @@
+# Built-in scenario library for the mock inference-gateway.
+#
+# A scenario is selected by matching `match` (a Go regular expression,
+# unanchored, first match in file order wins) against the FIRST user message
+# of the request. The turn within a scenario is the number of assistant
+# messages already present in the request; past the last turn the top-level
+# fallback is served, which lets the headless agent's completion check
+# (two consecutive turns without tool calls) terminate naturally.
+
+fallback:
+  content: "Done."
+
+scenarios:
+  - name: text-only
+    match: '(?i)^say hello'
+    turns:
+      - content: "Hello! How can I help?"
+
+  - name: parallel-reads
+    match: '(?i)execute (the )?Read tool 4 times in parallel'
+    turns:
+      - tool_calls:
+          - { name: Read, args: { file_path: "a.txt" } }
+          - { name: Read, args: { file_path: "b.txt" } }
+          - { name: Read, args: { file_path: "c.txt" } }
+          - { name: Read, args: { file_path: "d.txt" } }
+      - content: "All four files read."
+
+  - name: search
+    match: '(?i)^please search for (.+)'
+    turns:
+      - tool_calls:
+          - { name: Grep, args: { pattern: "TODO", path: "." } }
+      - content: "Search finished: found matches for TODO."
+
+  - name: sequential-explore
+    match: '(?i)explore the project structure'
+    turns:
+      - tool_calls:
+          - { name: Tree, args: { path: "." } }
+      - tool_calls:
+          - { name: Read, args: { file_path: "a.txt" } }
+      - content: "The project contains a.txt with fixture content."
+
+  - name: write-blocked
+    match: '(?i)create a file named blocked\.txt'
+    turns:
+      - tool_calls:
+          - { name: Write, args: { file_path: "blocked.txt", content: "hi" } }
+      - content: "Understood, the write was not permitted."
+
+  - name: bash-allowed
+    match: '(?i)run the echo command'
+    turns:
+      - tool_calls:
+          - { name: Bash, args: { command: "echo hello-from-bash" } }
+      - content: "The echo command ran."
+
+  - name: bash-blocked
+    match: '(?i)run the forbidden command'
+    turns:
+      - tool_calls:
+          - { name: Bash, args: { command: "curl http://example.com" } }
+      - content: "Understood, the command was not permitted."
+
+  - name: error-retry
+    match: '(?i)flaky backend'
+    turns:
+      - error: { status: 429, times: 2 }
+        content: "Recovered after retries."
+
+  - name: error-hard
+    match: '(?i)always fails'
+    turns:
+      - error: { status: 500, times: -1 }
+
+  - name: malformed-sse
+    match: '(?i)garbled stream'
+    turns:
+      - malformed: true
+        content: "Still standing."
+
+  - name: slow-stream
+    match: '(?i)stream slowly'
+    turns:
+      - content: "This response is intentionally streamed in very small fragments with a per-frame delay so that progressive rendering, spinner behaviour and mid-stream cancellation can be observed and asserted deterministically by tests."
+        chunk_size: 4
+        delay_ms: 50
+
+  - name: usage-report
+    match: '(?i)report your usage'
+    turns:
+      - content: "Usage reported."
+        usage: { prompt_tokens: 100, completion_tokens: 42 }
+
+  - name: reasoning
+    match: '(?i)think step by step'
+    turns:
+      - reasoning: "Considering the question carefully before answering."
+        content: "Answer: 42."

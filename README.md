@@ -675,6 +675,7 @@ All configuration can be set via environment variables with the `INFER_` prefix:
 
 ```bash
 export INFER_GATEWAY_URL="http://localhost:8080"
+export INFER_GATEWAY_MOCK=true # embedded mock gateway with canned scenario responses, no real LLM
 export INFER_AGENT_MODEL="deepseek/deepseek-v4-pro"
 export INFER_TOOLS_BASH_ENABLED=true
 export INFER_CHAT_THEME="tokyo-night"

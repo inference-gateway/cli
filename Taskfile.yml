@@ -32,10 +32,16 @@ tasks:
     cmds:
       - go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
+  build:mockgateway:
+    desc: Build the mock inference-gateway binary for manual and terminal-automation testing
+    cmds:
+      - mkdir -p .infer/bin
+      - go build -o .infer/bin/mock-gateway ./tests/mockgateway
+
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -f {{.BINARY_NAME}}
+      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway
       - go clean
 
   test:
@@ -57,6 +63,11 @@ tasks:
     desc: Run all tests with the race detector
     cmds:
       - go test -race ./...
+
+  test:e2e:
+    desc: Run hermetic end-to-end tests of the built CLI against the mock gateway
+    cmds:
+      - go test -race -tags e2e -timeout 5m ./tests/e2e/...
 
   lint:
     desc: Run linter (requires golangci-lint)

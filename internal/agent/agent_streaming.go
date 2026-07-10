@@ -89,6 +89,7 @@ func (a *EventDrivenAgent) startStreaming() {
 		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
 			logger.Error("failed to transition to Error state after stream failure", "error", err)
 		}
+		a.events <- domain.MessageReceivedEvent{}
 		return
 	}
 
@@ -142,6 +143,7 @@ func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
 			logger.Error("failed to transition to Error state after stream failure", "error", err)
 		}
+		a.events <- domain.MessageReceivedEvent{}
 		return
 	}
 
@@ -216,12 +218,12 @@ func (a *EventDrivenAgent) processStreamEvent(
 	}
 
 	var streamUsage *sdk.CompletionUsage
+	if streamResponse.Usage != nil {
+		streamUsage = streamResponse.Usage
+	}
+
 	for _, choice := range streamResponse.Choices {
 		a.processChoiceDelta(choice, message, allToolCallDeltas)
-
-		if streamResponse.Usage != nil {
-			streamUsage = streamResponse.Usage
-		}
 	}
 
 	return streamUsage

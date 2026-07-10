@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -39,7 +40,7 @@ type Registry struct {
 	config             *config.Config
 	toolsMu            sync.RWMutex
 	tools              map[string]domain.Tool
-	readToolUsed       bool
+	readToolUsed       atomic.Bool
 	readFiles          map[string]fileReadSnapshot
 	readFilesMu        sync.Mutex
 	taskTracker        domain.A2ATaskTracker
@@ -67,7 +68,6 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		config:             cfg,
 		tools:              make(map[string]domain.Tool),
 		shellService:       shellService,
-		readToolUsed:       false,
 		readFiles:          make(map[string]fileReadSnapshot),
 		taskTracker:        taskTracker,
 		imageService:       imageService,
@@ -355,14 +355,15 @@ func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
 	logger.Info("dynamically registered GetLatestScreenshot tool for streaming mode")
 }
 
-// SetReadToolUsed marks that the Read tool has been used
+// SetReadToolUsed marks that the Read tool has been used. Tool calls in one
+// assistant turn execute concurrently, so this must be safe under parallel use.
 func (r *Registry) SetReadToolUsed() {
-	r.readToolUsed = true
+	r.readToolUsed.Store(true)
 }
 
 // IsReadToolUsed returns whether the Read tool has been used
 func (r *Registry) IsReadToolUsed() bool {
-	return r.readToolUsed
+	return r.readToolUsed.Load()
 }
 
 // fileReadSnapshot captures a file's state the last time the agent read or wrote it, so a later
