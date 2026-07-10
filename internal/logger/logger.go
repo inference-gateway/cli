@@ -52,7 +52,6 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 
 	logFile := fmt.Sprintf("%s/app-%s.log", logDir, time.Now().Format("2006-01-02"))
 
-	// Archive the existing log file if it exceeds the threshold
 	if cfg.ArchiveEnabled && cfg.ArchiveMaxSizeMB > 0 {
 		if err := archiveLogFile(logFile, cfg.ArchiveMaxSizeMB); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to archive log file %s: %v\n", logFile, err)
