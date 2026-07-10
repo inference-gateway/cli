@@ -128,6 +128,7 @@ type ChatApplication struct {
 
 	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
+	lastView       domain.ViewState
 
 	// Available models
 	availableModels []string
@@ -442,6 +443,13 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	viewBefore := app.stateManager.GetCurrentView()
 
+	// View transitions can happen inside commands, between Updates - detect
+	// re-entry into the model selector here and clear its done flag from the
+	// previous selection, or the view bounces straight back to chat.
+	if viewBefore == domain.ViewStateModelSelection && app.lastView != domain.ViewStateModelSelection {
+		app.modelSelector.Reset()
+	}
+
 	var cmds []tea.Cmd
 
 	if cmd := app.handleAppEvents(msg); cmd != nil {
@@ -471,6 +479,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		!app.messageQueue.IsEmpty() {
 		cmds = append(cmds, func() tea.Msg { return domain.DrainQueueEvent{} })
 	}
+
+	app.lastView = viewBefore
 
 	return app, tea.Batch(cmds...)
 }

@@ -294,6 +294,14 @@ func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
 	return m.pricingService.RequiresPro(model)
 }
 
+// Reset clears the done/cancelled flags and rebuilds the form so the selector
+// can be re-entered after a previous selection.
+func (m *ModelSelectorImpl) Reset() {
+	m.done = false
+	m.cancelled = false
+	m.buildForm()
+}
+
 // IsSelected returns true if a model was selected
 func (m *ModelSelectorImpl) IsSelected() bool {
 	return m.done && !m.cancelled
