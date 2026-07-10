@@ -100,6 +100,7 @@ func resolveViperEnvironmentVariables(cfg any, keyPrefix string) {
 		if tag == "" {
 			tag = strings.ToLower(fieldType.Name)
 		}
+		tag = strings.SplitN(tag, ",", 2)[0]
 
 		var key string
 		if keyPrefix == "" {
