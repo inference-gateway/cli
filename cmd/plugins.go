@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	huh "charm.land/huh/v2"
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
@@ -257,14 +257,11 @@ func confirmInstall(yes bool) error {
 	if err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
 		return fmt.Errorf("confirmation required on non-interactive stdin - pass --yes to proceed")
 	}
-	fmt.Print("Proceed? [y/N]: ")
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
-		return nil
-	default:
+	var ok bool
+	if err := huh.NewConfirm().Title("Proceed with installation?").Value(&ok).Run(); err != nil || !ok {
 		return fmt.Errorf("installation aborted")
 	}
+	return nil
 }
 
 func printPostInstallNotes() {
