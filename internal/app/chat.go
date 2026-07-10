@@ -756,10 +756,12 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	}
 
 	if app.attachmentsFocused && keyMsg.String() != "ctrl+c" {
+		app.lastHandledKey = keyMsg.String()
 		return app.handleAttachmentsKeys(keyMsg)
 	}
 	if app.statusBarFocused && keyMsg.String() != "ctrl+c" {
 		if cmds, handled := app.handleStatusBarKeys(keyMsg); handled {
+			app.lastHandledKey = keyMsg.String()
 			return cmds
 		}
 	}
@@ -2257,22 +2259,18 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd
 	return false
 }
 
-// handleDuplicateKeyEvents handles duplicate key events to prevent double processing
+// handleDuplicateKeyEvents handles duplicate key events to prevent double processing.
+// lastHandledKey marks a key a chat-view handler fully consumed this cycle; the mark
+// is trusted as-is because it was evaluated in-context when set - re-resolving here
+// would consult the current view, which the handler may have already transitioned.
 func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return false
-	}
-	if keyMsg.String() != app.lastHandledKey {
+	if !ok || keyMsg.String() != app.lastHandledKey {
 		return false
 	}
 
 	app.lastHandledKey = ""
-	if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
-		return false
-	}
-
-	return app.keyBindingManager.ShouldSkipInputUpdate(keyMsg)
+	return app.stateManager.GetApprovalUIState() == nil && app.stateManager.GetPlanApprovalUIState() == nil
 }
 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages

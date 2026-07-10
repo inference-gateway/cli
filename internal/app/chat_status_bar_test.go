@@ -76,7 +76,11 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 	}
 }
 
-func TestDuplicateKeyGuardLetsTextareaEditingKeysThrough(t *testing.T) {
+// TestDuplicateKeyGuardConsumesMarkedKeysOnce asserts the guard trusts the
+// consumed-key mark set by chat-view handlers: a marked key is skipped exactly
+// once (even if the handler transitioned the view mid-cycle), and unmarked
+// keys flow through to the components.
+func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
 	stateManager := services.NewStateManager(false)
 	if err := stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		t.Fatalf("transitioning to chat: %v", err)
@@ -84,24 +88,22 @@ func TestDuplicateKeyGuardLetsTextareaEditingKeysThrough(t *testing.T) {
 	app := &ChatApplication{stateManager: stateManager}
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app, nil)
 
-	tests := []struct {
-		name string
-		key  tea.KeyPressMsg
-		want bool
-	}{
-		{name: "enter remains consumed", key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: true},
-		{name: "backspace reaches textarea", key: tea.KeyPressMsg{Code: tea.KeyBackspace}, want: false},
-		{name: "ctrl+j reaches textarea", key: tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl}, want: false},
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	var cmds []tea.Cmd
+
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); got {
+		t.Fatal("unmarked key must not be skipped")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app.lastHandledKey = tt.key.String()
-			var cmds []tea.Cmd
-			if got := app.handleDuplicateKeyEvents(tt.key, &cmds); got != tt.want {
-				t.Fatalf("handleDuplicateKeyEvents() = %v, want %v", got, tt.want)
-			}
-		})
+	app.lastHandledKey = enter.String()
+	if err := stateManager.TransitionToView(domain.ViewStateThemeSelection); err != nil {
+		t.Fatalf("transitioning to theme selection: %v", err)
+	}
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); !got {
+		t.Fatal("marked key must be skipped even after a mid-cycle view transition")
+	}
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); got {
+		t.Fatal("mark must be consumed after one skip")
 	}
 }
 
