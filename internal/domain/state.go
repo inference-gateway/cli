@@ -398,7 +398,6 @@ type FileSelectionState struct {
 
 // ApprovalUIState represents the state of approval UI
 type ApprovalUIState struct {
-	SelectedIndex   int                                `json:"selected_index"`
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
 	ResponseChan    chan ApprovalAction                `json:"-"`
 }
@@ -900,7 +899,6 @@ func (s *ApplicationState) ClearFileSelectionState() {
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
 	s.approvalUIState = &ApprovalUIState{
-		SelectedIndex:   int(ApprovalApprove),
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}
@@ -909,13 +907,6 @@ func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMess
 // GetApprovalUIState returns the current approval UI state
 func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
 	return s.approvalUIState
-}
-
-// SetApprovalSelectedIndex sets the approval selection index
-func (s *ApplicationState) SetApprovalSelectedIndex(index int) {
-	if s.approvalUIState != nil {
-		s.approvalUIState.SelectedIndex = index
-	}
 }
 
 // ClearApprovalUIState clears the approval UI state

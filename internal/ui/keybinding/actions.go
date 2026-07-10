@@ -253,17 +253,6 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState != nil {
-		action := domain.ApprovalAction(approvalState.SelectedIndex)
-		return func() tea.Msg {
-			return domain.ToolApprovalResponseEvent{
-				Action:   action,
-				ToolCall: *approvalState.PendingToolCall,
-			}
-		}
-	}
-
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
 		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
@@ -580,18 +569,6 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState != nil {
-		newIndex := approvalState.SelectedIndex - 1
-		if newIndex < 0 {
-			newIndex = int(domain.ApprovalAutoAccept)
-		}
-		stateManager.SetApprovalSelectedIndex(newIndex)
-		return func() tea.Msg {
-			return domain.ApprovalSelectionChangedEvent{NewIndex: newIndex}
-		}
-	}
-
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
 		newIndex := planApprovalState.SelectedIndex - 1
@@ -609,19 +586,6 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 
 func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
-
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState != nil {
-		newIndex := approvalState.SelectedIndex + 1
-		if newIndex > int(domain.ApprovalAutoAccept) {
-			newIndex = 0
-		}
-
-		stateManager.SetApprovalSelectedIndex(newIndex)
-		return func() tea.Msg {
-			return domain.ApprovalSelectionChangedEvent{NewIndex: newIndex}
-		}
-	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {

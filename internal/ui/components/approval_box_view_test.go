@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -34,9 +36,8 @@ func (argsAwareToolFormatter) FormatToolResultExpanded(*domain.ToolExecutionResu
 func (argsAwareToolFormatter) FormatToolResultForLLM(*domain.ToolExecutionResult) string { return "" }
 func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool                        { return false }
 
-func approvalStateWith(toolName, arguments string, selected domain.ApprovalAction) *domain.ApprovalUIState {
+func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 	return &domain.ApprovalUIState{
-		SelectedIndex: int(selected),
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			ID: "call_1",
 			Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -59,16 +60,18 @@ func TestApprovalBox_EmptyWhenNoPendingCall(t *testing.T) {
 
 func TestApprovalBox_FramesSummaryAndButtons(t *testing.T) {
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
+	_ = av.Begin()
 	out := av.Render()
 
+	// The inline select shows only the focused option (← Approve →).
 	for _, want := range []string{
 		"Approval required",
 		"Read(file_path=/x/y.txt)",
-		"Approve", "Reject", "Auto-Approve",
+		"Approve",
 		"╭", "╰",
 	} {
 		if !strings.Contains(out, want) {
@@ -77,12 +80,39 @@ func TestApprovalBox_FramesSummaryAndButtons(t *testing.T) {
 	}
 }
 
+func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
+	sm := &domainmocks.FakeStateManager{}
+	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(80)
+	_ = av.Begin()
+
+	_ = av.Forward(tea.KeyPressMsg{Code: tea.KeyRight})
+	cmd := av.Forward(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for cmd != nil {
+		msg := cmd()
+		if ev, ok := msg.(domain.ToolApprovalResponseEvent); ok {
+			if ev.Action != domain.ApprovalReject {
+				t.Errorf("expected Reject after one right arrow, got %v", ev.Action)
+			}
+			if ev.ToolCall.ID != "call_1" {
+				t.Errorf("expected the pending tool call echoed, got %+v", ev.ToolCall)
+			}
+			return
+		}
+		cmd = av.Forward(msg)
+	}
+	t.Fatal("expected a ToolApprovalResponseEvent after enter")
+}
+
 func TestApprovalBox_NilFormatterFallsBackToName(t *testing.T) {
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
 	av.SetWidth(80)
+	_ = av.Begin()
 	out := av.Render()
 
 	if !strings.Contains(out, "Read(...)") {
@@ -92,10 +122,11 @@ func TestApprovalBox_NilFormatterFallsBackToName(t *testing.T) {
 
 func TestApprovalBox_UnparseableArgsFallBack(t *testing.T) {
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Bash", `not json`, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Bash", `not json`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
+	_ = av.Begin()
 	out := av.Render()
 
 	if !strings.Contains(out, "Bash(...)") {
@@ -106,10 +137,11 @@ func TestApprovalBox_UnparseableArgsFallBack(t *testing.T) {
 func TestApprovalBox_TruncatesLongSummaryOnNarrowWidth(t *testing.T) {
 	longPath := "/very/long/path/to/some/deeply/nested/file/name/that/keeps/going.txt"
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", fmt.Sprintf(`{"file_path":%q}`, longPath), domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Read", fmt.Sprintf(`{"file_path":%q}`, longPath)))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(34)
+	_ = av.Begin()
 	out := av.Render()
 
 	if strings.Contains(out, longPath) {
@@ -126,10 +158,11 @@ func TestApprovalBox_TruncatesLongSummaryOnNarrowWidth(t *testing.T) {
 func TestApprovalBox_RendersEditDiff(t *testing.T) {
 	sm := &domainmocks.FakeStateManager{}
 	args := `{"file_path":"/x/y.txt","old_string":"OLD_CONTENT","new_string":"NEW_CONTENT"}`
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	if !strings.Contains(out, "/x/y.txt") {
@@ -154,12 +187,13 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, b.String())
 
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
 	av.SetHeight(24) // previewLineLimit -> 12
 
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	if !strings.Contains(out, "more lines") {
@@ -175,10 +209,11 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
 	sm := &domainmocks.FakeStateManager{}
 	args := `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
 	av.SetWidth(80)
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	if strings.Contains(out, "Edit(") {
@@ -206,11 +241,12 @@ func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
 
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
 	av.SetHeight(60) // previewLineLimit -> 30; the small diff is not capped
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	for _, want := range []string{"charlie", "delta", "foxtrot", "golf", "echo_NEW"} {
@@ -232,11 +268,12 @@ func TestApprovalBox_MultiEditKeepsThreeContext(t *testing.T) {
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","edits":[{"old_string":%q,"new_string":%q}]}`, oldContextSnippet, newContextSnippet)
 
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("MultiEdit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("MultiEdit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
 	av.SetHeight(60)
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	for _, want := range []string{"bravo", "hotel", "echo_NEW"} {
@@ -259,11 +296,12 @@ func TestApprovalBox_EditDiffShowsFileContext(t *testing.T) {
 	args := fmt.Sprintf(`{"file_path":%q,"old_string":"TARGET","new_string":"CHANGED"}`, path)
 
 	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args, domain.ApprovalApprove))
+	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
 	av.SetHeight(60)
+	_ = av.Begin()
 	out := stripANSI(av.Render())
 
 	for _, want := range []string{"line2", "line3", "CHANGED", "line5", "line6"} {

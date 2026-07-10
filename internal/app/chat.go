@@ -454,9 +454,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if cmd := app.forwardToQuestionForm(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
+	cmds = append(cmds, app.forwardToOverlayForms(msg)...)
 
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 
@@ -486,21 +484,29 @@ func logSlowUpdate(start time.Time, msg tea.Msg) {
 	}
 }
 
-// forwardToQuestionForm starts the AskUserQuestion huh form when its event
-// arrives and routes non-key messages to it while it is up - huh's internal
-// group/field navigation rides on those messages, so without this the form
-// stalls. Key presses reach it via handleChatViewKeyPress instead.
-func (app *ChatApplication) forwardToQuestionForm(msg tea.Msg) tea.Cmd {
-	if _, ok := msg.(domain.UserQuestionRequestedEvent); ok {
-		return app.questionFormView.Begin()
-	}
-	if app.stateManager.GetUserQuestionUIState() == nil {
+// forwardToOverlayForms starts the AskUserQuestion / tool-approval huh forms
+// when their events arrive and routes non-key messages to them while they are
+// up - huh's internal group/field navigation rides on those messages, so
+// without this the forms stall. Key presses reach them via
+// handleChatViewKeyPress instead.
+func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
+	switch msg.(type) {
+	case domain.UserQuestionRequestedEvent:
+		return []tea.Cmd{app.questionFormView.Begin()}
+	case domain.ToolApprovalRequestedEvent:
+		return []tea.Cmd{app.approvalBoxView.Begin()}
+	case tea.KeyPressMsg:
 		return nil
 	}
-	if _, isKey := msg.(tea.KeyPressMsg); isKey {
-		return nil
+
+	var cmds []tea.Cmd
+	if app.stateManager.GetUserQuestionUIState() != nil {
+		cmds = append(cmds, app.questionFormView.Forward(msg))
 	}
-	return app.questionFormView.Forward(msg)
+	if app.stateManager.GetApprovalUIState() != nil {
+		cmds = append(cmds, app.approvalBoxView.Forward(msg))
+	}
+	return cmds
 }
 
 // isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
@@ -786,6 +792,18 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 			return []tea.Cmd{cmd}
 		}
 		return nil
+	}
+
+	// The tool-approval inline select takes left/right/enter; everything else
+	// (esc reject, ctrl+c interrupt, typing) keeps its existing binding.
+	if app.stateManager.GetApprovalUIState() != nil {
+		switch keyMsg.Code {
+		case tea.KeyLeft, tea.KeyRight, tea.KeyEnter:
+			if cmd := app.approvalBoxView.Forward(keyMsg); cmd != nil {
+				return []tea.Cmd{cmd}
+			}
+			return nil
+		}
 	}
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok && cv.IsInMessageHistoryMode() {

@@ -365,7 +365,6 @@ type FileSelectionManager interface {
 type ApprovalUIManager interface {
 	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction)
 	GetApprovalUIState() *ApprovalUIState
-	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
 }
 

@@ -1160,8 +1160,6 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.ApprovalSelectionChangedEvent:
-		return cv.handleApprovalSelectionChanged(msg, cmd)
 	case domain.PlanApprovalSelectionChangedEvent:
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
 	case domain.UpdateHistoryEvent:
@@ -1226,14 +1224,6 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
-}
-
-// handleApprovalSelectionChanged processes approval selection change events
-func (cv *ConversationView) handleApprovalSelectionChanged(_ domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if cv.navigationMode != NavigationModeMessageHistory {
-		cv.updateViewportContent()
-	}
-	return cv, cmd
 }
 
 // handlePlanApprovalSelectionChanged refreshes the conversation viewport so

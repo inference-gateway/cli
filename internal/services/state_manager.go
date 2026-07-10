@@ -550,14 +550,6 @@ func (sm *StateManager) GetApprovalUIState() *domain.ApprovalUIState {
 	return sm.state.GetApprovalUIState()
 }
 
-// SetApprovalSelectedIndex sets the approval selection index
-func (sm *StateManager) SetApprovalSelectedIndex(index int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetApprovalSelectedIndex(index)
-}
-
 // ClearApprovalUIState clears the approval UI state
 func (sm *StateManager) ClearApprovalUIState() {
 	sm.mutex.Lock()

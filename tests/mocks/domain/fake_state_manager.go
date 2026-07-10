@@ -335,11 +335,6 @@ type FakeStateManager struct {
 	setAgentModeArgsForCall []struct {
 		arg1 domain.AgentMode
 	}
-	SetApprovalSelectedIndexStub        func(int)
-	setApprovalSelectedIndexMutex       sync.RWMutex
-	setApprovalSelectedIndexArgsForCall []struct {
-		arg1 int
-	}
 	SetChatPendingStub        func()
 	setChatPendingMutex       sync.RWMutex
 	setChatPendingArgsForCall []struct {
@@ -2258,38 +2253,6 @@ func (fake *FakeStateManager) SetAgentModeArgsForCall(i int) domain.AgentMode {
 	fake.setAgentModeMutex.RLock()
 	defer fake.setAgentModeMutex.RUnlock()
 	argsForCall := fake.setAgentModeArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeStateManager) SetApprovalSelectedIndex(arg1 int) {
-	fake.setApprovalSelectedIndexMutex.Lock()
-	fake.setApprovalSelectedIndexArgsForCall = append(fake.setApprovalSelectedIndexArgsForCall, struct {
-		arg1 int
-	}{arg1})
-	stub := fake.SetApprovalSelectedIndexStub
-	fake.recordInvocation("SetApprovalSelectedIndex", []interface{}{arg1})
-	fake.setApprovalSelectedIndexMutex.Unlock()
-	if stub != nil {
-		fake.SetApprovalSelectedIndexStub(arg1)
-	}
-}
-
-func (fake *FakeStateManager) SetApprovalSelectedIndexCallCount() int {
-	fake.setApprovalSelectedIndexMutex.RLock()
-	defer fake.setApprovalSelectedIndexMutex.RUnlock()
-	return len(fake.setApprovalSelectedIndexArgsForCall)
-}
-
-func (fake *FakeStateManager) SetApprovalSelectedIndexCalls(stub func(int)) {
-	fake.setApprovalSelectedIndexMutex.Lock()
-	defer fake.setApprovalSelectedIndexMutex.Unlock()
-	fake.SetApprovalSelectedIndexStub = stub
-}
-
-func (fake *FakeStateManager) SetApprovalSelectedIndexArgsForCall(i int) int {
-	fake.setApprovalSelectedIndexMutex.RLock()
-	defer fake.setApprovalSelectedIndexMutex.RUnlock()
-	argsForCall := fake.setApprovalSelectedIndexArgsForCall[i]
 	return argsForCall.arg1
 }
 

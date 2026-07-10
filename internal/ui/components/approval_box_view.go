@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	huh "charm.land/huh/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -41,6 +42,12 @@ type ApprovalBoxView struct {
 	styleProvider *styles.Provider
 	stateManager  domain.StateManager
 	toolFormatter domain.ToolFormatter
+
+	// active is the approval state the form was built for; a mismatch with
+	// the StateManager (cleared externally) marks the form stale.
+	active *domain.ApprovalUIState
+	form   *huh.Form
+	choice domain.ApprovalAction
 }
 
 func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.StateManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
@@ -66,11 +73,66 @@ func (av *ApprovalBoxView) Render() string {
 	}
 
 	approvalState := av.stateManager.GetApprovalUIState()
-	if approvalState == nil || approvalState.PendingToolCall == nil {
+	if approvalState == nil || approvalState.PendingToolCall == nil ||
+		approvalState != av.active || av.form == nil {
 		return ""
 	}
 
 	return av.renderApprovalBox(approvalState)
+}
+
+// Begin builds the action select for the approval currently in the
+// StateManager. Call it when a ToolApprovalRequestedEvent has set up the state.
+func (av *ApprovalBoxView) Begin() tea.Cmd {
+	state := av.stateManager.GetApprovalUIState()
+	if state == nil || state.PendingToolCall == nil {
+		return nil
+	}
+	av.active = state
+	av.choice = domain.ApprovalApprove
+	av.form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[domain.ApprovalAction]().
+				Options(
+					huh.NewOption("Approve", domain.ApprovalApprove),
+					huh.NewOption("Reject", domain.ApprovalReject),
+					huh.NewOption("Auto-Approve", domain.ApprovalAutoAccept),
+				).
+				Inline(true).
+				Value(&av.choice),
+		),
+	).
+		WithShowHelp(false).
+		WithWidth(av.summaryBudget()).
+		WithTheme(huhTheme(av.styleProvider))
+	return av.form.Init()
+}
+
+// Forward delegates a message to the action select. On completion it emits the
+// ToolApprovalResponseEvent that the approval coordinator consumes.
+func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
+	state := av.stateManager.GetApprovalUIState()
+	if state == nil || state != av.active || av.form == nil {
+		av.active = nil
+		av.form = nil
+		return nil
+	}
+
+	model, cmd := av.form.Update(msg)
+	if f, ok := model.(*huh.Form); ok {
+		av.form = f
+	}
+
+	if av.form.State == huh.StateCompleted {
+		action := av.choice
+		toolCall := *state.PendingToolCall
+		av.active = nil
+		av.form = nil
+		return func() tea.Msg {
+			return domain.ToolApprovalResponseEvent{Action: action, ToolCall: toolCall}
+		}
+	}
+	return cmd
 }
 
 // renderApprovalBox frames the pending tool call and the action buttons in a
@@ -82,9 +144,8 @@ func (av *ApprovalBoxView) renderApprovalBox(state *domain.ApprovalUIState) stri
 
 	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)
 	body := av.renderBody(state.PendingToolCall)
-	buttons := av.renderApprovalButtons(state.SelectedIndex)
 
-	content := strings.Join([]string{title, body, buttons}, "\n")
+	content := strings.Join([]string{title, body, av.form.View()}, "\n")
 	return av.styleProvider.RenderBorderedBox(content, accentColor, 0, 1)
 }
 
@@ -208,50 +269,6 @@ func (av *ApprovalBoxView) summaryBudget() int {
 		return minApprovalSummaryWidth
 	}
 	return budget
-}
-
-func (av *ApprovalBoxView) renderApprovalButtons(selectedIndex int) string {
-	approveText := "Approve"
-	rejectText := "Reject"
-	autoApproveText := "Auto-Approve"
-
-	successColor := av.styleProvider.GetThemeColor("success")
-	errorColor := av.styleProvider.GetThemeColor("error")
-	accentColor := av.styleProvider.GetThemeColor("accent")
-	highlightBg := av.styleProvider.GetThemeColor("selection_bg")
-
-	var approveStyled, rejectStyled, autoApproveStyled string
-	if selectedIndex == int(domain.ApprovalApprove) {
-		approveStyled = av.styleProvider.RenderStyledText("[ "+approveText+" ]", styles.StyleOptions{
-			Foreground: successColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		approveStyled = av.styleProvider.RenderWithColor("[ "+approveText+" ]", successColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalReject) {
-		rejectStyled = av.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
-			Foreground: errorColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		rejectStyled = av.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalAutoAccept) {
-		autoApproveStyled = av.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
-			Foreground: accentColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		autoApproveStyled = av.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
-	}
-
-	return fmt.Sprintf("%s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
 }
 
 func (av *ApprovalBoxView) Init() tea.Cmd {
