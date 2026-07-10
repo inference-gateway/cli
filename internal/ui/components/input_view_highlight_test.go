@@ -45,7 +45,7 @@ func TestInputView_Highlighter_LazyBuiltAndStable(t *testing.T) {
 	require.Nil(t, iv.highlighter, "highlighter should not exist before first render")
 
 	iv.SetText("/maintainer")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render())
 	require.NotNil(t, iv.highlighter, "highlighter should be lazily built on render")
 
@@ -58,7 +58,7 @@ func TestInputView_Highlighter_NotBuiltWithoutServices(t *testing.T) {
 	iv := createInputViewWithTheme(createMockModelService())
 
 	iv.SetText("/maintainer")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render(), "render must not panic without highlight services")
 	require.Nil(t, iv.highlighter, "no rules wired => no highlighter")
 }
@@ -67,18 +67,18 @@ func TestInputView_Highlighter_SkippedInBashAndToolsModes(t *testing.T) {
 	iv := newInputViewWithHighlightDeps(t)
 
 	iv.SetText("!ls /maintainer")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render())
 	require.Nil(t, iv.highlighter, "bash mode must skip the highlighter entirely")
 
 	iv.SetText("!!Grep(/maintainer)")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render())
 	require.Nil(t, iv.highlighter, "tools mode must skip the highlighter entirely")
 
 	// Switching back to a normal prompt builds and applies it.
 	iv.SetText("/maintainer")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render())
 	require.NotNil(t, iv.highlighter, "normal mode should build the highlighter")
 }
@@ -94,7 +94,7 @@ func TestInputView_Highlighter_RendersTokensWithoutPanic(t *testing.T) {
 		"/unknown stays plain",
 	} {
 		iv.SetText(text)
-		iv.cursor = len(iv.text)
+		iv.SetCursor(len(iv.GetInput()))
 		require.NotEmpty(t, iv.Render(), "render should succeed for %q", text)
 	}
 }
