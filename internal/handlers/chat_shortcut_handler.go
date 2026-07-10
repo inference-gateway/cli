@@ -113,7 +113,7 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 		shortcutName = fmt.Sprintf("%s %s", shortcutName, args[0])
 	}
 
-	return tea.Batch(
+	return tea.Sequence(
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing %s...", shortcutName),
