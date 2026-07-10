@@ -741,13 +741,6 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"error", err.Error(),
 				"delay", delay.String())
 
-			if c.stateManager != nil {
-				c.stateManager.SetRetryStatus(&domain.RetryStatus{
-					Attempt:     attempt,
-					MaxAttempts: c.config.Client.Retry.MaxAttempts,
-				})
-			}
-
 			if originalOnRetry != nil {
 				originalOnRetry(attempt, err, delay)
 			}

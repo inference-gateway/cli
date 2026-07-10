@@ -72,13 +72,6 @@ func (a *EventDrivenAgent) startStreaming() {
 	}
 
 	for attempt := 0; ; attempt++ {
-		if attempt > 0 {
-			if a.service.stateManager != nil {
-				a.service.stateManager.SetRetryStatus(&domain.RetryStatus{Attempt: attempt, MaxAttempts: maxReconnects})
-			}
-			a.eventPublisher.publishChatStart()
-		}
-
 		if !a.streamOnce(client, iterationStartTime) {
 			return
 		}
@@ -87,6 +80,11 @@ func (a *EventDrivenAgent) startStreaming() {
 			a.failStream(fmt.Errorf("connection lost: stream stalled after %d reconnect attempts", maxReconnects))
 			return
 		}
+
+		if a.service.stateManager != nil {
+			a.service.stateManager.SetRetryStatus(&domain.RetryStatus{Attempt: attempt + 1, MaxAttempts: maxReconnects})
+		}
+		a.eventPublisher.publishChatStart()
 
 		select {
 		case <-a.agentCtx.Ctx.Done():
