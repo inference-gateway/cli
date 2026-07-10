@@ -442,14 +442,10 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	}
 	var omitted []string
 	for i, sk := range skills {
-		displayName := sk.Name
-		if sk.Scope == domain.SkillScopePlugin && sk.PluginName != "" {
-			displayName = sk.PluginName + ":" + sk.Name
-		}
-		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", displayName, sk.Scope, sk.Description, sk.Path)
+		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", sk.DisplayName(), sk.Scope, sk.Description, sk.Path)
 		if maxChars > 0 && b.Len()+len(entry) > maxChars {
 			for _, rest := range skills[i:] {
-				omitted = append(omitted, rest.Name)
+				omitted = append(omitted, rest.DisplayName())
 			}
 			break
 		}
@@ -504,7 +500,7 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 		if !ok {
 			continue
 		}
-		entries = append(entries, fmt.Sprintf("- %s (%s): %s\n  Path: %s", sk.Name, sk.Scope, sk.Description, sk.Path))
+		entries = append(entries, fmt.Sprintf("- %s (%s): %s\n  Path: %s", sk.DisplayName(), sk.Scope, sk.Description, sk.Path))
 	}
 
 	if len(entries) == 0 {

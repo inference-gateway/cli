@@ -189,10 +189,7 @@ func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 	}
 
 	for _, skill := range a.skillsService.List() {
-		displayName := skill.Name
-		if skill.Scope == domain.SkillScopePlugin && skill.PluginName != "" {
-			displayName = skill.PluginName + ":" + skill.Name
-		}
+		displayName := skill.DisplayName()
 		if seen[displayName] {
 			continue
 		}
@@ -217,10 +214,7 @@ func (a *AutocompleteImpl) loadSkillsOnly() {
 		return
 	}
 	for _, skill := range a.skillsService.List() {
-		displayName := skill.Name
-		if skill.Scope == domain.SkillScopePlugin && skill.PluginName != "" {
-			displayName = skill.PluginName + ":" + skill.Name
-		}
+		displayName := skill.DisplayName()
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "/" + displayName,
 			Description: skill.Description,
