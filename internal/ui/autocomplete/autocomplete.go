@@ -181,18 +181,24 @@ func (a *AutocompleteImpl) loadShortcuts() {
 // entries so they autocomplete like shortcuts. Skills are invoked as
 // "/<name> ..." and routed to the agent (see isSkillInvocation). A skill whose
 // name already matches a registered shortcut is skipped to avoid duplicates.
+// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
+// reference them unambiguously.
 func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 	if a.skillsService == nil {
 		return
 	}
 
 	for _, skill := range a.skillsService.List() {
-		if seen[skill.Name] {
+		displayName := skill.Name
+		if skill.Scope == domain.SkillScopePlugin && skill.PluginName != "" {
+			displayName = skill.PluginName + ":" + skill.Name
+		}
+		if seen[displayName] {
 			continue
 		}
-		seen[skill.Name] = true
+		seen[displayName] = true
 		a.suggestions = append(a.suggestions, ShortcutOption{
-			Shortcut:    "/" + skill.Name,
+			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
 		})
@@ -203,14 +209,20 @@ func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 // registered shortcuts. Used by the mid-text "/" trigger because shortcuts
 // are commands that only make sense at start-of-input, while skills are
 // agent capabilities that can be referenced anywhere in a sentence.
+// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
+// reference them unambiguously.
 func (a *AutocompleteImpl) loadSkillsOnly() {
 	a.suggestions = []ShortcutOption{}
 	if a.skillsService == nil {
 		return
 	}
 	for _, skill := range a.skillsService.List() {
+		displayName := skill.Name
+		if skill.Scope == domain.SkillScopePlugin && skill.PluginName != "" {
+			displayName = skill.PluginName + ":" + skill.Name
+		}
 		a.suggestions = append(a.suggestions, ShortcutOption{
-			Shortcut:    "/" + skill.Name,
+			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
 		})
