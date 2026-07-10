@@ -192,6 +192,26 @@ func TestAgentTextOnlyTerminatesAfterTwoTurns(t *testing.T) {
 	}
 }
 
+func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binPath, "agent", "-m", mockgateway.DefaultModel, "say hello")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(os.Environ(),
+		"HOME="+t.TempDir(),
+		"INFER_GATEWAY_MOCK=true",
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	require.NoError(t, cmd.Run(), "stderr:\n%s", stderr.String())
+
+	assistants := contentsByRole(jsonLines(t, stdout.String()), "assistant")
+	require.Contains(t, assistants, "Hello! How can I help?")
+}
+
 func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	gw, url := startMock(t)
 	dir := t.TempDir()

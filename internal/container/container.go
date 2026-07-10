@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,6 +23,7 @@ import (
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
@@ -72,6 +75,7 @@ type ServiceContainer struct {
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
 	gatewayManager         domain.GatewayManager
+	mockGateway            *http.Server
 	agentManager           domain.AgentManager
 
 	// Services
@@ -169,6 +173,10 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		logger.Warn("failed to ensure project .infer/.gitignore", "error", err)
 	}
 
+	if cfg.Gateway.Mock {
+		container.startMockGateway()
+	}
+
 	container.initializeGatewayManager()
 	container.initializeStateManager()
 	container.initializeDomainServices()
@@ -193,6 +201,22 @@ func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
+}
+
+// startMockGateway serves the embedded scenario library (internal/mockgateway) on an
+// ephemeral localhost port, rewriting Gateway.URL to it and forcing Gateway.Run off
+func (c *ServiceContainer) startMockGateway() {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(fmt.Sprintf("mock gateway mode: failed to listen: %v", err))
+	}
+
+	c.mockGateway = &http.Server{Handler: mockgateway.New(mockgateway.Default())}
+	go func() { _ = c.mockGateway.Serve(ln) }()
+
+	c.config.Gateway.URL = "http://" + ln.Addr().String()
+	c.config.Gateway.Run = false
+	logger.Info("mock gateway mode enabled", "url", c.config.Gateway.URL)
 }
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
@@ -839,6 +863,10 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 			logger.Error("failed to stop gateway container", "error", err)
 			return err
 		}
+	}
+
+	if c.mockGateway != nil {
+		_ = c.mockGateway.Close()
 	}
 
 	if c.mcpStartupCancel != nil {

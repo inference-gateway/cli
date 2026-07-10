@@ -70,6 +70,7 @@ type GatewayConfig struct {
 	Timeout          int      `yaml:"timeout" mapstructure:"timeout"`
 	OCI              string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
 	Run              bool     `yaml:"run" mapstructure:"run"`
+	Mock             bool     `yaml:"mock,omitempty" mapstructure:"mock,omitempty"`
 	StandaloneBinary bool     `yaml:"standalone_binary" mapstructure:"standalone_binary"`
 	Debug            bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
 	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
