@@ -116,7 +116,7 @@ func (p *Provider) RenderInputField(content string, width int, focused bool, bra
 		return rendered
 	}
 
-	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetDimColor())
+	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetStatusColor())
 }
 
 // spliceBranchIntoTopBorder rebuilds the top border line of an already-rendered

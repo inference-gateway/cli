@@ -359,7 +359,7 @@ func (iv *InputView) Render() string {
 }
 
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
-// top border, or "⎇ <branch> #<pr>" when a PR exists for the current branch
+// top border, or "⎇ <branch>  #<pr>" when a PR exists for the current branch
 // and git_pr is enabled. Returns "" when the git_branch indicator is disabled
 // or there is no branch to show (not a repo / detached HEAD). Truncation to
 // fit the border is handled by the style provider, so no length cap is applied
@@ -378,7 +378,7 @@ func (iv *InputView) buildGitBranchLabel() string {
 
 	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
 		if iv.gitPRCache != "" {
-			label += " #" + iv.gitPRCache
+			label += "  #" + iv.gitPRCache
 		}
 	}
 
