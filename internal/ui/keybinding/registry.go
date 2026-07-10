@@ -7,41 +7,83 @@ import (
 	"strings"
 	"sync"
 
+	key "charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// Registry implements the KeyRegistry interface
+// Registry holds all key binding actions and resolves key presses against
+// their bubbles/key Bindings. View-scoped actions win over global ones;
+// within a scope, registration order breaks ties.
 type Registry struct {
 	actions map[string]*KeyAction
-	keyMap  map[string]*KeyAction
-	layers  []*KeyLayer
+	ordered []*KeyAction
 	mutex   sync.RWMutex
 }
 
-// NewRegistry creates a new key binding registry
+// NewRegistry creates a registry whose action Bindings are resolved from the
+// keybindings config: built-in defaults merged with any keybindings.yaml
+// overrides. Dispatch and help both read these same Bindings.
 func NewRegistry(cfg *config.Config) *Registry {
 	registry := &Registry{
 		actions: make(map[string]*KeyAction),
-		keyMap:  make(map[string]*KeyAction),
-		layers:  make([]*KeyLayer, 0),
 	}
 
-	registry.initializeLayers()
-	registry.registerDefaultBindings()
+	var kbCfg config.KeybindingsConfig
+	if cfg != nil {
+		kbCfg = cfg.Chat.Keybindings
+	}
 
-	if cfg != nil && cfg.Chat.Keybindings.Enabled {
-		if err := registry.ApplyConfigOverrides(cfg.Chat.Keybindings); err != nil {
-			logger.Warn("failed to apply keybinding overrides", "error", err)
+	resolved, unknown := config.ResolveKeybindings(kbCfg)
+	for _, id := range unknown {
+		logger.Warn("unknown keybinding action in config, ignoring", "action", id)
+	}
+
+	for _, action := range defaultActions() {
+		entry, ok := resolved[action.ID]
+		if !ok {
+			logger.Warn("keybinding action has no default config entry, skipping", "action", action.ID)
+			continue
+		}
+		action.Category = entry.Category
+		action.Binding = newBindingFromEntry(entry)
+		if err := registry.Register(action); err != nil {
+			logger.Warn("failed to register keybinding action", "action", action.ID, "error", err)
 		}
 	}
 
 	return registry
 }
 
-// Register adds a new key binding action to the registry
-// Multiple actions can share the same key - the layer system resolves conflicts based on context
+// newBindingFromEntry builds the dispatch/help binding for a resolved config
+// entry. Key tokens are normalized to the tea.KeyPressMsg.String() vocabulary
+// for matching ("space" → " "), while help keeps the human-readable token.
+func newBindingFromEntry(entry config.KeyBindingEntry) key.Binding {
+	matchKeys := make([]string, len(entry.Keys))
+	for i, k := range entry.Keys {
+		if k == "space" {
+			k = " "
+		}
+		matchKeys[i] = k
+	}
+
+	displayKey := ""
+	if len(entry.Keys) > 0 {
+		sorted := slices.Clone(entry.Keys)
+		slices.Sort(sorted)
+		displayKey = sorted[0]
+	}
+
+	b := key.NewBinding(key.WithKeys(matchKeys...), key.WithHelp(displayKey, entry.Description))
+	if entry.Enabled != nil && !*entry.Enabled {
+		b.SetEnabled(false)
+	}
+	return b
+}
+
+// Register adds a key binding action to the registry.
+// Multiple actions can share the same key - view context resolves conflicts.
 func (r *Registry) Register(action *KeyAction) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -50,57 +92,59 @@ func (r *Registry) Register(action *KeyAction) error {
 		return fmt.Errorf("key action ID cannot be empty")
 	}
 
-	if len(action.Keys) == 0 {
+	if len(action.Binding.Keys()) == 0 {
 		return fmt.Errorf("key action must have at least one key")
 	}
 
-	for _, key := range action.Keys {
-		keyCount := strings.Count(key, ",") + 1
+	for _, k := range action.Binding.Keys() {
+		keyCount := strings.Count(k, ",") + 1
 		if keyCount > 2 {
-			return fmt.Errorf("key sequence '%s' exceeds maximum length of 2 keys (has %d keys)", key, keyCount)
+			return fmt.Errorf("key sequence '%s' exceeds maximum length of 2 keys (has %d keys)", k, keyCount)
 		}
 	}
 
+	if _, exists := r.actions[action.ID]; !exists {
+		r.ordered = append(r.ordered, action)
+	}
 	r.actions[action.ID] = action
 
-	for _, key := range action.Keys {
-		r.keyMap[key] = action
-	}
-
-	r.addActionToAppropriateLayer(action)
-
 	return nil
 }
 
-// Unregister removes a key binding action from the registry
-func (r *Registry) Unregister(id string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	action, exists := r.actions[id]
-	if !exists {
-		return fmt.Errorf("action '%s' not found", id)
-	}
-
-	for _, key := range action.Keys {
-		delete(r.keyMap, key)
-	}
-
-	delete(r.actions, id)
-
-	return nil
-}
-
-// Resolve finds the appropriate key action for a key press
-func (r *Registry) Resolve(key string, app KeyHandlerContext) *KeyAction {
+// Resolve finds the action bound to a pressed key via key.Matches.
+// View-scoped actions are consulted before global ones, mirroring the old
+// layer priorities.
+func (r *Registry) Resolve(msg tea.KeyPressMsg, app KeyHandlerContext) *KeyAction {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	activeLayers := r.getActiveLayers(app)
+	for _, viewScoped := range []bool{true, false} {
+		for _, action := range r.ordered {
+			if (len(action.Context.Views) > 0) != viewScoped {
+				continue
+			}
+			if key.Matches(msg, action.Binding) && r.canExecuteAction(action, app) {
+				return action
+			}
+		}
+	}
 
-	for _, layer := range activeLayers {
-		if action, exists := layer.Bindings[key]; exists {
-			if r.canExecuteAction(action, app) {
+	return nil
+}
+
+// ResolveKey resolves a raw key string, used for comma-joined sequences
+// ("esc,esc") that never arrive as a single tea.KeyPressMsg — bubbles/key has
+// no chord support, so sequences stay string-matched.
+func (r *Registry) ResolveKey(keyStr string, app KeyHandlerContext) *KeyAction {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	for _, viewScoped := range []bool{true, false} {
+		for _, action := range r.ordered {
+			if (len(action.Context.Views) > 0) != viewScoped {
+				continue
+			}
+			if action.Binding.Enabled() && slices.Contains(action.Binding.Keys(), keyStr) && r.canExecuteAction(action, app) {
 				return action
 			}
 		}
@@ -123,14 +167,9 @@ func (r *Registry) GetActiveActions(app KeyHandlerContext) []*KeyAction {
 	defer r.mutex.RUnlock()
 
 	var actions []*KeyAction
-	seen := make(map[string]bool)
-
-	for _, layer := range r.getActiveLayers(app) {
-		for _, action := range layer.Bindings {
-			if !seen[action.ID] && r.canExecuteAction(action, app) {
-				actions = append(actions, action)
-				seen[action.ID] = true
-			}
+	for _, action := range r.ordered {
+		if action.Binding.Enabled() && r.canExecuteAction(action, app) {
+			actions = append(actions, action)
 		}
 	}
 
@@ -138,7 +177,7 @@ func (r *Registry) GetActiveActions(app KeyHandlerContext) []*KeyAction {
 		if c := cmp.Compare(a.Category, b.Category); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Description, b.Description)
+		return cmp.Compare(a.Binding.Help().Desc, b.Binding.Help().Desc)
 	})
 
 	return actions
@@ -150,17 +189,14 @@ func (r *Registry) GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut {
 
 	shortcuts := make([]HelpShortcut, 0, len(actions))
 	for _, action := range actions {
-		if len(action.Keys) == 0 {
+		help := action.Binding.Help()
+		if help.Key == "" {
 			continue
 		}
 
-		sortedKeys := make([]string, len(action.Keys))
-		copy(sortedKeys, action.Keys)
-		slices.Sort(sortedKeys)
-
 		shortcuts = append(shortcuts, HelpShortcut{
-			Key:         sortedKeys[0],
-			Description: action.Description,
+			Key:         help.Key,
+			Description: help.Desc,
 			Category:    action.Category,
 		})
 	}
@@ -168,67 +204,19 @@ func (r *Registry) GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut {
 	return shortcuts
 }
 
-// AddLayer adds a new key layer to the registry
-func (r *Registry) AddLayer(layer *KeyLayer) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	r.layers = append(r.layers, layer)
-
-	slices.SortFunc(r.layers, func(a, b *KeyLayer) int {
-		return cmp.Compare(b.Priority, a.Priority)
-	})
-}
-
-// GetLayers returns all registered layers
-func (r *Registry) GetLayers() []*KeyLayer {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	layers := make([]*KeyLayer, len(r.layers))
-	copy(layers, r.layers)
-	return layers
-}
-
-// getActiveLayers returns layers that are currently active
-func (r *Registry) getActiveLayers(app KeyHandlerContext) []*KeyLayer {
-	var activeLayers []*KeyLayer
-
-	for _, layer := range r.layers {
-		if layer.Matcher == nil || layer.Matcher(app) {
-			activeLayers = append(activeLayers, layer)
-		}
-	}
-
-	return activeLayers
-}
-
 // canExecuteAction checks if an action can be executed in current context
 func (r *Registry) canExecuteAction(action *KeyAction, app KeyHandlerContext) bool {
-	if !action.Enabled {
-		return false
-	}
-
 	if len(action.Context.Views) > 0 {
 		currentView := app.GetStateManager().GetCurrentView()
-		found := false
-		for _, view := range action.Context.Views {
-			if view == currentView {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(action.Context.Views, currentView) {
 			return false
 		}
 	}
 
 	if len(action.Context.ExcludeViews) > 0 {
 		currentView := app.GetStateManager().GetCurrentView()
-		for _, view := range action.Context.ExcludeViews {
-			if view == currentView {
-				return false
-			}
+		if slices.Contains(action.Context.ExcludeViews, currentView) {
+			return false
 		}
 	}
 
@@ -241,195 +229,9 @@ func (r *Registry) canExecuteAction(action *KeyAction, app KeyHandlerContext) bo
 	return true
 }
 
-// initializeLayers sets up the default key binding layers
-func (r *Registry) initializeLayers() {
-	r.AddLayer(&KeyLayer{
-		Name:     "component",
-		Priority: 300,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return false
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
-		Name:     "file_selection",
-		Priority: 200,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return app.GetStateManager().GetCurrentView() == domain.ViewStateFileSelection
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
-		Name:     "chat_view",
-		Priority: 150,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return app.GetStateManager().GetCurrentView() == domain.ViewStateChat
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
-		Name:     "model_selection",
-		Priority: 150,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return app.GetStateManager().GetCurrentView() == domain.ViewStateModelSelection
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
-		Name:     "plan_approval_view",
-		Priority: 150,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return app.GetStateManager().GetCurrentView() == domain.ViewStatePlanApproval
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
-		Name:     "global",
-		Priority: 100,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return true
-		},
-	})
-}
-
-// addActionToLayer adds an action to a specific layer
-func (r *Registry) addActionToLayer(layerName string, action *KeyAction) error {
-	for _, layer := range r.layers {
-		if layer.Name == layerName {
-			for _, key := range action.Keys {
-				layer.Bindings[key] = action
-			}
-			return nil
-		}
-	}
-	return fmt.Errorf("layer '%s' not found", layerName)
-}
-
-// addActionToAppropriateLayer adds an action to the most appropriate layer based on its context
-func (r *Registry) addActionToAppropriateLayer(action *KeyAction) {
-	var targetLayer string
-
-	if len(action.Context.Views) == 0 {
-		targetLayer = "global"
-	} else {
-		targetLayer = r.determineTargetLayer(action.Context.Views)
-	}
-
-	if targetLayer == "" {
-		targetLayer = "global"
-	}
-
-	_ = r.addActionToLayer(targetLayer, action)
-}
-
-// determineTargetLayer determines the appropriate layer for the given views
-func (r *Registry) determineTargetLayer(views []domain.ViewState) string {
-	for _, view := range views {
-		switch view {
-		case domain.ViewStateFileSelection:
-			return "file_selection"
-		case domain.ViewStateModelSelection:
-			return "model_selection"
-		case domain.ViewStateConversationSelection:
-			return "conversation_selection"
-		case domain.ViewStateChat:
-			return "chat_view"
-		default:
-			return "global"
-		}
-	}
-	return "global"
-}
-
-// ApplyConfigOverrides applies keybinding configuration from config
-// Only processes config bindings. Missing entries automatically use defaults already registered.
-func (r *Registry) ApplyConfigOverrides(cfg config.KeybindingsConfig) error {
-	if !cfg.Enabled {
-		logger.Debug("keybindings disabled in config, using defaults only")
-		return nil
-	}
-
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	knownDefaults := config.DefaultKeybindingActionIDs()
-
-	for actionID, configBinding := range cfg.Bindings {
-		action, exists := r.actions[actionID]
-		if !exists {
-			if _, ok := knownDefaults[actionID]; ok {
-				continue
-			}
-			logger.Warn("unknown keybinding action in config, ignoring", "action", actionID)
-			continue
-		}
-
-		if configBinding.Enabled != nil {
-			action.Enabled = *configBinding.Enabled
-		}
-
-		if len(configBinding.Keys) > 0 {
-			r.updateActionKeysUnsafe(action, configBinding.Keys)
-		}
-	}
-
-	return nil
-}
-
-// updateActionKeysUnsafe updates the keys for an action without validation
-// Used at runtime to apply config without blocking on conflicts
-func (r *Registry) updateActionKeysUnsafe(action *KeyAction, newKeys []string) {
-	for _, oldKey := range action.Keys {
-		delete(r.keyMap, oldKey)
-		r.removeKeyFromLayers(oldKey, action)
-	}
-
-	action.Keys = newKeys
-
-	for _, newKey := range newKeys {
-		r.keyMap[newKey] = action
-	}
-
-	r.addActionToAppropriateLayer(action)
-}
-
-// removeKeyFromLayers removes a key from all layers
-func (r *Registry) removeKeyFromLayers(key string, action *KeyAction) {
-	for _, layer := range r.layers {
-		if layerAction, exists := layer.Bindings[key]; exists && layerAction.ID == action.ID {
-			delete(layer.Bindings, key)
-		}
-	}
-}
-
 // HasSequenceWithPrefix checks if any registered action has a key sequence that starts with the given prefix
 func (r *Registry) HasSequenceWithPrefix(prefix string, app KeyHandlerContext) bool {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	for _, action := range r.actions {
-		if !r.canExecuteAction(action, app) {
-			continue
-		}
-
-		for _, key := range action.Keys {
-			if !strings.Contains(key, ",") {
-				continue
-			}
-
-			if strings.HasPrefix(key, prefix+",") || key == prefix {
-				return true
-			}
-		}
-	}
-
-	return false
+	return r.GetSequenceActionForPrefix(prefix, app) != nil
 }
 
 // GetSequenceActionForPrefix returns the action that matches a sequence starting with the given prefix
@@ -437,17 +239,17 @@ func (r *Registry) GetSequenceActionForPrefix(prefix string, app KeyHandlerConte
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	for _, action := range r.actions {
-		if !r.canExecuteAction(action, app) {
+	for _, action := range r.ordered {
+		if !action.Binding.Enabled() || !r.canExecuteAction(action, app) {
 			continue
 		}
 
-		for _, key := range action.Keys {
-			if !strings.Contains(key, ",") {
+		for _, k := range action.Binding.Keys() {
+			if !strings.Contains(k, ",") {
 				continue
 			}
 
-			if strings.HasPrefix(key, prefix+",") || key == prefix {
+			if strings.HasPrefix(k, prefix+",") || k == prefix {
 				return action
 			}
 		}
@@ -459,8 +261,8 @@ func (r *Registry) GetSequenceActionForPrefix(prefix string, app KeyHandlerConte
 // KnownActionIDs returns every action ID the application recognises: the runtime
 // registry actions unioned with the default keybindings config IDs (which include
 // the namespace-path actions consumed directly via config.ResolveNamespaceBindings).
-// The CLI validator and ApplyConfigOverrides share this notion of "valid" so they
-// agree on what is a genuine typo.
+// The CLI validator shares this notion of "valid" so they agree on what is a
+// genuine typo.
 func (r *Registry) KnownActionIDs() []string {
 	ids := make(map[string]struct{})
 
@@ -487,10 +289,7 @@ func (r *Registry) ListAllActions() []*KeyAction {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	actions := make([]*KeyAction, 0, len(r.actions))
-	for _, action := range r.actions {
-		actions = append(actions, action)
-	}
+	actions := slices.Clone(r.ordered)
 
 	slices.SortFunc(actions, func(a, b *KeyAction) int {
 		if c := cmp.Compare(a.Category, b.Category); c != 0 {

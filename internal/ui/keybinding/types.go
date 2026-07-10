@@ -1,6 +1,7 @@
 package keybinding
 
 import (
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -43,17 +44,16 @@ type KeyHandlerContext interface {
 // Theme is an alias to the ui Theme interface
 type Theme = ui.Theme
 
-// KeyAction represents a key binding action with metadata
+// KeyAction represents a key binding action. Keys, description, and enabled
+// state live in the Binding, which is constructed at registry init from the
+// resolved keybindings config (defaults + keybindings.yaml overrides) — the
+// single source of truth shared by dispatch and help rendering.
 type KeyAction struct {
-	ID          string
-	Namespace   config.KeyNamespace
-	Keys        []string
-	Description string
-	Category    string
-	Handler     KeyHandler
-	Context     KeyContext
-	Priority    int
-	Enabled     bool
+	ID       string
+	Category string
+	Binding  key.Binding
+	Handler  KeyHandler
+	Context  KeyContext
 }
 
 // KeyContext defines when and where a key binding is active
@@ -67,29 +67,6 @@ type KeyContext struct {
 type ContextCondition struct {
 	Name  string
 	Check func(app KeyHandlerContext) bool
-}
-
-// KeyLayer represents a layer of key bindings with specific priority
-type KeyLayer struct {
-	Name     string
-	Priority int
-	Bindings map[string]*KeyAction
-	Matcher  LayerMatcher
-}
-
-// LayerMatcher determines if a layer is currently active
-type LayerMatcher func(app KeyHandlerContext) bool
-
-// KeyRegistry manages all key bindings and their resolution
-type KeyRegistry interface {
-	Register(action *KeyAction) error
-	Unregister(id string) error
-	Resolve(key string, app KeyHandlerContext) *KeyAction
-	GetAction(id string) *KeyAction
-	GetActiveActions(app KeyHandlerContext) []*KeyAction
-	GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut
-	AddLayer(layer *KeyLayer)
-	GetLayers() []*KeyLayer
 }
 
 // HelpShortcut represents a key shortcut for help display

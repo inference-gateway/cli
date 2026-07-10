@@ -114,6 +114,12 @@ func addChatBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "chat",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceChat, "tab_key_handler")] = KeyBindingEntry{
+		Keys:        []string{"tab"},
+		Description: "complete autocomplete or cycle history suggestion",
+		Category:    "chat",
+		Enabled:     &enabled,
+	}
 	bindings[ActionID(NamespaceChat, "focus_attachments")] = KeyBindingEntry{
 		Keys:        []string{"ctrl+g"},
 		Description: "focus the attached-snippets tree below the input (↑/↓ move · d remove · c clear · esc done)",
@@ -177,7 +183,7 @@ func addNavigationBindings(bindings map[string]KeyBindingEntry) {
 		Enabled:     &enabled,
 	}
 	bindings[ActionID(NamespaceNavigation, "page_down")] = KeyBindingEntry{
-		Keys:        []string{"pgdn", "page_down"},
+		Keys:        []string{"pgdn", "pgdown", "page_down"},
 		Description: "page down",
 		Category:    "navigation",
 		Enabled:     &enabled,
@@ -443,6 +449,36 @@ func addExplorerBindings(bindings map[string]KeyBindingEntry) {
 	add("halfpage_up", "scroll the preview up half a page", "ctrl+u")
 	add("halfpage_down", "scroll the preview down half a page", "ctrl+d")
 	add("cancel", "close the explorer panel", "esc", "q")
+}
+
+// ResolveKeybindings merges user overrides from cfg onto GetDefaultKeybindings()
+// and returns the effective entry for every default action ID. Overrides replace
+// Keys (when non-empty) and Enabled (when set); Description/Category always come
+// from the defaults. cfg.Enabled==false yields pure defaults. The second return
+// lists override IDs that match no default action, so the caller can warn about
+// typos (this package stays log-free).
+func ResolveKeybindings(cfg KeybindingsConfig) (map[string]KeyBindingEntry, []string) {
+	resolved := GetDefaultKeybindings()
+	if !cfg.Enabled {
+		return resolved, nil
+	}
+
+	var unknown []string
+	for id, ov := range cfg.Bindings {
+		entry, ok := resolved[id]
+		if !ok {
+			unknown = append(unknown, id)
+			continue
+		}
+		if len(ov.Keys) > 0 {
+			entry.Keys = ov.Keys
+		}
+		if ov.Enabled != nil {
+			entry.Enabled = ov.Enabled
+		}
+		resolved[id] = entry
+	}
+	return resolved, unknown
 }
 
 // ResolveNamespaceBindings returns the effective key lists for every default

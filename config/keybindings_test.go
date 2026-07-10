@@ -130,3 +130,81 @@ func TestDefaultKeybindingsConfig(t *testing.T) {
 		t.Error("Default config should have bindings")
 	}
 }
+
+func TestResolveKeybindings(t *testing.T) {
+	quitID := config.ActionID(config.NamespaceGlobal, "quit")
+	cancelID := config.ActionID(config.NamespaceGlobal, "cancel")
+	disabled := false
+
+	tests := []struct {
+		name        string
+		cfg         config.KeybindingsConfig
+		wantKeys    map[string][]string
+		wantEnabled map[string]bool
+		wantUnknown []string
+	}{
+		{
+			name:     "no overrides yields defaults",
+			cfg:      config.KeybindingsConfig{Enabled: true},
+			wantKeys: map[string][]string{quitID: {"ctrl+c"}},
+		},
+		{
+			name: "keys override replaces defaults",
+			cfg: config.KeybindingsConfig{Enabled: true, Bindings: map[string]config.KeyBindingEntry{
+				quitID: {Keys: []string{"ctrl+q"}},
+			}},
+			wantKeys: map[string][]string{quitID: {"ctrl+q"}, cancelID: {"esc"}},
+		},
+		{
+			name: "enabled=false override disables action",
+			cfg: config.KeybindingsConfig{Enabled: true, Bindings: map[string]config.KeyBindingEntry{
+				cancelID: {Enabled: &disabled},
+			}},
+			wantEnabled: map[string]bool{cancelID: false, quitID: true},
+		},
+		{
+			name: "disabled config ignores overrides",
+			cfg: config.KeybindingsConfig{Enabled: false, Bindings: map[string]config.KeyBindingEntry{
+				quitID: {Keys: []string{"ctrl+q"}},
+			}},
+			wantKeys: map[string][]string{quitID: {"ctrl+c"}},
+		},
+		{
+			name: "unknown IDs reported",
+			cfg: config.KeybindingsConfig{Enabled: true, Bindings: map[string]config.KeyBindingEntry{
+				"no_such_action": {Keys: []string{"x"}},
+			}},
+			wantUnknown: []string{"no_such_action"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved, unknown := config.ResolveKeybindings(tt.cfg)
+			if len(resolved) != len(config.GetDefaultKeybindings()) {
+				t.Errorf("resolved map has %d entries, want all %d defaults", len(resolved), len(config.GetDefaultKeybindings()))
+			}
+			for id, keys := range tt.wantKeys {
+				got := resolved[id].Keys
+				if len(got) != len(keys) {
+					t.Fatalf("action %s keys = %v, want %v", id, got, keys)
+				}
+				for i := range keys {
+					if got[i] != keys[i] {
+						t.Errorf("action %s keys = %v, want %v", id, got, keys)
+					}
+				}
+			}
+			for id, want := range tt.wantEnabled {
+				entry := resolved[id]
+				got := entry.Enabled == nil || *entry.Enabled
+				if got != want {
+					t.Errorf("action %s enabled = %v, want %v", id, got, want)
+				}
+			}
+			if len(unknown) != len(tt.wantUnknown) {
+				t.Errorf("unknown = %v, want %v", unknown, tt.wantUnknown)
+			}
+		})
+	}
+}

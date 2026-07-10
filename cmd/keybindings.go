@@ -100,13 +100,13 @@ func listKeybindings(cmd *cobra.Command, args []string) error {
 		}
 
 		status := icons.CheckMarkStyle.Render(icons.CheckMark)
-		if !action.Enabled {
+		if !action.Binding.Enabled() {
 			status = icons.CrossMarkStyle.Render(icons.CrossMark)
 		}
 
-		keys := strings.Join(action.Keys, ", ")
+		keys := strings.Join(action.Binding.Keys(), ", ")
 		fmt.Printf("  %s %-25s %s\n", status, action.ID, keys)
-		fmt.Printf("     %s\n", action.Description)
+		fmt.Printf("     %s\n", action.Binding.Help().Desc)
 		fmt.Println()
 	}
 
