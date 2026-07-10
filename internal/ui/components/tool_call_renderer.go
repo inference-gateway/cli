@@ -26,7 +26,6 @@ type ToolCallRenderer struct {
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
-	spinnerStep      int
 }
 
 // KeyHintFormatter provides formatted key hints for actions
@@ -55,13 +54,8 @@ type ToolInfo struct {
 }
 
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
-	s := spinner.New()
-	customDot := spinner.Dot
-	customDot.FPS = 100 * time.Millisecond
-	s.Spinner = customDot
-
 	return &ToolCallRenderer{
-		spinner:       s,
+		spinner:       newModernSpinner(),
 		tools:         make(map[string]*ToolRenderState),
 		styleProvider: styleProvider,
 		width:         80,
@@ -198,15 +192,7 @@ func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEven
 func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
 	var cmd tea.Cmd
 	r.spinner, cmd = r.spinner.Update(msg)
-
-	now := time.Now()
-	r.spinnerStep = (r.spinnerStep + 1) % 4
-	r.lastTimerRender = now
-
-	if r.hasActiveTools() {
-		return r, cmd
-	}
-
+	r.lastTimerRender = time.Now()
 	return r, cmd
 }
 
@@ -273,7 +259,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		iconColor = "dim"
 		statusColor = "dim"
 	case "running", "starting", "saving", "executing", "streaming":
-		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
+		statusIcon = r.spinner.View()
 		if tool.EndTime == nil {
 			elapsed := time.Since(tool.StartTime)
 			statusText = fmt.Sprintf("running %s", r.formatDuration(elapsed))
@@ -349,7 +335,7 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 		statusIcon = icons.QueuedIcon
 		statusText = "queued"
 	case "executing", "running", "starting", "saving":
-		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
+		statusIcon = r.spinner.View()
 		statusText = status
 	case "executed", "completed":
 		statusIcon = icons.CheckMark

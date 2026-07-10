@@ -52,8 +52,7 @@ type StatusState struct {
 }
 
 func NewStatusView(styleProvider *styles.Provider) *StatusView {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s := newModernSpinner()
 	s.Style = styleProvider.GetSpinnerStyle()
 	return &StatusView{
 		message:       "",

@@ -54,9 +54,7 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 		loadError:             nil,
 	}
 
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	c.spinner = s
+	c.spinner = newModernSpinner()
 
 	return c
 }
