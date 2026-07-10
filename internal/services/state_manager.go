@@ -168,17 +168,23 @@ func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
 // OnRetry callback), it synthesizes a zero-attempt status when a streaming
 // session has produced no chunks for stallThreshold - the render tick calls
 // this on every frame, so a stalled connection surfaces without any timer of
-// its own. A synthesized status has Attempt == 0.
+// its own. A synthesized status has Attempt == 0. Terminal sessions never
+// report a status, so a stale explicit retry can't outlive the turn it
+// belonged to (the input field is disabled while this returns non-nil).
 func (sm *StateManager) GetRetryStatus() *domain.RetryStatus {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
+
+	session := sm.state.GetChatSession()
+	if session == nil || isTerminalChatStatus(session.Status) {
+		return nil
+	}
 
 	if status := sm.state.GetRetryStatus(); status != nil {
 		return status
 	}
 
-	session := sm.state.GetChatSession()
-	if session == nil || !chatStatusExpectsChunks(session.Status) {
+	if !chatStatusExpectsChunks(session.Status) {
 		return nil
 	}
 	if sm.stallThreshold > 0 && time.Since(session.LastActivity) > sm.stallThreshold {

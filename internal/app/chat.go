@@ -613,10 +613,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		inHistoryMode = cv.IsInMessageHistoryMode()
 	}
 
-	inputBlocked := app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil ||
-		app.stateManager.GetUserQuestionUIState() != nil ||
-		inHistoryMode || currentView == domain.ViewStateDiffViewer ||
-		currentView == domain.ViewStateExplorer || currentView == domain.ViewStateHelp
+	inputBlocked := app.isInputBlocked(inHistoryMode, currentView)
 
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetDisabled(inputBlocked)
@@ -654,6 +651,20 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	default:
 		return nil
 	}
+}
+
+// isInputBlocked reports whether the chat input field should be disabled.
+// Extracted from handleViewSpecificMessages to keep cyclomatic complexity
+// under the 25 limit.
+func (app *ChatApplication) isInputBlocked(inHistoryMode bool, currentView domain.ViewState) bool {
+	return app.stateManager.GetApprovalUIState() != nil ||
+		app.stateManager.GetPlanApprovalUIState() != nil ||
+		app.stateManager.GetUserQuestionUIState() != nil ||
+		app.stateManager.GetRetryStatus() != nil ||
+		inHistoryMode ||
+		currentView == domain.ViewStateDiffViewer ||
+		currentView == domain.ViewStateExplorer ||
+		currentView == domain.ViewStateHelp
 }
 
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {

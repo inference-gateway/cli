@@ -261,6 +261,11 @@ func TestStateManager_RetryStatus(t *testing.T) {
 
 	sm.TouchChatActivity()
 	assert.Nil(t, sm.GetRetryStatus(), "a chunk clears the retry status")
+
+	sm.SetRetryStatus(&domain.RetryStatus{Attempt: 5, MaxAttempts: 5})
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusGenerating))
+	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusError))
+	assert.Nil(t, sm.GetRetryStatus(), "a terminal session never reports a retry status")
 }
 
 func TestStateManager_StallDetection(t *testing.T) {
