@@ -161,17 +161,24 @@ func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor
 }
 
 // truncateBorderLabel shortens s to at most maxWidth display columns, appending
-// tail when it has to cut. It walks runes so multi-byte names are never split
-// mid-character and wide runes are accounted for.
+// tail when it has to cut. A short final space-separated token (e.g. the PR
+// "#854" in "⎇ branch  #854") is preserved and the cut lands before it, so the
+// PR number survives long branch names. It walks runes so multi-byte names are
+// never split mid-character and wide runes are accounted for.
 func truncateBorderLabel(s string, maxWidth int, tail string) string {
 	if lipgloss.Width(s) <= maxWidth {
 		return s
 	}
-	target := max(maxWidth-lipgloss.Width(tail), 0)
+
+	head, suffix := s, ""
+	if i := strings.LastIndex(s, " "); i >= 0 && lipgloss.Width(s[i:]) <= maxWidth/2 {
+		head, suffix = s[:i], s[i:]
+	}
+	target := max(maxWidth-lipgloss.Width(tail)-lipgloss.Width(suffix), 0)
 
 	var out []rune
 	width := 0
-	for _, r := range s {
+	for _, r := range head {
 		rw := lipgloss.Width(string(r))
 		if width+rw > target {
 			break
@@ -179,7 +186,7 @@ func truncateBorderLabel(s string, maxWidth int, tail string) string {
 		out = append(out, r)
 		width += rw
 	}
-	return string(out) + tail
+	return string(out) + tail + suffix
 }
 
 // RenderInputPlaceholder renders placeholder text
