@@ -1055,11 +1055,7 @@ func (app *ChatApplication) View() tea.View {
 	if app.mouseEnabled {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
-
-	switch app.stateManager.GetCurrentView() {
-	case domain.ViewStateExplorer, domain.ViewStateDiffViewer:
-		v.AltScreen = true
-	}
+	v.AltScreen = true
 	return v
 }
 
