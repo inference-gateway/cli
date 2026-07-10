@@ -245,16 +245,16 @@ func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
 	stdout, code := runAgent(t, url, dir, "create a file named blocked.txt")
 	require.Zero(t, code)
 
-	require.FileExists(t, filepath.Join(dir, "blocked.txt"),
-		"Write executes in headless mode (no approval gate)")
+	require.NoFileExists(t, filepath.Join(dir, "blocked.txt"),
+		"Write requires approval and headless runs have no approver")
 
 	lines := jsonLines(t, stdout)
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 1)
-	require.Contains(t, toolResults[0], `"success":true`, "the write must report success")
+	require.Contains(t, toolResults[0], "Blocked:", "the rejection must carry an actionable reason")
 
 	tools := toolMessages(gw.Requests()[1].Body)
-	require.Len(t, tools, 1, "the tool result must flow back to the gateway")
+	require.Len(t, tools, 1, "the rejection must flow back to the gateway as a tool result")
 }
 
 func TestAgentBashAllowlistedCommandRuns(t *testing.T) {
@@ -287,6 +287,17 @@ func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {
 
 	require.NotNil(t, statusOfType(jsonLines(t, stdout), "agent_error"), "an agent_error line must be emitted")
 	require.Len(t, gw.Requests(), 5, "initial request plus four retries before giving up")
+}
+
+func TestAgentRecoversAfterTransientErrors(t *testing.T) {
+	gw, url := startMock(t)
+
+	stdout, code := runAgent(t, url, t.TempDir(), "call the flaky backend")
+	require.Zero(t, code, "transient errors must be retried, not fatal")
+
+	require.Contains(t, contentsByRole(jsonLines(t, stdout), "assistant"), "Recovered after retries.")
+	require.Len(t, gw.Requests(), 4,
+		"two failed attempts, the successful retry, and the loop's automated completion check")
 }
 
 func TestChatPipedInputStreamsPlainText(t *testing.T) {

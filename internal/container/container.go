@@ -743,7 +743,6 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				c.stateManager.SetRetryStatus(&domain.RetryStatus{
 					Attempt:     attempt,
 					MaxAttempts: c.config.Client.Retry.MaxAttempts,
-					IsRetrying:  true,
 				})
 			}
 

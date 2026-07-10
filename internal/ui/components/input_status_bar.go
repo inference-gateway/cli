@@ -716,11 +716,11 @@ func (isb *InputStatusBar) buildReconnectingIndicator() string {
 	if isb.stateManager == nil {
 		return ""
 	}
-	session := isb.stateManager.GetChatSession()
-	if session == nil || session.RetryStatus == nil || !session.RetryStatus.IsRetrying {
+	status := isb.stateManager.GetRetryStatus()
+	if status == nil {
 		return ""
 	}
-	return fmt.Sprintf("Reconnecting (%d/%d)", session.RetryStatus.Attempt, session.RetryStatus.MaxAttempts)
+	return fmt.Sprintf("Reconnecting (%d/%d)", status.Attempt, status.MaxAttempts)
 }
 
 // getToolInfo returns tool count and token information

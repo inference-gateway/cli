@@ -161,6 +161,14 @@ func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
 	sm.state.SetRetryStatus(status)
 }
 
+// GetRetryStatus returns a copy of the current retry status, or nil when no
+// retry is in progress.
+func (sm *StateManager) GetRetryStatus() *domain.RetryStatus {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetRetryStatus()
+}
+
 func isTerminalChatStatus(s domain.ChatStatus) bool {
 	switch s {
 	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:

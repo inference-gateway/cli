@@ -273,6 +273,16 @@ type FakeStateManager struct {
 	getPreviousViewReturnsOnCall map[int]struct {
 		result1 domain.ViewState
 	}
+	GetRetryStatusStub        func() *domain.RetryStatus
+	getRetryStatusMutex       sync.RWMutex
+	getRetryStatusArgsForCall []struct {
+	}
+	getRetryStatusReturns struct {
+		result1 *domain.RetryStatus
+	}
+	getRetryStatusReturnsOnCall map[int]struct {
+		result1 *domain.RetryStatus
+	}
 	GetTodosStub        func() []domain.TodoItem
 	getTodosMutex       sync.RWMutex
 	getTodosArgsForCall []struct {
@@ -1950,6 +1960,59 @@ func (fake *FakeStateManager) GetPreviousViewReturnsOnCall(i int, result1 domain
 	}
 	fake.getPreviousViewReturnsOnCall[i] = struct {
 		result1 domain.ViewState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetRetryStatus() *domain.RetryStatus {
+	fake.getRetryStatusMutex.Lock()
+	ret, specificReturn := fake.getRetryStatusReturnsOnCall[len(fake.getRetryStatusArgsForCall)]
+	fake.getRetryStatusArgsForCall = append(fake.getRetryStatusArgsForCall, struct {
+	}{})
+	stub := fake.GetRetryStatusStub
+	fakeReturns := fake.getRetryStatusReturns
+	fake.recordInvocation("GetRetryStatus", []interface{}{})
+	fake.getRetryStatusMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetRetryStatusCallCount() int {
+	fake.getRetryStatusMutex.RLock()
+	defer fake.getRetryStatusMutex.RUnlock()
+	return len(fake.getRetryStatusArgsForCall)
+}
+
+func (fake *FakeStateManager) GetRetryStatusCalls(stub func() *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = stub
+}
+
+func (fake *FakeStateManager) GetRetryStatusReturns(result1 *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = nil
+	fake.getRetryStatusReturns = struct {
+		result1 *domain.RetryStatus
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetRetryStatusReturnsOnCall(i int, result1 *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = nil
+	if fake.getRetryStatusReturnsOnCall == nil {
+		fake.getRetryStatusReturnsOnCall = make(map[int]struct {
+			result1 *domain.RetryStatus
+		})
+	}
+	fake.getRetryStatusReturnsOnCall[i] = struct {
+		result1 *domain.RetryStatus
 	}{result1}
 }
 

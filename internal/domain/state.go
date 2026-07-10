@@ -202,11 +202,11 @@ type QueuedMessage struct {
 	RequestID string
 }
 
-// RetryStatus tracks the current retry state for reconnection attempts
+// RetryStatus tracks the current retry state for reconnection attempts.
+// A nil *RetryStatus means no retry is in progress.
 type RetryStatus struct {
 	Attempt     int
 	MaxAttempts int
-	IsRetrying  bool
 }
 
 // ChatSession represents an active chat session state
@@ -714,6 +714,17 @@ func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
 	if s.chatSession != nil {
 		s.chatSession.RetryStatus = status
 	}
+}
+
+// GetRetryStatus returns a copy of the current retry status, or nil when no
+// retry is in progress. Returning a copy keeps callers from sharing the
+// mutable pointer with the HTTP client's OnRetry goroutine.
+func (s *ApplicationState) GetRetryStatus() *RetryStatus {
+	if s.chatSession == nil || s.chatSession.RetryStatus == nil {
+		return nil
+	}
+	status := *s.chatSession.RetryStatus
+	return &status
 }
 
 // GetChatSession returns the current chat session
