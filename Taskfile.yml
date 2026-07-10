@@ -35,12 +35,13 @@ tasks:
   build:mockgateway:
     desc: Build the mock inference-gateway binary for manual and terminal-automation testing
     cmds:
-      - go build -o mock-gateway ./tests/mockgateway
+      - mkdir -p .infer/bin
+      - go build -o .infer/bin/mock-gateway ./tests/mockgateway
 
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -f {{.BINARY_NAME}} mock-gateway
+      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway
       - go clean
 
   test:

@@ -9,7 +9,6 @@
 flox.*-linux.*
 /.task
 infer
-mock-gateway
 
 # Nix build artifacts
 result
