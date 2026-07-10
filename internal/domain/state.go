@@ -202,6 +202,13 @@ type QueuedMessage struct {
 	RequestID string
 }
 
+// RetryStatus tracks the current retry state for reconnection attempts.
+// A nil *RetryStatus means no retry is in progress.
+type RetryStatus struct {
+	Attempt     int
+	MaxAttempts int
+}
+
 // ChatSession represents an active chat session state
 type ChatSession struct {
 	RequestID    string
@@ -212,6 +219,7 @@ type ChatSession struct {
 	IsFirstChunk bool
 	HasToolCalls bool
 	LastActivity time.Time
+	RetryStatus  *RetryStatus
 }
 
 // ChatStatus represents the current chat operation status
@@ -699,6 +707,35 @@ func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool
 // EndChatSession cleans up the chat session
 func (s *ApplicationState) EndChatSession() {
 	s.chatSession = nil
+}
+
+// SetRetryStatus updates the retry status on the current chat session
+func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
+	if s.chatSession != nil {
+		s.chatSession.RetryStatus = status
+	}
+}
+
+// GetRetryStatus returns a copy of the current retry status, or nil when no
+// retry is in progress. Returning a copy keeps callers from sharing the
+// mutable pointer with the agent's streaming goroutine.
+func (s *ApplicationState) GetRetryStatus() *RetryStatus {
+	if s.chatSession == nil || s.chatSession.RetryStatus == nil {
+		return nil
+	}
+	status := *s.chatSession.RetryStatus
+	return &status
+}
+
+// TouchChatActivity records that the stream produced output: it bumps the
+// session's LastActivity and clears any retry status, since receiving a
+// chunk means the connection is healthy again.
+func (s *ApplicationState) TouchChatActivity() {
+	if s.chatSession == nil {
+		return
+	}
+	s.chatSession.LastActivity = time.Now()
+	s.chatSession.RetryStatus = nil
 }
 
 // GetChatSession returns the current chat session

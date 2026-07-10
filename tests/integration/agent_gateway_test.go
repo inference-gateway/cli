@@ -52,6 +52,7 @@ func newEnv(t *testing.T) *env {
 	cfg.Agent.Model = mockgateway.DefaultModel
 	cfg.Client.Retry.InitialBackoffSec = 0
 	cfg.Client.Retry.MaxAttempts = 3
+	cfg.Client.StallThresholdSec = 1
 
 	c := container.NewServiceContainer(cfg)
 	t.Cleanup(func() {
@@ -293,6 +294,26 @@ func TestStreamSurfacesHardErrorAfterRetryExhaustion(t *testing.T) {
 
 	require.NotEmpty(t, res.errs, "persistent 500s must surface as a ChatErrorEvent")
 	require.Len(t, e.gateway.Requests(), 3, "initial request plus two retries")
+}
+
+func TestStreamStallReconnectsAndRecovers(t *testing.T) {
+	e := newEnv(t)
+
+	res := e.runStream(context.Background(), t, "please stall the stream")
+
+	require.Empty(t, res.errs)
+	require.Equal(t, "Reconnected after the stall.", res.content())
+	require.Len(t, e.gateway.Requests(), 2, "stalled first attempt then one reconnect")
+}
+
+func TestStreamConnectHangReconnectsAndRecovers(t *testing.T) {
+	e := newEnv(t)
+
+	res := e.runStream(context.Background(), t, "please hang the connection")
+
+	require.Empty(t, res.errs)
+	require.Equal(t, "Connected after the hang.", res.content())
+	require.Len(t, e.gateway.Requests(), 2, "hung connect then one reconnect")
 }
 
 func TestStreamMalformedFrameIsSkipped(t *testing.T) {

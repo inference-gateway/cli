@@ -63,6 +63,11 @@ type Turn struct {
 	// Error, when set, replaces the turn with an HTTP error for the first
 	// Times matching requests (-1 means every request).
 	Error *ErrorInject `yaml:"error"`
+	// Stall, when set, makes the first Times streaming requests hang after
+	// the initial role delta: the connection stays open but no further
+	// frames arrive until the client disconnects. Exercises the CLI's
+	// stalled-stream reconnect path.
+	Stall *StallInject `yaml:"stall"`
 	// Malformed emits one non-JSON data: frame early in the stream.
 	Malformed bool `yaml:"malformed"`
 }
@@ -88,6 +93,15 @@ type Usage struct {
 type ErrorInject struct {
 	Status int `yaml:"status"`
 	Times  int `yaml:"times"`
+}
+
+// StallInject makes a turn's stream hang for the first Times requests that
+// resolve to it; Times -1 stalls forever. By default the stream stalls after
+// the initial role delta; with Connect true it stalls before the response
+// headers, simulating a TCP connect that never completes.
+type StallInject struct {
+	Times   int  `yaml:"times"`
+	Connect bool `yaml:"connect"`
 }
 
 // Default returns the embedded built-in scenario library.
@@ -169,6 +183,9 @@ func (t *Turn) validate(where string) error {
 		if t.Error.Times == 0 || t.Error.Times < -1 {
 			return fmt.Errorf("%s: error.times must be positive or -1", where)
 		}
+	}
+	if t.Stall != nil && (t.Stall.Times == 0 || t.Stall.Times < -1) {
+		return fmt.Errorf("%s: stall.times must be positive or -1", where)
 	}
 
 	for i := range t.ToolCalls {

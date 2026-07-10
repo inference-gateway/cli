@@ -292,6 +292,7 @@ func NewChatApplication(
 	}
 	if sv, ok := app.statusView.(*components.StatusView); ok {
 		sv.SetKeyHintFormatter(keyHintFormatter)
+		sv.SetStateManager(app.stateManager)
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
@@ -669,6 +670,7 @@ func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
 		app.stateManager.GetApprovalUIState() != nil ||
 		app.stateManager.GetPlanApprovalUIState() != nil ||
 		app.stateManager.GetUserQuestionUIState() != nil ||
+		app.stateManager.GetRetryStatus() != nil ||
 		inHistoryMode ||
 		currentView == domain.ViewStateDiffViewer ||
 		currentView == domain.ViewStateExplorer ||

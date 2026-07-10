@@ -239,6 +239,7 @@ func (h *ChatHandler) HandleChatStartEvent(
 func (h *ChatHandler) HandleChatChunkEvent(
 	msg domain.ChatChunkEvent,
 ) tea.Cmd {
+	h.stateManager.TouchChatActivity()
 	return h.completionRunner.HandleChatChunk(msg)
 }
 

@@ -1175,6 +1175,8 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handleToolCallEvents(msg, cmd)
 	case domain.BashCommandCompletedEvent:
 		return cv.handleBashCommandCompletedEvent(msg, cmd)
+	case domain.ChatStartEvent:
+		return cv.handleChatStartEvent(cmd)
 	case domain.StreamingContentEvent:
 		return cv.handleStreamingContentEvent(msg, cmd)
 	case domain.ScrollRequestEvent:
@@ -1271,6 +1273,17 @@ func (cv *ConversationView) handleBashCommandCompletedEvent(msg domain.BashComma
 		if cv.toolCallRenderer != nil {
 			cv.toolCallRenderer.ClearPreviews()
 		}
+	}
+	return cv, cmd
+}
+
+// handleChatStartEvent clears any leftover streaming content when a new
+// stream begins - after a mid-stream reconnect the retried response restarts
+// from the top, so the partial output of the broken attempt must not remain.
+func (cv *ConversationView) handleChatStartEvent(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.flushStreamingBuffer()
+		cv.updateViewportContentFull()
 	}
 	return cv, cmd
 }
