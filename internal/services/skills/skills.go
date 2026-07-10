@@ -105,7 +105,7 @@ func (s *Service) Load(_ context.Context) error {
 				continue
 			}
 			skillDir := filepath.Join(scope.dir, entry.Name())
-			skill, loadErr := LoadSkillMetadata(skillDir, entry.Name(), scope.scope)
+			skill, loadErr := LoadSkillMetadata(skillDir, entry.Name(), scope.scope, scope.pluginName)
 			if loadErr != nil {
 				logger.Warn("skipping invalid skill", "path", skillDir, "reason", loadErr.Reason)
 				s.errs = append(s.errs, *loadErr)
@@ -161,8 +161,9 @@ func (s *Service) Errors() []domain.SkillLoadError {
 }
 
 type scopedDir struct {
-	dir   string
-	scope domain.SkillScope
+	dir        string
+	scope      domain.SkillScope
+	pluginName string // non-empty only when scope is SkillScopePlugin
 }
 
 // searchScopes returns the skill directories in precedence order: project,
@@ -185,7 +186,7 @@ func (s *Service) searchScopes() []scopedDir {
 			if err != nil {
 				continue
 			}
-			scopes = append(scopes, scopedDir{dir: dir, scope: domain.SkillScopePlugin})
+			scopes = append(scopes, scopedDir{dir: dir, scope: domain.SkillScopePlugin, pluginName: p.Name})
 		}
 	}
 	return scopes
@@ -194,7 +195,8 @@ func (s *Service) searchScopes() []scopedDir {
 // LoadSkillMetadata reads <skillDir>/SKILL.md, parses frontmatter, validates
 // the fields, and returns the populated domain.Skill. Returns (nil, nil) when
 // the directory has no SKILL.md, (nil, err) when SKILL.md is invalid.
-func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope) (*domain.Skill, *domain.SkillLoadError) {
+// pluginName is set only for plugin-scoped skills.
+func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope, pluginName string) (*domain.Skill, *domain.SkillLoadError) {
 	entryPath := filepath.Join(skillDir, skillEntryFile)
 	absPath, absErr := filepath.Abs(entryPath)
 	if absErr != nil {
@@ -223,6 +225,7 @@ func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope) (*doma
 		Description: fm.Description,
 		Path:        absPath,
 		Scope:       scope,
+		PluginName:  pluginName,
 	}, nil
 }
 

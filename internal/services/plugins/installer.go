@@ -248,7 +248,7 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 			if !entry.IsDir() {
 				continue
 			}
-			sk, loadErr := skills.LoadSkillMetadata(filepath.Join(skillsDir, entry.Name()), entry.Name(), domain.SkillScopePlugin)
+			sk, loadErr := skills.LoadSkillMetadata(filepath.Join(skillsDir, entry.Name()), entry.Name(), domain.SkillScopePlugin, res.Name)
 			if loadErr != nil {
 				res.SkillErrors = append(res.SkillErrors, *loadErr)
 				continue

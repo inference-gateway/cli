@@ -442,7 +442,11 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	}
 	var omitted []string
 	for i, sk := range skills {
-		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", sk.Name, sk.Scope, sk.Description, sk.Path)
+		displayName := sk.Name
+		if sk.Scope == domain.SkillScopePlugin && sk.PluginName != "" {
+			displayName = sk.PluginName + ":" + sk.Name
+		}
+		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", displayName, sk.Scope, sk.Description, sk.Path)
 		if maxChars > 0 && b.Len()+len(entry) > maxChars {
 			for _, rest := range skills[i:] {
 				omitted = append(omitted, rest.Name)
@@ -464,6 +468,10 @@ var (
 	// load time). Applied per whitespace-delimited field so adjacent tokens
 	// like "/foo /bar" both match.
 	skillNameLead = regexp.MustCompile(`^[a-z0-9-]+`)
+	// skillPluginRef matches "/plugin-name:skill-name" syntax for referencing
+	// a skill from a specific plugin. Both plugin and skill names use the
+	// lowercase [a-z0-9-]+ charset.
+	skillPluginRef = regexp.MustCompile(`^([a-z0-9-]+):([a-z0-9-]+)$`)
 	// skillPhraseTrigger matches natural-language "use the <name> skill" /
 	// "use <name> skill" (case-insensitive). The boundaries are zero-width, so
 	// consecutive phrases don't shadow one another.
@@ -652,9 +660,9 @@ func filterMemoryIndex(index, projectSlug string) string {
 }
 
 // matchSkillTriggers scans user-role messages for explicit skill invocations
-// (slash token or "use the X skill" phrase), returning the de-duplicated names
-// of skills that are actually loaded, in first-seen order. Unknown tokens are
-// ignored so a bare "/word" in prose never errors.
+// (slash token, "/plugin:skill" ref, or "use the X skill" phrase), returning
+// the de-duplicated names of skills that are actually loaded, in first-seen
+// order. Unknown tokens are ignored so a bare "/word" in prose never errors.
 func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
 	seen := make(map[string]struct{})
 	var names []string
@@ -683,7 +691,15 @@ func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
 		}
 		for _, field := range strings.Fields(text) {
 			if name, ok := strings.CutPrefix(field, "/"); ok {
-				add(skillNameLead.FindString(strings.ToLower(name)))
+				lower := strings.ToLower(name)
+				// Try "/plugin:skill" syntax first
+				if m := skillPluginRef.FindStringSubmatch(lower); m != nil {
+					// m[1] = plugin name, m[2] = skill name
+					// Look up by skill name - the skills service already has it
+					add(m[2])
+				} else {
+					add(skillNameLead.FindString(lower))
+				}
 			}
 		}
 		for _, m := range skillPhraseTrigger.FindAllStringSubmatch(text, -1) {
