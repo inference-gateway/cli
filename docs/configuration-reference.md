@@ -267,9 +267,9 @@ compact:
 ### Client Settings
 
 - **client.timeout**: HTTP client timeout in seconds
-- **client.stall_threshold_sec**: Seconds without a streamed chunk before the stream counts as stalled (default: `5`, `0` disables).
-  The chat UI shows a reconnecting indicator and the agent drops the connection and retries,
-  up to `client.retry.max_attempts` times with exponential backoff
+- **client.stall_threshold_sec**: Seconds without progress - no response while connecting, no chunk while streaming - before
+  the request counts as stalled (default: `5`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops
+  the connection and retries, up to `client.retry.max_attempts` times with exponential backoff
 - **client.retry.enabled**: Enable automatic retries for failed requests
 - **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds

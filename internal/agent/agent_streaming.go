@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
+
+// errConnectStalled marks a stream request that produced no response within
+// the stall threshold, so the reconnect loop retries it instead of failing.
+var errConnectStalled = errors.New("stream connect stalled")
 
 // startStreaming implements the LLM streaming logic for the EventDrivenAgent
 func (a *EventDrivenAgent) startStreaming() {
@@ -109,8 +114,14 @@ func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTim
 		a.service.requestsMux.Unlock()
 	}()
 
-	events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
+	events, err := a.openStream(requestCtx, requestCancel, client)
 	if err != nil {
+		if errors.Is(err, errConnectStalled) {
+			logger.Warn("stream connect stalled, reconnecting",
+				"request_id", a.req.RequestID,
+				"turn", a.agentCtx.Turns)
+			return true
+		}
 		logger.Error("failed to create stream",
 			"error", err,
 			"turn", a.agentCtx.Turns,
@@ -121,6 +132,38 @@ func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTim
 	}
 
 	return a.processStreamEvents(requestCtx, events, iterationStartTime)
+}
+
+// openStream issues the streaming request bounded by the stall threshold: a
+// request that produces no response within it (e.g. a TCP connect hanging on
+// a dead network for the ~75s OS timeout) is cancelled and reported as
+// errConnectStalled so the reconnect loop counts it like any other stall.
+func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context.CancelFunc, client domain.SDKClient) (<-chan sdk.SSEvent, error) {
+	stallAfter := time.Duration(a.service.config.Client.StallThresholdSec) * time.Second
+	if stallAfter <= 0 {
+		return client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
+	}
+
+	type opened struct {
+		events <-chan sdk.SSEvent
+		err    error
+	}
+	done := make(chan opened, 1)
+	go func() {
+		events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
+		done <- opened{events, err}
+	}()
+
+	timer := time.NewTimer(stallAfter)
+	defer timer.Stop()
+	select {
+	case o := <-done:
+		return o.events, o.err
+	case <-timer.C:
+		cancel()
+		<-done
+		return nil, errConnectStalled
+	}
 }
 
 // failStream publishes a terminal stream error and moves the state machine to

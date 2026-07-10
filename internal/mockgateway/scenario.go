@@ -95,10 +95,13 @@ type ErrorInject struct {
 	Times  int `yaml:"times"`
 }
 
-// StallInject makes a turn's stream hang after the role delta for the first
-// Times requests that resolve to it; Times -1 stalls forever.
+// StallInject makes a turn's stream hang for the first Times requests that
+// resolve to it; Times -1 stalls forever. By default the stream stalls after
+// the initial role delta; with Connect true it stalls before the response
+// headers, simulating a TCP connect that never completes.
 type StallInject struct {
-	Times int `yaml:"times"`
+	Times   int  `yaml:"times"`
+	Connect bool `yaml:"connect"`
 }
 
 // Default returns the embedded built-in scenario library.

@@ -80,6 +80,12 @@ scenarios:
       - stall: { times: 1 }
         content: "Reconnected after the stall."
 
+  - name: stalled-connect
+    match: '(?i)hang the connection'
+    turns:
+      - stall: { times: 1, connect: true }
+        content: "Connected after the hang."
+
   - name: malformed-sse
     match: '(?i)garbled stream'
     turns:

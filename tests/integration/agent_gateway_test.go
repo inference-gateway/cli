@@ -306,6 +306,16 @@ func TestStreamStallReconnectsAndRecovers(t *testing.T) {
 	require.Len(t, e.gateway.Requests(), 2, "stalled first attempt then one reconnect")
 }
 
+func TestStreamConnectHangReconnectsAndRecovers(t *testing.T) {
+	e := newEnv(t)
+
+	res := e.runStream(context.Background(), t, "please hang the connection")
+
+	require.Empty(t, res.errs)
+	require.Equal(t, "Connected after the hang.", res.content())
+	require.Len(t, e.gateway.Requests(), 2, "hung connect then one reconnect")
+}
+
 func TestStreamMalformedFrameIsSkipped(t *testing.T) {
 	e := newEnv(t)
 

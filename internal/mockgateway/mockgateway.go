@@ -112,7 +112,7 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 
 	if stream {
 		if turn.Stall != nil && s.consumeFailure("stall:"+name, step, &ErrorInject{Times: turn.Stall.Times}) {
-			renderStalledStream(w, r)
+			renderStalledStream(w, r, turn.Stall.Connect)
 			return
 		}
 		s.renderStream(w, r, req.Model, step, turn)
@@ -171,9 +171,15 @@ func (s *Server) renderSync(w http.ResponseWriter, r *http.Request, model string
 	})
 }
 
-// renderStalledStream emits the initial role delta and then holds the
-// connection open without further frames until the client disconnects.
-func renderStalledStream(w http.ResponseWriter, r *http.Request) {
+// renderStalledStream holds the connection open without frames until the
+// client disconnects - after the initial role delta by default, or before
+// the response headers when connect is true.
+func renderStalledStream(w http.ResponseWriter, r *http.Request, connect bool) {
+	if connect {
+		<-r.Context().Done()
+		return
+	}
+
 	fl, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "mockgateway: streaming unsupported", http.StatusInternalServerError)
