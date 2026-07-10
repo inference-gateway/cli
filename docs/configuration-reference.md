@@ -90,13 +90,14 @@ gateway:
     - ollama_cloud/deepseek-v3.1:671b # Block specific models by default
 client:
   timeout: 200
+  stall_threshold_sec: 30
   retry:
     enabled: true
-    max_attempts: 3
+    max_attempts: 5
     initial_backoff_sec: 5
     max_backoff_sec: 60
     backoff_multiplier: 2
-    retryable_status_codes: [400, 408, 429, 500, 502, 503, 504]
+    retryable_status_codes: [408, 429, 500, 502, 503, 504]
 logging:
   debug: false
   dir: "" # Override log directory (defaults to <config-dir>/logs)
@@ -264,12 +265,17 @@ compact:
 ### Client Settings
 
 - **client.timeout**: HTTP client timeout in seconds
+- **client.stall_threshold_sec**: Seconds without progress - no response while connecting, no chunk while streaming - before
+  the request counts as stalled (default: `30`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops
+  the connection and retries, up to `client.retry.max_attempts` times with exponential backoff. Keep it above your provider's
+  worst first-token latency - a stall retry restarts the response from scratch
 - **client.retry.enabled**: Enable automatic retries for failed requests
-- **client.retry.max_attempts**: Maximum number of retry attempts
+- **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
 - **client.retry.max_backoff_sec**: Maximum delay between retries in seconds
 - **client.retry.backoff_multiplier**: Backoff multiplier for exponential delay
-- **client.retry.retryable_status_codes**: HTTP status codes that trigger retries (e.g., [400, 408, 429, 500, 502, 503, 504])
+- **client.retry.retryable_status_codes**: HTTP status codes that trigger retries (default: `[408, 429, 500, 502, 503, 504]`);
+  non-transient errors such as `401` are deliberately excluded so they fail fast with the real message
 
 ### Logging Settings
 
@@ -622,8 +628,9 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 ### Client Configuration
 
 - `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds (default: `200`)
+- `INFER_CLIENT_STALL_THRESHOLD_SEC`: Seconds without stream progress before reconnecting (default: `30`, `0` disables)
 - `INFER_CLIENT_RETRY_ENABLED`: Enable retry logic (default: `true`)
-- `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `3`)
+- `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `5`)
 - `INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC`: Initial backoff delay in seconds (default: `5`)
 - `INFER_CLIENT_RETRY_MAX_BACKOFF_SEC`: Maximum backoff delay in seconds (default: `60`)
 - `INFER_CLIENT_RETRY_BACKOFF_MULTIPLIER`: Backoff multiplier (default: `2`)

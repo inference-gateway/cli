@@ -13,8 +13,9 @@ import (
 
 // StateManager provides centralized state management with proper synchronization
 type StateManager struct {
-	state *domain.ApplicationState
-	mutex sync.RWMutex
+	state          *domain.ApplicationState
+	mutex          sync.RWMutex
+	stallThreshold time.Duration
 
 	// Event multicast for floating window (optional)
 	eventBridge domain.EventBridge
@@ -150,6 +151,73 @@ func (sm *StateManager) SetChatPending() {
 	if existing == nil || isTerminalChatStatus(existing.Status) {
 		sm.state.SetChatPending()
 	}
+}
+
+// SetRetryStatus updates the retry status on the current chat session.
+// Called by the agent's reconnect loop to provide visual feedback in the
+// status bar while it is reconnecting after a failure.
+func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetRetryStatus(status)
+}
+
+// GetRetryStatus returns a copy of the current retry status, or nil when the
+// connection is healthy. Besides explicit reconnect attempts (set by the
+// agent's reconnect loop), it synthesizes a zero-attempt status when a streaming
+// session has produced no chunks for stallThreshold - the render tick calls
+// this on every frame, so a stalled connection surfaces without any timer of
+// its own. A synthesized status has Attempt == 0. Terminal sessions never
+// report a status, so a stale explicit retry can't outlive the turn it
+// belonged to (the input field is disabled while this returns non-nil).
+func (sm *StateManager) GetRetryStatus() *domain.RetryStatus {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	session := sm.state.GetChatSession()
+	if session == nil || isTerminalChatStatus(session.Status) {
+		return nil
+	}
+
+	if status := sm.state.GetRetryStatus(); status != nil {
+		return status
+	}
+
+	if !chatStatusExpectsChunks(session.Status) {
+		return nil
+	}
+	if sm.stallThreshold > 0 && time.Since(session.LastActivity) > sm.stallThreshold {
+		return &domain.RetryStatus{}
+	}
+	return nil
+}
+
+// SetStallThreshold sets how long a streaming session may go without chunks
+// before GetRetryStatus reports it as reconnecting. Zero or negative disables
+// stall detection.
+func (sm *StateManager) SetStallThreshold(threshold time.Duration) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.stallThreshold = threshold
+}
+
+// TouchChatActivity records stream output on the current session, clearing
+// any retry status and resetting the stall clock.
+func (sm *StateManager) TouchChatActivity() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.TouchChatActivity()
+}
+
+// chatStatusExpectsChunks reports whether the status is one where SSE chunks
+// should be flowing; local tool execution and terminal states are excluded so
+// a long-running tool doesn't read as a stalled connection.
+func chatStatusExpectsChunks(s domain.ChatStatus) bool {
+	switch s {
+	case domain.ChatStatusStarting, domain.ChatStatusThinking, domain.ChatStatusGenerating, domain.ChatStatusReceivingTools:
+		return true
+	}
+	return false
 }
 
 func isTerminalChatStatus(s domain.ChatStatus) bool {

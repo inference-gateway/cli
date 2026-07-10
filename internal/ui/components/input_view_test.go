@@ -15,6 +15,7 @@ import (
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -32,9 +33,10 @@ func createMockModelService() *domainmocks.FakeModelService {
 
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+	ta := newInputTextarea("Type your message...")
+
 	iv := &InputView{
-		text:             "",
-		cursor:           0,
+		ta:               ta,
 		placeholder:      "Type your message...",
 		width:            80,
 		height:           5,
@@ -46,6 +48,9 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
+	fakeTheme.GetStatusColorReturns("#00ff00")
+	fakeTheme.GetAccentColorReturns("#00ffff")
+	fakeTheme.GetBorderColorReturns("#555555")
 
 	fakeThemeService := &domainmocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
@@ -77,12 +82,12 @@ func TestNewInputView(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	if iv.text != "" {
-		t.Errorf("Expected empty text, got '%s'", iv.text)
+	if iv.GetInput() != "" {
+		t.Errorf("Expected empty text, got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor at 0, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor at 0, got %d", iv.GetCursor())
 	}
 
 	if iv.width != 80 {
@@ -107,7 +112,7 @@ func TestInputView_GetInput(t *testing.T) {
 	iv := NewInputView(mockModelService)
 
 	testText := "Hello, world!"
-	iv.text = testText
+	iv.SetText(testText)
 
 	if iv.GetInput() != testText {
 		t.Errorf("Expected GetInput to return '%s', got '%s'", testText, iv.GetInput())
@@ -118,17 +123,17 @@ func TestInputView_ClearInput(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	iv.text = "Some text"
-	iv.cursor = 5
+	iv.SetText("Some text")
+	iv.SetCursor(5)
 
 	iv.ClearInput()
 
-	if iv.text != "" {
-		t.Errorf("Expected empty text after clear, got '%s'", iv.text)
+	if iv.GetInput() != "" {
+		t.Errorf("Expected empty text after clear, got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor at 0 after clear, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor at 0 after clear, got %d", iv.GetCursor())
 	}
 }
 
@@ -167,10 +172,11 @@ func TestInputView_GetCursor(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	iv.cursor = 42
+	iv.SetText("Hello World")
+	iv.SetCursor(5)
 
-	if iv.GetCursor() != 42 {
-		t.Errorf("Expected cursor position 42, got %d", iv.GetCursor())
+	if iv.GetCursor() != 5 {
+		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
 	}
 }
 
@@ -179,14 +185,14 @@ func TestInputView_SetCursor(t *testing.T) {
 	iv := NewInputView(mockModelService)
 
 	iv.SetCursor(15)
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor to remain at 0 for invalid position, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor to remain at 0 for invalid position, got %d", iv.GetCursor())
 	}
 
 	iv.SetText("Hello World")
 	iv.SetCursor(5)
-	if iv.cursor != 5 {
-		t.Errorf("Expected cursor position 5, got %d", iv.cursor)
+	if iv.GetCursor() != 5 {
+		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
 	}
 }
 
@@ -197,12 +203,12 @@ func TestInputView_SetText(t *testing.T) {
 	testText := "New text content"
 	iv.SetText(testText)
 
-	if iv.text != testText {
-		t.Errorf("Expected text '%s', got '%s'", testText, iv.text)
+	if iv.GetInput() != testText {
+		t.Errorf("Expected text '%s', got '%s'", testText, iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor to remain at 0, got %d", iv.cursor)
+	if iv.GetCursor() != 16 {
+		t.Errorf("Expected cursor at end of text (16), got %d", iv.GetCursor())
 	}
 }
 
@@ -244,12 +250,119 @@ func TestInputView_Render(t *testing.T) {
 	}
 }
 
+func TestInputView_RenderUsesCompactTextareaHeight(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+	iv.SetWidth(80)
+	iv.SetHeight(4)
+
+	iv.SetText("say hello")
+	if got := iv.textareaContentHeight(); got != 1 {
+		t.Fatalf("expected short input to use one textarea row, got %d", got)
+	}
+
+	output := stripANSI(iv.Render())
+	if lines := strings.Split(output, "\n"); len(lines) != 3 {
+		t.Fatalf("expected one content row plus border, got %d lines:\n%s", len(lines), output)
+	}
+
+	iv.SetText("say\nhello")
+	if got := iv.textareaContentHeight(); got != 2 {
+		t.Fatalf("expected two explicit lines to use two textarea rows, got %d", got)
+	}
+}
+
+func TestInputView_TextareaEditingKeyCompatibility(t *testing.T) {
+	tests := []struct {
+		name   string
+		start  string
+		cursor int
+		key    tea.KeyPressMsg
+		want   string
+		wantAt int
+	}{
+		{
+			name:   "ctrl+j inserts newline",
+			start:  "hello",
+			cursor: 5,
+			key:    tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl},
+			want:   "hello\n",
+			wantAt: 6,
+		},
+		{
+			name:   "alt+enter inserts newline",
+			start:  "hello",
+			cursor: 5,
+			key:    tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt},
+			want:   "hello\n",
+			wantAt: 6,
+		},
+		{
+			name:   "ctrl+backspace deletes previous word",
+			start:  "hello world",
+			cursor: 11,
+			key:    tea.KeyPressMsg{Code: tea.KeyBackspace, Mod: tea.ModCtrl},
+			want:   "hello ",
+			wantAt: 6,
+		},
+		{
+			name:   "ctrl+a moves to input beginning",
+			start:  "hello\nworld",
+			cursor: 11,
+			key:    tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl},
+			want:   "hello\nworld",
+			wantAt: 0,
+		},
+		{
+			name:   "ctrl+e moves to input end",
+			start:  "hello\nworld",
+			cursor: 0,
+			key:    tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl},
+			want:   "hello\nworld",
+			wantAt: 11,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := createInputViewWithTheme(createMockModelService())
+			iv.SetText(tt.start)
+			iv.SetCursor(tt.cursor)
+			_, _ = iv.Update(tea.FocusMsg{})
+
+			_, _ = iv.Update(tt.key)
+
+			if got := iv.GetInput(); got != tt.want {
+				t.Fatalf("input = %q, want %q", got, tt.want)
+			}
+			if got := iv.GetCursor(); got != tt.wantAt {
+				t.Fatalf("cursor = %d, want %d", got, tt.wantAt)
+			}
+		})
+	}
+}
+
+func TestInputView_RenderHighlightsRegisteredShortcut(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	registry := shortcuts.NewRegistry()
+	registry.Register(shortcuts.NewInitShortcut(config.DefaultConfig()))
+	iv.SetShortcutRegistry(registry)
+	iv.focused = false
+	iv.SetText("/init")
+
+	out := iv.renderTextWithCursor()
+	if got := stripANSI(out); got != "/init" {
+		t.Fatalf("plain rendered text = %q, want /init", got)
+	}
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatalf("expected rendered shortcut to contain ANSI highlighting, got %q", out)
+	}
+}
+
 func TestInputView_CanHandle(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	// Bubble Tea v2: KeyMsg is an interface; KeyPressMsg is the concrete
-	// type. Printable text lives in Text, special keys in Code.
 	charKey := tea.KeyPressMsg{Text: "a"}
 	if !iv.CanHandle(charKey) {
 		t.Error("Expected CanHandle to return true for character input")
@@ -311,7 +424,7 @@ func TestInputView_HistorySuggestions_SingleMatch(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("list files"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 
 	iv.Render()
 
@@ -337,7 +450,7 @@ func TestInputView_HistorySuggestions_MultipleMatches(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create tests"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 
 	iv.Render()
 
@@ -358,7 +471,7 @@ func TestInputView_HistorySuggestions_CycleThrough(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	firstSuggestion := iv.historySuggestion
@@ -383,7 +496,7 @@ func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	accepted := iv.AcceptHistorySuggestion()
@@ -392,12 +505,12 @@ func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
 		t.Error("Expected AcceptHistorySuggestion to return true")
 	}
 
-	if iv.text != "create a pull request" {
-		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.text)
+	if iv.GetInput() != "create a pull request" {
+		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != len(iv.text) {
-		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.text), iv.cursor)
+	if iv.GetCursor() != len(iv.GetInput()) {
+		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.GetInput()), iv.GetCursor())
 	}
 
 	if iv.HasHistorySuggestion() {
@@ -412,7 +525,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenEmpty(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("")
-	iv.cursor = 0
+	iv.SetCursor(0)
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -431,7 +544,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenCursorNotAtEnd(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("create")
-	iv.cursor = 3
+	iv.SetCursor(3)
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -446,7 +559,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenNoPrefix(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("xyz")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -465,7 +578,7 @@ func TestInputView_HistorySuggestions_CaseInsensitive(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("Create a pull request"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if !iv.HasHistorySuggestion() {
@@ -484,7 +597,7 @@ func TestInputView_HistorySuggestions_ExcludesExactMatch(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -511,7 +624,7 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	firstSuggestion := iv.historySuggestion
@@ -573,7 +686,7 @@ func TestInputView_RenderTruncatesLongBranchInBorder(t *testing.T) {
 
 func TestInputView_RenderDropsBranchWhenTooNarrow(t *testing.T) {
 	iv := newInputViewWithBranch(t, "main")
-	iv.text = "hi"
+	iv.SetText("hi")
 	iv.SetWidth(12)
 
 	topLine, _, _ := strings.Cut(iv.Render(), "\n")
@@ -601,7 +714,8 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 }
 
 func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
-	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	ta := newInputTextarea("")
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 
 	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
 
@@ -612,7 +726,8 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 }
 
 func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
-	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	ta := newInputTextarea("")
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 	require.NoError(t, iv.AddToHistory("previous message"))
 
 	_, _ = iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -782,4 +897,90 @@ func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInputView_CursorMultibyteRoundTrip(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	text := "héllo 🎉\nwörld"
+	iv.SetText(text)
+
+	for _, pos := range []int{0, len("héllo "), len("héllo 🎉"), len(text)} {
+		iv.SetCursor(pos)
+		require.Equal(t, pos, iv.GetCursor(), "round-trip byte offset %d", pos)
+	}
+
+	iv.SetCursor(len(text))
+	require.Equal(t, len(text), iv.GetCursor())
+}
+
+func TestInputView_SetCursorWithSoftWrappedLines(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.SetWidth(20)
+	long := strings.Repeat("abcdefgh ", 6)
+	text := long + "\nsecond"
+	iv.SetText(text)
+
+	pos := len(long) + 1 + 3
+	iv.SetCursor(pos)
+	require.Equal(t, pos, iv.GetCursor())
+}
+
+func TestInputView_ApplyKeybindingsRemapsTextarea(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.focused = true
+	_ = iv.ta.Focus()
+
+	off := false
+	cfg := &config.Config{}
+	cfg.Chat.Keybindings = config.KeybindingsConfig{
+		Enabled: true,
+		Bindings: map[string]config.KeyBindingEntry{
+			config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"): {Keys: []string{"ctrl+n"}},
+			config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"):  {Enabled: &off},
+		},
+	}
+	iv.SetConfig(cfg)
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ := iv.Update(tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
+	iv = model.(*InputView)
+	require.Equal(t, "hi\n", iv.GetInput(), "remapped key must insert newline")
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ = iv.Update(tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl})
+	iv = model.(*InputView)
+	require.Equal(t, "hi", iv.GetInput(), "unbound default key must no longer insert newline")
+
+	iv.SetText("hi")
+	iv.SetCursor(2)
+	model, _ = iv.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+	iv = model.(*InputView)
+	require.Equal(t, "hi", iv.GetInput(), "disabled action's key must no longer insert newline")
+}
+
+func TestInputView_UpdateEmitsAutocompleteWithSettledValues(t *testing.T) {
+	iv := createInputViewWithTheme(createMockModelService())
+	iv.focused = true
+	_ = iv.ta.Focus()
+
+	model, cmd := iv.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	iv = model.(*InputView)
+	require.NotNil(t, cmd)
+
+	iv.SetText("later state")
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok, "expected BatchMsg, got %T", msg)
+	found := false
+	for _, sub := range batch {
+		if ev, isEv := sub().(domain.AutocompleteUpdateEvent); isEv {
+			require.Equal(t, "a", ev.Text)
+			require.Equal(t, 1, ev.CursorPos)
+			found = true
+		}
+	}
+	require.True(t, found, "expected AutocompleteUpdateEvent in batch")
 }

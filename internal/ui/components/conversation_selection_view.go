@@ -198,11 +198,7 @@ func (c *ConversationSelectorImpl) handleNavigationDown() (tea.Model, tea.Cmd) {
 
 func (c *ConversationSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
 	if len(c.filteredConversations) > 0 && c.selected >= 0 && c.selected < len(c.filteredConversations) {
-		selectedConversation := c.filteredConversations[c.selected]
 		c.done = true
-		return c, func() tea.Msg {
-			return domain.ConversationSelectedEvent{ConversationID: selectedConversation.ID}
-		}
 	}
 	return c, nil
 }

@@ -273,7 +273,6 @@ func TestNewAgentService(t *testing.T) {
 	assert.Equal(t, fakeStateManager, agentService.stateManager)
 	assert.Equal(t, 120, agentService.timeoutSeconds)
 	assert.Equal(t, 4096, agentService.maxTokens)
-	assert.NotNil(t, agentService.activeRequests)
 	assert.NotNil(t, agentService.activeSessions)
 	assert.NotNil(t, agentService.metrics)
 	assert.NotNil(t, agentService.toolCallsMap)
@@ -1035,7 +1034,6 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 
 func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
-		activeRequests: make(map[string]context.CancelFunc),
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1059,7 +1057,6 @@ func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 
 func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
-		activeRequests: make(map[string]context.CancelFunc),
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1088,7 +1085,6 @@ func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) 
 // double-close of the cancel channel, and every call returns nil.
 func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
 	agentService := &AgentServiceImpl{
-		activeRequests: make(map[string]context.CancelFunc),
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1115,7 +1111,6 @@ func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
 // tool execution and approval waits observe ctx.Done().
 func TestAgentServiceImpl_CancelRequest_CancelsSessionContext(t *testing.T) {
 	agentService := &AgentServiceImpl{
-		activeRequests: make(map[string]context.CancelFunc),
 		activeSessions: make(map[string]*sessionCancel),
 	}
 

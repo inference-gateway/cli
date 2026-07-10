@@ -286,7 +286,18 @@ func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {
 	require.NotZero(t, code, "a run that cannot reach the model must fail loudly")
 
 	require.NotNil(t, statusOfType(jsonLines(t, stdout), "agent_error"), "an agent_error line must be emitted")
-	require.Len(t, gw.Requests(), 3, "initial request plus two retries before giving up")
+	require.Len(t, gw.Requests(), 5, "initial request plus four retries before giving up")
+}
+
+func TestAgentRecoversAfterTransientErrors(t *testing.T) {
+	gw, url := startMock(t)
+
+	stdout, code := runAgent(t, url, t.TempDir(), "call the flaky backend")
+	require.Zero(t, code, "transient errors must be retried, not fatal")
+
+	require.Contains(t, contentsByRole(jsonLines(t, stdout), "assistant"), "Recovered after retries.")
+	require.Len(t, gw.Requests(), 4,
+		"two failed attempts, the successful retry, and the loop's automated completion check")
 }
 
 func TestChatPipedInputStreamsPlainText(t *testing.T) {

@@ -11,7 +11,9 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the
@@ -71,6 +73,37 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 	app.handleChatView(domain.FocusStatusBarEvent{})
 	if app.statusBarFocused {
 		t.Fatal("nothing actionable: focus must stay in the input")
+	}
+}
+
+// TestDuplicateKeyGuardConsumesMarkedKeysOnce asserts the guard trusts the
+// consumed-key mark set by chat-view handlers: a marked key is skipped exactly
+// once (even if the handler transitioned the view mid-cycle), and unmarked
+// keys flow through to the components.
+func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
+	stateManager := services.NewStateManager(false)
+	if err := stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		t.Fatalf("transitioning to chat: %v", err)
+	}
+	app := &ChatApplication{stateManager: stateManager}
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, nil)
+
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	var cmds []tea.Cmd
+
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); got {
+		t.Fatal("unmarked key must not be skipped")
+	}
+
+	app.lastHandledKey = enter.String()
+	if err := stateManager.TransitionToView(domain.ViewStateThemeSelection); err != nil {
+		t.Fatalf("transitioning to theme selection: %v", err)
+	}
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); !got {
+		t.Fatal("marked key must be skipped even after a mid-cycle view transition")
+	}
+	if got := app.handleDuplicateKeyEvents(enter, &cmds); got {
+		t.Fatal("mark must be consumed after one skip")
 	}
 }
 

@@ -31,6 +31,13 @@ type StatusView struct {
 	styleProvider    *styles.Provider
 	keyHintFormatter *hints.Formatter
 	toolName         string
+	stateManager     domain.StateManager
+}
+
+// SetStateManager wires the state manager so the spinner line can reflect
+// connection health (retries and stalled streams) while waiting for chunks.
+func (sv *StatusView) SetStateManager(stateManager domain.StateManager) {
+	sv.stateManager = stateManager
 }
 
 // StatusState represents a saved status state
@@ -277,12 +284,36 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 
 	elapsed := time.Since(sv.startTime)
 	seconds := elapsed.Seconds()
-	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 
+	if reconnecting := sv.reconnectingMessage(); reconnecting != "" {
+		message := fmt.Sprintf("%s (%.1fs)", reconnecting, seconds)
+		return prefix, sv.styleProvider.GetThemeColor("status"),
+			sv.styleProvider.RenderWithColor(message, sv.styleProvider.GetThemeColor("error"))
+	}
+
+	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 	displayMessage := fmt.Sprintf("%s (%.1fs)", baseMsg, seconds)
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
+}
+
+// reconnectingMessage returns the reconnect notice when the HTTP client is
+// retrying or the stream has stalled past the configured threshold, empty
+// otherwise. Derived from state on each render, so it appears and clears with
+// the regular spinner tick.
+func (sv *StatusView) reconnectingMessage() string {
+	if sv.stateManager == nil {
+		return ""
+	}
+	status := sv.stateManager.GetRetryStatus()
+	if status == nil {
+		return ""
+	}
+	if status.Attempt == 0 {
+		return "Reconnecting..."
+	}
+	return fmt.Sprintf("Reconnecting (%d/%d)", status.Attempt, status.MaxAttempts)
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {

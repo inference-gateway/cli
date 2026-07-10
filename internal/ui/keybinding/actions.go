@@ -1177,14 +1177,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 		}
 	}
 
-	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		if cursor > 0 {
-			inputView.SetCursor(cursor - 1)
-		}
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -1236,31 +1229,11 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) t
 		}
 	}
 
-	if cursor < len(text) {
-		inputView.SetCursor(cursor + 1)
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		if cursor > 0 {
-			newText := text[:cursor-1] + text[cursor:]
-			inputView.SetText(newText)
-			inputView.SetCursor(cursor - 1)
-
-			return func() tea.Msg {
-				return domain.AutocompleteUpdateEvent{
-					Text:      newText,
-					CursorPos: cursor - 1,
-				}
-			}
-		}
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -1293,134 +1266,35 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 }
 
 func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		if cursor > 0 {
-			text := inputView.GetInput()
-			newText := text[cursor:]
-			inputView.SetText(newText)
-			inputView.SetCursor(0)
-		}
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		if cursor > 0 {
-			start := cursor
-
-			for start > 0 && (text[start-1] == ' ' || text[start-1] == '\t') {
-				start--
-			}
-
-			for start > 0 && text[start-1] != ' ' && text[start-1] != '\t' {
-				start--
-			}
-
-			newText := text[:start] + text[cursor:]
-			inputView.SetText(newText)
-			inputView.SetCursor(start)
-		}
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView == nil {
-		return nil
-	}
-	cursor := inputView.GetCursor()
-	text := inputView.GetInput()
-	if cursor >= len(text) {
-		return nil
-	}
-
-	end := cursor
-	for end < len(text) && (text[end] == ' ' || text[end] == '\t') {
-		end++
-	}
-	for end < len(text) && text[end] != ' ' && text[end] != '\t' {
-		end++
-	}
-
-	inputView.SetText(text[:cursor] + text[end:])
-	inputView.SetCursor(cursor)
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView == nil {
-		return nil
-	}
-	cursor := inputView.GetCursor()
-	text := inputView.GetInput()
-
-	start := cursor
-	for start > 0 && (text[start-1] == ' ' || text[start-1] == '\t') {
-		start--
-	}
-	for start > 0 && text[start-1] != ' ' && text[start-1] != '\t' {
-		start--
-	}
-
-	inputView.SetCursor(start)
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView == nil {
-		return nil
-	}
-	cursor := inputView.GetCursor()
-	text := inputView.GetInput()
-
-	end := cursor
-	for end < len(text) && (text[end] == ' ' || text[end] == '\t') {
-		end++
-	}
-	for end < len(text) && text[end] != ' ' && text[end] != '\t' {
-		end++
-	}
-
-	inputView.SetCursor(end)
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleMoveToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		inputView.SetCursor(0)
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		text := inputView.GetInput()
-		inputView.SetCursor(len(text))
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		newText := text[:cursor] + "\n" + text[cursor:]
-		inputView.SetText(newText)
-		inputView.SetCursor(cursor + 1)
-	}
-	return nil
+	return handleInputChangedAfterTextarea(app, false)
 }
 
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -1507,14 +1381,30 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 
 // KeyBindingManager manages the key binding system for ChatApplication
 type KeyBindingManager struct {
-	registry          KeyRegistry
-	app               KeyHandlerContext
-	keySequenceBuffer []string
-	lastKeyTime       time.Time
-	sequenceTimeout   time.Duration
+	registry            KeyRegistry
+	app                 KeyHandlerContext
+	keySequenceBuffer   []string
+	lastKeyTime         time.Time
+	sequenceTimeout     time.Duration
+	sequenceConsumedKey string
 }
 
 const maxSequenceLength = 2
+
+var textareaInputActionIDs = map[string]struct{}{
+	config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"):     {},
+	config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"):    {},
+	config.ActionID(config.NamespaceTextEditing, "move_cursor_left"):       {},
+	config.ActionID(config.NamespaceTextEditing, "move_cursor_right"):      {},
+	config.ActionID(config.NamespaceTextEditing, "backspace"):              {},
+	config.ActionID(config.NamespaceTextEditing, "delete_to_beginning"):    {},
+	config.ActionID(config.NamespaceTextEditing, "delete_word_backward"):   {},
+	config.ActionID(config.NamespaceTextEditing, "delete_word_forward"):    {},
+	config.ActionID(config.NamespaceTextEditing, "move_cursor_word_left"):  {},
+	config.ActionID(config.NamespaceTextEditing, "move_cursor_word_right"): {},
+	config.ActionID(config.NamespaceTextEditing, "move_to_beginning"):      {},
+	config.ActionID(config.NamespaceTextEditing, "move_to_end"):            {},
+}
 
 // NewKeyBindingManager creates a new key binding manager
 func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBindingManager {
@@ -1602,6 +1492,7 @@ func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg te
 	sequenceAction := m.registry.Resolve(sequenceKey, m.app)
 	if sequenceAction != nil {
 		m.keySequenceBuffer = m.keySequenceBuffer[:0]
+		m.sequenceConsumedKey = keyMsg.String()
 		actionCmd := sequenceAction.Handler(m.app, keyMsg)
 		return m.batchCmds(append(cmds, actionCmd))
 	}
@@ -1697,6 +1588,22 @@ func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
 	return action != nil
 }
 
+// ShouldSkipInputUpdate reports whether a keybinding action fully consumed the
+// key. Textarea-owned editing actions still pass through to InputView.Update.
+func (m *KeyBindingManager) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
+	keyStr := keyMsg.String()
+	if m.sequenceConsumedKey == keyStr {
+		m.sequenceConsumedKey = ""
+		return true
+	}
+	action := m.registry.Resolve(keyStr, m.app)
+	if action == nil {
+		return false
+	}
+	_, passThrough := textareaInputActionIDs[action.ID]
+	return !passThrough
+}
+
 // GetHelpShortcuts returns help shortcuts for the current context
 func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
 	return m.registry.GetHelpShortcuts(m.app)
@@ -1772,41 +1679,29 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 	}
 
 	if literal := keys.PrintableText(keyMsg); literal != "" {
-		return handlePrintableCharacter(literal, inputView)
+		return handleInputChangedAfterTextarea(app, literal == "@")
 	}
 	return nil
 }
 
-// handlePrintableCharacter inserts the literal typed text at the cursor.
-func handlePrintableCharacter(literal string, inputView ui.InputComponent) tea.Cmd {
-	if inputView == nil {
+// handleInputChangedAfterTextarea emits side effects for a key that the
+// textarea will apply later in this Bubble Tea update cycle.
+func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bool) tea.Cmd {
+	if app.GetInputView() == nil {
 		return nil
 	}
 
-	cursor := inputView.GetCursor()
-	text := inputView.GetInput()
-	newText := text[:cursor] + literal + text[cursor:]
-	newCursor := cursor + len(literal)
-	inputView.SetText(newText)
-	inputView.SetCursor(newCursor)
-
-	autocompleteCmd := func() tea.Msg {
-		return domain.AutocompleteUpdateEvent{
-			Text:      newText,
-			CursorPos: newCursor,
+	scrollCmd := func() tea.Msg {
+		return domain.ScrollRequestEvent{
+			ComponentID: "conversation",
+			Direction:   domain.ScrollToBottom,
+			Amount:      0,
 		}
 	}
 
-	if literal == "@" {
+	if openFileSelection {
 		return tea.Batch(
-			autocompleteCmd,
-			func() tea.Msg {
-				return domain.ScrollRequestEvent{
-					ComponentID: "conversation",
-					Direction:   domain.ScrollToBottom,
-					Amount:      0,
-				}
-			},
+			scrollCmd,
 			func() tea.Msg {
 				return domain.FileSelectionRequestEvent{}
 			},
@@ -1814,14 +1709,7 @@ func handlePrintableCharacter(literal string, inputView ui.InputComponent) tea.C
 	}
 
 	return tea.Batch(
-		autocompleteCmd,
-		func() tea.Msg {
-			return domain.ScrollRequestEvent{
-				ComponentID: "conversation",
-				Direction:   domain.ScrollToBottom,
-				Amount:      0,
-			}
-		},
+		scrollCmd,
 		func() tea.Msg {
 			return domain.HideHelpBarEvent{}
 		},

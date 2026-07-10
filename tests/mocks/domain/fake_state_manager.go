@@ -273,6 +273,16 @@ type FakeStateManager struct {
 	getPreviousViewReturnsOnCall map[int]struct {
 		result1 domain.ViewState
 	}
+	GetRetryStatusStub        func() *domain.RetryStatus
+	getRetryStatusMutex       sync.RWMutex
+	getRetryStatusArgsForCall []struct {
+	}
+	getRetryStatusReturns struct {
+		result1 *domain.RetryStatus
+	}
+	getRetryStatusReturnsOnCall map[int]struct {
+		result1 *domain.RetryStatus
+	}
 	GetTodosStub        func() []domain.TodoItem
 	getTodosMutex       sync.RWMutex
 	getTodosArgsForCall []struct {
@@ -406,6 +416,11 @@ type FakeStateManager struct {
 	setPlanApprovalSelectedIndexArgsForCall []struct {
 		arg1 int
 	}
+	SetRetryStatusStub        func(*domain.RetryStatus)
+	setRetryStatusMutex       sync.RWMutex
+	setRetryStatusArgsForCall []struct {
+		arg1 *domain.RetryStatus
+	}
 	SetTodosStub        func([]domain.TodoItem)
 	setTodosMutex       sync.RWMutex
 	setTodosArgsForCall []struct {
@@ -473,6 +488,10 @@ type FakeStateManager struct {
 	toggleUserQuestionOptionMutex       sync.RWMutex
 	toggleUserQuestionOptionArgsForCall []struct {
 		arg1 int
+	}
+	TouchChatActivityStub        func()
+	touchChatActivityMutex       sync.RWMutex
+	touchChatActivityArgsForCall []struct {
 	}
 	TransitionToViewStub        func(domain.ViewState) error
 	transitionToViewMutex       sync.RWMutex
@@ -1948,6 +1967,59 @@ func (fake *FakeStateManager) GetPreviousViewReturnsOnCall(i int, result1 domain
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetRetryStatus() *domain.RetryStatus {
+	fake.getRetryStatusMutex.Lock()
+	ret, specificReturn := fake.getRetryStatusReturnsOnCall[len(fake.getRetryStatusArgsForCall)]
+	fake.getRetryStatusArgsForCall = append(fake.getRetryStatusArgsForCall, struct {
+	}{})
+	stub := fake.GetRetryStatusStub
+	fakeReturns := fake.getRetryStatusReturns
+	fake.recordInvocation("GetRetryStatus", []interface{}{})
+	fake.getRetryStatusMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetRetryStatusCallCount() int {
+	fake.getRetryStatusMutex.RLock()
+	defer fake.getRetryStatusMutex.RUnlock()
+	return len(fake.getRetryStatusArgsForCall)
+}
+
+func (fake *FakeStateManager) GetRetryStatusCalls(stub func() *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = stub
+}
+
+func (fake *FakeStateManager) GetRetryStatusReturns(result1 *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = nil
+	fake.getRetryStatusReturns = struct {
+		result1 *domain.RetryStatus
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetRetryStatusReturnsOnCall(i int, result1 *domain.RetryStatus) {
+	fake.getRetryStatusMutex.Lock()
+	defer fake.getRetryStatusMutex.Unlock()
+	fake.GetRetryStatusStub = nil
+	if fake.getRetryStatusReturnsOnCall == nil {
+		fake.getRetryStatusReturnsOnCall = make(map[int]struct {
+			result1 *domain.RetryStatus
+		})
+	}
+	fake.getRetryStatusReturnsOnCall[i] = struct {
+		result1 *domain.RetryStatus
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetTodos() []domain.TodoItem {
 	fake.getTodosMutex.Lock()
 	ret, specificReturn := fake.getTodosReturnsOnCall[len(fake.getTodosArgsForCall)]
@@ -2710,6 +2782,38 @@ func (fake *FakeStateManager) SetPlanApprovalSelectedIndexArgsForCall(i int) int
 	return argsForCall.arg1
 }
 
+func (fake *FakeStateManager) SetRetryStatus(arg1 *domain.RetryStatus) {
+	fake.setRetryStatusMutex.Lock()
+	fake.setRetryStatusArgsForCall = append(fake.setRetryStatusArgsForCall, struct {
+		arg1 *domain.RetryStatus
+	}{arg1})
+	stub := fake.SetRetryStatusStub
+	fake.recordInvocation("SetRetryStatus", []interface{}{arg1})
+	fake.setRetryStatusMutex.Unlock()
+	if stub != nil {
+		fake.SetRetryStatusStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetRetryStatusCallCount() int {
+	fake.setRetryStatusMutex.RLock()
+	defer fake.setRetryStatusMutex.RUnlock()
+	return len(fake.setRetryStatusArgsForCall)
+}
+
+func (fake *FakeStateManager) SetRetryStatusCalls(stub func(*domain.RetryStatus)) {
+	fake.setRetryStatusMutex.Lock()
+	defer fake.setRetryStatusMutex.Unlock()
+	fake.SetRetryStatusStub = stub
+}
+
+func (fake *FakeStateManager) SetRetryStatusArgsForCall(i int) *domain.RetryStatus {
+	fake.setRetryStatusMutex.RLock()
+	defer fake.setRetryStatusMutex.RUnlock()
+	argsForCall := fake.setRetryStatusArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeStateManager) SetTodos(arg1 []domain.TodoItem) {
 	var arg1Copy []domain.TodoItem
 	if arg1 != nil {
@@ -3112,6 +3216,30 @@ func (fake *FakeStateManager) ToggleUserQuestionOptionArgsForCall(i int) int {
 	defer fake.toggleUserQuestionOptionMutex.RUnlock()
 	argsForCall := fake.toggleUserQuestionOptionArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) TouchChatActivity() {
+	fake.touchChatActivityMutex.Lock()
+	fake.touchChatActivityArgsForCall = append(fake.touchChatActivityArgsForCall, struct {
+	}{})
+	stub := fake.TouchChatActivityStub
+	fake.recordInvocation("TouchChatActivity", []interface{}{})
+	fake.touchChatActivityMutex.Unlock()
+	if stub != nil {
+		fake.TouchChatActivityStub()
+	}
+}
+
+func (fake *FakeStateManager) TouchChatActivityCallCount() int {
+	fake.touchChatActivityMutex.RLock()
+	defer fake.touchChatActivityMutex.RUnlock()
+	return len(fake.touchChatActivityArgsForCall)
+}
+
+func (fake *FakeStateManager) TouchChatActivityCalls(stub func()) {
+	fake.touchChatActivityMutex.Lock()
+	defer fake.touchChatActivityMutex.Unlock()
+	fake.TouchChatActivityStub = stub
 }
 
 func (fake *FakeStateManager) TransitionToView(arg1 domain.ViewState) error {

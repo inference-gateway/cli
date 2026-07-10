@@ -457,7 +457,9 @@ func (c *ServiceContainer) handleStorageInitFailure(
 // initializeStateManager creates the state manager before domain services need it
 func (c *ServiceContainer) initializeStateManager() {
 	debugMode := c.config.Logging.Debug
-	c.stateManager = services.NewStateManager(debugMode)
+	stateManager := services.NewStateManager(debugMode)
+	stateManager.SetStallThreshold(time.Duration(c.config.Client.StallThresholdSec) * time.Second)
+	c.stateManager = stateManager
 }
 
 // initializeServices creates the new improved services
