@@ -12,6 +12,9 @@ import (
 // rebuild the form (the standard per-phase pattern) after a theme switch.
 func huhTheme(p *styles.Provider) huh.Theme {
 	return huh.ThemeFunc(func(isDark bool) *huh.Styles {
+		if p == nil {
+			return huh.ThemeBase(isDark)
+		}
 		accent := lipgloss.Color(p.GetThemeColor("accent"))
 		errColor := lipgloss.Color(p.GetThemeColor("error"))
 		dim := lipgloss.Color(p.GetThemeColor("dim"))

@@ -706,14 +706,15 @@ func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if model, cmd := app.modelSelector.Update(msg); cmd != nil {
+	// Always reassign and check selection state: huh-driven completion can
+	// return a nil cmd on the final keypress.
+	model, cmd := app.modelSelector.Update(msg)
+	app.modelSelector = model.(*components.ModelSelectorImpl)
+	if cmd != nil {
 		cmds = append(cmds, cmd)
-		app.modelSelector = model.(*components.ModelSelectorImpl)
-
-		return app.handleModelSelection(cmds)
 	}
 
-	return cmds
+	return app.handleModelSelection(cmds)
 }
 
 func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {

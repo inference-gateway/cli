@@ -138,7 +138,7 @@ func TestModelSelectionSearchDoesNotLeakIntoInput(t *testing.T) {
 		t.Fatalf("selector search keys leaked into disabled input, got %q", got)
 	}
 
-	_, _ = app.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	pumpApp(app, tea.KeyPressMsg{Code: tea.KeyEnter}, 10)
 	_, _ = app.Update(tea.FocusMsg{})
 
 	if got := inputView.GetInput(); got != "draft prompt" {

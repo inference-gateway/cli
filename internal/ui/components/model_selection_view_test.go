@@ -3,6 +3,9 @@ package components
 import (
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,14 +41,13 @@ func newFilterTestSelector(models []string) *ModelSelectorImpl {
 			return ""
 		}
 	}
-	return NewModelSelector(models, nil, pricing, nil, nil)
+	return NewModelSelector(models, nil, pricing, nil, createMockStyleProvider())
 }
 
 func filteredFor(view ModelViewMode, models []string) []string {
 	m := newFilterTestSelector(models)
 	m.currentView = view
-	m.applyFilters()
-	return m.filteredModels
+	return m.tabModels()
 }
 
 // TestModelSelector_FilterBuckets verifies the four filter views are disjoint
@@ -68,6 +70,51 @@ func TestModelSelector_SubscriptionModelExcludedFromFree(t *testing.T) {
 
 	assert.NotContains(t, filteredFor(ModelViewFree, models), "subscription-model")
 	assert.Contains(t, filteredFor(ModelViewSubscription, models), "subscription-model")
+}
+
+// TestModelSelector_EnterSelectsAndEmitsEvent drives the huh select to
+// completion and asserts the selection reaches the model service and the
+// ModelSelectedEvent carries the chosen model.
+func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
+	ms := &domainmocks.FakeModelService{}
+	pricing := &domainmocks.FakePricingService{}
+	m := NewModelSelector([]string{"model-a", "model-b"}, ms, pricing, nil, createMockStyleProvider())
+
+	var selected string
+	var pump func(msg tea.Msg)
+	pump = func(msg tea.Msg) {
+		model, cmd := m.Update(msg)
+		m = model.(*ModelSelectorImpl)
+		for cmd != nil {
+			out := cmd()
+			if out == nil {
+				return
+			}
+			if batch, ok := out.(tea.BatchMsg); ok {
+				for _, c := range batch {
+					if c != nil {
+						pump(c())
+					}
+				}
+				return
+			}
+			if ev, ok := out.(domain.ModelSelectedEvent); ok {
+				selected = ev.Model
+				return
+			}
+			model, cmd = m.Update(out)
+			m = model.(*ModelSelectorImpl)
+		}
+	}
+
+	pump(tea.KeyPressMsg{Code: tea.KeyDown})
+	pump(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	assert.Equal(t, "model-b", selected)
+	assert.True(t, m.IsSelected())
+	assert.Equal(t, "model-b", m.GetSelected())
+	assert.Equal(t, 1, ms.SelectModelCallCount())
+	assert.Equal(t, "model-b", ms.SelectModelArgsForCall(0))
 }
 
 // TestModelSelector_FormatModelSuffixSubscription checks the per-row marker: a
