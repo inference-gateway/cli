@@ -616,6 +616,18 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		app.blurStatusBar()
 	}
 
+	cmds := app.dispatchViewMessage(currentView, msg)
+
+	if newView := app.stateManager.GetCurrentView(); newView != currentView {
+		if inputView, ok := app.inputView.(*components.InputView); ok {
+			inputView.SetDisabled(app.isInputBlocked(newView))
+		}
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) dispatchViewMessage(currentView domain.ViewState, msg tea.Msg) []tea.Cmd {
 	switch currentView {
 	case domain.ViewStateModelSelection:
 		return app.handleModelSelectionView(msg)
