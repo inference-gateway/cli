@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
@@ -20,10 +21,10 @@ import (
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
-// InputView handles user input with history
+// InputView handles user input with history, delegating text editing to
+// charm.land/bubbles/v2/textarea.
 type InputView struct {
-	text                 string
-	cursor               int
+	ta                   textarea.Model
 	placeholder          string
 	width                int
 	height               int
@@ -88,9 +89,15 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		historyManager = hm
 	}
 
+	ta := textarea.New()
+	ta.Placeholder = "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
+	ta.CharLimit = 0
+	ta.MaxHeight = 5
+	ta.ShowLineNumbers = false
+	ta.EndOfBufferCharacter = 0 // no end-of-buffer marker
+
 	return &InputView{
-		text:              "",
-		cursor:            0,
+		ta:                ta,
 		placeholder:       "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)",
 		width:             80,
 		height:            5,
@@ -162,40 +169,83 @@ func (iv *InputView) SetGitHubIssueService(s domain.GitHubIssueService) {
 }
 
 func (iv *InputView) GetInput() string {
-	return iv.text
+	return iv.ta.Value()
 }
 
 func (iv *InputView) ClearInput() {
-	iv.text = ""
-	iv.cursor = 0
+	iv.ta.Reset()
 	iv.imageAttachments = []domain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
 }
 
 func (iv *InputView) SetPlaceholder(text string) {
 	iv.placeholder = text
+	iv.ta.Placeholder = text
 }
 
 func (iv *InputView) GetCursor() int {
-	return iv.cursor
+	text := iv.ta.Value()
+	if text == "" {
+		return 0
+	}
+	lines := strings.Split(text, "\n")
+	line := iv.ta.Line()
+	col := iv.ta.Column()
+	pos := 0
+	for i := 0; i < line && i < len(lines); i++ {
+		pos += len(lines[i]) + 1 // +1 for newline
+	}
+	if pos+col > len(text) {
+		return len(text)
+	}
+	return pos + col
 }
 
 func (iv *InputView) SetCursor(position int) {
-	if position >= 0 && position <= len(iv.text) {
-		iv.cursor = position
+	text := iv.ta.Value()
+	if position < 0 || position > len(text) {
+		return
 	}
+	if text == "" {
+		return
+	}
+	// Calculate line and column from the string position
+	lines := strings.Split(text, "\n")
+	line := 0
+	col := 0
+	remaining := position
+	for i, l := range lines {
+		if remaining <= len(l) {
+			line = i
+			col = remaining
+			break
+		}
+		remaining -= len(l) + 1 // +1 for newline
+		if i == len(lines)-1 {
+			line = i
+			col = len(l)
+		}
+	}
+	// Move cursor to the calculated position
+	iv.ta.CursorStart()
+	for i := 0; i < line; i++ {
+		iv.ta.CursorDown()
+	}
+	iv.ta.SetCursorColumn(col)
 }
 
 func (iv *InputView) SetText(text string) {
-	iv.text = text
+	iv.ta.SetValue(text)
 }
 
 func (iv *InputView) SetWidth(width int) {
 	iv.width = width
+	iv.ta.SetWidth(width - 4) // account for border and "> " prefix
 }
 
 func (iv *InputView) SetHeight(height int) {
 	iv.height = height
+	iv.ta.SetHeight(height)
 }
 
 func (iv *InputView) Render() string {
@@ -203,8 +253,10 @@ func (iv *InputView) Render() string {
 		iv.updateHistorySuggestions()
 	}
 
-	isToolsMode := strings.HasPrefix(iv.text, "!!")
-	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+	text := iv.ta.Value()
+	isToolsMode := strings.HasPrefix(text, "!!")
+	isBashMode := strings.HasPrefix(text, "!") && !isToolsMode
+
 	displayText := iv.renderDisplayText()
 
 	inputContent := fmt.Sprintf("> %s", displayText)
@@ -295,7 +347,8 @@ func fetchGitPRCmd() tea.Cmd {
 }
 
 func (iv *InputView) renderDisplayText() string {
-	if iv.text == "" {
+	text := iv.ta.Value()
+	if text == "" {
 		return iv.renderPlaceholder()
 	}
 	return iv.renderTextWithCursor()
@@ -304,15 +357,16 @@ func (iv *InputView) renderDisplayText() string {
 // getDisplayTextAndCursorOffset returns the display text with mode prefixes and cursor offset adjustment
 // For bash mode (!), we show "! " prefix; for tools mode (!!), we show "!! " prefix
 func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursorOffset int) {
-	isToolsMode := strings.HasPrefix(iv.text, "!!")
-	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+	text := iv.ta.Value()
+	isToolsMode := strings.HasPrefix(text, "!!")
+	isBashMode := strings.HasPrefix(text, "!") && !isToolsMode
 
 	if isToolsMode {
-		return "!! " + iv.text[2:], 3
+		return "!! " + text[2:], 3
 	} else if isBashMode {
-		return "! " + iv.text[1:], 2
+		return "! " + text[1:], 2
 	}
-	return iv.text, 0
+	return text, 0
 }
 
 func (iv *InputView) renderPlaceholder() string {
@@ -351,7 +405,7 @@ func (iv *InputView) renderDisabledPlaceholder() string {
 // renderFocusedPlaceholder returns placeholder text when input is focused
 func (iv *InputView) renderFocusedPlaceholder() string {
 	if len(iv.placeholder) == 0 {
-		return iv.createCursorChar(" ")
+		return iv.styleProvider.RenderCursor(" ")
 	}
 
 	firstChar := string(iv.placeholder[0])
@@ -359,439 +413,41 @@ func (iv *InputView) renderFocusedPlaceholder() string {
 	if len(iv.placeholder) > 1 {
 		rest = iv.placeholder[1:]
 	}
-	cursorChar := iv.createCursorChar(firstChar)
+	cursorChar := iv.styleProvider.RenderCursor(firstChar)
 	restPlaceholder := iv.styleProvider.RenderInputPlaceholder(rest)
 	return cursorChar + restPlaceholder
 }
 
-// calculateAdjustedCursor calculates the cursor position for display text
-// accounting for the space added after mode prefixes (! or !!)
-func (iv *InputView) calculateAdjustedCursor(cursorOffset int, displayTextLen int) int {
-	adjustedCursor := iv.cursor
-
-	if cursorOffset > 0 {
-		adjustedCursor = iv.calculateModeCursorOffset()
-	}
-
-	if adjustedCursor > displayTextLen {
-		adjustedCursor = displayTextLen
-	}
-
-	return adjustedCursor
-}
-
-// calculateModeCursorOffset returns the adjusted cursor position for bash/tools mode
-func (iv *InputView) calculateModeCursorOffset() int {
-	isToolsMode := strings.HasPrefix(iv.text, "!!")
-
-	if isToolsMode && iv.cursor >= 2 {
-		return iv.cursor + 1
-	}
-	if !isToolsMode && iv.cursor >= 1 {
-		return iv.cursor + 1
-	}
-
-	return iv.cursor
-}
-
 func (iv *InputView) renderTextWithCursor() string {
+	text := iv.ta.Value()
 	displayText, cursorOffset := iv.getDisplayTextAndCursorOffset()
-	adjustedCursor := iv.calculateAdjustedCursor(cursorOffset, len(displayText))
 
-	before := displayText[:adjustedCursor]
-	after := displayText[adjustedCursor:]
+	// Use the textarea's rendered view for the text content
+	taView := iv.ta.View()
+
+	// When in bash/tools mode, we need to prepend the mode prefix
+	// The textarea renders the raw text; we add the mode prefix on top
+	if cursorOffset > 0 {
+		taView = displayText[:cursorOffset] + taView
+	}
+
 	availableWidth := iv.width - 8
 
 	var result string
 	if availableWidth > 0 {
-		result = iv.renderWrappedText(before, after, availableWidth)
+		result = formatting.WrapText(taView, availableWidth)
 	} else {
-		result = iv.renderUnwrappedText(before, after)
+		result = taView
 	}
 
 	result = iv.applyModePrefixStyling(result)
-	if !strings.HasPrefix(iv.text, "!") {
+	if !strings.HasPrefix(text, "!") {
 		iv.ensureHighlighter()
 		if iv.highlighter != nil {
 			result = iv.highlighter.Highlight(result)
 		}
 	}
 	return result
-}
-
-func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
-	wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
-	wrappedAfter := formatting.WrapText(after, availableWidth)
-	return iv.buildTextWithCursor(wrappedBefore, wrappedAfter)
-}
-
-func (iv *InputView) renderUnwrappedText(before, after string) string {
-	return iv.buildTextWithCursor(before, after)
-}
-
-func (iv *InputView) buildTextWithCursor(before, after string) string {
-	if !iv.focused {
-		return iv.buildUnfocusedText(before, after)
-	}
-
-	if len(after) == 0 {
-		return iv.buildEndOfTextWithCursor(before)
-	}
-
-	cursorChar := iv.createCursorChar(string(after[0]))
-	restAfter := ""
-	if len(after) > 1 {
-		restAfter = after[1:]
-	}
-	return fmt.Sprintf("%s%s%s", before, cursorChar, restAfter)
-}
-
-// buildUnfocusedText renders text when input is not focused
-func (iv *InputView) buildUnfocusedText(before, after string) string {
-	if len(after) == 0 {
-		if iv.cursor == len(iv.text) && iv.usageHint != "" {
-			ghostText := iv.styleProvider.RenderDimText(iv.usageHint)
-			return fmt.Sprintf("%s%s", before, ghostText)
-		}
-		if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
-			ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
-			return fmt.Sprintf("%s%s", before, ghostText)
-		}
-		return before
-	}
-	return fmt.Sprintf("%s%s", before, after)
-}
-
-// buildEndOfTextWithCursor renders end of text with cursor and ghost text
-func (iv *InputView) buildEndOfTextWithCursor(before string) string {
-	if iv.cursor == len(iv.text) && iv.usageHint != "" && len(iv.usageHint) > 0 {
-		ghostText := iv.styleProvider.RenderDimText(iv.usageHint)
-		cursorChar := iv.createCursorChar(" ")
-		return fmt.Sprintf("%s%s%s", before, cursorChar, ghostText)
-	}
-
-	if iv.cursor == len(iv.text) && iv.historySuggestion != "" && len(iv.historySuggestion) > 0 {
-		firstGhostChar := string(iv.historySuggestion[0])
-		cursorChar := iv.createCursorChar(firstGhostChar)
-		restGhost := ""
-		if len(iv.historySuggestion) > 1 {
-			restGhost = iv.styleProvider.RenderDimText(iv.historySuggestion[1:])
-		}
-		return fmt.Sprintf("%s%s%s", before, cursorChar, restGhost)
-	}
-
-	cursorChar := iv.createCursorChar(" ")
-	return fmt.Sprintf("%s%s", before, cursorChar)
-}
-
-func (iv *InputView) createCursorChar(char string) string {
-	return iv.styleProvider.RenderCursor(char)
-}
-
-// NavigateHistoryUp moves up in history (to older messages) - public method for interface
-func (iv *InputView) NavigateHistoryUp() {
-	iv.navigateHistoryUp()
-}
-
-// NavigateHistoryDown moves down in history (to newer messages) - public method for interface
-func (iv *InputView) NavigateHistoryDown() {
-	iv.navigateHistoryDown()
-}
-
-// IsNavigatingHistory reports whether input-history navigation is active,
-// i.e. whether arrow-down still has an entry to return to
-func (iv *InputView) IsNavigatingHistory() bool {
-	return iv.historyManager.IsNavigating()
-}
-
-// navigateHistoryUp moves up in history (to older messages).
-// If the message queue is non-empty, it dequeues the queued message and
-// restores its content into the input field instead of navigating history,
-// so the user can edit and re-send it. The message is removed from the
-// queue so the agent stops processing it.
-func (iv *InputView) navigateHistoryUp() {
-	if iv.messageQueue != nil && !iv.messageQueue.IsEmpty() {
-		if qm := iv.messageQueue.Dequeue(); qm != nil {
-			if content, err := qm.Message.Content.AsMessageContent0(); err == nil && content != "" {
-				iv.text = content
-				iv.cursor = len(iv.text)
-				return
-			}
-		}
-	}
-	newText := iv.historyManager.NavigateUp(iv.text)
-	iv.text = newText
-	iv.cursor = len(iv.text)
-}
-
-// navigateHistoryDown moves down in history (to newer messages)
-func (iv *InputView) navigateHistoryDown() {
-	newText := iv.historyManager.NavigateDown(iv.text)
-	iv.text = newText
-	iv.cursor = len(iv.text)
-}
-
-// AddToHistory adds the current input to the history
-func (iv *InputView) AddToHistory(text string) error {
-	if text == "" {
-		return nil
-	}
-	return iv.historyManager.AddToHistory(text)
-}
-
-// SetUsageHint sets the usage hint for ghost text display
-func (iv *InputView) SetUsageHint(hint string) {
-	iv.usageHint = hint
-}
-
-// GetUsageHint returns the current usage hint
-func (iv *InputView) GetUsageHint() string {
-	return iv.usageHint
-}
-
-// SetCustomHint sets a custom hint
-// Note: The input is disabled separately by handleViewSpecificMessages based on navigation mode
-func (iv *InputView) SetCustomHint(hint string) {
-	iv.customHint = hint
-}
-
-// ClearCustomHint clears the custom hint
-// Note: The input is re-enabled separately by handleViewSpecificMessages when exiting navigation mode
-func (iv *InputView) ClearCustomHint() {
-	iv.customHint = ""
-}
-
-// Bubble Tea interface
-func (iv *InputView) Init() tea.Cmd { return fetchGitPRCmd() }
-
-func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
-
-func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		iv.SetWidth(msg.Width)
-		return iv, nil
-	case tea.FocusMsg:
-		iv.focused = true
-		return iv, func() tea.Msg { return nil }
-	case tea.BlurMsg:
-		iv.focused = false
-		return iv, func() tea.Msg { return nil }
-	case domain.ClearInputEvent:
-		iv.ClearInput()
-		return iv, nil
-	case domain.SetInputEvent:
-		iv.SetText(msg.Text)
-		iv.SetCursor(len(msg.Text))
-		return iv, nil
-	case domain.GitPRResolvedEvent:
-		iv.gitPRCache = msg.PR
-		return iv, nil
-	case domain.BashCommandCompletedEvent:
-		iv.InvalidateGitBranchCache()
-		return iv, fetchGitPRCmd()
-	case domain.ToolExecutionCompletedEvent:
-		for _, result := range msg.Results {
-			if result != nil && result.ToolName == "Bash" {
-				return iv, fetchGitPRCmd()
-			}
-		}
-		return iv, nil
-	}
-	return iv, nil
-}
-
-func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	keyStr := key.String()
-
-	if keyStr == "tab" {
-		if iv.HasHistorySuggestion() && iv.cursor == len(iv.text) {
-			iv.cycleHistorySuggestion()
-			return iv, nil
-		}
-	}
-
-	switch keyStr {
-	case "up":
-		iv.navigateHistoryUp()
-		return iv, nil
-	case "down":
-		if !iv.IsNavigatingHistory() {
-			return iv, func() tea.Msg { return domain.FocusStatusBarEvent{} }
-		}
-		iv.navigateHistoryDown()
-		return iv, nil
-	}
-
-	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
-		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
-		iv.historyManager.ResetNavigation()
-	}
-
-	return iv, nil
-}
-
-func (iv *InputView) CanHandle(key tea.KeyPressMsg) bool {
-	return keys.CanInputHandle(key)
-}
-
-func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
-	wrappedText := formatting.WrapText(text, availableWidth)
-
-	trailingSpaces := 0
-	for i := len(text) - 1; i >= 0 && text[i] == ' '; i-- {
-		trailingSpaces++
-	}
-
-	wrappedTrailingSpaces := 0
-	for i := len(wrappedText) - 1; i >= 0 && wrappedText[i] == ' '; i-- {
-		wrappedTrailingSpaces++
-	}
-
-	if trailingSpaces > wrappedTrailingSpaces {
-		spacesToAdd := trailingSpaces - wrappedTrailingSpaces
-		wrappedText += strings.Repeat(" ", spacesToAdd)
-	}
-
-	return wrappedText
-}
-
-// SetDisabled sets whether the input is disabled (prevents typing)
-// When disabling, saves the current text and clears the input
-// When re-enabling, restores the saved text
-func (iv *InputView) SetDisabled(disabled bool) {
-	if disabled && !iv.disabled {
-		iv.savedText = iv.text
-		iv.savedCursor = iv.cursor
-		iv.text = ""
-		iv.cursor = 0
-	} else if !disabled && iv.disabled {
-		iv.text = iv.savedText
-		iv.cursor = iv.savedCursor
-		iv.savedText = ""
-		iv.savedCursor = 0
-	}
-	iv.disabled = disabled
-}
-
-// IsDisabled returns whether the input is disabled
-func (iv *InputView) IsDisabled() bool {
-	return iv.disabled
-}
-
-// AddImageAttachment adds an image attachment to the pending list
-func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
-	image.DisplayName = fmt.Sprintf("Image %d", len(iv.imageAttachments)+1)
-	iv.imageAttachments = append(iv.imageAttachments, image)
-
-	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
-	iv.text = iv.text[:iv.cursor] + imageToken + iv.text[iv.cursor:]
-	iv.cursor += len(imageToken)
-}
-
-// GetImageAttachments returns the list of pending image attachments
-func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
-	return iv.imageAttachments
-}
-
-// ClearImageAttachments clears all pending image attachments
-func (iv *InputView) ClearImageAttachments() {
-	iv.imageAttachments = []domain.ImageAttachment{}
-}
-
-// GetHistoryManager returns the history manager for external use
-func (iv *InputView) GetHistoryManager() *history.HistoryManager {
-	return iv.historyManager
-}
-
-// updateHistorySuggestions filters history based on current input and updates suggestions
-func (iv *InputView) updateHistorySuggestions() {
-	if iv.text == "" || iv.cursor != len(iv.text) {
-		iv.historySuggestion = ""
-		iv.historySuggestions = nil
-		iv.historySelectedIndex = 0
-		return
-	}
-
-	if iv.historyManager.IsNavigating() {
-		return
-	}
-
-	count := iv.historyManager.GetHistoryCount()
-	matches := make([]string, 0)
-
-	iv.historyManager.ResetNavigation()
-	tempHistory := make([]string, 0, count)
-
-	for i := 0; i < count; i++ {
-		entry := iv.historyManager.NavigateUp("")
-		if entry != "" {
-			tempHistory = append([]string{entry}, tempHistory...)
-		}
-	}
-	iv.historyManager.ResetNavigation()
-
-	query := strings.ToLower(iv.text)
-	for _, entry := range tempHistory {
-		if entry != iv.text && strings.HasPrefix(strings.ToLower(entry), query) {
-			matches = append(matches, entry)
-		}
-	}
-
-	iv.historySuggestions = matches
-	if len(matches) > 0 {
-		if iv.historySelectedIndex >= len(matches) {
-			iv.historySelectedIndex = 0
-		}
-		iv.historySuggestion = matches[iv.historySelectedIndex][len(iv.text):]
-	} else {
-		iv.historySuggestion = ""
-		iv.historySelectedIndex = 0
-	}
-}
-
-// cycleHistorySuggestion moves to the next suggestion in the list
-func (iv *InputView) cycleHistorySuggestion() {
-	if len(iv.historySuggestions) == 0 {
-		return
-	}
-
-	iv.historySelectedIndex = (iv.historySelectedIndex + 1) % len(iv.historySuggestions)
-	iv.historySuggestion = iv.historySuggestions[iv.historySelectedIndex][len(iv.text):]
-}
-
-// AcceptHistorySuggestion applies the current suggestion to the input
-func (iv *InputView) AcceptHistorySuggestion() bool {
-	if iv.historySuggestion == "" {
-		return false
-	}
-
-	iv.text += iv.historySuggestion
-	iv.cursor = len(iv.text)
-	iv.historySuggestion = ""
-	iv.historySuggestions = nil
-	iv.historySelectedIndex = 0
-	return true
-}
-
-// TryHandleHistorySuggestionTab handles Tab key for history suggestions
-// Returns true if handled (either cycled or accepted), false if no suggestion available
-func (iv *InputView) TryHandleHistorySuggestionTab() bool {
-	if len(iv.historySuggestions) == 0 {
-		return false
-	}
-
-	if iv.historySuggestion != "" {
-		iv.cycleHistorySuggestion()
-		return true
-	}
-
-	return false
-}
-
-// HasHistorySuggestion returns true if there's a history suggestion available
-func (iv *InputView) HasHistorySuggestion() bool {
-	return iv.historySuggestion != ""
 }
 
 // ensureHighlighter lazily builds the input-token highlighter the first time it
@@ -847,8 +503,9 @@ func (iv *InputView) ensureHighlighter() {
 
 // applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)
 func (iv *InputView) applyModePrefixStyling(text string) string {
-	isToolsMode := strings.HasPrefix(iv.text, "!!")
-	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+	textVal := iv.ta.Value()
+	isToolsMode := strings.HasPrefix(textVal, "!!")
+	isBashMode := strings.HasPrefix(textVal, "!") && !isToolsMode
 
 	if !isBashMode && !isToolsMode {
 		return text
@@ -865,4 +522,299 @@ func (iv *InputView) applyModePrefixStyling(text string) string {
 	}
 
 	return text
+}
+
+// NavigateHistoryUp moves up in history (to older messages) - public method for interface
+func (iv *InputView) NavigateHistoryUp() {
+	iv.navigateHistoryUp()
+}
+
+// NavigateHistoryDown moves down in history (to newer messages) - public method for interface
+func (iv *InputView) NavigateHistoryDown() {
+	iv.navigateHistoryDown()
+}
+
+// IsNavigatingHistory reports whether input-history navigation is active,
+// i.e. whether arrow-down still has an entry to return to
+func (iv *InputView) IsNavigatingHistory() bool {
+	return iv.historyManager.IsNavigating()
+}
+
+// navigateHistoryUp moves up in history (to older messages).
+// If the message queue is non-empty, it dequeues the queued message and
+// restores its content into the input field instead of navigating history,
+// so the user can edit and re-send it. The message is removed from the
+// queue so the agent stops processing it.
+func (iv *InputView) navigateHistoryUp() {
+	if iv.messageQueue != nil && !iv.messageQueue.IsEmpty() {
+		if qm := iv.messageQueue.Dequeue(); qm != nil {
+			if content, err := qm.Message.Content.AsMessageContent0(); err == nil && content != "" {
+				iv.SetText(content)
+				iv.SetCursor(len(content))
+				return
+			}
+		}
+	}
+	newText := iv.historyManager.NavigateUp(iv.ta.Value())
+	iv.SetText(newText)
+	iv.SetCursor(len(newText))
+}
+
+// navigateHistoryDown moves down in history (to newer messages)
+func (iv *InputView) navigateHistoryDown() {
+	newText := iv.historyManager.NavigateDown(iv.ta.Value())
+	iv.SetText(newText)
+	iv.SetCursor(len(newText))
+}
+
+// AddToHistory adds the current input to the history
+func (iv *InputView) AddToHistory(text string) error {
+	if text == "" {
+		return nil
+	}
+	return iv.historyManager.AddToHistory(text)
+}
+
+// SetUsageHint sets the usage hint for ghost text display
+func (iv *InputView) SetUsageHint(hint string) {
+	iv.usageHint = hint
+}
+
+// GetUsageHint returns the current usage hint
+func (iv *InputView) GetUsageHint() string {
+	return iv.usageHint
+}
+
+// SetCustomHint sets a custom hint
+// Note: The input is disabled separately by handleViewSpecificMessages based on navigation mode
+func (iv *InputView) SetCustomHint(hint string) {
+	iv.customHint = hint
+}
+
+// ClearCustomHint clears the custom hint
+// Note: The input is re-enabled separately by handleViewSpecificMessages when exiting navigation mode
+func (iv *InputView) ClearCustomHint() {
+	iv.customHint = ""
+}
+
+// Bubble Tea interface
+func (iv *InputView) Init() tea.Cmd { return tea.Batch(iv.ta.Focus(), fetchGitPRCmd()) }
+
+func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
+
+func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	iv.ta, cmd = iv.ta.Update(msg)
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		iv.SetWidth(msg.Width)
+		return iv, cmd
+	case tea.FocusMsg:
+		iv.focused = true
+		focusCmd := iv.ta.Focus()
+		return iv, tea.Batch(cmd, focusCmd)
+	case tea.BlurMsg:
+		iv.focused = false
+		iv.ta.Blur()
+		return iv, cmd
+	case domain.ClearInputEvent:
+		iv.ClearInput()
+		return iv, cmd
+	case domain.SetInputEvent:
+		iv.SetText(msg.Text)
+		iv.SetCursor(len(msg.Text))
+		return iv, cmd
+	case domain.GitPRResolvedEvent:
+		iv.gitPRCache = msg.PR
+		return iv, cmd
+	case domain.BashCommandCompletedEvent:
+		iv.InvalidateGitBranchCache()
+		return iv, tea.Batch(cmd, fetchGitPRCmd())
+	case domain.ToolExecutionCompletedEvent:
+		for _, result := range msg.Results {
+			if result != nil && result.ToolName == "Bash" {
+				return iv, tea.Batch(cmd, fetchGitPRCmd())
+			}
+		}
+		return iv, cmd
+	}
+	return iv, cmd
+}
+
+func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	keyStr := key.String()
+
+	if keyStr == "tab" {
+		if iv.HasHistorySuggestion() && iv.GetCursor() == len(iv.ta.Value()) {
+			iv.cycleHistorySuggestion()
+			return iv, nil
+		}
+	}
+
+	switch keyStr {
+	case "up":
+		iv.navigateHistoryUp()
+		return iv, nil
+	case "down":
+		if !iv.IsNavigatingHistory() {
+			return iv, func() tea.Msg { return domain.FocusStatusBarEvent{} }
+		}
+		iv.navigateHistoryDown()
+		return iv, nil
+	}
+
+	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
+		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
+		iv.historyManager.ResetNavigation()
+	}
+
+	return iv, nil
+}
+
+func (iv *InputView) CanHandle(key tea.KeyPressMsg) bool {
+	return keys.CanInputHandle(key)
+}
+
+// SetDisabled sets whether the input is disabled (prevents typing)
+// When disabling, saves the current text and clears the input
+// When re-enabling, restores the saved text
+func (iv *InputView) SetDisabled(disabled bool) {
+	if disabled && !iv.disabled {
+		iv.savedText = iv.ta.Value()
+		iv.savedCursor = iv.GetCursor()
+		iv.ta.Reset()
+	} else if !disabled && iv.disabled {
+		iv.SetText(iv.savedText)
+		iv.SetCursor(iv.savedCursor)
+		iv.savedText = ""
+		iv.savedCursor = 0
+	}
+	iv.disabled = disabled
+}
+
+// IsDisabled returns whether the input is disabled
+func (iv *InputView) IsDisabled() bool {
+	return iv.disabled
+}
+
+// AddImageAttachment adds an image attachment to the pending list
+func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
+	image.DisplayName = fmt.Sprintf("Image %d", len(iv.imageAttachments)+1)
+	iv.imageAttachments = append(iv.imageAttachments, image)
+
+	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
+	cursor := iv.GetCursor()
+	text := iv.ta.Value()
+	newText := text[:cursor] + imageToken + text[cursor:]
+	iv.SetText(newText)
+	iv.SetCursor(cursor + len(imageToken))
+}
+
+// GetImageAttachments returns the list of pending image attachments
+func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
+	return iv.imageAttachments
+}
+
+// ClearImageAttachments clears all pending image attachments
+func (iv *InputView) ClearImageAttachments() {
+	iv.imageAttachments = []domain.ImageAttachment{}
+}
+
+// GetHistoryManager returns the history manager for external use
+func (iv *InputView) GetHistoryManager() *history.HistoryManager {
+	return iv.historyManager
+}
+
+// updateHistorySuggestions filters history based on current input and updates suggestions
+func (iv *InputView) updateHistorySuggestions() {
+	text := iv.ta.Value()
+	if text == "" || iv.GetCursor() != len(text) {
+		iv.historySuggestion = ""
+		iv.historySuggestions = nil
+		iv.historySelectedIndex = 0
+		return
+	}
+
+	if iv.historyManager.IsNavigating() {
+		return
+	}
+
+	count := iv.historyManager.GetHistoryCount()
+	matches := make([]string, 0)
+
+	iv.historyManager.ResetNavigation()
+	tempHistory := make([]string, 0, count)
+
+	for i := 0; i < count; i++ {
+		entry := iv.historyManager.NavigateUp("")
+		if entry != "" {
+			tempHistory = append([]string{entry}, tempHistory...)
+		}
+	}
+	iv.historyManager.ResetNavigation()
+
+	query := strings.ToLower(text)
+	for _, entry := range tempHistory {
+		if entry != text && strings.HasPrefix(strings.ToLower(entry), query) {
+			matches = append(matches, entry)
+		}
+	}
+
+	iv.historySuggestions = matches
+	if len(matches) > 0 {
+		if iv.historySelectedIndex >= len(matches) {
+			iv.historySelectedIndex = 0
+		}
+		iv.historySuggestion = matches[iv.historySelectedIndex][len(text):]
+	} else {
+		iv.historySuggestion = ""
+		iv.historySelectedIndex = 0
+	}
+}
+
+// cycleHistorySuggestion moves to the next suggestion in the list
+func (iv *InputView) cycleHistorySuggestion() {
+	if len(iv.historySuggestions) == 0 {
+		return
+	}
+
+	iv.historySelectedIndex = (iv.historySelectedIndex + 1) % len(iv.historySuggestions)
+	text := iv.ta.Value()
+	iv.historySuggestion = iv.historySuggestions[iv.historySelectedIndex][len(text):]
+}
+
+// AcceptHistorySuggestion applies the current suggestion to the input
+func (iv *InputView) AcceptHistorySuggestion() bool {
+	if iv.historySuggestion == "" {
+		return false
+	}
+
+	text := iv.ta.Value()
+	iv.SetText(text + iv.historySuggestion)
+	iv.SetCursor(len(iv.ta.Value()))
+	iv.historySuggestion = ""
+	iv.historySuggestions = nil
+	iv.historySelectedIndex = 0
+	return true
+}
+
+// TryHandleHistorySuggestionTab handles Tab key for history suggestions
+// Returns true if handled (either cycled or accepted), false if no suggestion available
+func (iv *InputView) TryHandleHistorySuggestionTab() bool {
+	if len(iv.historySuggestions) == 0 {
+		return false
+	}
+
+	if iv.historySuggestion != "" {
+		iv.cycleHistorySuggestion()
+		return true
+	}
+
+	return false
+}
+
+// HasHistorySuggestion returns true if there's a history suggestion available
+func (iv *InputView) HasHistorySuggestion() bool {
+	return iv.historySuggestion != ""
 }

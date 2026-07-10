@@ -8,6 +8,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
@@ -32,9 +33,15 @@ func createMockModelService() *domainmocks.FakeModelService {
 
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+	ta := textarea.New()
+	ta.Placeholder = "Type your message..."
+	ta.CharLimit = 0
+	ta.MaxHeight = 5
+	ta.ShowLineNumbers = false
+	ta.EndOfBufferCharacter = 0
+
 	iv := &InputView{
-		text:             "",
-		cursor:           0,
+		ta:               ta,
 		placeholder:      "Type your message...",
 		width:            80,
 		height:           5,
@@ -77,12 +84,12 @@ func TestNewInputView(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	if iv.text != "" {
-		t.Errorf("Expected empty text, got '%s'", iv.text)
+	if iv.GetInput() != "" {
+		t.Errorf("Expected empty text, got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor at 0, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor at 0, got %d", iv.GetCursor())
 	}
 
 	if iv.width != 80 {
@@ -107,7 +114,7 @@ func TestInputView_GetInput(t *testing.T) {
 	iv := NewInputView(mockModelService)
 
 	testText := "Hello, world!"
-	iv.text = testText
+	iv.SetText(testText)
 
 	if iv.GetInput() != testText {
 		t.Errorf("Expected GetInput to return '%s', got '%s'", testText, iv.GetInput())
@@ -118,17 +125,17 @@ func TestInputView_ClearInput(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	iv.text = "Some text"
-	iv.cursor = 5
+	iv.SetText("Some text")
+	iv.SetCursor(5)
 
 	iv.ClearInput()
 
-	if iv.text != "" {
-		t.Errorf("Expected empty text after clear, got '%s'", iv.text)
+	if iv.GetInput() != "" {
+		t.Errorf("Expected empty text after clear, got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor at 0 after clear, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor at 0 after clear, got %d", iv.GetCursor())
 	}
 }
 
@@ -167,10 +174,11 @@ func TestInputView_GetCursor(t *testing.T) {
 	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
-	iv.cursor = 42
+	iv.SetText("Hello World")
+	iv.SetCursor(5)
 
-	if iv.GetCursor() != 42 {
-		t.Errorf("Expected cursor position 42, got %d", iv.GetCursor())
+	if iv.GetCursor() != 5 {
+		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
 	}
 }
 
@@ -179,14 +187,14 @@ func TestInputView_SetCursor(t *testing.T) {
 	iv := NewInputView(mockModelService)
 
 	iv.SetCursor(15)
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor to remain at 0 for invalid position, got %d", iv.cursor)
+	if iv.GetCursor() != 0 {
+		t.Errorf("Expected cursor to remain at 0 for invalid position, got %d", iv.GetCursor())
 	}
 
 	iv.SetText("Hello World")
 	iv.SetCursor(5)
-	if iv.cursor != 5 {
-		t.Errorf("Expected cursor position 5, got %d", iv.cursor)
+	if iv.GetCursor() != 5 {
+		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
 	}
 }
 
@@ -197,12 +205,12 @@ func TestInputView_SetText(t *testing.T) {
 	testText := "New text content"
 	iv.SetText(testText)
 
-	if iv.text != testText {
-		t.Errorf("Expected text '%s', got '%s'", testText, iv.text)
+	if iv.GetInput() != testText {
+		t.Errorf("Expected text '%s', got '%s'", testText, iv.GetInput())
 	}
 
-	if iv.cursor != 0 {
-		t.Errorf("Expected cursor to remain at 0, got %d", iv.cursor)
+	if iv.GetCursor() != 16 {
+		t.Errorf("Expected cursor at end of text (16), got %d", iv.GetCursor())
 	}
 }
 
@@ -311,7 +319,7 @@ func TestInputView_HistorySuggestions_SingleMatch(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("list files"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 
 	iv.Render()
 
@@ -337,7 +345,7 @@ func TestInputView_HistorySuggestions_MultipleMatches(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create tests"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 
 	iv.Render()
 
@@ -358,7 +366,7 @@ func TestInputView_HistorySuggestions_CycleThrough(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	firstSuggestion := iv.historySuggestion
@@ -383,7 +391,7 @@ func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	accepted := iv.AcceptHistorySuggestion()
@@ -392,12 +400,12 @@ func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
 		t.Error("Expected AcceptHistorySuggestion to return true")
 	}
 
-	if iv.text != "create a pull request" {
-		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.text)
+	if iv.GetInput() != "create a pull request" {
+		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.GetInput())
 	}
 
-	if iv.cursor != len(iv.text) {
-		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.text), iv.cursor)
+	if iv.GetCursor() != len(iv.GetInput()) {
+		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.GetInput()), iv.GetCursor())
 	}
 
 	if iv.HasHistorySuggestion() {
@@ -412,7 +420,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenEmpty(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("")
-	iv.cursor = 0
+	iv.SetCursor(0)
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -431,7 +439,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenCursorNotAtEnd(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("create")
-	iv.cursor = 3
+	iv.SetCursor(3)
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -446,7 +454,7 @@ func TestInputView_HistorySuggestions_NoMatchWhenNoPrefix(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
 
 	iv.SetText("xyz")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -465,7 +473,7 @@ func TestInputView_HistorySuggestions_CaseInsensitive(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("Create a pull request"))
 
 	iv.SetText("cre")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if !iv.HasHistorySuggestion() {
@@ -484,7 +492,7 @@ func TestInputView_HistorySuggestions_ExcludesExactMatch(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	if iv.HasHistorySuggestion() {
@@ -511,7 +519,7 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
 
 	iv.SetText("create")
-	iv.cursor = len(iv.text)
+	iv.SetCursor(len(iv.GetInput()))
 	iv.Render()
 
 	firstSuggestion := iv.historySuggestion
@@ -573,7 +581,7 @@ func TestInputView_RenderTruncatesLongBranchInBorder(t *testing.T) {
 
 func TestInputView_RenderDropsBranchWhenTooNarrow(t *testing.T) {
 	iv := newInputViewWithBranch(t, "main")
-	iv.text = "hi"
+	iv.SetText("hi")
 	iv.SetWidth(12)
 
 	topLine, _, _ := strings.Cut(iv.Render(), "\n")
@@ -601,7 +609,8 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 }
 
 func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
-	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	ta := textarea.New()
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 
 	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
 
@@ -612,7 +621,8 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 }
 
 func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
-	iv := &InputView{historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	ta := textarea.New()
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
 	require.NoError(t, iv.AddToHistory("previous message"))
 
 	_, _ = iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp})
