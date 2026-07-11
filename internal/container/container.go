@@ -557,9 +557,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
 
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
-		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, c.backgroundTaskRegistry))
+		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
 
 	c.shortcutRegistry.Register(shortcuts.NewInitGithubActionShortcut())

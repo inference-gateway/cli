@@ -21,8 +21,8 @@ import (
 
 // ConversationSelectorImpl implements conversation selection UI
 type ConversationSelectorImpl struct {
-	conversations         []shortcuts.ConversationSummary
-	filteredConversations []shortcuts.ConversationSummary
+	conversations         []domain.ConversationSummary
+	filteredConversations []domain.ConversationSummary
 	width                 int
 	height                int
 	styleProvider         *styles.Provider
@@ -43,8 +43,8 @@ type ConversationSelectorImpl struct {
 // NewConversationSelector creates a new conversation selector
 func NewConversationSelector(repo shortcuts.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelectorImpl {
 	c := &ConversationSelectorImpl{
-		conversations:         make([]shortcuts.ConversationSummary, 0),
-		filteredConversations: make([]shortcuts.ConversationSummary, 0),
+		conversations:         make([]domain.ConversationSummary, 0),
+		filteredConversations: make([]domain.ConversationSummary, 0),
 		width:                 80,
 		height:                24,
 		styleProvider:         styleProvider,
@@ -107,7 +107,7 @@ func (c *ConversationSelectorImpl) syncTable() {
 
 // conversationRow renders one conversation as table cells, keeping the
 // cost-tier precision of the previous hand-built table.
-func conversationRow(conv shortcuts.ConversationSummary) table.Row {
+func conversationRow(conv domain.ConversationSummary) table.Row {
 	costStr := "-"
 	switch cost := conv.CostStats.TotalCost; {
 	case cost > 0 && cost < 0.01:
@@ -183,15 +183,15 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 	c.dataLoaded = true
 
 	if msg.Error == nil {
-		conversations := make([]shortcuts.ConversationSummary, len(msg.Conversations))
+		conversations := make([]domain.ConversationSummary, len(msg.Conversations))
 		for i, conv := range msg.Conversations {
-			if summary, ok := conv.(shortcuts.ConversationSummary); ok {
+			if summary, ok := conv.(domain.ConversationSummary); ok {
 				conversations[i] = summary
 			}
 		}
 
 		c.conversations = conversations
-		c.filteredConversations = make([]shortcuts.ConversationSummary, len(conversations))
+		c.filteredConversations = make([]domain.ConversationSummary, len(conversations))
 		copy(c.filteredConversations, conversations)
 		c.syncTable()
 		c.table.GotoTop()
@@ -332,7 +332,7 @@ func (c *ConversationSelectorImpl) viewContent() string {
 // filterConversations filters the conversations based on the search query
 func (c *ConversationSelectorImpl) filterConversations() {
 	if c.searchQuery == "" {
-		c.filteredConversations = make([]shortcuts.ConversationSummary, len(c.conversations))
+		c.filteredConversations = make([]domain.ConversationSummary, len(c.conversations))
 		copy(c.filteredConversations, c.conversations)
 		return
 	}
@@ -416,11 +416,11 @@ func (c *ConversationSelectorImpl) IsCancelled() bool {
 }
 
 // GetSelected returns the selected conversation
-func (c *ConversationSelectorImpl) GetSelected() shortcuts.ConversationSummary {
+func (c *ConversationSelectorImpl) GetSelected() domain.ConversationSummary {
 	if c.IsSelected() && c.table.Cursor() < len(c.filteredConversations) {
 		return c.filteredConversations[c.table.Cursor()]
 	}
-	return shortcuts.ConversationSummary{}
+	return domain.ConversationSummary{}
 }
 
 // SetWidth sets the width of the conversation selector
@@ -443,8 +443,8 @@ func (c *ConversationSelectorImpl) Reset() {
 	c.searchMode = false
 	c.loading = true
 	c.loadError = nil
-	c.conversations = make([]shortcuts.ConversationSummary, 0)
-	c.filteredConversations = make([]shortcuts.ConversationSummary, 0)
+	c.conversations = make([]domain.ConversationSummary, 0)
+	c.filteredConversations = make([]domain.ConversationSummary, 0)
 	c.dataLoaded = false
 	c.syncTable()
 	c.table.GotoTop()

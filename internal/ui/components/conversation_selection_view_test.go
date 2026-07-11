@@ -6,7 +6,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 )
@@ -97,7 +97,7 @@ func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 	selector.done = true
 	selector.cancelled = false
 	selector.loading = false
-	selector.filteredConversations = []shortcuts.ConversationSummary{
+	selector.filteredConversations = []domain.ConversationSummary{
 		{ID: "test", Title: "Test"},
 	}
 
