@@ -29,6 +29,11 @@ const (
 	maxPreviewLines     = 30
 	defaultPreviewLines = 16
 
+	// expandedReservedLines is the vertical space kept for the header, input,
+	// status bar, and box chrome when the diff is expanded (ctrl+o), so even a
+	// full-file diff leaves the input on-screen.
+	expandedReservedLines = 12
+
 	// diffBorderPadding is the box border (2) plus horizontal padding (2) reserved
 	// when sizing the diff to the available width; minDiffWidth keeps it usable on
 	// very narrow terminals.
@@ -48,6 +53,45 @@ type ApprovalBoxView struct {
 	active *domain.ApprovalUIState
 	form   *huh.Form
 	choice domain.ApprovalAction
+
+	// expanded switches the diff from the height-capped preview to a scrollable
+	// window over the full diff (ctrl+o), mirroring the conversation view's
+	// tool-result expansion. scrollOffset is the first visible diff line in that
+	// window. Both reset for each new approval.
+	expanded     bool
+	scrollOffset int
+}
+
+// ToggleExpanded flips between the capped diff preview and the scrollable full-diff
+// window, matching the ctrl+o tool-result expansion in the conversation view.
+func (av *ApprovalBoxView) ToggleExpanded() {
+	av.expanded = !av.expanded
+	av.scrollOffset = 0
+}
+
+// ScrollDiff moves the expanded diff window by delta lines (up/down). It is a no-op
+// unless the diff is expanded; the top is clamped here and the bottom at render time
+// (which is where the window height is known).
+func (av *ApprovalBoxView) ScrollDiff(delta int) {
+	if !av.expanded {
+		return
+	}
+	av.scrollOffset += delta
+	if av.scrollOffset < 0 {
+		av.scrollOffset = 0
+	}
+}
+
+// IsActive reports whether an approval is currently being shown, so the caller can
+// route ctrl+o to this box instead of the conversation.
+func (av *ApprovalBoxView) IsActive() bool {
+	return av.active != nil && av.form != nil
+}
+
+// IsExpanded reports whether the diff is in the scrollable expanded view, so the
+// caller can route up/down to scroll it instead of the conversation.
+func (av *ApprovalBoxView) IsExpanded() bool {
+	return av.expanded
 }
 
 func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.ApprovalUIManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
@@ -90,6 +134,8 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 	}
 	av.active = state
 	av.choice = domain.ApprovalApprove
+	av.expanded = false
+	av.scrollOffset = 0
 	av.form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[domain.ApprovalAction]().
@@ -198,32 +244,58 @@ func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]an
 	return av.capLines(rendered), true
 }
 
-// capLines bounds the preview height so a large edit can't blow out the layout: it
-// keeps the first previewLineLimit() lines and replaces the rest with a dim
-// "… N more lines" hint. The full diff still renders in the conversation after the
-// edit runs.
+// capLines bounds the preview height so a large edit can't blow out the layout.
+// Collapsed it keeps the first previewLineLimit() lines with a "… N more lines"
+// hint; expanded (ctrl+o) it shows a scrollable window over the whole diff so a
+// file larger than the screen stays fully reviewable while the action buttons stay
+// pinned. The full diff still renders in the conversation after the edit runs.
 func (av *ApprovalBoxView) capLines(s string) string {
 	body := strings.TrimRight(s, "\n")
 	lines := strings.Split(body, "\n")
 	limit := av.previewLineLimit()
 	if len(lines) <= limit {
+		av.scrollOffset = 0
 		return body
 	}
 
-	hidden := len(lines) - limit
+	if !av.expanded {
+		hidden := len(lines) - limit
+		hint := av.styleProvider.RenderDimText(
+			fmt.Sprintf("… %d more lines (ctrl+o to expand, full diff shown after approval)", hidden),
+		)
+		return strings.Join(lines[:limit], "\n") + "\n" + hint
+	}
+
+	// Clamp the bottom here (the window height is only known now); the top is
+	// clamped on scroll.
+	maxOffset := len(lines) - limit
+	if av.scrollOffset > maxOffset {
+		av.scrollOffset = maxOffset
+	}
+	window := strings.Join(lines[av.scrollOffset:av.scrollOffset+limit], "\n")
 	hint := av.styleProvider.RenderDimText(
-		fmt.Sprintf("… %d more lines (full diff shown after approval)", hidden),
+		fmt.Sprintf("↑/↓ scroll · lines %d-%d of %d (ctrl+o to collapse)",
+			av.scrollOffset+1, av.scrollOffset+limit, len(lines)),
 	)
-	return strings.Join(lines[:limit], "\n") + "\n" + hint
+	return window + "\n" + hint
 }
 
-// previewLineLimit is the max diff lines shown in the box: about half the terminal
-// height so the conversation and input keep room, bounded to
-// [minPreviewLines, maxPreviewLines]. It falls back to defaultPreviewLines before
+// previewLineLimit is the number of diff lines shown in the box at once. Collapsed
+// it is about half the terminal height so the conversation and input keep room,
+// bounded to [minPreviewLines, maxPreviewLines]; expanded (ctrl+o) it grows to fill
+// the screen (minus the header, input, and box chrome so the layout can't overflow)
+// and the rest is reached by scrolling. It falls back to defaultPreviewLines before
 // the terminal height is known (height <= 0).
 func (av *ApprovalBoxView) previewLineLimit() int {
 	if av.height <= 0 {
 		return defaultPreviewLines
+	}
+	if av.expanded {
+		limit := av.height - expandedReservedLines
+		if limit < minPreviewLines {
+			return minPreviewLines
+		}
+		return limit
 	}
 	limit := av.height / 2
 	if limit < minPreviewLines {

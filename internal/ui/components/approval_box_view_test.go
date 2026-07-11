@@ -211,6 +211,65 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 	}
 }
 
+// TestApprovalBox_ExpandScrollsToDiffTail asserts ctrl+o (ToggleExpanded) opens a
+// scrollable window whose tail is reachable with ScrollDiff, so a diff taller than
+// the screen is fully reviewable; collapsing resets it.
+func TestApprovalBox_ExpandScrollsToDiffTail(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&b, "LINE_%02d\n", i)
+	}
+	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, b.String())
+
+	sm := approvalStateManager(approvalStateWith("Edit", args))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(80)
+	av.SetHeight(30) // collapsed cap -> 15; expanded window -> height-12 = 18
+
+	_ = av.Begin()
+
+	// Expanding shows the diff head as a scrollable window, tail still off-screen.
+	av.ToggleExpanded()
+	top := stripANSI(av.Render())
+	if !strings.Contains(top, "LINE_00") {
+		t.Fatalf("expanded window should start at the diff head:\n%s", top)
+	}
+	if strings.Contains(top, "LINE_39") {
+		t.Fatalf("diff tail should be below the fold before scrolling:\n%s", top)
+	}
+	if !strings.Contains(top, "scroll") {
+		t.Errorf("expanded window should show a scroll hint:\n%s", top)
+	}
+
+	// Scrolling down far enough brings the tail into the window.
+	av.ScrollDiff(1000)
+	bottom := stripANSI(av.Render())
+	if !strings.Contains(bottom, "LINE_39") {
+		t.Errorf("scrolling down should reveal the diff tail:\n%s", bottom)
+	}
+
+	// Collapsing resets to the capped head preview.
+	av.ToggleExpanded()
+	if recollapsed := stripANSI(av.Render()); strings.Contains(recollapsed, "LINE_39") {
+		t.Errorf("collapsing should return to the capped head, LINE_39 still present:\n%s", recollapsed)
+	}
+}
+
+// TestApprovalBox_IsActive reports true only while a form is built for a pending
+// approval, so ctrl+o routes here instead of the conversation.
+func TestApprovalBox_IsActive(t *testing.T) {
+	sm := approvalStateManager(approvalStateWith("Edit", `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`))
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	if av.IsActive() {
+		t.Error("IsActive should be false before Begin")
+	}
+	_ = av.Begin()
+	if !av.IsActive() {
+		t.Error("IsActive should be true after Begin with a pending approval")
+	}
+}
+
 // TestApprovalBox_DiffToolIgnoresFormatter asserts the diff path does not depend on
 // the tool formatter (a nil formatter still yields a diff, not the name fallback).
 func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {

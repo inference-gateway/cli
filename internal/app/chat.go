@@ -819,6 +819,12 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 				return []tea.Cmd{cmd}
 			}
 			return nil
+		case tea.KeyUp, tea.KeyDown:
+			// While the diff is expanded (ctrl+o), up/down scroll it; otherwise
+			// they fall through to their normal handling.
+			if app.scrollApprovalDiff(keyMsg.Code) {
+				return nil
+			}
 		}
 	}
 
@@ -2587,8 +2593,29 @@ func isCommandInput(input string) bool {
 	return strings.HasPrefix(input, "/") || strings.HasPrefix(input, "!")
 }
 
-// ToggleToolResultExpansion toggles tool result expansion
+// scrollApprovalDiff scrolls the expanded approval diff by one line for up/down and
+// reports whether it handled the key. It only acts while the diff is expanded so
+// up/down keep their normal behaviour otherwise.
+func (app *ChatApplication) scrollApprovalDiff(code rune) bool {
+	if !app.approvalBoxView.IsExpanded() {
+		return false
+	}
+	if code == tea.KeyUp {
+		app.approvalBoxView.ScrollDiff(-1)
+	} else {
+		app.approvalBoxView.ScrollDiff(1)
+	}
+	return true
+}
+
+// ToggleToolResultExpansion toggles tool result expansion. While an approval is
+// pending, ctrl+o instead expands the pending diff preview so it can be reviewed
+// in full before approving — consistent with expanding tool results inline.
 func (app *ChatApplication) ToggleToolResultExpansion() {
+	if app.approvalBoxView != nil && app.approvalBoxView.IsActive() {
+		app.approvalBoxView.ToggleExpanded()
+		return
+	}
 	app.toggleToolResultExpansion()
 }
 
