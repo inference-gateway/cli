@@ -1308,7 +1308,7 @@ func (s *AgentServiceImpl) requestToolApproval(
 		approved = response == domain.ApprovalApprove || response == domain.ApprovalAutoAccept
 	case <-ctx.Done():
 		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
-	case <-time.After(5 * time.Minute):
+	case <-time.After(constants.ApprovalTimeout):
 		err = fmt.Errorf("approval request timed out")
 	}
 

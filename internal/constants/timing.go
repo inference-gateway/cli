@@ -38,3 +38,12 @@ const (
 	SlowUpdateThreshold     = 100 * time.Millisecond
 	JobRunningLongThreshold = 5 * time.Minute
 )
+
+// GitCommandTimeout bounds ad-hoc git shells (branch lookups, log, rev-parse)
+// so a wedged git process can't hang the UI or system-prompt build.
+const GitCommandTimeout = 10 * time.Second
+
+// ApprovalTimeout is how long the agent waits for a tool-approval decision
+// before auto-rejecting, in every delivery path (chat TUI prompt, headless
+// IPC under the channels-manager, and channel auto-reject).
+const ApprovalTimeout = 5 * time.Minute

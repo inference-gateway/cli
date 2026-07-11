@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,57 +19,17 @@ type StateManager struct {
 	// Event multicast for floating window (optional)
 	eventBridge domain.EventBridge
 
-	// Debug and audit trail
-	debugMode      bool
-	stateHistory   []domain.StateSnapshot
-	maxHistorySize int
+	debugMode bool
 }
 
 // Compile-time assertion that StateManager implements domain.StateManager interface
 var _ domain.StateManager = (*StateManager)(nil)
 
-// StateChangeType represents the type of state change
-type StateChangeType int
-
-const (
-	StateChangeTypeViewTransition StateChangeType = iota
-	StateChangeTypeChatStatus
-	StateChangeTypeToolExecution
-	StateChangeTypeDimensions
-)
-
-func (s StateChangeType) String() string {
-	switch s {
-	case StateChangeTypeViewTransition:
-		return "ViewTransition"
-	case StateChangeTypeChatStatus:
-		return "ChatStatus"
-	case StateChangeTypeToolExecution:
-		return "ToolExecution"
-	case StateChangeTypeDimensions:
-		return "Dimensions"
-	default:
-		return "Unknown"
-	}
-}
-
 // NewStateManager creates a new state manager
 func NewStateManager(debugMode bool) *StateManager {
 	return &StateManager{
-		state:          domain.NewApplicationState(),
-		debugMode:      debugMode,
-		stateHistory:   make([]domain.StateSnapshot, 0),
-		maxHistorySize: 100,
-	}
-}
-
-// captureStateChange captures a state change for debugging and audit trail
-func (sm *StateManager) captureStateChange(_ /* changeType */ StateChangeType, _ domain.StateSnapshot) {
-	newState := sm.state.GetStateSnapshot()
-
-	sm.stateHistory = append(sm.stateHistory, newState)
-	if len(sm.stateHistory) > sm.maxHistorySize {
-		sm.stateHistory = sm.stateHistory[1:]
+		state:     domain.NewApplicationState(),
+		debugMode: debugMode,
 	}
 }
 
@@ -93,14 +52,11 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	if err := sm.state.TransitionToView(newView); err != nil {
 		logger.Error("failed to transition view", "error", err, "newView", newView.String())
 		return err
 	}
 
-	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
 	return nil
 }
 
@@ -116,9 +72,7 @@ func (sm *StateManager) SetAgentMode(mode domain.AgentMode) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
 	sm.state.SetAgentMode(mode)
-	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
 }
 
 // CycleAgentMode cycles to the next agent mode
@@ -126,9 +80,7 @@ func (sm *StateManager) CycleAgentMode() domain.AgentMode {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
 	newMode := sm.state.CycleAgentMode()
-	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
 
 	return newMode
 }
@@ -247,15 +199,12 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	if sm.eventBridge != nil {
 		eventChan = sm.eventBridge.Tap(eventChan)
 	}
 
 	sm.state.StartChatSession(requestID, model, eventChan)
 
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return nil
 }
 
@@ -263,8 +212,6 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 func (sm *StateManager) UpdateChatStatus(status domain.ChatStatus) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
-
-	oldState := sm.state.GetStateSnapshot()
 
 	currentSession := sm.state.GetChatSession()
 	if currentSession != nil && currentSession.Status == status {
@@ -275,7 +222,6 @@ func (sm *StateManager) UpdateChatStatus(status domain.ChatStatus) error {
 		return err
 	}
 
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return nil
 }
 
@@ -284,11 +230,8 @@ func (sm *StateManager) EndChatSession() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	sm.state.EndChatSession()
 
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 }
 
 // GetChatSession returns the current chat session (read-only)
@@ -326,8 +269,6 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	tools := make([]domain.ToolCall, len(toolCalls))
 	for i, tc := range toolCalls {
 		args := make(map[string]any)
@@ -346,7 +287,6 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 
 	sm.state.StartToolExecution(tools)
 
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
 
@@ -355,13 +295,10 @@ func (sm *StateManager) CompleteCurrentTool(result *domain.ToolExecutionResult) 
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	if err := sm.state.CompleteCurrentTool(result); err != nil {
 		return err
 	}
 
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
 
@@ -370,13 +307,10 @@ func (sm *StateManager) FailCurrentTool(result *domain.ToolExecutionResult) erro
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	if err := sm.state.FailCurrentTool(result); err != nil {
 		return err
 	}
 
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
 
@@ -385,11 +319,8 @@ func (sm *StateManager) EndToolExecution() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	sm.state.EndToolExecution()
 
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 }
 
 // GetToolExecution returns the current tool execution session (read-only)
@@ -404,11 +335,8 @@ func (sm *StateManager) SetDimensions(width, height int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	sm.state.SetDimensions(width, height)
 
-	sm.captureStateChange(StateChangeTypeDimensions, oldState)
 }
 
 // GetDimensions returns the current UI dimensions
@@ -416,31 +344,6 @@ func (sm *StateManager) GetDimensions() (int, int) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetDimensions()
-}
-
-// GetStateSnapshot returns the current state snapshot
-func (sm *StateManager) GetStateSnapshot() domain.StateSnapshot {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-	return sm.state.GetStateSnapshot()
-}
-
-// GetStateHistory returns the state change history
-func (sm *StateManager) GetStateHistory() []domain.StateSnapshot {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
-	history := make([]domain.StateSnapshot, len(sm.stateHistory))
-	copy(history, sm.stateHistory)
-	return history
-}
-
-// ExportStateHistory exports the state history as JSON for debugging
-func (sm *StateManager) ExportStateHistory() ([]byte, error) {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
-	return json.MarshalIndent(sm.stateHistory, "", "  ")
 }
 
 // SetDebugMode enables or disables debug mode
@@ -457,40 +360,6 @@ func (sm *StateManager) IsDebugMode() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.debugMode
-}
-
-// ValidateState performs comprehensive state validation
-func (sm *StateManager) ValidateState() []error {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
-	var errors []error
-
-	if chatSession := sm.state.GetChatSession(); chatSession != nil {
-		if chatSession.RequestID == "" {
-			errors = append(errors, fmt.Errorf("chat session has empty request ID"))
-		}
-		if chatSession.Model == "" {
-			errors = append(errors, fmt.Errorf("chat session has empty model"))
-		}
-		if chatSession.LastActivity.IsZero() {
-			errors = append(errors, fmt.Errorf("chat session has zero last activity time"))
-		}
-	}
-
-	if toolExecution := sm.state.GetToolExecution(); toolExecution != nil {
-		if toolExecution.CurrentTool == nil && len(toolExecution.RemainingTools) > 0 {
-			errors = append(errors, fmt.Errorf("tool execution has remaining tools but no current tool"))
-		}
-		if toolExecution.CompletedTools > toolExecution.TotalTools {
-			errors = append(errors, fmt.Errorf("completed tools count exceeds total tools"))
-		}
-		if toolExecution.CompletedTools < 0 {
-			errors = append(errors, fmt.Errorf("completed tools count is negative"))
-		}
-	}
-
-	return errors
 }
 
 // SetupFileSelection initializes file selection state
@@ -646,9 +515,7 @@ func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) 
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
 	sm.state.AddQueuedMessage(message, requestID)
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 }
 
 // PopQueuedMessage removes and returns the first message from the queue (FIFO order)
@@ -656,9 +523,7 @@ func (sm *StateManager) PopQueuedMessage() *domain.QueuedMessage {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
 	msg := sm.state.PopQueuedMessage()
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return msg
 }
 
@@ -667,9 +532,7 @@ func (sm *StateManager) ClearQueuedMessages() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
 	sm.state.ClearQueuedMessages()
-	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 }
 
 // GetQueuedMessages returns the current queued messages
@@ -718,8 +581,6 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	oldState := sm.state.GetStateSnapshot()
-
 	logger.Warn("attempting to recover from inconsistent state")
 
 	sm.state.EndChatSession()
@@ -735,7 +596,6 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 	}
 
 	logger.Warn("state recovery completed")
-	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
 
 	return nil
 }
@@ -796,39 +656,6 @@ func (sm *StateManager) RemoveAgent(name string) {
 	defer sm.mutex.Unlock()
 
 	sm.state.RemoveAgent(name)
-}
-
-// GetHealthStatus returns the health status of the state manager
-func (sm *StateManager) GetHealthStatus() HealthStatus {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
-	status := HealthStatus{
-		Healthy:          true,
-		ValidationErrors: sm.ValidateState(),
-		StateHistorySize: len(sm.stateHistory),
-		LastStateChange:  time.Time{},
-		MemoryUsageKB:    0,
-	}
-
-	if len(sm.stateHistory) > 0 {
-		status.LastStateChange = sm.stateHistory[len(sm.stateHistory)-1].Timestamp
-	}
-
-	if len(status.ValidationErrors) > 0 {
-		status.Healthy = false
-	}
-
-	return status
-}
-
-// HealthStatus represents the health status of the state manager
-type HealthStatus struct {
-	Healthy          bool      `json:"healthy"`
-	ValidationErrors []error   `json:"validation_errors"`
-	StateHistorySize int       `json:"state_history_size"`
-	LastStateChange  time.Time `json:"last_state_change"`
-	MemoryUsageKB    int       `json:"memory_usage_kb"`
 }
 
 // Focus management methods (macOS computer-use tools)

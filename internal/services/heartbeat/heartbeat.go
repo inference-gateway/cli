@@ -14,8 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,9 +23,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
-
-// ExecCommandFn matches exec.CommandContext. Exposed for tests.
-type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 // Config bundles the runtime knobs the heartbeat service needs. It is
 // derived from config.HeartbeatConfig at startup time so the service
@@ -44,7 +39,7 @@ type Config struct {
 // Start/Stop.
 type Service struct {
 	cfg        Config
-	execCmd    ExecCommandFn
+	execCmd    agentrunner.ExecFunc
 	binaryPath string
 
 	ctx    context.Context
@@ -64,7 +59,7 @@ type Service struct {
 type Options struct {
 	Config Config
 	// ExecCommand defaults to exec.CommandContext when nil.
-	ExecCommand ExecCommandFn
+	ExecCommand agentrunner.ExecFunc
 	// BinaryPath defaults to os.Args[0] when empty.
 	BinaryPath string
 }
@@ -75,18 +70,10 @@ func NewService(opts Options) (*Service, error) {
 	if opts.Config.Interval <= 0 {
 		return nil, errors.New("heartbeat: interval must be > 0")
 	}
-	execFn := opts.ExecCommand
-	if execFn == nil {
-		execFn = exec.CommandContext
-	}
-	bin := opts.BinaryPath
-	if bin == "" {
-		bin = os.Args[0]
-	}
 	return &Service{
 		cfg:        opts.Config,
-		execCmd:    execFn,
-		binaryPath: bin,
+		execCmd:    opts.ExecCommand,
+		binaryPath: opts.BinaryPath,
 	}, nil
 }
 

@@ -14,8 +14,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	inputsyntax "github.com/inference-gateway/cli/internal/ui/inputsyntax"
@@ -67,7 +69,9 @@ type InputView struct {
 // the resolveGitBranch field so branch resolution is deterministic without a
 // real repository.
 func gitCurrentBranch() (string, error) {
-	output, err := exec.Command("git", "branch", "--show-current").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
+	defer cancel()
+	output, err := gitdiff.RunGit(ctx, "", "branch", "--show-current")
 	if err != nil {
 		return "", err
 	}

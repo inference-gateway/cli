@@ -20,7 +20,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
-	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
@@ -320,8 +319,7 @@ func NewChatApplication(
 	})
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
-		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		app.conversationSelector = components.NewConversationSelector(adapter, styleProvider)
+		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
 		app.conversationSelector = nil
 	}
@@ -3020,8 +3018,9 @@ func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string
 		baseBranch = "main"
 	}
 
-	cmd = exec.Command("git", "branch", "--show-current")
-	currentBranch, err := cmd.Output()
+	gitCtx, cancel := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
+	defer cancel()
+	currentBranch, err := gitdiff.RunGit(gitCtx, "", "branch", "--show-current")
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}

@@ -11,7 +11,6 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 )
@@ -153,8 +152,8 @@ func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 	selector := components.NewConversationSelector(repo, nil)
 	model, _ := selector.Update(domain.ConversationsLoadedEvent{
 		Conversations: []any{
-			shortcuts.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
-			shortcuts.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
+			domain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
+			domain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
 		},
 	})
 	app.conversationSelector = model.(*components.ConversationSelectorImpl)

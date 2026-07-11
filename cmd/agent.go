@@ -19,6 +19,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -941,7 +942,7 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 	select {
 	case resp := <-s.approvalCh:
 		approved = resp.Approved
-	case <-time.After(5 * time.Minute):
+	case <-time.After(constants.ApprovalTimeout):
 		logger.Warn("approval timeout for tool", "tool", tc.Function.Name)
 	}
 	if !approved {

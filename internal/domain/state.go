@@ -817,50 +817,6 @@ func (s *ApplicationState) IsDebugMode() bool {
 	return s.debugMode
 }
 
-// GetStateSnapshot returns a complete snapshot of the current state
-func (s *ApplicationState) GetStateSnapshot() StateSnapshot {
-	snapshot := StateSnapshot{
-		CurrentView:  s.currentView.String(),
-		PreviousView: s.previousView.String(),
-		Width:        s.width,
-		Height:       s.height,
-		DebugMode:    s.debugMode,
-		Timestamp:    time.Now(),
-	}
-
-	if s.chatSession != nil {
-		snapshot.ChatSession = &ChatSessionSnapshot{
-			RequestID:    s.chatSession.RequestID,
-			Status:       s.chatSession.Status.String(),
-			Model:        s.chatSession.Model,
-			StartTime:    s.chatSession.StartTime,
-			IsFirstChunk: s.chatSession.IsFirstChunk,
-			HasToolCalls: s.chatSession.HasToolCalls,
-			LastActivity: s.chatSession.LastActivity,
-		}
-	}
-
-	if s.toolExecution != nil {
-		snapshot.ToolExecution = &ToolExecutionSnapshot{
-			Status:         s.toolExecution.Status.String(),
-			TotalTools:     s.toolExecution.TotalTools,
-			CompletedTools: s.toolExecution.CompletedTools,
-			StartTime:      s.toolExecution.StartTime,
-		}
-
-		if s.toolExecution.CurrentTool != nil {
-			snapshot.ToolExecution.CurrentTool = &ToolCallSnapshot{
-				ID:        s.toolExecution.CurrentTool.ID,
-				Name:      s.toolExecution.CurrentTool.Name,
-				Status:    s.toolExecution.CurrentTool.Status.String(),
-				StartTime: s.toolExecution.CurrentTool.StartTime,
-			}
-		}
-	}
-
-	return snapshot
-}
-
 // File Selection State Management
 
 // SetupFileSelection initializes file selection state
@@ -1069,46 +1025,6 @@ func (s *ApplicationState) GetPausedRequestID() string {
 func (s *ApplicationState) ClearComputerUsePauseState() {
 	s.computerUsePaused = false
 	s.pausedRequestID = ""
-}
-
-// StateSnapshot represents a point-in-time snapshot of application state
-type StateSnapshot struct {
-	CurrentView   string                 `json:"current_view"`
-	PreviousView  string                 `json:"previous_view"`
-	Width         int                    `json:"width"`
-	Height        int                    `json:"height"`
-	DebugMode     bool                   `json:"debug_mode"`
-	Timestamp     time.Time              `json:"timestamp"`
-	ChatSession   *ChatSessionSnapshot   `json:"chat_session,omitempty"`
-	ToolExecution *ToolExecutionSnapshot `json:"tool_execution,omitempty"`
-}
-
-// ChatSessionSnapshot represents a snapshot of chat session state
-type ChatSessionSnapshot struct {
-	RequestID    string    `json:"request_id"`
-	Status       string    `json:"status"`
-	Model        string    `json:"model"`
-	StartTime    time.Time `json:"start_time"`
-	IsFirstChunk bool      `json:"is_first_chunk"`
-	HasToolCalls bool      `json:"has_tool_calls"`
-	LastActivity time.Time `json:"last_activity"`
-}
-
-// ToolExecutionSnapshot represents a snapshot of tool execution state
-type ToolExecutionSnapshot struct {
-	Status         string            `json:"status"`
-	TotalTools     int               `json:"total_tools"`
-	CompletedTools int               `json:"completed_tools"`
-	StartTime      time.Time         `json:"start_time"`
-	CurrentTool    *ToolCallSnapshot `json:"current_tool,omitempty"`
-}
-
-// ToolCallSnapshot represents a snapshot of tool call state
-type ToolCallSnapshot struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Status    string    `json:"status"`
-	StartTime time.Time `json:"start_time"`
 }
 
 // AgentReadinessState represents the current state of A2A agents during startup
