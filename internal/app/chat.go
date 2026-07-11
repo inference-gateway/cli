@@ -402,6 +402,10 @@ func (app *ChatApplication) Init() tea.Cmd {
 
 	cmds = append(cmds, tea.ClearScreen)
 
+	if app.config.GetTheme() == "" {
+		cmds = append(cmds, tea.RequestBackgroundColor)
+	}
+
 	if cmd := app.conversationView.(tea.Model).Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -603,6 +607,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 
 	case domain.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
+
+	case tea.BackgroundColorMsg:
+		app.handleBackgroundColorDetected(m)
 
 	}
 
@@ -1600,6 +1607,20 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 	})
 
 	return cmds
+}
+
+// handleBackgroundColorDetected switches to the light theme when the terminal
+// reports a light background. Only requested (see Init) and applied when no
+// theme is configured, so an explicit config or /theme choice always wins; the
+// dark default (tokyo-night) already fits dark terminals, so dark is a no-op.
+func (app *ChatApplication) handleBackgroundColorDetected(msg tea.BackgroundColorMsg) {
+	if msg.IsDark() || app.config.GetTheme() != "" {
+		return
+	}
+	if err := app.themeService.SetTheme("github-light"); err != nil {
+		return
+	}
+	app.updateAllComponentsWithNewTheme()
 }
 
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
