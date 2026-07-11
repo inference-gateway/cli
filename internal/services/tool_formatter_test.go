@@ -256,6 +256,47 @@ func TestFormatToolResultExpanded_AlwaysExpandOmitsHint(t *testing.T) {
 	}
 }
 
+// TestRenderToolSummary_SharedAndWidthAware checks the one summary builder used by
+// every surface: it formats the name + width-aware argument preview identically and
+// omits an empty icon/trailing.
+func TestRenderToolSummary_SharedAndWidthAware(t *testing.T) {
+	svc := newTestService(&fakeTool{name: "Bash"})
+
+	full := stripANSI(svc.RenderToolSummary("i", "Bash", map[string]any{"command": "ls"}, "t", 80))
+	if full != "i Bash(command=ls) t" {
+		t.Errorf("summary = %q, want %q", full, "i Bash(command=ls) t")
+	}
+
+	noIcon := stripANSI(svc.RenderToolSummary("", "Bash", nil, "", 80))
+	if noIcon != "Bash()" {
+		t.Errorf("summary without icon/args = %q, want %q", noIcon, "Bash()")
+	}
+
+	// long values are truncated to the budget, never byte-sliced mid-rune
+	long := strings.Repeat("λ", 200)
+	got := stripANSI(svc.RenderToolSummary("", "Bash", map[string]any{"command": long}, "", 80))
+	if !strings.Contains(got, "…") && !strings.Contains(got, "...") {
+		t.Errorf("long value should be truncated with an ellipsis: %q", got)
+	}
+	if strings.Contains(got, "�") {
+		t.Errorf("truncation split a multibyte rune: %q", got)
+	}
+}
+
+// TestFormatToolResultForLLM_NoCard guards that the LLM/headless path is never
+// card-framed and carries no injected UI styling.
+func TestFormatToolResultForLLM_NoCard(t *testing.T) {
+	tree := "Bash(command=x)\n├── Duration: 1ms\n╰── Result:\n   ok"
+	svc := newTestService(&fakeTool{name: "Bash", llm: tree})
+	got := svc.FormatToolResultForLLM(bashResult(true, nil))
+	if strings.ContainsAny(got, "╭╮╯") {
+		t.Errorf("LLM output must not be card-framed: %q", got)
+	}
+	if got != tree {
+		t.Errorf("LLM output must be the tool tree verbatim: got %q want %q", got, tree)
+	}
+}
+
 func TestFormatToolResultForLLM_Unchanged(t *testing.T) {
 	tree := "Bash(command=x)\n├─ Duration: 1ms\n└─ Result:\n   ok"
 	tool := &fakeTool{name: "Bash", llm: tree}
