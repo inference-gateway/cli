@@ -8,10 +8,151 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// Theme-independent styles, built once at package init. plainStyle and
+// roundedBox are the bases the dynamic-color escape hatches derive from so no
+// Render* method has to construct a style chain from scratch per call.
+var (
+	plainStyle   = lipgloss.NewStyle()
+	boldStyle    = lipgloss.NewStyle().Bold(true)
+	reverseStyle = lipgloss.NewStyle().Reverse(true)
+	roundedBox   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true)
+)
+
+// themedStyles holds every style derived from theme colors, pre-baked once per
+// theme change instead of rebuilt inside each Render* call per frame.
+// Width-parameterized methods apply .Width(w) on the cached base — a struct
+// copy without color re-parsing.
+type themedStyles struct {
+	accentBold        lipgloss.Style
+	dim               lipgloss.Style
+	dimItalic         lipgloss.Style
+	user              lipgloss.Style
+	assistant         lipgloss.Style
+	errorText         lipgloss.Style
+	errorBold         lipgloss.Style
+	success           lipgloss.Style
+	successBold       lipgloss.Style
+	status            lipgloss.Style
+	statusBold        lipgloss.Style
+	selectedIndicator lipgloss.Style
+	modal             lipgloss.Style
+	modalTitle        lipgloss.Style
+	inputField        lipgloss.Style
+	inputFieldFocused lipgloss.Style
+	buttonSelected    lipgloss.Style
+	buttonUnselected  lipgloss.Style
+	approveSelected   lipgloss.Style
+	approveUnselected lipgloss.Style
+	rejectSelected    lipgloss.Style
+	rejectUnselected  lipgloss.Style
+	header            lipgloss.Style
+	bordered          lipgloss.Style
+	codeBlock         lipgloss.Style
+	diffAdd           lipgloss.Style
+	diffRemove        lipgloss.Style
+}
+
+func buildThemedStyles(theme domain.Theme) themedStyles {
+	accent := lipgloss.Color(theme.GetAccentColor())
+	dim := lipgloss.Color(theme.GetDimColor())
+	border := lipgloss.Color(theme.GetBorderColor())
+	errColor := lipgloss.Color(theme.GetErrorColor())
+	success := lipgloss.Color(theme.GetSuccessColor())
+	status := lipgloss.Color(theme.GetStatusColor())
+
+	const approvalButtonWidth = 16
+	approvalBase := lipgloss.NewStyle().
+		Width(approvalButtonWidth).
+		Align(lipgloss.Center).
+		Padding(0, 1).
+		Border(lipgloss.RoundedBorder())
+
+	return themedStyles{
+		accentBold: lipgloss.NewStyle().Foreground(accent).Bold(true),
+		dim:        lipgloss.NewStyle().Foreground(dim),
+		dimItalic:  lipgloss.NewStyle().Foreground(dim).Italic(true),
+		user:       lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetUserColor())),
+		assistant:  lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetAssistantColor())),
+		errorText:  lipgloss.NewStyle().Foreground(errColor),
+		errorBold:  lipgloss.NewStyle().Foreground(errColor).Bold(true),
+		success:    lipgloss.NewStyle().Foreground(success),
+		successBold: lipgloss.NewStyle().
+			Foreground(success).
+			Bold(true),
+		status:     lipgloss.NewStyle().Foreground(status),
+		statusBold: lipgloss.NewStyle().Foreground(status).Bold(true),
+		selectedIndicator: lipgloss.NewStyle().
+			Foreground(accent).
+			Reverse(true).
+			Bold(true).
+			Padding(0, 1),
+		modal: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(border).
+			Padding(1, 2),
+		modalTitle: lipgloss.NewStyle().
+			Foreground(accent).
+			Bold(true).
+			Padding(0, 1),
+		inputField: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(border).
+			Padding(0, 1),
+		inputFieldFocused: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(accent).
+			Padding(0, 1),
+		buttonSelected: lipgloss.NewStyle().
+			Foreground(accent).
+			Background(border).
+			Bold(true).
+			Padding(0, 2),
+		buttonUnselected: lipgloss.NewStyle().
+			Foreground(dim).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(border).
+			Padding(0, 2),
+		approveSelected: approvalBase.
+			BorderForeground(accent).
+			Background(accent).
+			Foreground(lipgloss.Color("#000000")).
+			Bold(true),
+		approveUnselected: approvalBase.
+			BorderForeground(accent).
+			Foreground(accent),
+		rejectSelected: approvalBase.
+			BorderForeground(errColor).
+			Background(errColor).
+			Foreground(lipgloss.Color("#ffffff")).
+			Bold(true),
+		rejectUnselected: approvalBase.
+			BorderForeground(errColor).
+			Foreground(errColor),
+		header: lipgloss.NewStyle().
+			Foreground(accent).
+			Bold(true).
+			Align(lipgloss.Center),
+		bordered: lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(border).
+			Padding(1, 2),
+		codeBlock: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.GetAssistantColor())).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(border).
+			Padding(1, 2),
+		diffAdd:    lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetDiffAddColor())),
+		diffRemove: lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetDiffRemoveColor())),
+	}
+}
+
 // Provider centralizes all styling logic and provides complete abstraction from Lipgloss.
 // Components should NEVER import lipgloss directly - they interact with styling through this provider.
 type Provider struct {
 	themeService domain.ThemeService
+	built        bool         // whether s has been built at all (a theme name can legitimately be "")
+	themeName    string       // theme the cache was built for
+	s            themedStyles // styles pre-baked for themeName
 }
 
 // NewProvider creates a new style provider
@@ -19,6 +160,21 @@ func NewProvider(themeService domain.ThemeService) *Provider {
 	return &Provider{
 		themeService: themeService,
 	}
+}
+
+// styles returns the pre-baked styles for the current theme, lazily rebuilding
+// them when the theme changed since the last call. There is no theme-change
+// notification in ThemeService, so a name check per access is the invalidation
+// mechanism; it is one string compare versus rebuilding every style chain per
+// render. Not goroutine-safe: each Provider instance is owned by a single
+// goroutine today (TUI loop or a tool's executor), matching existing usage.
+func (p *Provider) styles() *themedStyles {
+	if name := p.themeService.GetCurrentThemeName(); !p.built || name != p.themeName {
+		p.s = buildThemedStyles(p.themeService.GetCurrentTheme())
+		p.themeName = name
+		p.built = true
+	}
+	return &p.s
 }
 
 // GetCurrentTheme returns the active theme, exposing it for callers that need
@@ -32,64 +188,36 @@ func (p *Provider) GetCurrentTheme() domain.Theme {
 
 // RenderModal renders a modal with rounded border
 func (p *Provider) RenderModal(content string, width int) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.GetBorderColor())).
-		Padding(1, 2).
-		Width(width)
-	return style.Render(content)
+	return p.styles().modal.Width(width).Render(content)
 }
 
 // RenderModalTitle renders a modal title with emphasis
 func (p *Provider) RenderModalTitle(title string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAccentColor())).
-		Bold(true).
-		Padding(0, 1)
-	return style.Render(title)
+	return p.styles().modalTitle.Render(title)
 }
 
 // List/Selection styles
 
 // RenderListItem renders a list item (selected or unselected)
 func (p *Provider) RenderListItem(content string, selected bool) string {
-	theme := p.themeService.GetCurrentTheme()
-
 	if selected {
-		style := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.GetAccentColor())).
-			Bold(true)
-		return "▶ " + style.Render(content)
+		return "▶ " + p.styles().accentBold.Render(content)
 	}
-
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDimColor()))
-	return "  " + style.Render(content)
+	return "  " + p.styles().dim.Render(content)
 }
 
 // RenderListItemWithDescription renders a list item with a description
 func (p *Provider) RenderListItemWithDescription(title, description string, selected bool) string {
-	theme := p.themeService.GetCurrentTheme()
+	s := p.styles()
 
-	var titleStyle, descStyle lipgloss.Style
+	titleStyle := plainStyle
 	prefix := "  "
-
 	if selected {
-		titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.GetAccentColor())).
-			Bold(true)
-		descStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.GetDimColor()))
+		titleStyle = s.accentBold
 		prefix = "▶ "
-	} else {
-		titleStyle = lipgloss.NewStyle()
-		descStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.GetDimColor()))
 	}
 
-	return prefix + titleStyle.Render(title) + "\n   " + descStyle.Render(description)
+	return prefix + titleStyle.Render(title) + "\n   " + s.dim.Render(description)
 }
 
 // Input styles
@@ -100,18 +228,14 @@ func (p *Provider) RenderListItemWithDescription(title, description string, sele
 func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel string) string {
 	theme := p.themeService.GetCurrentTheme()
 
+	style := p.styles().inputField
 	borderColor := theme.GetBorderColor()
 	if focused {
+		style = p.styles().inputFieldFocused
 		borderColor = theme.GetAccentColor()
 	}
 
-	style := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(0, 1).
-		Width(width)
-
-	rendered := style.Render(content)
+	rendered := style.Width(width).Render(content)
 	if branchLabel == "" {
 		return rendered
 	}
@@ -191,126 +315,64 @@ func truncateBorderLabel(s string, maxWidth int, tail string) string {
 
 // RenderInputPlaceholder renders placeholder text
 func (p *Provider) RenderInputPlaceholder(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDimColor())).
-		Italic(true)
-	return style.Render(text)
+	return p.styles().dimItalic.Render(text)
 }
 
 // Button/Option styles
 
 // RenderButton renders a button or selectable option
 func (p *Provider) RenderButton(text string, selected bool) string {
-	theme := p.themeService.GetCurrentTheme()
-
 	if selected {
-		style := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.GetAccentColor())).
-			Background(lipgloss.Color(theme.GetBorderColor())).
-			Bold(true).
-			Padding(0, 2)
-		return style.Render(text)
+		return p.styles().buttonSelected.Render(text)
 	}
-
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDimColor())).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.GetBorderColor())).
-		Padding(0, 2)
-	return style.Render(text)
+	return p.styles().buttonUnselected.Render(text)
 }
 
 // RenderApprovalButton renders an approval-style button with custom colors and fixed width
 func (p *Provider) RenderApprovalButton(text string, selected bool, isApprove bool) string {
-	theme := p.themeService.GetCurrentTheme()
-
-	borderColor := theme.GetAccentColor()
-	if !isApprove {
-		borderColor = theme.GetErrorColor()
+	s := p.styles()
+	switch {
+	case selected && isApprove:
+		return s.approveSelected.Render(text)
+	case selected:
+		return s.rejectSelected.Render(text)
+	case isApprove:
+		return s.approveUnselected.Render(text)
+	default:
+		return s.rejectUnselected.Render(text)
 	}
-
-	buttonWidth := 16
-
-	if selected {
-		bgColor := borderColor
-		fgColor := "#000000"
-		if !isApprove {
-			fgColor = "#ffffff"
-		}
-
-		style := lipgloss.NewStyle().
-			Width(buttonWidth).
-			Align(lipgloss.Center).
-			Padding(0, 1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(borderColor)).
-			Background(lipgloss.Color(bgColor)).
-			Foreground(lipgloss.Color(fgColor)).
-			Bold(true)
-		return style.Render(text)
-	}
-
-	style := lipgloss.NewStyle().
-		Width(buttonWidth).
-		Align(lipgloss.Center).
-		Padding(0, 1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Foreground(lipgloss.Color(borderColor))
-	return style.Render(text)
 }
 
 // Text styles
 
 // RenderUserText renders text in the user color
 func (p *Provider) RenderUserText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetUserColor()))
-	return style.Render(text)
+	return p.styles().user.Render(text)
 }
 
 // RenderAssistantText renders text in the assistant color
 func (p *Provider) RenderAssistantText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAssistantColor()))
-	return style.Render(text)
+	return p.styles().assistant.Render(text)
 }
 
 // RenderErrorText renders text in the error color
 func (p *Provider) RenderErrorText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetErrorColor())).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().errorBold.Render(text)
 }
 
 // RenderSuccessText renders text in the success color
 func (p *Provider) RenderSuccessText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetSuccessColor())).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().successBold.Render(text)
 }
 
 // RenderWarningText renders text in the warning/status color
 func (p *Provider) RenderWarningText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetStatusColor()))
-	return style.Render(text)
+	return p.styles().status.Render(text)
 }
 
 // RenderDimText renders text in a dimmed style
 func (p *Provider) RenderDimText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDimColor()))
-	return style.Render(text)
+	return p.styles().dim.Render(text)
 }
 
 // RenderSelectedIndicator renders the status-bar indicator holding the
@@ -319,159 +381,91 @@ func (p *Provider) RenderDimText(text string) string {
 // theme (Theme exposes no background color). The one-column side padding adds
 // two columns of width - splitPartsIntoLines accounts for it.
 func (p *Provider) RenderSelectedIndicator(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAccentColor())).
-		Reverse(true).
-		Bold(true).
-		Padding(0, 1)
-	return style.Render(text)
+	return p.styles().selectedIndicator.Render(text)
 }
 
 // RenderPathText renders a file path with accent color and bold
 func (p *Provider) RenderPathText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAccentColor())).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().accentBold.Render(text)
 }
 
 // RenderMetricText renders metric/info text (e.g., byte counts, line counts)
 func (p *Provider) RenderMetricText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetStatusColor()))
-	return style.Render(text)
+	return p.styles().status.Render(text)
 }
 
 // RenderCreatedText renders "created" status text (success color, bold)
 func (p *Provider) RenderCreatedText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetSuccessColor())).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().successBold.Render(text)
 }
 
 // RenderUpdatedText renders "updated" status text (status/warning color, bold)
 func (p *Provider) RenderUpdatedText(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetStatusColor())).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().statusBold.Render(text)
 }
 
 // RenderSuccessIcon renders a success icon (checkmark, etc.)
 func (p *Provider) RenderSuccessIcon(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetSuccessColor()))
-	return style.Render(text)
+	return p.styles().success.Render(text)
 }
 
 // RenderErrorIcon renders an error icon (X mark, etc.)
 func (p *Provider) RenderErrorIcon(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetErrorColor()))
-	return style.Render(text)
+	return p.styles().errorText.Render(text)
 }
 
 // RenderBoldText renders bold text
 func (p *Provider) RenderBoldText(text string) string {
-	style := lipgloss.NewStyle().Bold(true)
-	return style.Render(text)
+	return boldStyle.Render(text)
 }
 
 // Layout/Structure styles
 
 // RenderSeparator renders a horizontal separator line
 func (p *Provider) RenderSeparator(width int, char string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDimColor()))
-	return style.Render(strings.Repeat(char, width))
+	return p.styles().dim.Render(strings.Repeat(char, width))
 }
 
 // RenderHeader renders a centered header
 func (p *Provider) RenderHeader(text string, width int) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAccentColor())).
-		Bold(true).
-		Width(width).
-		Align(lipgloss.Center)
-	return style.Render(text)
+	return p.styles().header.Width(width).Render(text)
 }
 
 // RenderBordered renders content with a border
 func (p *Provider) RenderBordered(content string, width int) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(theme.GetBorderColor())).
-		Padding(1, 2).
-		Width(width)
-	return style.Render(content)
+	return p.styles().bordered.Width(width).Render(content)
 }
 
 // Diff/Code styles
 
 // RenderDiffAddition renders a diff addition line
 func (p *Provider) RenderDiffAddition(content string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDiffAddColor()))
-	return style.Render("+ " + content)
+	return p.styles().diffAdd.Render("+ " + content)
 }
 
 // RenderDiffRemoval renders a diff removal line
 func (p *Provider) RenderDiffRemoval(content string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetDiffRemoveColor()))
-	return style.Render("- " + content)
+	return p.styles().diffRemove.Render("- " + content)
 }
 
 // RenderCodeBlock renders a code block with subtle background
 func (p *Provider) RenderCodeBlock(code string, width int) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetAssistantColor())).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.GetBorderColor())).
-		Padding(1, 2).
-		Width(width)
-	return style.Render(code)
+	return p.styles().codeBlock.Width(width).Render(code)
 }
 
 // Status/Badge styles
 
 // RenderStatusBadge renders a status badge (e.g., "ENABLED", "DISABLED")
 func (p *Provider) RenderStatusBadge(text string, positive bool) string {
-	theme := p.themeService.GetCurrentTheme()
-
-	var color string
 	if positive {
-		color = theme.GetSuccessColor()
-	} else {
-		color = theme.GetErrorColor()
+		return p.styles().successBold.Render(text)
 	}
-
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(color)).
-		Bold(true)
-	return style.Render(text)
+	return p.styles().errorBold.Render(text)
 }
 
 // RenderSpinner renders a spinner with status color
 func (p *Provider) RenderSpinner(frame string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.GetStatusColor()))
-	return style.Render(frame)
+	return p.styles().status.Render(frame)
 }
 
 // Utility methods
@@ -560,34 +554,30 @@ func (p *Provider) ClampToSize(s string, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return s
 	}
-	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(s)
+	return plainStyle.MaxWidth(width).MaxHeight(height).Render(s)
 }
 
 // Custom rendering - for complex styling needs
 
 // RenderWithColor renders text with a specific hex color
 func (p *Provider) RenderWithColor(text, hexColor string) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(hexColor))
-	return style.Render(text)
+	return plainStyle.Foreground(lipgloss.Color(hexColor)).Render(text)
 }
 
 // RenderWithColorAndBold renders text with color and bold
 func (p *Provider) RenderWithColorAndBold(text, hexColor string) string {
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(hexColor)).
-		Bold(true)
-	return style.Render(text)
+	return boldStyle.Foreground(lipgloss.Color(hexColor)).Render(text)
 }
 
 // RenderBold renders text with bold styling
 func (p *Provider) RenderBold(text string) string {
-	return lipgloss.NewStyle().Bold(true).Render(text)
+	return boldStyle.Render(text)
 }
 
 // RenderStyledText renders text with custom Lipgloss-compatible styling
 // This is an escape hatch for complex styling not covered by other methods
 func (p *Provider) RenderStyledText(text string, opts StyleOptions) string {
-	style := lipgloss.NewStyle()
+	style := plainStyle
 
 	if opts.Foreground != "" {
 		style = style.Foreground(lipgloss.Color(opts.Foreground))
@@ -638,70 +628,64 @@ type StyleOptions struct {
 // effect, so the cursor stays legible on every theme instead of relying on a
 // hardcoded grey-on-black pair.
 func (p *Provider) RenderCursor(text string) string {
-	return lipgloss.NewStyle().Reverse(true).Render(text)
+	return reverseStyle.Render(text)
 }
 
 // RenderBorderedBox renders text inside a rounded border with padding
 func (p *Provider) RenderBorderedBox(text, borderColor string, paddingV, paddingH int) string {
-	style := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder(), true).
+	return roundedBox.
 		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(paddingV, paddingH)
-	return style.Render(text)
+		Padding(paddingV, paddingH).
+		Render(text)
 }
 
 // RenderCenteredBoldWithColor renders text centered, bold, and with a specific color
 func (p *Provider) RenderCenteredBoldWithColor(text, hexColor string, width int) string {
-	style := lipgloss.NewStyle().
+	return boldStyle.
 		Width(width).
 		Align(lipgloss.Center).
 		Foreground(lipgloss.Color(hexColor)).
-		Bold(true).
-		Padding(0, 1)
-	return style.Render(text)
+		Padding(0, 1).
+		Render(text)
 }
 
 // RenderCenteredBorderedBox renders text in a centered bordered box with specified dimensions
 func (p *Provider) RenderCenteredBorderedBox(text, borderColor string, width, height, paddingV, paddingH int) string {
-	style := lipgloss.NewStyle().
+	return roundedBox.
 		Width(width).
 		Height(height).
 		Align(lipgloss.Center, lipgloss.Center).
-		Border(lipgloss.RoundedBorder(), true).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(paddingV, paddingH)
-	return style.Render(text)
+		Padding(paddingV, paddingH).
+		Render(text)
 }
 
 // RenderLeftAlignedBorderedBox renders text in a left-aligned bordered box with specified dimensions
 func (p *Provider) RenderLeftAlignedBorderedBox(text, borderColor string, width, height, paddingV, paddingH int) string {
-	style := lipgloss.NewStyle().
+	return roundedBox.
 		Width(width).
 		Height(height).
 		Align(lipgloss.Left, lipgloss.Center).
-		Border(lipgloss.RoundedBorder(), true).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(paddingV, paddingH)
-	return style.Render(text)
+		Padding(paddingV, paddingH).
+		Render(text)
 }
 
 // RenderTopAlignedBorderedBox renders text in a top-left aligned bordered box with specified dimensions
 func (p *Provider) RenderTopAlignedBorderedBox(text, borderColor string, width, height, paddingV, paddingH int) string {
-	style := lipgloss.NewStyle().
+	return roundedBox.
 		Width(width).
 		Height(height).
 		Align(lipgloss.Left, lipgloss.Top).
-		Border(lipgloss.RoundedBorder(), true).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(paddingV, paddingH)
-	return style.Render(text)
+		Padding(paddingV, paddingH).
+		Render(text)
 }
 
 // GetSpinnerStyle returns a lipgloss.Style for use with third-party components like Bubbles spinner
 // This is an exception to complete abstraction, needed for library compatibility
 func (p *Provider) GetSpinnerStyle() lipgloss.Style {
-	theme := p.themeService.GetCurrentTheme()
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetStatusColor()))
+	return p.styles().status
 }
 
 // GetThemeService returns the underlying theme service for advanced integrations

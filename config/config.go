@@ -950,7 +950,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Chat: ChatConfig{
-			Theme: "tokyo-night",
+			Theme: "",
 			Keybindings: KeybindingsConfig{
 				Enabled:  true,
 				Bindings: GetDefaultKeybindings(),
