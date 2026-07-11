@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/lipgloss/v2/tree"
+
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -283,6 +285,80 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 	}
 
 	return output.String()
+}
+
+// FormatExpanded renders the full expanded result as a single native lipgloss/tree,
+// replacing the hand-drawn ├─/└─ connectors that used to live across three methods.
+// dataContent is the tool-specific result body (may be ""). Output is plain: the UI
+// wraps and themes it (services.themeTreeLines); LLM / headless consume it as-is.
+func (f BaseFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
+}
+
+// FormatExpanded renders the expanded tree using the custom collapse behavior.
+func (f CustomFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
+}
+
+// argValue formats a single argument value for the expanded view, honoring the
+// formatter's collapse behavior (BaseFormatter truncates to 50; CustomFormatter uses "...").
+func (f BaseFormatter) argValue(key string, value any) string {
+	if f.ShouldCollapseArg(key) {
+		return f.collapseArgValue(value, 50)
+	}
+	return fmt.Sprintf("%v", value)
+}
+
+func (f CustomFormatter) argValue(key string, value any) string {
+	if f.ShouldCollapseArg(key) {
+		return "..."
+	}
+	return fmt.Sprintf("%v", value)
+}
+
+// renderExpandedTree builds the shared native tree from a result. It is the single
+// source of the ├──/╰── connectors, replacing the per-method hand drawing.
+func renderExpandedTree(toolCall string, result *ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
+	base := BaseFormatter{}
+	t := tree.Root(toolCall).Enumerator(tree.RoundedEnumerator)
+
+	t.Child("Duration: " + base.FormatDuration(result))
+	t.Child("Status: " + base.FormatStatus(result.Success))
+	if result.Error != "" {
+		t.Child("Error: " + result.Error)
+	}
+
+	if len(result.Arguments) > 0 {
+		keys := make([]string, 0, len(result.Arguments))
+		for key := range result.Arguments {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		args := tree.Root("Arguments:")
+		for _, key := range keys {
+			args.Child(fmt.Sprintf("%s: %s", key, argValue(key, result.Arguments[key])))
+		}
+		t.Child(args)
+	}
+
+	if dataContent != "" {
+		t.Child(tree.Root("Result:").Child(strings.TrimRight(dataContent, "\n")))
+	}
+
+	if len(result.Metadata) > 0 {
+		keys := make([]string, 0, len(result.Metadata))
+		for key := range result.Metadata {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		meta := tree.Root("Metadata:")
+		for _, key := range keys {
+			meta.Child(fmt.Sprintf("%s: %v", key, result.Metadata[key]))
+		}
+		t.Child(meta)
+	}
+
+	return t.String()
 }
 
 // GetFileName extracts filename from a path
