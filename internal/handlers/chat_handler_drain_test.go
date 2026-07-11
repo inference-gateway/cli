@@ -43,9 +43,6 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 			sm := services.NewStateManager(false)
 			_ = sm.TransitionToView(tt.view)
 			if tt.busy {
-				// A live tool execution makes IsAgentBusy() true without touching
-				// the chat session, so a subsequent SetChatPending() remains
-				// observable through GetChatSession().
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
 			}
 

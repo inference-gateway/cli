@@ -43,8 +43,6 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 	}
 
 	stateManager := services.NewStateManager(false)
-	// Seed the realistic starting view so the transitions exercised below are
-	// observable (a fresh state manager defaults to the model-selection view).
 	_ = stateManager.TransitionToView(domain.ViewStateChat)
 
 	app := &ChatApplication{
