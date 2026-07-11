@@ -21,7 +21,7 @@ import (
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
-	client           domain.SDKClient
+	client           sdk.Client
 	toolService      domain.ToolService
 	config           *config.Config
 	conversationRepo domain.ConversationRepository
@@ -331,7 +331,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgent(
-	client domain.SDKClient,
+	client sdk.Client,
 	toolService domain.ToolService,
 	cfg *config.Config,
 	conversationRepo domain.ConversationRepository,

@@ -13,6 +13,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	generated "github.com/inference-gateway/cli/tests/mocks/domain"
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
 func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
@@ -67,7 +68,7 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockStorage := &generated.FakeConversationStorage{}
-			mockClient := &generated.FakeSDKClient{}
+			mockClient := &sdkmocks.FakeClient{}
 
 			cfg := &config.Config{
 				Conversation: config.ConversationConfig{
@@ -81,7 +82,7 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 				},
 			}
 
-			generator := NewConversationTitleGeneratorWithSDKClient(mockClient, mockStorage, cfg)
+			generator := NewConversationTitleGenerator(mockClient, mockStorage, cfg)
 
 			conversationID := "test-conv-123"
 			metadata := storage.ConversationMetadata{

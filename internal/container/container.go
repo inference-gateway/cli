@@ -19,7 +19,6 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -338,7 +337,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
 	}
 
-	summaryClient := c.createAgentSDKClient()
+	summaryClient := c.createRawSDKClient()
 	c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
 		Enabled:           c.config.Compact.Enabled,
 		AutoAt:            c.config.Compact.AutoAt,
@@ -372,7 +371,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.githubIssueService = githubissues.New()
 
-	agentClient := c.createAgentSDKClient()
+	agentClient := c.createRawSDKClient()
 	agentImpl := agent.NewAgent(
 		agentClient,
 		c.toolService,
@@ -781,16 +780,6 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 		Timeout:     time.Duration(timeout) * time.Second,
 		RetryConfig: c.createRetryConfig(),
 	})
-}
-
-// createAgentSDKClient creates the SDK client for the agent
-func (c *ServiceContainer) createAgentSDKClient() domain.SDKClient {
-	if c.config == nil {
-		panic("ServiceContainer: config is nil when creating SDK client")
-	}
-
-	logger.Debug("using gateway mode (API-based)")
-	return adapters.NewSDKClientAdapter(c.createRawSDKClient())
 }
 
 // GetBackgroundJobManager returns the background job manager
