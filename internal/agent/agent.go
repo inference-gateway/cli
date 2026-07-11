@@ -922,6 +922,7 @@ func (s *AgentServiceImpl) executeTool(
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
+			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "failed", "rejected", nil)
 			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true

@@ -262,6 +262,17 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
+	s.ctx.PublishChatEvent(domain.ToolExecutionProgressEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: s.ctx.Request.RequestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: tc.ID,
+		ToolName:   tc.Function.Name,
+		Status:     "failed",
+		Message:    "rejected",
+	})
+
 	rejectionMessage := sdk.Message{
 		Role:       sdk.Tool,
 		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),

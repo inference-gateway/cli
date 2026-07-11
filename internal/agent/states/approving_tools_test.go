@@ -250,9 +250,14 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 
 // TestApprovingToolsState_RejectionEntryKeepsArguments verifies the rejected
 // tool entry carries the original call arguments so the UI renders
-// "Bash(command=...)" instead of a bare "Bash()" (issue #861).
+// "Bash(command=...)" instead of a bare "Bash()", and that a "failed" progress
+// event is published so the queued preview line is dropped (issue #861).
 func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
-	s := &ApprovingToolsState{}
+	var published []domain.ChatEvent
+	ctx, _, _, _ := newApprovingCtx(nil, domain.AgentModeStandard, nil, nil)
+	ctx.PublishChatEvent = func(e domain.ChatEvent) { published = append(published, e) }
+	s := &ApprovingToolsState{ctx: ctx}
+
 	tc := sdk.ChatCompletionMessageToolCall{
 		ID:       "call-0",
 		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf /tmp/x"}`},
@@ -262,6 +267,12 @@ func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
 
 	require.NotNil(t, entry.ToolExecution)
 	assert.Equal(t, map[string]any{"command": "rm -rf /tmp/x"}, entry.ToolExecution.Arguments)
+
+	require.Len(t, published, 1)
+	progress, ok := published[0].(domain.ToolExecutionProgressEvent)
+	require.True(t, ok, "rejection must publish a ToolExecutionProgressEvent")
+	assert.Equal(t, "call-0", progress.ToolCallID)
+	assert.Equal(t, "failed", progress.Status)
 
 	tc.Function.Arguments = "not-json"
 	entry = s.buildRejectionEntry(tc)
