@@ -42,4 +42,7 @@ func TestFormatExpandedNativeTree(t *testing.T) {
 	if strings.Contains(out, "╭") || strings.Contains(out, "╮") {
 		t.Errorf("LLM expanded output must not be card-framed:\n%s", out)
 	}
+	if strings.ContainsRune(out, 0x1b) {
+		t.Errorf("LLM expanded output must be ANSI-free (no color escapes):\n%q", out)
+	}
 }

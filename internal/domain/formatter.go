@@ -6,10 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	tree "charm.land/lipgloss/v2/tree"
-
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	tree "github.com/inference-gateway/cli/internal/ui/styles/tree"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed
@@ -190,10 +189,16 @@ func (f CustomFormatter) argValue(key string, value any) string {
 // source of the ├──/╰── connectors, replacing the per-method hand drawing.
 func renderExpandedTree(toolCall string, result *ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
 	base := BaseFormatter{}
-	t := tree.Root(toolCall).Enumerator(tree.RoundedEnumerator)
+	t := tree.Root(toolCall).Rounded()
 
+	// Plain status (glyph only, no ANSI): this tree feeds the LLM/headless path
+	// as-is, and the UI re-themes it via services.themeTreeLines.
+	status := icons.CheckMark + " Success"
+	if !result.Success {
+		status = icons.CrossMark + " Failed"
+	}
 	t.Child("Duration: " + base.FormatDuration(result))
-	t.Child("Status: " + base.FormatStatus(result.Success))
+	t.Child("Status: " + status)
 	if result.Error != "" {
 		t.Child("Error: " + result.Error)
 	}
