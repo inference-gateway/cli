@@ -32,6 +32,7 @@ type StatusView struct {
 	keyHintFormatter *hints.Formatter
 	toolName         string
 	stateManager     domain.StateManager
+	pausedAt         time.Time
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -52,8 +53,7 @@ type StatusState struct {
 }
 
 func NewStatusView(styleProvider *styles.Provider) *StatusView {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s := newModernSpinner()
 	s.Style = styleProvider.GetSpinnerStyle()
 	return &StatusView{
 		message:       "",
@@ -94,6 +94,7 @@ func (sv *StatusView) ShowSpinner(message string) {
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
+	sv.pausedAt = time.Time{}
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
@@ -104,6 +105,7 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.Stat
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
+	sv.pausedAt = time.Time{}
 	sv.statusType = statusType
 	sv.progress = progress
 }
@@ -122,6 +124,7 @@ func (sv *StatusView) ClearStatus() {
 	sv.isError = false
 	sv.isSpinner = false
 	sv.startTime = time.Time{}
+	sv.pausedAt = time.Time{}
 	sv.debugInfo = ""
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
@@ -195,9 +198,13 @@ func (sv *StatusView) Render() string {
 		return ""
 	}
 
+	sv.syncApprovalPause()
+
 	var prefix, color, displayMessage string
 	if sv.isError {
 		prefix, color, displayMessage = sv.formatErrorStatus()
+	} else if sv.isSpinner && !sv.pausedAt.IsZero() {
+		prefix, color, displayMessage = "", sv.styleProvider.GetThemeColor("status"), sv.formatStatusWithType(sv.baseMessage)
 	} else if sv.isSpinner {
 		prefix, color, displayMessage = sv.formatSpinnerStatus()
 	} else {
@@ -219,27 +226,12 @@ func (sv *StatusView) Render() string {
 		}
 	}
 
-	statusLine := fmt.Sprintf("%s %s", prefix, displayMessage)
-	styledStatusLine := sv.styleProvider.RenderWithColor(statusLine, color)
-	return styledStatusLine
-}
-
-// getStatusIcon returns the appropriate icon for the current status type
-func (sv *StatusView) getStatusIcon() string {
-	switch sv.statusType {
-	case domain.StatusThinking:
-		return ""
-	case domain.StatusGenerating:
-		return ""
-	case domain.StatusWorking:
-		return ""
-	case domain.StatusProcessing:
-		return ""
-	case domain.StatusPreparing:
-		return ""
-	default:
-		return ""
+	statusLine := displayMessage
+	if prefix != "" {
+		statusLine = fmt.Sprintf("%s %s", prefix, displayMessage)
 	}
+	styledStatusLine := sv.styleProvider.RenderWithColor(statusLine, color)
+	return " " + styledStatusLine
 }
 
 // formatStatusWithType enhances the status message with type-specific formatting and progress
@@ -275,12 +267,7 @@ func (sv *StatusView) formatErrorStatus() (string, string, string) {
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
-	var prefix string
-	if sv.statusType == domain.StatusThinking {
-		prefix = fmt.Sprintf("%s %s", sv.getStatusIcon(), sv.spinner.View())
-	} else {
-		prefix = sv.spinner.View()
-	}
+	prefix := sv.spinner.View()
 
 	elapsed := time.Since(sv.startTime)
 	seconds := elapsed.Seconds()
@@ -296,6 +283,44 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
+}
+
+// syncApprovalPause pauses the spinner and elapsed timer while an approval,
+// plan-approval, or user-question overlay is waiting on the user, and shifts
+// startTime forward on resume so the wait doesn't count as generation time.
+// Derived from state on each render, like reconnectingMessage, so it needs no
+// event ordering guarantees against the tool-progress spinner events.
+func (sv *StatusView) syncApprovalPause() {
+	syncApprovalPause(sv.stateManager, &sv.pausedAt, func(pause time.Duration) {
+		sv.startTime = sv.startTime.Add(pause)
+	})
+}
+
+// syncApprovalPause records when the UI becomes blocked on a user decision and,
+// on resume, calls shift with the paused duration so callers can push their
+// running timers forward.
+func syncApprovalPause(sm domain.StateManager, pausedAt *time.Time, shift func(time.Duration)) {
+	if awaitingUserDecision(sm) {
+		if pausedAt.IsZero() {
+			*pausedAt = time.Now()
+		}
+		return
+	}
+	if !pausedAt.IsZero() {
+		shift(time.Since(*pausedAt))
+		*pausedAt = time.Time{}
+	}
+}
+
+// awaitingUserDecision reports whether an approval, plan-approval, or
+// user-question overlay is blocked on the user.
+func awaitingUserDecision(sm domain.StateManager) bool {
+	if sm == nil {
+		return false
+	}
+	return sm.GetApprovalUIState() != nil ||
+		sm.GetPlanApprovalUIState() != nil ||
+		sm.GetUserQuestionUIState() != nil
 }
 
 // reconnectingMessage returns the reconnect notice when the HTTP client is
@@ -317,11 +342,10 @@ func (sv *StatusView) reconnectingMessage() string {
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {
-	prefix := sv.getStatusIcon()
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	displayMessage := sv.formatStatusWithType(sv.message)
 
-	return prefix, statusColor, displayMessage
+	return "", statusColor, displayMessage
 }
 
 // Bubble Tea interface

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	spinner "charm.land/bubbles/v2/spinner"
+	table "charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -21,7 +23,6 @@ import (
 type ConversationSelectorImpl struct {
 	conversations         []shortcuts.ConversationSummary
 	filteredConversations []shortcuts.ConversationSummary
-	selected              int
 	width                 int
 	height                int
 	styleProvider         *styles.Provider
@@ -36,6 +37,7 @@ type ConversationSelectorImpl struct {
 	deleteError           error
 	dataLoaded            bool
 	spinner               spinner.Model
+	table                 table.Model
 }
 
 // NewConversationSelector creates a new conversation selector
@@ -43,7 +45,6 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 	c := &ConversationSelectorImpl{
 		conversations:         make([]shortcuts.ConversationSummary, 0),
 		filteredConversations: make([]shortcuts.ConversationSummary, 0),
-		selected:              0,
 		width:                 80,
 		height:                24,
 		styleProvider:         styleProvider,
@@ -54,11 +55,78 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 		loadError:             nil,
 	}
 
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	c.spinner = s
+	c.spinner = newModernSpinner()
+	c.table = table.New(
+		table.WithColumns([]table.Column{
+			{Title: "ID", Width: 38},
+			{Title: "Summary", Width: 25},
+			{Title: "Messages", Width: 10},
+			{Title: "Requests", Width: 8},
+			{Title: "Input Tokens", Width: 12},
+			{Title: "Output Tokens", Width: 13},
+			{Title: "Cost", Width: 10},
+		}),
+		table.WithFocused(true),
+		table.WithHeight(c.tableHeight()),
+		table.WithWidth(c.width),
+		table.WithStyles(c.tableStyles()),
+	)
 
 	return c
+}
+
+func (c *ConversationSelectorImpl) tableStyles() table.Styles {
+	s := table.DefaultStyles()
+	if c.styleProvider != nil {
+		s.Header = s.Header.Foreground(lipgloss.Color(c.styleProvider.GetThemeColor("dim")))
+		s.Selected = s.Selected.Foreground(lipgloss.Color(c.styleProvider.GetThemeColor("accent"))).Bold(true)
+	}
+	return s
+}
+
+func (c *ConversationSelectorImpl) tableHeight() int {
+	h := c.height - 15
+	if h < 3 {
+		h = 3
+	}
+	return h
+}
+
+// syncTable refreshes the table rows from the filtered conversations, keeping
+// the cursor in range.
+func (c *ConversationSelectorImpl) syncTable() {
+	rows := make([]table.Row, 0, len(c.filteredConversations))
+	for _, conv := range c.filteredConversations {
+		rows = append(rows, conversationRow(conv))
+	}
+	c.table.SetRows(rows)
+	if c.table.Cursor() >= len(rows) {
+		c.table.SetCursor(max(len(rows)-1, 0))
+	}
+}
+
+// conversationRow renders one conversation as table cells, keeping the
+// cost-tier precision of the previous hand-built table.
+func conversationRow(conv shortcuts.ConversationSummary) table.Row {
+	costStr := "-"
+	switch cost := conv.CostStats.TotalCost; {
+	case cost > 0 && cost < 0.01:
+		costStr = fmt.Sprintf("$%.4f", cost)
+	case cost > 0 && cost < 1.0:
+		costStr = fmt.Sprintf("$%.3f", cost)
+	case cost > 0:
+		costStr = fmt.Sprintf("$%.2f", cost)
+	}
+
+	return table.Row{
+		conv.ID,
+		formatting.TruncateText(conv.Title, 25),
+		fmt.Sprintf("%d", conv.MessageCount),
+		fmt.Sprintf("%d", conv.TokenStats.RequestCount),
+		fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens),
+		fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens),
+		costStr,
+	}
 }
 
 func (c *ConversationSelectorImpl) Init() tea.Cmd {
@@ -125,10 +193,8 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 		c.conversations = conversations
 		c.filteredConversations = make([]shortcuts.ConversationSummary, len(conversations))
 		copy(c.filteredConversations, conversations)
-
-		if len(c.filteredConversations) > 0 {
-			c.selected = 0
-		}
+		c.syncTable()
+		c.table.GotoTop()
 	} else {
 		logger.Error("conversationSelector failed to load conversations", "error", msg.Error)
 	}
@@ -139,6 +205,8 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	c.width = msg.Width
 	c.height = msg.Height
+	c.table.SetWidth(c.width)
+	c.table.SetHeight(c.tableHeight())
 	return c, nil
 }
 
@@ -153,10 +221,6 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Mode
 			return c.handleSearchClear()
 		}
 		return c.handleCancel()
-	case "up":
-		return c.handleNavigationUp()
-	case "down":
-		return c.handleNavigationDown()
 	case "enter", " ":
 		return c.handleSelection()
 	case "d", "delete":
@@ -172,7 +236,12 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Mode
 	case "backspace":
 		return c.handleBackspace()
 	default:
-		return c.handleCharacterInput(msg)
+		if c.searchMode {
+			return c.handleCharacterInput(msg)
+		}
+		var cmd tea.Cmd
+		c.table, cmd = c.table.Update(msg)
+		return c, cmd
 	}
 }
 
@@ -182,22 +251,8 @@ func (c *ConversationSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleNavigationUp() (tea.Model, tea.Cmd) {
-	if c.selected > 0 {
-		c.selected--
-	}
-	return c, nil
-}
-
-func (c *ConversationSelectorImpl) handleNavigationDown() (tea.Model, tea.Cmd) {
-	if c.selected < len(c.filteredConversations)-1 {
-		c.selected++
-	}
-	return c, nil
-}
-
 func (c *ConversationSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
-	if len(c.filteredConversations) > 0 && c.selected >= 0 && c.selected < len(c.filteredConversations) {
+	if len(c.filteredConversations) > 0 && c.table.Cursor() < len(c.filteredConversations) {
 		c.done = true
 	}
 	return c, nil
@@ -233,7 +288,8 @@ func (c *ConversationSelectorImpl) handleCharacterInput(msg tea.KeyPressMsg) (te
 
 func (c *ConversationSelectorImpl) updateSearch() {
 	c.filterConversations()
-	c.selected = 0
+	c.syncTable()
+	c.table.GotoTop()
 }
 
 func (c *ConversationSelectorImpl) View() tea.View {
@@ -293,7 +349,7 @@ func (c *ConversationSelectorImpl) filterConversations() {
 }
 
 func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
-	if len(c.filteredConversations) == 0 || c.selected >= len(c.filteredConversations) {
+	if len(c.filteredConversations) == 0 || c.table.Cursor() >= len(c.filteredConversations) {
 		return c, nil
 	}
 
@@ -316,12 +372,13 @@ func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyPressMsg)
 }
 
 func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
-	if c.selected >= len(c.filteredConversations) {
+	cursor := c.table.Cursor()
+	if cursor >= len(c.filteredConversations) {
 		c.confirmDelete = false
 		return c, nil
 	}
 
-	conv := c.filteredConversations[c.selected]
+	conv := c.filteredConversations[cursor]
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -340,11 +397,8 @@ func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
 		}
 	}
 
-	c.filteredConversations = append(c.filteredConversations[:c.selected], c.filteredConversations[c.selected+1:]...)
-
-	if c.selected >= len(c.filteredConversations) && c.selected > 0 {
-		c.selected--
-	}
+	c.filteredConversations = append(c.filteredConversations[:cursor], c.filteredConversations[cursor+1:]...)
+	c.syncTable()
 
 	c.confirmDelete = false
 	c.deleteError = nil
@@ -363,8 +417,8 @@ func (c *ConversationSelectorImpl) IsCancelled() bool {
 
 // GetSelected returns the selected conversation
 func (c *ConversationSelectorImpl) GetSelected() shortcuts.ConversationSummary {
-	if c.IsSelected() && len(c.filteredConversations) > 0 && c.selected < len(c.filteredConversations) {
-		return c.filteredConversations[c.selected]
+	if c.IsSelected() && c.table.Cursor() < len(c.filteredConversations) {
+		return c.filteredConversations[c.table.Cursor()]
 	}
 	return shortcuts.ConversationSummary{}
 }
@@ -372,18 +426,19 @@ func (c *ConversationSelectorImpl) GetSelected() shortcuts.ConversationSummary {
 // SetWidth sets the width of the conversation selector
 func (c *ConversationSelectorImpl) SetWidth(width int) {
 	c.width = width
+	c.table.SetWidth(width)
 }
 
 // SetHeight sets the height of the conversation selector
 func (c *ConversationSelectorImpl) SetHeight(height int) {
 	c.height = height
+	c.table.SetHeight(c.tableHeight())
 }
 
 // Reset resets the conversation selector state for reuse
 func (c *ConversationSelectorImpl) Reset() {
 	c.done = false
 	c.cancelled = false
-	c.selected = 0
 	c.searchQuery = ""
 	c.searchMode = false
 	c.loading = true
@@ -391,6 +446,8 @@ func (c *ConversationSelectorImpl) Reset() {
 	c.conversations = make([]shortcuts.ConversationSummary, 0)
 	c.filteredConversations = make([]shortcuts.ConversationSummary, 0)
 	c.dataLoaded = false
+	c.syncTable()
+	c.table.GotoTop()
 }
 
 // NeedsInitialization returns true if the component needs to load data
@@ -441,93 +498,9 @@ func (c *ConversationSelectorImpl) writeEmptyView(b *strings.Builder) string {
 	return b.String()
 }
 
-// writeConversationList writes the main conversation list
+// writeConversationList writes the main conversation table
 func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
-	c.writeTableHeader(b)
-
-	pagination := c.calculatePagination()
-
-	for i := pagination.start; i < pagination.start+pagination.maxVisible && i < len(c.filteredConversations); i++ {
-		conv := c.filteredConversations[i]
-		c.writeConversationRow(b, conv, i)
-	}
-
-	if len(c.filteredConversations) > pagination.maxVisible {
-		paginationText := fmt.Sprintf("Showing %d-%d of %d conversations",
-			pagination.start+1, pagination.start+pagination.maxVisible, len(c.filteredConversations))
-		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(paginationText))
-	}
-}
-
-// writeTableHeader writes the table header
-func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
-	headerLine := fmt.Sprintf("%-38s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s",
-		"ID", "Summary", "Messages", "Requests", "Input Tokens", "Output Tokens", "Cost")
-	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(headerLine))
-
-	separator := strings.Repeat("─", c.width-4)
-	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(separator))
-}
-
-// paginationInfo holds pagination calculation results
-type paginationInfo struct {
-	start      int
-	maxVisible int
-}
-
-// calculatePagination calculates pagination parameters
-func (c *ConversationSelectorImpl) calculatePagination() paginationInfo {
-	maxVisible := c.height - 15
-	if maxVisible > len(c.filteredConversations) {
-		maxVisible = len(c.filteredConversations)
-	}
-	if maxVisible < 1 {
-		maxVisible = 1
-	}
-
-	start := 0
-	if c.selected >= maxVisible {
-		start = c.selected - maxVisible + 1
-	}
-	if start < 0 {
-		start = 0
-	}
-	if start > len(c.filteredConversations)-maxVisible && len(c.filteredConversations) > maxVisible {
-		start = len(c.filteredConversations) - maxVisible
-	}
-
-	return paginationInfo{start: start, maxVisible: maxVisible}
-}
-
-// writeConversationRow writes a single conversation row
-func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv shortcuts.ConversationSummary, index int) {
-	fullID := conv.ID
-	summary := formatting.TruncateText(conv.Title, 25)
-	msgCount := fmt.Sprintf("%d", conv.MessageCount)
-	requestCount := fmt.Sprintf("%d", conv.TokenStats.RequestCount)
-	inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
-	outputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens)
-
-	costStr := "-"
-	if conv.CostStats.TotalCost > 0 {
-		if conv.CostStats.TotalCost < 0.01 {
-			costStr = fmt.Sprintf("$%.4f", conv.CostStats.TotalCost)
-		} else if conv.CostStats.TotalCost < 1.0 {
-			costStr = fmt.Sprintf("$%.3f", conv.CostStats.TotalCost)
-		} else {
-			costStr = fmt.Sprintf("$%.2f", conv.CostStats.TotalCost)
-		}
-	}
-
-	if index == c.selected {
-		accentColor := c.styleProvider.GetThemeColor("accent")
-		rowText := fmt.Sprintf("▶ %-36s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s",
-			fullID, summary, msgCount, requestCount, inputTokens, outputTokens, costStr)
-		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(rowText, accentColor))
-	} else {
-		fmt.Fprintf(b, "  %-36s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s\n",
-			fullID, summary, msgCount, requestCount, inputTokens, outputTokens, costStr)
-	}
+	fmt.Fprintf(b, "%s\n", c.table.View())
 }
 
 // writeFooter writes the footer section
@@ -547,11 +520,11 @@ func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
 
 // writeDeleteConfirmation writes the delete confirmation dialog
 func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) string {
-	if c.selected >= len(c.filteredConversations) {
+	if c.table.Cursor() >= len(c.filteredConversations) {
 		return b.String()
 	}
 
-	conv := c.filteredConversations[c.selected]
+	conv := c.filteredConversations[c.table.Cursor()]
 
 	c.writeSearchInfo(b)
 	c.writeConversationList(b)

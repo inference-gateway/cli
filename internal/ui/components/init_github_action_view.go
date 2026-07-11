@@ -84,7 +84,7 @@ func (v *InitGithubActionView) buildConfirmForm() *huh.Form {
 				Negative("No, create a new one").
 				Value(&v.hasExisting),
 		),
-	).WithShowHelp(true).WithWidth(v.width)
+	).WithShowHelp(true).WithWidth(v.width).WithTheme(huhTheme(v.styleProvider))
 }
 
 // Sentinel values for the private-key select's fallback entries.
@@ -147,7 +147,7 @@ func (v *InitGithubActionView) buildDetailsForm() *huh.Form {
 		huh.NewGroup(keyPicker).WithHideFunc(func() bool {
 			return secretsExist() || v.keyChoice != keyChoiceBrowse
 		}),
-	).WithShowHelp(true).WithWidth(v.width)
+	).WithShowHelp(true).WithWidth(v.width).WithTheme(huhTheme(v.styleProvider))
 }
 
 // resolvePrivateKeyPath maps the completed details form onto privateKeyPath,

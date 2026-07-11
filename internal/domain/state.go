@@ -398,7 +398,6 @@ type FileSelectionState struct {
 
 // ApprovalUIState represents the state of approval UI
 type ApprovalUIState struct {
-	SelectedIndex   int                                `json:"selected_index"`
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
 	ResponseChan    chan ApprovalAction                `json:"-"`
 }
@@ -412,33 +411,13 @@ type PlanApprovalUIState struct {
 }
 
 // UserQuestionUIState drives the interactive AskUserQuestion form. The agent
-// loop is blocked in the tool goroutine while this holds the UI's working copy
-// of the in-progress answers. The slices are sized len(Questions): Selected is
-// the set of chosen option indices per question, OtherText/OtherActive back the
-// synthesized free-text "Other" row per question. ResponseChan delivers the
-// final answers slice back to the blocked tool.
+// loop is blocked in the tool goroutine while the form is up; the
+// answer-in-progress state lives in the QuestionFormView's huh form.
+// ResponseChan delivers the final answers slice back to the blocked tool;
+// closing it without a send signals cancellation.
 type UserQuestionUIState struct {
 	Questions    []UserQuestion            `json:"questions"`
-	CurrentIndex int                       `json:"current_index"`
-	OptionCursor int                       `json:"option_cursor"`
-	Selected     []map[int]bool            `json:"selected"`
-	OtherText    []string                  `json:"other_text"`
-	OtherActive  []bool                    `json:"other_active"`
 	ResponseChan chan []UserQuestionAnswer `json:"-"`
-}
-
-// OtherRowIndex returns the option-cursor index of the synthesized "Other" row
-// for the current question (it sits just past the last real option).
-func (q *UserQuestionUIState) OtherRowIndex() int {
-	if q.CurrentIndex < 0 || q.CurrentIndex >= len(q.Questions) {
-		return 0
-	}
-	return len(q.Questions[q.CurrentIndex].Options)
-}
-
-// OnOtherRow reports whether the option cursor is on the "Other" free-text row.
-func (q *UserQuestionUIState) OnOtherRow() bool {
-	return q.OptionCursor == q.OtherRowIndex()
 }
 
 // MessageEditState represents the state when editing a message
@@ -658,18 +637,21 @@ func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool
 		ChatStatusStarting: {
 			ChatStatusThinking,
 			ChatStatusGenerating,
+			ChatStatusWaitingTools,
 			ChatStatusError,
 			ChatStatusCancelled,
 		},
 		ChatStatusThinking: {
 			ChatStatusGenerating,
 			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
 			ChatStatusCompleted,
 			ChatStatusError,
 			ChatStatusCancelled,
 		},
 		ChatStatusGenerating: {
 			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
 			ChatStatusCompleted,
 			ChatStatusError,
 			ChatStatusCancelled,
@@ -920,7 +902,6 @@ func (s *ApplicationState) ClearFileSelectionState() {
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
 	s.approvalUIState = &ApprovalUIState{
-		SelectedIndex:   int(ApprovalApprove),
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}
@@ -929,13 +910,6 @@ func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMess
 // GetApprovalUIState returns the current approval UI state
 func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
 	return s.approvalUIState
-}
-
-// SetApprovalSelectedIndex sets the approval selection index
-func (s *ApplicationState) SetApprovalSelectedIndex(index int) {
-	if s.approvalUIState != nil {
-		s.approvalUIState.SelectedIndex = index
-	}
 }
 
 // ClearApprovalUIState clears the approval UI state
@@ -981,196 +955,17 @@ func (s *ApplicationState) ClearPlanApprovalUIState() {
 // User Question State Management
 
 // SetupUserQuestionUIState initializes the AskUserQuestion form state for the
-// given questions, pre-sizing the per-question working slices.
+// given questions.
 func (s *ApplicationState) SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer) {
-	n := len(questions)
-	selected := make([]map[int]bool, n)
-	for i := range selected {
-		selected[i] = make(map[int]bool)
-	}
 	s.userQuestionUIState = &UserQuestionUIState{
 		Questions:    questions,
-		CurrentIndex: 0,
-		OptionCursor: 0,
-		Selected:     selected,
-		OtherText:    make([]string, n),
-		OtherActive:  make([]bool, n),
 		ResponseChan: responseChan,
 	}
-	s.userQuestionUIState.applyCurrentQuestionDefault()
-}
-
-// defaultUserQuestionOption returns the option index to pre-select for a
-// single-select question: the first option whose label is marked "(Recommended)"
-// (case-insensitive), otherwise the first option.
-func defaultUserQuestionOption(q UserQuestion) int {
-	for i, opt := range q.Options {
-		if strings.Contains(strings.ToLower(opt.Label), "(recommended)") {
-			return i
-		}
-	}
-	return 0
-}
-
-// applyCurrentQuestionDefault pre-selects the default option for the current
-// question when it is single-select, so the radio always shows a choice and the
-// cursor starts on it. Multi-select questions start with nothing selected.
-func (q *UserQuestionUIState) applyCurrentQuestionDefault() {
-	if q.CurrentIndex >= len(q.Questions) {
-		return
-	}
-	question := q.Questions[q.CurrentIndex]
-	if question.MultiSelect || len(question.Options) == 0 {
-		return
-	}
-	idx := defaultUserQuestionOption(question)
-	q.OptionCursor = idx
-	sel := q.Selected[q.CurrentIndex]
-	for k := range sel {
-		delete(sel, k)
-	}
-	sel[idx] = true
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state, or nil.
 func (s *ApplicationState) GetUserQuestionUIState() *UserQuestionUIState {
 	return s.userQuestionUIState
-}
-
-// SetUserQuestionOptionCursor sets the highlighted option row for the current
-// question, clamped to [0, OtherRowIndex].
-func (s *ApplicationState) SetUserQuestionOptionCursor(idx int) {
-	q := s.userQuestionUIState
-	if q == nil {
-		return
-	}
-	maxIdx := q.OtherRowIndex()
-	if idx < 0 {
-		idx = 0
-	}
-	if idx > maxIdx {
-		idx = maxIdx
-	}
-	q.OptionCursor = idx
-
-	if q.CurrentIndex < len(q.Questions) && !q.Questions[q.CurrentIndex].MultiSelect {
-		sel := q.Selected[q.CurrentIndex]
-		for k := range sel {
-			delete(sel, k)
-		}
-		if idx < len(q.Questions[q.CurrentIndex].Options) {
-			sel[idx] = true
-			q.OtherActive[q.CurrentIndex] = false
-		}
-	}
-}
-
-// ToggleUserQuestionOption toggles the option at optIdx for the current
-// question. For single-select questions, selecting an option clears any other
-// selection first. Selecting any real option clears the "Other" free-text.
-func (s *ApplicationState) ToggleUserQuestionOption(optIdx int) {
-	q := s.userQuestionUIState
-	if q == nil || q.CurrentIndex >= len(q.Questions) {
-		return
-	}
-	sel := q.Selected[q.CurrentIndex]
-	if q.Questions[q.CurrentIndex].MultiSelect {
-		if sel[optIdx] {
-			delete(sel, optIdx)
-		} else {
-			sel[optIdx] = true
-		}
-		return
-	}
-	// Single-select: replace the selection.
-	wasSelected := sel[optIdx]
-	for k := range sel {
-		delete(sel, k)
-	}
-	if !wasSelected {
-		sel[optIdx] = true
-	}
-	q.OtherActive[q.CurrentIndex] = false
-}
-
-// AdvanceUserQuestion moves to the next question (resetting the option cursor)
-// and reports whether all questions have now been answered.
-func (s *ApplicationState) AdvanceUserQuestion() bool {
-	q := s.userQuestionUIState
-	if q == nil {
-		return true
-	}
-	q.CurrentIndex++
-	q.OptionCursor = 0
-	if q.CurrentIndex >= len(q.Questions) {
-		return true
-	}
-	q.applyCurrentQuestionDefault()
-	return false
-}
-
-// SetUserQuestionOtherActive toggles free-text entry on the "Other" row of the
-// current question. Activating it (single-select) clears the option selection.
-func (s *ApplicationState) SetUserQuestionOtherActive(active bool) {
-	q := s.userQuestionUIState
-	if q == nil || q.CurrentIndex >= len(q.Questions) {
-		return
-	}
-	q.OtherActive[q.CurrentIndex] = active
-	if active && !q.Questions[q.CurrentIndex].MultiSelect {
-		for k := range q.Selected[q.CurrentIndex] {
-			delete(q.Selected[q.CurrentIndex], k)
-		}
-	}
-}
-
-// AppendUserQuestionOtherText appends typed text to the current question's
-// "Other" buffer.
-func (s *ApplicationState) AppendUserQuestionOtherText(text string) {
-	q := s.userQuestionUIState
-	if q == nil || q.CurrentIndex >= len(q.Questions) {
-		return
-	}
-	q.OtherText[q.CurrentIndex] += text
-}
-
-// BackspaceUserQuestionOtherText removes the last rune from the current
-// question's "Other" buffer.
-func (s *ApplicationState) BackspaceUserQuestionOtherText() {
-	q := s.userQuestionUIState
-	if q == nil || q.CurrentIndex >= len(q.Questions) {
-		return
-	}
-	buf := q.OtherText[q.CurrentIndex]
-	if buf == "" {
-		return
-	}
-	r := []rune(buf)
-	q.OtherText[q.CurrentIndex] = string(r[:len(r)-1])
-}
-
-// BuildUserQuestionAnswers materializes the answers from the working state.
-func (s *ApplicationState) BuildUserQuestionAnswers() []UserQuestionAnswer {
-	q := s.userQuestionUIState
-	if q == nil {
-		return nil
-	}
-	answers := make([]UserQuestionAnswer, 0, len(q.Questions))
-	for i, question := range q.Questions {
-		labels := make([]string, 0, len(question.Options))
-		for optIdx := range question.Options {
-			if q.Selected[i][optIdx] {
-				labels = append(labels, question.Options[optIdx].Label)
-			}
-		}
-		answers = append(answers, UserQuestionAnswer{
-			Header:         question.Header,
-			Question:       question.Question,
-			SelectedLabels: labels,
-			OtherText:      strings.TrimSpace(q.OtherText[i]),
-		})
-	}
-	return answers
 }
 
 // ClearUserQuestionUIState clears the AskUserQuestion form state and closes the

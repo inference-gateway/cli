@@ -81,8 +81,7 @@ func NewTaskManager(
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
+	sp := newModernSpinner()
 
 	return &TaskManagerImpl{
 		activeTasks:           make([]TaskInfo, 0),

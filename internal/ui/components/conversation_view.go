@@ -129,10 +129,9 @@ type ConversationView struct {
 	// Keyed by remote task ID. Entries are inserted on
 	// A2ATaskSubmittedEvent, updated on status/complete/fail events, and
 	// removed by BackgroundTaskRemovalTickMsg ~5s after a terminal state.
-	backgroundTasks    map[string]*BackgroundTaskDisplay
-	subagentTasks      map[string]*subagentDisplay
-	backgroundSpinStep int
-	backgroundSpinner  spinner.Model
+	backgroundTasks   map[string]*BackgroundTaskDisplay
+	subagentTasks     map[string]*subagentDisplay
+	backgroundSpinner spinner.Model
 	// agentNameResolver maps an agent URL to its configured friendly name
 	// from ~/.infer/agents.yaml. Optional; falls back to the URL when nil
 	// or when the URL has no matching entry.
@@ -154,10 +153,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		mdRenderer = markdown.NewRenderer(themeService, 80)
 	}
 
-	bgSpin := spinner.New()
-	bgSpinStyle := spinner.Dot
-	bgSpinStyle.FPS = 100 * time.Millisecond
-	bgSpin.Spinner = bgSpinStyle
+	bgSpin := newModernSpinner()
 
 	return &ConversationView{
 		conversation:           []domain.ConversationEntry{},
@@ -1164,8 +1160,6 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.ApprovalSelectionChangedEvent:
-		return cv.handleApprovalSelectionChanged(msg, cmd)
 	case domain.PlanApprovalSelectionChangedEvent:
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
 	case domain.UpdateHistoryEvent:
@@ -1230,14 +1224,6 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
-}
-
-// handleApprovalSelectionChanged processes approval selection change events
-func (cv *ConversationView) handleApprovalSelectionChanged(_ domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if cv.navigationMode != NavigationModeMessageHistory {
-		cv.updateViewportContent()
-	}
-	return cv, cmd
 }
 
 // handlePlanApprovalSelectionChanged refreshes the conversation viewport so
@@ -1313,7 +1299,6 @@ func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) 
 	var bgCmd tea.Cmd
 	cv.backgroundSpinner, bgCmd = cv.backgroundSpinner.Update(msg)
 	if bgCmd != nil && cv.hasActiveBackgroundTasks() {
-		cv.backgroundSpinStep++
 		cmd = tea.Batch(cmd, bgCmd)
 	}
 
@@ -1649,7 +1634,7 @@ func (cv *ConversationView) renderSubagentTree() string {
 		case "failed":
 			icon, iconColor, bodyColor = icons.CrossMark, "error", "error"
 		default:
-			icon, iconColor, bodyColor = icons.GetSpinnerFrame(cv.backgroundSpinStep), "accent", "accent"
+			icon, iconColor, bodyColor = cv.backgroundSpinner.View(), "accent", "accent"
 		}
 
 		statusText := d.Status
@@ -1948,7 +1933,7 @@ func (cv *ConversationView) renderBackgroundTaskLine(display *BackgroundTaskDisp
 		stateColor = "dim"
 		body = cv.formatTerminalHeader(name, "cancelled", display)
 	default:
-		icon = icons.GetSpinnerFrame(cv.backgroundSpinStep)
+		icon = cv.backgroundSpinner.View()
 		iconColor = "accent"
 		stateColor = "accent"
 		body = cv.formatNonTerminalBody(name, state, display, width)

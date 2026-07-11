@@ -26,7 +26,8 @@ type ToolCallRenderer struct {
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
-	spinnerStep      int
+	stateManager     domain.StateManager
+	pausedAt         time.Time
 }
 
 // KeyHintFormatter provides formatted key hints for actions
@@ -55,13 +56,8 @@ type ToolInfo struct {
 }
 
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
-	s := spinner.New()
-	customDot := spinner.Dot
-	customDot.FPS = 100 * time.Millisecond
-	s.Spinner = customDot
-
 	return &ToolCallRenderer{
-		spinner:       s,
+		spinner:       newModernSpinner(),
 		tools:         make(map[string]*ToolRenderState),
 		styleProvider: styleProvider,
 		width:         80,
@@ -125,7 +121,7 @@ func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent
 		IsComplete: msg.IsComplete,
 	}
 
-	if len(r.tools) == 1 && r.hasActiveTools() {
+	if len(r.tools) == 1 {
 		return r, r.spinner.Tick
 	}
 	return r, nil
@@ -198,15 +194,7 @@ func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEven
 func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
 	var cmd tea.Cmd
 	r.spinner, cmd = r.spinner.Update(msg)
-
-	now := time.Now()
-	r.spinnerStep = (r.spinnerStep + 1) % 4
-	r.lastTimerRender = now
-
-	if r.hasActiveTools() {
-		return r, cmd
-	}
-
+	r.lastTimerRender = time.Now()
 	return r, cmd
 }
 
@@ -219,7 +207,29 @@ func (r *ToolCallRenderer) SetKeyHintFormatter(formatter KeyHintFormatter) {
 	r.keyHintFormatter = formatter
 }
 
+// SetStateManager wires the state manager so running-tool timers can pause
+// while an approval or question overlay is blocked on the user.
+func (r *ToolCallRenderer) SetStateManager(stateManager domain.StateManager) {
+	r.stateManager = stateManager
+}
+
+// syncApprovalPause freezes running-tool timers while the user is deciding on
+// an approval or question, and shifts the affected StartTimes forward on
+// resume so the wait doesn't count as execution time. Same derive-from-state
+// pattern as StatusView.syncApprovalPause.
+func (r *ToolCallRenderer) syncApprovalPause() {
+	syncApprovalPause(r.stateManager, &r.pausedAt, func(pause time.Duration) {
+		for _, tool := range r.tools {
+			if tool.EndTime == nil {
+				tool.StartTime = tool.StartTime.Add(pause)
+			}
+		}
+	})
+}
+
 func (r *ToolCallRenderer) RenderPreviews() string {
+	r.syncApprovalPause()
+
 	var allPreviews []string
 	var remainingTools []string
 
@@ -273,11 +283,15 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		iconColor = "dim"
 		statusColor = "dim"
 	case "running", "starting", "saving", "executing", "streaming":
-		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
-		if tool.EndTime == nil {
+		statusIcon = r.spinner.View()
+		switch {
+		case !r.pausedAt.IsZero():
+			statusIcon = icons.QueuedIcon
+			statusText = "waiting for your input"
+		case tool.EndTime == nil:
 			elapsed := time.Since(tool.StartTime)
 			statusText = fmt.Sprintf("running %s", r.formatDuration(elapsed))
-		} else {
+		default:
 			statusText = "executing"
 		}
 		iconColor = "accent"
@@ -349,7 +363,7 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 		statusIcon = icons.QueuedIcon
 		statusText = "queued"
 	case "executing", "running", "starting", "saving":
-		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
+		statusIcon = r.spinner.View()
 		statusText = status
 	case "executed", "completed":
 		statusIcon = icons.CheckMark
@@ -400,21 +414,6 @@ func (r *ToolCallRenderer) ClearPreviews() {
 func (r *ToolCallRenderer) HasActivePreviews() bool {
 	for _, tool := range r.tools {
 		if !tool.IsComplete {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *ToolCallRenderer) hasActiveTools() bool {
-	for _, tool := range r.tools {
-		isRunning := tool.Status == "running" ||
-			tool.Status == "starting" ||
-			tool.Status == "saving" ||
-			tool.Status == "executing" ||
-			tool.Status == "streaming"
-
-		if isRunning {
 			return true
 		}
 	}

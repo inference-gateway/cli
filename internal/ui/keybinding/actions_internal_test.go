@@ -106,7 +106,7 @@ func TestHandlePasteEventFlashesAndInserts(t *testing.T) {
 	ctx := newFlashCtx(false, "")
 	input := ctx.input.(*uimocks.FakeInputComponent)
 
-	cmd := handlePasteEvent(ctx, "hello world")
+	cmd := HandlePasteEvent(ctx, "hello world")
 	if cmd == nil {
 		t.Fatal("expected a command for a non-empty paste")
 	}
@@ -137,7 +137,7 @@ func TestHandlePasteEventEmptyIsNoop(t *testing.T) {
 	ctx := newFlashCtx(false, "")
 	input := ctx.input.(*uimocks.FakeInputComponent)
 
-	if cmd := handlePasteEvent(ctx, "[]"); cmd != nil {
+	if cmd := HandlePasteEvent(ctx, "[]"); cmd != nil {
 		t.Error("expected a nil command for an empty paste")
 	}
 	if input.SetTextCallCount() != 0 {

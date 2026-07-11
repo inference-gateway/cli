@@ -550,14 +550,6 @@ func (sm *StateManager) GetApprovalUIState() *domain.ApprovalUIState {
 	return sm.state.GetApprovalUIState()
 }
 
-// SetApprovalSelectedIndex sets the approval selection index
-func (sm *StateManager) SetApprovalSelectedIndex(index int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetApprovalSelectedIndex(index)
-}
-
 // ClearApprovalUIState clears the approval UI state
 func (sm *StateManager) ClearApprovalUIState() {
 	sm.mutex.Lock()
@@ -621,62 +613,6 @@ func (sm *StateManager) GetUserQuestionUIState() *domain.UserQuestionUIState {
 	defer sm.mutex.RUnlock()
 
 	return sm.state.GetUserQuestionUIState()
-}
-
-// SetUserQuestionOptionCursor sets the highlighted option row
-func (sm *StateManager) SetUserQuestionOptionCursor(idx int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetUserQuestionOptionCursor(idx)
-}
-
-// ToggleUserQuestionOption toggles the option at optIdx for the current question
-func (sm *StateManager) ToggleUserQuestionOption(optIdx int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.ToggleUserQuestionOption(optIdx)
-}
-
-// AdvanceUserQuestion moves to the next question and reports whether done
-func (sm *StateManager) AdvanceUserQuestion() bool {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	return sm.state.AdvanceUserQuestion()
-}
-
-// SetUserQuestionOtherActive toggles free-text entry on the "Other" row
-func (sm *StateManager) SetUserQuestionOtherActive(active bool) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetUserQuestionOtherActive(active)
-}
-
-// AppendUserQuestionOtherText appends typed text to the current "Other" buffer
-func (sm *StateManager) AppendUserQuestionOtherText(text string) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.AppendUserQuestionOtherText(text)
-}
-
-// BackspaceUserQuestionOtherText removes the last rune from the "Other" buffer
-func (sm *StateManager) BackspaceUserQuestionOtherText() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.BackspaceUserQuestionOtherText()
-}
-
-// BuildUserQuestionAnswers materializes the answers from the working state
-func (sm *StateManager) BuildUserQuestionAnswers() []domain.UserQuestionAnswer {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
-	return sm.state.BuildUserQuestionAnswers()
 }
 
 // ClearUserQuestionUIState clears the AskUserQuestion form state

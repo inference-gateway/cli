@@ -30,7 +30,6 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	factory "github.com/inference-gateway/cli/internal/ui/components/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -129,6 +128,7 @@ type ChatApplication struct {
 
 	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
+	lastView       domain.ViewState
 
 	// Available models
 	availableModels []string
@@ -213,6 +213,7 @@ func NewChatApplication(
 	styleProvider := styles.NewProvider(app.themeService)
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
+	app.toolCallRenderer.SetStateManager(app.stateManager)
 	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry, styleProvider)
 
@@ -443,6 +444,10 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	viewBefore := app.stateManager.GetCurrentView()
 
+	if viewBefore == domain.ViewStateModelSelection && app.lastView != domain.ViewStateModelSelection {
+		app.modelSelector.Reset()
+	}
+
 	var cmds []tea.Cmd
 
 	if cmd := app.handleAppEvents(msg); cmd != nil {
@@ -454,6 +459,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
+
+	cmds = append(cmds, app.forwardToOverlayForms(msg)...)
 
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 
@@ -471,6 +478,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, func() tea.Msg { return domain.DrainQueueEvent{} })
 	}
 
+	app.lastView = viewBefore
+
 	return app, tea.Batch(cmds...)
 }
 
@@ -481,6 +490,31 @@ func logSlowUpdate(start time.Time, msg tea.Msg) {
 	if d := time.Since(start); d > constants.SlowUpdateThreshold {
 		logger.Warn("slow update", "event", fmt.Sprintf("%T", msg), "ms", d.Milliseconds())
 	}
+}
+
+// forwardToOverlayForms starts the AskUserQuestion / tool-approval huh forms
+// when their events arrive and routes non-key messages to them while they are
+// up - huh's internal group/field navigation rides on those messages, so
+// without this the forms stall. Key presses reach them via
+// handleChatViewKeyPress instead.
+func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
+	switch msg.(type) {
+	case domain.UserQuestionRequestedEvent:
+		return []tea.Cmd{app.questionFormView.Begin()}
+	case domain.ToolApprovalRequestedEvent:
+		return []tea.Cmd{app.approvalBoxView.Begin()}
+	case tea.KeyPressMsg:
+		return nil
+	}
+
+	var cmds []tea.Cmd
+	if app.stateManager.GetUserQuestionUIState() != nil {
+		cmds = append(cmds, app.questionFormView.Forward(msg))
+	}
+	if app.stateManager.GetApprovalUIState() != nil {
+		cmds = append(cmds, app.approvalBoxView.Forward(msg))
+	}
+	return cmds
 }
 
 // isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
@@ -680,14 +714,13 @@ func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if model, cmd := app.modelSelector.Update(msg); cmd != nil {
+	model, cmd := app.modelSelector.Update(msg)
+	app.modelSelector = model.(*components.ModelSelectorImpl)
+	if cmd != nil {
 		cmds = append(cmds, cmd)
-		app.modelSelector = model.(*components.ModelSelectorImpl)
-
-		return app.handleModelSelection(cmds)
 	}
 
-	return cmds
+	return app.handleModelSelection(cmds)
 }
 
 func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {
@@ -747,6 +780,13 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if pasteMsg, ok := msg.(tea.PasteMsg); ok {
+		if cmd := keybinding.HandlePasteEvent(app, pasteMsg.Content); cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return cmds
@@ -759,10 +799,21 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	var cmds []tea.Cmd
 
 	// While an AskUserQuestion form is up it captures all keys (like the
-	// tool-approval box). It floats over the chat, so the view stays Chat.
-	// ctrl+c falls through so the user can still cancel the whole turn.
 	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {
-		return app.handleUserQuestionKeys(keyMsg)
+		if cmd := app.questionFormView.Forward(keyMsg); cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+	}
+
+	if app.stateManager.GetApprovalUIState() != nil {
+		switch keyMsg.Code {
+		case tea.KeyLeft, tea.KeyRight, tea.KeyEnter:
+			if cmd := app.approvalBoxView.Forward(keyMsg); cmd != nil {
+				return []tea.Cmd{cmd}
+			}
+			return nil
+		}
 	}
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok && cv.IsInMessageHistoryMode() {
@@ -938,127 +989,6 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 	default:
 		return nil
 	}
-}
-
-// handleUserQuestionKeys drives the AskUserQuestion floating form. It mutates
-// the form state in place; Bubble Tea re-renders after each key, so no command
-// is needed. On the final question's confirm it sends the answers on the
-// response channel (unblocking the tool); esc cancels (closing the channel
-// without a value, which the tool reads as "dismissed").
-func (app *ChatApplication) handleUserQuestionKeys(keyMsg tea.KeyPressMsg) []tea.Cmd {
-	sm := app.stateManager
-	q := sm.GetUserQuestionUIState()
-	if q == nil {
-		return nil
-	}
-
-	// Free-text entry on the "Other" row consumes most keys as input.
-	if q.OtherActive[q.CurrentIndex] {
-		app.handleUserQuestionOtherKey(keyMsg)
-		return nil
-	}
-
-	gk := guardKeys
-	switch {
-	case key.Matches(keyMsg, gk.navUp):
-		app.moveUserQuestionCursor(-1)
-	case key.Matches(keyMsg, gk.navDown):
-		app.moveUserQuestionCursor(1)
-	case key.Matches(keyMsg, gk.questionToggle):
-		app.toggleUserQuestionAtCursor()
-	case key.Matches(keyMsg, gk.confirm):
-		app.confirmUserQuestion()
-	case key.Matches(keyMsg, gk.cancel):
-		sm.ClearUserQuestionUIState()
-	}
-	return nil
-}
-
-// handleUserQuestionOtherKey edits the free-text "Other" buffer for the current
-// question. Enter confirms (and advances/submits); esc leaves text entry.
-func (app *ChatApplication) handleUserQuestionOtherKey(keyMsg tea.KeyPressMsg) {
-	sm := app.stateManager
-	gk := guardKeys
-	switch {
-	case key.Matches(keyMsg, gk.confirm):
-		app.confirmUserQuestion()
-	case key.Matches(keyMsg, gk.cancel):
-		sm.SetUserQuestionOtherActive(false)
-	case key.Matches(keyMsg, gk.questionBackspace):
-		sm.BackspaceUserQuestionOtherText()
-	default:
-		if text := keys.PrintableText(keyMsg); text != "" {
-			sm.AppendUserQuestionOtherText(text)
-		}
-	}
-}
-
-// moveUserQuestionCursor moves the option highlight with wrap-around over the
-// real options plus the trailing "Other" row.
-func (app *ChatApplication) moveUserQuestionCursor(delta int) {
-	q := app.stateManager.GetUserQuestionUIState()
-	if q == nil {
-		return
-	}
-	rows := q.OtherRowIndex() + 1
-	app.stateManager.SetUserQuestionOptionCursor(((q.OptionCursor+delta)%rows + rows) % rows)
-}
-
-// toggleUserQuestionAtCursor toggles the highlighted option, or starts free-text
-// entry when the cursor is on the "Other" row.
-func (app *ChatApplication) toggleUserQuestionAtCursor() {
-	q := app.stateManager.GetUserQuestionUIState()
-	if q == nil {
-		return
-	}
-	if q.OnOtherRow() {
-		app.stateManager.SetUserQuestionOtherActive(true)
-		return
-	}
-
-	if q.Questions[q.CurrentIndex].MultiSelect {
-		app.stateManager.ToggleUserQuestionOption(q.OptionCursor)
-	}
-}
-
-// confirmUserQuestion advances to the next question or, on the last one, submits
-// all answers (the current single-select choice already follows the cursor).
-func (app *ChatApplication) confirmUserQuestion() {
-	sm := app.stateManager
-	q := sm.GetUserQuestionUIState()
-	if q == nil {
-		return
-	}
-
-	// Enter on the "Other" row starts free-text entry rather than advancing.
-	if q.OnOtherRow() && !q.OtherActive[q.CurrentIndex] {
-		sm.SetUserQuestionOtherActive(true)
-		return
-	}
-
-	if !userQuestionAnswered(q) {
-		return
-	}
-
-	if !sm.AdvanceUserQuestion() {
-		return // more questions remain; the next one renders
-	}
-
-	answers := sm.BuildUserQuestionAnswers()
-	if q.ResponseChan != nil {
-		q.ResponseChan <- answers
-	}
-	sm.ClearUserQuestionUIState()
-}
-
-// userQuestionAnswered reports whether the current question has a selection or
-// non-empty Other text.
-func userQuestionAnswered(q *domain.UserQuestionUIState) bool {
-	i := q.CurrentIndex
-	if i < 0 || i >= len(q.Questions) {
-		return false
-	}
-	return len(q.Selected[i]) > 0 || strings.TrimSpace(q.OtherText[i]) != ""
 }
 
 func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {

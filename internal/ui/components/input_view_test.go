@@ -754,7 +754,7 @@ func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
 
 func TestInputView_BuildGitBranchLabel_WithPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "fix/issue-785", "792")
-	require.Equal(t, "⎇ fix/issue-785 #792", iv.buildGitBranchLabel())
+	require.Equal(t, "⎇ fix/issue-785  #792", iv.buildGitBranchLabel())
 }
 
 func TestInputView_BuildGitBranchLabel_WithPR_DisabledByConfig(t *testing.T) {

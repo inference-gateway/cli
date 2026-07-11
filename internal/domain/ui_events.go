@@ -285,12 +285,6 @@ type TriggerGithubActionSetupEvent struct{}
 // lists every slash command and keybinding in two tables.
 type TriggerHelpViewEvent struct{}
 
-// ApprovalSelectionChangedEvent signals that the approval selection index has changed
-// and the UI needs to refresh to show the new selection
-type ApprovalSelectionChangedEvent struct {
-	NewIndex int
-}
-
 // PlanApprovalSelectionChangedEvent signals that the plan-approval button
 // selection has moved and the conversation viewport needs to re-render so
 // the highlighted button reflects the new index.

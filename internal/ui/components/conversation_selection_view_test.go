@@ -25,7 +25,7 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 
 	selector.done = true
 	selector.cancelled = true
-	selector.selected = 5
+	selector.table.SetCursor(5)
 	selector.searchQuery = "test query"
 	selector.searchMode = true
 	selector.loading = true
@@ -43,8 +43,8 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 	if selector.cancelled {
 		t.Error("Expected cancelled to be false after reset")
 	}
-	if selector.selected != 0 {
-		t.Errorf("Expected selected to be 0 after reset, got %d", selector.selected)
+	if selector.table.Cursor() > 0 {
+		t.Errorf("Expected cursor at the top after reset, got %d", selector.table.Cursor())
 	}
 	if selector.searchQuery != "" {
 		t.Errorf("Expected searchQuery to be empty after reset, got %q", selector.searchQuery)
