@@ -16,22 +16,19 @@ func createTestStateManager() *StateManager {
 
 func TestNewStateManager(t *testing.T) {
 	tests := []struct {
-		name          string
-		debugMode     bool
-		expectDebug   bool
-		expectHistory int
+		name        string
+		debugMode   bool
+		expectDebug bool
 	}{
 		{
-			name:          "Creates state manager with debug mode disabled",
-			debugMode:     false,
-			expectDebug:   false,
-			expectHistory: 100,
+			name:        "Creates state manager with debug mode disabled",
+			debugMode:   false,
+			expectDebug: false,
 		},
 		{
-			name:          "Creates state manager with debug mode enabled",
-			debugMode:     true,
-			expectDebug:   true,
-			expectHistory: 100,
+			name:        "Creates state manager with debug mode enabled",
+			debugMode:   true,
+			expectDebug: true,
 		},
 	}
 
@@ -42,7 +39,6 @@ func TestNewStateManager(t *testing.T) {
 			assert.NotNil(t, sm)
 			assert.NotNil(t, sm.state)
 			assert.Equal(t, tt.expectDebug, sm.debugMode)
-			assert.Equal(t, tt.expectHistory, sm.maxHistorySize)
 		})
 	}
 }
@@ -298,43 +294,6 @@ func TestStateManager_StallDetection(t *testing.T) {
 	assert.NoError(t, sm.UpdateChatStatus(domain.ChatStatusStarting))
 	time.Sleep(20 * time.Millisecond)
 	assert.Nil(t, sm.GetRetryStatus(), "zero threshold disables stall detection")
-}
-
-func TestStateManager_StateHistory(t *testing.T) {
-	sm := createTestStateManager()
-
-	initialHistory := sm.GetStateHistory()
-	assert.Empty(t, initialHistory)
-
-	sm.SetDimensions(100, 50)
-	sm.SetDimensions(200, 100)
-
-	history := sm.GetStateHistory()
-	assert.Len(t, history, 2)
-}
-
-func TestStateManager_ExportStateHistory(t *testing.T) {
-	sm := createTestStateManager()
-
-	sm.SetDimensions(100, 50)
-
-	exported, err := sm.ExportStateHistory()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, exported)
-	assert.Contains(t, string(exported), "width")
-}
-
-func TestStateManager_ValidateState(t *testing.T) {
-	sm := createTestStateManager()
-
-	errors := sm.ValidateState()
-	assert.Empty(t, errors)
-
-	eventChan := make(chan domain.ChatEvent)
-	_ = sm.StartChatSession("req-123", "test-model", eventChan)
-
-	errors = sm.ValidateState()
-	assert.Empty(t, errors)
 }
 
 func TestStateManager_ConcurrentAccess(t *testing.T) {
