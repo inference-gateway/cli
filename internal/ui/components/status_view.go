@@ -223,7 +223,7 @@ func (sv *StatusView) Render() string {
 		statusLine = fmt.Sprintf("%s %s", prefix, displayMessage)
 	}
 	styledStatusLine := sv.styleProvider.RenderWithColor(statusLine, color)
-	return styledStatusLine
+	return " " + styledStatusLine
 }
 
 // formatStatusWithType enhances the status message with type-specific formatting and progress

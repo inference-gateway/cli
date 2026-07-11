@@ -119,7 +119,7 @@ func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent
 		IsComplete: msg.IsComplete,
 	}
 
-	if len(r.tools) == 1 && r.hasActiveTools() {
+	if len(r.tools) == 1 {
 		return r, r.spinner.Tick
 	}
 	return r, nil
@@ -386,21 +386,6 @@ func (r *ToolCallRenderer) ClearPreviews() {
 func (r *ToolCallRenderer) HasActivePreviews() bool {
 	for _, tool := range r.tools {
 		if !tool.IsComplete {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *ToolCallRenderer) hasActiveTools() bool {
-	for _, tool := range r.tools {
-		isRunning := tool.Status == "running" ||
-			tool.Status == "starting" ||
-			tool.Status == "saving" ||
-			tool.Status == "executing" ||
-			tool.Status == "streaming"
-
-		if isRunning {
 			return true
 		}
 	}

@@ -694,13 +694,13 @@ func (isb *InputStatusBar) buildCostIndicator() string {
 		return ""
 	}
 
-	// Format: 💰 $0.0234
+	// Format: $0.0234
 	if costStats.TotalCost < 0.01 {
-		return fmt.Sprintf("💰 $%.4f", costStats.TotalCost)
+		return fmt.Sprintf("$%.4f", costStats.TotalCost)
 	} else if costStats.TotalCost < 1.0 {
-		return fmt.Sprintf("💰 $%.3f", costStats.TotalCost)
+		return fmt.Sprintf("$%.3f", costStats.TotalCost)
 	} else {
-		return fmt.Sprintf("💰 $%.2f", costStats.TotalCost)
+		return fmt.Sprintf("$%.2f", costStats.TotalCost)
 	}
 }
 
