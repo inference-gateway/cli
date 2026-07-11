@@ -117,6 +117,66 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 	assert.Equal(t, "model-b", ms.SelectModelArgsForCall(0))
 }
 
+// typeString feeds a string into the selector one printable key at a time.
+func typeString(m *ModelSelectorImpl, s string) {
+	for _, r := range s {
+		model, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		*m = *model.(*ModelSelectorImpl)
+	}
+}
+
+// TestModelSelector_SearchFiltersByNameOnly verifies the / search narrows the
+// option set by model name, ignoring the metadata suffix ("free" etc.), and
+// that esc clears the query and restores the full list.
+func TestModelSelector_SearchFiltersByNameOnly(t *testing.T) {
+	m := newFilterTestSelector([]string{"paid-model", "free-model", "subscription-model"})
+
+	typeString(m, "/")
+	assert.True(t, m.searchMode)
+
+	// "free" appears in paid-model's suffix via pricing labels but must only
+	// match the model whose NAME contains it.
+	typeString(m, "free")
+	assert.Equal(t, []string{"free-model"}, m.visibleModels())
+
+	// No name matches "per MTok" even though every paid suffix contains it.
+	typeString(m, "x")
+	assert.Empty(t, m.visibleModels())
+
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	assert.False(t, m.searchMode)
+	assert.Equal(t, "", m.search.Value())
+	assert.Len(t, m.visibleModels(), 3)
+}
+
+// TestModelSelector_SearchEnterSelectsFilteredMatch drives search + Enter and
+// asserts the emitted event carries the filtered match, not an index into the
+// unfiltered list.
+func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
+	ms := &domainmocks.FakeModelService{}
+	pricing := &domainmocks.FakePricingService{}
+	m := NewModelSelector([]string{"alpha", "beta", "gamma"}, ms, pricing, nil, createMockStyleProvider())
+
+	typeString(m, "/gam")
+
+	var selected string
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for cmd != nil {
+		out := cmd()
+		if out == nil {
+			break
+		}
+		if ev, ok := out.(domain.ModelSelectedEvent); ok {
+			selected = ev.Model
+			break
+		}
+		_, cmd = m.Update(out)
+	}
+
+	assert.Equal(t, "gamma", selected)
+	assert.Equal(t, "gamma", m.GetSelected())
+}
+
 // TestModelSelector_FormatModelSuffixSubscription checks the per-row marker: a
 // subscription model shows "subscription" and suppresses the misleading "free"
 // token, while a genuinely free model still shows "free".

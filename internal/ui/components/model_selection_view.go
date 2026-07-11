@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	textinput "charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 
@@ -29,7 +30,9 @@ const modelSelectChromeLines = 8
 
 // ModelSelectorImpl implements model selection UI as a huh select with the
 // pricing tabs (keys 1-4) layered on top: switching a tab rebuilds the form
-// with that tab's option set. Search is huh's built-in `/` filter.
+// with that tab's option set. Search is a dedicated textinput (entered with
+// `/`) filtering on the model name; huh's built-in filter is disabled since
+// it renders the query into the select's title line instead of a real input.
 type ModelSelectorImpl struct {
 	models         []string
 	width          int
@@ -42,9 +45,11 @@ type ModelSelectorImpl struct {
 	config         *config.Config
 	currentView    ModelViewMode
 
-	form   *huh.Form
-	sel    *huh.Select[string]
-	choice string
+	form       *huh.Form
+	sel        *huh.Select[string]
+	choice     string
+	search     textinput.Model
+	searchMode bool
 }
 
 // NewModelSelector creates a new model selector
@@ -59,6 +64,8 @@ func NewModelSelector(models []string, modelService domain.ModelService, pricing
 		config:         cfg,
 		currentView:    ModelViewAll,
 	}
+	m.search = textinput.New()
+	m.search.Prompt = "Search: "
 	m.buildForm()
 	return m
 }
@@ -67,9 +74,9 @@ func NewModelSelector(models []string, modelService domain.ModelService, pricing
 // form's Init cmd is discarded on purpose: the selector is routed every
 // message while its view is active, so only cursor-blink cosmetics are lost.
 func (m *ModelSelectorImpl) buildForm() {
-	tabModels := m.tabModels()
-	options := make([]huh.Option[string], 0, len(tabModels))
-	for _, model := range tabModels {
+	visible := m.visibleModels()
+	options := make([]huh.Option[string], 0, len(visible))
+	for _, model := range visible {
 		label := model
 		if suffix := m.formatModelSuffix(model); suffix != "" {
 			label = model + " " + suffix
@@ -78,30 +85,44 @@ func (m *ModelSelectorImpl) buildForm() {
 	}
 
 	m.choice = ""
-	// The title line is also where huh renders the / filter input - without
-	// one the filter is invisible while typing.
 	m.sel = huh.NewSelect[string]().
-		Title(fmt.Sprintf("Press / to filter • %d models available", len(tabModels))).
+		Title(fmt.Sprintf("%d models available", len(visible))).
 		Options(options...).
-		Height(m.selectHeight(len(tabModels))).
+		Height(m.selectHeight(len(visible))).
 		Value(&m.choice)
+
+	// huh's own / filter renders the query into the title line instead of a
+	// real input, so it stays disabled in favour of the search textinput.
+	keymap := huh.NewDefaultKeyMap()
+	keymap.Select.Filter.SetEnabled(false)
 
 	m.form = huh.NewForm(huh.NewGroup(m.sel)).
 		WithShowHelp(false).
 		WithWidth(m.width).
+		WithKeyMap(keymap).
 		WithTheme(huhTheme(m.styleProvider))
 	_ = m.form.Init()
 }
 
+// visibleModels is the current tab's models narrowed by the search query,
+// matching on the model name only (not the metadata suffix).
+func (m *ModelSelectorImpl) visibleModels() []string {
+	tabModels := m.tabModels()
+	query := strings.ToLower(strings.TrimSpace(m.search.Value()))
+	if query == "" {
+		return tabModels
+	}
+	filtered := make([]string, 0, len(tabModels))
+	for _, model := range tabModels {
+		if strings.Contains(strings.ToLower(model), query) {
+			filtered = append(filtered, model)
+		}
+	}
+	return filtered
+}
+
 func (m *ModelSelectorImpl) selectHeight(optionCount int) int {
-	h := m.height - modelSelectChromeLines
-	if h > optionCount {
-		h = optionCount
-	}
-	if h < 3 {
-		h = 3
-	}
-	return h
+	return max(min(m.height-modelSelectChromeLines, optionCount), 3)
 }
 
 func (m *ModelSelectorImpl) Init() tea.Cmd {
@@ -121,16 +142,46 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.done = true
 			return m, tea.Quit
 		}
-		if !m.sel.GetFiltering() {
-			switch msg.String() {
-			case "1", "2", "3", "4":
-				m.handleViewSwitch(msg.String())
-				return m, nil
-			}
+		if m.searchMode {
+			return m, m.handleSearchKey(msg)
+		}
+		switch msg.String() {
+		case "1", "2", "3", "4":
+			m.handleViewSwitch(msg.String())
+			return m, nil
+		case "/":
+			m.searchMode = true
+			return m, m.search.Focus()
 		}
 	}
 
 	return m, m.forwardToForm(msg)
+}
+
+// handleSearchKey routes keys while the search input is active: navigation
+// and selection still reach the list, esc clears the search, and everything
+// else edits the query (rebuilding the option set on change).
+func (m *ModelSelectorImpl) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch msg.String() {
+	case "esc":
+		m.searchMode = false
+		m.search.Blur()
+		if m.search.Value() != "" {
+			m.search.SetValue("")
+			m.buildForm()
+		}
+		return nil
+	case "enter", "up", "down":
+		return m.forwardToForm(msg)
+	}
+
+	before := m.search.Value()
+	var cmd tea.Cmd
+	m.search, cmd = m.search.Update(msg)
+	if m.search.Value() != before {
+		m.buildForm()
+	}
+	return cmd
 }
 
 // forwardToForm delegates to the huh form and emits the selection event when
@@ -184,9 +235,18 @@ func (m *ModelSelectorImpl) viewContent() string {
 
 	m.writeViewTabs(&b)
 
-	if len(m.tabModels()) == 0 {
+	if m.searchMode || m.search.Value() != "" {
+		b.WriteString(m.search.View())
+		b.WriteString("\n\n")
+	}
+
+	if len(m.visibleModels()) == 0 {
 		errorColor := m.styleProvider.GetThemeColor("error")
-		b.WriteString(m.styleProvider.RenderWithColor("No models available", errorColor))
+		if query := m.search.Value(); query != "" {
+			b.WriteString(m.styleProvider.RenderWithColor(fmt.Sprintf("No models match %q", query), errorColor))
+		} else {
+			b.WriteString(m.styleProvider.RenderWithColor("No models available", errorColor))
+		}
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -196,7 +256,7 @@ func (m *ModelSelectorImpl) viewContent() string {
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", max(m.width, 1)))
 	b.WriteString("\n")
-	b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to filter, 1-4 to switch tabs, Ctrl+C to cancel"))
+	b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, esc to clear, 1-4 to switch tabs, Ctrl+C to cancel"))
 
 	return b.String()
 }
@@ -299,6 +359,9 @@ func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
 func (m *ModelSelectorImpl) Reset() {
 	m.done = false
 	m.cancelled = false
+	m.searchMode = false
+	m.search.Blur()
+	m.search.SetValue("")
 	m.buildForm()
 }
 
