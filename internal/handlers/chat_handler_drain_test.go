@@ -7,6 +7,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
@@ -39,9 +40,11 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := &mocks.FakeStateManager{}
-			sm.GetCurrentViewReturns(tt.view)
-			sm.IsAgentBusyReturns(tt.busy)
+			sm := services.NewStateManager(false)
+			_ = sm.TransitionToView(tt.view)
+			if tt.busy {
+				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
+			}
 
 			queue := &mocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
@@ -69,12 +72,10 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 				t.Fatalf("drainRetryArmed = %v, want %v", h.drainRetryArmed, tt.wantArmed)
 			}
 
-			wantPending := 0
-			if tt.wantStart {
-				wantPending = 1
-			}
-			if got := sm.SetChatPendingCallCount(); got != wantPending {
-				t.Fatalf("SetChatPending called %d times, want %d (must guard the double-start window)", got, wantPending)
+			// SetChatPending() creates a "pending" chat session; it must be called
+			// exactly when a turn starts, to guard the double-start window.
+			if got := sm.GetChatSession() != nil; got != tt.wantStart {
+				t.Fatalf("SetChatPending observable (pending chat session present) = %v, want %v", got, tt.wantStart)
 			}
 		})
 	}
@@ -100,9 +101,11 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := &mocks.FakeStateManager{}
-			sm.GetCurrentViewReturns(domain.ViewStateChat)
-			sm.IsAgentBusyReturns(tt.busy)
+			sm := services.NewStateManager(false)
+			_ = sm.TransitionToView(domain.ViewStateChat)
+			if tt.busy {
+				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
+			}
 
 			queue := &mocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)

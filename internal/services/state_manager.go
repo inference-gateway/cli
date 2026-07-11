@@ -22,9 +22,6 @@ type StateManager struct {
 	debugMode bool
 }
 
-// Compile-time assertion that StateManager implements domain.StateManager interface
-var _ domain.StateManager = (*StateManager)(nil)
-
 // NewStateManager creates a new state manager
 func NewStateManager(debugMode bool) *StateManager {
 	return &StateManager{

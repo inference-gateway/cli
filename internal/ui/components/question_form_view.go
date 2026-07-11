@@ -35,7 +35,7 @@ type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	stateManager  domain.StateManager
+	stateManager  domain.UserQuestionUIManager
 
 	// active is the state this form was built for; if the StateManager's
 	// state no longer matches (cancelled externally), the form is stale.
@@ -50,7 +50,7 @@ type QuestionFormView struct {
 	other  string
 }
 
-func NewQuestionFormView(styleProvider *styles.Provider, stateManager domain.StateManager) *QuestionFormView {
+func NewQuestionFormView(styleProvider *styles.Provider, stateManager domain.UserQuestionUIManager) *QuestionFormView {
 	return &QuestionFormView{
 		width:         80,
 		styleProvider: styleProvider,

@@ -16,7 +16,6 @@ type FloatingWindowManager struct {
 func NewFloatingWindowManager(
 	cfg *config.Config,
 	eventBridge *EventBridge,
-	stateManager domain.StateManager,
 	agentService domain.AgentService,
 ) (*FloatingWindowManager, error) {
 	return &FloatingWindowManager{enabled: false}, nil

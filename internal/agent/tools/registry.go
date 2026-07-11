@@ -51,16 +51,25 @@ type Registry struct {
 	imageService       domain.ImageService
 	mcpManager         domain.MCPManager
 	shellService       domain.BackgroundShellService
-	stateManager       domain.StateManager
+	stateManager       computerUseState
 	screenshotProvider domain.ScreenshotProvider
 	memoryBackend      domain.MemoryBackend
+}
+
+// computerUseState is the narrow slice of StateManager the computer-use tools
+// need: broadcasting UI events (MouseMove/MouseClick) and recording the focused
+// app + last click coordinates (MouseClick). The registry only forwards it to
+// those tools.
+type computerUseState interface {
+	domain.EventBridgeManager
+	domain.FocusManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
 // taskTracker must be provided by the caller (typically the container, which
 // constructs the unified BackgroundTaskRegistry and passes its A2A view in
 // here so all tools observe the same tracker the agent's wait loop does).
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}

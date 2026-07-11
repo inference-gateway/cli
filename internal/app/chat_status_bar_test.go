@@ -20,7 +20,7 @@ import (
 // status-indicator focus flow: a real InputStatusBar with a visible model
 // indicator (plus, optionally, theme and jobs indicators) and a fake state
 // manager capturing view transitions.
-func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *domainmocks.FakeStateManager) {
+func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *services.StateManager) {
 	t.Helper()
 
 	modelService := &domainmocks.FakeModelService{}
@@ -42,7 +42,8 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 		statusBar.SetThemeService(themeService)
 	}
 
-	stateManager := &domainmocks.FakeStateManager{}
+	stateManager := services.NewStateManager(false)
+	_ = stateManager.TransitionToView(domain.ViewStateChat)
 
 	app := &ChatApplication{
 		inputStatusBar: statusBar,
@@ -116,10 +117,7 @@ func TestStatusBarEnterOpensModelSelection(t *testing.T) {
 
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if stateManager.TransitionToViewCallCount() != 1 {
-		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
-	}
-	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateModelSelection {
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateModelSelection {
 		t.Errorf("transitioned to %v, want model selection", got)
 	}
 	if app.statusBarFocused || app.inputStatusBar.IsFocused() {
@@ -145,10 +143,7 @@ func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if stateManager.TransitionToViewCallCount() != 1 {
-		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
-	}
-	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateThemeSelection {
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateThemeSelection {
 		t.Errorf("transitioned to %v, want theme selection", got)
 	}
 	if len(cmds) != 1 {
@@ -180,10 +175,7 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if stateManager.TransitionToViewCallCount() != 1 {
-		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
-	}
-	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateToolsList {
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateToolsList {
 		t.Errorf("transitioned to %v, want the tools list", got)
 	}
 	if len(cmds) != 1 {
@@ -197,8 +189,9 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
-	barStateManager := &domainmocks.FakeStateManager{}
-	barStateManager.GetAgentReadinessReturns(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
+	barStateManager := services.NewStateManager(false)
+	barStateManager.InitializeAgentReadiness(1)
+	barStateManager.UpdateAgentStatus("agent", domain.AgentStateReady, "", "", "")
 	statusBar.SetStateManager(barStateManager)
 
 	app.handleChatView(domain.FocusStatusBarEvent{})
@@ -206,10 +199,7 @@ func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if stateManager.TransitionToViewCallCount() != 1 {
-		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
-	}
-	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateA2AAgents {
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateA2AAgents {
 		t.Errorf("transitioned to %v, want the A2A agents view", got)
 	}
 	if len(cmds) != 1 {
@@ -227,10 +217,7 @@ func TestStatusBarEnterOpensTaskManagement(t *testing.T) {
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if stateManager.TransitionToViewCallCount() != 1 {
-		t.Fatalf("expected one view transition, got %d", stateManager.TransitionToViewCallCount())
-	}
-	if got := stateManager.TransitionToViewArgsForCall(0); got != domain.ViewStateA2ATaskManagement {
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateA2ATaskManagement {
 		t.Errorf("transitioned to %v, want task management", got)
 	}
 
@@ -281,7 +268,7 @@ func TestStatusBarNavigationAndExitKeys(t *testing.T) {
 		})
 	}
 
-	if stateManager.TransitionToViewCallCount() != 0 {
-		t.Errorf("navigation and exit keys must not transition views, got %d", stateManager.TransitionToViewCallCount())
+	if got := stateManager.GetCurrentView(); got != domain.ViewStateChat {
+		t.Errorf("navigation and exit keys must not transition views, got %v", got)
 	}
 }

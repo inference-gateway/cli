@@ -13,7 +13,7 @@ import (
 // Service handles the UI side of A2A task lifecycle events.
 type Service struct {
 	conversationRepo     domain.ConversationRepository
-	stateManager         domain.StateManager
+	stateManager         domain.ChatSessionManager
 	taskRetentionService domain.TaskRetentionService
 	listener             domain.ChatEventListener
 }
@@ -21,7 +21,7 @@ type Service struct {
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	ConversationRepo     domain.ConversationRepository
-	StateManager         domain.StateManager
+	StateManager         domain.ChatSessionManager
 	TaskRetentionService domain.TaskRetentionService
 	Listener             domain.ChatEventListener
 }

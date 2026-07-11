@@ -31,7 +31,7 @@ func toolDef(name, description string) sdk.ChatCompletionTool {
 // newToolsViewForTest builds a tools view backed by fakes: the tool service
 // returns the given tools for any mode and the state manager reports plan
 // mode, so the mode propagation is observable.
-func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *domainmocks.FakeToolService, *domainmocks.FakeStateManager) {
+func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *domainmocks.FakeToolService, *domain.ApplicationState) {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
@@ -41,8 +41,8 @@ func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *domai
 	toolService := &domainmocks.FakeToolService{}
 	toolService.ListToolsForModeReturns(tools)
 
-	stateManager := &domainmocks.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModePlan)
+	stateManager := domain.NewApplicationState()
+	stateManager.SetAgentMode(domain.AgentModePlan)
 
 	view := NewToolsView(toolService, stateManager, styles.NewProvider(themeService))
 	return view, toolService, stateManager

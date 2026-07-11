@@ -14,11 +14,20 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// stateManager is the narrow slice of the app state manager the direct
+// executor needs: the current agent mode, chat-session lookup, and
+// tool-execution session bookkeeping. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.AgentModeManager
+	domain.ChatSessionManager
+	domain.ToolExecutionManager
+}
+
 // Service is the concrete DirectExecutionService.
 type Service struct {
 	conversationRepo       domain.ConversationRepository
 	toolService            domain.ToolService
-	stateManager           domain.StateManager
+	stateManager           stateManager
 	backgroundShellService domain.BackgroundShellService
 	listener               domain.ChatEventListener
 
@@ -34,7 +43,7 @@ type Service struct {
 type Options struct {
 	ConversationRepo       domain.ConversationRepository
 	ToolService            domain.ToolService
-	StateManager           domain.StateManager
+	StateManager           stateManager
 	BackgroundShellService domain.BackgroundShellService
 	Listener               domain.ChatEventListener
 }

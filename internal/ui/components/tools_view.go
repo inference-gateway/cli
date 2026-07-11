@@ -119,14 +119,14 @@ type ToolsViewImpl struct {
 	height        int
 	cancelled     bool
 	toolService   domain.ToolService
-	stateManager  domain.StateManager
+	stateManager  domain.AgentModeManager
 	styleProvider *styles.Provider
 }
 
 // NewToolsView creates the tools list view. Items are populated by Reset on
 // every entry because the tool set changes with the agent mode and with async
 // MCP tool registration.
-func NewToolsView(toolService domain.ToolService, stateManager domain.StateManager, styleProvider *styles.Provider) *ToolsViewImpl {
+func NewToolsView(toolService domain.ToolService, stateManager domain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
 	l := list.New(
 		nil,
 		newToolDelegate(styleProvider),

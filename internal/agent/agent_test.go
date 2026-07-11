@@ -243,7 +243,7 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 func TestNewAgentService(t *testing.T) {
 	fakeToolService := &domainmocks.FakeToolService{}
 	fakeConversationRepo := &domainmocks.FakeConversationRepository{}
-	fakeStateManager := &domainmocks.FakeStateManager{}
+	fakeStateManager := services.NewStateManager(false)
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -556,8 +556,8 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			}
 
-			fakeStateManager := &domainmocks.FakeStateManager{}
-			fakeStateManager.GetAgentModeReturns(tt.agentMode)
+			fakeStateManager := services.NewStateManager(false)
+			fakeStateManager.SetAgentMode(tt.agentMode)
 
 			approvalPolicy := services.NewStandardApprovalPolicy(cfg, fakeStateManager)
 
@@ -1224,8 +1224,8 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 			}
 
 			if !tt.nilStateManager {
-				fakeStateManager := &domainmocks.FakeStateManager{}
-				fakeStateManager.GetAgentModeReturns(tt.agentMode)
+				fakeStateManager := services.NewStateManager(false)
+				fakeStateManager.SetAgentMode(tt.agentMode)
 				agentService.stateManager = fakeStateManager
 			}
 

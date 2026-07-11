@@ -28,15 +28,14 @@ var computerUseApp embed.FS
 
 // FloatingWindowManager manages the lifecycle of the floating progress window
 type FloatingWindowManager struct {
-	cfg          *config.Config
-	eventBridge  *EventBridge
-	stateManager domain.StateManager
-	cmd          *exec.Cmd
-	enabled      bool
-	eventSub     chan domain.ChatEvent
-	stopForward  chan struct{}
-	appPath      string
-	monitorWg    sync.WaitGroup
+	cfg         *config.Config
+	eventBridge *EventBridge
+	cmd         *exec.Cmd
+	enabled     bool
+	eventSub    chan domain.ChatEvent
+	stopForward chan struct{}
+	appPath     string
+	monitorWg   sync.WaitGroup
 	// IPC fields (merged from ProcessManager)
 	stdin        io.Writer
 	stdout       io.Reader
@@ -52,7 +51,6 @@ type FloatingWindowManager struct {
 func NewFloatingWindowManager(
 	cfg *config.Config,
 	eventBridge *EventBridge,
-	stateManager domain.StateManager,
 	agentService domain.AgentService,
 ) (*FloatingWindowManager, error) {
 	if runtime.GOOS != "darwin" {
@@ -66,7 +64,6 @@ func NewFloatingWindowManager(
 	mgr := &FloatingWindowManager{
 		cfg:                  cfg,
 		eventBridge:          eventBridge,
-		stateManager:         stateManager,
 		agentService:         agentService,
 		enabled:              true,
 		stopForward:          make(chan struct{}),

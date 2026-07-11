@@ -67,7 +67,7 @@ type ChatApplication struct {
 	toolExecutionCoordinator domain.ToolExecutionCoordinator
 
 	// State management
-	stateManager domain.StateManager
+	stateManager *services.StateManager
 	messageQueue domain.MessageQueue
 	mouseEnabled bool
 
@@ -157,7 +157,7 @@ func NewChatApplication(
 	modelService domain.ModelService,
 	pricingService domain.PricingService,
 	sessionRolloverManager *services.SessionRolloverManager,
-	stateManager domain.StateManager,
+	stateManager *services.StateManager,
 	taskRetentionService domain.TaskRetentionService,
 	themeService domain.ThemeService,
 	toolService domain.ToolService,
@@ -359,7 +359,6 @@ func NewChatApplication(
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
-		app.stateManager,
 		app.conversationRepo,
 	)
 
@@ -2459,7 +2458,7 @@ func (app *ChatApplication) GetConfigDir() string {
 }
 
 // GetStateManager returns the current state manager
-func (app *ChatApplication) GetStateManager() domain.StateManager {
+func (app *ChatApplication) GetStateManager() *services.StateManager {
 	return app.stateManager
 }
 

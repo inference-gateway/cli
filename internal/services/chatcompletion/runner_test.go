@@ -14,9 +14,9 @@ import (
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *mocksdomain.FakeStateManager, *mocksdomain.FakeAgentService, *mocksdomain.FakeModelService) {
+func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeAgentService, *mocksdomain.FakeModelService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	state := &mocksdomain.FakeStateManager{}
+	state := services.NewStateManager(false)
 	agent := &mocksdomain.FakeAgentService{}
 	model := &mocksdomain.FakeModelService{}
 	listener := &mocksdomain.FakeChatEventListener{}
@@ -318,7 +318,9 @@ func TestRunner_Start(t *testing.T) {
 func TestRunner_HandleChatComplete(t *testing.T) {
 	t.Run("non-cancelled, no tool calls: updates status to Completed and returns non-nil cmd", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		state.GetChatSessionReturns(nil)
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.UpdateChatStatus(domain.ChatStatusGenerating)
+		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
 		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
 			RequestID: "req-1",
@@ -328,20 +330,18 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.UpdateChatStatusCallCount() != 1 {
-			t.Errorf("expected UpdateChatStatus once, got %d", state.UpdateChatStatusCallCount())
+		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusCompleted {
+			t.Errorf("expected chat status Completed, got %+v", s)
 		}
-		if status := state.UpdateChatStatusArgsForCall(0); status != domain.ChatStatusCompleted {
-			t.Errorf("expected ChatStatusCompleted, got %v", status)
-		}
-		if state.EndToolExecutionCallCount() != 1 {
-			t.Errorf("expected EndToolExecution once on terminal completion, got %d", state.EndToolExecutionCallCount())
+		if state.GetToolExecution() != nil {
+			t.Errorf("expected EndToolExecution to clear tool execution on terminal completion")
 		}
 	})
 
 	t.Run("cancelled: tears down session and updates status to Cancelled", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		state.GetChatSessionReturns(nil)
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
 		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
 			RequestID: "req-1",
@@ -351,20 +351,22 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.UpdateChatStatusArgsForCall(0) != domain.ChatStatusCancelled {
-			t.Errorf("expected ChatStatusCancelled")
+		// The cancelled branch sets status Cancelled and then immediately ends the
+		// session; the transient status is wiped, so the observable effect is that
+		// both the chat session and tool execution are torn down (EndChatSession +
+		// EndToolExecution), distinguishing it from the completed branch which
+		// leaves the session intact.
+		if state.GetChatSession() != nil {
+			t.Errorf("expected EndChatSession to clear the chat session on cancel")
 		}
-		if state.EndChatSessionCallCount() != 1 {
-			t.Errorf("expected EndChatSession once")
-		}
-		if state.EndToolExecutionCallCount() != 1 {
-			t.Errorf("expected EndToolExecution once")
+		if state.GetToolExecution() != nil {
+			t.Errorf("expected EndToolExecution to clear tool execution on cancel")
 		}
 	})
 
 	t.Run("with tool calls: transitions to WaitingTools to prevent false stall detection", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		state.GetChatSessionReturns(nil)
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
 
 		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{
 			RequestID: "req-1",
@@ -377,19 +379,15 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 			}},
 		})
 
-		if state.UpdateChatStatusCallCount() != 1 {
-			t.Errorf("expected 1 UpdateChatStatus call with WaitingTools, got %d", state.UpdateChatStatusCallCount())
-		}
-		if status := state.UpdateChatStatusArgsForCall(0); status != domain.ChatStatusWaitingTools {
-			t.Errorf("expected ChatStatusWaitingTools, got %v", status)
+		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusWaitingTools {
+			t.Errorf("expected chat status WaitingTools, got %+v", s)
 		}
 	})
 }
 
 func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 	t.Run("restoration runs SelectModel on next HandleChatComplete", func(t *testing.T) {
-		runner, _, state, _, model := newRunnerForTest()
-		state.GetChatSessionReturns(nil)
+		runner, _, _, _, model := newRunnerForTest()
 
 		runner.SetPendingRestoration("gpt-4")
 

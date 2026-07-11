@@ -13,9 +13,9 @@ import (
 // The conversation repo is an *InMemoryConversationRepository because the
 // coordinator uses the concrete planRepoUpdater interface for plan-status
 // mutations, which the in-memory repo satisfies.
-func newCoordinator() (*Service, *services.InMemoryConversationRepository, *mocksdomain.FakeStateManager, *mocksdomain.FakeAgentService) {
+func newCoordinator() (*Service, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeAgentService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	state := &mocksdomain.FakeStateManager{}
+	state := services.NewStateManager(false)
 	agent := &mocksdomain.FakeAgentService{}
 
 	svc := NewService(Options{
@@ -40,17 +40,17 @@ func TestService_HandlePlanApprovalRequested(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.SetupPlanApprovalUIStateCallCount() != 1 {
-			t.Fatalf("expected SetupPlanApprovalUIState once, got %d", state.SetupPlanApprovalUIStateCallCount())
+		ui := state.GetPlanApprovalUIState()
+		if ui == nil {
+			t.Fatalf("expected SetupPlanApprovalUIState to establish plan approval UI state")
 		}
-		gotContent, gotPath, gotChan := state.SetupPlanApprovalUIStateArgsForCall(0)
-		if gotContent != "# Plan\n- step 1" {
-			t.Errorf("unexpected plan content: %q", gotContent)
+		if ui.PlanContent != "# Plan\n- step 1" {
+			t.Errorf("unexpected plan content: %q", ui.PlanContent)
 		}
-		if gotPath != ".infer/plans/2026-06-28-090000-plan.md" {
-			t.Errorf("expected plan path to be forwarded to state manager, got %q", gotPath)
+		if ui.PlanPath != ".infer/plans/2026-06-28-090000-plan.md" {
+			t.Errorf("expected plan path to be forwarded to state manager, got %q", ui.PlanPath)
 		}
-		if gotChan != responseChan {
+		if ui.ResponseChan != responseChan {
 			t.Errorf("expected response channel to be forwarded to state manager")
 		}
 	})
@@ -59,7 +59,8 @@ func TestService_HandlePlanApprovalRequested(t *testing.T) {
 func TestService_HandlePlanApprovalResponse(t *testing.T) {
 	t.Run("nil approval UI state returns nil cmd and restart=false without side effects", func(t *testing.T) {
 		svc, _, state, _ := newCoordinator()
-		state.GetPlanApprovalUIStateReturns(nil)
+		// Fresh state manager has no plan approval UI state.
+		state.SetAgentMode(domain.AgentModePlan)
 
 		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAccept,
@@ -71,17 +72,18 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if restart {
 			t.Errorf("expected restart=false when UI state is nil")
 		}
-		if state.ClearPlanApprovalUIStateCallCount() != 0 {
-			t.Errorf("expected ClearPlanApprovalUIState NOT to be called when state was already nil")
+		if state.GetPlanApprovalUIState() != nil {
+			t.Errorf("expected no plan approval UI state to be established when state was already nil")
 		}
-		if state.SetAgentModeCallCount() != 0 {
-			t.Errorf("expected SetAgentMode NOT to be called when state was already nil")
+		if mode := state.GetAgentMode(); mode != domain.AgentModePlan {
+			t.Errorf("expected agent mode unchanged when state was already nil, got %v", mode)
 		}
 	})
 
 	t.Run("Accept clears UI state, switches to auto-accept mode, adds hidden continue, requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		state.GetPlanApprovalUIStateReturns(&domain.PlanApprovalUIState{PlanContent: "p"})
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		state.SetupPlanApprovalUIState("p", "", nil)
 
 		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAccept,
@@ -93,16 +95,13 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if cmd == nil {
 			t.Errorf("expected non-nil cmd")
 		}
-		if state.ClearPlanApprovalUIStateCallCount() != 1 {
-			t.Errorf("expected ClearPlanApprovalUIState once")
+		if state.GetPlanApprovalUIState() != nil {
+			t.Errorf("expected plan approval UI state cleared on Accept")
 		}
-		if state.SetAgentModeCallCount() != 1 {
-			t.Errorf("expected SetAgentMode once")
-		}
-		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeAutoAccept {
+		if mode := state.GetAgentMode(); mode != domain.AgentModeAutoAccept {
 			t.Errorf("expected AgentModeAutoAccept, got %v", mode)
 		}
-		if state.EndChatSessionCallCount() != 0 {
+		if state.GetChatSession() == nil {
 			t.Errorf("EndChatSession should not be called on Accept")
 		}
 		if got := len(repo.GetMessages()); got != 1 {
@@ -112,7 +111,8 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 
 	t.Run("AcceptStandard switches to standard mode and requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		state.GetPlanApprovalUIStateReturns(&domain.PlanApprovalUIState{PlanContent: "p"})
+		state.SetAgentMode(domain.AgentModePlan)
+		state.SetupPlanApprovalUIState("p", "", nil)
 
 		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAcceptStandard,
@@ -121,7 +121,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if !restart {
 			t.Errorf("AcceptStandard should request restart")
 		}
-		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeStandard {
+		if mode := state.GetAgentMode(); mode != domain.AgentModeStandard {
 			t.Errorf("expected AgentModeStandard, got %v", mode)
 		}
 		if got := len(repo.GetMessages()); got != 1 {
@@ -131,7 +131,9 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 
 	t.Run("Reject ends chat session, does not switch mode, does not request restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		state.GetPlanApprovalUIStateReturns(&domain.PlanApprovalUIState{PlanContent: "p"})
+		state.SetAgentMode(domain.AgentModePlan)
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		state.SetupPlanApprovalUIState("p", "", nil)
 
 		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalReject,
@@ -140,11 +142,11 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if restart {
 			t.Errorf("Reject should not request restart")
 		}
-		if state.SetAgentModeCallCount() != 0 {
-			t.Errorf("Reject should not switch agent mode")
+		if mode := state.GetAgentMode(); mode != domain.AgentModePlan {
+			t.Errorf("Reject should not switch agent mode, got %v", mode)
 		}
-		if state.EndChatSessionCallCount() != 1 {
-			t.Errorf("expected EndChatSession on Reject, got %d calls", state.EndChatSessionCallCount())
+		if state.GetChatSession() != nil {
+			t.Errorf("expected EndChatSession on Reject to clear the chat session")
 		}
 		if got := len(repo.GetMessages()); got != 0 {
 			t.Errorf("expected no hidden continue message on Reject, got %d", got)
@@ -169,12 +171,11 @@ func TestService_HandleComputerUsePaused(t *testing.T) {
 		if got := agent.CancelRequestArgsForCall(0); got != "req-1" {
 			t.Errorf("expected CancelRequest('req-1'), got %q", got)
 		}
-		if state.SetComputerUsePausedCallCount() != 1 {
-			t.Errorf("expected SetComputerUsePaused once")
+		if !state.IsComputerUsePaused() {
+			t.Errorf("expected computer use to be marked paused")
 		}
-		paused, reqID := state.SetComputerUsePausedArgsForCall(0)
-		if !paused || reqID != "req-1" {
-			t.Errorf("expected SetComputerUsePaused(true, 'req-1'), got (%v, %q)", paused, reqID)
+		if reqID := state.GetPausedRequestID(); reqID != "req-1" {
+			t.Errorf("expected paused request id 'req-1', got %q", reqID)
 		}
 	})
 
@@ -189,7 +190,7 @@ func TestService_HandleComputerUsePaused(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd even on cancel error")
 		}
-		if state.SetComputerUsePausedCallCount() != 1 {
+		if !state.IsComputerUsePaused() {
 			t.Errorf("paused state should still be set even when cancel fails")
 		}
 	})
@@ -198,6 +199,7 @@ func TestService_HandleComputerUsePaused(t *testing.T) {
 func TestService_HandleComputerUseResumed(t *testing.T) {
 	t.Run("clears pause state, adds hidden continue, requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
+		state.SetComputerUsePaused(true, "req-1")
 
 		cmd, restart := svc.HandleComputerUseResumed(domain.ComputerUseResumedEvent{})
 
@@ -207,8 +209,8 @@ func TestService_HandleComputerUseResumed(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.ClearComputerUsePauseStateCallCount() != 1 {
-			t.Errorf("expected ClearComputerUsePauseState once")
+		if state.IsComputerUsePaused() {
+			t.Errorf("expected ClearComputerUsePauseState to unmark paused")
 		}
 		if got := len(repo.GetMessages()); got != 1 {
 			t.Errorf("expected 1 hidden continue message added, got %d", got)

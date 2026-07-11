@@ -11,8 +11,7 @@ import (
 
 // TestStateMachineInitialization tests that the state machine initializes to Idle state
 func TestStateMachineInitialization(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 
 	if sm.GetCurrentState() != domain.StateIdle {
 		t.Errorf("expected initial state to be Idle, got %s", sm.GetCurrentState())
@@ -38,8 +37,7 @@ func createTestAgentContext() *domain.AgentContext {
 
 // TestValidTransitions_BasicFlow tests basic state transition flow
 func TestValidTransitions_BasicFlow(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 	ctx := createTestAgentContext()
 
 	// Test Idle to CheckingQueue
@@ -67,8 +65,7 @@ func TestValidTransitions_BasicFlow(t *testing.T) {
 
 // TestInvalidTransitions tests that invalid state transitions are rejected
 func TestInvalidTransitions(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 
 	ctx := &domain.AgentContext{
 		Conversation:     &[]sdk.Message{},
@@ -103,7 +100,7 @@ func TestInvalidTransitions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm = NewAgentStateMachine(&mockdomain.FakeStateManager{})
+			sm = NewAgentStateMachine()
 
 			testCtx := &domain.AgentContext{
 				Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
@@ -135,8 +132,7 @@ func TestInvalidTransitions(t *testing.T) {
 // TestGuardConditions tests that guard functions work correctly via public interface
 func TestGuardConditions(t *testing.T) {
 	t.Run("CheckingQueue to Idle transition respects canComplete guard", func(t *testing.T) {
-		stateManager := &mockdomain.FakeStateManager{}
-		sm := NewAgentStateMachine(stateManager)
+		sm := NewAgentStateMachine()
 
 		ctx := &domain.AgentContext{
 			Conversation:   &[]sdk.Message{},
@@ -164,8 +160,7 @@ func TestGuardConditions(t *testing.T) {
 	})
 
 	t.Run("PostToolExecution respects maxTurnsReached guard", func(t *testing.T) {
-		stateManager := &mockdomain.FakeStateManager{}
-		sm := NewAgentStateMachine(stateManager)
+		sm := NewAgentStateMachine()
 
 		ctx := &domain.AgentContext{
 			Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
@@ -205,8 +200,7 @@ func TestGuardConditions(t *testing.T) {
 
 // TestStateReset tests that the state machine can be reset
 func TestStateReset(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 
 	ctx := &domain.AgentContext{
 		Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
@@ -226,8 +220,7 @@ func TestStateReset(t *testing.T) {
 
 // TestGetValidTransitions tests that valid transitions are returned correctly
 func TestGetValidTransitions(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 
 	ctx := &domain.AgentContext{
 		Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
@@ -343,8 +336,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := &mockdomain.FakeStateManager{}
-			sm := NewAgentStateMachine(stateManager)
+			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
 			ctx := &domain.AgentContext{
@@ -439,8 +431,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := &mockdomain.FakeStateManager{}
-			sm := NewAgentStateMachine(stateManager)
+			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
 			ctx := &domain.AgentContext{
@@ -497,8 +488,7 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := &mockdomain.FakeStateManager{}
-			sm := NewAgentStateMachine(stateManager)
+			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
 			ctx := &domain.AgentContext{
@@ -522,8 +512,7 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 // the loop was left parked in ExecutingTools. It must now succeed from
 // ExecutingTools - and only from there (no global loop to Stopped was added).
 func TestExecutingToolsToStoppedTransition(t *testing.T) {
-	stateManager := &mockdomain.FakeStateManager{}
-	sm := NewAgentStateMachine(stateManager)
+	sm := NewAgentStateMachine()
 	ctx := createTestAgentContext()
 	*ctx.Conversation = []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}}
 	ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{

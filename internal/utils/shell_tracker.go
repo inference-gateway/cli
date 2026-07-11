@@ -15,8 +15,12 @@ type shellTracker struct {
 	mutex         sync.RWMutex
 }
 
-// NewShellTracker creates a new shell tracker with the specified maximum concurrent shells.
-func NewShellTracker(maxConcurrent int) domain.ShellTracker {
+// NewShellTracker creates a new shell tracker with the specified maximum
+// concurrent shells. It returns the concrete type: callers that only need the
+// tracked-shell surface assign it to a domain.ShellTracker, while the shell
+// housekeeping helpers (Cleanup/Count) stay reachable on the concrete for the
+// background-shell service and this package's own tests.
+func NewShellTracker(maxConcurrent int) *shellTracker {
 	return &shellTracker{
 		shells:        make(map[string]*domain.BackgroundShell),
 		maxConcurrent: maxConcurrent,

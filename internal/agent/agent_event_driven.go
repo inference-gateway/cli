@@ -66,7 +66,7 @@ func NewEventDrivenAgent(
 	model string,
 	registry domain.BackgroundTaskRegistry,
 ) *EventDrivenAgent {
-	stateMachine := NewAgentStateMachine(service.stateManager)
+	stateMachine := NewAgentStateMachine()
 
 	agentCtx := &domain.AgentContext{
 		RequestID:        req.RequestID,

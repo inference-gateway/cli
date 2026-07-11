@@ -22,7 +22,7 @@ func (n *noopFloatingWindowManager) Shutdown() error {
 // initFloatingWindow returns a no-op manager on non-darwin platforms
 func initFloatingWindow(
 	config *config.Config,
-	stateManager domain.StateManager,
+	stateManager domain.EventBridgeManager,
 	agentService domain.AgentService,
 ) (FloatingWindowManager, error) {
 	return &noopFloatingWindowManager{}, nil

@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 )
 
 // stubSkillsService implements domain.SkillsService for testing the
@@ -373,8 +374,8 @@ func TestBuildToolsInfo_DefaultsToStandardModeWhenNoStateManager(t *testing.T) {
 func TestBuildToolsInfo_UsesCurrentAgentMode(t *testing.T) {
 	fake := &domainmocks.FakeToolService{}
 	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Read", "Read a file.")})
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetAgentModeReturns(domain.AgentModePlan)
+	sm := services.NewStateManager(false)
+	sm.SetAgentMode(domain.AgentModePlan)
 	s := &AgentServiceImpl{toolService: fake, stateManager: sm}
 
 	s.buildToolsInfo()

@@ -9,13 +9,14 @@ import (
 
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // newCoordinator wires a Service with fake dependencies.
-func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *mocksdomain.FakeStateManager, *mocksdomain.FakeTaskRetentionService, *mocksdomain.FakeChatEventListener) {
+func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *mocksdomain.FakeChatEventListener) {
 	repo := &mocksdomain.FakeConversationRepository{}
-	state := &mocksdomain.FakeStateManager{}
+	state := services.NewStateManager(false)
 	retention := &mocksdomain.FakeTaskRetentionService{}
 	listener := &mocksdomain.FakeChatEventListener{}
 
@@ -47,10 +48,7 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 	t.Run("emits working status with agent name and pumps listener when session active", func(t *testing.T) {
 		svc, _, state, _, listener := newCoordinator()
 		eventChan := make(chan domain.ChatEvent, 1)
-		state.GetChatSessionReturns(&domain.ChatSession{
-			RequestID:    "req-1",
-			EventChannel: eventChan,
-		})
+		_ = state.StartChatSession("req-1", "", eventChan)
 		listener.ListenForChatEventsReturns(func() tea.Msg { return nil })
 
 		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{
@@ -83,8 +81,7 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 	})
 
 	t.Run("omits listener cmd when no active chat session", func(t *testing.T) {
-		svc, _, state, _, listener := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, _, _, _, listener := newCoordinator()
 
 		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{AgentName: "foo"})
 
@@ -99,8 +96,7 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 
 func TestService_HandleTaskCompleted(t *testing.T) {
 	t.Run("retains task and emits formatted result when result holds A2ASubmitTaskResult", func(t *testing.T) {
-		svc, repo, state, retention, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, repo, _, retention, _ := newCoordinator()
 		repo.GetMessagesReturns(nil)
 		task := &adk.Task{ID: "task-1"}
 
@@ -141,8 +137,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 	})
 
 	t.Run("falls back to repo formatter when result has no A2ASubmitTaskResult", func(t *testing.T) {
-		svc, repo, state, retention, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, repo, _, retention, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("[formatted-result-text]")
 
 		event := domain.A2ATaskCompletedEvent{Result: domain.ToolExecutionResult{Data: "unrelated"}}
@@ -171,8 +166,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 
 func TestService_HandleTaskFailed(t *testing.T) {
 	t.Run("formats error with task result when present", func(t *testing.T) {
-		svc, _, state, _, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, _, _, _, _ := newCoordinator()
 
 		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
 			Error: "boom",
@@ -195,8 +189,7 @@ func TestService_HandleTaskFailed(t *testing.T) {
 	})
 
 	t.Run("falls back to repo formatter with error string when no task result", func(t *testing.T) {
-		svc, repo, state, _, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, repo, _, _, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("formatted body")
 
 		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
@@ -220,8 +213,7 @@ func TestService_HandleTaskFailed(t *testing.T) {
 
 func TestService_HandleTaskStatusUpdate(t *testing.T) {
 	t.Run("emits working status with state and message", func(t *testing.T) {
-		svc, _, state, _, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, _, _, _, _ := newCoordinator()
 
 		cmds := svc.taskStatusUpdateCmds(domain.A2ATaskStatusUpdateEvent{
 			Status:  "running",
@@ -247,8 +239,7 @@ func TestService_HandleTaskStatusUpdate(t *testing.T) {
 
 func TestService_HandleTaskInputRequired(t *testing.T) {
 	t.Run("emits warning status with input requirement message", func(t *testing.T) {
-		svc, _, state, _, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, _, _, _, _ := newCoordinator()
 
 		cmds := svc.taskInputRequiredCmds(domain.A2ATaskInputRequiredEvent{
 			Message: "need API key",
@@ -273,8 +264,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 
 func TestService_HandleToolCallExecuted(t *testing.T) {
 	t.Run("emits working status naming the tool", func(t *testing.T) {
-		svc, _, state, _, _ := newCoordinator()
-		state.GetChatSessionReturns(nil)
+		svc, _, _, _, _ := newCoordinator()
 
 		cmds := svc.toolCallExecutedCmds(domain.A2AToolCallExecutedEvent{
 			ToolName: "Read",
@@ -299,9 +289,8 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 
 func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 	repo := &mocksdomain.FakeConversationRepository{}
-	state := &mocksdomain.FakeStateManager{}
+	state := services.NewStateManager(false)
 	listener := &mocksdomain.FakeChatEventListener{}
-	state.GetChatSessionReturns(nil)
 	repo.GetMessagesReturns(nil)
 
 	svc := NewService(Options{
@@ -340,8 +329,7 @@ func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 // when properly wired. This guards against regressions where the public
 // method silently returns nil and side effects vanish.
 func TestService_PublicMethods_ReturnNonNilCmds(t *testing.T) {
-	svc, _, state, _, _ := newCoordinator()
-	state.GetChatSessionReturns(nil)
+	svc, _, _, _, _ := newCoordinator()
 
 	cases := []struct {
 		name string

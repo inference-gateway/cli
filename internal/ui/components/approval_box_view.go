@@ -40,7 +40,7 @@ type ApprovalBoxView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	stateManager  domain.StateManager
+	stateManager  domain.ApprovalUIManager
 	toolFormatter domain.ToolFormatter
 
 	// active is the approval state the form was built for; a mismatch with
@@ -50,7 +50,7 @@ type ApprovalBoxView struct {
 	choice domain.ApprovalAction
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.StateManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.ApprovalUIManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,

@@ -14,17 +14,14 @@ import (
 
 // MessageHistoryHandler handles message history navigation and restoration
 type MessageHistoryHandler struct {
-	stateManager     domain.StateManager
 	conversationRepo domain.ConversationRepository
 }
 
 // NewMessageHistoryHandler creates a new message history handler
 func NewMessageHistoryHandler(
-	stateManager domain.StateManager,
 	conversationRepo domain.ConversationRepository,
 ) *MessageHistoryHandler {
 	return &MessageHistoryHandler{
-		stateManager:     stateManager,
 		conversationRepo: conversationRepo,
 	}
 }

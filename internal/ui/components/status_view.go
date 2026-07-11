@@ -31,13 +31,20 @@ type StatusView struct {
 	styleProvider    *styles.Provider
 	keyHintFormatter *hints.Formatter
 	toolName         string
-	stateManager     domain.StateManager
+	stateManager     statusViewState
 	pausedAt         time.Time
+}
+
+// statusViewState is the narrow slice of StateManager the status view reads:
+// the approval/question overlays (to pause timers) plus retry status.
+type statusViewState interface {
+	approvalOverlayReader
+	domain.ChatSessionManager
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
 // connection health (retries and stalled streams) while waiting for chunks.
-func (sv *StatusView) SetStateManager(stateManager domain.StateManager) {
+func (sv *StatusView) SetStateManager(stateManager statusViewState) {
 	sv.stateManager = stateManager
 }
 
@@ -296,10 +303,19 @@ func (sv *StatusView) syncApprovalPause() {
 	})
 }
 
+// approvalOverlayReader is the narrow read surface for detecting whether an
+// approval, plan-approval, or user-question overlay is blocked on the user.
+// Shared by StatusView and ToolCallRenderer to pause their running timers.
+type approvalOverlayReader interface {
+	domain.ApprovalUIManager
+	domain.PlanApprovalUIManager
+	domain.UserQuestionUIManager
+}
+
 // syncApprovalPause records when the UI becomes blocked on a user decision and,
 // on resume, calls shift with the paused duration so callers can push their
 // running timers forward.
-func syncApprovalPause(sm domain.StateManager, pausedAt *time.Time, shift func(time.Duration)) {
+func syncApprovalPause(sm approvalOverlayReader, pausedAt *time.Time, shift func(time.Duration)) {
 	if awaitingUserDecision(sm) {
 		if pausedAt.IsZero() {
 			*pausedAt = time.Now()
@@ -314,7 +330,7 @@ func syncApprovalPause(sm domain.StateManager, pausedAt *time.Time, shift func(t
 
 // awaitingUserDecision reports whether an approval, plan-approval, or
 // user-question overlay is blocked on the user.
-func awaitingUserDecision(sm domain.StateManager) bool {
+func awaitingUserDecision(sm approvalOverlayReader) bool {
 	if sm == nil {
 		return false
 	}

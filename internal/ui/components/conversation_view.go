@@ -104,7 +104,7 @@ type ConversationView struct {
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
 	userScrolledUp         bool
-	stateManager           domain.StateManager
+	stateManager           domain.PlanApprovalUIManager
 	renderedContent        string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
@@ -198,7 +198,7 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 }
 
 // SetStateManager sets the state manager for accessing plan approval state
-func (cv *ConversationView) SetStateManager(stateManager domain.StateManager) {
+func (cv *ConversationView) SetStateManager(stateManager domain.PlanApprovalUIManager) {
 	cv.stateManager = stateManager
 }
 

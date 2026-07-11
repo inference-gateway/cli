@@ -8,7 +8,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func createTestConfig() *config.Config {
@@ -39,8 +38,8 @@ func createToolCall(toolName string, args string) *sdk.ChatCompletionMessageTool
 }
 
 func TestStandardApprovalPolicy_ComputerUseTools(t *testing.T) {
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
 	ctx := context.Background()
@@ -67,8 +66,8 @@ func TestStandardApprovalPolicy_ComputerUseTools(t *testing.T) {
 }
 
 func TestStandardApprovalPolicy_AutoAcceptMode(t *testing.T) {
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeAutoAccept)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 
 	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
 	ctx := context.Background()
@@ -87,8 +86,8 @@ func TestStandardApprovalPolicy_AutoAcceptMode(t *testing.T) {
 }
 
 func TestStandardApprovalPolicy_ReadOnlyMode(t *testing.T) {
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeReadOnly)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeReadOnly)
 
 	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
 	ctx := context.Background()
@@ -104,8 +103,8 @@ func TestStandardApprovalPolicy_ReadOnlyMode(t *testing.T) {
 }
 
 func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
 	ctx := context.Background()
@@ -125,8 +124,8 @@ func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
 
 func TestStandardApprovalPolicy_BashAllowedList(t *testing.T) {
 	cfg := createTestConfig()
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
 	ctx := context.Background()
@@ -182,8 +181,8 @@ func TestStandardApprovalPolicy_BashAllowedList(t *testing.T) {
 
 func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	cfg := createTestConfig()
-	stateManager := &mocksdomain.FakeStateManager{}
-	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+	stateManager := NewStateManager(false)
+	stateManager.SetAgentMode(domain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
 	ctx := context.Background()
@@ -288,10 +287,10 @@ func TestStrictApprovalPolicy(t *testing.T) {
 func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 	t.Run("Rule priority: computer use > auto-accept > non-chat > bash allowedlist > config", func(t *testing.T) {
 		cfg := createTestConfig()
-		stateManager := &mocksdomain.FakeStateManager{}
+		stateManager := NewStateManager(false)
 		ctx := context.Background()
 
-		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+		stateManager.SetAgentMode(domain.AgentModeStandard)
 		policy := NewStandardApprovalPolicy(cfg, stateManager)
 
 		mouseClick := createToolCall("MouseClick", "{}")
@@ -299,13 +298,13 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 			t.Error("Computer use tool should bypass all other rules")
 		}
 
-		stateManager.GetAgentModeReturns(domain.AgentModeAutoAccept)
+		stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 		bash := createToolCall("Bash", `{"command": "rm -rf /"}`)
 		if policy.ShouldRequireApproval(ctx, bash, true) {
 			t.Error("Auto-accept mode should bypass bash allowedlist and config")
 		}
 
-		stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+		stateManager.SetAgentMode(domain.AgentModeStandard)
 		if policy.ShouldRequireApproval(ctx, bash, false) {
 			t.Error("Non-chat mode should bypass bash allowedlist and config")
 		}

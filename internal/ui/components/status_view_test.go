@@ -11,6 +11,19 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// statusViewStateStub wraps the real ApplicationState to satisfy the status
+// view's statusViewState interface, which adds the ChatSessionManager methods
+// (IsAgentBusy and an error-returning StartChatSession) that the wrapped
+// services.StateManager normally provides.
+type statusViewStateStub struct{ *domain.ApplicationState }
+
+func (statusViewStateStub) IsAgentBusy() bool { return false }
+
+func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
+	s.ApplicationState.StartChatSession(requestID, model, eventChan)
+	return nil
+}
+
 // createMockStyleProviderForStatus creates a mock styles provider for testing
 func createMockStyleProviderForStatus() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
@@ -235,11 +248,11 @@ func TestStatusView_StateTransitions(t *testing.T) {
 
 func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 	sv := NewStatusView(createMockStyleProviderForStatus())
-	sm := &domainmocks.FakeStateManager{}
+	sm := statusViewStateStub{domain.NewApplicationState()}
 	sv.SetStateManager(sm)
 	sv.ShowSpinner("Executing tools")
 
-	sm.GetApprovalUIStateReturns(&domain.ApprovalUIState{})
+	sm.SetupApprovalUIState(nil, nil)
 	paused := sv.Render()
 	if strings.Contains(paused, "(") {
 		t.Errorf("expected no elapsed timer while approval pending, got %q", paused)
@@ -248,7 +261,7 @@ func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 		t.Errorf("expected message to remain visible, got %q", paused)
 	}
 
-	sm.GetApprovalUIStateReturns(nil)
+	sm.ClearApprovalUIState()
 	resumed := sv.Render()
 	if !strings.Contains(resumed, "(") {
 		t.Errorf("expected elapsed timer after approval resolved, got %q", resumed)

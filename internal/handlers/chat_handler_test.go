@@ -669,7 +669,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	}
 }
 
-func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *config.Config), stateManager domain.StateManager) *ChatHandler {
+func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *config.Config), stateManager *services.StateManager) *ChatHandler {
 	mockAgent := &mocks.FakeAgentService{}
 	mockModel := &mocks.FakeModelService{}
 	mockTool := &mocks.FakeToolService{}

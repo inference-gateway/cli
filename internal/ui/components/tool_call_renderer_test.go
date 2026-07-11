@@ -6,7 +6,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // TestToolCallRenderer_BashOutputStreamLineCounting verifies that a single
@@ -62,7 +61,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 // question overlay is blocked on the user, and resumes afterwards.
 func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
 	r := NewToolCallRenderer(createMockStyleProviderForStatus())
-	sm := &domainmocks.FakeStateManager{}
+	sm := domain.NewApplicationState()
 	r.SetStateManager(sm)
 	r.tools["tc-1"] = &ToolRenderState{
 		CallID:    "tc-1",
@@ -72,7 +71,7 @@ func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
 	}
 	r.toolsOrder = []string{"tc-1"}
 
-	sm.GetUserQuestionUIStateReturns(&domain.UserQuestionUIState{})
+	sm.SetupUserQuestionUIState(nil, nil)
 	paused := r.RenderPreviews()
 	if !strings.Contains(paused, "waiting for your input") {
 		t.Errorf("expected waiting label while question pending, got %q", paused)
@@ -81,7 +80,7 @@ func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
 		t.Errorf("expected no running ticker while question pending, got %q", paused)
 	}
 
-	sm.GetUserQuestionUIStateReturns(nil)
+	sm.ClearUserQuestionUIState()
 	resumed := r.RenderPreviews()
 	if !strings.Contains(resumed, "running") {
 		t.Errorf("expected running ticker after question answered, got %q", resumed)

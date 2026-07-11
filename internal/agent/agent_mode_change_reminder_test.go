@@ -13,6 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
@@ -20,8 +21,8 @@ import (
 // config (which carries the on_mode_change entry) and a fake state manager
 // reporting the given live mode.
 func modeChangeSvc(enabled bool, liveMode domain.AgentMode) *AgentServiceImpl {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetAgentModeReturns(liveMode)
+	sm := services.NewStateManager(false)
+	sm.SetAgentMode(liveMode)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	cfg.Reminders.Enabled = enabled
 	return &AgentServiceImpl{stateManager: sm, config: cfg}
@@ -153,7 +154,7 @@ func TestModeChangeReminder_SkipsWhenAwaitingToolResults(t *testing.T) {
 // After a change is recorded, the new mode becomes the baseline; a later turn
 // in that same mode must not re-inject.
 func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
+	sm := services.NewStateManager(false)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	svc := &AgentServiceImpl{stateManager: sm, config: cfg}
 	withDebugStreamWriter(t)
@@ -161,11 +162,11 @@ func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
 	conv := []sdk.Message{}
 	ctx := newReminderAgentCtx(&conv, 1, 0)
 
-	sm.GetAgentModeReturns(domain.AgentModeAutoAccept)
+	sm.SetAgentMode(domain.AgentModeAutoAccept)
 	svc.injectDueReminders(ctx, domain.HookPreStream)
 	require.Empty(t, conv, "turn 1 seeds")
 
-	sm.GetAgentModeReturns(domain.AgentModePlan)
+	sm.SetAgentMode(domain.AgentModePlan)
 	svc.injectDueReminders(ctx, domain.HookPreStream)
 	require.Len(t, conv, 1, "Auto -> Plan injects once")
 
