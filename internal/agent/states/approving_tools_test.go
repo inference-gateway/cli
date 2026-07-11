@@ -248,6 +248,27 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 	assert.False(t, ctx.AgentCtx.HasToolResults, "rejection must clear HasToolResults so the turn completes")
 }
 
+// TestApprovingToolsState_RejectionEntryKeepsArguments verifies the rejected
+// tool entry carries the original call arguments so the UI renders
+// "Bash(command=...)" instead of a bare "Bash()" (issue #861).
+func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
+	s := &ApprovingToolsState{}
+	tc := sdk.ChatCompletionMessageToolCall{
+		ID:       "call-0",
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf /tmp/x"}`},
+	}
+
+	entry := s.buildRejectionEntry(tc)
+
+	require.NotNil(t, entry.ToolExecution)
+	assert.Equal(t, map[string]any{"command": "rm -rf /tmp/x"}, entry.ToolExecution.Arguments)
+
+	tc.Function.Arguments = "not-json"
+	entry = s.buildRejectionEntry(tc)
+	require.NotNil(t, entry.ToolExecution)
+	assert.NotNil(t, entry.ToolExecution.Arguments, "malformed args must fall back to an empty map")
+}
+
 // TestApprovingToolsState_ApprovedBatchKeepsToolResults verifies the inverse of
 // the rejection case: a fully approved batch leaves HasToolResults set so the
 // agent streams a follow-up turn responding to the results.

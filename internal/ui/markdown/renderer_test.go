@@ -100,17 +100,17 @@ func TestContainsMarkdownSkipsToolOutput(t *testing.T) {
 		{
 			name:     "tool output with box drawing",
 			content:  "Bash(command=ls)\n├─ Duration: 100ms\n└─ Status: Success",
-			expected: false, // Should skip due to box-drawing characters
+			expected: false,
 		},
 		{
 			name:     "tool output with duration and status",
 			content:  "Duration: 500ms Status: ✓ Success",
-			expected: false, // Should skip due to Duration/Status pattern
+			expected: false,
 		},
 		{
 			name:     "tool output with vertical line",
 			content:  "Arguments:\n│ file: test.go",
-			expected: false, // Should skip due to │ character
+			expected: false,
 		},
 		{
 			name:     "empty string",
@@ -169,16 +169,11 @@ func TestContainsMarkdownDetectsRealMarkdown(t *testing.T) {
 }
 
 func TestRendererWithNilThemeService(t *testing.T) {
-	// Test that renderer handles nil gracefully
-	// This would be a real integration test with the actual domain.ThemeService
-	// For now, we test the containsMarkdown function which is the core logic
-
 	content := "# Hello\n\nThis is a **test**"
 	assert.True(t, containsMarkdown(content))
 }
 
 func TestCodeBlockDetection(t *testing.T) {
-	// Code blocks are particularly important for TUI rendering
 	codeBlocks := []string{
 		"```go\npackage main\n```",
 		"```python\nprint('hello')\n```",
