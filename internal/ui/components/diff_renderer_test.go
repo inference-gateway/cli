@@ -274,3 +274,65 @@ func TestDiffRenderer_Construction(t *testing.T) {
 		t.Fatal("expected non-empty output")
 	}
 }
+
+// TestDiffRenderer_SyntaxHighlight_KnownLanguage verifies that syntax
+// highlighting on a .go diff preserves the Go source content (no data loss).
+func TestDiffRenderer_SyntaxHighlight_KnownLanguage(t *testing.T) {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
+
+	content := "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"
+	out := stripANSI(renderer.RenderDiff(DiffInfo{
+		FilePath:   "main.go",
+		OldContent: "",
+		NewContent: content,
+		Title:      "Syntax Highlight",
+	}))
+	if !strings.Contains(out, "func main") {
+		t.Fatalf("expected Go source preserved after highlighting:\n%s", out)
+	}
+	if !strings.Contains(out, "println") {
+		t.Fatalf("expected function body preserved after highlighting:\n%s", out)
+	}
+}
+
+// TestDiffRenderer_SyntaxHighlight_UnknownExtension verifies that diffs
+// with an unknown file extension render without error (plain fallback).
+func TestDiffRenderer_SyntaxHighlight_UnknownExtension(t *testing.T) {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
+
+	content := "some content\n"
+	out := stripANSI(renderer.RenderDiff(DiffInfo{
+		FilePath:   "file.xyzabc",
+		OldContent: "",
+		NewContent: content,
+	}))
+	if !strings.Contains(out, "some content") {
+		t.Fatalf("expected content preserved for unknown extension:\n%s", out)
+	}
+}
+
+// TestDiffRenderer_SyntaxHighlight_NilStyle verifies that a DiffRenderer
+// with no theme (nil chroma style) still renders content without
+// crashing — the chroma guard in buildDiffView and renderContentPreview
+// skips highlighting cleanly.
+func TestDiffRenderer_SyntaxHighlight_NilStyle(t *testing.T) {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
+
+	args := map[string]any{
+		"file_path": "/no/such/file_test.go",
+		"content":   "package main\n\nfunc main() {}\n",
+	}
+	out := stripANSI(renderer.RenderWriteToolArguments(args))
+	if !strings.Contains(out, "package main") {
+		t.Fatalf("expected content preserved in write preview:\n%s", out)
+	}
+	if !strings.Contains(out, "func main") {
+		t.Fatalf("expected func main in write preview:\n%s", out)
+	}
+}

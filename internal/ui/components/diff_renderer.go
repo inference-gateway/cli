@@ -5,8 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components/diffview"
+	chroma "github.com/alecthomas/chroma/v2"
+	chromastyles "github.com/alecthomas/chroma/v2/styles"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
+	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -156,7 +159,7 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 		Padding:    [2]int{0, 1},
 	}))
 	out.WriteString("\n\n")
-	out.WriteString(d.renderContentPreview(content))
+	out.WriteString(d.renderContentPreview(filePath, content))
 	return out.String()
 }
 
@@ -251,7 +254,8 @@ func (d *DiffRenderer) buildDiffView(filePath, before, after string) *diffview.D
 	dv := diffview.New().
 		Before(filePath, before).
 		After(filePath, after).
-		Style(d.diffStyle())
+		Style(d.diffStyle()).
+		WithChromaStyle(d.chromaStyle())
 	if d.contextLines > 0 {
 		dv = dv.ContextLines(d.contextLines)
 	}
@@ -278,6 +282,19 @@ func (d *DiffRenderer) diffStyle() diffview.Style {
 		Dim:    theme.GetDimColor(),
 		Dark:   !isLightTheme(theme),
 	})
+}
+
+// chromaStyle returns a chroma highlighting style derived from the active
+// theme's brightness. Returns nil when no theme is available (no highlighting).
+func (d *DiffRenderer) chromaStyle() *chroma.Style {
+	theme := d.themeOrNil()
+	if theme == nil {
+		return nil
+	}
+	if isLightTheme(theme) {
+		return chromastyles.Get("github")
+	}
+	return chromastyles.Get("github-dark")
 }
 
 func (d *DiffRenderer) themeOrNil() domain.Theme {
@@ -315,10 +332,15 @@ func hexLuminance(hex string) float64 {
 	return (0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)) / 255.0
 }
 
-func (d *DiffRenderer) renderContentPreview(content string) string {
+func (d *DiffRenderer) renderContentPreview(filePath, content string) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) > 1 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
+	}
+
+	if cs := d.chromaStyle(); cs != nil {
+		highlighted := diffview.Highlight(filePath, content, cs, false)
+		lines = strings.Split(highlighted, "\n")
 	}
 
 	limit := d.contentPreviewLimit()
