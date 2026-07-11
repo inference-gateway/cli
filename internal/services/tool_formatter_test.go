@@ -20,6 +20,29 @@ var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func stripANSI(s string) string { return ansiRE.ReplaceAllString(s, "") }
 
+// stripCard removes the rounded card framing (top/bottom border and the "│ … │"
+// per line, plus horizontal padding) added by wrapCard, returning the inner content
+// for structural assertions. Call it on already-ANSI-stripped output.
+func stripCard(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) < 3 {
+		return s
+	}
+	inner := make([]string, 0, len(lines)-2)
+	for _, ln := range lines[1 : len(lines)-1] {
+		ln = strings.TrimSuffix(ln, "│")
+		ln = strings.TrimPrefix(ln, "│")
+		ln = strings.TrimPrefix(ln, " ")
+		inner = append(inner, strings.TrimRight(ln, " "))
+	}
+	return strings.Join(inner, "\n")
+}
+
+// cardTitle returns the top-border line of a card (carries the tool name).
+func cardTitle(s string) string {
+	return strings.SplitN(s, "\n", 2)[0]
+}
+
 // fakeTool is a configurable domain.Tool (and ResultBodyProvider) for formatter tests.
 type fakeTool struct {
 	name         string
@@ -95,24 +118,25 @@ func TestFormatToolResultForUI_CollapsedSuccessTruncatesToFive(t *testing.T) {
 	tool := &fakeTool{name: "Bash", hasBody: true, body: "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8"}
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultForUI(bashResult(true, map[string]any{"command": "git branch"}), 80))
-	lines := strings.Split(out, "\n")
+	full := stripANSI(svc.FormatToolResultForUI(bashResult(true, map[string]any{"command": "git branch"}), 80))
+	if !strings.Contains(cardTitle(full), "Bash") {
+		t.Errorf("card top border missing tool name: %q", cardTitle(full))
+	}
+	lines := strings.Split(stripCard(full), "\n")
 
 	if !strings.Contains(lines[0], "Bash(command=git branch)") || !strings.Contains(lines[0], "19ms") {
 		t.Fatalf("status line missing name/duration: %q", lines[0])
 	}
-	if len(lines) != 7 {
-		t.Fatalf("expected 7 lines, got %d: %#v", len(lines), lines)
+	// status + dim separator + 5 preview lines + footer
+	if len(lines) != 8 {
+		t.Fatalf("expected 8 inner lines, got %d: %#v", len(lines), lines)
 	}
 	for i, want := range []string{"l1", "l2", "l3", "l4", "l5"} {
-		if strings.TrimSpace(lines[1+i]) != want {
-			t.Errorf("preview line %d = %q, want %q", i, lines[1+i], want)
-		}
-		if !strings.HasPrefix(lines[1+i], "    ") {
-			t.Errorf("preview line %d not indented: %q", i, lines[1+i])
+		if strings.TrimSpace(lines[2+i]) != want {
+			t.Errorf("preview line %d = %q, want %q", i, lines[2+i], want)
 		}
 	}
-	footer := lines[6]
+	footer := lines[7]
 	if !strings.Contains(footer, "+3 lines") || !strings.Contains(footer, "ctrl+o to expand") {
 		t.Errorf("footer = %q, want +3 lines + expand hint", footer)
 	}
@@ -125,17 +149,18 @@ func TestFormatToolResultForUI_FailureShowsFullBody(t *testing.T) {
 	tool := &fakeTool{name: "Bash", hasBody: true, body: "e1\ne2\ne3\ne4\ne5"}
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultForUI(bashResult(false, map[string]any{"command": "boom"}), 80))
-	lines := strings.Split(out, "\n")
+	inner := stripCard(stripANSI(svc.FormatToolResultForUI(bashResult(false, map[string]any{"command": "boom"}), 80)))
+	lines := strings.Split(inner, "\n")
 
-	if len(lines) != 7 {
-		t.Fatalf("expected 7 lines, got %d: %#v", len(lines), lines)
+	// status + separator + 5 full body lines + hint footer
+	if len(lines) != 8 {
+		t.Fatalf("expected 8 inner lines, got %d: %#v", len(lines), lines)
 	}
-	if strings.Contains(out, "+") && strings.Contains(out, "more") {
-		t.Errorf("failure output should not truncate: %q", out)
+	if strings.Contains(inner, "+") && strings.Contains(inner, "more") {
+		t.Errorf("failure output should not truncate: %q", inner)
 	}
-	if strings.Contains(out, "+5") {
-		t.Errorf("failure output should not show a hidden-line count: %q", out)
+	if strings.Contains(inner, "+5") {
+		t.Errorf("failure output should not show a hidden-line count: %q", inner)
 	}
 	if !strings.Contains(lines[len(lines)-1], "ctrl+o to expand") {
 		t.Errorf("footer should still show expand hint: %q", lines[len(lines)-1])
@@ -147,14 +172,14 @@ func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
 	svc := newTestService(tool)
 
 	res := &domain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
-	out := stripANSI(svc.FormatToolResultForUI(res, 80))
-	lines := strings.Split(out, "\n")
+	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(res, 80))), "\n")
 
-	if len(lines) != 3 {
-		t.Fatalf("expected status + 1 preview + footer = 3 lines, got %d: %#v", len(lines), lines)
+	// status + separator + 1 preview + footer
+	if len(lines) != 4 {
+		t.Fatalf("expected status + separator + 1 preview + footer = 4 lines, got %d: %#v", len(lines), lines)
 	}
-	if strings.TrimSpace(lines[1]) != "Created main.go (123 bytes)" {
-		t.Errorf("preview line = %q", lines[1])
+	if strings.TrimSpace(lines[2]) != "Created main.go (123 bytes)" {
+		t.Errorf("preview line = %q", lines[2])
 	}
 }
 
@@ -162,8 +187,7 @@ func TestFormatToolResultForUI_NoBodyOmitsPreview(t *testing.T) {
 	tool := &fakeTool{name: "Bash", hasBody: true, body: ""} // empty body, e.g. silent success
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 80))
-	lines := strings.Split(out, "\n")
+	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 80))), "\n")
 
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines (status + hint), got %d: %#v", len(lines), lines)
@@ -184,8 +208,7 @@ func TestFormatToolResultForUI_RejectedShowsStatusAndHintOnly(t *testing.T) {
 		Error:     "rejected by user",
 		Arguments: map[string]any{"command": "rm -rf x"},
 	}
-	out := stripANSI(svc.FormatToolResultForUI(res, 80))
-	lines := strings.Split(out, "\n")
+	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(res, 80))), "\n")
 
 	if len(lines) != 2 {
 		t.Fatalf("expected status + hint = 2 lines, got %d: %#v", len(lines), lines)
@@ -211,7 +234,11 @@ func TestFormatToolResultExpanded_ThemingPreservesTree(t *testing.T) {
 	tool := &fakeTool{name: "Bash", llm: tree}
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultExpanded(bashResult(true, nil), 80))
+	full := stripANSI(svc.FormatToolResultExpanded(bashResult(true, nil), 80))
+	if !strings.Contains(cardTitle(full), "Bash") {
+		t.Errorf("expanded card top border missing tool name: %q", cardTitle(full))
+	}
+	out := stripCard(full)
 
 	want := tree + "\n· ctrl+o to collapse"
 	if out != want {

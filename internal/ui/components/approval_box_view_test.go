@@ -34,6 +34,12 @@ func (argsAwareToolFormatter) FormatToolResultExpanded(*domain.ToolExecutionResu
 }
 func (argsAwareToolFormatter) FormatToolResultForLLM(*domain.ToolExecutionResult) string { return "" }
 func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool                        { return false }
+func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, _ int) string {
+	if p, ok := args["file_path"]; ok {
+		return fmt.Sprintf("%s %s(file_path=%v) %s", icon, toolName, p, trailing)
+	}
+	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
+}
 
 func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 	return &domain.ApprovalUIState{

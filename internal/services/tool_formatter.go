@@ -128,30 +128,59 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 		return "Tool execution result unavailable"
 	}
 
+	dim := s.styleProvider.GetThemeColor("dim")
+	inner := s.cardWidth(terminalWidth) - 4 // minus border + horizontal padding
+
 	if result.Rejected {
-		line := s.statusLine(result, terminalWidth)
+		body := s.statusLine(result, terminalWidth)
 		if hint := s.expandHint(); hint != "" {
-			line += "\n" + s.styleProvider.RenderWithColor("    "+hint, s.styleProvider.GetThemeColor("dim"))
+			body += "\n" + s.styleProvider.RenderWithColor(hint, dim)
 		}
-		return line
+		return s.wrapCard(result.ToolName, body, terminalWidth)
 	}
 
-	lines, more := previewLines(s.resultBody(result), result.Success, contentWidth(terminalWidth))
+	lines, more := previewLines(s.resultBody(result), result.Success, inner)
 
-	out := make([]string, 0, len(lines)+2)
+	out := make([]string, 0, len(lines)+3)
 	out = append(out, s.statusLine(result, terminalWidth))
-
-	dim := s.styleProvider.GetThemeColor("dim")
-	for _, ln := range lines {
-		out = append(out, s.styleProvider.RenderWithColor("    "+ln, dim))
+	if len(lines) > 0 {
+		out = append(out, s.styleProvider.RenderWithColor(strings.Repeat("─", inner), dim))
+		for _, ln := range lines {
+			out = append(out, s.styleProvider.RenderWithColor(ln, dim))
+		}
 	}
 	if footer := s.collapsedFooter(more); footer != "" {
-		out = append(out, s.styleProvider.RenderWithColor("    "+footer, dim))
+		out = append(out, s.styleProvider.PlaceHorizontal(inner, "", s.styleProvider.RenderWithColor(footer, dim)))
 	}
-	return strings.Join(out, "\n")
+	return s.wrapCard(result.ToolName, strings.Join(out, "\n"), terminalWidth)
 }
 
-// statusLine renders the compact "<icon> Name(args) · <duration>" header.
+// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line used by the
+// collapsed status line, the live preview, the approval summary and the queue preview.
+// icon and trailing are already-styled by the caller (each surface owns its own status
+// semantics); the tool name and the width-aware, path-shortened argument preview are
+// formatted identically everywhere, replacing the per-call-site drift (e.g. the old
+// byte-slice `args[:47]` truncation in the live renderer). Pass icon=="" / trailing==""
+// to omit either segment.
+func (s *ToolFormatterService) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, terminalWidth int) string {
+	line := toolName
+	if icon != "" {
+		line = icon + " " + toolName
+	}
+	argsPreview := s.formatArgsPreview(args, s.argsPreviewBudget(toolName, terminalWidth))
+	if argsPreview != "" && argsPreview != "{}" {
+		line += "(" + argsPreview + ")"
+	} else {
+		line += "()"
+	}
+	if trailing != "" {
+		line += " " + trailing
+	}
+	return line
+}
+
+// statusLine renders the compact "<icon> Name(args) · <duration>" header via the
+// shared summary renderer.
 func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, terminalWidth int) string {
 	icon := icons.CheckMark
 	iconColor := "success"
@@ -159,19 +188,36 @@ func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, te
 		icon = icons.CrossMark
 		iconColor = "error"
 	}
-
 	styledIcon := s.styleProvider.RenderWithColor(icon, s.styleProvider.GetThemeColor(iconColor))
+
 	suffix, suffixColor := "· "+formatDurationShort(result.Duration), "dim"
 	if result.Rejected {
 		suffix, suffixColor = "· Rejected", "error"
 	}
-	styledDur := s.styleProvider.RenderWithColor(suffix, s.styleProvider.GetThemeColor(suffixColor))
+	styledSuffix := s.styleProvider.RenderWithColor(suffix, s.styleProvider.GetThemeColor(suffixColor))
 
-	argsPreview := s.formatArgsPreview(result.Arguments, s.argsPreviewBudget(result.ToolName, terminalWidth))
-	if argsPreview != "" && argsPreview != "{}" {
-		return fmt.Sprintf("%s %s(%s) %s", styledIcon, result.ToolName, argsPreview, styledDur)
+	return s.RenderToolSummary(styledIcon, result.ToolName, result.Arguments, styledSuffix, terminalWidth)
+}
+
+// cardWidth is the content width for a tool-result card at the given terminal width.
+func (s *ToolFormatterService) cardWidth(terminalWidth int) int {
+	w := formatting.GetResponsiveWidth(terminalWidth) - 2 // rounded border adds 2 columns
+	if w < 20 {
+		w = 20
 	}
-	return fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledDur)
+	return w
+}
+
+// wrapCard frames content in a rounded card whose top border carries the tool name,
+// coloured by tool type (AC8): a subtle border with an accent title, no emoji.
+func (s *ToolFormatterService) wrapCard(toolName, content string, terminalWidth int) string {
+	return s.styleProvider.RenderTitledCard(
+		content,
+		toolName,
+		s.styleProvider.GetThemeColor("border"),
+		s.styleProvider.ToolTitleColor(toolName),
+		s.cardWidth(terminalWidth),
+	)
 }
 
 // argsPreviewBudget is the width available for the inline argument preview on the
@@ -232,12 +278,13 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 		tree = safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
 	}
 
-	tree = wrapTreeLines(tree, formatting.GetResponsiveWidth(terminalWidth))
-	themed := s.themeTreeLines(tree)
+	inner := s.cardWidth(terminalWidth) - 4 // minus border + horizontal padding
+	tree = wrapTreeLines(tree, inner)
+	body := s.themeTreeLines(tree)
 	if hint := s.collapseHintLine(result); hint != "" {
-		return themed + "\n" + hint
+		body += "\n" + hint
 	}
-	return themed
+	return s.wrapCard(result.ToolName, body, terminalWidth)
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption

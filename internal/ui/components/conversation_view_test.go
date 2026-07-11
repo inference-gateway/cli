@@ -43,6 +43,9 @@ func (s *stubToolFormatter) FormatToolResultForLLM(result *domain.ToolExecutionR
 	return "Tool: " + result.ToolName
 }
 func (s *stubToolFormatter) ShouldAlwaysExpandTool(_ string) bool { return false }
+func (s *stubToolFormatter) RenderToolSummary(icon, toolName string, _ map[string]any, trailing string, _ int) string {
+	return strings.TrimSpace(icon + " " + toolName + "() " + trailing)
+}
 
 // createMockStyleProvider creates a mock styles provider for testing
 func createMockStyleProvider() *styles.Provider {

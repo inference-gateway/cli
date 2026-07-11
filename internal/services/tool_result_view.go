@@ -78,16 +78,6 @@ func capLines(lines []string, width int) []string {
 	return out
 }
 
-// contentWidth is the width available for preview content after reserving room for
-// the left indent and a small right buffer.
-func contentWidth(terminalWidth int) int {
-	w := formatting.GetResponsiveWidth(terminalWidth) - 6
-	if w < 20 {
-		return 20
-	}
-	return w
-}
-
 // pluralizeLines formats the hidden-line count ("+1 line" / "+3 lines").
 func pluralizeLines(n int) string {
 	if n == 1 {
