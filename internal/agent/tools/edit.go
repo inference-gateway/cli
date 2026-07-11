@@ -603,32 +603,20 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
+	var dataContent string
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
-		output.WriteString("\n")
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
 		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Edits applied →"
-		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
-		output.WriteString("\n")
+		dataContent = diffRenderer.RenderDiff(*diffInfo)
+	} else if result.Data != nil {
+		dataContent = t.formatEditData(result.Data)
 	}
 
-	if !showGitDiff && result.Data != nil {
-		dataContent := t.formatEditData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
-	}
-
-	hasDataSection := !showGitDiff && result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display

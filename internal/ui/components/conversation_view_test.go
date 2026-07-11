@@ -43,6 +43,9 @@ func (s *stubToolFormatter) FormatToolResultForLLM(result *domain.ToolExecutionR
 	return "Tool: " + result.ToolName
 }
 func (s *stubToolFormatter) ShouldAlwaysExpandTool(_ string) bool { return false }
+func (s *stubToolFormatter) RenderToolSummary(icon, toolName string, _ map[string]any, trailing string, _ int) string {
+	return strings.TrimSpace(icon + " " + toolName + "() " + trailing)
+}
 
 // createMockStyleProvider creates a mock styles provider for testing
 func createMockStyleProvider() *styles.Provider {
@@ -285,6 +288,44 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 	cv.ToggleAllToolResultsExpansion()
 	if !cv.IsToolResultExpanded(0) {
 		t.Error("expected second ToggleAll to expand again")
+	}
+}
+
+// TestConversationView_ToggleAllExpandsCollapsedAmongExpanded guards the rejected-write
+// bug: with a default-expanded Edit next to a collapsed result, the first ctrl+o must
+// expand everything (so the collapsed card opens), not collapse-first and leave it shut.
+func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
+			Time:          time.Now(),
+		},
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
+			Time:          time.Now(),
+		},
+	})
+
+	if !cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(1) {
+		t.Fatal("precondition: Edit expanded, rejected Write collapsed")
+	}
+
+	cv.ToggleAllToolResultsExpansion()
+	if !cv.IsToolResultExpanded(1) {
+		t.Error("expected first ToggleAll to expand the collapsed rejected write")
+	}
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected the already-expanded Edit to stay expanded")
+	}
+
+	cv.ToggleAllToolResultsExpansion()
+	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(1) {
+		t.Error("expected second ToggleAll to collapse everything")
 	}
 }
 
@@ -1301,4 +1342,73 @@ func TestConversationView_RenderCache(t *testing.T) {
 			t.Error("pending plan entry must not be cached")
 		}
 	})
+}
+
+// heightFormatter renders a tool result as `collapsed` lines when collapsed and
+// `expanded` lines when expanded, giving scroll-anchoring math a real height delta.
+type heightFormatter struct{ collapsed, expanded int }
+
+func (heightFormatter) FormatToolCall(name string, _ map[string]any) string { return name + "()" }
+func (f heightFormatter) FormatToolResultForUI(_ *domain.ToolExecutionResult, _ int) string {
+	return strings.TrimRight(strings.Repeat("c\n", f.collapsed), "\n")
+}
+func (f heightFormatter) FormatToolResultExpanded(_ *domain.ToolExecutionResult, _ int) string {
+	return strings.TrimRight(strings.Repeat("e\n", f.expanded), "\n")
+}
+func (heightFormatter) FormatToolResultForLLM(_ *domain.ToolExecutionResult) string { return "" }
+func (heightFormatter) ShouldAlwaysExpandTool(string) bool                          { return false }
+func (heightFormatter) RenderToolSummary(icon, name string, _ map[string]any, trailing string, _ int) string {
+	return strings.TrimSpace(icon + " " + name + "() " + trailing)
+}
+
+func scrollTestView(t *testing.T) *ConversationView {
+	t.Helper()
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(heightFormatter{collapsed: 2, expanded: 6})
+	cv.SetWidth(80)
+	cv.SetHeight(8)
+	conv := make([]domain.ConversationEntry, 0, 6)
+	for i := 0; i < 6; i++ {
+		conv = append(conv, domain.ConversationEntry{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			Time:          time.Now(),
+		})
+	}
+	cv.SetConversation(conv)
+	return cv
+}
+
+func TestRebuildPreservingScroll_AnchorsAboveViewportEntry(t *testing.T) {
+	cv := scrollTestView(t)
+
+	cv.userScrolledUp = true
+	spans := cv.entryLineSpans()
+	cv.Viewport.SetYOffset(spans[2][0])
+	before := cv.Viewport.YOffset()
+	beforeH0 := spans[0][1]
+
+	cv.ToggleToolResultExpansion(0)
+
+	afterH0 := cv.entryLineSpans()[0][1]
+	if afterH0 <= beforeH0 {
+		t.Fatalf("expanded entry should be taller: collapsed=%d expanded=%d", beforeH0, afterH0)
+	}
+	if got, want := cv.Viewport.YOffset(), before+(afterH0-beforeH0); got != want {
+		t.Errorf("YOffset not anchored: got %d, want %d (delta %d)", got, want, afterH0-beforeH0)
+	}
+}
+
+func TestRebuildPreservingScroll_IgnoresBelowViewportEntry(t *testing.T) {
+	cv := scrollTestView(t)
+
+	cv.userScrolledUp = true
+	cv.Viewport.SetYOffset(0) // viewport top at the very top; entry 5 is below it
+	before := cv.Viewport.YOffset()
+
+	cv.ToggleToolResultExpansion(5)
+
+	if got := cv.Viewport.YOffset(); got != before {
+		t.Errorf("toggling a below-viewport entry must not move the offset: got %d, want %d", got, before)
+	}
 }

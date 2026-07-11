@@ -639,37 +639,26 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
-	if result.Success && result.Arguments != nil && result.Data != nil {
-		output.WriteString("\n")
+	var dataContent string
+	switch {
+	case result.Success && result.Arguments != nil && result.Data != nil:
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
 		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.getActualDiffInfo(result)
-		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
-		output.WriteString("\n")
-	} else if !result.Success && result.Arguments != nil {
-		output.WriteString("\n")
+		dataContent = diffRenderer.RenderDiff(*diffInfo)
+	case !result.Success && result.Arguments != nil:
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
 		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Simulated diff preview →"
-		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
-		output.WriteString("\n")
-	} else if result.Data != nil {
-		dataContent := t.formatMultiEditData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent = diffRenderer.RenderDiff(*diffInfo)
+	case result.Data != nil:
+		dataContent = t.formatMultiEditData(result.Data)
 	}
 
-	hasDataSection := result.Success && result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // formatMultiEditData formats multi-edit-specific data

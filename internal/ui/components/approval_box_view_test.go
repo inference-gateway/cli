@@ -34,6 +34,12 @@ func (argsAwareToolFormatter) FormatToolResultExpanded(*domain.ToolExecutionResu
 }
 func (argsAwareToolFormatter) FormatToolResultForLLM(*domain.ToolExecutionResult) string { return "" }
 func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool                        { return false }
+func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, _ int) string {
+	if p, ok := args["file_path"]; ok {
+		return fmt.Sprintf("%s %s(file_path=%v) %s", icon, toolName, p, trailing)
+	}
+	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
+}
 
 func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 	return &domain.ApprovalUIState{
@@ -205,6 +211,81 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 	}
 }
 
+// TestApprovalBox_ExpandScrollsToDiffTail asserts ctrl+o (ToggleExpanded) opens a
+// scrollable window whose tail is reachable with ScrollDiff, so a diff taller than
+// the screen is fully reviewable; collapsing resets it.
+func TestApprovalBox_ExpandScrollsToDiffTail(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&b, "LINE_%02d\n", i)
+	}
+	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, b.String())
+
+	sm := approvalStateManager(approvalStateWith("Edit", args))
+
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	av.SetWidth(80)
+	av.SetHeight(30)
+
+	_ = av.Begin()
+
+	av.ToggleExpanded()
+	top := stripANSI(av.Render())
+	if !strings.Contains(top, "LINE_00") {
+		t.Fatalf("expanded window should start at the diff head:\n%s", top)
+	}
+	if strings.Contains(top, "LINE_39") {
+		t.Fatalf("diff tail should be below the fold before scrolling:\n%s", top)
+	}
+	if !strings.Contains(top, "scroll") {
+		t.Errorf("expanded window should show a scroll hint:\n%s", top)
+	}
+
+	av.ScrollDiff(1000)
+	bottom := stripANSI(av.Render())
+	if !strings.Contains(bottom, "LINE_39") {
+		t.Errorf("scrolling down should reveal the diff tail:\n%s", bottom)
+	}
+
+	av.ToggleExpanded()
+	if recollapsed := stripANSI(av.Render()); strings.Contains(recollapsed, "LINE_39") {
+		t.Errorf("collapsing should return to the capped head, LINE_39 still present:\n%s", recollapsed)
+	}
+}
+
+// TestApprovalBox_IsActive reports true only while a form is built for a pending
+// approval, so ctrl+o routes here instead of the conversation.
+func TestApprovalBox_IsActive(t *testing.T) {
+	sm := approvalStateManager(approvalStateWith("Edit", `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`))
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	if av.IsActive() {
+		t.Error("IsActive should be false before Begin")
+	}
+	_ = av.Begin()
+	if !av.IsActive() {
+		t.Error("IsActive should be true after Begin with a pending approval")
+	}
+}
+
+// TestApprovalBox_IsActiveFalseAfterExternalClear guards the esc-rejection bug: esc
+// clears the StateManager's approval state without completing the form, so av.active
+// /av.form linger. IsActive must consult the live state and report false, or ctrl+o
+// would be swallowed by the defunct box instead of expanding the rejected result.
+func TestApprovalBox_IsActiveFalseAfterExternalClear(t *testing.T) {
+	sm := approvalStateManager(approvalStateWith("Write", `{"file_path":"/x/y.txt","content":"hi"}`))
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	_ = av.Begin()
+	if !av.IsActive() {
+		t.Fatal("precondition: IsActive true while the approval is pending")
+	}
+
+	sm.ClearApprovalUIState()
+
+	if av.IsActive() {
+		t.Error("IsActive must be false once the approval state is cleared externally")
+	}
+}
+
 // TestApprovalBox_DiffToolIgnoresFormatter asserts the diff path does not depend on
 // the tool formatter (a nil formatter still yields a diff, not the name fallback).
 func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
@@ -237,7 +318,6 @@ const (
 // is tightened to 2 context lines: the 2 nearest unchanged lines on each side
 // remain while the 3rd-out lines (and beyond) are trimmed.
 func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
-	// "/x/y.txt" does not exist -> editDiff falls back to a snippet diff.
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
 
 	sm := approvalStateManager(approvalStateWith("Edit", args))

@@ -197,78 +197,58 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
 	if result.Data == nil {
-		hasDataSection := false
-		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-		return output.String()
+		return t.formatter.FormatExpanded(result, "")
 	}
 
 	queryResult, ok := result.Data.(A2AQueryTaskResult)
 	if !ok || queryResult.Task == nil {
-		dataContent := t.formatter.FormatAsJSON(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
-		hasDataSection := result.Data != nil
-		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-		return output.String()
+		return t.formatter.FormatExpanded(result, t.formatter.FormatAsJSON(result.Data))
 	}
 
+	var body strings.Builder
 	task := queryResult.Task
-	fmt.Fprintf(&output, "Task Status: %s\n", task.Status.State)
+	fmt.Fprintf(&body, "Task Status: %s\n", task.Status.State)
 
 	if isFailedTaskState(task.Status.State) {
 		if reason := failureReasonFromTask(*task); reason != "" {
-			fmt.Fprintf(&output, "\nFailure reason: %s\n", reason)
+			fmt.Fprintf(&body, "\nFailure reason: %s\n", reason)
 		}
 	}
 
 	hasArtifacts := len(task.Artifacts) > 0
 	if !hasArtifacts {
-		output.WriteString("\nNo artifacts available for this task.\n")
-		output.WriteString("\nFull Task Data:\n")
-		dataContent := t.formatter.FormatAsJSON(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
-		hasDataSection := result.Data != nil
-		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-		return output.String()
+		body.WriteString("\nNo artifacts available for this task.\n")
+		body.WriteString("\nFull Task Data:\n")
+		body.WriteString(t.formatter.FormatAsJSON(result.Data))
+		return t.formatter.FormatExpanded(result, body.String())
 	}
 
-	fmt.Fprintf(&output, "\nArtifacts (%d):\n", len(task.Artifacts))
+	fmt.Fprintf(&body, "\nArtifacts (%d):\n", len(task.Artifacts))
 	for i, artifact := range task.Artifacts {
-		fmt.Fprintf(&output, "%d. ", i+1)
+		fmt.Fprintf(&body, "%d. ", i+1)
 		if artifact.Name != nil {
-			fmt.Fprintf(&output, "Name: %s", *artifact.Name)
+			fmt.Fprintf(&body, "Name: %s", *artifact.Name)
 		}
-		fmt.Fprintf(&output, " (ID: %s)", artifact.ArtifactID)
+		fmt.Fprintf(&body, " (ID: %s)", artifact.ArtifactID)
 
 		if artifact.Metadata != nil {
 			if url, ok := (*artifact.Metadata)["url"].(string); ok {
-				fmt.Fprintf(&output, "\n   Download URL: %s", url)
+				fmt.Fprintf(&body, "\n   Download URL: %s", url)
 			}
 			if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok {
-				fmt.Fprintf(&output, "\n   MIME Type: %s", mimeType)
+				fmt.Fprintf(&body, "\n   MIME Type: %s", mimeType)
 			}
 			if size, ok := (*artifact.Metadata)["size"].(float64); ok {
-				fmt.Fprintf(&output, "\n   Size: %d bytes", int64(size))
+				fmt.Fprintf(&body, "\n   Size: %d bytes", int64(size))
 			}
 		}
-		output.WriteString("\n")
+		body.WriteString("\n")
 	}
 
-	output.WriteString("\nFull Task Data:\n")
-	dataContent := t.formatter.FormatAsJSON(result.Data)
-	hasMetadata := len(result.Metadata) > 0
-	output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	body.WriteString("\nFull Task Data:\n")
+	body.WriteString(t.formatter.FormatAsJSON(result.Data))
+	return t.formatter.FormatExpanded(result, body.String())
 }
 
 func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) string {

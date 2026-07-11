@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -323,82 +322,11 @@ func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatExpandedHeader(result))
-
+	var dataContent string
 	if result.Data != nil {
-		dataContent := t.formatTodoData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent = t.formatTodoData(result.Data)
 	}
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
-}
-
-// formatExpandedHeader formats the expanded view header with TodoWrite-specific collapse logic
-func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult) string {
-	var output strings.Builder
-	toolCall := t.formatToolCallWithCollapse(result.Arguments)
-
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "├─ ⏱️  Duration: %s\n", t.formatter.FormatDuration(result))
-	fmt.Fprintf(&output, "├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success))
-
-	if result.Error != "" {
-		fmt.Fprintf(&output, "├─ %s Error: %s\n", icons.CrossMarkStyle.Render(icons.CrossMark), result.Error)
-	}
-
-	if len(result.Arguments) > 0 {
-		output.WriteString("├─ 📝 Arguments:\n")
-		keys := make([]string, 0, len(result.Arguments))
-		for key := range result.Arguments {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-
-		for i, key := range keys {
-			value := result.Arguments[key]
-			if t.ShouldCollapseArg(key) {
-				value = "..."
-			}
-			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
-			if hasMore {
-				fmt.Fprintf(&output, "│  ├─ %s: %v\n", key, value)
-			} else {
-				fmt.Fprintf(&output, "│  └─ %s: %v\n", key, value)
-			}
-		}
-	}
-
-	return output.String()
-}
-
-// formatToolCallWithCollapse formats a tool call with TodoWrite-specific collapse logic
-func (t *TodoWriteTool) formatToolCallWithCollapse(args map[string]any) string {
-	if len(args) == 0 {
-		return "TodoWrite()"
-	}
-
-	keys := make([]string, 0, len(args))
-	for key := range args {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-
-	argPairs := make([]string, 0, len(args))
-	for _, key := range keys {
-		value := args[key]
-		if t.ShouldCollapseArg(key) {
-			value = `"..."`
-		}
-		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
-	}
-
-	return fmt.Sprintf("TodoWrite(%s)", strings.Join(argPairs, ", "))
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // formatTodoData formats todo-specific data with progress visualization

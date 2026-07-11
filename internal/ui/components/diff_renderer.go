@@ -24,8 +24,14 @@ const InlineDiffContextLines = 2
 type DiffRenderer struct {
 	styleProvider *styles.Provider
 	width         int
-	contextLines  int // 0 keeps diffview's default (3); >0 overrides it
+	contextLines  int
+	maxLines      int
 }
+
+// defaultContentPreviewLines caps the new-file preview so a huge file can't blow
+// out a non-scrollable caller. Callers that bound the height themselves (e.g. the
+// scrollable approval box) opt out via SetMaxLines(-1).
+const defaultContentPreviewLines = 50
 
 // DiffInfo carries the inputs for a single diff render.
 type DiffInfo struct {
@@ -53,6 +59,11 @@ func (d *DiffRenderer) SetWidth(w int) *DiffRenderer { d.width = w; return d }
 // below each change. Pass 0 (the default) to keep the diffview default. Returns
 // the renderer for chaining.
 func (d *DiffRenderer) SetContextLines(n int) *DiffRenderer { d.contextLines = n; return d }
+
+// SetMaxLines overrides the new-file preview line cap: 0 keeps the default, a
+// positive n caps at n, and a negative n renders every line (for callers that
+// bound the height themselves, like the scrollable approval box). Chains.
+func (d *DiffRenderer) SetMaxLines(n int) *DiffRenderer { d.maxLines = n; return d }
 
 // RenderEditToolArguments renders Edit tool arguments as a diff. When the target
 // file can be read and old_string is found in it, it diffs the real file content
@@ -306,12 +317,17 @@ func hexLuminance(hex string) float64 {
 
 func (d *DiffRenderer) renderContentPreview(content string) string {
 	lines := strings.Split(content, "\n")
+	if len(lines) > 1 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	limit := d.contentPreviewLimit()
 	var out strings.Builder
 	maxWidth := len(fmt.Sprintf("%d", len(lines)))
 	gutter := d.styleProvider.RenderDimText(" │ ")
 
 	for i, line := range lines {
-		if i >= 50 {
+		if limit >= 0 && i >= limit {
 			remaining := len(lines) - i
 			out.WriteString(d.styleProvider.RenderStyledText(
 				fmt.Sprintf("\n... %d more lines ...", remaining),
@@ -327,6 +343,15 @@ func (d *DiffRenderer) renderContentPreview(content string) string {
 		}
 	}
 	return out.String()
+}
+
+// contentPreviewLimit resolves the new-file preview cap: 0 → default, <0 →
+// unlimited (negative), >0 → that value.
+func (d *DiffRenderer) contentPreviewLimit() int {
+	if d.maxLines == 0 {
+		return defaultContentPreviewLines
+	}
+	return d.maxLines
 }
 
 // DiffStats represents statistics about a diff.

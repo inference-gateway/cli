@@ -777,14 +777,7 @@ func (t *MemoryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		return "Memory operation result unavailable"
 	}
 
-	var output strings.Builder
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-	output.WriteString(t.formatMemoryResultData(result))
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, t.formatMemoryResultData(result))
 }
 
 func (t *MemoryTool) formatMemoryResultData(result *domain.ToolExecutionResult) string {
@@ -793,28 +786,22 @@ func (t *MemoryTool) formatMemoryResultData(result *domain.ToolExecutionResult) 
 		return ""
 	}
 
-	connector := "└─"
-	if len(result.Metadata) > 0 {
-		connector = "├─"
-	}
-
 	var output strings.Builder
-	fmt.Fprintf(&output, "%s Result:\n", connector)
-	fmt.Fprintf(&output, "   Operation: %s\n", memResult.Operation)
+	fmt.Fprintf(&output, "Operation: %s\n", memResult.Operation)
 	if memResult.Name != "" {
-		fmt.Fprintf(&output, "   Name: %s\n", memResult.Name)
+		fmt.Fprintf(&output, "Name: %s\n", memResult.Name)
 	}
 	if memResult.Type != "" {
-		fmt.Fprintf(&output, "   Type: %s\n", memResult.Type)
+		fmt.Fprintf(&output, "Type: %s\n", memResult.Type)
 	}
 	if memResult.Path != "" {
-		fmt.Fprintf(&output, "   Path: %s\n", memResult.Path)
+		fmt.Fprintf(&output, "Path: %s\n", memResult.Path)
 	}
 	if memResult.Message != "" {
-		fmt.Fprintf(&output, "   %s\n", memResult.Message)
+		fmt.Fprintf(&output, "%s\n", memResult.Message)
 	}
 	if memResult.Content != "" && memResult.Operation == OperationRead {
-		fmt.Fprintf(&output, "   Content:\n%s\n", memResult.Content)
+		fmt.Fprintf(&output, "Content:\n%s\n", memResult.Content)
 	}
 	return output.String()
 }

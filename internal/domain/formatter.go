@@ -6,8 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	tree "github.com/inference-gateway/cli/internal/ui/styles/tree"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed
@@ -110,98 +111,6 @@ func (f BaseFormatter) FormatDuration(result *ToolExecutionResult) string {
 	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
-// FormatExpandedHeader formats the expanded view header with tool call and metadata
-func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string {
-	var output strings.Builder
-	toolCall := f.FormatToolCall(result.Arguments, false)
-
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "├─ Duration: %s\n", f.FormatDuration(result))
-	fmt.Fprintf(&output, "├─ Status: %s\n", f.FormatStatus(result.Success))
-
-	if result.Error != "" {
-		fmt.Fprintf(&output, "├─ Error: %s\n", result.Error)
-	}
-
-	if len(result.Arguments) > 0 {
-		output.WriteString("├─ Arguments:\n")
-		keys := make([]string, 0, len(result.Arguments))
-		for key := range result.Arguments {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-
-		for i, key := range keys {
-			value := result.Arguments[key]
-			if f.ShouldCollapseArg(key) {
-				value = f.collapseArgValue(value, 50)
-			}
-			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
-			if hasMore {
-				fmt.Fprintf(&output, "│  ├─ %s: %v\n", key, value)
-			} else {
-				fmt.Fprintf(&output, "│  └─ %s: %v\n", key, value)
-			}
-		}
-	}
-
-	return output.String()
-}
-
-// FormatExpandedFooter formats the expanded view footer with metadata
-func (f BaseFormatter) FormatExpandedFooter(result *ToolExecutionResult, hasDataSection bool) string {
-	if len(result.Metadata) == 0 {
-		return ""
-	}
-
-	var output strings.Builder
-	if hasDataSection {
-		output.WriteString("└─ Metadata:\n")
-	} else {
-		output.WriteString("└─ Metadata:\n")
-	}
-
-	keys := make([]string, 0, len(result.Metadata))
-	for key := range result.Metadata {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-
-	for i, key := range keys {
-		if i == len(keys)-1 {
-			fmt.Fprintf(&output, "   └─ %s: %s\n", key, result.Metadata[key])
-		} else {
-			fmt.Fprintf(&output, "   ├─ %s: %s\n", key, result.Metadata[key])
-		}
-	}
-
-	return output.String()
-}
-
-// FormatDataSection formats the data section with proper indentation
-func (f BaseFormatter) FormatDataSection(dataContent string, hasMetadata bool) string {
-	if dataContent == "" {
-		return ""
-	}
-
-	var output strings.Builder
-	if hasMetadata {
-		output.WriteString("├─ Result:\n")
-	} else {
-		output.WriteString("└─ Result:\n")
-	}
-
-	for _, line := range strings.Split(strings.TrimRight(dataContent, "\n"), "\n") {
-		if hasMetadata {
-			fmt.Fprintf(&output, "│  %s\n", line)
-		} else {
-			fmt.Fprintf(&output, "   %s\n", line)
-		}
-	}
-
-	return output.String()
-}
-
 // FormatAsJSON formats data as JSON if possible, falls back to string representation
 func (f BaseFormatter) FormatAsJSON(data any) string {
 	if jsonData, err := json.MarshalIndent(data, "", "  "); err == nil {
@@ -247,42 +156,84 @@ func (f CustomFormatter) FormatToolCall(args map[string]any, expanded bool) stri
 	return fmt.Sprintf("%s(%s)", f.toolName, f.joinArgs(argPairs))
 }
 
-// FormatExpandedHeader overrides BaseFormatter to use custom collapse logic
-func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) string {
-	var output strings.Builder
-	toolCall := f.FormatToolCall(result.Arguments, false)
+// FormatExpanded renders the full expanded result as a single native lipgloss/tree,
+// replacing the hand-drawn ├─/└─ connectors that used to live across three methods.
+// dataContent is the tool-specific result body (may be ""). Output is plain: the UI
+// wraps and themes it (services.themeTreeLines); LLM / headless consume it as-is.
+func (f BaseFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
+}
 
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "├─ Duration: %s\n", f.FormatDuration(result))
-	fmt.Fprintf(&output, "├─ Status: %s\n", f.FormatStatus(result.Success))
+// FormatExpanded renders the expanded tree using the custom collapse behavior.
+func (f CustomFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
+}
 
+// argValue formats a single argument value for the expanded view, honoring the
+// formatter's collapse behavior (BaseFormatter truncates to 50; CustomFormatter uses "...").
+func (f BaseFormatter) argValue(key string, value any) string {
+	if f.ShouldCollapseArg(key) {
+		return f.collapseArgValue(value, 50)
+	}
+	return fmt.Sprintf("%v", value)
+}
+
+func (f CustomFormatter) argValue(key string, value any) string {
+	if f.ShouldCollapseArg(key) {
+		return "..."
+	}
+	return fmt.Sprintf("%v", value)
+}
+
+// renderExpandedTree builds the shared native tree from a result. It is the single
+// source of the ├──/╰── connectors, replacing the per-method hand drawing.
+func renderExpandedTree(toolCall string, result *ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
+	base := BaseFormatter{}
+	t := tree.Root(toolCall).Rounded()
+
+	// Plain status (glyph only, no ANSI): this tree feeds the LLM/headless path
+	// as-is, and the UI re-themes it via services.themeTreeLines.
+	status := icons.CheckMark + " Success"
+	if !result.Success {
+		status = icons.CrossMark + " Failed"
+	}
+	t.Child("Duration: " + base.FormatDuration(result))
+	t.Child("Status: " + status)
 	if result.Error != "" {
-		fmt.Fprintf(&output, "├─ Error: %s\n", result.Error)
+		t.Child("Error: " + result.Error)
 	}
 
 	if len(result.Arguments) > 0 {
-		output.WriteString("├─ Arguments:\n")
 		keys := make([]string, 0, len(result.Arguments))
 		for key := range result.Arguments {
 			keys = append(keys, key)
 		}
 		slices.Sort(keys)
-
-		for i, key := range keys {
-			value := result.Arguments[key]
-			if f.ShouldCollapseArg(key) {
-				value = "..."
-			}
-			isLast := i == len(keys)-1
-			prefix := "│ ├─"
-			if isLast {
-				prefix = "│ └─"
-			}
-			fmt.Fprintf(&output, "%s %s: %v\n", prefix, key, value)
+		args := tree.Root("Arguments:")
+		for _, key := range keys {
+			args.Child(fmt.Sprintf("%s: %s", key, argValue(key, result.Arguments[key])))
 		}
+		t.Child(args)
 	}
 
-	return output.String()
+	if dataContent != "" {
+		t.Child("Result:\n" + strings.TrimRight(dataContent, "\n"))
+	}
+
+	if len(result.Metadata) > 0 {
+		keys := make([]string, 0, len(result.Metadata))
+		for key := range result.Metadata {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		meta := tree.Root("Metadata:")
+		for _, key := range keys {
+			meta.Child(fmt.Sprintf("%s: %v", key, result.Metadata[key]))
+		}
+		t.Child(meta)
+	}
+
+	return t.String()
 }
 
 // GetFileName extracts filename from a path

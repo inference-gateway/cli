@@ -353,20 +353,11 @@ func (t *MCPTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		return "MCP tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
+	var dataContent string
 	if result.Data != nil {
-		dataContent := t.formatMCPData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent = t.formatMCPData(result.Data)
 	}
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // formatMCPData formats MCP-specific data for display
@@ -397,7 +388,6 @@ func (t *MCPTool) formatMCPData(data any) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *MCPTool) ShouldCollapseArg(key string) bool {
-	// Collapse large content fields
 	return key == "content" || key == "data" || key == "text"
 }
 

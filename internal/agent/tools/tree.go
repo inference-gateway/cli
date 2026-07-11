@@ -614,20 +614,11 @@ func (t *TreeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
+	var dataContent string
 	if result.Data != nil {
-		dataContent := t.formatTreeData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent = t.formatTreeData(result.Data)
 	}
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // formatTreeData formats tree-specific data

@@ -214,6 +214,45 @@ func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 	})
 }
 
+// TestDiffRenderer_WriteNewFilePreviewCap covers the new-file preview line cap:
+// the default caps at 50 with a "more lines" footer, a trailing newline does not
+// produce a phantom extra line, and SetMaxLines(-1) renders every line uncapped.
+func TestDiffRenderer_WriteNewFilePreviewCap(t *testing.T) {
+	styleProvider := styles.NewProvider(domain.NewThemeProvider())
+
+	var b strings.Builder
+	for i := 1; i <= 50; i++ {
+		b.WriteString("line\n")
+	}
+	args := map[string]any{"file_path": "/no/such/file_probe.txt", "content": b.String()}
+
+	capped := stripANSI(NewDiffRenderer(styleProvider).RenderWriteToolArguments(args))
+	if strings.Contains(capped, "more lines") {
+		t.Errorf("50 lines + trailing newline should not be truncated, got a footer:\n%s", capped)
+	}
+	if !strings.Contains(capped, "50 │") {
+		t.Errorf("expected line 50 to render, got:\n%s", capped)
+	}
+
+	b.Reset()
+	for i := 1; i <= 60; i++ {
+		b.WriteString("line\n")
+	}
+	args["content"] = b.String()
+	over := stripANSI(NewDiffRenderer(styleProvider).RenderWriteToolArguments(args))
+	if !strings.Contains(over, "more lines") {
+		t.Errorf("60 lines should be capped with a footer, got:\n%s", over)
+	}
+
+	full := stripANSI(NewDiffRenderer(styleProvider).SetMaxLines(-1).RenderWriteToolArguments(args))
+	if strings.Contains(full, "more lines") {
+		t.Errorf("SetMaxLines(-1) should render uncapped, got a footer:\n%s", full)
+	}
+	if !strings.Contains(full, "60 │") {
+		t.Errorf("expected line 60 to render uncapped, got:\n%s", full)
+	}
+}
+
 func TestDiffRenderer_Construction(t *testing.T) {
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)

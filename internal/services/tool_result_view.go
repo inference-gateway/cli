@@ -78,16 +78,6 @@ func capLines(lines []string, width int) []string {
 	return out
 }
 
-// contentWidth is the width available for preview content after reserving room for
-// the left indent and a small right buffer.
-func contentWidth(terminalWidth int) int {
-	w := formatting.GetResponsiveWidth(terminalWidth) - 6
-	if w < 20 {
-		return 20
-	}
-	return w
-}
-
 // pluralizeLines formats the hidden-line count ("+1 line" / "+3 lines").
 func pluralizeLines(n int) string {
 	if n == 1 {
@@ -260,16 +250,17 @@ func splitTreePrefix(line string) (prefix, rest string) {
 
 func isTreeRune(r rune) bool {
 	switch r {
-	case ' ', '│', '├', '└', '─':
+	case ' ', '│', '├', '└', '╰', '─':
 		return true
 	}
 	return false
 }
 
-// isFieldLine reports whether the prefix denotes a structured field (├─ / └─),
-// as opposed to a continuation/body line (spaces or "│ " only).
+// isFieldLine reports whether the prefix denotes a structured field (├─ / └─ / ╰─),
+// as opposed to a continuation/body line (spaces or "│ " only). ╰ is the rounded
+// last-child corner emitted by lipgloss/tree's RoundedEnumerator.
 func isFieldLine(prefix string) bool {
-	return strings.Contains(prefix, "├─") || strings.Contains(prefix, "└─")
+	return strings.Contains(prefix, "├─") || strings.Contains(prefix, "└─") || strings.Contains(prefix, "╰─")
 }
 
 // splitLabel splits "Label: value" at the first colon, keeping the colon on the label.

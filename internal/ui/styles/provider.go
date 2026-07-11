@@ -639,6 +639,37 @@ func (p *Provider) RenderBorderedBox(text, borderColor string, paddingV, padding
 		Render(text)
 }
 
+// RenderTitledCard renders content in a rounded, width-set, padded box with title
+// spliced into the top border (right-aligned). Reuses the same top-border splice as
+// RenderInputField. Pass "" for title to get a plain bordered box at the given width.
+func (p *Provider) RenderTitledCard(content, title, borderColor, titleColor string, width int) string {
+	box := roundedBox.
+		Width(width).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Padding(0, 1).
+		Render(content)
+	if title == "" {
+		return box
+	}
+	return p.spliceBranchIntoTopBorder(box, title, borderColor, titleColor)
+}
+
+// ToolTitleColor returns the accent hex color used to differentiate a tool type on
+// its card's titled border (AC8, no emoji): shells, file mutations, A2A, and generic
+// each get a distinct theme color.
+func (p *Provider) ToolTitleColor(toolName string) string {
+	switch {
+	case strings.HasPrefix(toolName, "A2A"):
+		return p.GetThemeColor("user")
+	case toolName == "Bash":
+		return p.GetThemeColor("status")
+	case toolName == "Edit" || toolName == "MultiEdit" || toolName == "Write":
+		return p.GetThemeColor("diffAdd")
+	default:
+		return p.GetThemeColor("accent")
+	}
+}
+
 // RenderCenteredBoldWithColor renders text centered, bold, and with a specific color
 func (p *Provider) RenderCenteredBoldWithColor(text, hexColor string, width int) string {
 	return boldStyle.
