@@ -82,10 +82,18 @@ func (av *ApprovalBoxView) ScrollDiff(delta int) {
 	}
 }
 
-// IsActive reports whether an approval is currently being shown, so the caller can
-// route ctrl+o to this box instead of the conversation.
+// IsActive reports whether an approval is *currently* being shown, so the caller can
+// route ctrl+o to this box instead of the conversation. It consults the live
+// StateManager (like Render does) rather than trusting av.active/av.form alone: those
+// fields are only reset by the form's own completion, so after an approval is cleared
+// externally (rejection resolved, timeout) they can linger — and a stale true here
+// would swallow ctrl+o from the rejected result the user is trying to expand.
 func (av *ApprovalBoxView) IsActive() bool {
-	return av.active != nil && av.form != nil
+	if av.stateManager == nil || av.active == nil || av.form == nil {
+		return false
+	}
+	state := av.stateManager.GetApprovalUIState()
+	return state != nil && state == av.active
 }
 
 // IsExpanded reports whether the diff is in the scrollable expanded view, so the

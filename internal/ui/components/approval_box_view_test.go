@@ -270,6 +270,25 @@ func TestApprovalBox_IsActive(t *testing.T) {
 	}
 }
 
+// TestApprovalBox_IsActiveFalseAfterExternalClear guards the esc-rejection bug: esc
+// clears the StateManager's approval state without completing the form, so av.active
+// /av.form linger. IsActive must consult the live state and report false, or ctrl+o
+// would be swallowed by the defunct box instead of expanding the rejected result.
+func TestApprovalBox_IsActiveFalseAfterExternalClear(t *testing.T) {
+	sm := approvalStateManager(approvalStateWith("Write", `{"file_path":"/x/y.txt","content":"hi"}`))
+	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
+	_ = av.Begin()
+	if !av.IsActive() {
+		t.Fatal("precondition: IsActive true while the approval is pending")
+	}
+
+	sm.ClearApprovalUIState()
+
+	if av.IsActive() {
+		t.Error("IsActive must be false once the approval state is cleared externally")
+	}
+}
+
 // TestApprovalBox_DiffToolIgnoresFormatter asserts the diff path does not depend on
 // the tool formatter (a nil formatter still yields a diff, not the name fallback).
 func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
