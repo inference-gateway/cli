@@ -218,21 +218,13 @@ func (r *ToolCallRenderer) SetStateManager(stateManager domain.StateManager) {
 // resume so the wait doesn't count as execution time. Same derive-from-state
 // pattern as StatusView.syncApprovalPause.
 func (r *ToolCallRenderer) syncApprovalPause() {
-	if awaitingUserDecision(r.stateManager) {
-		if r.pausedAt.IsZero() {
-			r.pausedAt = time.Now()
-		}
-		return
-	}
-	if !r.pausedAt.IsZero() {
-		pause := time.Since(r.pausedAt)
+	syncApprovalPause(r.stateManager, &r.pausedAt, func(pause time.Duration) {
 		for _, tool := range r.tools {
 			if tool.EndTime == nil {
 				tool.StartTime = tool.StartTime.Add(pause)
 			}
 		}
-		r.pausedAt = time.Time{}
-	}
+	})
 }
 
 func (r *ToolCallRenderer) RenderPreviews() string {

@@ -291,15 +291,24 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 // Derived from state on each render, like reconnectingMessage, so it needs no
 // event ordering guarantees against the tool-progress spinner events.
 func (sv *StatusView) syncApprovalPause() {
-	if awaitingUserDecision(sv.stateManager) {
-		if sv.pausedAt.IsZero() {
-			sv.pausedAt = time.Now()
+	syncApprovalPause(sv.stateManager, &sv.pausedAt, func(pause time.Duration) {
+		sv.startTime = sv.startTime.Add(pause)
+	})
+}
+
+// syncApprovalPause records when the UI becomes blocked on a user decision and,
+// on resume, calls shift with the paused duration so callers can push their
+// running timers forward.
+func syncApprovalPause(sm domain.StateManager, pausedAt *time.Time, shift func(time.Duration)) {
+	if awaitingUserDecision(sm) {
+		if pausedAt.IsZero() {
+			*pausedAt = time.Now()
 		}
 		return
 	}
-	if !sv.pausedAt.IsZero() {
-		sv.startTime = sv.startTime.Add(time.Since(sv.pausedAt))
-		sv.pausedAt = time.Time{}
+	if !pausedAt.IsZero() {
+		shift(time.Since(*pausedAt))
+		*pausedAt = time.Time{}
 	}
 }
 
