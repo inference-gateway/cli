@@ -227,6 +227,8 @@ func (r *PersistentConversationRepository) GetCurrentConversationMetadata() stor
 
 // SetAutoSave enables or disables automatic saving after each operation
 func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
 	r.autoSave = enabled
 }
 
