@@ -402,6 +402,8 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	startTime := time.Now()
 
+	var availableTools []sdk.ChatCompletionTool
+
 	response, err := func(timeoutCtx context.Context, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
 		provider, modelName, err := s.parseProvider(model)
 		if err != nil {
@@ -421,7 +423,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			if s.stateManager != nil {
 				mode = s.stateManager.GetAgentMode()
 			}
-			availableTools := s.toolService.ListToolsForMode(mode)
+			availableTools = s.toolService.ListToolsForMode(mode)
 			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
 			}
@@ -442,12 +444,19 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	content, reasoningContent, toolCalls := extractFirstChoice(response)
 
+	effectiveUsage := s.storeIterationMetrics(req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
+		inputMessages:   messages,
+		outputContent:   content,
+		outputToolCalls: toolCalls,
+		availableTools:  availableTools,
+	})
+
 	syncResponse := &domain.ChatSyncResponse{
 		RequestID:        req.RequestID,
 		Content:          content,
 		ReasoningContent: reasoningContent,
 		ToolCalls:        toolCalls,
-		Usage:            response.Usage,
+		Usage:            effectiveUsage,
 		Duration:         duration,
 	}
 
@@ -715,13 +724,16 @@ type storeIterationMetricsInput struct {
 
 // storeIterationMetrics stores metrics for the current iteration and accumulates session tokens.
 // If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
+// It returns the effective (possibly polyfilled) usage that was accumulated, or nil when there
+// was nothing to record. Both the streaming path and the sync Run path funnel through here so
+// chat and headless token accounting stay identical (issue #835).
 func (s *AgentServiceImpl) storeIterationMetrics(
 	requestID string,
 	model string,
 	startTime time.Time,
 	usage *sdk.CompletionUsage,
 	polyfillInput *storeIterationMetricsInput,
-) {
+) *sdk.CompletionUsage {
 	effectiveUsage := usage
 
 	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
@@ -734,7 +746,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	}
 
 	if effectiveUsage == nil {
-		return
+		return nil
 	}
 
 	metrics := &domain.ChatMetrics{
@@ -754,6 +766,8 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}
+
+	return effectiveUsage
 }
 
 func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {

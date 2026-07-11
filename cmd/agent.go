@@ -82,34 +82,29 @@ type ConversationMessage struct {
 
 // AgentSession manages the background execution session
 type AgentSession struct {
-	agentService          domain.AgentService
-	toolService           domain.ToolService
-	fileService           domain.FileService
-	imageService          domain.ImageService
-	model                 string
-	agentMode             domain.AgentMode
-	conversation          []ConversationMessage
-	sessionID             string
-	maxTurns              int
-	completedTurns        int
-	config                *config.Config
-	conversationRepo      domain.ConversationRepository
-	reminderProvider      domain.SystemReminderProvider
-	hookProvider          domain.HookCommandProvider
-	memoryBackend         domain.MemoryBackend
-	firedReminders        map[string]bool
-	lastToolFailed        bool
-	saveEnabled           bool
-	bgWaiter              *services.BackgroundTasksWaiter
-	requireApproval       bool
-	approvalCh            chan domain.ApprovalResponse
-	rolloverManager       *services.SessionRolloverManager
-	groupKey              string
-	pricingService        domain.PricingService
-	totalPromptTokens     int
-	totalCompletionTokens int
-	totalTokens           int
-	requestCount          int
+	agentService     domain.AgentService
+	toolService      domain.ToolService
+	fileService      domain.FileService
+	imageService     domain.ImageService
+	model            string
+	agentMode        domain.AgentMode
+	conversation     []ConversationMessage
+	sessionID        string
+	maxTurns         int
+	completedTurns   int
+	config           *config.Config
+	conversationRepo domain.ConversationRepository
+	reminderProvider domain.SystemReminderProvider
+	hookProvider     domain.HookCommandProvider
+	memoryBackend    domain.MemoryBackend
+	firedReminders   map[string]bool
+	lastToolFailed   bool
+	saveEnabled      bool
+	bgWaiter         *services.BackgroundTasksWaiter
+	requireApproval  bool
+	approvalCh       chan domain.ApprovalResponse
+	rolloverManager  *services.SessionRolloverManager
+	groupKey         string
 }
 
 // inheritedSubagentMode returns the coding mode a subagent should start in, read
@@ -187,12 +182,16 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	imageService := svc.GetImageService()
 	conversationRepo := svc.GetConversationRepository()
 	stateManager := svc.GetStateManager()
-	pricingService := svc.GetPricingService()
 
 	agentMode := inheritedSubagentMode()
 	stateManager.SetAgentMode(agentMode)
 
 	saveEnabled := !noSave
+	if !saveEnabled {
+		if persistentRepo, ok := conversationRepo.(*services.PersistentConversationRepository); ok {
+			persistentRepo.SetAutoSave(false)
+		}
+	}
 
 	newSessionID := uuid.New().String()
 	session := &AgentSession{
@@ -221,7 +220,6 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		),
 		requireApproval: requireApproval,
 		approvalCh:      make(chan domain.ApprovalResponse, 1),
-		pricingService:  pricingService,
 	}
 
 	session.rolloverManager = svc.GetSessionRolloverManager()
@@ -677,13 +675,6 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
-	if response.Usage != nil {
-		s.totalPromptTokens += int(response.Usage.PromptTokens)
-		s.totalCompletionTokens += int(response.Usage.CompletionTokens)
-		s.totalTokens += int(response.Usage.TotalTokens)
-		s.requestCount++
-	}
-
 	if response.Content == "" && len(response.ToolCalls) == 0 {
 		return nil
 	}
@@ -703,19 +694,6 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 
 	s.addMessage(assistantMsg)
 	s.outputMessage(assistantMsg)
-
-	if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
-		go func() {
-			if err := s.conversationRepo.AddTokenUsage(
-				s.model,
-				int(response.Usage.PromptTokens),
-				int(response.Usage.CompletionTokens),
-				int(response.Usage.TotalTokens),
-			); err != nil {
-				logger.Warn("failed to track token usage", "error", err)
-			}
-		}()
-	}
 
 	if len(response.ToolCalls) == 0 {
 		return nil
@@ -1325,20 +1303,22 @@ func (s *AgentSession) outputStatusMessage(messageType, message string, metadata
 }
 
 // emitSessionStats emits a single structured session_stats JSON line summarizing token usage and
-// dollar cost for this run. Token counts come from session-local accumulators (independent of
-// --no-save); cost is computed via the shared PricingService so the pricing table is never
-// duplicated. Invoked via defer in execute() so it fires on completion, early error, and panic
+// dollar cost. Totals come from the conversation repository's session accumulator - the same
+// source /cost reads in chat - fed by the shared AgentService accumulation path (issue #835), so
+// they are session/conversation-scoped: resumed sessions include restored history and a mid-run
+// rollover resets them with the conversation. Accumulation is in-memory and thus independent of
+// --no-save. Invoked via defer in execute() so it fires on completion, early error, and panic
 // unwind. Suppressed when no usage-bearing request occurred.
 func (s *AgentSession) emitSessionStats() {
-	if s.requestCount == 0 {
+	if s.conversationRepo == nil {
 		return
 	}
 
-	var inputCost, outputCost, totalCost float64
-	if s.pricingService != nil {
-		inputCost, outputCost, totalCost = s.pricingService.CalculateCost(
-			s.model, s.totalPromptTokens, s.totalCompletionTokens)
+	tokenStats := s.conversationRepo.GetSessionTokens()
+	if tokenStats.RequestCount == 0 {
+		return
 	}
+	costStats := s.conversationRepo.GetSessionCostStats()
 
 	currency := "USD"
 	if s.config != nil && s.config.Pricing.Currency != "" {
@@ -1347,14 +1327,14 @@ func (s *AgentSession) emitSessionStats() {
 
 	s.outputStatusMessage("session_stats", "Session complete", map[string]any{
 		"model":             s.model,
-		"prompt_tokens":     s.totalPromptTokens,
-		"completion_tokens": s.totalCompletionTokens,
-		"total_tokens":      s.totalTokens,
-		"requests":          s.requestCount,
+		"prompt_tokens":     tokenStats.TotalInputTokens,
+		"completion_tokens": tokenStats.TotalOutputTokens,
+		"total_tokens":      tokenStats.TotalTokens,
+		"requests":          tokenStats.RequestCount,
 		"cost": map[string]any{
-			"input":    inputCost,
-			"output":   outputCost,
-			"total":    totalCost,
+			"input":    costStats.TotalInputCost,
+			"output":   costStats.TotalOutputCost,
+			"total":    costStats.TotalCost,
 			"currency": currency,
 		},
 	})

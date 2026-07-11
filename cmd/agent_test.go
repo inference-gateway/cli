@@ -666,15 +666,26 @@ func decodeStatsLine(t *testing.T, session *AgentSession) sessionStatsLine {
 	return got
 }
 
+// seededRepo returns an in-memory conversation repository - the shared sink the
+// agent service accumulates into - seeded with n AddTokenUsage calls of the
+// given per-request token counts.
+func seededRepo(t *testing.T, pricing domain.PricingService, model string, n, prompt, completion, total int) *services.InMemoryConversationRepository {
+	t.Helper()
+	repo := services.NewInMemoryConversationRepository(nil, pricing)
+	for range n {
+		if err := repo.AddTokenUsage(model, prompt, completion, total); err != nil {
+			t.Fatalf("AddTokenUsage: %v", err)
+		}
+	}
+	return repo
+}
+
 func TestEmitSessionStatsFullLine(t *testing.T) {
 	session := &AgentSession{
-		model:                 "deepseek/deepseek-v4-flash",
-		pricingService:        fakePricing(0.0021, 0.0008, 0.0029),
-		config:                &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
-		totalPromptTokens:     21000,
-		totalCompletionTokens: 1260,
-		totalTokens:           22260,
-		requestCount:          7,
+		model:  "deepseek/deepseek-v4-flash",
+		config: &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
+		conversationRepo: seededRepo(t, fakePricing(0.25, 0.125, 0.375),
+			"deepseek/deepseek-v4-flash", 7, 3000, 180, 3180),
 	}
 
 	got := decodeStatsLine(t, session)
@@ -695,8 +706,8 @@ func TestEmitSessionStatsFullLine(t *testing.T) {
 	if got.Requests != 7 {
 		t.Errorf("Requests = %d, want 7", got.Requests)
 	}
-	if got.Cost.Input != 0.0021 || got.Cost.Output != 0.0008 || got.Cost.Total != 0.0029 {
-		t.Errorf("cost = %v/%v/%v, want 0.0021/0.0008/0.0029",
+	if got.Cost.Input != 1.75 || got.Cost.Output != 0.875 || got.Cost.Total != 2.625 {
+		t.Errorf("cost = %v/%v/%v, want 1.75/0.875/2.625",
 			got.Cost.Input, got.Cost.Output, got.Cost.Total)
 	}
 	if got.Cost.Currency != "USD" {
@@ -705,22 +716,31 @@ func TestEmitSessionStatsFullLine(t *testing.T) {
 }
 
 func TestEmitSessionStatsSuppressedWhenNoRequests(t *testing.T) {
-	session := &AgentSession{config: &config.Config{}}
-	out := captureStdout(t, session.emitSessionStats)
-	if strings.TrimSpace(out) != "" {
-		t.Errorf("expected no output for zero requests, got %q", out)
-	}
+	t.Run("empty repo", func(t *testing.T) {
+		session := &AgentSession{
+			config:           &config.Config{},
+			conversationRepo: services.NewInMemoryConversationRepository(nil, nil),
+		}
+		out := captureStdout(t, session.emitSessionStats)
+		if strings.TrimSpace(out) != "" {
+			t.Errorf("expected no output for zero requests, got %q", out)
+		}
+	})
+
+	t.Run("nil repo", func(t *testing.T) {
+		session := &AgentSession{config: &config.Config{}}
+		out := captureStdout(t, session.emitSessionStats)
+		if strings.TrimSpace(out) != "" {
+			t.Errorf("expected no output with nil repo, got %q", out)
+		}
+	})
 }
 
 func TestEmitSessionStatsZeroCostWhenPricingDisabled(t *testing.T) {
 	session := &AgentSession{
-		model:                 "some/model",
-		pricingService:        fakePricing(0, 0, 0),
-		config:                &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
-		totalPromptTokens:     10,
-		totalCompletionTokens: 5,
-		totalTokens:           15,
-		requestCount:          1,
+		model:            "some/model",
+		config:           &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
+		conversationRepo: seededRepo(t, fakePricing(0, 0, 0), "some/model", 1, 10, 5, 15),
 	}
 
 	got := decodeStatsLine(t, session)
@@ -735,10 +755,9 @@ func TestEmitSessionStatsZeroCostWhenPricingDisabled(t *testing.T) {
 
 func TestEmitSessionStatsCurrencyFallback(t *testing.T) {
 	session := &AgentSession{
-		model:          "some/model",
-		pricingService: fakePricing(0, 0, 0.01),
-		config:         &config.Config{},
-		requestCount:   1,
+		model:            "some/model",
+		config:           &config.Config{},
+		conversationRepo: seededRepo(t, fakePricing(0, 0, 0.01), "some/model", 1, 10, 5, 15),
 	}
 
 	got := decodeStatsLine(t, session)
@@ -750,11 +769,9 @@ func TestEmitSessionStatsCurrencyFallback(t *testing.T) {
 
 func TestEmitSessionStatsNilPricingServiceSafe(t *testing.T) {
 	session := &AgentSession{
-		model:             "some/model",
-		pricingService:    nil,
-		config:            &config.Config{},
-		totalPromptTokens: 10,
-		requestCount:      1,
+		model:            "some/model",
+		config:           &config.Config{},
+		conversationRepo: seededRepo(t, nil, "some/model", 1, 10, 0, 10),
 	}
 
 	got := decodeStatsLine(t, session)
@@ -765,59 +782,6 @@ func TestEmitSessionStatsNilPricingServiceSafe(t *testing.T) {
 	if got.PromptTokens != 10 {
 		t.Errorf("PromptTokens = %d, want 10", got.PromptTokens)
 	}
-}
-
-func TestProcessSyncResponseAccumulatesTokens(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 1}}
-
-	usage := func(p, c, total int64) *sdk.CompletionUsage {
-		return &sdk.CompletionUsage{PromptTokens: p, CompletionTokens: c, TotalTokens: total}
-	}
-
-	t.Run("accumulates usage from a content response", func(t *testing.T) {
-		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
-		_ = captureStdout(t, func() {
-			if err := session.processSyncResponse(&domain.ChatSyncResponse{
-				Content: "done", Usage: usage(100, 20, 120),
-			}, "req_1"); err != nil {
-				t.Fatalf("processSyncResponse: %v", err)
-			}
-		})
-		if session.totalPromptTokens != 100 || session.totalCompletionTokens != 20 ||
-			session.totalTokens != 120 || session.requestCount != 1 {
-			t.Errorf("accumulators = %d/%d/%d req=%d, want 100/20/120 req=1",
-				session.totalPromptTokens, session.totalCompletionTokens,
-				session.totalTokens, session.requestCount)
-		}
-	})
-
-	t.Run("nil usage does not increment request count", func(t *testing.T) {
-		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
-		_ = captureStdout(t, func() {
-			if err := session.processSyncResponse(&domain.ChatSyncResponse{Content: "done"}, "req_1"); err != nil {
-				t.Fatalf("processSyncResponse: %v", err)
-			}
-		})
-		if session.requestCount != 0 {
-			t.Errorf("requestCount = %d, want 0 for nil usage", session.requestCount)
-		}
-	})
-
-	t.Run("usage counted even when response content is empty", func(t *testing.T) {
-		session := &AgentSession{config: cfg, conversation: []ConversationMessage{}}
-		if err := session.processSyncResponse(&domain.ChatSyncResponse{
-			Content: "", Usage: usage(5, 3, 8),
-		}, "req_1"); err != nil {
-			t.Fatalf("processSyncResponse: %v", err)
-		}
-		if session.requestCount != 1 || session.totalTokens != 8 {
-			t.Errorf("requestCount=%d totalTokens=%d, want 1 / 8 (increment precedes early return)",
-				session.requestCount, session.totalTokens)
-		}
-		if len(session.conversation) != 0 {
-			t.Errorf("expected no message recorded for empty response, got %d", len(session.conversation))
-		}
-	})
 }
 
 func TestConvertFromConversationEntry(t *testing.T) {

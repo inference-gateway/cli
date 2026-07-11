@@ -366,3 +366,35 @@ func TestSyncRunParsesNonStreamingResponse(t *testing.T) {
 	require.Equal(t, "gpt-4o", reqs[0].Model, "provider prefix must be stripped from the wire model")
 	require.Equal(t, "openai", reqs[0].Provider)
 }
+
+// TestSyncAndStreamAccumulateIdenticalSessionTokens is the acceptance check for
+// issue #835: both the sync (headless) and streaming (chat) paths funnel through
+// the same storeIterationMetrics accumulator, so for an identical scenario the
+// session totals in the shared conversation repository must match.
+func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+
+	syncEnv := newEnv(t)
+	resp, err := syncEnv.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+		RequestID: "req-usage-sync",
+		Model:     mockgateway.DefaultModel,
+		Messages:  []sdk.Message{userMessage(t, "report your usage")},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Usage)
+	require.EqualValues(t, 142, resp.Usage.TotalTokens)
+
+	syncStats := syncEnv.container.GetConversationRepository().GetSessionTokens()
+	require.Equal(t, 142, syncStats.TotalTokens, "sync Run must accumulate into the shared session sink")
+	require.Equal(t, 100, syncStats.TotalInputTokens)
+	require.Equal(t, 42, syncStats.TotalOutputTokens)
+	require.Equal(t, 1, syncStats.RequestCount)
+
+	streamEnv := newEnv(t)
+	res := streamEnv.runStream(ctx, t, "report your usage")
+	require.Empty(t, res.errs)
+
+	streamStats := streamEnv.container.GetConversationRepository().GetSessionTokens()
+	require.Equal(t, streamStats, syncStats, "headless totals must equal chat totals for the same scenario")
+}
