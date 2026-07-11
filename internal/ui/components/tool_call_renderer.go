@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -23,11 +24,66 @@ type ToolCallRenderer struct {
 	tools            map[string]*ToolRenderState
 	toolsOrder       []string
 	styleProvider    *styles.Provider
+	toolFormatter    domain.ToolFormatter
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
 	stateManager     approvalOverlayReader
 	pausedAt         time.Time
+}
+
+// SetToolFormatter wires the shared tool formatter so live previews render the
+// same width-aware "<icon> Name(args) <status>" summary as the collapsed results,
+// instead of a byte-truncated raw-JSON preview.
+func (r *ToolCallRenderer) SetToolFormatter(f domain.ToolFormatter) {
+	r.toolFormatter = f
+}
+
+// summaryLine builds the shared tool summary. args are the raw JSON string carried
+// by the live tool state; icon and trailing are already styled by the caller.
+func (r *ToolCallRenderer) summaryLine(icon, name, argsJSON, trailing string) string {
+	if r.toolFormatter != nil {
+		return r.toolFormatter.RenderToolSummary(icon, name, parseToolArgs(argsJSON), trailing, r.width)
+	}
+	line := name
+	if icon != "" {
+		line = icon + " " + name
+	}
+	line += "()"
+	if trailing != "" {
+		line += " " + trailing
+	}
+	return line
+}
+
+// liveCard frames a running tool's preview in a rounded card whose top border carries
+// the tool name, coloured by tool type (AC8).
+func (r *ToolCallRenderer) liveCard(name, content string) string {
+	w := r.width - 2
+	if w < 20 {
+		w = 20
+	}
+	return r.styleProvider.RenderTitledCard(
+		content, name,
+		r.styleProvider.GetThemeColor("border"),
+		r.styleProvider.ToolTitleColor(name),
+		w,
+	)
+}
+
+// parseToolArgs decodes a tool-call arguments JSON object into a map. It returns nil
+// for empty or not-yet-complete (streaming) JSON, so the summary shows "Name()" until
+// the arguments finish accumulating rather than a truncated fragment.
+func parseToolArgs(argsJSON string) map[string]any {
+	argsJSON = strings.TrimSpace(argsJSON)
+	if argsJSON == "" || argsJSON == "{}" {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &m); err != nil {
+		return nil
+	}
+	return m
 }
 
 // KeyHintFormatter provides formatted key hints for actions
@@ -323,30 +379,19 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		statusColor = "dim"
 	}
 
-	argsPreview := r.formatArgsPreview(tool.Arguments)
-	if argsPreview == "" || argsPreview == "{}" {
-		argsPreview = ""
-	}
-
 	styledIcon := r.styleProvider.RenderWithColor(statusIcon, r.styleProvider.GetThemeColor(iconColor))
 	styledStatus := r.styleProvider.RenderWithColor(statusText, r.styleProvider.GetThemeColor(statusColor))
 
-	var singleLine string
-	if argsPreview != "" {
-		singleLine = fmt.Sprintf("%s %s(%s) %s", styledIcon, tool.ToolName, argsPreview, styledStatus)
-	} else {
-		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, tool.ToolName, styledStatus)
-	}
+	header := r.summaryLine(styledIcon, tool.ToolName, tool.Arguments, styledStatus)
 
-	if r.shouldRenderBashOutput(tool) {
-		return r.renderBashOutput(tool, singleLine)
+	switch {
+	case r.shouldRenderBashOutput(tool):
+		return r.liveCard(tool.ToolName, r.renderBashOutput(tool, header))
+	case r.shouldShowBackgroundHint(tool):
+		return r.liveCard(tool.ToolName, r.renderBackgroundHint(tool, header))
+	default:
+		return r.liveCard(tool.ToolName, header)
 	}
-
-	if r.shouldShowBackgroundHint(tool) {
-		return r.renderBackgroundHint(tool, singleLine)
-	}
-
-	return singleLine
 }
 
 func (r *ToolCallRenderer) renderCompletedToolCall(toolCall sdk.ChatCompletionMessageToolCall, status string) string {
@@ -376,34 +421,12 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 		statusText = status
 	}
 
-	argsPreview := r.formatArgsPreview(arguments)
-	if argsPreview == "" || argsPreview == "{}" {
-		argsPreview = ""
-	}
-
-	var singleLine string
-	if argsPreview != "" {
-		singleLine = fmt.Sprintf("%s %s(%s) %s", statusIcon, toolInfo.Name, argsPreview, statusText)
-	} else {
-		singleLine = fmt.Sprintf("%s %s() %s", statusIcon, toolInfo.Name, statusText)
-	}
+	singleLine := r.summaryLine(statusIcon, toolInfo.Name, arguments, statusText)
 
 	toolNameColor := r.styleProvider.GetThemeColor("accent")
 	styledLine := r.styleProvider.RenderWithColor(singleLine, toolNameColor)
 
 	return styledLine
-}
-
-func (r *ToolCallRenderer) formatArgsPreview(args string) string {
-	if args == "" {
-		return ""
-	}
-
-	args = strings.TrimSpace(args)
-	if len(args) > 50 {
-		return args[:47] + "..."
-	}
-	return args
 }
 
 func (r *ToolCallRenderer) ClearPreviews() {

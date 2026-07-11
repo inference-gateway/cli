@@ -16,6 +16,7 @@ import (
 type QueueBoxView struct {
 	width         int
 	styleProvider *styles.Provider
+	toolFormatter domain.ToolFormatter
 }
 
 func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
@@ -23,6 +24,12 @@ func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
 		width:         80,
 		styleProvider: styleProvider,
 	}
+}
+
+// SetToolFormatter wires the shared tool formatter so queued tool calls show their
+// width-aware argument preview instead of a bare "Name(...)".
+func (qv *QueueBoxView) SetToolFormatter(f domain.ToolFormatter) {
+	qv.toolFormatter = f
 }
 
 func (qv *QueueBoxView) SetWidth(width int) {
@@ -106,6 +113,9 @@ func (qv *QueueBoxView) formatToolCallsPreview(toolCalls []sdk.ChatCompletionMes
 	}
 
 	toolCall := toolCalls[0]
+	if qv.toolFormatter != nil {
+		return qv.toolFormatter.RenderToolSummary("", toolCall.Function.Name, parseToolArgs(toolCall.Function.Arguments), "", qv.width)
+	}
 	return fmt.Sprintf("%s(...)", toolCall.Function.Name)
 }
 

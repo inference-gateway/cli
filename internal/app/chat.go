@@ -215,6 +215,7 @@ func NewChatApplication(
 	app.toolCallRenderer.SetStateManager(app.stateManager)
 	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry, styleProvider)
+	app.toolCallRenderer.SetToolFormatter(toolFormatterService)
 
 	configDir := cfg.GetConfigDir()
 	app.configDir = configDir
@@ -271,6 +272,7 @@ func NewChatApplication(
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
+	app.queueBoxView.SetToolFormatter(toolFormatterService)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
