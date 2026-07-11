@@ -142,20 +142,11 @@ func (t *A2AQueryAgentTool) FormatForLLM(result *domain.ToolExecutionResult) str
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
+	var dataContent string
 	if result.Data != nil {
-		dataContent := t.formatter.FormatAsJSON(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent = t.formatter.FormatAsJSON(result.Data)
 	}
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 func (t *A2AQueryAgentTool) FormatForUI(result *domain.ToolExecutionResult) string {

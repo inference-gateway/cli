@@ -701,13 +701,11 @@ func (t *AgentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
-	var out strings.Builder
-	out.WriteString(t.formatter.FormatExpandedHeader(result))
+	var dataContent string
 	if result.Data != nil {
-		out.WriteString(t.formatter.FormatDataSection(t.formatAgentData(result.Data), len(result.Metadata) > 0))
+		dataContent = t.formatAgentData(result.Data)
 	}
-	out.WriteString(t.formatter.FormatExpandedFooter(result, result.Data != nil))
-	return out.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 func (t *AgentTool) formatAgentData(data any) string {

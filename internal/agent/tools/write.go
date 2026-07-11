@@ -216,15 +216,7 @@ func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		return "Write operation result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-	output.WriteString(t.formatWriteResultData(result))
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, t.formatWriteResultData(result))
 }
 
 // formatWriteResultData formats the write result data section
@@ -243,16 +235,10 @@ func (t *WriteTool) formatWriteResultData(result *domain.ToolExecutionResult) st
 		action = "Created"
 	}
 
-	connector := "└─"
-	if len(result.Metadata) > 0 {
-		connector = "├─"
-	}
-
 	var output strings.Builder
-	fmt.Fprintf(&output, "%s Result:\n", connector)
-	fmt.Fprintf(&output, "   %s file: %s\n", action, writeResult.FilePath)
-	fmt.Fprintf(&output, "   Bytes written: %d\n", writeResult.BytesWritten)
-	fmt.Fprintf(&output, "   Lines: %d\n", writeResult.LinesWritten)
+	fmt.Fprintf(&output, "%s file: %s\n", action, writeResult.FilePath)
+	fmt.Fprintf(&output, "Bytes written: %d\n", writeResult.BytesWritten)
+	fmt.Fprintf(&output, "Lines: %d\n", writeResult.LinesWritten)
 
 	return output.String()
 }

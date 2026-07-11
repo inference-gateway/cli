@@ -487,13 +487,11 @@ func (t *ScheduleTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Schedule result unavailable"
 	}
-	var out strings.Builder
-	out.WriteString(t.formatter.FormatExpandedHeader(result))
+	var dataContent string
 	if result.Data != nil {
-		out.WriteString(t.formatter.FormatDataSection(t.formatScheduleData(result.Data), len(result.Metadata) > 0))
+		dataContent = t.formatScheduleData(result.Data)
 	}
-	out.WriteString(t.formatter.FormatExpandedFooter(result, result.Data != nil))
-	return out.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 func (t *ScheduleTool) formatScheduleData(data any) string {

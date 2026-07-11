@@ -576,19 +576,11 @@ func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) str
 		return "Tool execution result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
+	var dataContent string
 	if result.Data != nil {
-		dataContent, hasMetadata := t.formatA2ATaskData(result.Data, result.Metadata)
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		dataContent, _ = t.formatA2ATaskData(result.Data, result.Metadata)
 	}
-
-	hasDataSection := result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
-
-	return output.String()
+	return t.formatter.FormatExpanded(result, dataContent)
 }
 
 // formatA2ATaskData formats the task data content and returns it along with metadata presence

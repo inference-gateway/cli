@@ -274,16 +274,11 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 		return fmt.Sprintf("%s %s %s", statusIcon, toolCall, statusText)
 
 	case domain.FormatterLLM:
-		var output strings.Builder
-		output.WriteString(formatter.FormatExpandedHeader(result))
+		var dataContent string
 		if result.Data != nil {
-			dataContent := formatter.FormatAsJSON(result.Data)
-			hasMetadata := len(result.Metadata) > 0
-			output.WriteString(formatter.FormatDataSection(dataContent, hasMetadata))
+			dataContent = formatter.FormatAsJSON(result.Data)
 		}
-		hasDataSection := result.Data != nil
-		output.WriteString(formatter.FormatExpandedFooter(result, hasDataSection))
-		return output.String()
+		return formatter.FormatExpanded(result, dataContent)
 
 	default:
 		if result.Success {
