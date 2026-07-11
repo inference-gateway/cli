@@ -637,18 +637,21 @@ func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool
 		ChatStatusStarting: {
 			ChatStatusThinking,
 			ChatStatusGenerating,
+			ChatStatusWaitingTools,
 			ChatStatusError,
 			ChatStatusCancelled,
 		},
 		ChatStatusThinking: {
 			ChatStatusGenerating,
 			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
 			ChatStatusCompleted,
 			ChatStatusError,
 			ChatStatusCancelled,
 		},
 		ChatStatusGenerating: {
 			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
 			ChatStatusCompleted,
 			ChatStatusError,
 			ChatStatusCancelled,

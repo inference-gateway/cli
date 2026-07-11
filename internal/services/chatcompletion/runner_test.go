@@ -362,7 +362,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		}
 	})
 
-	t.Run("with tool calls: does not update status to Completed (waits for tool round-trip)", func(t *testing.T) {
+	t.Run("with tool calls: transitions to WaitingTools to prevent false stall detection", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
 		state.GetChatSessionReturns(nil)
 
@@ -377,11 +377,11 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 			}},
 		})
 
-		// Should NOT have called UpdateChatStatus on a non-cancelled
-		// completion with tool calls - the tool round-trip will end the
-		// status update later.
-		if state.UpdateChatStatusCallCount() != 0 {
-			t.Errorf("expected no UpdateChatStatus call when tool calls present, got %d", state.UpdateChatStatusCallCount())
+		if state.UpdateChatStatusCallCount() != 1 {
+			t.Errorf("expected 1 UpdateChatStatus call with WaitingTools, got %d", state.UpdateChatStatusCallCount())
+		}
+		if status := state.UpdateChatStatusArgsForCall(0); status != domain.ChatStatusWaitingTools {
+			t.Errorf("expected ChatStatusWaitingTools, got %v", status)
 		}
 	})
 }
