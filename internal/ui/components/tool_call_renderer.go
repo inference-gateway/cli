@@ -26,6 +26,8 @@ type ToolCallRenderer struct {
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
+	stateManager     domain.StateManager
+	pausedAt         time.Time
 }
 
 // KeyHintFormatter provides formatted key hints for actions
@@ -205,7 +207,37 @@ func (r *ToolCallRenderer) SetKeyHintFormatter(formatter KeyHintFormatter) {
 	r.keyHintFormatter = formatter
 }
 
+// SetStateManager wires the state manager so running-tool timers can pause
+// while an approval or question overlay is blocked on the user.
+func (r *ToolCallRenderer) SetStateManager(stateManager domain.StateManager) {
+	r.stateManager = stateManager
+}
+
+// syncApprovalPause freezes running-tool timers while the user is deciding on
+// an approval or question, and shifts the affected StartTimes forward on
+// resume so the wait doesn't count as execution time. Same derive-from-state
+// pattern as StatusView.syncApprovalPause.
+func (r *ToolCallRenderer) syncApprovalPause() {
+	if awaitingUserDecision(r.stateManager) {
+		if r.pausedAt.IsZero() {
+			r.pausedAt = time.Now()
+		}
+		return
+	}
+	if !r.pausedAt.IsZero() {
+		pause := time.Since(r.pausedAt)
+		for _, tool := range r.tools {
+			if tool.EndTime == nil {
+				tool.StartTime = tool.StartTime.Add(pause)
+			}
+		}
+		r.pausedAt = time.Time{}
+	}
+}
+
 func (r *ToolCallRenderer) RenderPreviews() string {
+	r.syncApprovalPause()
+
 	var allPreviews []string
 	var remainingTools []string
 
@@ -260,10 +292,14 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		statusColor = "dim"
 	case "running", "starting", "saving", "executing", "streaming":
 		statusIcon = r.spinner.View()
-		if tool.EndTime == nil {
+		switch {
+		case !r.pausedAt.IsZero():
+			statusIcon = icons.QueuedIcon
+			statusText = "waiting for your input"
+		case tool.EndTime == nil:
 			elapsed := time.Since(tool.StartTime)
 			statusText = fmt.Sprintf("running %s", r.formatDuration(elapsed))
-		} else {
+		default:
 			statusText = "executing"
 		}
 		iconColor = "accent"

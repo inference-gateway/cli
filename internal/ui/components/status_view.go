@@ -291,7 +291,7 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 // Derived from state on each render, like reconnectingMessage, so it needs no
 // event ordering guarantees against the tool-progress spinner events.
 func (sv *StatusView) syncApprovalPause() {
-	if sv.awaitingUserDecision() {
+	if awaitingUserDecision(sv.stateManager) {
 		if sv.pausedAt.IsZero() {
 			sv.pausedAt = time.Now()
 		}
@@ -303,13 +303,15 @@ func (sv *StatusView) syncApprovalPause() {
 	}
 }
 
-func (sv *StatusView) awaitingUserDecision() bool {
-	if sv.stateManager == nil {
+// awaitingUserDecision reports whether an approval, plan-approval, or
+// user-question overlay is blocked on the user.
+func awaitingUserDecision(sm domain.StateManager) bool {
+	if sm == nil {
 		return false
 	}
-	return sv.stateManager.GetApprovalUIState() != nil ||
-		sv.stateManager.GetPlanApprovalUIState() != nil ||
-		sv.stateManager.GetUserQuestionUIState() != nil
+	return sm.GetApprovalUIState() != nil ||
+		sm.GetPlanApprovalUIState() != nil ||
+		sm.GetUserQuestionUIState() != nil
 }
 
 // reconnectingMessage returns the reconnect notice when the HTTP client is

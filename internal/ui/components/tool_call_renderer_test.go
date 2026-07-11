@@ -1,9 +1,12 @@
 package components
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // TestToolCallRenderer_BashOutputStreamLineCounting verifies that a single
@@ -51,5 +54,36 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 	}
 	if got := state.OutputBuffer[len(state.OutputBuffer)-1]; got != "j" {
 		t.Errorf("expected last preview line to be j, got %q", got)
+	}
+}
+
+// TestToolCallRenderer_PausesTimerDuringApproval verifies the running-tool
+// ticker freezes into a "waiting for your input" label while an approval or
+// question overlay is blocked on the user, and resumes afterwards.
+func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
+	r := NewToolCallRenderer(createMockStyleProviderForStatus())
+	sm := &domainmocks.FakeStateManager{}
+	r.SetStateManager(sm)
+	r.tools["tc-1"] = &ToolRenderState{
+		CallID:    "tc-1",
+		ToolName:  "AskUserQuestion",
+		Status:    "running",
+		StartTime: time.Now(),
+	}
+	r.toolsOrder = []string{"tc-1"}
+
+	sm.GetUserQuestionUIStateReturns(&domain.UserQuestionUIState{})
+	paused := r.RenderPreviews()
+	if !strings.Contains(paused, "waiting for your input") {
+		t.Errorf("expected waiting label while question pending, got %q", paused)
+	}
+	if strings.Contains(paused, "running") {
+		t.Errorf("expected no running ticker while question pending, got %q", paused)
+	}
+
+	sm.GetUserQuestionUIStateReturns(nil)
+	resumed := r.RenderPreviews()
+	if !strings.Contains(resumed, "running") {
+		t.Errorf("expected running ticker after question answered, got %q", resumed)
 	}
 }
