@@ -257,26 +257,86 @@ func (cv *ConversationView) ResetUserScroll() {
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		cv.expandedToolResults[index] = !cv.IsToolResultExpanded(index)
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.updateViewportContentFull()
-		}
+		cv.rebuildPreservingScroll(func() {
+			cv.expandedToolResults[index] = !cv.IsToolResultExpanded(index)
+		}, index)
 	}
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 	expand := !cv.anyToolResultExpanded()
-	cv.allToolsExpanded = expand
 
+	changed := make([]int, 0, len(cv.conversation))
 	for i, entry := range cv.conversation {
 		if entry.Message.Role == "tool" {
-			cv.expandedToolResults[i] = expand
+			changed = append(changed, i)
 		}
 	}
 
-	if cv.navigationMode != NavigationModeMessageHistory {
-		cv.updateViewportContentFull()
+	cv.rebuildPreservingScroll(func() {
+		cv.allToolsExpanded = expand
+		for _, i := range changed {
+			cv.expandedToolResults[i] = expand
+		}
+	}, changed...)
+}
+
+// rebuildPreservingScroll applies mutate (the expand/collapse state change) and
+// re-renders the viewport while keeping the content the user is looking at anchored
+// in place. Expanding an entry that sits above the viewport top would otherwise shift
+// everything down and make the view jump; we offset by the height delta of the changed
+// entries above the current scroll position. The old layout is measured before mutate
+// runs, so the delta is real. When the user is following the tail we stay pinned to the
+// bottom.
+func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...int) {
+	if cv.navigationMode == NavigationModeMessageHistory {
+		mutate()
+		return
 	}
+	if !cv.userScrolledUp {
+		mutate()
+		cv.updateViewportContentFull() // GotoBottom keeps us on the tail
+		return
+	}
+
+	oldOffset := cv.Viewport.YOffset()
+	oldSpans := cv.entryLineSpans()
+
+	mutate()
+	cv.updateViewportContentFull()
+
+	newSpans := cv.entryLineSpans()
+	delta := 0
+	for _, idx := range changed {
+		old, ok := oldSpans[idx]
+		if !ok || old[0] >= oldOffset {
+			continue // entry starts at or below the viewport top: no shift needed
+		}
+		if nw, ok := newSpans[idx]; ok {
+			delta += nw[1] - old[1]
+		}
+	}
+	if delta != 0 {
+		cv.Viewport.SetYOffset(oldOffset + delta)
+	}
+}
+
+// entryLineSpans returns, per visible conversation entry, its {startLine, height}
+// in the rendered viewport content - the same coordinate space YOffset uses. Heights
+// come from the same cached per-entry render updateViewportContentFull emits, so the
+// two stay in lockstep.
+func (cv *ConversationView) entryLineSpans() map[int][2]int {
+	spans := make(map[int][2]int, len(cv.conversation))
+	line := 0
+	for i, entry := range cv.conversation {
+		if entry.Hidden {
+			continue
+		}
+		h := cv.styleProvider.GetHeight(cv.renderEntryCached(entry, i))
+		spans[i] = [2]int{line, h}
+		line += h
+	}
+	return spans
 }
 
 // anyToolResultExpanded reports whether any tool result is currently expanded,
@@ -320,17 +380,19 @@ func (cv *ConversationView) SetDefaultExpandedTools(names map[string]bool) {
 }
 
 func (cv *ConversationView) ToggleAllThinkingExpansion() {
-	cv.allThinkingExpanded = !cv.allThinkingExpanded
-
+	changed := make([]int, 0, len(cv.conversation))
 	for i, entry := range cv.conversation {
 		if entry.ReasoningContent != "" {
-			cv.expandedThinkingBlocks[i] = cv.allThinkingExpanded
+			changed = append(changed, i)
 		}
 	}
 
-	if cv.navigationMode != NavigationModeMessageHistory {
-		cv.updateViewportContentFull()
-	}
+	cv.rebuildPreservingScroll(func() {
+		cv.allThinkingExpanded = !cv.allThinkingExpanded
+		for _, i := range changed {
+			cv.expandedThinkingBlocks[i] = cv.allThinkingExpanded
+		}
+	}, changed...)
 }
 
 func (cv *ConversationView) IsThinkingExpanded(index int) bool {

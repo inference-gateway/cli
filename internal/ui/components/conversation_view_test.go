@@ -1305,3 +1305,72 @@ func TestConversationView_RenderCache(t *testing.T) {
 		}
 	})
 }
+
+// heightFormatter renders a tool result as `collapsed` lines when collapsed and
+// `expanded` lines when expanded, giving scroll-anchoring math a real height delta.
+type heightFormatter struct{ collapsed, expanded int }
+
+func (heightFormatter) FormatToolCall(name string, _ map[string]any) string { return name + "()" }
+func (f heightFormatter) FormatToolResultForUI(_ *domain.ToolExecutionResult, _ int) string {
+	return strings.TrimRight(strings.Repeat("c\n", f.collapsed), "\n")
+}
+func (f heightFormatter) FormatToolResultExpanded(_ *domain.ToolExecutionResult, _ int) string {
+	return strings.TrimRight(strings.Repeat("e\n", f.expanded), "\n")
+}
+func (heightFormatter) FormatToolResultForLLM(_ *domain.ToolExecutionResult) string { return "" }
+func (heightFormatter) ShouldAlwaysExpandTool(string) bool                          { return false }
+func (heightFormatter) RenderToolSummary(icon, name string, _ map[string]any, trailing string, _ int) string {
+	return strings.TrimSpace(icon + " " + name + "() " + trailing)
+}
+
+func scrollTestView(t *testing.T) *ConversationView {
+	t.Helper()
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(heightFormatter{collapsed: 2, expanded: 6})
+	cv.SetWidth(80)
+	cv.SetHeight(8)
+	conv := make([]domain.ConversationEntry, 0, 6)
+	for i := 0; i < 6; i++ {
+		conv = append(conv, domain.ConversationEntry{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			Time:          time.Now(),
+		})
+	}
+	cv.SetConversation(conv)
+	return cv
+}
+
+func TestRebuildPreservingScroll_AnchorsAboveViewportEntry(t *testing.T) {
+	cv := scrollTestView(t)
+
+	cv.userScrolledUp = true
+	spans := cv.entryLineSpans()
+	cv.Viewport.SetYOffset(spans[2][0]) // viewport top at entry 2, so entries 0,1 are above
+	before := cv.Viewport.YOffset()
+	beforeH0 := spans[0][1]
+
+	cv.ToggleToolResultExpansion(0) // expand an entry above the viewport top
+
+	afterH0 := cv.entryLineSpans()[0][1]
+	if afterH0 <= beforeH0 {
+		t.Fatalf("expanded entry should be taller: collapsed=%d expanded=%d", beforeH0, afterH0)
+	}
+	if got, want := cv.Viewport.YOffset(), before+(afterH0-beforeH0); got != want {
+		t.Errorf("YOffset not anchored: got %d, want %d (delta %d)", got, want, afterH0-beforeH0)
+	}
+}
+
+func TestRebuildPreservingScroll_IgnoresBelowViewportEntry(t *testing.T) {
+	cv := scrollTestView(t)
+
+	cv.userScrolledUp = true
+	cv.Viewport.SetYOffset(0) // viewport top at the very top; entry 5 is below it
+	before := cv.Viewport.YOffset()
+
+	cv.ToggleToolResultExpansion(5)
+
+	if got := cv.Viewport.YOffset(); got != before {
+		t.Errorf("toggling a below-viewport entry must not move the offset: got %d, want %d", got, before)
+	}
+}
