@@ -426,26 +426,6 @@ type ComputerUsePauseManager interface {
 	ClearComputerUsePauseState()
 }
 
-// StateManager is the composed interface for all state management operations.
-// New code should depend on the narrower sub-interfaces above.
-type StateManager interface {
-	ViewManager
-	AgentModeManager
-	ChatSessionManager
-	EventBridgeManager
-	ToolExecutionManager
-	DimensionsManager
-	FileSelectionManager
-	ApprovalUIManager
-	PlanApprovalUIManager
-	UserQuestionUIManager
-	TodoManager
-	AgentReadinessManager
-	MessageEditManager
-	FocusManager
-	ComputerUsePauseManager
-}
-
 // Channel represents a pluggable messaging transport (WhatsApp, Telegram, etc.)
 type Channel interface {
 	// Name returns the channel identifier (e.g., "whatsapp", "telegram")

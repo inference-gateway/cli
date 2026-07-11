@@ -19,7 +19,7 @@ type FloatingWindowManager interface {
 // initFloatingWindow initializes the floating window manager if enabled
 func initFloatingWindow(
 	config *config.Config,
-	stateManager domain.StateManager,
+	stateManager domain.EventBridgeManager,
 	agentService domain.AgentService,
 ) (FloatingWindowManager, error) {
 	if !config.ComputerUse.Enabled || !config.ComputerUse.FloatingWindow.Enabled {
@@ -30,7 +30,7 @@ func initFloatingWindow(
 	eventBridge := macos.NewEventBridge()
 	stateManager.SetEventBridge(eventBridge)
 
-	floatingWindowMgr, err := macos.NewFloatingWindowManager(config, eventBridge, stateManager, agentService)
+	floatingWindowMgr, err := macos.NewFloatingWindowManager(config, eventBridge, agentService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create floating window manager: %w", err)
 	}

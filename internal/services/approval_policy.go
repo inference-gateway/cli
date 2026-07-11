@@ -24,11 +24,11 @@ import (
 //  5. Other tools check configuration (per-tool or global require_approval setting)
 type StandardApprovalPolicy struct {
 	config       *config.Config
-	stateManager domain.StateManager
+	stateManager domain.AgentModeManager
 }
 
 // NewStandardApprovalPolicy creates a new standard approval policy
-func NewStandardApprovalPolicy(cfg *config.Config, stateManager domain.StateManager) *StandardApprovalPolicy {
+func NewStandardApprovalPolicy(cfg *config.Config, stateManager domain.AgentModeManager) *StandardApprovalPolicy {
 	return &StandardApprovalPolicy{
 		config:       cfg,
 		stateManager: stateManager,

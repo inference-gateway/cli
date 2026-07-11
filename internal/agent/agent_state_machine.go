@@ -38,7 +38,6 @@ import (
 type AgentStateMachineImpl struct {
 	currentState  domain.AgentExecutionState
 	previousState domain.AgentExecutionState
-	stateManager  domain.StateManager
 	mu            sync.RWMutex
 
 	// State transition map: maps each state to its possible transitions with guards and actions
@@ -54,10 +53,9 @@ type StateTransition struct {
 }
 
 // NewAgentStateMachine creates a new agent state machine
-func NewAgentStateMachine(stateManager domain.StateManager) domain.AgentStateMachine {
+func NewAgentStateMachine() domain.AgentStateMachine {
 	sm := &AgentStateMachineImpl{
 		currentState: domain.StateIdle,
-		stateManager: stateManager,
 		transitions:  make(map[domain.AgentExecutionState][]StateTransition),
 	}
 

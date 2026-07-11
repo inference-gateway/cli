@@ -43,7 +43,7 @@ type AutocompleteImpl struct {
 	maxVisible           int
 	shortcutRegistry     ShortcutRegistry
 	skillsService        domain.SkillsService
-	stateManager         domain.StateManager
+	stateManager         domain.AgentModeManager
 	lastAgentMode        domain.AgentMode
 	toolService          domain.ToolService
 	modelService         domain.ModelService
@@ -84,7 +84,7 @@ func (a *AutocompleteImpl) SetSkillsService(skillsService domain.SkillsService) 
 }
 
 // SetStateManager sets the state manager for agent mode filtering
-func (a *AutocompleteImpl) SetStateManager(stateManager domain.StateManager) {
+func (a *AutocompleteImpl) SetStateManager(stateManager domain.AgentModeManager) {
 	a.stateManager = stateManager
 }
 

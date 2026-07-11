@@ -25,10 +25,20 @@ type toolApprovalRepoUpdater interface {
 	AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) error
 }
 
+// stateManager is the narrow slice of the app state manager this coordinator
+// needs: event broadcast, the approval overlay, chat-session lookup, and mode
+// switching. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.EventBridgeManager
+	domain.ApprovalUIManager
+	domain.ChatSessionManager
+	domain.AgentModeManager
+}
+
 // Coordinator handles the tool round-trip UI flow.
 type Coordinator struct {
 	conversationRepo domain.ConversationRepository
-	stateManager     domain.StateManager
+	stateManager     stateManager
 	directExec       domain.DirectExecutionService
 	listener         domain.ChatEventListener
 
@@ -39,7 +49,7 @@ type Coordinator struct {
 // Options bundles the dependencies needed to construct a Coordinator.
 type Options struct {
 	ConversationRepo domain.ConversationRepository
-	StateManager     domain.StateManager
+	StateManager     stateManager
 	DirectExec       domain.DirectExecutionService
 	Listener         domain.ChatEventListener
 }

@@ -11,9 +11,9 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *mocksdomain.FakeStateManager, *mocksdomain.FakeDirectExecutionService) {
+func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeDirectExecutionService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	state := &mocksdomain.FakeStateManager{}
+	state := services.NewStateManager(false)
 	direct := &mocksdomain.FakeDirectExecutionService{}
 	listener := &mocksdomain.FakeChatEventListener{}
 
@@ -25,6 +25,21 @@ func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationReposi
 	})
 	return c, repo, state, direct
 }
+
+// recordingEventBridge is a minimal domain.EventBridge that counts Publish
+// calls, standing in for the deleted BroadcastEvent spy.
+type recordingEventBridge struct {
+	published []domain.ChatEvent
+}
+
+func (r *recordingEventBridge) Tap(input <-chan domain.ChatEvent) <-chan domain.ChatEvent {
+	return input
+}
+func (r *recordingEventBridge) Publish(event domain.ChatEvent) {
+	r.published = append(r.published, event)
+}
+func (r *recordingEventBridge) Subscribe() chan domain.ChatEvent     { return make(chan domain.ChatEvent) }
+func (r *recordingEventBridge) Unsubscribe(ch chan domain.ChatEvent) {}
 
 func TestCoordinator_ActiveToolCallID(t *testing.T) {
 	t.Run("Set and Get are thread-safe and return the latest value", func(t *testing.T) {
@@ -47,8 +62,7 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 	t.Run("Approve sends decision to response channel, clears UI state, returns non-nil cmd", func(t *testing.T) {
 		c, _, state, _ := newCoordinatorForTest()
 		responseChan := make(chan domain.ApprovalAction, 1)
-		state.GetApprovalUIStateReturns(&domain.ApprovalUIState{ResponseChan: responseChan})
-		state.GetChatSessionReturns(nil)
+		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
 		cmd := c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalApprove,
@@ -58,8 +72,8 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.ClearApprovalUIStateCallCount() != 1 {
-			t.Errorf("expected ClearApprovalUIState once, got %d", state.ClearApprovalUIStateCallCount())
+		if state.GetApprovalUIState() != nil {
+			t.Errorf("expected approval UI state cleared, got %+v", state.GetApprovalUIState())
 		}
 		select {
 		case action := <-responseChan:
@@ -74,19 +88,15 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 	t.Run("AutoAccept switches agent mode and approves on the response chan", func(t *testing.T) {
 		c, _, state, _ := newCoordinatorForTest()
 		responseChan := make(chan domain.ApprovalAction, 1)
-		state.GetApprovalUIStateReturns(&domain.ApprovalUIState{ResponseChan: responseChan})
-		state.GetChatSessionReturns(nil)
+		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
 		_ = c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalAutoAccept,
 			ToolCall: sdk.ChatCompletionMessageToolCall{ID: "tc-1"},
 		})
 
-		if state.SetAgentModeCallCount() != 1 {
-			t.Fatalf("expected SetAgentMode once, got %d", state.SetAgentModeCallCount())
-		}
-		if mode := state.SetAgentModeArgsForCall(0); mode != domain.AgentModeAutoAccept {
-			t.Errorf("expected AgentModeAutoAccept, got %v", mode)
+		if mode := state.GetAgentMode(); mode != domain.AgentModeAutoAccept {
+			t.Errorf("expected agent mode AutoAccept after auto-accept approval, got %v", mode)
 		}
 		select {
 		case action := <-responseChan:
@@ -101,16 +111,15 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 	t.Run("Reject sends Reject down channel and does not switch agent mode", func(t *testing.T) {
 		c, _, state, _ := newCoordinatorForTest()
 		responseChan := make(chan domain.ApprovalAction, 1)
-		state.GetApprovalUIStateReturns(&domain.ApprovalUIState{ResponseChan: responseChan})
-		state.GetChatSessionReturns(nil)
+		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
 		_ = c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalReject,
 			ToolCall: sdk.ChatCompletionMessageToolCall{ID: "tc-1"},
 		})
 
-		if state.SetAgentModeCallCount() != 0 {
-			t.Errorf("reject should not change agent mode")
+		if mode := state.GetAgentMode(); mode != domain.AgentModeStandard {
+			t.Errorf("reject should not change agent mode, got %v", mode)
 		}
 		select {
 		case action := <-responseChan:
@@ -125,8 +134,7 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 
 func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 	t.Run("starting status sets activeToolCallID", func(t *testing.T) {
-		c, _, state, direct := newCoordinatorForTest()
-		state.GetChatSessionReturns(nil)
+		c, _, _, direct := newCoordinatorForTest()
 		direct.PendingToolChannelReturns(nil)
 		direct.PendingBashChannelReturns(nil)
 
@@ -143,8 +151,7 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 	})
 
 	t.Run("completed status clears activeToolCallID", func(t *testing.T) {
-		c, _, state, direct := newCoordinatorForTest()
-		state.GetChatSessionReturns(nil)
+		c, _, _, direct := newCoordinatorForTest()
 		direct.PendingToolChannelReturns(nil)
 		direct.PendingBashChannelReturns(nil)
 		c.SetActiveToolCallID("tc-1")
@@ -185,8 +192,7 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 	})
 
 	t.Run("unknown status returns nil cmd when no channels active", func(t *testing.T) {
-		c, _, state, direct := newCoordinatorForTest()
-		state.GetChatSessionReturns(nil)
+		c, _, _, direct := newCoordinatorForTest()
 		direct.PendingToolChannelReturns(nil)
 		direct.PendingBashChannelReturns(nil)
 
@@ -202,8 +208,9 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 func TestCoordinator_HandleToolApprovalRequested(t *testing.T) {
 	t.Run("sets approval UI state, broadcasts notification, returns non-nil cmd", func(t *testing.T) {
 		c, _, state, _ := newCoordinatorForTest()
+		rec := &recordingEventBridge{}
+		state.SetEventBridge(rec)
 		responseChan := make(chan domain.ApprovalAction, 1)
-		state.GetChatSessionReturns(nil)
 
 		cmd := c.HandleToolApprovalRequested(domain.ToolApprovalRequestedEvent{
 			ToolCall: sdk.ChatCompletionMessageToolCall{
@@ -216,19 +223,18 @@ func TestCoordinator_HandleToolApprovalRequested(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if state.SetupApprovalUIStateCallCount() != 1 {
-			t.Errorf("expected SetupApprovalUIState once")
+		if state.GetApprovalUIState() == nil {
+			t.Errorf("expected SetupApprovalUIState to establish approval UI state")
 		}
-		if state.BroadcastEventCallCount() != 1 {
-			t.Errorf("expected BroadcastEvent once")
+		if len(rec.published) != 1 {
+			t.Errorf("expected BroadcastEvent once, got %d", len(rec.published))
 		}
 	})
 }
 
 func TestCoordinator_HandleToolExecutionCompleted(t *testing.T) {
 	t.Run("clears active tool id and returns non-nil cmd", func(t *testing.T) {
-		c, _, state, _ := newCoordinatorForTest()
-		state.GetChatSessionReturns(nil)
+		c, _, _, _ := newCoordinatorForTest()
 		c.SetActiveToolCallID("tc-1")
 
 		cmd := c.HandleToolExecutionCompleted(domain.ToolExecutionCompletedEvent{

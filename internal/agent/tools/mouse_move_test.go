@@ -11,6 +11,14 @@ import (
 	domainMocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
+// stubEventBridgeManager is a no-op domain.EventBridgeManager; the mouse-move
+// coordinate tests never exercise the bridge.
+type stubEventBridgeManager struct{}
+
+func (stubEventBridgeManager) SetEventBridge(domain.EventBridge)  {}
+func (stubEventBridgeManager) GetEventBridge() domain.EventBridge { return nil }
+func (stubEventBridgeManager) BroadcastEvent(domain.ChatEvent)    {}
+
 func TestMouseMoveTool_CoordinateScaling(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -175,9 +183,7 @@ func runCoordinateScalingTest(t *testing.T, tt coordinateScalingTestCase) {
 	rateLimiter := &domainMocks.FakeRateLimiter{}
 	rateLimiter.CheckAndRecordReturns(nil)
 
-	stateManager := &domainMocks.FakeStateManager{}
-
-	tool := NewMouseMoveTool(cfg, rateLimiter, mockProv, stateManager)
+	tool := NewMouseMoveTool(cfg, rateLimiter, mockProv, stubEventBridgeManager{})
 
 	ctx := context.Background()
 	if tt.directExec {

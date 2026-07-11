@@ -26,7 +26,7 @@ type ToolCallRenderer struct {
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
-	stateManager     domain.StateManager
+	stateManager     approvalOverlayReader
 	pausedAt         time.Time
 }
 
@@ -209,7 +209,7 @@ func (r *ToolCallRenderer) SetKeyHintFormatter(formatter KeyHintFormatter) {
 
 // SetStateManager wires the state manager so running-tool timers can pause
 // while an approval or question overlay is blocked on the user.
-func (r *ToolCallRenderer) SetStateManager(stateManager domain.StateManager) {
+func (r *ToolCallRenderer) SetStateManager(stateManager approvalOverlayReader) {
 	r.stateManager = stateManager
 }
 

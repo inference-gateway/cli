@@ -13,6 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
@@ -250,7 +251,7 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 		}
 	}
 
-	sm := &domainmocks.FakeStateManager{}
+	sm := services.NewStateManager(false)
 
 	theme := &uimocks.FakeTheme{}
 	theme.GetDimColorReturns("#808080")
@@ -261,14 +262,14 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	ac.SetStateManager(sm)
 
 	// Standard mode: AskUserQuestion is plan-only, so it must not autocomplete.
-	sm.GetAgentModeReturns(domain.AgentModeStandard)
+	sm.SetAgentMode(domain.AgentModeStandard)
 	ac.Update("!!AskUser", 9)
 	if ac.IsVisible() {
 		t.Error("AskUserQuestion should not autocomplete in standard mode")
 	}
 
 	// Plan mode: it appears.
-	sm.GetAgentModeReturns(domain.AgentModePlan)
+	sm.SetAgentMode(domain.AgentModePlan)
 	ac.Update("!!AskUser", 9)
 	if !ac.IsVisible() {
 		t.Error("AskUserQuestion should autocomplete in plan mode")

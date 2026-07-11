@@ -10,7 +10,7 @@ import (
 // ModeIndicator displays the current agent mode (PLAN/AUTO) on its own line
 type ModeIndicator struct {
 	width         int
-	stateManager  domain.StateManager
+	stateManager  domain.AgentModeManager
 	styleProvider *styles.Provider
 }
 
@@ -27,7 +27,7 @@ func (mi *ModeIndicator) SetWidth(width int) {
 }
 
 // SetStateManager sets the state manager
-func (mi *ModeIndicator) SetStateManager(stateManager domain.StateManager) {
+func (mi *ModeIndicator) SetStateManager(stateManager domain.AgentModeManager) {
 	mi.stateManager = stateManager
 }
 

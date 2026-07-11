@@ -12,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // argsAwareToolFormatter is a domain.ToolFormatter whose FormatToolCall renders
@@ -48,9 +47,18 @@ func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 	}
 }
 
+// approvalStateManager returns a real ApplicationState primed with the given
+// pending approval (or none when s is nil).
+func approvalStateManager(s *domain.ApprovalUIState) *domain.ApplicationState {
+	st := domain.NewApplicationState()
+	if s != nil {
+		st.SetupApprovalUIState(s.PendingToolCall, nil)
+	}
+	return st
+}
+
 func TestApprovalBox_EmptyWhenNoPendingCall(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(nil)
+	sm := approvalStateManager(nil)
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	if got := av.Render(); got != "" {
@@ -59,8 +67,7 @@ func TestApprovalBox_EmptyWhenNoPendingCall(t *testing.T) {
 }
 
 func TestApprovalBox_FramesSummaryAndButtons(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
+	sm := approvalStateManager(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
@@ -81,8 +88,7 @@ func TestApprovalBox_FramesSummaryAndButtons(t *testing.T) {
 }
 
 func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
+	sm := approvalStateManager(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
@@ -107,8 +113,7 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 }
 
 func TestApprovalBox_NilFormatterFallsBackToName(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
+	sm := approvalStateManager(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
 	av.SetWidth(80)
@@ -121,8 +126,7 @@ func TestApprovalBox_NilFormatterFallsBackToName(t *testing.T) {
 }
 
 func TestApprovalBox_UnparseableArgsFallBack(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Bash", `not json`))
+	sm := approvalStateManager(approvalStateWith("Bash", `not json`))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
@@ -136,8 +140,7 @@ func TestApprovalBox_UnparseableArgsFallBack(t *testing.T) {
 
 func TestApprovalBox_TruncatesLongSummaryOnNarrowWidth(t *testing.T) {
 	longPath := "/very/long/path/to/some/deeply/nested/file/name/that/keeps/going.txt"
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Read", fmt.Sprintf(`{"file_path":%q}`, longPath)))
+	sm := approvalStateManager(approvalStateWith("Read", fmt.Sprintf(`{"file_path":%q}`, longPath)))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(34)
@@ -156,9 +159,8 @@ func TestApprovalBox_TruncatesLongSummaryOnNarrowWidth(t *testing.T) {
 // diff of the change (file path + old/new content) instead of the one-liner, so the
 // user can see what they are approving before approving.
 func TestApprovalBox_RendersEditDiff(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
 	args := `{"file_path":"/x/y.txt","old_string":"OLD_CONTENT","new_string":"NEW_CONTENT"}`
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
+	sm := approvalStateManager(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
@@ -186,8 +188,7 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 	}
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, b.String())
 
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
+	sm := approvalStateManager(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
@@ -207,9 +208,8 @@ func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
 // TestApprovalBox_DiffToolIgnoresFormatter asserts the diff path does not depend on
 // the tool formatter (a nil formatter still yields a diff, not the name fallback).
 func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
 	args := `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
+	sm := approvalStateManager(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
 	av.SetWidth(80)
@@ -240,8 +240,7 @@ func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
 	// "/x/y.txt" does not exist -> editDiff falls back to a snippet diff.
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
 
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
+	sm := approvalStateManager(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
@@ -267,8 +266,7 @@ func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
 func TestApprovalBox_MultiEditKeepsThreeContext(t *testing.T) {
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","edits":[{"old_string":%q,"new_string":%q}]}`, oldContextSnippet, newContextSnippet)
 
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("MultiEdit", args))
+	sm := approvalStateManager(approvalStateWith("MultiEdit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)
@@ -295,8 +293,7 @@ func TestApprovalBox_EditDiffShowsFileContext(t *testing.T) {
 	}
 	args := fmt.Sprintf(`{"file_path":%q,"old_string":"TARGET","new_string":"CHANGED"}`, path)
 
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetApprovalUIStateReturns(approvalStateWith("Edit", args))
+	sm := approvalStateManager(approvalStateWith("Edit", args))
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(120)

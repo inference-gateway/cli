@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -30,6 +31,19 @@ func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
 	return s.estimate
 }
 
+// readinessStateManager returns a real ApplicationState whose readiness matches
+// the given TotalAgents/ReadyAgents (nil r leaves readiness uninitialized).
+func readinessStateManager(r *domain.AgentReadinessState) *domain.ApplicationState {
+	st := domain.NewApplicationState()
+	if r != nil {
+		st.InitializeAgentReadiness(r.TotalAgents)
+		for i := 0; i < r.ReadyAgents; i++ {
+			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), domain.AgentStateReady, "", "", "")
+		}
+	}
+	return st
+}
+
 func TestInputStatusBar_MasterToggle(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -56,8 +70,8 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 			themeService := &domainmocks.FakeThemeService{}
 			themeService.GetCurrentThemeNameReturns("tokyo-night")
 
-			stateManager := &domainmocks.FakeStateManager{}
-			stateManager.GetAgentModeReturns(domain.AgentModeStandard)
+			stateManager := domain.NewApplicationState()
+			stateManager.SetAgentMode(domain.AgentModeStandard)
 
 			cfg := config.DefaultConfig()
 			cfg.Chat.StatusBar.Enabled = tt.enabled
@@ -302,8 +316,7 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := &domainmocks.FakeStateManager{}
-			stateManager.GetAgentReadinessReturns(tt.readiness)
+			stateManager := readinessStateManager(tt.readiness)
 
 			statusBar := &InputStatusBar{
 				stateManager: stateManager,
@@ -799,9 +812,7 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	statusBar := newSelectableStatusBar(true)
 	statusBar.toolService = &domainmocks.FakeToolService{}
 	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
-	stateManager := &domainmocks.FakeStateManager{}
-	stateManager.GetAgentReadinessReturns(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
-	statusBar.stateManager = stateManager
+	statusBar.stateManager = readinessStateManager(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}

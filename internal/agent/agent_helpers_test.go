@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
@@ -96,8 +97,8 @@ func TestGetSystemPromptForMode(t *testing.T) {
 				},
 			}
 
-			fakeStateManager := &domainmocks.FakeStateManager{}
-			fakeStateManager.GetAgentModeReturns(tt.mode)
+			fakeStateManager := services.NewStateManager(false)
+			fakeStateManager.SetAgentMode(tt.mode)
 
 			agentService := &AgentServiceImpl{
 				config:       cfg,

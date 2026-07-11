@@ -1,6 +1,7 @@
 package components
 
 import (
+	"errors"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -12,9 +13,9 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// newA2AAgentsViewForTest builds an agents view backed by a fake state
-// manager reporting the given readiness.
-func newA2AAgentsViewForTest(readiness *domain.AgentReadinessState) (*A2AAgentsViewImpl, *domainmocks.FakeStateManager) {
+// newA2AAgentsViewForTest builds an agents view backed by a real
+// ApplicationState reconstructed from the given readiness.
+func newA2AAgentsViewForTest(readiness *domain.AgentReadinessState) (*A2AAgentsViewImpl, *domain.ApplicationState) {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
@@ -23,11 +24,28 @@ func newA2AAgentsViewForTest(readiness *domain.AgentReadinessState) (*A2AAgentsV
 	themeService := &domainmocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
-	stateManager := &domainmocks.FakeStateManager{}
-	stateManager.GetAgentReadinessReturns(readiness)
+	stateManager := reconstructReadiness(readiness)
 
 	view := NewA2AAgentsView(stateManager, styles.NewProvider(themeService))
 	return view, stateManager
+}
+
+// reconstructReadiness rebuilds a real ApplicationState from a readiness value,
+// preserving per-agent state and failure details.
+func reconstructReadiness(readiness *domain.AgentReadinessState) *domain.ApplicationState {
+	st := domain.NewApplicationState()
+	if readiness == nil {
+		return st
+	}
+	st.InitializeAgentReadiness(readiness.TotalAgents)
+	for _, a := range readiness.Agents {
+		if a.State == domain.AgentStateFailed && a.Error != "" {
+			st.SetAgentError(a.Name, errors.New(a.Error))
+			continue
+		}
+		st.UpdateAgentStatus(a.Name, a.State, a.Message, a.URL, a.Image)
+	}
+	return st
 }
 
 func TestA2AAgentsView_ItemsReflectReadiness(t *testing.T) {
@@ -100,11 +118,7 @@ func TestA2AAgentsView_ResetRefreshesReadiness(t *testing.T) {
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	view = model.(*A2AAgentsViewImpl)
 
-	stateManager.GetAgentReadinessReturns(&domain.AgentReadinessState{
-		TotalAgents: 1,
-		ReadyAgents: 1,
-		Agents:      map[string]*domain.AgentStatus{"writer": {Name: "writer", State: domain.AgentStateReady}},
-	})
+	stateManager.UpdateAgentStatus("writer", domain.AgentStateReady, "", "", "")
 	view.Reset()
 
 	if view.IsCancelled() {

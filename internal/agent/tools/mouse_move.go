@@ -19,11 +19,11 @@ type MouseMoveTool struct {
 	formatter       domain.BaseFormatter
 	rateLimiter     domain.RateLimiter
 	displayProvider display.Provider
-	stateManager    domain.StateManager
+	stateManager    domain.EventBridgeManager
 }
 
 // NewMouseMoveTool creates a new mouse move tool
-func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *MouseMoveTool {
+func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.EventBridgeManager) *MouseMoveTool {
 	return &MouseMoveTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseMove.Enabled,

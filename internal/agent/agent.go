@@ -28,7 +28,7 @@ type AgentServiceImpl struct {
 	a2aAgentService  domain.A2AAgentService
 	skillsService    domain.SkillsService
 	messageQueue     domain.MessageQueue
-	stateManager     domain.StateManager
+	stateManager     stateManager
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        domain.ConversationOptimizer
@@ -330,6 +330,15 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 }
 
 // NewAgentService creates a new agent service with pre-configured client
+// stateManager is the narrow slice of the app state manager the agent core
+// needs: the current agent mode, computer-use pause state, and retry-status
+// updates. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.AgentModeManager
+	domain.ComputerUsePauseManager
+	domain.ChatSessionManager
+}
+
 func NewAgent(
 	client sdk.Client,
 	toolService domain.ToolService,
@@ -338,7 +347,7 @@ func NewAgent(
 	a2aAgentService domain.A2AAgentService,
 	skillsService domain.SkillsService,
 	messageQueue domain.MessageQueue,
-	stateManager domain.StateManager,
+	stateManager stateManager,
 	timeoutSeconds int,
 	optimizer domain.ConversationOptimizer,
 	bgRegistry domain.BackgroundTaskRegistry,

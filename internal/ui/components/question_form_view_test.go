@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func questionStateForTest(questions ...domain.UserQuestion) *domain.UserQuestionUIState {
@@ -53,12 +52,9 @@ func drainQuestionForm(v *QuestionFormView, cmd tea.Cmd) {
 	drainQuestionForm(v, v.Forward(msg))
 }
 
-func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormView, *domainmocks.FakeStateManager) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetUserQuestionUIStateReturns(state)
-	sm.ClearUserQuestionUIStateCalls(func() {
-		sm.GetUserQuestionUIStateReturns(nil)
-	})
+func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormView, *domain.ApplicationState) {
+	sm := domain.NewApplicationState()
+	sm.SetupUserQuestionUIState(state.Questions, state.ResponseChan)
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
 	v.SetWidth(80)
@@ -67,8 +63,7 @@ func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormVie
 }
 
 func TestQuestionFormView_RenderNilState(t *testing.T) {
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetUserQuestionUIStateReturns(nil)
+	sm := domain.NewApplicationState()
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
 	if got := v.Render(); got != "" {
@@ -158,7 +153,7 @@ func TestQuestionFormView_EscCancels(t *testing.T) {
 
 	pumpQuestionForm(v, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if sm.ClearUserQuestionUIStateCallCount() == 0 {
+	if sm.GetUserQuestionUIState() != nil {
 		t.Error("expected esc to clear the question state")
 	}
 	if got := v.Render(); got != "" {

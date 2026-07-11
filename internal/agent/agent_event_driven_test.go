@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -18,7 +19,7 @@ type testMocks struct {
 	stateMachine *mockdomain.FakeAgentStateMachine
 	queue        *mockdomain.FakeMessageQueue
 	repo         *mockdomain.FakeConversationRepository
-	stateManager *mockdomain.FakeStateManager
+	stateManager *services.StateManager
 	approval     *mockdomain.FakeApprovalPolicy
 }
 
@@ -28,7 +29,7 @@ func setupTestMocks() *testMocks {
 		stateMachine: &mockdomain.FakeAgentStateMachine{},
 		queue:        &mockdomain.FakeMessageQueue{},
 		repo:         &mockdomain.FakeConversationRepository{},
-		stateManager: &mockdomain.FakeStateManager{},
+		stateManager: services.NewStateManager(false),
 		approval:     &mockdomain.FakeApprovalPolicy{},
 	}
 }

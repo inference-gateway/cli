@@ -13,6 +13,16 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
+// stateManager is the narrow slice of the app state manager the chat handler
+// and its sub-handlers need: chat-session lifecycle, view transitions, the
+// plan-approval overlay, and the todo list. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.ChatSessionManager
+	domain.ViewManager
+	domain.PlanApprovalUIManager
+	domain.TodoManager
+}
+
 type ChatHandler struct {
 	agentService           domain.AgentService
 	conversationRepo       domain.ConversationRepository
@@ -23,7 +33,7 @@ type ChatHandler struct {
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	shortcutRegistry       *shortcuts.Registry
-	stateManager           domain.StateManager
+	stateManager           stateManager
 	messageQueue           domain.MessageQueue
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
@@ -54,7 +64,7 @@ func NewChatHandler(
 	skillsService domain.SkillsService,
 	githubIssueService domain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
-	stateManager domain.StateManager,
+	stateManager stateManager,
 	messageQueue domain.MessageQueue,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,

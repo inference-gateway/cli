@@ -5,6 +5,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -14,7 +15,7 @@ type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 // KeyHandlerContext provides access to application context for key handlers
 type KeyHandlerContext interface {
 	// State management
-	GetStateManager() domain.StateManager
+	GetStateManager() *services.StateManager
 	GetConversationRepository() domain.ConversationRepository
 	GetConfig() *config.Config
 	GetConfigDir() string

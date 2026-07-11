@@ -78,7 +78,7 @@ type ServiceContainer struct {
 	agentManager           domain.AgentManager
 
 	// Services
-	stateManager domain.StateManager
+	stateManager *services.StateManager
 
 	// Background services
 	titleGenerator         *services.ConversationTitleGenerator
@@ -653,7 +653,7 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
 }
 
-func (c *ServiceContainer) GetStateManager() domain.StateManager {
+func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
 }
 

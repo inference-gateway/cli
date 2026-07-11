@@ -7,6 +7,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
@@ -18,8 +19,8 @@ func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
 		{Function: sdk.FunctionObject{Name: "Read"}},
 	})
 
-	sm := &domainmocks.FakeStateManager{}
-	sm.GetAgentModeReturns(domain.AgentModeStandard)
+	sm := services.NewStateManager(false)
+	sm.SetAgentMode(domain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateManager: sm})
 

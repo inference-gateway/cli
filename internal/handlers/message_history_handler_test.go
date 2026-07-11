@@ -6,14 +6,12 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	stateManager := &mocks.FakeStateManager{}
-	handler := NewMessageHistoryHandler(stateManager, repo)
+	handler := NewMessageHistoryHandler(repo)
 
 	messages := []domain.ConversationEntry{
 		{
@@ -67,8 +65,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 
 func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	stateManager := &mocks.FakeStateManager{}
-	handler := NewMessageHistoryHandler(stateManager, repo)
+	handler := NewMessageHistoryHandler(repo)
 
 	messages := []domain.ConversationEntry{
 		{

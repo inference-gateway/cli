@@ -35,7 +35,7 @@ type InputView struct {
 	height               int
 	modelService         domain.ModelService
 	imageService         domain.ImageService
-	stateManager         domain.StateManager
+	stateManager         inputViewState
 	skillsService        domain.SkillsService
 	shortcutRegistry     *shortcuts.Registry
 	fileService          domain.FileService
@@ -139,8 +139,15 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 	iv.styleProvider = styles.NewProvider(themeService)
 }
 
+// inputViewState is the narrow slice of StateManager the input view reads to
+// decide whether an approval/plan overlay is active.
+type inputViewState interface {
+	domain.ApprovalUIManager
+	domain.PlanApprovalUIManager
+}
+
 // SetStateManager sets the state manager for this input view
-func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
+func (iv *InputView) SetStateManager(stateManager inputViewState) {
 	iv.stateManager = stateManager
 }
 

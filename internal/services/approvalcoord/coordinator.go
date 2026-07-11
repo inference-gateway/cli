@@ -19,19 +19,30 @@ type planRepoUpdater interface {
 	UpdatePlanStatus(action domain.PlanApprovalAction)
 }
 
+// stateManager is the narrow slice of the app state manager this coordinator
+// needs: the plan-approval and user-question overlays, computer-use pause,
+// chat-session end, and mode switching. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.PlanApprovalUIManager
+	domain.UserQuestionUIManager
+	domain.ComputerUsePauseManager
+	domain.ChatSessionManager
+	domain.AgentModeManager
+}
+
 // Service owns the UI side of "pause the assistant turn pending external
 // decision" events.
 type Service struct {
 	agentService     domain.AgentService
 	conversationRepo domain.ConversationRepository
-	stateManager     domain.StateManager
+	stateManager     stateManager
 }
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	AgentService     domain.AgentService
 	ConversationRepo domain.ConversationRepository
-	StateManager     domain.StateManager
+	StateManager     stateManager
 }
 
 // NewService creates a new approval coordinator.

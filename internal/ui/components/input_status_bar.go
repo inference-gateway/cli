@@ -20,7 +20,7 @@ type InputStatusBar struct {
 	width                  int
 	modelService           domain.ModelService
 	themeService           domain.ThemeService
-	stateManager           domain.StateManager
+	stateManager           statusBarState
 	config                 *config.Config
 	conversationRepo       domain.ConversationRepository
 	toolService            domain.ToolService
@@ -64,8 +64,14 @@ func (isb *InputStatusBar) SetThemeService(themeService domain.ThemeService) {
 	isb.themeService = themeService
 }
 
+// statusBarState is the narrow slice of StateManager the input status bar reads.
+type statusBarState interface {
+	domain.AgentModeManager
+	domain.AgentReadinessManager
+}
+
 // SetStateManager sets the state manager
-func (isb *InputStatusBar) SetStateManager(stateManager domain.StateManager) {
+func (isb *InputStatusBar) SetStateManager(stateManager statusBarState) {
 	isb.stateManager = stateManager
 }
 

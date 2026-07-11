@@ -22,11 +22,20 @@ import (
 // start/error/complete is the orchestrator's responsibility, not the
 // runner's - see the ChatHandler wrappers that call SetActiveToolCallID("")
 // before delegating to these handlers.
+// stateManager is the narrow slice of the app state manager the runner needs:
+// chat-session lifecycle, tool-execution teardown, and the view transition on
+// completion. *services.StateManager satisfies it.
+type stateManager interface {
+	domain.ChatSessionManager
+	domain.ToolExecutionManager
+	domain.ViewManager
+}
+
 type Runner struct {
 	agentService     domain.AgentService
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
-	stateManager     domain.StateManager
+	stateManager     stateManager
 	listener         domain.ChatEventListener
 
 	pendingRestoration   string
@@ -38,7 +47,7 @@ type Options struct {
 	AgentService     domain.AgentService
 	ConversationRepo domain.ConversationRepository
 	ModelService     domain.ModelService
-	StateManager     domain.StateManager
+	StateManager     stateManager
 	Listener         domain.ChatEventListener
 }
 
