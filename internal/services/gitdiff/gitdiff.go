@@ -12,6 +12,7 @@ package gitdiff
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -683,8 +684,15 @@ func (g *gitSource) readWorking(path string) string {
 }
 
 func (g *gitSource) run(args ...string) ([]byte, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = g.workdir
+	return RunGit(context.Background(), g.workdir, args...)
+}
+
+// RunGit runs a git command in workdir (process cwd when empty) and returns
+// its stdout. The context bounds the command's lifetime; stderr is folded
+// into the returned error.
+func RunGit(ctx context.Context, workdir string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = workdir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

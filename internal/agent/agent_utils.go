@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -18,10 +17,12 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
+	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -896,10 +897,19 @@ func (s *AgentServiceImpl) compactProjectTree() string {
 	return ""
 }
 
+// gitCommandContext bounds an ad-hoc git shell; the system-prompt build path
+// carries no context, so the leaf helpers create their own (same precedent as
+// compactProjectTree).
+func gitCommandContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), constants.GitCommandTimeout)
+}
+
 // isGitRepository checks if the current directory is a git repository
 func isGitRepository() bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	return cmd.Run() == nil
+	ctx, cancel := gitCommandContext()
+	defer cancel()
+	_, err := gitdiff.RunGit(ctx, "", "rev-parse", "--git-dir")
+	return err == nil
 }
 
 // getGitRepositoryName extracts the repository name from the git remote URL
@@ -909,8 +919,9 @@ func getGitRepositoryName() string {
 
 // getGitBranch returns the current git branch name
 func getGitBranch() string {
-	cmd := exec.Command("git", "branch", "--show-current")
-	output, err := cmd.Output()
+	ctx, cancel := gitCommandContext()
+	defer cancel()
+	output, err := gitdiff.RunGit(ctx, "", "branch", "--show-current")
 	if err != nil {
 		logger.Debug("failed to get current git branch", "error", err)
 		return ""
@@ -921,13 +932,13 @@ func getGitBranch() string {
 
 // getGitMainBranch returns the main branch name (main or master)
 func getGitMainBranch() string {
-	cmd := exec.Command("git", "rev-parse", "--verify", "main")
-	if err := cmd.Run(); err == nil {
+	ctx, cancel := gitCommandContext()
+	defer cancel()
+	if _, err := gitdiff.RunGit(ctx, "", "rev-parse", "--verify", "main"); err == nil {
 		return "main"
 	}
 
-	cmd = exec.Command("git", "rev-parse", "--verify", "master")
-	if err := cmd.Run(); err == nil {
+	if _, err := gitdiff.RunGit(ctx, "", "rev-parse", "--verify", "master"); err == nil {
 		return "master"
 	}
 
@@ -937,8 +948,9 @@ func getGitMainBranch() string {
 
 // getRecentCommits returns the last N commit messages
 func getRecentCommits(count int) []string {
-	cmd := exec.Command("git", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
-	output, err := cmd.Output()
+	ctx, cancel := gitCommandContext()
+	defer cancel()
+	output, err := gitdiff.RunGit(ctx, "", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
 	if err != nil {
 		logger.Debug("failed to get recent commits", "error", err)
 		return nil

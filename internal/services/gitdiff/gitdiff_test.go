@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -610,5 +611,27 @@ func TestDiscard(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, "junk.txt")); !os.IsNotExist(err) {
 		t.Errorf("junk.txt should be removed after discard, stat err = %v", err)
+	}
+}
+
+func TestRunGit(t *testing.T) {
+	repo := newTestRepo(t)
+
+	out, err := RunGit(context.Background(), repo, "rev-parse", "--is-inside-work-tree")
+	if err != nil {
+		t.Fatalf("RunGit: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "true" {
+		t.Errorf("RunGit rev-parse = %q, want %q", got, "true")
+	}
+
+	if _, err := RunGit(context.Background(), t.TempDir(), "rev-parse", "--is-inside-work-tree"); err == nil {
+		t.Errorf("RunGit(non-repo) err = nil, want error")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := RunGit(ctx, repo, "log"); err == nil {
+		t.Errorf("RunGit(cancelled ctx) err = nil, want error")
 	}
 }

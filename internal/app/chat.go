@@ -3018,8 +3018,9 @@ func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string
 		baseBranch = "main"
 	}
 
-	cmd = exec.Command("git", "branch", "--show-current")
-	currentBranch, err := cmd.Output()
+	gitCtx, cancel := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
+	defer cancel()
+	currentBranch, err := gitdiff.RunGit(gitCtx, "", "branch", "--show-current")
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}

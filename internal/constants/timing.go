@@ -38,3 +38,7 @@ const (
 	SlowUpdateThreshold     = 100 * time.Millisecond
 	JobRunningLongThreshold = 5 * time.Minute
 )
+
+// GitCommandTimeout bounds ad-hoc git shells (branch lookups, log, rev-parse)
+// so a wedged git process can't hang the UI or system-prompt build.
+const GitCommandTimeout = 10 * time.Second
