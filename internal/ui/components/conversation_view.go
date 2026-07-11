@@ -264,7 +264,11 @@ func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
-	expand := !cv.anyToolResultExpanded()
+	// Expand-first: unless every tool result is already expanded, the press
+	// expands them all. Collapsing only happens once everything is expanded. This
+	// keeps a lone collapsed card (e.g. a rejected write) responsive to the first
+	// ctrl+o even when other results — like a default-expanded Edit diff — are open.
+	expand := !cv.allToolResultsExpanded()
 
 	changed := make([]int, 0, len(cv.conversation))
 	for i, entry := range cv.conversation {
@@ -339,15 +343,22 @@ func (cv *ConversationView) entryLineSpans() map[int][2]int {
 	return spans
 }
 
-// anyToolResultExpanded reports whether any tool result is currently expanded,
-// honoring per-tool defaults (e.g. Edit/MultiEdit diffs default to expanded).
-func (cv *ConversationView) anyToolResultExpanded() bool {
+// allToolResultsExpanded reports whether every tool result is currently expanded
+// (honoring per-tool defaults), so the global toggle collapses only when there is
+// nothing left to expand. False when there are no tool results, which makes the
+// first press an expand no-op rather than a surprising collapse.
+func (cv *ConversationView) allToolResultsExpanded() bool {
+	found := false
 	for i, entry := range cv.conversation {
-		if entry.Message.Role == "tool" && cv.IsToolResultExpanded(i) {
-			return true
+		if entry.Message.Role != "tool" {
+			continue
+		}
+		found = true
+		if !cv.IsToolResultExpanded(i) {
+			return false
 		}
 	}
-	return false
+	return found
 }
 
 // IsToolResultExpanded returns the effective expansion of a tool result: an

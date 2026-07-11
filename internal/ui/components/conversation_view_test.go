@@ -291,6 +291,46 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 	}
 }
 
+// TestConversationView_ToggleAllExpandsCollapsedAmongExpanded guards the rejected-write
+// bug: with a default-expanded Edit next to a collapsed result, the first ctrl+o must
+// expand everything (so the collapsed card opens), not collapse-first and leave it shut.
+func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetToolFormatter(&stubToolFormatter{})
+
+	cv.SetConversation([]domain.ConversationEntry{
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
+			Time:          time.Now(),
+		},
+		{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
+			ToolExecution: &domain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
+			Time:          time.Now(),
+		},
+	})
+
+	if !cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(1) {
+		t.Fatal("precondition: Edit expanded, rejected Write collapsed")
+	}
+
+	// First press must expand the collapsed Write (not just collapse the Edit).
+	cv.ToggleAllToolResultsExpansion()
+	if !cv.IsToolResultExpanded(1) {
+		t.Error("expected first ToggleAll to expand the collapsed rejected write")
+	}
+	if !cv.IsToolResultExpanded(0) {
+		t.Error("expected the already-expanded Edit to stay expanded")
+	}
+
+	// Everything is expanded now, so the next press collapses all.
+	cv.ToggleAllToolResultsExpansion()
+	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(1) {
+		t.Error("expected second ToggleAll to collapse everything")
+	}
+}
+
 func TestConversationView_SetWidth(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
