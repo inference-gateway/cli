@@ -1026,7 +1026,7 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 	}
 
 	if len(keyStr) > 1 && !keys.IsKnownKey(keyStr) {
-		return handlePasteEvent(app, keyStr)
+		return HandlePasteEvent(app, keyStr)
 	}
 
 	stateManager := app.GetStateManager()
@@ -1092,8 +1092,8 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 	)
 }
 
-// handlePasteEvent handles when the terminal sends clipboard content directly
-func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
+// HandlePasteEvent handles when the terminal sends clipboard content directly
+func HandlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil

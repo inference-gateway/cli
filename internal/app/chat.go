@@ -779,6 +779,13 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if pasteMsg, ok := msg.(tea.PasteMsg); ok {
+		if cmd := keybinding.HandlePasteEvent(app, pasteMsg.Content); cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return cmds
