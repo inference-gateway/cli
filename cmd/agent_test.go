@@ -684,8 +684,6 @@ func TestEmitSessionStatsFullLine(t *testing.T) {
 	session := &AgentSession{
 		model:  "deepseek/deepseek-v4-flash",
 		config: &config.Config{Pricing: config.PricingConfig{Currency: "USD"}},
-		// 7 requests at 3000/180/3180 tokens, each costing 0.25/0.125/0.375
-		// (binary-exact so the accumulated sums compare with ==).
 		conversationRepo: seededRepo(t, fakePricing(0.25, 0.125, 0.375),
 			"deepseek/deepseek-v4-flash", 7, 3000, 180, 3180),
 	}
