@@ -14,6 +14,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
@@ -281,7 +282,7 @@ func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey 
 	select {
 	case reply := <-respChan:
 		resp.Approved = reply.Approved
-	case <-time.After(5 * time.Minute):
+	case <-time.After(constants.ApprovalTimeout):
 		resp.Approved = false
 		sendFn("⏱ Approval timed out - tool execution was automatically rejected.")
 		logger.Warn("approval timeout", "tool", req.ToolName, "sender", senderKey)
