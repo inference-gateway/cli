@@ -13,7 +13,6 @@ import (
 )
 
 func TestRenderConversationsJSON(t *testing.T) {
-	// Create test conversations
 	conversations := []storage.ConversationSummary{
 		{
 			ID:           "12345678-1234-1234-1234-123456789abc",
@@ -47,19 +46,13 @@ func TestRenderConversationsJSON(t *testing.T) {
 		},
 	}
 
-	// Render JSON
 	err := renderConversationsJSON(conversations)
 	if err != nil {
 		t.Fatalf("renderConversationsJSON() failed: %v", err)
 	}
-
-	// Note: Since the function prints to stdout, we can't easily capture it in this test
-	// In a real scenario, we would refactor to accept an io.Writer
-	// For now, we just verify no error occurred
 }
 
 func TestRenderConversationsJSON_Structure(t *testing.T) {
-	// Test that JSON structure is correct by creating sample data
 	conversations := []storage.ConversationSummary{
 		{
 			ID:           "test-id-1",
@@ -76,7 +69,6 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 		},
 	}
 
-	// Create the expected output structure
 	output := struct {
 		Conversations []storage.ConversationSummary `json:"conversations"`
 		Count         int                           `json:"count"`
@@ -85,13 +77,11 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 		Count:         len(conversations),
 	}
 
-	// Marshal to JSON
 	jsonBytes, err := json.MarshalIndent(output, "", "  ")
 	if err != nil {
 		t.Fatalf("Failed to marshal JSON: %v", err)
 	}
 
-	// Verify JSON contains expected fields
 	jsonStr := string(jsonBytes)
 	if !strings.Contains(jsonStr, `"conversations"`) {
 		t.Error("JSON output missing 'conversations' field")
@@ -111,9 +101,6 @@ func TestRenderConversationsTable_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with empty conversations failed: %v", err)
 	}
-
-	// Function should print "No conversations found" message
-	// Since we can't easily capture stdout in this test, we just verify no error
 }
 
 func TestRenderConversationsTable_WithData(t *testing.T) {
@@ -140,7 +127,6 @@ func TestRenderConversationsTable_WithData(t *testing.T) {
 }
 
 func TestRenderConversationsTable_Pagination(t *testing.T) {
-	// Create 60 conversations to test pagination
 	conversations := make([]storage.ConversationSummary, 60)
 	for i := 0; i < 60; i++ {
 		conversations[i] = storage.ConversationSummary{
@@ -158,13 +144,11 @@ func TestRenderConversationsTable_Pagination(t *testing.T) {
 		}
 	}
 
-	// Test first page
 	err := renderConversationsTable(conversations[:50], 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() page 1 failed: %v", err)
 	}
 
-	// Test second page
 	err = renderConversationsTable(conversations[50:], 50, 50)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() page 2 failed: %v", err)
@@ -206,7 +190,7 @@ func TestRenderConversationsTable_ZeroCost(t *testing.T) {
 				RequestCount:      1,
 			},
 			CostStats: domain.SessionCostStats{
-				TotalCost: 0.0, // Zero cost should display as "-"
+				TotalCost: 0.0,
 			},
 		},
 	}
@@ -229,7 +213,7 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 				RequestCount:      1,
 			},
 			CostStats: domain.SessionCostStats{
-				TotalCost: 0.0023, // Should show 4 decimals
+				TotalCost: 0.0023,
 			},
 		},
 		{
@@ -242,7 +226,7 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 				RequestCount:      1,
 			},
 			CostStats: domain.SessionCostStats{
-				TotalCost: 0.142, // Should show 3 decimals
+				TotalCost: 0.142,
 			},
 		},
 		{
@@ -255,7 +239,7 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 				RequestCount:      1,
 			},
 			CostStats: domain.SessionCostStats{
-				TotalCost: 5.47, // Should show 2 decimals
+				TotalCost: 5.47,
 			},
 		},
 	}
@@ -290,13 +274,11 @@ func TestRenderConversationsTable_LargeNumbers(t *testing.T) {
 }
 
 func TestRenderMarkdown(t *testing.T) {
-	// Test that renderMarkdown doesn't fail with valid markdown
 	markdown := "# Test Header\n\nSome **bold** text."
 
 	_, err := renderMarkdown(markdown)
 	if err != nil {
 		t.Logf("renderMarkdown() returned error (may fail in test environment): %v", err)
-		// Don't fail the test - glamour may not work in all test environments
 	}
 }
 
@@ -306,12 +288,10 @@ func TestRenderMarkdown_EmptyString(t *testing.T) {
 	_, err := renderMarkdown(markdown)
 	if err != nil {
 		t.Logf("renderMarkdown() with empty string returned error: %v", err)
-		// Don't fail - may not work in test environment
 	}
 }
 
 func TestRenderMarkdown_Table(t *testing.T) {
-	// Test with markdown table similar to what we generate
 	markdown := `| ID | Title | Count |
 |-----|-------|-------|
 | 123 | Test  | 5     |
@@ -320,7 +300,6 @@ func TestRenderMarkdown_Table(t *testing.T) {
 	_, err := renderMarkdown(markdown)
 	if err != nil {
 		t.Logf("renderMarkdown() with table returned error: %v", err)
-		// Don't fail - may not work in test environment
 	}
 }
 
@@ -392,7 +371,6 @@ func TestBuildConversationShowText_PlainAndHeaders(t *testing.T) {
 }
 
 func TestBuildConversationShowText_HiddenTagAndToolCallID(t *testing.T) {
-	// Include hidden so the [hidden] tag and tool entry are both present.
 	entries := filterConversationEntries(makeShowEntries(), true)
 	out := buildConversationShowText(entries, "s")
 
@@ -477,8 +455,6 @@ func TestBuildConversationShowJSON_Empty(t *testing.T) {
 }
 
 func TestToConversationShowEntry_Multimodal(t *testing.T) {
-	// Mirrors how the codebase persists image entries: an Images attachment on
-	// an entry whose Message.Content carries no extractable text.
 	got := toConversationShowEntry(domain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User},
 		Images: []domain.ImageAttachment{

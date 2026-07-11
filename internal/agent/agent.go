@@ -919,11 +919,10 @@ func (s *AgentServiceImpl) executeTool(
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
 			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
-			s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
-			s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "failed", "rejected", nil)
 			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true
@@ -1324,6 +1323,10 @@ func (s *AgentServiceImpl) requestToolApproval(
 		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
 	case <-time.After(constants.ApprovalTimeout):
 		err = fmt.Errorf("approval request timed out")
+	}
+
+	if err != nil || !approved {
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 	}
 
 	return approved, err

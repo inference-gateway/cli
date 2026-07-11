@@ -1,6 +1,7 @@
 package states
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -261,20 +262,37 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
+	s.ctx.PublishChatEvent(domain.ToolExecutionProgressEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: s.ctx.Request.RequestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: tc.ID,
+		ToolName:   tc.Function.Name,
+		Status:     "failed",
+		Message:    "rejected",
+	})
+
 	rejectionMessage := sdk.Message{
 		Role:       sdk.Tool,
 		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
 		ToolCallID: &tc.ID,
 	}
 
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		args = make(map[string]any)
+	}
+
 	return domain.ConversationEntry{
 		Message: rejectionMessage,
 		Time:    time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
-			ToolName: tc.Function.Name,
-			Success:  false,
-			Error:    "rejected by user",
-			Rejected: true,
+			ToolName:  tc.Function.Name,
+			Arguments: args,
+			Success:   false,
+			Error:     "rejected by user",
+			Rejected:  true,
 		},
 	}
 }

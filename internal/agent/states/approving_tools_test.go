@@ -248,6 +248,38 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 	assert.False(t, ctx.AgentCtx.HasToolResults, "rejection must clear HasToolResults so the turn completes")
 }
 
+// TestApprovingToolsState_RejectionEntryKeepsArguments verifies the rejected
+// tool entry carries the original call arguments so the UI renders
+// "Bash(command=...)" instead of a bare "Bash()", and that a "failed" progress
+// event is published so the queued preview line is dropped (issue #861).
+func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
+	var published []domain.ChatEvent
+	ctx, _, _, _ := newApprovingCtx(nil, domain.AgentModeStandard, nil, nil)
+	ctx.PublishChatEvent = func(e domain.ChatEvent) { published = append(published, e) }
+	s := &ApprovingToolsState{ctx: ctx}
+
+	tc := sdk.ChatCompletionMessageToolCall{
+		ID:       "call-0",
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf /tmp/x"}`},
+	}
+
+	entry := s.buildRejectionEntry(tc)
+
+	require.NotNil(t, entry.ToolExecution)
+	assert.Equal(t, map[string]any{"command": "rm -rf /tmp/x"}, entry.ToolExecution.Arguments)
+
+	require.Len(t, published, 1)
+	progress, ok := published[0].(domain.ToolExecutionProgressEvent)
+	require.True(t, ok, "rejection must publish a ToolExecutionProgressEvent")
+	assert.Equal(t, "call-0", progress.ToolCallID)
+	assert.Equal(t, "failed", progress.Status)
+
+	tc.Function.Arguments = "not-json"
+	entry = s.buildRejectionEntry(tc)
+	require.NotNil(t, entry.ToolExecution)
+	assert.NotNil(t, entry.ToolExecution.Arguments, "malformed args must fall back to an empty map")
+}
+
 // TestApprovingToolsState_ApprovedBatchKeepsToolResults verifies the inverse of
 // the rejection case: a fully approved batch leaves HasToolResults set so the
 // agent streams a follow-up turn responding to the results.
