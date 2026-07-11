@@ -32,6 +32,7 @@ type StatusView struct {
 	keyHintFormatter *hints.Formatter
 	toolName         string
 	stateManager     domain.StateManager
+	pausedAt         time.Time
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -93,6 +94,7 @@ func (sv *StatusView) ShowSpinner(message string) {
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
+	sv.pausedAt = time.Time{}
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
@@ -103,6 +105,7 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.Stat
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
+	sv.pausedAt = time.Time{}
 	sv.statusType = statusType
 	sv.progress = progress
 }
@@ -121,6 +124,7 @@ func (sv *StatusView) ClearStatus() {
 	sv.isError = false
 	sv.isSpinner = false
 	sv.startTime = time.Time{}
+	sv.pausedAt = time.Time{}
 	sv.debugInfo = ""
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
@@ -194,9 +198,13 @@ func (sv *StatusView) Render() string {
 		return ""
 	}
 
+	sv.syncApprovalPause()
+
 	var prefix, color, displayMessage string
 	if sv.isError {
 		prefix, color, displayMessage = sv.formatErrorStatus()
+	} else if sv.isSpinner && !sv.pausedAt.IsZero() {
+		prefix, color, displayMessage = "", sv.styleProvider.GetThemeColor("status"), sv.formatStatusWithType(sv.baseMessage)
 	} else if sv.isSpinner {
 		prefix, color, displayMessage = sv.formatSpinnerStatus()
 	} else {
@@ -275,6 +283,33 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
+}
+
+// syncApprovalPause pauses the spinner and elapsed timer while an approval,
+// plan-approval, or user-question overlay is waiting on the user, and shifts
+// startTime forward on resume so the wait doesn't count as generation time.
+// Derived from state on each render, like reconnectingMessage, so it needs no
+// event ordering guarantees against the tool-progress spinner events.
+func (sv *StatusView) syncApprovalPause() {
+	if sv.awaitingUserDecision() {
+		if sv.pausedAt.IsZero() {
+			sv.pausedAt = time.Now()
+		}
+		return
+	}
+	if !sv.pausedAt.IsZero() {
+		sv.startTime = sv.startTime.Add(time.Since(sv.pausedAt))
+		sv.pausedAt = time.Time{}
+	}
+}
+
+func (sv *StatusView) awaitingUserDecision() bool {
+	if sv.stateManager == nil {
+		return false
+	}
+	return sv.stateManager.GetApprovalUIState() != nil ||
+		sv.stateManager.GetPlanApprovalUIState() != nil ||
+		sv.stateManager.GetUserQuestionUIState() != nil
 }
 
 // reconnectingMessage returns the reconnect notice when the HTTP client is

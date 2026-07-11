@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
@@ -229,5 +230,27 @@ func TestStatusView_StateTransitions(t *testing.T) {
 
 	if sv.IsShowingError() || sv.IsShowingSpinner() {
 		t.Error("Expected no error or spinner after ClearStatus")
+	}
+}
+
+func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
+	sv := NewStatusView(createMockStyleProviderForStatus())
+	sm := &domainmocks.FakeStateManager{}
+	sv.SetStateManager(sm)
+	sv.ShowSpinner("Executing tools")
+
+	sm.GetApprovalUIStateReturns(&domain.ApprovalUIState{})
+	paused := sv.Render()
+	if strings.Contains(paused, "(") {
+		t.Errorf("expected no elapsed timer while approval pending, got %q", paused)
+	}
+	if !strings.Contains(paused, "Executing tools") {
+		t.Errorf("expected message to remain visible, got %q", paused)
+	}
+
+	sm.GetApprovalUIStateReturns(nil)
+	resumed := sv.Render()
+	if !strings.Contains(resumed, "(") {
+		t.Errorf("expected elapsed timer after approval resolved, got %q", resumed)
 	}
 }
