@@ -129,7 +129,7 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 	}
 
 	dim := s.styleProvider.GetThemeColor("dim")
-	inner := s.cardWidth(terminalWidth) - 4 // minus border + horizontal padding
+	inner := s.cardWidth(terminalWidth) - 4
 
 	if result.Rejected {
 		body := s.statusLine(result, terminalWidth)

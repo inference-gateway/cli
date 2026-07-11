@@ -388,7 +388,6 @@ func (t *MCPTool) formatMCPData(data any) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *MCPTool) ShouldCollapseArg(key string) bool {
-	// Collapse large content fields
 	return key == "content" || key == "data" || key == "text"
 }
 

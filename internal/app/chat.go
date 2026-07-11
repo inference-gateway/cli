@@ -804,7 +804,6 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// While an AskUserQuestion form is up it captures all keys (like the
 	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {
 		if cmd := app.questionFormView.Forward(keyMsg); cmd != nil {
 			return []tea.Cmd{cmd}
@@ -820,8 +819,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 			}
 			return nil
 		case tea.KeyUp, tea.KeyDown:
-			// While the diff is expanded (ctrl+o), up/down scroll it; otherwise
-			// they fall through to their normal handling.
 			if app.scrollApprovalDiff(keyMsg.Code) {
 				return nil
 			}

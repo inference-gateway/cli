@@ -36,11 +36,9 @@ func TestFormatExpandedNativeTree(t *testing.T) {
 		}
 	}
 
-	// native rounded glyphs replace the old single-dash form
 	if strings.Contains(out, "├─ ") || strings.Contains(out, "└─ ") {
 		t.Errorf("expected native ├──/╰── glyphs, found old single-dash connectors:\n%s", out)
 	}
-	// LLM/headless output must not be wrapped in a card
 	if strings.Contains(out, "╭") || strings.Contains(out, "╮") {
 		t.Errorf("LLM expanded output must not be card-framed:\n%s", out)
 	}

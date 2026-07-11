@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"charm.land/lipgloss/v2/tree"
+	tree "charm.land/lipgloss/v2/tree"
 
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed

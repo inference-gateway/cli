@@ -225,11 +225,10 @@ func TestApprovalBox_ExpandScrollsToDiffTail(t *testing.T) {
 
 	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
 	av.SetWidth(80)
-	av.SetHeight(30) // collapsed cap -> 15; expanded window -> height-12 = 18
+	av.SetHeight(30)
 
 	_ = av.Begin()
 
-	// Expanding shows the diff head as a scrollable window, tail still off-screen.
 	av.ToggleExpanded()
 	top := stripANSI(av.Render())
 	if !strings.Contains(top, "LINE_00") {
@@ -242,14 +241,12 @@ func TestApprovalBox_ExpandScrollsToDiffTail(t *testing.T) {
 		t.Errorf("expanded window should show a scroll hint:\n%s", top)
 	}
 
-	// Scrolling down far enough brings the tail into the window.
 	av.ScrollDiff(1000)
 	bottom := stripANSI(av.Render())
 	if !strings.Contains(bottom, "LINE_39") {
 		t.Errorf("scrolling down should reveal the diff tail:\n%s", bottom)
 	}
 
-	// Collapsing resets to the capped head preview.
 	av.ToggleExpanded()
 	if recollapsed := stripANSI(av.Render()); strings.Contains(recollapsed, "LINE_39") {
 		t.Errorf("collapsing should return to the capped head, LINE_39 still present:\n%s", recollapsed)
@@ -321,7 +318,6 @@ const (
 // is tightened to 2 context lines: the 2 nearest unchanged lines on each side
 // remain while the 3rd-out lines (and beyond) are trimmed.
 func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
-	// "/x/y.txt" does not exist -> editDiff falls back to a snippet diff.
 	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
 
 	sm := approvalStateManager(approvalStateWith("Edit", args))

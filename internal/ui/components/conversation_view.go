@@ -264,10 +264,6 @@ func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 }
 
 func (cv *ConversationView) ToggleAllToolResultsExpansion() {
-	// Expand-first: unless every tool result is already expanded, the press
-	// expands them all. Collapsing only happens once everything is expanded. This
-	// keeps a lone collapsed card (e.g. a rejected write) responsive to the first
-	// ctrl+o even when other results — like a default-expanded Edit diff — are open.
 	expand := !cv.allToolResultsExpanded()
 
 	changed := make([]int, 0, len(cv.conversation))
@@ -299,7 +295,7 @@ func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...in
 	}
 	if !cv.userScrolledUp {
 		mutate()
-		cv.updateViewportContentFull() // GotoBottom keeps us on the tail
+		cv.updateViewportContentFull()
 		return
 	}
 
@@ -314,7 +310,7 @@ func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...in
 	for _, idx := range changed {
 		old, ok := oldSpans[idx]
 		if !ok || old[0] >= oldOffset {
-			continue // entry starts at or below the viewport top: no shift needed
+			continue
 		}
 		if nw, ok := newSpans[idx]; ok {
 			delta += nw[1] - old[1]

@@ -274,8 +274,6 @@ func (av *ApprovalBoxView) capLines(s string) string {
 		return strings.Join(lines[:limit], "\n") + "\n" + hint
 	}
 
-	// Clamp the bottom here (the window height is only known now); the top is
-	// clamped on scroll.
 	maxOffset := len(lines) - limit
 	if av.scrollOffset > maxOffset {
 		av.scrollOffset = maxOffset
