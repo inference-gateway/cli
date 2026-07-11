@@ -60,7 +60,12 @@ func (t *CloseSubagentTool) Definition() sdk.ChatCompletionTool {
 // Execute closes the named subagent.
 func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
-		return nil, err
+		return &domain.ToolExecutionResult{
+			ToolName:  "CloseSubagent",
+			Arguments: args,
+			Success:   false,
+			Error:     err.Error(),
+		}, nil
 	}
 
 	subagentID, _ := args["subagent_id"].(string)

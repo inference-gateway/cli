@@ -120,3 +120,22 @@ func TestCloseSubagentTool_NotFound(t *testing.T) {
 		t.Fatalf("expected failure for missing subagent")
 	}
 }
+
+// TestCloseSubagentTool_EmptyIDIsGracefulFailure guards that an empty
+// subagent_id fails as a Success:false result (like the not-found case) rather
+// than a hard (nil, err). A hard error routes the !! direct-exec path to a bare
+// error banner and, before the renderer fix, a spinner that never stops; a
+// graceful result renders as a normal failed tool entry.
+func TestCloseSubagentTool_EmptyIDIsGracefulFailure(t *testing.T) {
+	tool := NewCloseSubagentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
+	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": ""})
+	if err != nil {
+		t.Fatalf("empty subagent_id must not be a hard error, got: %v", err)
+	}
+	if res == nil || res.Success {
+		t.Fatalf("expected a graceful failed result, got %+v", res)
+	}
+	if res.Error == "" {
+		t.Error("failed result should carry the validation message")
+	}
+}

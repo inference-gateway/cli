@@ -198,6 +198,16 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
+			eventChan <- domain.ToolExecutionProgressEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Status:     "failed",
+				Message:    "Execution failed",
+			}
 			return
 		}
 
