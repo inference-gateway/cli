@@ -126,6 +126,14 @@ func (dv *DiffView) Layout(l Layout) *DiffView { dv.layout = l; return dv }
 // Style overrides the visual style. Defaults to DefaultDarkStyle.
 func (dv *DiffView) Style(s Style) *DiffView { dv.style = s; return dv }
 
+// WithChromaStyle enables in-line syntax highlighting for diff content
+// using the given chroma style. Pass nil (or omit the call) for no highlighting.
+func (dv *DiffView) WithChromaStyle(s *chroma.Style) *DiffView {
+	dv.chromaStyle = s
+	dv.clearCaches()
+	return dv
+}
+
 // ContextLines sets the number of unchanged context lines around each hunk.
 func (dv *DiffView) ContextLines(n int) *DiffView { dv.contextLines = n; return dv }
 
