@@ -446,7 +446,7 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 			_ = os.Stdout.Sync()
 			return nil
 		case domain.ChatErrorEvent:
-			return fmt.Errorf("chat error: %v", e.Error)
+			return fmt.Errorf("chat error: %w", e.Error)
 		}
 	}
 	return nil
