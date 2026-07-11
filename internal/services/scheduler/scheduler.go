@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,9 +22,6 @@ import (
 // ChannelLookupFn returns the registered Channel for a name, or nil if unknown.
 type ChannelLookupFn func(name string) domain.Channel
 
-// ExecCommandFn matches exec.CommandContext. Exposed for tests.
-type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.Cmd
-
 // Service runs scheduled jobs inside the channels-manager daemon. Jobs are
 // loaded from the on-disk Store, registered with a robfig/cron scheduler, and
 // hot-reloaded when the storage directory changes (via fsnotify).
@@ -40,7 +35,7 @@ type Service struct {
 	cron          *cron.Cron
 	parser        cron.Parser
 	channelLookup ChannelLookupFn
-	execCmd       ExecCommandFn
+	execCmd       agentrunner.ExecFunc
 	binaryPath    string
 
 	mu       sync.Mutex
@@ -61,7 +56,7 @@ type Options struct {
 	Store         *Store
 	ChannelLookup ChannelLookupFn
 	// ExecCommand defaults to exec.CommandContext when nil.
-	ExecCommand ExecCommandFn
+	ExecCommand agentrunner.ExecFunc
 	// BinaryPath defaults to os.Args[0] (current binary) when empty.
 	BinaryPath string
 }
@@ -74,14 +69,6 @@ func NewService(opts Options) (*Service, error) {
 	if opts.ChannelLookup == nil {
 		return nil, errors.New("scheduler: ChannelLookup is required")
 	}
-	execFn := opts.ExecCommand
-	if execFn == nil {
-		execFn = exec.CommandContext
-	}
-	bin := opts.BinaryPath
-	if bin == "" {
-		bin = os.Args[0]
-	}
 	parser := cron.NewParser(
 		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 	)
@@ -89,8 +76,8 @@ func NewService(opts Options) (*Service, error) {
 		store:         opts.Store,
 		parser:        parser,
 		channelLookup: opts.ChannelLookup,
-		execCmd:       execFn,
-		binaryPath:    bin,
+		execCmd:       opts.ExecCommand,
+		binaryPath:    opts.BinaryPath,
 		entryIDs:      make(map[string]cron.EntryID),
 		debounce:      make(map[string]*time.Timer),
 	}, nil
