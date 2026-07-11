@@ -69,12 +69,6 @@ type ShellTracker interface {
 	// Remove removes a shell from the tracker.
 	Remove(shellID string) error
 
-	// Cleanup removes shells in terminal states older than the specified duration.
-	Cleanup(olderThan time.Duration) int
-
-	// Count returns the number of tracked shells.
-	Count() int
-
 	// CountRunning returns the number of shells in running state.
 	CountRunning() int
 }

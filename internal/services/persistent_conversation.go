@@ -24,7 +24,7 @@ type PersistentConversationRepository struct {
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
-	taskTracker    domain.A2ATaskTracker
+	taskTracker    domain.A2AClearer
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -55,7 +55,7 @@ func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *Con
 }
 
 // SetA2ATaskTracker sets the task tracker for context ID persistence
-func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker domain.A2ATaskTracker) {
+func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker domain.A2AClearer) {
 	r.taskTracker = taskTracker
 }
 

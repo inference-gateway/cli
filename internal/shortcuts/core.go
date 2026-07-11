@@ -15,10 +15,10 @@ import (
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
 	repo        domain.ConversationRepository
-	taskTracker domain.A2ATaskTracker
+	taskTracker domain.A2AClearer
 }
 
-func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.A2ATaskTracker) *ClearShortcut {
+func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.A2AClearer) *ClearShortcut {
 	return &ClearShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,
@@ -292,10 +292,10 @@ func formatTokenCount(tokens int) string {
 // NewShortcut starts a new conversation
 type NewShortcut struct {
 	repo        PersistentConversationRepository
-	taskTracker domain.A2ATaskTracker
+	taskTracker domain.A2AClearer
 }
 
-func NewNewShortcut(repo PersistentConversationRepository, taskTracker domain.A2ATaskTracker) *NewShortcut {
+func NewNewShortcut(repo PersistentConversationRepository, taskTracker domain.A2AClearer) *NewShortcut {
 	return &NewShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,

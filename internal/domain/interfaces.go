@@ -563,34 +563,34 @@ type BackgroundTaskService interface {
 // other half is ShellTracker (defined in shell.go). Code that only needs
 // the A2A surface can depend on this narrower interface.
 type A2ATaskTracker interface {
-	// Context management (contexts are server-generated and tracked here)
-	// Multiple contexts per agent enable multi-tenant/multi-session support
+	// Context management (contexts are server-generated and tracked here).
+	// Multiple contexts per agent enable multi-tenant/multi-session support.
 	RegisterContext(agentURL, contextID string)
-	GetContextsForAgent(agentURL string) []string
-	GetAgentForContext(contextID string) string
 	GetLatestContextForAgent(agentURL string) string
 	HasContext(contextID string) bool
-	RemoveContext(contextID string)
 
 	// Task management (tasks are server-generated and scoped to contexts per A2A spec)
 	AddTask(contextID, taskID string)
-	GetTasksForContext(contextID string) []string
 	GetLatestTaskForContext(contextID string) string
-	GetContextForTask(taskID string) string
 	RemoveTask(taskID string)
-	HasTask(taskID string) bool
 
 	// Agent management
-	GetAllAgents() []string
-	GetAllContexts() []string
 	ClearAllAgents()
 
 	// Polling state management (one polling state per task)
 	StartPolling(taskID string, state *TaskPollingState)
 	StopPolling(taskID string)
 	GetPollingState(taskID string) *TaskPollingState
-	GetPollingTasksForContext(contextID string) []string
 	GetAllPollingTasks() []string
+}
+
+// A2AClearer is the one-method projection of the A2A tracker used by
+// conversation clear/switch to discard the A2A context/task graph. The concrete
+// *utils.A2ATaskTrackerImpl (and the BackgroundTaskRegistry that embeds it)
+// satisfies it; consumers that only clear depend on this instead of the whole
+// tracker.
+type A2AClearer interface {
+	ClearAllAgents()
 }
 
 // BackgroundTaskRegistry is the single tracker that owns *all* in-flight
