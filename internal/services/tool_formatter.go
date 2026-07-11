@@ -128,6 +128,14 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 		return "Tool execution result unavailable"
 	}
 
+	if result.Rejected {
+		line := s.statusLine(result, terminalWidth)
+		if hint := s.expandHint(); hint != "" {
+			line += "\n" + s.styleProvider.RenderWithColor("    "+hint, s.styleProvider.GetThemeColor("dim"))
+		}
+		return line
+	}
+
 	lines, more := previewLines(s.resultBody(result), result.Success, contentWidth(terminalWidth))
 
 	out := make([]string, 0, len(lines)+2)
@@ -153,7 +161,11 @@ func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, te
 	}
 
 	styledIcon := s.styleProvider.RenderWithColor(icon, s.styleProvider.GetThemeColor(iconColor))
-	styledDur := s.styleProvider.RenderWithColor("· "+formatDurationShort(result.Duration), s.styleProvider.GetThemeColor("dim"))
+	suffix, suffixColor := "· "+formatDurationShort(result.Duration), "dim"
+	if result.Rejected {
+		suffix, suffixColor = "· Rejected", "error"
+	}
+	styledDur := s.styleProvider.RenderWithColor(suffix, s.styleProvider.GetThemeColor(suffixColor))
 
 	argsPreview := s.formatArgsPreview(result.Arguments, s.argsPreviewBudget(result.ToolName, terminalWidth))
 	if argsPreview != "" && argsPreview != "{}" {

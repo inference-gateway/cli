@@ -173,6 +173,34 @@ func TestFormatToolResultForUI_NoBodyOmitsPreview(t *testing.T) {
 	}
 }
 
+func TestFormatToolResultForUI_RejectedShowsStatusAndHintOnly(t *testing.T) {
+	tool := &fakeTool{name: "Bash", preview: "Execution failed"}
+	svc := newTestService(tool)
+
+	res := &domain.ToolExecutionResult{
+		ToolName:  "Bash",
+		Success:   false,
+		Rejected:  true,
+		Error:     "rejected by user",
+		Arguments: map[string]any{"command": "rm -rf x"},
+	}
+	out := stripANSI(svc.FormatToolResultForUI(res, 80))
+	lines := strings.Split(out, "\n")
+
+	if len(lines) != 2 {
+		t.Fatalf("expected status + hint = 2 lines, got %d: %#v", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "Bash(command=rm -rf x)") || !strings.Contains(lines[0], "· Rejected") {
+		t.Errorf("status line = %q, want args and Rejected label", lines[0])
+	}
+	if strings.Contains(lines[0], "0ns") {
+		t.Errorf("rejected status line should not show a duration: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "ctrl+o to expand") {
+		t.Errorf("expected expand hint, got %q", lines[1])
+	}
+}
+
 func TestFormatToolResultExpanded_ThemingPreservesTree(t *testing.T) {
 	tree := "Bash(command=git branch)\n" +
 		"├─ Duration: 19ms\n" +
