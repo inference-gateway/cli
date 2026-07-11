@@ -22,7 +22,7 @@ type ConversationOptimizer struct {
 	autoAt            int
 	bufferSize        int
 	keepFirstMessages int
-	client            domain.SDKClient
+	client            sdk.Client
 	config            *config.Config
 	tokenizer         *TokenizerService
 	repo              domain.ConversationRepository
@@ -36,7 +36,7 @@ type OptimizerConfig struct {
 	AutoAt            int
 	BufferSize        int
 	KeepFirstMessages int
-	Client            domain.SDKClient
+	Client            sdk.Client
 	Config            *config.Config
 	Tokenizer         *TokenizerService
 	// Repo is optional. When provided, OptimizeMessages reads

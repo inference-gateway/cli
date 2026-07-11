@@ -98,7 +98,7 @@ func (a *EventDrivenAgent) startStreaming() {
 // the stream broke mid-flight (stalled or transport error) and the caller
 // should reconnect, false when the turn finished - successfully, cancelled, or
 // with a non-recoverable error that has already been published.
-func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTime time.Time) bool {
+func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
@@ -127,7 +127,7 @@ func (a *EventDrivenAgent) streamOnce(client domain.SDKClient, iterationStartTim
 // request that produces no response within it (e.g. a TCP connect hanging on
 // a dead network for the ~75s OS timeout) is cancelled and reported as
 // errConnectStalled so the reconnect loop counts it like any other stall.
-func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context.CancelFunc, client domain.SDKClient) (<-chan sdk.SSEvent, error) {
+func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context.CancelFunc, client sdk.Client) (<-chan sdk.SSEvent, error) {
 	stallAfter := time.Duration(a.service.config.Client.StallThresholdSec) * time.Second
 	if stallAfter <= 0 {
 		return client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)

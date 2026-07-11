@@ -5,7 +5,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -533,10 +533,10 @@ func stringPtr(s string) *string {
 }
 
 // createMockSDKClient creates a mock SDK client using counterfeiter that returns a canned summary response
-func createMockSDKClient(t *testing.T, summaryText string) *mocks.FakeSDKClient {
+func createMockSDKClient(t *testing.T, summaryText string) *mocks.FakeClient {
 	t.Helper()
 
-	mockClient := &mocks.FakeSDKClient{}
+	mockClient := &mocks.FakeClient{}
 
 	// Configure the mock to return a summary response
 	content := sdk.NewMessageContent(summaryText)

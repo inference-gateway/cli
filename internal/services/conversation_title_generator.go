@@ -13,52 +13,15 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// sdkClientWrapper wraps the actual SDK client
-type sdkClientWrapper struct {
-	client sdk.Client
-}
-
-func (w *sdkClientWrapper) WithOptions(opts *sdk.CreateChatCompletionRequest) domain.SDKClient {
-	w.client = w.client.WithOptions(opts)
-	return w
-}
-
-func (w *sdkClientWrapper) WithMiddlewareOptions(opts *sdk.MiddlewareOptions) domain.SDKClient {
-	w.client = w.client.WithMiddlewareOptions(opts)
-	return w
-}
-
-func (w *sdkClientWrapper) WithTools(tools *[]sdk.ChatCompletionTool) domain.SDKClient {
-	w.client = w.client.WithTools(tools)
-	return w
-}
-
-func (w *sdkClientWrapper) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
-	return w.client.GenerateContent(ctx, provider, model, messages)
-}
-
-func (w *sdkClientWrapper) GenerateContentStream(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error) {
-	return w.client.GenerateContentStream(ctx, provider, model, messages)
-}
-
 // ConversationTitleGenerator generates titles for conversations using AI
 type ConversationTitleGenerator struct {
-	client  domain.SDKClient
+	client  sdk.Client
 	storage storage.ConversationStorage
 	config  *config.Config
 }
 
 // NewConversationTitleGenerator creates a new conversation title generator
 func NewConversationTitleGenerator(client sdk.Client, storage storage.ConversationStorage, config *config.Config) *ConversationTitleGenerator {
-	return &ConversationTitleGenerator{
-		client:  &sdkClientWrapper{client: client},
-		storage: storage,
-		config:  config,
-	}
-}
-
-// NewConversationTitleGeneratorWithSDKClient creates a new conversation title generator with a custom SDKClient (for testing)
-func NewConversationTitleGeneratorWithSDKClient(client domain.SDKClient, storage storage.ConversationStorage, config *config.Config) *ConversationTitleGenerator {
 	return &ConversationTitleGenerator{
 		client:  client,
 		storage: storage,
