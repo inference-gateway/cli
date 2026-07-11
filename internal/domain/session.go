@@ -63,6 +63,14 @@ func (s SessionID) Age() time.Duration {
 	return time.Since(time.Unix(timestamp, 0))
 }
 
+// FormatChannelSessionID builds the session ID the channels-manager uses for
+// a channel/sender pair, the inverse of ParseChannelSessionID.
+// ponytail: channel names must not contain '-' (they're a fixed enum today;
+// sender IDs may contain dashes and are parsed back as the tail).
+func FormatChannelSessionID(channel, senderID string) string {
+	return "channel-" + channel + "-" + senderID
+}
+
 // ParseChannelSessionID extracts the channel name and recipient ID from a
 // session ID created by the channels-manager. The channel manager builds
 // session IDs as "channel-<name>-<sender_id>" (see channel_manager.go).

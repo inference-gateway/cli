@@ -172,7 +172,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 	mu.Lock()
 	defer mu.Unlock()
 
-	sessionID := fmt.Sprintf("channel-%s-%s", msg.ChannelName, msg.SenderID)
+	sessionID := domain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
 
 	logger.Info("processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
 

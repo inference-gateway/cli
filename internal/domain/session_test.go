@@ -175,3 +175,35 @@ func TestSessionID_String(t *testing.T) {
 		t.Errorf("SessionID.String() = %v, want 1733678400-a3f2bc8d", testID.String())
 	}
 }
+
+func TestChannelSessionID_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name     string
+		channel  string
+		senderID string
+	}{
+		{"simple", "telegram", "12345"},
+		{"sender with dashes", "telegram", "user-with-dashes"},
+		{"uuid sender", "slack", "a3f2bc8d-1234-5678-9abc-def012345678"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := FormatChannelSessionID(tt.channel, tt.senderID)
+			channel, recipient, ok := ParseChannelSessionID(id)
+			if !ok {
+				t.Fatalf("ParseChannelSessionID(%q) ok = false, want true", id)
+			}
+			if channel != tt.channel || recipient != tt.senderID {
+				t.Errorf("round trip = (%q, %q), want (%q, %q)", channel, recipient, tt.channel, tt.senderID)
+			}
+		})
+	}
+}
+
+func TestParseChannelSessionID_Invalid(t *testing.T) {
+	for _, id := range []string{"", "channel-", "channel-telegram", "channel-telegram-", "channel--123", "1733678400-a3f2bc8d", "heartbeat-123"} {
+		if _, _, ok := ParseChannelSessionID(id); ok {
+			t.Errorf("ParseChannelSessionID(%q) ok = true, want false", id)
+		}
+	}
+}
