@@ -227,7 +227,7 @@ func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) 
 // this package for the diff renderer, so importing it back for its name constants
 // would create an import cycle.
 func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
-	renderer := NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth())
+	renderer := NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
 
 	var rendered string
 	switch toolName {
