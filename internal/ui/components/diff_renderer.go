@@ -29,6 +29,7 @@ type DiffRenderer struct {
 	width         int
 	contextLines  int
 	maxLines      int
+	startLine     int
 }
 
 // defaultContentPreviewLines caps the new-file preview so a huge file can't blow
@@ -67,6 +68,12 @@ func (d *DiffRenderer) SetContextLines(n int) *DiffRenderer { d.contextLines = n
 // positive n caps at n, and a negative n renders every line (for callers that
 // bound the height themselves, like the scrollable approval box). Chains.
 func (d *DiffRenderer) SetMaxLines(n int) *DiffRenderer { d.maxLines = n; return d }
+
+// SetStartLine tells the renderer that the diffed content is a snippet whose
+// first line is line n in the real file (1-based), so gutter line numbers show
+// the actual file positions instead of counting from 1. Pass 0 (the default)
+// when the content is already whole-file. Chains.
+func (d *DiffRenderer) SetStartLine(n int) *DiffRenderer { d.startLine = n; return d }
 
 // RenderEditToolArguments renders Edit tool arguments as a diff. When the target
 // file can be read and old_string is found in it, it diffs the real file content
@@ -239,6 +246,21 @@ func editFileContents(filePath, oldString, newString string, replaceAll bool) (b
 	return before, after, true
 }
 
+func snippetStartLine(filePath, oldString string) int {
+	if oldString == "" {
+		return 0
+	}
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return 0
+	}
+	before, _, found := strings.Cut(string(content), oldString)
+	if !found {
+		return 0
+	}
+	return strings.Count(before, "\n") + 1
+}
+
 func (d *DiffRenderer) snippetDiff(filePath, oldString, newString string) string {
 	return d.buildDiffView(filePath, ensureTrailingNL(oldString), ensureTrailingNL(newString)).String()
 }
@@ -258,6 +280,9 @@ func (d *DiffRenderer) buildDiffView(filePath, before, after string) *diffview.D
 		WithChromaStyle(d.chromaStyle())
 	if d.contextLines > 0 {
 		dv = dv.ContextLines(d.contextLines)
+	}
+	if d.startLine > 1 {
+		dv = dv.LineNumberOffset(d.startLine - 1)
 	}
 	if d.width > 0 {
 		dv = dv.Width(d.width)

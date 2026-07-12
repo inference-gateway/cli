@@ -1025,7 +1025,7 @@ func TestEditTool_Execute_TableDriven(t *testing.T) {
 	}
 }
 
-func TestEditTool_FormatResult_TableDriven(t *testing.T) {
+func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
@@ -1140,6 +1140,25 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) {
 			},
 			formatType: domain.FormatterUI,
 			contains:   []string{"Edit("},
+		},
+		{
+			name: "FormatLLM - diff shows real file line numbers",
+			result: &domain.ToolExecutionResult{
+				ToolName: "Edit",
+				Success:  true,
+				Arguments: map[string]any{
+					"file_path":  "/path/to/file.go",
+					"old_string": "alpha\nbeta\ngamma",
+					"new_string": "alpha\nBETA\ngamma",
+				},
+				Data: &domain.EditToolResult{
+					FilePath:     "/path/to/file.go",
+					FileModified: true,
+					StartLine:    50,
+				},
+			},
+			formatType: domain.FormatterLLM,
+			contains:   []string{"51"},
 		},
 		{
 			name:       "FormatResult - nil result",

@@ -55,17 +55,18 @@ type file struct {
 
 // DiffView is the fluent builder + renderer.
 type DiffView struct {
-	layout        Layout
-	splitMinWidth int
-	before        file
-	after         file
-	fileName      string
-	contextLines  int
-	lineNumbers   bool
-	width         int
-	tabWidth      int
-	style         Style
-	chromaStyle   *chroma.Style
+	layout           Layout
+	splitMinWidth    int
+	before           file
+	after            file
+	fileName         string
+	contextLines     int
+	lineNumbers      bool
+	lineNumberOffset int
+	width            int
+	tabWidth         int
+	style            Style
+	chromaStyle      *chroma.Style
 
 	// computed lazily on String()
 	isComputed      bool
@@ -137,6 +138,11 @@ func (dv *DiffView) WithChromaStyle(s *chroma.Style) *DiffView {
 // ContextLines sets the number of unchanged context lines around each hunk.
 func (dv *DiffView) ContextLines(n int) *DiffView { dv.contextLines = n; return dv }
 
+// LineNumberOffset shifts every displayed line number by n. Use it when the
+// before/after content is a snippet lifted out of a larger file so the gutter
+// reflects the snippet's real position (pass the snippet's first line minus 1).
+func (dv *DiffView) LineNumberOffset(n int) *DiffView { dv.lineNumberOffset = n; return dv }
+
 // String renders the diff.
 func (dv *DiffView) String() string {
 	dv.normalizeLineEndings()
@@ -204,6 +210,12 @@ func (dv *DiffView) computeDiff() error {
 		dv.before.content, edits,
 		dv.contextLines,
 	)
+	if dv.lineNumberOffset != 0 {
+		for i := range dv.unified.Hunks {
+			dv.unified.Hunks[i].FromLine += dv.lineNumberOffset
+			dv.unified.Hunks[i].ToLine += dv.lineNumberOffset
+		}
+	}
 	return dv.err
 }
 

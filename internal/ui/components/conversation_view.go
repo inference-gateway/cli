@@ -2324,6 +2324,7 @@ func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
 	if hasOld && hasNew && hasPath {
 		fmt.Fprintf(&result, "  File: %s\n\n", filePath)
 		diffRenderer := NewDiffRenderer(cv.styleProvider).SetContextLines(InlineDiffContextLines)
+		diffRenderer.SetStartLine(snippetStartLine(filePath, oldStr))
 		diffInfo := DiffInfo{
 			FilePath:   filePath,
 			OldContent: oldStr,
