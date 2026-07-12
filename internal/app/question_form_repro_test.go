@@ -96,6 +96,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetImageService(),
 		c.GetSkillsService(),
 		c.GetGitHubIssueService(),
+		c.GetGitHubSetupService(),
 		c.GetMCPManager(),
 		c.GetMessageQueue(),
 		c.GetModelService(),

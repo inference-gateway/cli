@@ -30,6 +30,7 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
+	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
@@ -65,6 +66,7 @@ type ServiceContainer struct {
 	a2aAgentService        domain.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
+	gitHubSetupService     domain.GitHubSetupService
 	messageQueue           domain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower domain.A2ATaskTracker
@@ -476,6 +478,8 @@ func (c *ServiceContainer) initializeServices() {
 	}
 
 	c.initializeChatOrchestrationServices()
+
+	c.initializeGitHubSetupService()
 }
 
 // initializeChatOrchestrationServices wires the services extracted from the
@@ -633,6 +637,18 @@ func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
 
 func (c *ServiceContainer) GetGitHubIssueService() domain.GitHubIssueService {
 	return c.githubIssueService
+}
+
+func (c *ServiceContainer) initializeGitHubSetupService() {
+	if c.gitHubSetupService != nil {
+		return
+	}
+	c.gitHubSetupService = githubsetup.NewService(&githubsetup.RealRunner{})
+}
+
+func (c *ServiceContainer) GetGitHubSetupService() domain.GitHubSetupService {
+	c.initializeGitHubSetupService()
+	return c.gitHubSetupService
 }
 
 func (c *ServiceContainer) GetPricingService() domain.PricingService {

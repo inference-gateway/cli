@@ -733,6 +733,20 @@ type GitHubIssueService interface {
 	IsAvailable() bool
 }
 
+// GitHubSetupService handles git/gh/CI operations for the GitHub Action CI setup
+// flow triggered from the init-github-action wizard. Every shell invocation carries
+// a context so a wedged subprocess cannot hang the UI.
+type GitHubSetupService interface {
+	GetCurrentRepo() (string, error)
+	IsOrgRepo(repo string) (bool, error)
+	CheckOrgSecretsExist(orgName string) (bool, error)
+	SetOrgSecret(orgName, name, value string) error
+	PreparePRCreation(repo, workflowPath string) (string, error)
+	WriteWorkflowFile(path, content string) error
+	GenerateStandardWorkflowContent() string
+	GenerateGithubActionWorkflowContent() string
+}
+
 // GatewayManager manages the lifecycle of the gateway (container or binary)
 type GatewayManager interface {
 	// Start starts the gateway container or binary if configured to run locally
