@@ -31,6 +31,13 @@ func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
 	return s.estimate
 }
 
+func (s *stubTokenEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Message) int {
+	if s.estimate > lastInputTokens {
+		return s.estimate
+	}
+	return lastInputTokens
+}
+
 // readinessStateManager returns a real ApplicationState whose readiness matches
 // the given TotalAgents/ReadyAgents (nil r leaves readiness uninitialized).
 func readinessStateManager(r *domain.AgentReadinessState) *domain.ApplicationState {

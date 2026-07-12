@@ -77,17 +77,17 @@ func NewConversationOptimizer(config OptimizerConfig) domain.ConversationOptimiz
 	}
 }
 
-// estimateTriggerTokens returns the value used to gate auto-compaction. It
-// prefers the gateway-reported LastInputTokens (which includes system prompt
-// and tool definitions) and falls back to the entries-only tokenizer estimate
-// before the first round-trip or when no repo is wired in.
+// estimateTriggerTokens returns the value used to gate auto-compaction: the
+// larger of the gateway-reported LastInputTokens (which includes system prompt
+// and tool definitions) and a fresh tokenizer estimate of the current buffer.
+// Taking the max catches a single-turn tool-output spike that a stale
+// LastInputTokens alone would miss.
 func (co *ConversationOptimizer) estimateTriggerTokens(messages []sdk.Message) int {
+	lastInput := 0
 	if co.repo != nil {
-		if stats := co.repo.GetSessionTokens(); stats.LastInputTokens > 0 {
-			return stats.LastInputTokens
-		}
+		lastInput = co.repo.GetSessionTokens().LastInputTokens
 	}
-	return co.tokenizer.EstimateMessagesTokens(messages)
+	return co.tokenizer.EffectiveContextTokens(lastInput, messages)
 }
 
 // OptimizeMessages reduces token usage by intelligently managing conversation

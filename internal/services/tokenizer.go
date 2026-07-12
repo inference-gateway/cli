@@ -130,6 +130,15 @@ func (t *TokenizerService) EstimateMessagesTokens(messages []sdk.Message) int {
 	return totalTokens
 }
 
+// EffectiveContextTokens returns the larger of lastInputTokens and a fresh
+// estimate, so a single-turn tool-output spike isn't masked by a stale count.
+func (t *TokenizerService) EffectiveContextTokens(lastInputTokens int, messages []sdk.Message) int {
+	if est := t.EstimateMessagesTokens(messages); est > lastInputTokens {
+		return est
+	}
+	return lastInputTokens
+}
+
 // EstimateToolDefinitionsTokens estimates tokens for tool definitions
 func (t *TokenizerService) EstimateToolDefinitionsTokens(tools []sdk.ChatCompletionTool) int {
 	if len(tools) == 0 {

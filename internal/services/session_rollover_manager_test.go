@@ -239,25 +239,21 @@ func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
 	}
 }
 
-func TestShouldRollover_TokenTriggerDoesNotFireWhenLastInputBelowThreshold(t *testing.T) {
+func TestShouldRollover_TokenTriggerFiresOnSingleTurnSpike(t *testing.T) {
 	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
-	// Large entries that *would* trip the entries-only fallback…
 	bigContent := strings.Repeat("token ", 2000)
 	for i := 0; i < 10; i++ {
 		addUserMessage(t, repo, bigContent, time.Now())
 	}
 
-	// …but the gateway-reported count is well below the threshold. The
-	// gateway count must win - its number includes provider-specific
-	// reformatting and is what `/context` shows.
 	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 1000, 100, 1100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
-	if mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
-		t.Error("LastInputTokens below threshold should not trigger rollover, even if entries-only estimate is large")
+	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
+		t.Error("a single-turn estimate spike above threshold should trigger rollover even when LastInputTokens is stale and small")
 	}
 }
 
