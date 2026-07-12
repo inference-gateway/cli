@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestNewTokenizerService(t *testing.T) {

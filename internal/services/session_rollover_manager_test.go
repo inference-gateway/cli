@@ -243,17 +243,11 @@ func TestShouldRollover_TokenTriggerFiresOnSingleTurnSpike(t *testing.T) {
 	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
-	// Large entries appended this turn (e.g. a huge tool result) that push the
-	// *pending* request well over the threshold…
 	bigContent := strings.Repeat("token ", 2000)
 	for i := 0; i < 10; i++ {
 		addUserMessage(t, repo, bigContent, time.Now())
 	}
 
-	// …while the gateway-reported LastInputTokens is still the small, stale
-	// count from the last successful round-trip. Gating on the stale value
-	// alone would miss the spike and let an oversized request go out (the bug);
-	// the fresh estimate must win so rollover fires before the send.
 	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 1000, 100, 1100); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
