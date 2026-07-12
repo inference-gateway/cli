@@ -1,4 +1,4 @@
-package metrics
+package telemetry
 
 import (
 	"context"
@@ -37,12 +37,12 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 func classify(res *domain.ToolExecutionResult, err error) (outcome, errType string) {
 	switch {
 	case err != nil || res == nil:
-		return ToolError, errTypeTool
+		return ToolError, ErrTypeTool
 	case res.Rejected:
 		return ToolRejected, ""
 	case res.Success:
 		return ToolSuccess, ""
 	default:
-		return ToolError, errTypeTool
+		return ToolError, ErrTypeTool
 	}
 }

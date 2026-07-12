@@ -40,7 +40,7 @@ type Config struct {
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Git              GitConfig              `yaml:"git" mapstructure:"git"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
-	Metrics          MetricsConfig          `yaml:"metrics" mapstructure:"metrics"`
+	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
@@ -589,22 +589,22 @@ const (
 	StorageTypeD1       StorageType = "d1"
 )
 
-// MetricsConfig controls the local metrics recorder (tool outcomes, token usage,
-// session lifecycle) written as JSONL under <config-dir>/metrics, plus an
-// optional OTLP export to an OpenTelemetry collector. Local JSONL is always
-// private; no prompt/response content is ever recorded. OTLP export is
-// opt-in - it activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT)
-// is set, and is additive: the local JSONL keeps working for `infer stats`.
-type MetricsConfig struct {
-	Enabled       bool              `yaml:"enabled" mapstructure:"enabled"`
-	RetentionDays int               `yaml:"retention_days" mapstructure:"retention_days"`
-	OTLP          OTLPMetricsConfig `yaml:"otlp" mapstructure:"otlp"`
+// TelemetryConfig controls the OpenTelemetry metrics the CLI records - tool
+// outcomes, token usage, sessions. The recorded data is written as OTLP/semconv
+// JSON under <config-dir>/telemetry (always, private - no prompt/response
+// content) and, opt-in, exported to an OpenTelemetry collector. OTLP export
+// activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT) is set.
+// Named "telemetry" (not "metrics") to leave room for traces/logs later.
+type TelemetryConfig struct {
+	Enabled       bool       `yaml:"enabled" mapstructure:"enabled"`
+	RetentionDays int        `yaml:"retention_days" mapstructure:"retention_days"`
+	OTLP          OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
 }
 
-// OTLPMetricsConfig configures the optional OTLP metric export. When Endpoint is
-// empty (and OTEL_EXPORTER_OTLP_ENDPOINT is unset) no OpenTelemetry SDK is
-// initialized and nothing leaves the machine.
-type OTLPMetricsConfig struct {
+// OTLPConfig configures the optional OTLP export. When Endpoint is empty (and
+// OTEL_EXPORTER_OTLP_ENDPOINT is unset) no exporter is initialized and nothing
+// leaves the machine.
+type OTLPConfig struct {
 	// Endpoint is the OTLP/HTTP collector base URL (e.g. http://localhost:4318).
 	// Empty disables export. Falls back to OTEL_EXPORTER_OTLP_ENDPOINT.
 	Endpoint string `yaml:"endpoint" mapstructure:"endpoint"`
@@ -975,10 +975,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				BaseURL:    "https://api.cloudflare.com/client/v4",
 			},
 		},
-		Metrics: MetricsConfig{
+		Telemetry: TelemetryConfig{
 			Enabled:       true,
 			RetentionDays: 90,
-			OTLP: OTLPMetricsConfig{
+			OTLP: OTLPConfig{
 				Endpoint: "",
 				Interval: 60,
 			},

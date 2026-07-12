@@ -24,9 +24,9 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	metrics "github.com/inference-gateway/cli/internal/metrics"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 var agentCmd = &cobra.Command{
@@ -229,13 +229,12 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.maybeRollover()
 
-	rec := svc.GetMetricsRecorder()
+	rec := svc.GetTelemetryRecorder()
 	sessionStart := time.Now()
-	rec.RecordSessionStart(newSessionID, agentMode.AllowedlistKey())
 
 	err = session.execute(taskDescription, files)
 
-	rec.RecordSessionEnd(newSessionID, agentMode.AllowedlistKey(), time.Since(sessionStart), agentSessionOutcome(err))
+	rec.RecordSession(agentMode.AllowedlistKey(), agentSessionOutcome(err), time.Since(sessionStart))
 	if resultFile != "" {
 		writeSubagentResultFile(resultFile, session, err)
 	}
@@ -247,11 +246,11 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 func agentSessionOutcome(err error) string {
 	switch {
 	case err == nil:
-		return metrics.RunSuccess
+		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return metrics.RunStoppedEarly
+		return telemetry.RunStoppedEarly
 	default:
-		return metrics.RunFailed
+		return telemetry.RunFailed
 	}
 }
 

@@ -15,9 +15,9 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	metrics "github.com/inference-gateway/cli/internal/metrics"
 	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -39,7 +39,7 @@ type AgentServiceImpl struct {
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
-	recorder         *metrics.Recorder
+	recorder         *telemetry.Recorder
 
 	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
 	// cumulative model turns across the whole chat session so an `interval`
@@ -387,9 +387,9 @@ func NewAgent(
 	}
 }
 
-// SetMetricsRecorder wires the local metrics recorder so per-request token usage
+// SetTelemetryRecorder wires the telemetry recorder so per-request token usage
 // is tapped in storeIterationMetrics. A nil recorder disables recording.
-func (s *AgentServiceImpl) SetMetricsRecorder(rec *metrics.Recorder) {
+func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
 	s.recorder = rec
 }
 

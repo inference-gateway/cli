@@ -9,23 +9,24 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	metrics "github.com/inference-gateway/cli/internal/metrics"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
-// metricsDir is the recorder's output directory relative to the current (per
-// sub-test temp) working directory: newEnv chdir's there and metrics.enabled
-// defaults on, so the container writes events under <cwd>/.infer/metrics.
-func metricsDir() string {
-	return filepath.Join(config.DefaultConfig().GetConfigDir(), "metrics")
+// telemetryDir is the recorder's output directory relative to the current (per
+// sub-test temp) working directory: newEnv chdir's there and telemetry.enabled
+// defaults on, so the container writes OTLP/stdout files under <cwd>/.infer/telemetry.
+func telemetryDir() string {
+	return filepath.Join(config.DefaultConfig().GetConfigDir(), "telemetry")
 }
 
-// TestMetricsRecorderEndToEnd is the acceptance check for issue #841: driving the
-// agent against the mock records tool outcomes and token usage that the `infer
-// stats` aggregation reflects - a failing tool shows as one failure, and the
-// usage-report scenario's 142 tokens are counted. The two facets run in separate
-// sub-tests (hence separate temp metrics dirs) so token polyfill on the
-// failing-tool run's usage-less turns can't pollute the exact 142-token count.
-func TestMetricsRecorderEndToEnd(t *testing.T) {
+// TestTelemetryRecorderEndToEnd is the acceptance check: driving the agent
+// against the mock records tool outcomes and token usage that the `infer stats`
+// aggregation reflects - a failing tool shows as one failure, and the
+// usage-report scenario's 142 tokens are counted. The recorder buffers into OTel
+// instruments and flushes to the local file, so each sub-test forces a flush
+// before aggregating. Separate sub-tests (separate temp dirs) keep the exact
+// 142-token count clean from the failing run's polyfilled usage.
+func TestTelemetryRecorderEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
@@ -35,7 +36,8 @@ func TestMetricsRecorderEndToEnd(t *testing.T) {
 		res := e.runStream(ctx, t, "read the missing file")
 		require.Empty(t, res.errs, "a failing tool must complete, not surface as a stream error")
 
-		stats, err := metrics.Aggregate(metricsDir(), time.Time{}, nil)
+		e.container.GetTelemetryRecorder().Flush(ctx)
+		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{})
 		require.NoError(t, err)
 		require.False(t, stats.Empty)
 
@@ -51,7 +53,8 @@ func TestMetricsRecorderEndToEnd(t *testing.T) {
 		res := e.runStream(ctx, t, "report your usage")
 		require.Empty(t, res.errs)
 
-		stats, err := metrics.Aggregate(metricsDir(), time.Time{}, nil)
+		e.container.GetTelemetryRecorder().Flush(ctx)
+		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{})
 		require.NoError(t, err)
 		require.Len(t, stats.Models, 1, "one model recorded usage")
 		require.Equal(t, 142, stats.Models[0].Total, "100 prompt + 42 completion tokens")
@@ -60,7 +63,7 @@ func TestMetricsRecorderEndToEnd(t *testing.T) {
 	})
 }
 
-func findToolStat(tools []metrics.ToolStat, name string) *metrics.ToolStat {
+func findToolStat(tools []telemetry.ToolStat, name string) *telemetry.ToolStat {
 	for i := range tools {
 		if tools[i].Name == name {
 			return &tools[i]
@@ -69,7 +72,7 @@ func findToolStat(tools []metrics.ToolStat, name string) *metrics.ToolStat {
 	return nil
 }
 
-func totalFailures(tools []metrics.ToolStat) int {
+func totalFailures(tools []telemetry.ToolStat) int {
 	n := 0
 	for _, s := range tools {
 		n += s.Failures

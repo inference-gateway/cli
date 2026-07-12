@@ -23,7 +23,6 @@ import (
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	metrics "github.com/inference-gateway/cli/internal/metrics"
 	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
@@ -38,6 +37,7 @@ import (
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	stt "github.com/inference-gateway/cli/internal/stt"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -65,7 +65,7 @@ type ServiceContainer struct {
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	pricingService         domain.PricingService
-	metricsRecorder        *metrics.Recorder
+	telemetryRecorder      *telemetry.Recorder
 	a2aAgentService        domain.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
@@ -333,12 +333,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 	modelClient := c.createRawSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
 
-	c.metricsRecorder = metrics.New(metrics.Options{
-		Enabled:      c.config.Metrics.Enabled,
-		Dir:          filepath.Join(c.config.GetConfigDir(), "metrics"),
-		OTLPEndpoint: c.config.Metrics.OTLP.Endpoint,
-		OTLPHeaders:  c.config.Metrics.OTLP.Headers,
-		OTLPInterval: time.Duration(c.config.Metrics.OTLP.Interval) * time.Second,
+	c.telemetryRecorder = telemetry.New(telemetry.Options{
+		Enabled:      c.config.Telemetry.Enabled,
+		Dir:          filepath.Join(c.config.GetConfigDir(), "telemetry"),
+		SessionID:    string(c.sessionID),
+		OTLPEndpoint: c.config.Telemetry.OTLP.Endpoint,
+		OTLPHeaders:  c.config.Telemetry.OTLP.Headers,
+		OTLPInterval: time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
 		Cost:         c.GetPricingService().CalculateCost,
 	})
 
@@ -347,8 +348,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
-	if c.metricsRecorder != nil {
-		c.toolService = metrics.NewToolService(c.toolService, c.metricsRecorder)
+	// Only wrap when telemetry is enabled, so the disabled tool path carries no
+	// decorator at all (zero overhead).
+	if c.telemetryRecorder != nil {
+		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}
 
 	if c.tokenizer == nil {
@@ -404,7 +407,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundTaskRegistry,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
-	agentImpl.SetMetricsRecorder(c.metricsRecorder)
+	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
 }
 
@@ -629,17 +632,11 @@ func (c *ServiceContainer) GetToolService() domain.ToolService {
 	return c.toolService
 }
 
-// GetMetricsRecorder returns the local metrics recorder, or nil when metrics are
+// GetTelemetryRecorder returns the telemetry recorder, or nil when telemetry is
 // disabled. The returned *Recorder is nil-safe, so the chat/headless
 // session-lifecycle taps can call its methods directly without a nil check.
-func (c *ServiceContainer) GetMetricsRecorder() *metrics.Recorder {
-	return c.metricsRecorder
-}
-
-// GetSessionID returns this container's generated session id, used as a stable
-// key for the metrics session lifecycle when no explicit session id is set.
-func (c *ServiceContainer) GetSessionID() string {
-	return string(c.sessionID)
+func (c *ServiceContainer) GetTelemetryRecorder() *telemetry.Recorder {
+	return c.telemetryRecorder
 }
 
 func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
@@ -877,9 +874,9 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
-	// Flush metrics first so the OTLP exporter's final push happens before the
-	// rest of the teardown; a no-op for the JSONL-only (local) case.
-	c.metricsRecorder.Shutdown(ctx)
+	// Flush telemetry first so the exporters' final push (local file + optional
+	// OTLP) happens before the rest of the teardown.
+	c.telemetryRecorder.Shutdown(ctx)
 
 	if c.backgroundShellService != nil {
 		logger.Info("stopping background shell service...")

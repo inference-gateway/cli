@@ -11,22 +11,22 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	formatting "github.com/inference-gateway/cli/internal/formatting"
-	metrics "github.com/inference-gateway/cli/internal/metrics"
-	services "github.com/inference-gateway/cli/internal/services"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 var statsCmd = &cobra.Command{
 	Use:   "stats",
-	Short: "Show aggregated tool, token, and session metrics",
-	Long: `Aggregate the local metrics recorded under <config-dir>/metrics into a summary:
-tool calls by name (count, failure rate, p50/p95 duration), token usage and cost
-by model, and sessions by mode.
+	Short: "Show aggregated tool, token, and session telemetry",
+	Long: `Aggregate the local telemetry recorded under <config-dir>/telemetry into a
+summary: tool calls by name (count, failure rate, avg duration), token usage and
+cost by model, and sessions by execution and agent mode.
 
-Metrics are recorded locally only - no prompt/response content, never sent
-anywhere - when metrics.enabled is true. Use --since to limit the window.
+Telemetry is recorded locally (OTLP/semconv, no prompt/response content) when
+telemetry.enabled is true, and optionally also pushed to an OTLP collector. Use
+--since to limit the window.
 
 Examples:
-  # All recorded metrics
+  # All recorded telemetry
   infer stats
 
   # Last 7 days
@@ -38,7 +38,7 @@ Examples:
 }
 
 func init() {
-	statsCmd.Flags().String("since", "", "Only include metrics newer than this window (e.g. 7d, 24h, 30m); default all time")
+	statsCmd.Flags().String("since", "", "Only include telemetry newer than this window (e.g. 7d, 24h, 30m); default all time")
 	statsCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	rootCmd.AddCommand(statsCmd)
 }
@@ -52,14 +52,14 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	dir := filepath.Join(Cfg.GetConfigDir(), "metrics")
-	if Cfg.Metrics.RetentionDays > 0 {
-		metrics.Prune(dir, time.Now().AddDate(0, 0, -Cfg.Metrics.RetentionDays))
+	dir := filepath.Join(Cfg.GetConfigDir(), "telemetry")
+	if Cfg.Telemetry.RetentionDays > 0 {
+		telemetry.Prune(dir, time.Now().AddDate(0, 0, -Cfg.Telemetry.RetentionDays))
 	}
 
-	stats, err := metrics.Aggregate(dir, since, costFunc())
+	stats, err := telemetry.Aggregate(dir, since)
 	if err != nil {
-		return fmt.Errorf("failed to aggregate metrics: %w", err)
+		return fmt.Errorf("failed to aggregate telemetry: %w", err)
 	}
 
 	if format == "json" {
@@ -89,15 +89,7 @@ func parseSince(s string) (time.Time, error) {
 	return time.Now().Add(-d), nil
 }
 
-// costFunc adapts the pricing service to metrics.CostFunc (input, output, total
-// cost for a model's token counts). Built directly rather than via the full
-// container - stats is a read-only command that only needs pricing + the dir.
-func costFunc() metrics.CostFunc {
-	pricing := services.NewPricingService(&Cfg.Pricing)
-	return pricing.CalculateCost
-}
-
-func renderStatsJSON(stats metrics.Stats) error {
+func renderStatsJSON(stats telemetry.Stats) error {
 	out, err := json.MarshalIndent(stats, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal stats: %w", err)
@@ -106,41 +98,40 @@ func renderStatsJSON(stats metrics.Stats) error {
 	return nil
 }
 
-func renderStatsText(stats metrics.Stats) error {
+func renderStatsText(stats telemetry.Stats) error {
 	if stats.Empty {
-		fmt.Println("No metrics recorded yet.")
+		fmt.Println("No telemetry recorded yet.")
 		fmt.Println()
-		fmt.Println(listHint("Metrics accumulate as you use `infer chat` / `infer agent` (when metrics.enabled)."))
+		fmt.Println(listHint("Telemetry accumulates as you use `infer chat` / `infer agent` (when telemetry.enabled)."))
 		return nil
 	}
 
 	renderToolStats(stats.Tools)
 	renderModelStats(stats.Models)
-	renderModeStats(stats.Modes)
+	renderSessionStats(stats.Sessions)
 	return nil
 }
 
-func renderToolStats(tools []metrics.ToolStat) {
+func renderToolStats(tools []telemetry.ToolStat) {
 	if len(tools) == 0 {
 		return
 	}
 	fmt.Println(listTitle("Tool Calls"))
 	fmt.Println()
-	t := newListTable("Tool", "Calls", "Fail%", "p50", "p95")
+	t := newListTable("Tool", "Calls", "Fail%", "Avg")
 	for _, s := range tools {
 		t.Row(
 			s.Name,
 			strconv.Itoa(s.Calls),
 			formatFailRate(s.Calls, s.Failures),
-			formatMs(s.P50ms),
-			formatMs(s.P95ms),
+			fmt.Sprintf("%dms", s.AvgMs),
 		)
 	}
 	fmt.Println(t.Render())
 	fmt.Println()
 }
 
-func renderModelStats(models []metrics.ModelStat) {
+func renderModelStats(models []telemetry.ModelStat) {
 	if len(models) == 0 {
 		return
 	}
@@ -160,15 +151,15 @@ func renderModelStats(models []metrics.ModelStat) {
 	fmt.Println()
 }
 
-func renderModeStats(modes []metrics.ModeStat) {
-	if len(modes) == 0 {
+func renderSessionStats(sessions []telemetry.SessionStat) {
+	if len(sessions) == 0 {
 		return
 	}
-	fmt.Println(listTitle("Sessions by Mode"))
+	fmt.Println(listTitle("Sessions"))
 	fmt.Println()
-	t := newListTable("Mode", "Sessions", "Incomplete")
-	for _, m := range modes {
-		t.Row(m.Mode, strconv.Itoa(m.Count), strconv.Itoa(m.Incomplete))
+	t := newListTable("Execution", "Mode", "Sessions")
+	for _, s := range sessions {
+		t.Row(s.Execution, s.Mode, strconv.Itoa(s.Count))
 	}
 	fmt.Println(t.Render())
 	fmt.Println()
@@ -179,8 +170,4 @@ func formatFailRate(calls, failures int) string {
 		return "0%"
 	}
 	return fmt.Sprintf("%.0f%%", 100*float64(failures)/float64(calls))
-}
-
-func formatMs(ms int64) string {
-	return fmt.Sprintf("%dms", ms)
 }
