@@ -32,8 +32,6 @@ func TestPostgresStorage_Conformance(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = storage.Close() })
 
-		// Isolate each conformance group: the shared server persists rows across
-		// groups (and runs), so start every one from a clean slate.
 		_, err = storage.DB().ExecContext(context.Background(), "TRUNCATE conversations, session_groups")
 		require.NoError(t, err)
 
