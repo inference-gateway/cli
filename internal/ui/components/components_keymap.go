@@ -48,7 +48,7 @@ var taskManagerKeys = struct {
 	deny:      key.NewBinding(key.WithKeys("n", "N", "esc")),
 	close:     key.NewBinding(key.WithKeys("q", "esc", "i", "ctrl+c")),
 	pgUp:      key.NewBinding(key.WithKeys("pgup", "b")),
-	pgDown:    key.NewBinding(key.WithKeys("pgdown", "f", " ")),
+	pgDown:    key.NewBinding(key.WithKeys("pgdown", "f")),
 	top:       key.NewBinding(key.WithKeys("g")),
 	bottom:    key.NewBinding(key.WithKeys("G")),
 	backspace: key.NewBinding(key.WithKeys("backspace")),
@@ -90,7 +90,7 @@ var conversationSelectorKeys = struct {
 	deny      key.Binding
 }{
 	cancel:    key.NewBinding(key.WithKeys("ctrl+c", "esc")),
-	enter:     key.NewBinding(key.WithKeys("enter", " ")),
+	enter:     key.NewBinding(key.WithKeys("enter")),
 	search:    key.NewBinding(key.WithKeys("/")),
 	delete:    key.NewBinding(key.WithKeys("d", "delete")),
 	backspace: key.NewBinding(key.WithKeys("backspace")),
@@ -111,7 +111,7 @@ var helpViewKeys = struct {
 	navUp:   key.NewBinding(key.WithKeys("up", "k")),
 	navDown: key.NewBinding(key.WithKeys("down", "j")),
 	pgUp:    key.NewBinding(key.WithKeys("pgup", "b")),
-	pgDown:  key.NewBinding(key.WithKeys("pgdown", "f", " ")),
+	pgDown:  key.NewBinding(key.WithKeys("pgdown", "f")),
 	top:     key.NewBinding(key.WithKeys("home", "g")),
 	bottom:  key.NewBinding(key.WithKeys("end", "G")),
 }
@@ -124,7 +124,7 @@ var listViewKeys = struct {
 }{
 	cancel:    key.NewBinding(key.WithKeys("ctrl+c")),
 	esc:       key.NewBinding(key.WithKeys("esc")),
-	selectKey: key.NewBinding(key.WithKeys("enter", " ")),
+	selectKey: key.NewBinding(key.WithKeys("enter")),
 }
 
 var fileSelectionKeys = struct {
