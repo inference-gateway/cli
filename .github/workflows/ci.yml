@@ -141,3 +141,35 @@ jobs:
 
     - name: Run hermetic end-to-end tests against the mock gateway
       run: go test -race -tags e2e -timeout 5m ./tests/e2e/...
+
+  postgres:
+    needs:
+      - build
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: infer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.0
+
+    - name: Setup Go
+      uses: actions/setup-go@v6.5.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Run storage conformance against PostgreSQL
+      env:
+        INFER_TEST_POSTGRES_DSN: "host=localhost port=5432 user=postgres password=postgres dbname=infer_test sslmode=disable"
+      run: go test -race ./internal/infra/storage/...
