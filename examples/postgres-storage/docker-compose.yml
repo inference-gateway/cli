@@ -21,7 +21,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "infer", "-d", "infer_conversations"]
+      test:
+        - CMD
+        - pg_isready
+        - -U
+        - infer
+        - -d
+        - infer_conversations
       interval: 5s
       timeout: 5s
       retries: 10
