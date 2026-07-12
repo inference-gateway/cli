@@ -1,20 +1,17 @@
-// Package githubsetup implements domain.GitHubSetupService for the GitHub Action CI
-// setup flow. Every subprocess call carries a context so a wedged command cannot
-// hang the UI. Git commands use gitdiff.RunGit; gh commands use the injected
-// CommandRunner with a 30-second timeout context.
+// Package githubsetup implements domain.GitHubSetupService for the GitHub Action
+// CI setup flow. Every git/gh command runs through the injected CommandRunner
+// under a 30-second timeout so a wedged subprocess cannot hang the UI.
 package githubsetup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
-
-	constants "github.com/inference-gateway/cli/internal/constants"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // CommandRunner is an injectable interface for running subprocesses. Tests
@@ -26,10 +23,16 @@ type CommandRunner interface {
 // RealRunner shells out using exec.CommandContext.
 type RealRunner struct{}
 
-// Run executes the command using exec.CommandContext.
+// Run returns stdout on success and stderr on failure, so callers that embed
+// the bytes in an error surface the real git/gh diagnostic.
 func (r *RealRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	return cmd.Output()
+	out, err := cmd.Output()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		return exitErr.Stderr, err
+	}
+	return out, err
 }
 
 // Service implements domain.GitHubSetupService.
@@ -154,15 +157,15 @@ const workflowAgentInputs = `          trigger-phrase: '@infer'
           zai-api-key: ${{ secrets.ZAI_API_KEY }}
 `
 
-// ghTimeoutContext returns a context with a 30-second timeout for gh subprocess
-// calls, derived from the passed context.
-func ghTimeoutContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, 30*time.Second)
+// ghTimeoutContext returns a context with a 30-second timeout bounding a single
+// git/gh subprocess so a wedged command cannot hang the UI.
+func ghTimeoutContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 30*time.Second)
 }
 
 // GetCurrentRepo returns the current GitHub repository name with owner.
 func (s *Service) GetCurrentRepo() (string, error) {
-	ctx, cancel := ghTimeoutContext(context.Background())
+	ctx, cancel := ghTimeoutContext()
 	defer cancel()
 
 	output, err := s.runner.Run(ctx, "gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
@@ -180,7 +183,7 @@ func (s *Service) IsOrgRepo(repo string) (bool, error) {
 	}
 	owner := parts[0]
 
-	ctx, cancel := ghTimeoutContext(context.Background())
+	ctx, cancel := ghTimeoutContext()
 	defer cancel()
 
 	_, err := s.runner.Run(ctx, "gh", "api", fmt.Sprintf("/orgs/%s", owner))
@@ -193,7 +196,7 @@ func (s *Service) IsOrgRepo(repo string) (bool, error) {
 // CheckOrgSecretsExist checks whether INFER_APP_ID and INFER_APP_PRIVATE_KEY
 // secrets exist for the given org.
 func (s *Service) CheckOrgSecretsExist(orgName string) (bool, error) {
-	ctx, cancel := ghTimeoutContext(context.Background())
+	ctx, cancel := ghTimeoutContext()
 	defer cancel()
 
 	output, err := s.runner.Run(ctx, "gh", "secret", "list", "--org", orgName)
@@ -210,7 +213,7 @@ func (s *Service) CheckOrgSecretsExist(orgName string) (bool, error) {
 
 // SetOrgSecret sets a GitHub organization-level secret.
 func (s *Service) SetOrgSecret(orgName, name, value string) error {
-	ctx, cancel := ghTimeoutContext(context.Background())
+	ctx, cancel := ghTimeoutContext()
 	defer cancel()
 
 	output, err := s.runner.Run(ctx, "gh", "secret", "set", name, "--org", orgName, "--visibility", "all", "--body", value)
@@ -294,7 +297,7 @@ func (s *Service) GenerateGithubActionWorkflowContent() string {
 func (s *Service) PreparePRCreation(repo, workflowPath string) (string, error) {
 	var baseBranch string
 
-	ctxGitDefault, cancelDefault := ghTimeoutContext(context.Background())
+	ctxGitDefault, cancelDefault := ghTimeoutContext()
 	defer cancelDefault()
 
 	output, err := s.runner.Run(ctxGitDefault, "git", "symbolic-ref", "refs/remotes/origin/HEAD")
@@ -308,9 +311,9 @@ func (s *Service) PreparePRCreation(repo, workflowPath string) (string, error) {
 		baseBranch = "main"
 	}
 
-	gitCtx, cancelGit := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
-	defer cancelGit()
-	currentBranch, err := gitdiff.RunGit(gitCtx, "", "branch", "--show-current")
+	ctxCurrent, cancelCurrent := ghTimeoutContext()
+	defer cancelCurrent()
+	currentBranch, err := s.runner.Run(ctxCurrent, "git", "branch", "--show-current")
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
@@ -320,7 +323,7 @@ func (s *Service) PreparePRCreation(repo, workflowPath string) (string, error) {
 		baseBranch = branch
 		branch = "ci/setup-infer-github-action"
 
-		ctxBranch, cancelBranch := ghTimeoutContext(context.Background())
+		ctxBranch, cancelBranch := ghTimeoutContext()
 		defer cancelBranch()
 		output, err := s.runner.Run(ctxBranch, "git", "checkout", "-b", branch)
 		if err != nil {
@@ -328,21 +331,21 @@ func (s *Service) PreparePRCreation(repo, workflowPath string) (string, error) {
 		}
 	}
 
-	ctxAdd, cancelAdd := ghTimeoutContext(context.Background())
+	ctxAdd, cancelAdd := ghTimeoutContext()
 	defer cancelAdd()
 	output, err = s.runner.Run(ctxAdd, "git", "add", workflowPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to add file: %s: %w", string(output), err)
 	}
 
-	ctxCommit, cancelCommit := ghTimeoutContext(context.Background())
+	ctxCommit, cancelCommit := ghTimeoutContext()
 	defer cancelCommit()
 	output, err = s.runner.Run(ctxCommit, "git", "commit", "-m", "feat(ci): Setup infer workflow")
 	if err != nil {
 		return "", fmt.Errorf("failed to commit: %s: %w", string(output), err)
 	}
 
-	ctxPush, cancelPush := ghTimeoutContext(context.Background())
+	ctxPush, cancelPush := ghTimeoutContext()
 	defer cancelPush()
 	output, err = s.runner.Run(ctxPush, "git", "push", "-u", "origin", branch)
 	if err != nil {
@@ -365,7 +368,7 @@ After merging, @infer mentions in issues will trigger the bot.
 
 🤖 Generated with infer`
 
-	ctxPR, cancelPR := context.WithTimeout(context.Background(), 30*time.Second)
+	ctxPR, cancelPR := ghTimeoutContext()
 	defer cancelPR()
 	_, err = s.runner.Run(ctxPR, "gh", "pr", "create",
 		"--base", baseBranch,

@@ -3,11 +3,22 @@ package githubsetup
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
+
+// funcRunner implements CommandRunner via a closure so a test can script
+// per-command output without enumerating full argument keys.
+type funcRunner struct {
+	fn func(name string, args []string) ([]byte, error)
+}
+
+func (r funcRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	return r.fn(name, args)
+}
 
 // fakeRunner implements CommandRunner with canned responses keyed by (name, args).
 type fakeRunner struct {
@@ -278,16 +289,67 @@ func assertWorkflowCommon(t *testing.T, content string) {
 }
 
 func TestPreparePRCreation_NoGitRepo(t *testing.T) {
-	fr := &fakeRunner{
-		responses: map[string]fakeResponse{
-			"git symbolic-ref refs/remotes/origin/HEAD": {
-				err: fmt.Errorf("not a git repo"),
-			},
-		},
-	}
-	s := NewService(fr)
+	s := NewService(funcRunner{fn: func(name string, args []string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "branch" {
+			return nil, fmt.Errorf("fatal: not a git repository")
+		}
+		return nil, nil
+	}})
 	_, err := s.PreparePRCreation("my-org/my-repo", "path")
 	if err == nil {
 		t.Fatal("expected error when not in a git repo, got nil")
+	}
+}
+
+func TestPreparePRCreation_HappyPath(t *testing.T) {
+	var calls []string
+	s := NewService(funcRunner{fn: func(name string, args []string) ([]byte, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		switch {
+		case name == "git" && args[0] == "symbolic-ref":
+			return []byte("refs/remotes/origin/main\n"), nil
+		case name == "git" && args[0] == "branch":
+			return []byte("feature-x\n"), nil
+		default:
+			return nil, nil
+		}
+	}})
+
+	url, err := s.PreparePRCreation("my-org/my-repo", ".github/workflows/infer.yml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if url != "https://github.com/my-org/my-repo/compare/main...feature-x" {
+		t.Fatalf("unexpected compare url: %q", url)
+	}
+	for _, want := range []string{
+		"git add .github/workflows/infer.yml",
+		"git commit -m feat(ci): Setup infer workflow",
+		"git push -u origin feature-x",
+		"gh pr create",
+	} {
+		found := false
+		for _, c := range calls {
+			if strings.HasPrefix(c, want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected a call starting with %q, got %v", want, calls)
+		}
+	}
+}
+
+func TestRealRunner_StderrOnFailure(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	out, err := (&RealRunner{}).Run(context.Background(), "git", "--this-flag-does-not-exist")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if len(out) == 0 {
+		t.Fatal("expected stderr bytes surfaced on failure, got empty output")
 	}
 }
