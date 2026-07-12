@@ -1,0 +1,24 @@
+# Minimal config: everything not set here falls back to built-in defaults.
+# The point of this example is `storage.type: postgres` — conversations persist
+# to the PostgreSQL container from docker-compose.yml instead of a local file.
+gateway:
+  url: http://localhost:8080
+  api_key: ""
+  timeout: 30
+storage:
+  enabled: true
+  type: postgres
+  postgres:
+    host: localhost
+    port: 5432
+    database: infer_conversations
+    username: infer
+    password: infer
+    ssl_mode: disable
+conversation:
+  title_generation:
+    enabled: true
+agent:
+  model: ""
+chat:
+  theme: tokyo-night
