@@ -250,13 +250,6 @@ func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) 
 	oneLine := formatting.TruncateText(full, budget)
 	fits := oneLine == full
 
-	// ctrl+o (ToggleExpanded) soft-wraps the full argument list instead of the
-	// truncated one-liner, so a long command can be reviewed in full before
-	// approving — mirroring the diff-preview expansion. wordwrap is ANSI-aware and
-	// the terminal keeps the accent colour active across wrapped lines, so we can
-	// colour first and wrap after.
-	// ponytail: unbounded height when expanded; route through capLines() if a
-	// pathologically long command ever blows out the box.
 	if av.expanded && !fits {
 		return av.highlightSummary(formatting.WrapText(full, budget)) + "\n" +
 			av.styleProvider.RenderDimText(fmt.Sprintf("(%s to collapse)", av.expandKey()))
