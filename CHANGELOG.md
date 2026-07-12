@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.143.0](https://github.com/inference-gateway/cli/compare/v0.142.2...v0.143.0) (2026-07-12)
+
+### 🚀 Features
+
+* **tui:** card-based tool-call formatter overhaul + scrollable approval review ([#864](https://github.com/inference-gateway/cli/issues/864)) ([#865](https://github.com/inference-gateway/cli/issues/865)) ([915dea4](https://github.com/inference-gateway/cli/commit/915dea44e37d09ca1ce8e8446a32240b955a2956))
+* **tui:** chroma syntax highlighting for diff and content preview ([#868](https://github.com/inference-gateway/cli/issues/868)) ([3d10d94](https://github.com/inference-gateway/cli/commit/3d10d948f84936a7a73a63dc243768a123f722dd)), closes [#866](https://github.com/inference-gateway/cli/issues/866), references [#865](https://github.com/inference-gateway/cli/issues/865)
+* **tui:** highlight tool call arguments in approval box summary ([#882](https://github.com/inference-gateway/cli/issues/882)) ([d3e4f55](https://github.com/inference-gateway/cli/commit/d3e4f550b64444d3fcd5ae4fe11b0a632c28517d))
+
+### 🐛 Bug Fixes
+
+* **subagent:** fail gracefully on empty subagent_id instead of a hard error ([8a538af](https://github.com/inference-gateway/cli/commit/8a538af781952b34ccd80e0a0b2bc262e156d95c))
+* **tui:** keep arg highlight on truncation and expand summary with ctrl+o ([#885](https://github.com/inference-gateway/cli/issues/885)) ([174cfdf](https://github.com/inference-gateway/cli/commit/174cfdf5567c34e80f4fc17c1d514f7c5e116122)), closes [#882](https://github.com/inference-gateway/cli/issues/882)
+* **tui:** render approval buttons as solid high-contrast buttons ([#886](https://github.com/inference-gateway/cli/issues/886)) ([321e4d9](https://github.com/inference-gateway/cli/commit/321e4d969d3c7720b48cea3dd89b6ba7e0e5b93a)), closes [#883](https://github.com/inference-gateway/cli/issues/883)
+* **tui:** render tool cards and markdown at full terminal width ([#869](https://github.com/inference-gateway/cli/issues/869)) ([9985791](https://github.com/inference-gateway/cli/commit/99857915222729edc3e66d1357fd608911cb56a6)), references [#867](https://github.com/inference-gateway/cli/issues/867)
+* **tui:** show keybinding legend footer in /diff view ([#880](https://github.com/inference-gateway/cli/issues/880)) ([88ca6a0](https://github.com/inference-gateway/cli/commit/88ca6a01c8af9c817536092b4e42ef8d38aa3c49))
+* **tui:** show real file line numbers in Edit tool diffs ([#870](https://github.com/inference-gateway/cli/issues/870)) ([#873](https://github.com/inference-gateway/cli/issues/873)) ([2006046](https://github.com/inference-gateway/cli/commit/2006046db3af45b974cc8f1b3968ee32769866b5))
+* **tools:** stop rejecting path-like titles in RequestPlanApproval ([#879](https://github.com/inference-gateway/cli/issues/879)) ([611eb34](https://github.com/inference-gateway/cli/commit/611eb34b64934ee43c88ed52b61213d4ba4360bd)), closes [#874](https://github.com/inference-gateway/cli/issues/874), references [#874](https://github.com/inference-gateway/cli/issues/874)
+* TodoWrite should not require approval by default ([#881](https://github.com/inference-gateway/cli/issues/881)) ([#884](https://github.com/inference-gateway/cli/issues/884)) ([4d23f7c](https://github.com/inference-gateway/cli/commit/4d23f7c10be4f8ae9021f1d379f0e3724f0668d0))
+* **agent:** trigger compaction on single-turn tool-output spikes ([#871](https://github.com/inference-gateway/cli/issues/871)) ([a52d643](https://github.com/inference-gateway/cli/commit/a52d643743b707658aa1ea43d69b1e15ea8d223c))
+
+### ♻️ Code Refactoring
+
+* **tui:** centralize key bindings into components_keymap.go, switch to key.Matches dispatch ([#876](https://github.com/inference-gateway/cli/issues/876)) ([60895bb](https://github.com/inference-gateway/cli/commit/60895bb6622ecf02608832a44c8076190a06ea5a)), references [#853](https://github.com/inference-gateway/cli/issues/853)
+* **tui:** drop dead single-space key bindings in components_keymap ([#878](https://github.com/inference-gateway/cli/issues/878)) ([a9abb69](https://github.com/inference-gateway/cli/commit/a9abb693e54a0a3991a9453202915e8179d9ae33)), closes [#877](https://github.com/inference-gateway/cli/issues/877)
+* extract git/gh/CI service from chat.go into githubsetup.Service ([#872](https://github.com/inference-gateway/cli/issues/872)) ([70d3b7c](https://github.com/inference-gateway/cli/commit/70d3b7cefef30a75b82bccc07b286a55d5eba1c2)), closes [#837](https://github.com/inference-gateway/cli/issues/837)
+* split StateManager & A2ATaskTracker god-interfaces into consumer-side slices ([#834](https://github.com/inference-gateway/cli/issues/834)) ([#863](https://github.com/inference-gateway/cli/issues/863)) ([28748ce](https://github.com/inference-gateway/cli/commit/28748cec94b11f4deffab9c6272b7dd506bc683e))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.143.0 --help
+npx @inference-gateway/cli@0.143.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.143.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.143.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.143.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.143.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.143.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.142.2](https://github.com/inference-gateway/cli/compare/v0.142.1...v0.142.2) (2026-07-11)
 
 ### 🐛 Bug Fixes
