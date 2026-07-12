@@ -225,13 +225,45 @@ func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) str
 // what will be executed. Truncation happens on the plain string first so the ANSI
 // colour codes never throw off the width budget.
 func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) string {
+	full := av.toolCallSummary(tc)
+	budget := av.summaryBudget()
+	oneLine := formatting.TruncateText(full, budget)
+	fits := oneLine == full
+
+	// ctrl+o (ToggleExpanded) soft-wraps the full argument list instead of the
+	// truncated one-liner, so a long command can be reviewed in full before
+	// approving — mirroring the diff-preview expansion. wordwrap is ANSI-aware and
+	// the terminal keeps the accent colour active across wrapped lines, so we can
+	// colour first and wrap after.
+	// ponytail: unbounded height when expanded; route through capLines() if a
+	// pathologically long command ever blows out the box.
+	if av.expanded && !fits {
+		return av.highlightSummary(formatting.WrapText(full, budget)) + "\n" +
+			av.styleProvider.RenderDimText("(ctrl+o to collapse)")
+	}
+
+	line := av.highlightSummary(oneLine)
+	if fits {
+		return line
+	}
+	return line + "\n" + av.styleProvider.RenderDimText("(ctrl+o to expand)")
+}
+
+// highlightSummary renders the name and parentheses dim and the inner arguments in
+// the accent colour. When the closing ')' is missing (truncation) the arguments are
+// highlighted through to the end. The paren indices are computed on the plain string
+// before any colour codes are added.
+func (av *ApprovalBoxView) highlightSummary(summary string) string {
 	dimColor := av.styleProvider.GetThemeColor("dim")
-	summary := formatting.TruncateText(av.toolCallSummary(tc), av.summaryBudget())
 
 	open := strings.IndexByte(summary, '(')
-	closeParen := strings.LastIndexByte(summary, ')')
-	if open < 0 || closeParen <= open+1 {
+	if open < 0 || open+1 >= len(summary) {
 		return av.styleProvider.RenderWithColor(summary, dimColor)
+	}
+
+	closeParen := strings.LastIndexByte(summary, ')')
+	if closeParen <= open {
+		closeParen = len(summary)
 	}
 
 	accentColor := av.styleProvider.GetThemeColor("accent")
