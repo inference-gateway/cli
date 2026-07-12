@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,11 +11,11 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
-// telemetryDir is the recorder's output directory relative to the current (per
-// sub-test temp) working directory: newEnv chdir's there and telemetry.enabled
-// defaults on, so the container writes OTLP/stdout files under <cwd>/.infer/telemetry.
+// telemetryDir is the recorder's output directory: telemetry is userspace-global
+// (~/.infer/telemetry), and newEnv points $HOME at a per-sub-test temp dir, so
+// config.TelemetryDir() resolves under it - matching where the container writes.
 func telemetryDir() string {
-	return filepath.Join(config.DefaultConfig().GetConfigDir(), "telemetry")
+	return config.TelemetryDir()
 }
 
 // TestTelemetryRecorderEndToEnd is the acceptance check: driving the agent

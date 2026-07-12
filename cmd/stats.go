@@ -3,13 +3,13 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	cobra "github.com/spf13/cobra"
 
+	config "github.com/inference-gateway/cli/config"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
@@ -52,7 +52,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	dir := filepath.Join(Cfg.GetConfigDir(), "telemetry")
+	dir := config.TelemetryDir()
 	if Cfg.Telemetry.RetentionDays > 0 {
 		telemetry.Archive(dir, time.Now().AddDate(0, 0, -Cfg.Telemetry.RetentionDays))
 	}

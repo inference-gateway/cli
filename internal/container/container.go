@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -335,7 +334,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
 		Enabled:      c.config.Telemetry.Enabled,
-		Dir:          filepath.Join(c.config.GetConfigDir(), "telemetry"),
+		Dir:          config.TelemetryDir(),
 		SessionID:    string(c.sessionID),
 		OTLPEndpoint: c.config.Telemetry.OTLP.Endpoint,
 		OTLPHeaders:  c.config.Telemetry.OTLP.Headers,

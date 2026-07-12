@@ -1302,6 +1302,18 @@ func ResolveConfigDir() string {
 	return ConfigDirName
 }
 
+// TelemetryDir is the userspace telemetry store (~/.infer/telemetry). Telemetry
+// is user-global: recorded and read here regardless of the working directory or
+// any project-local .infer, so `infer stats` sees every session in one place.
+// Falls back to a relative path only when $HOME is unknown.
+func TelemetryDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(ConfigDirName, "telemetry")
+	}
+	return filepath.Join(home, ConfigDirName, "telemetry")
+}
+
 // IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
 // bash_allowedlist.go, alongside the shell-aware clean-command guard (redirection
 // stripping, compound-command splitting, command-substitution rejection) it
