@@ -118,10 +118,8 @@ type ConversationView struct {
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
 	streamingModel           string
-	// streamingDirty marks that new streamed content is waiting to be rendered;
-	// streamingRenderArmed guards the single coalescing render tick (issue #888).
-	streamingDirty       bool
-	streamingRenderArmed bool
+	streamingDirty           bool
+	streamingRenderArmed     bool
 
 	keyHintFormatter *hints.Formatter
 
