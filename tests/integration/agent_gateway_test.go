@@ -15,8 +15,9 @@ import (
 	"testing"
 	"time"
 
+	require "github.com/stretchr/testify/require"
+
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
