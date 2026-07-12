@@ -34,7 +34,7 @@ Commits use Conventional Commits (`.commitlintrc.json`); release tooling (semant
 - **Integration tests** (`tests/integration/agent_gateway_test.go`): the agent against the mock over real HTTP — real SDK client, SSE parsing, tool-call accumulation, state machine; no interface fakes on the LLM path.
 - **E2E tests** (`tests/e2e/`, build tag `e2e`): run the built `infer` binary as a subprocess against the mock. `task test:e2e` (= `go test -race -tags e2e -timeout 5m ./tests/e2e/...`); plain `task test` skips them (build tag), CI runs them in a dedicated job.
 
-For manual testing with custom scenarios: `task build:mockgateway` → `.infer/bin/mock-gateway --scenarios my.yaml`, then point the CLI at its printed listen address via `INFER_GATEWAY_URL`. To drive the chat TUI end-to-end (tmux + `send-keys`/`capture-pane`, including pitfalls like `-l` for literal text), follow the recipe in `AGENTS.md` § "Driving the chat TUI via tmux" — don't duplicate it here.
+For manual testing with custom scenarios: `task build:mockgateway` → `.infer/bin/mock-gateway --scenarios my.yaml`, then point the CLI at its printed listen address via `INFER_GATEWAY_URL`. To drive the chat TUI end-to-end (tmux + `send-keys`/`capture-pane`, including pitfalls like `-l` for literal text), the generic tmux mechanics live in the built-in `tmux` skill (`internal/services/skills/builtins/tmux/SKILL.md`, the single source of truth); `AGENTS.md` § "Driving the chat TUI via tmux" adds only the mock-gateway glue — don't duplicate either here.
 
 ## Big-picture architecture
 

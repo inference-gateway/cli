@@ -47,54 +47,31 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 
 ### Driving the chat TUI via tmux
 
-The chat TUI (Bubble Tea v2) can be exercised end-to-end without a physical
-keyboard by running it inside a detached tmux session and scripting it with
-`send-keys` / `capture-pane`. Combine with the embedded mock gateway
-(`INFER_GATEWAY_MOCK=true`) so no real LLM is called.
+The chat TUI (Bubble Tea v2) can be exercised end-to-end by running it inside a
+tmux session and scripting it with `send-keys` / `capture-pane`. The generic tmux
+mechanics — session/pane lifecycle, `send-keys -l` for literal text vs named keys,
+sleep-before-`capture-pane`, cleanup discipline — are the single source of truth in
+the built-in **`tmux` skill** (`internal/services/skills/builtins/tmux/SKILL.md`);
+`tests/e2e/tmux_tui_test.go` drives the TUI the same way. This section only covers
+the repo-specific glue.
 
-**1. Start a dedicated session** (fixed size makes captures deterministic):
+Run the TUI against the embedded mock gateway (`INFER_GATEWAY_MOCK=true`) so no
+real LLM is called. This scripted recipe uses a **detached** session on purpose
+(deterministic captures, no attached viewer, works in CI). When you are driving a
+TUI interactively for someone to watch, do the opposite — follow the `tmux` skill
+and split a pane in the **current** session instead of starting a new one.
 
 ```bash
-tmux kill-session -t infer-tui 2>/dev/null || true
 tmux new-session -d -s infer-tui -x 200 -y 50 \
   'INFER_GATEWAY_MOCK=true go run . chat'
 ```
 
-**2. Select a model** — the mock advertises a single model (`openai/gpt-4o`),
-so once the picker renders, Enter selects it:
-
-```bash
-sleep 3   # `go run` compiles first; wait for the TUI to render
-tmux send-keys -t infer-tui Enter
-```
-
-**3. Type and submit a prompt.** Use `-l` for literal text (otherwise tmux
-interprets words like `Enter` or `Space` as key names), then send Enter as a
-separate call:
-
-```bash
-tmux send-keys -t infer-tui -l 'say hello'
-tmux send-keys -t infer-tui Enter
-```
-
-Special keys use tmux key names, not `-l`: `Enter`, `Escape`, `Tab`, `BTab`
-(shift+tab, toggles agent mode), `Up`/`Down`, `C-c`.
-
-**4. Capture and assert.** Always sleep briefly before capturing — the TUI
-repaints asynchronously and an immediate capture shows a stale frame:
-
-```bash
-sleep 1
-tmux capture-pane -t infer-tui -p -S -50
-```
-
-`-S -50` includes scrollback; grep the output for the expected response.
-
-**5. Clean up** when done (also kills the CLI process):
-
-```bash
-tmux kill-session -t infer-tui
-```
+- Wait ~3s for `go run` to compile and the TUI to render before the first capture.
+- The mock advertises one model (`openai/gpt-4o`); once the picker renders, `Enter`
+  selects it. Then send a prompt (`send-keys -t infer-tui -l 'say hello'`, then
+  `Enter` as a separate call) and read it back with
+  `capture-pane -t infer-tui -p -S -50`.
+- `BTab` (shift+tab) toggles agent mode.
 
 **Mock gateway scenarios:** the mock matches the latest real user message
 (injected `<system-reminder>` content is skipped) against the regexes in
@@ -104,15 +81,6 @@ fallback. To test with custom scenarios, build the standalone binary
 (`task build:mockgateway` → `.infer/bin/mock-gateway --scenarios my.yaml`),
 read the listen address from its first stdout line, and point the CLI at it
 with `INFER_GATEWAY_URL` instead of `INFER_GATEWAY_MOCK`.
-
-**Pitfalls:**
-
-- `send-keys` without `-l` treats semicolons as command separators and
-  capitalised words as key names — always use `-l` for message text.
-- Target the session by name (`-t infer-tui`); pane IDs like `%16` are not
-  stable across runs.
-- If a run wedges the TUI, `tmux send-keys -t infer-tui C-c` then
-  `kill-session` — don't leave orphaned sessions behind.
 
 ## Linter Constraints
 
