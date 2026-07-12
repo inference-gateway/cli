@@ -734,6 +734,23 @@ func TestIsApprovalRequired(t *testing.T) {
 			toolName: "WebSearch",
 			expected: true,
 		},
+		{
+			name: "todowrite default no approval even with global true",
+			setup: func(cfg *Config) {
+				cfg.Tools.Safety.RequireApproval = true
+			},
+			toolName: "TodoWrite",
+			expected: false,
+		},
+		{
+			name: "todowrite explicit override to true",
+			setup: func(cfg *Config) {
+				cfg.Tools.Safety.RequireApproval = false
+				cfg.Tools.TodoWrite.RequireApproval = &[]bool{true}[0]
+			},
+			toolName: "TodoWrite",
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
