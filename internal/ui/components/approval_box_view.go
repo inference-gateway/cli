@@ -178,7 +178,7 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 	).
 		WithShowHelp(false).
 		WithWidth(av.summaryBudget()).
-		WithTheme(huhTheme(av.styleProvider))
+		WithTheme(approvalHuhTheme(av.styleProvider))
 	return av.form.Init()
 }
 

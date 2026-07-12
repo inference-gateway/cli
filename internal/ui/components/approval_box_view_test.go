@@ -8,10 +8,14 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // argsAwareToolFormatter is a domain.ToolFormatter whose FormatToolCall renders
@@ -61,6 +65,26 @@ func approvalStateManager(s *domain.ApprovalUIState) *domain.ApplicationState {
 		st.SetupApprovalUIState(s.PendingToolCall, nil)
 	}
 	return st
+}
+
+// TestApprovalHuhTheme_SelectedOptionIsButton asserts the focused option is styled
+// as a solid button (accent background, bold) rather than bare accent text.
+func TestApprovalHuhTheme_SelectedOptionIsButton(t *testing.T) {
+	const accent = "#5f5fff"
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetAccentColorReturns(accent)
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	p := styles.NewProvider(fakeThemeService)
+
+	s := approvalHuhTheme(p).Theme(true)
+
+	if got := s.Focused.SelectedOption.GetBackground(); got != lipgloss.Color(accent) {
+		t.Errorf("selected option should have the accent background %q, got %v", accent, got)
+	}
+	if !s.Focused.SelectedOption.GetBold() {
+		t.Error("selected option button should be bold")
+	}
 }
 
 func TestApprovalBox_EmptyWhenNoPendingCall(t *testing.T) {

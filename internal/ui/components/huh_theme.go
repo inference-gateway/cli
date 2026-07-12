@@ -53,3 +53,24 @@ func huhTheme(p *styles.Provider) huh.Theme {
 		return t
 	})
 }
+
+// approvalHuhTheme is huhTheme with the inline Select's focused option styled as
+// a solid button (accent background, white text) so the approval CTA stands out.
+func approvalHuhTheme(p *styles.Provider) huh.Theme {
+	base := huhTheme(p)
+	return huh.ThemeFunc(func(isDark bool) *huh.Styles {
+		t := base.Theme(isDark)
+		if p == nil {
+			return t
+		}
+		accent := lipgloss.Color(p.GetThemeColor("accent"))
+		button := t.Focused.SelectedOption.
+			Foreground(lipgloss.Color("15")).
+			Background(accent).
+			Bold(true).
+			Padding(0, 1)
+		t.Focused.SelectedOption = button
+		t.Blurred.SelectedOption = button
+		return t
+	})
+}
