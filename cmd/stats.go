@@ -89,15 +89,12 @@ func parseSince(s string) (time.Time, error) {
 	return time.Now().Add(-d), nil
 }
 
-// costFunc adapts the pricing service to metrics.CostFunc (total cost for a
-// model's token counts). Built directly rather than via the full container -
-// stats is a read-only command that only needs pricing + the metrics dir.
+// costFunc adapts the pricing service to metrics.CostFunc (input, output, total
+// cost for a model's token counts). Built directly rather than via the full
+// container - stats is a read-only command that only needs pricing + the dir.
 func costFunc() metrics.CostFunc {
 	pricing := services.NewPricingService(&Cfg.Pricing)
-	return func(model string, prompt, completion int) float64 {
-		_, _, total := pricing.CalculateCost(model, prompt, completion)
-		return total
-	}
+	return pricing.CalculateCost
 }
 
 func renderStatsJSON(stats metrics.Stats) error {

@@ -48,12 +48,9 @@ type Stats struct {
 	Empty  bool        `json:"-"`
 }
 
-// CostFunc returns the total cost for a model's token counts. Pass nil to leave
-// the cost column zero. Wraps domain.PricingService.CalculateCost's total return.
-type CostFunc func(model string, prompt, completion int) float64
-
 // Aggregate loads every event under dir with timestamp on/after since (zero
-// since = all time) and folds them into Stats.
+// since = all time) and folds them into Stats. cost (may be nil) fills the
+// per-model cost column from its total (third) return.
 func Aggregate(dir string, since time.Time, cost CostFunc) (Stats, error) {
 	events, err := load(dir, since)
 	if err != nil {
@@ -156,7 +153,7 @@ func modelStats(models map[string]*ModelStat, cost CostFunc) []ModelStat {
 	out := make([]ModelStat, 0, len(models))
 	for _, m := range models {
 		if cost != nil {
-			m.Cost = cost(m.Model, m.Prompt, m.Completion)
+			_, _, m.Cost = cost(m.Model, m.Prompt, m.Completion)
 		}
 		out = append(out, *m)
 	}

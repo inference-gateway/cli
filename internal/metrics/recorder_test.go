@@ -7,7 +7,7 @@ import (
 
 func TestRecordAndAggregate(t *testing.T) {
 	dir := t.TempDir()
-	rec := New(dir, true)
+	rec := New(Options{Enabled: true, Dir: dir})
 	if rec == nil {
 		t.Fatal("expected a recorder when enabled")
 	}
@@ -72,7 +72,7 @@ func TestAggregateEmptyStore(t *testing.T) {
 
 func TestIncompleteSession(t *testing.T) {
 	dir := t.TempDir()
-	rec := New(dir, true)
+	rec := New(Options{Enabled: true, Dir: dir})
 	rec.RecordSessionStart("crashed", "plan") // start, no end
 
 	stats, err := Aggregate(dir, time.Time{}, nil)
@@ -88,7 +88,7 @@ func TestIncompleteSession(t *testing.T) {
 // "zero overhead when disabled": a disabled recorder is nil, so the container
 // skips wrapping the tool service, and every method is a nil-safe no-op.
 func TestNewDisabledReturnsNil(t *testing.T) {
-	if New(t.TempDir(), false) != nil {
+	if New(Options{Enabled: false, Dir: t.TempDir()}) != nil {
 		t.Fatal("a disabled recorder must be nil")
 	}
 	var r *Recorder // methods must not panic on nil

@@ -333,7 +333,14 @@ func (c *ServiceContainer) initializeDomainServices() {
 	modelClient := c.createRawSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
 
-	c.metricsRecorder = metrics.New(filepath.Join(c.config.GetConfigDir(), "metrics"), c.config.Metrics.Enabled)
+	c.metricsRecorder = metrics.New(metrics.Options{
+		Enabled:      c.config.Metrics.Enabled,
+		Dir:          filepath.Join(c.config.GetConfigDir(), "metrics"),
+		OTLPEndpoint: c.config.Metrics.OTLP.Endpoint,
+		OTLPHeaders:  c.config.Metrics.OTLP.Headers,
+		OTLPInterval: time.Duration(c.config.Metrics.OTLP.Interval) * time.Second,
+		Cost:         c.GetPricingService().CalculateCost,
+	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
@@ -870,6 +877,10 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	// Flush metrics first so the OTLP exporter's final push happens before the
+	// rest of the teardown; a no-op for the JSONL-only (local) case.
+	c.metricsRecorder.Shutdown(ctx)
+
 	if c.backgroundShellService != nil {
 		logger.Info("stopping background shell service...")
 		c.backgroundShellService.Stop()

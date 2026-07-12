@@ -590,11 +590,28 @@ const (
 )
 
 // MetricsConfig controls the local metrics recorder (tool outcomes, token usage,
-// session lifecycle) written as JSONL under <config-dir>/metrics. Local-only:
-// nothing is sent anywhere and no prompt/response content is ever recorded.
+// session lifecycle) written as JSONL under <config-dir>/metrics, plus an
+// optional OTLP export to an OpenTelemetry collector. Local JSONL is always
+// private; no prompt/response content is ever recorded. OTLP export is
+// opt-in - it activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT)
+// is set, and is additive: the local JSONL keeps working for `infer stats`.
 type MetricsConfig struct {
-	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
-	RetentionDays int  `yaml:"retention_days" mapstructure:"retention_days"`
+	Enabled       bool              `yaml:"enabled" mapstructure:"enabled"`
+	RetentionDays int               `yaml:"retention_days" mapstructure:"retention_days"`
+	OTLP          OTLPMetricsConfig `yaml:"otlp" mapstructure:"otlp"`
+}
+
+// OTLPMetricsConfig configures the optional OTLP metric export. When Endpoint is
+// empty (and OTEL_EXPORTER_OTLP_ENDPOINT is unset) no OpenTelemetry SDK is
+// initialized and nothing leaves the machine.
+type OTLPMetricsConfig struct {
+	// Endpoint is the OTLP/HTTP collector base URL (e.g. http://localhost:4318).
+	// Empty disables export. Falls back to OTEL_EXPORTER_OTLP_ENDPOINT.
+	Endpoint string `yaml:"endpoint" mapstructure:"endpoint"`
+	// Headers are sent on every export request (e.g. auth tokens).
+	Headers map[string]string `yaml:"headers,omitempty" mapstructure:"headers,omitempty"`
+	// Interval is the periodic export interval in seconds (default 60).
+	Interval int `yaml:"interval" mapstructure:"interval"`
 }
 
 // StorageConfig contains storage backend configuration
@@ -961,6 +978,10 @@ func DefaultConfig() *Config { //nolint:funlen
 		Metrics: MetricsConfig{
 			Enabled:       true,
 			RetentionDays: 90,
+			OTLP: OTLPMetricsConfig{
+				Endpoint: "",
+				Interval: 60,
+			},
 		},
 		Conversation: ConversationConfig{
 			TitleGeneration: ConversationTitleConfig{
