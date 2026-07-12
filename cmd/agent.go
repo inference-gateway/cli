@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -23,6 +24,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	metrics "github.com/inference-gateway/cli/internal/metrics"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -227,11 +229,30 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.maybeRollover()
 
+	rec := svc.GetMetricsRecorder()
+	sessionStart := time.Now()
+	rec.RecordSessionStart(newSessionID, agentMode.AllowedlistKey())
+
 	err = session.execute(taskDescription, files)
+
+	rec.RecordSessionEnd(newSessionID, agentMode.AllowedlistKey(), time.Since(sessionStart), agentSessionOutcome(err))
 	if resultFile != "" {
 		writeSubagentResultFile(resultFile, session, err)
 	}
 	return err
+}
+
+// agentSessionOutcome maps a run error to the infer.run.outcome enum: a
+// cancelled/timed-out context is "stopped_early", any other error "failed".
+func agentSessionOutcome(err error) string {
+	switch {
+	case err == nil:
+		return metrics.RunSuccess
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return metrics.RunStoppedEarly
+	default:
+		return metrics.RunFailed
+	}
 }
 
 // writeSubagentResultFile atomically writes the session's final assistant

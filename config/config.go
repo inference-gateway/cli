@@ -40,6 +40,7 @@ type Config struct {
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Git              GitConfig              `yaml:"git" mapstructure:"git"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Metrics          MetricsConfig          `yaml:"metrics" mapstructure:"metrics"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
@@ -588,6 +589,14 @@ const (
 	StorageTypeD1       StorageType = "d1"
 )
 
+// MetricsConfig controls the local metrics recorder (tool outcomes, token usage,
+// session lifecycle) written as JSONL under <config-dir>/metrics. Local-only:
+// nothing is sent anywhere and no prompt/response content is ever recorded.
+type MetricsConfig struct {
+	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
+	RetentionDays int  `yaml:"retention_days" mapstructure:"retention_days"`
+}
+
 // StorageConfig contains storage backend configuration
 type StorageConfig struct {
 	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
@@ -948,6 +957,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				APIToken:   "",
 				BaseURL:    "https://api.cloudflare.com/client/v4",
 			},
+		},
+		Metrics: MetricsConfig{
+			Enabled:       true,
+			RetentionDays: 90,
 		},
 		Conversation: ConversationConfig{
 			TitleGeneration: ConversationTitleConfig{

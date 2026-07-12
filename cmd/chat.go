@@ -25,6 +25,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	metrics "github.com/inference-gateway/cli/internal/metrics"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -107,6 +108,14 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	services := container.NewServiceContainer(cfg)
 
+	metricsSessionID := sessionID
+	if metricsSessionID == "" {
+		metricsSessionID = services.GetSessionID()
+	}
+	metricsRec := services.GetMetricsRecorder()
+	sessionStart := time.Now()
+	metricsRec.RecordSessionStart(metricsSessionID, services.GetStateManager().GetAgentMode().AllowedlistKey())
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 
@@ -116,6 +125,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
 			logger.Info("received shutdown signal, cleaning up...")
+			metricsRec.RecordSessionEnd(metricsSessionID, services.GetStateManager().GetAgentMode().AllowedlistKey(), time.Since(sessionStart), metrics.RunSuccess)
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if err := services.Shutdown(ctx); err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -22,6 +23,7 @@ import (
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	metrics "github.com/inference-gateway/cli/internal/metrics"
 	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
@@ -63,6 +65,7 @@ type ServiceContainer struct {
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	pricingService         domain.PricingService
+	metricsRecorder        *metrics.Recorder
 	a2aAgentService        domain.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
@@ -330,10 +333,15 @@ func (c *ServiceContainer) initializeDomainServices() {
 	modelClient := c.createRawSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
 
+	c.metricsRecorder = metrics.New(filepath.Join(c.config.GetConfigDir(), "metrics"), c.config.Metrics.Enabled)
+
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 	} else {
 		c.toolService = services.NewNoOpToolService()
+	}
+	if c.metricsRecorder != nil {
+		c.toolService = metrics.NewToolService(c.toolService, c.metricsRecorder)
 	}
 
 	if c.tokenizer == nil {
@@ -389,6 +397,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundTaskRegistry,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
+	agentImpl.SetMetricsRecorder(c.metricsRecorder)
 	c.agent = agentImpl
 }
 
@@ -611,6 +620,19 @@ func (c *ServiceContainer) GetModelService() domain.ModelService {
 
 func (c *ServiceContainer) GetToolService() domain.ToolService {
 	return c.toolService
+}
+
+// GetMetricsRecorder returns the local metrics recorder, or nil when metrics are
+// disabled. The returned *Recorder is nil-safe, so the chat/headless
+// session-lifecycle taps can call its methods directly without a nil check.
+func (c *ServiceContainer) GetMetricsRecorder() *metrics.Recorder {
+	return c.metricsRecorder
+}
+
+// GetSessionID returns this container's generated session id, used as a stable
+// key for the metrics session lifecycle when no explicit session id is set.
+func (c *ServiceContainer) GetSessionID() string {
+	return string(c.sessionID)
 }
 
 func (c *ServiceContainer) GetToolRegistry() *tools.Registry {

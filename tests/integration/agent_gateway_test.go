@@ -39,6 +39,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)
 	t.Cleanup(func() { restore() })
 
