@@ -24,6 +24,13 @@ func (s *stubTokenEstimator) EstimateMessagesTokens([]sdk.Message) int {
 	return s.estimate
 }
 
+func (s *stubTokenEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Message) int {
+	if s.estimate > lastInputTokens {
+		return s.estimate
+	}
+	return lastInputTokens
+}
+
 func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetSessionTokensReturns(domain.SessionTokenStats{

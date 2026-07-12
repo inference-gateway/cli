@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -585,5 +586,24 @@ func TestGetToolStats(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEffectiveContextTokens(t *testing.T) {
+	tok := NewTokenizerService(DefaultTokenizerConfig())
+	msgs := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent(strings.Repeat("word ", 4000))}}
+
+	est := tok.EstimateMessagesTokens(msgs)
+	if est <= 0 {
+		t.Fatalf("estimate should be positive, got %d", est)
+	}
+
+	// Stale small last-input count must not mask the large pending estimate.
+	if got := tok.EffectiveContextTokens(1000, msgs); got != est {
+		t.Errorf("estimate spike should win: got %d, want %d", got, est)
+	}
+	// When the reported count is larger, it wins.
+	if got := tok.EffectiveContextTokens(est+5000, msgs); got != est+5000 {
+		t.Errorf("larger lastInput should win: got %d, want %d", got, est+5000)
 	}
 }

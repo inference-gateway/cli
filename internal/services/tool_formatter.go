@@ -16,9 +16,10 @@ import (
 
 // ToolFormatterService provides formatting for tool results by delegating to individual tools
 type ToolFormatterService struct {
-	toolRegistry  ToolRegistry
-	styleProvider *styles.Provider
-	hintFormatter HintProvider
+	toolRegistry   ToolRegistry
+	styleProvider  *styles.Provider
+	hintFormatter  HintProvider
+	maxResultBytes int
 }
 
 // HintProvider resolves keybinding hints for tool result affordances.
@@ -32,6 +33,13 @@ type HintProvider interface {
 // is simply omitted.
 func (s *ToolFormatterService) SetHintFormatter(h HintProvider) {
 	s.hintFormatter = h
+}
+
+// SetMaxResultBytes caps the size of a single tool result fed back to the LLM
+// (FormatToolResultForLLM). 0 disables the cap. Wired from tools.max_result_bytes
+// in the container so one oversized tool output can't dominate the context window.
+func (s *ToolFormatterService) SetMaxResultBytes(n int) {
+	s.maxResultBytes = n
 }
 
 func (s *ToolFormatterService) toggleKey() string {
@@ -289,10 +297,29 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecuti
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
-		return s.formatFallback(result, domain.FormatterLLM)
+		return capToolResult(s.formatFallback(result, domain.FormatterLLM), s.maxResultBytes)
 	}
 
-	return safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
+	formatted := safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
+	return capToolResult(formatted, s.maxResultBytes)
+}
+
+// capToolResult middle-truncates an oversized tool result (keeping the head and
+// tail, since both ends usually matter - e.g. an error at the end) with a marker
+// telling the model to re-run narrower. A cap of 0 (or content within the cap)
+// returns the content unchanged.
+func capToolResult(content string, maxBytes int) string {
+	if maxBytes <= 0 || len(content) <= maxBytes {
+		return content
+	}
+	const marker = "\n… [%d bytes truncated — re-run with a narrower query/offset for the full output] …\n"
+	keep := maxBytes - len(fmt.Sprintf(marker, len(content)))
+	if keep < 2 {
+		return content[:maxBytes]
+	}
+	head := keep / 2
+	tail := keep - head
+	return content[:head] + fmt.Sprintf(marker, len(content)-head-tail) + content[len(content)-tail:]
 }
 
 // formatFallback provides fallback formatting when tool is not available

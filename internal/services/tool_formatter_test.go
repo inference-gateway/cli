@@ -420,3 +420,27 @@ func TestFormatDurationShort(t *testing.T) {
 		}
 	}
 }
+
+func TestCapToolResult(t *testing.T) {
+	if got := capToolResult("hello", 0); got != "hello" {
+		t.Errorf("cap 0 should be unlimited, got %q", got)
+	}
+	if got := capToolResult("hello", 100); got != "hello" {
+		t.Errorf("content within cap should be unchanged, got %q", got)
+	}
+
+	big := strings.Repeat("a", 500) + "TAIL_MARKER"
+	got := capToolResult(big, 200)
+	if len(got) > 200 {
+		t.Errorf("capped output %d exceeds cap 200", len(got))
+	}
+	if !strings.HasPrefix(got, "aaaa") {
+		t.Error("head should be preserved")
+	}
+	if !strings.HasSuffix(got, "TAIL_MARKER") {
+		t.Error("tail should be preserved")
+	}
+	if !strings.Contains(got, "truncated") {
+		t.Error("truncation marker should be present")
+	}
+}

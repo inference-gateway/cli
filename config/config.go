@@ -182,6 +182,12 @@ type ToolsConfig struct {
 	AskUserQuestion AskUserQuestionToolConfig `yaml:"ask_user_question" mapstructure:"ask_user_question"`
 	Wait            WaitToolConfig            `yaml:"wait" mapstructure:"wait"`
 
+	// MaxResultBytes caps the size of a single tool result fed back to the LLM.
+	// Oversized results are middle-truncated (head + tail kept) so one
+	// pathological output (a huge Read/WebFetch/bash dump) can't dominate the
+	// context window in a single turn. 0 disables the cap.
+	MaxResultBytes int `yaml:"max_result_bytes" mapstructure:"max_result_bytes"`
+
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
 
@@ -747,7 +753,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Tools: ToolsConfig{
-			Enabled: true,
+			Enabled:        true,
+			MaxResultBytes: 250000,
 			Sandbox: SandboxConfig{
 				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{

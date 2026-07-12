@@ -315,6 +315,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
+	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)

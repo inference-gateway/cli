@@ -109,11 +109,14 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 
 	contextWindowSize, windowKnown := models.LookupContextWindow(currentModel)
 
+	// Larger of the two so a single-turn tool-output spike shows instead of
+	// lagging behind the last round-trip; the estimate winning means approximate.
+	estimate := c.estimateCurrentContextSize()
 	contextTokens := stats.LastInputTokens
 	estimated := false
-	if contextTokens == 0 {
-		contextTokens = c.estimateCurrentContextSize()
-		estimated = contextTokens > 0
+	if estimate > contextTokens {
+		contextTokens = estimate
+		estimated = true
 	}
 
 	var output strings.Builder

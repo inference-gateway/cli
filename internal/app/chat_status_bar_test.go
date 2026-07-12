@@ -164,6 +164,10 @@ func (toolStatsEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (in
 
 func (toolStatsEstimator) EstimateMessagesTokens([]sdk.Message) int { return 0 }
 
+func (toolStatsEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Message) int {
+	return lastInputTokens
+}
+
 func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)

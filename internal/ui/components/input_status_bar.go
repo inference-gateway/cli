@@ -657,34 +657,32 @@ func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
 
 // currentContextTokensOrEstimate returns an approximation of the tokens that
 // would be sent in the next request - i.e. how full the model's context window
-// is right now. Prefers the gateway-reported LastInputTokens (which includes
-// the system prompt and tool definitions, matching what the optimizer and
-// session-rollover manager use); falls back to a tokenizer estimate of the
-// current message buffer before the first round-trip.
+// is right now. Takes the larger of the gateway-reported LastInputTokens (which
+// includes the system prompt and tool definitions, matching what the optimizer
+// and session-rollover manager use) and a fresh tokenizer estimate of the
+// current buffer, so a single-turn tool-output spike shows up immediately
+// instead of lagging behind the last round-trip.
 func (isb *InputStatusBar) currentContextTokensOrEstimate() int {
 	if isb.conversationRepo == nil {
 		return 0
 	}
 
 	stats := isb.conversationRepo.GetSessionTokens()
-	if stats.LastInputTokens > 0 {
-		return stats.LastInputTokens
-	}
 
 	if isb.tokenEstimator == nil {
-		return 0
+		return stats.LastInputTokens
 	}
 
 	messages := isb.conversationRepo.GetMessages()
 	if len(messages) == 0 {
-		return 0
+		return stats.LastInputTokens
 	}
 
 	sdkMessages := make([]sdk.Message, 0, len(messages))
 	for _, entry := range messages {
 		sdkMessages = append(sdkMessages, entry.Message)
 	}
-	return isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
+	return isb.tokenEstimator.EffectiveContextTokens(stats.LastInputTokens, sdkMessages)
 }
 
 // buildCostIndicator builds the cost indicator text

@@ -9,4 +9,10 @@ type TokenEstimator interface {
 
 	// EstimateMessagesTokens estimates the total tokens for a slice of messages
 	EstimateMessagesTokens(messages []sdk.Message) int
+
+	// EffectiveContextTokens estimates what the *next* request will carry: the
+	// larger of the gateway-reported last-request size and a fresh estimate of
+	// the current buffer. The max catches a single-turn tool-output spike that a
+	// stale lastInputTokens alone would miss.
+	EffectiveContextTokens(lastInputTokens int, messages []sdk.Message) int
 }
