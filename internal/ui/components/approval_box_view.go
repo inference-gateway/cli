@@ -218,12 +218,26 @@ func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) str
 	return av.renderSummary(tc)
 }
 
-// renderSummary renders the dim "Name(arg=value, ...)" one-liner used for every
-// non-diff tool, truncated to the available width.
+// renderSummary renders the "Name(arg=value, ...)" one-liner used for every
+// non-diff tool, truncated to the available width. The name and parens stay dim
+// while the inner arguments are highlighted in the accent colour (blue in the
+// default theme, matching the box border) so the user can see at a glance exactly
+// what will be executed. Truncation happens on the plain string first so the ANSI
+// colour codes never throw off the width budget.
 func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) string {
 	dimColor := av.styleProvider.GetThemeColor("dim")
 	summary := formatting.TruncateText(av.toolCallSummary(tc), av.summaryBudget())
-	return av.styleProvider.RenderWithColor(summary, dimColor)
+
+	open := strings.IndexByte(summary, '(')
+	closeParen := strings.LastIndexByte(summary, ')')
+	if open < 0 || closeParen <= open+1 {
+		return av.styleProvider.RenderWithColor(summary, dimColor)
+	}
+
+	accentColor := av.styleProvider.GetThemeColor("accent")
+	return av.styleProvider.RenderWithColor(summary[:open+1], dimColor) +
+		av.styleProvider.RenderWithColor(summary[open+1:closeParen], accentColor) +
+		av.styleProvider.RenderWithColor(summary[closeParen:], dimColor)
 }
 
 // renderDiffPreview renders the file diff for the mutating tools using the shared,
