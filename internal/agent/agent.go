@@ -17,6 +17,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -38,6 +39,7 @@ type AgentServiceImpl struct {
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
+	recorder         *telemetry.Recorder
 
 	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
 	// cumulative model turns across the whole chat session so an `interval`
@@ -383,6 +385,12 @@ func NewAgent(
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
+}
+
+// SetTelemetryRecorder wires the telemetry recorder so per-request token usage
+// is tapped in storeIterationMetrics. A nil recorder disables recording.
+func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
+	s.recorder = rec
 }
 
 // SetMemoryBackend wires the memory sync backend so the chat agent pulls memory
@@ -774,6 +782,10 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 		int(effectiveUsage.TotalTokens),
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
+	}
+
+	if s.recorder != nil {
+		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 	}
 
 	return effectiveUsage

@@ -105,6 +105,13 @@ scenarios:
       - content: "Usage reported."
         usage: { prompt_tokens: 100, completion_tokens: 42 }
 
+  - name: read-missing
+    match: '(?i)read the missing file'
+    turns:
+      - tool_calls:
+          - { name: Read, args: { file_path: "does-not-exist-xyz.txt" } }
+      - content: "The file could not be read."
+
   - name: reasoning
     match: '(?i)think step by step'
     turns:

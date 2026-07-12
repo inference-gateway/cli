@@ -36,6 +36,7 @@ import (
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	stt "github.com/inference-gateway/cli/internal/stt"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -63,6 +64,7 @@ type ServiceContainer struct {
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	pricingService         domain.PricingService
+	telemetryRecorder      *telemetry.Recorder
 	a2aAgentService        domain.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
@@ -330,10 +332,23 @@ func (c *ServiceContainer) initializeDomainServices() {
 	modelClient := c.createRawSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
 
+	c.telemetryRecorder = telemetry.New(telemetry.Options{
+		Enabled:      c.config.Telemetry.Enabled,
+		Dir:          config.TelemetryDir(),
+		SessionID:    string(c.sessionID),
+		OTLPEndpoint: c.config.Telemetry.OTLP.Endpoint,
+		OTLPHeaders:  c.config.Telemetry.OTLP.Headers,
+		OTLPInterval: time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
+		Cost:         c.GetPricingService().CalculateCost,
+	})
+
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 	} else {
 		c.toolService = services.NewNoOpToolService()
+	}
+	if c.telemetryRecorder != nil {
+		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}
 
 	if c.tokenizer == nil {
@@ -389,6 +404,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundTaskRegistry,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
+	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
 }
 
@@ -611,6 +627,13 @@ func (c *ServiceContainer) GetModelService() domain.ModelService {
 
 func (c *ServiceContainer) GetToolService() domain.ToolService {
 	return c.toolService
+}
+
+// GetTelemetryRecorder returns the telemetry recorder, or nil when telemetry is
+// disabled. The returned *Recorder is nil-safe, so the chat/headless
+// session-lifecycle taps can call its methods directly without a nil check.
+func (c *ServiceContainer) GetTelemetryRecorder() *telemetry.Recorder {
+	return c.telemetryRecorder
 }
 
 func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
@@ -848,6 +871,10 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	// Flush telemetry first so the exporters' final push (local file + optional
+	// OTLP) happens before the rest of the teardown.
+	c.telemetryRecorder.Shutdown(ctx)
+
 	if c.backgroundShellService != nil {
 		logger.Info("stopping background shell service...")
 		c.backgroundShellService.Stop()

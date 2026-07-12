@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -25,6 +26,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 var agentCmd = &cobra.Command{
@@ -227,11 +229,29 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.maybeRollover()
 
+	rec := svc.GetTelemetryRecorder()
+	sessionStart := time.Now()
+
 	err = session.execute(taskDescription, files)
+
+	rec.RecordSession(agentMode.AllowedlistKey(), agentSessionOutcome(err), time.Since(sessionStart))
 	if resultFile != "" {
 		writeSubagentResultFile(resultFile, session, err)
 	}
 	return err
+}
+
+// agentSessionOutcome maps a run error to the infer.run.outcome enum: a
+// cancelled/timed-out context is "stopped_early", any other error "failed".
+func agentSessionOutcome(err error) string {
+	switch {
+	case err == nil:
+		return telemetry.RunSuccess
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return telemetry.RunStoppedEarly
+	default:
+		return telemetry.RunFailed
+	}
 }
 
 // writeSubagentResultFile atomically writes the session's final assistant

@@ -27,6 +27,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/web"
 )
@@ -105,7 +106,11 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	_ = streamevent.SetWriter(io.Discard)
 
+	telemetry.ExecutionMode = telemetry.ExecInteractive
 	services := container.NewServiceContainer(cfg)
+
+	telemetryRec := services.GetTelemetryRecorder()
+	sessionStart := time.Now()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
@@ -116,6 +121,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
 			logger.Info("received shutdown signal, cleaning up...")
+			telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().AllowedlistKey(), telemetry.RunSuccess, time.Since(sessionStart))
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if err := services.Shutdown(ctx); err != nil {

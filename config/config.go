@@ -40,6 +40,7 @@ type Config struct {
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Git              GitConfig              `yaml:"git" mapstructure:"git"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
@@ -588,6 +589,33 @@ const (
 	StorageTypeD1       StorageType = "d1"
 )
 
+// TelemetryConfig controls the OpenTelemetry metrics the CLI records - tool
+// outcomes, token usage, sessions. The recorded data is written as OTLP/semconv
+// JSON under <config-dir>/telemetry (always, private - no prompt/response
+// content) and, opt-in, exported to an OpenTelemetry collector. OTLP export
+// activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT) is set.
+// Named "telemetry" (not "metrics") to leave room for traces/logs later.
+type TelemetryConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	// RetentionDays is how long a session's telemetry file stays active before
+	// `infer stats` archives it. 0 disables archiving.
+	RetentionDays int        `yaml:"retention_days" mapstructure:"retention_days"`
+	OTLP          OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
+}
+
+// OTLPConfig configures the optional OTLP export. When Endpoint is empty (and
+// OTEL_EXPORTER_OTLP_ENDPOINT is unset) no exporter is initialized and nothing
+// leaves the machine.
+type OTLPConfig struct {
+	// Endpoint is the OTLP/HTTP collector base URL (e.g. http://localhost:4318).
+	// Empty disables export. Falls back to OTEL_EXPORTER_OTLP_ENDPOINT.
+	Endpoint string `yaml:"endpoint" mapstructure:"endpoint"`
+	// Headers are sent on every export request (e.g. auth tokens).
+	Headers map[string]string `yaml:"headers,omitempty" mapstructure:"headers,omitempty"`
+	// Interval is the periodic export interval in seconds (default 60).
+	Interval int `yaml:"interval" mapstructure:"interval"`
+}
+
 // StorageConfig contains storage backend configuration
 type StorageConfig struct {
 	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
@@ -949,6 +977,14 @@ func DefaultConfig() *Config { //nolint:funlen
 				BaseURL:    "https://api.cloudflare.com/client/v4",
 			},
 		},
+		Telemetry: TelemetryConfig{
+			Enabled:       true,
+			RetentionDays: 7,
+			OTLP: OTLPConfig{
+				Endpoint: "",
+				Interval: 60,
+			},
+		},
 		Conversation: ConversationConfig{
 			TitleGeneration: ConversationTitleConfig{
 				Enabled:   true,
@@ -1264,6 +1300,18 @@ func ResolveConfigDir() string {
 		}
 	}
 	return ConfigDirName
+}
+
+// TelemetryDir is the userspace telemetry store (~/.infer/telemetry). Telemetry
+// is user-global: recorded and read here regardless of the working directory or
+// any project-local .infer, so `infer stats` sees every session in one place.
+// Falls back to a relative path only when $HOME is unknown.
+func TelemetryDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(ConfigDirName, "telemetry")
+	}
+	return filepath.Join(home, ConfigDirName, "telemetry")
 }
 
 // IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
