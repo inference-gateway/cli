@@ -118,6 +118,8 @@ type ConversationView struct {
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
 	streamingModel           string
+	streamingDirty           bool
+	streamingRenderArmed     bool
 
 	keyHintFormatter *hints.Formatter
 
@@ -504,22 +506,40 @@ func (cv *ConversationView) updateViewportContent() {
 	cv.updateViewportContentFull()
 }
 
-// appendStreamingContent appends content to the streaming buffer and triggers immediate render
+// streamingRenderInterval bounds how often the viewport is rebuilt while an
+// assistant message streams. Deltas arrive far faster than this (a real model
+// emits many tokens/sec); rebuilding + SetContent + GotoBottom on every delta
+// hands the 60fps renderer a fully-reflowed frame per token, which the terminal
+// cannot paint cleanly and shows as mid-stream scrambling (issue #888). We
+// coalesce to ~30fps: visually live, but at most one rebuild per tick.
+const streamingRenderInterval = 33 * time.Millisecond
+
+// streamingRenderTickMsg drives the coalesced streaming re-render loop.
+type streamingRenderTickMsg struct{}
+
+func streamingRenderTick() tea.Cmd {
+	return tea.Tick(streamingRenderInterval, func(time.Time) tea.Msg { return streamingRenderTickMsg{} })
+}
+
+// appendStreamingContent appends a streamed delta and marks the view dirty; the
+// actual rebuild is deferred to the coalescing tick (handleStreamingRenderTick),
+// so a burst of tokens costs one render per tick instead of one render each.
 func (cv *ConversationView) appendStreamingContent(content, reasoning, model string) {
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
 	cv.streamingReasoningBuffer.WriteString(reasoning)
-
-	cv.updateViewportContentFull()
+	cv.streamingDirty = true
 }
 
-// flushStreamingBuffer clears the streaming buffer after completion
+// flushStreamingBuffer clears the streaming buffer after completion. isStreaming
+// flips false so the coalescing render tick stops re-arming on its next fire.
 func (cv *ConversationView) flushStreamingBuffer() {
 	cv.streamingBuffer.Reset()
 	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
 	cv.streamingModel = ""
+	cv.streamingDirty = false
 }
 
 // renderStreamingContent renders the currently streaming assistant message
@@ -1273,6 +1293,8 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handleRemoveSubagent(msg, cmd)
 	case spinner.TickMsg:
 		return cv.handleSpinnerTick(msg, cmd)
+	case streamingRenderTickMsg:
+		return cv.handleStreamingRenderTick(cmd)
 	default:
 		return cv.handleDefaultEvents(msg, cmd)
 	}
@@ -1356,7 +1378,25 @@ func (cv *ConversationView) handleChatStartEvent(cmd tea.Cmd) (tea.Model, tea.Cm
 func (cv *ConversationView) handleStreamingContentEvent(msg domain.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
+		if !cv.streamingRenderArmed {
+			cv.streamingRenderArmed = true
+			return cv, tea.Batch(cmd, streamingRenderTick())
+		}
 	}
+	return cv, cmd
+}
+
+// handleStreamingRenderTick performs the coalesced viewport rebuild: at most one
+// rebuild per tick while streaming, re-arming until streaming ends (issue #888).
+func (cv *ConversationView) handleStreamingRenderTick(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.streamingDirty {
+		cv.streamingDirty = false
+		cv.updateViewportContentFull()
+	}
+	if cv.isStreaming {
+		return cv, tea.Batch(cmd, streamingRenderTick())
+	}
+	cv.streamingRenderArmed = false
 	return cv, cmd
 }
 

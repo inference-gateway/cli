@@ -1197,6 +1197,53 @@ func TestConversationView_StreamingLifecycle(t *testing.T) {
 	}
 }
 
+// TestConversationView_StreamingRenderCoalesced pins the issue #888 fix: streamed
+// deltas must not each trigger a full viewport rebuild. Instead they mark the view
+// dirty and a single coalescing tick performs one rebuild, re-arming until the
+// stream ends. Per-token rebuilds are what scrambled the screen mid-generation.
+func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetWidth(100)
+	cv.SetHeight(30)
+
+	const marker = "STREAMED_MARKER"
+
+	_, cmd := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: marker + " one "}, nil)
+	if cmd == nil {
+		t.Fatal("first streamed delta should arm the render tick (non-nil cmd)")
+	}
+
+	if _, cmd2 := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
+		t.Fatal("subsequent streamed deltas must not arm a second render tick")
+	}
+
+	if strings.Contains(cv.renderedContent, marker) {
+		t.Fatal("streamed content must not be rendered synchronously on every delta")
+	}
+	if !cv.streamingDirty {
+		t.Fatal("streamed content should mark the view dirty")
+	}
+
+	_, tickCmd := cv.handleStreamingRenderTick(nil)
+	if !strings.Contains(cv.renderedContent, marker) {
+		t.Fatal("render tick should rebuild the viewport with the streamed content")
+	}
+	if cv.streamingDirty {
+		t.Fatal("render tick should clear the dirty flag")
+	}
+	if tickCmd == nil {
+		t.Fatal("render tick should re-arm while streaming is active")
+	}
+
+	cv.flushStreamingBuffer()
+	if _, stopCmd := cv.handleStreamingRenderTick(nil); stopCmd != nil {
+		t.Fatal("render tick should stop re-arming once streaming ends")
+	}
+	if cv.streamingRenderArmed {
+		t.Fatal("render tick should disarm once streaming ends")
+	}
+}
+
 func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
 	return domain.ConversationEntry{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
