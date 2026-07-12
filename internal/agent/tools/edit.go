@@ -329,10 +329,16 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 
 	diff := generateDiff(originalContentStr, newContent)
 
+	startLine := 0
+	if before, _, found := strings.Cut(originalContentStr, effectiveOld); found {
+		startLine = strings.Count(before, "\n") + 1
+	}
+
 	result := &domain.EditToolResult{
 		FilePath:             filePath,
 		OldString:            effectiveOld,
 		NewString:            effectiveNew,
+		StartLine:            startLine,
 		ReplacedCount:        replacedCount,
 		ReplaceAll:           replaceAll,
 		FileModified:         fileModified,
@@ -609,6 +615,9 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
 		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
+		if editResult, ok := result.Data.(*domain.EditToolResult); ok {
+			diffRenderer.SetStartLine(editResult.StartLine)
+		}
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Edits applied →"
 		dataContent = diffRenderer.RenderDiff(*diffInfo)
