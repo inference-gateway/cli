@@ -1,0 +1,37 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    pull_policy: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: infer_conversations
+      POSTGRES_USER: infer
+      POSTGRES_PASSWORD: infer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -U
+        - infer
+        - -d
+        - infer_conversations
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -375,30 +375,41 @@ Messages are stored with:
 
 ## Database Schema
 
-### SQLite/PostgreSQL
+### SQLite / PostgreSQL / Cloudflare D1
+
+All three SQL backends share a single-table schema: the conversation messages
+are stored as an embedded JSON blob in the `messages` column rather than in a
+separate normalized table, so one shared SQL core drives every SQL backend (the
+dialects differ only in placeholder style and datetime type). PostgreSQL uses
+`TIMESTAMP WITH TIME ZONE` where SQLite uses `DATETIME`.
 
 ```sql
--- Conversations table
+-- Conversations table (messages embedded as a JSON array in `messages`)
 CREATE TABLE conversations (
-    id VARCHAR(255) PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    messages TEXT NOT NULL,
+    total_input_tokens INTEGER NOT NULL DEFAULT 0,
+    total_output_tokens INTEGER NOT NULL DEFAULT 0,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    cost_stats TEXT DEFAULT '{}',
+    models TEXT DEFAULT '[]',
+    tags TEXT DEFAULT '[]',
+    title_generated BOOLEAN DEFAULT FALSE,
+    title_invalidated BOOLEAN DEFAULT FALSE,
+    title_generation_time TIMESTAMP,
     created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    message_count INTEGER NOT NULL DEFAULT 0,
-    model VARCHAR(255),
-    tags JSON,
-    summary TEXT,
-    token_stats JSON
+    updated_at TIMESTAMP NOT NULL
 );
 
--- Conversation entries table
-CREATE TABLE conversation_entries (
-    id BIGSERIAL PRIMARY KEY,
-    conversation_id VARCHAR(255) NOT NULL,
-    entry_data JSON NOT NULL,
-    sequence_number INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+-- Session-group index for channel-keyed session rollover
+CREATE TABLE session_groups (
+    group_key          TEXT PRIMARY KEY,
+    current_session_id TEXT NOT NULL,
+    history            TEXT NOT NULL DEFAULT '[]',
+    last_rollover      TIMESTAMP,
+    updated_at         TIMESTAMP NOT NULL
 );
 ```
 

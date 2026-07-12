@@ -249,9 +249,9 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 
 **PostgreSQL**:
 
-- Created `conversations` table with JSONB columns
-- Created `conversation_entries` table with foreign key
-- Added indexes for efficient queries
+- Created `conversations` table (single-table schema with messages embedded as a
+  JSON blob, mirroring SQLite; the shared SQL core drives both dialects)
+- Added index on `updated_at` for efficient queries
 
 ## See Also
 
