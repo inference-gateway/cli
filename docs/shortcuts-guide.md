@@ -58,7 +58,7 @@ These shortcuts are available out of the box:
 
 **Panels & views:**
 
-- `/diff` - Open the changes panel (interactive diff viewer)
+- `/diff` - Open the changes panel (interactive diff viewer); keybindings show as a legend at the bottom, updated per view (tree / patch / PR tab)
 - `/explorer` - Open the file explorer (tree + fuzzy finder)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
 - `/a2a` - Show registered A2A agents and their status (requires A2A)

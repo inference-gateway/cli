@@ -375,6 +375,47 @@ func (t *DiffViewerImpl) HintText() string {
 	return strings.Join(parts, " · ")
 }
 
+// FooterBar renders the per-mode keybinding legend shown beneath the diff pane,
+// greedy-wrapped to width so no binding is truncated (issue #875).
+func (t *DiffViewerImpl) FooterBar(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	accent := t.styleProvider.GetThemeColor("accent")
+	const sep = " · "
+
+	var lines []string
+	var line strings.Builder
+	lineW := 0
+	flush := func() {
+		if line.Len() > 0 {
+			lines = append(lines, " "+line.String())
+			line.Reset()
+			lineW = 0
+		}
+	}
+
+	for seg := range strings.SplitSeq(t.HintText(), sep) {
+		key, label, _ := strings.Cut(seg, " ")
+		styled := t.styleProvider.RenderWithColorAndBold(key, accent)
+		if label != "" {
+			styled += " " + t.styleProvider.RenderDimText(label)
+		}
+		segW := len([]rune(seg))
+		if lineW > 0 && lineW+len(sep)+segW > width-1 {
+			flush()
+		}
+		if lineW > 0 {
+			line.WriteString(t.styleProvider.RenderDimText(sep))
+			lineW += len(sep)
+		}
+		line.WriteString(styled)
+		lineW += segW
+	}
+	flush()
+	return strings.Join(lines, "\n")
+}
+
 // PaneWidth returns the current diff-pane width (after SetWidth), so the caller
 // can size the input row that sits beneath the diff pane.
 func (t *DiffViewerImpl) PaneWidth() int { return t.paneWidth }

@@ -240,6 +240,23 @@ func TestDiffViewer_StageUnstageAll(t *testing.T) {
 	}
 }
 
+func TestDiffViewer_FooterBar(t *testing.T) {
+	src := &fakeDiffSource{
+		unstaged: []gitdiff.FileChange{{Path: "a.go", Status: gitdiff.StatusModified}},
+		diffs:    map[string][2]string{},
+	}
+	v := newTestDiffViewer(src)
+
+	wide := stripANSI(v.FooterBar(200))
+	if !strings.Contains(wide, "c commit") || !strings.Contains(wide, "esc back") {
+		t.Errorf("footer missing bindings: %q", wide)
+	}
+
+	if got := stripANSI(v.FooterBar(30)); strings.Count(got, "\n") < 1 {
+		t.Errorf("narrow footer should wrap, got single line: %q", got)
+	}
+}
+
 func TestDiffViewer_Commit(t *testing.T) {
 	src := &fakeDiffSource{
 		unstaged: []gitdiff.FileChange{{Path: "a.go", Status: gitdiff.StatusModified}},
