@@ -348,8 +348,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
-	// Only wrap when telemetry is enabled, so the disabled tool path carries no
-	// decorator at all (zero overhead).
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}

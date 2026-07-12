@@ -26,7 +26,7 @@ func TestRecordExportAndAggregate(t *testing.T) {
 	rec.RecordUsage("deepseek/deepseek-chat", 100, 42)
 	rec.RecordSession("standard", RunSuccess, time.Second)
 
-	rec.Shutdown(context.Background()) // final export to the file
+	rec.Shutdown(context.Background())
 
 	stats, err := Aggregate(dir, time.Time{})
 	if err != nil {
