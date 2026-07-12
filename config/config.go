@@ -1069,6 +1069,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.Tools.TodoWrite.RequireApproval != nil {
 			return *c.Tools.TodoWrite.RequireApproval
 		}
+		return false
 	case "Schedule":
 		if c.Tools.Schedule.RequireApproval != nil {
 			return *c.Tools.Schedule.RequireApproval
