@@ -132,6 +132,32 @@ func TestSemconvValuesPinned(t *testing.T) {
 	}
 }
 
+// TestResourceHonorsOTelEnv proves the CLI is the single, env-configurable
+// telemetry engine: the standard OTel env vars add attributes (so infer-action /
+// CI can tag runs without a code change) and OTEL_SERVICE_NAME overrides the
+// default. Env wins on conflicts; the built-in attrs remain otherwise.
+func TestResourceHonorsOTelEnv(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "infer-action")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "github.actor=octocat,github.repo=org/x")
+
+	attrs := map[string]string{}
+	for _, kv := range newResource().Attributes() {
+		attrs[string(kv.Key)] = kv.Value.AsString()
+	}
+
+	for k, want := range map[string]string{
+		"service.name":         "infer-action",
+		"service.version":      Version,
+		"infer.execution.mode": ExecutionMode,
+		"github.actor":         "octocat",
+		"github.repo":          "org/x",
+	} {
+		if attrs[k] != want {
+			t.Errorf("attr %q = %q, want %q", k, attrs[k], want)
+		}
+	}
+}
+
 func TestProviderFromModel(t *testing.T) {
 	for in, want := range map[string]string{
 		"deepseek/deepseek-chat": "deepseek",

@@ -175,11 +175,14 @@ func newFileReader(dir, session string, interval time.Duration) (*os.File, sdkme
 }
 
 func newOTLPReader(endpoint string, headers map[string]string, interval time.Duration) (sdkmetric.Reader, error) {
-	exp, err := otlpmetrichttp.New(context.Background(),
+	opts := []otlpmetrichttp.Option{
 		otlpmetrichttp.WithEndpointURL(endpoint),
-		otlpmetrichttp.WithHeaders(headers),
 		otlpmetrichttp.WithTemporalitySelector(deltaTemporality),
-	)
+	}
+	if len(headers) > 0 {
+		opts = append(opts, otlpmetrichttp.WithHeaders(headers))
+	}
+	exp, err := otlpmetrichttp.New(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -195,12 +198,25 @@ func resolveOTLPEndpoint(configured string) string {
 	return os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 }
 
+// newResource stamps the CLI's identity onto every metric, then merges the
+// standard OTel env vars (OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) on top so
+// callers - CI, infer-action, an operator - can add or override attributes
+// (e.g. actor/repo/run id) without a code change. Env wins on conflicts.
 func newResource() *resource.Resource {
-	return resource.NewSchemaless(
+	base := resource.NewSchemaless(
 		attribute.String("service.name", "infer"),
 		attribute.String("service.version", Version),
 		attribute.String("infer.execution.mode", ExecutionMode),
 	)
+	env, err := resource.New(context.Background(), resource.WithFromEnv())
+	if err != nil || env == nil {
+		return base
+	}
+	merged, err := resource.Merge(base, env)
+	if err != nil {
+		return base
+	}
+	return merged
 }
 
 func (r *Recorder) initInstruments(meter metric.Meter) error {
