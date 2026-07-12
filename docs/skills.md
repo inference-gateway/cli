@@ -55,6 +55,29 @@ into `.infer/skills/`. A project's `.infer/skills/` still wins over both the
 open-standard and user-global locations - useful for overriding a personal or
 shared default with a per-project variant.
 
+## Built-in skills
+
+The CLI ships a small set of **built-in skills** embedded in the binary. On
+`infer init` they are seeded into the user-global `~/.infer/skills/` - the same
+directory the loader reads - **only if absent**, so they behave exactly like a
+skill you authored there yourself. Current built-ins:
+
+- **`tmux`** - drive interactive terminal programs (TUIs, REPLs, another CLI's
+  chat UI) by scripting tmux with `send-keys` / `capture-pane`.
+
+Because they are ordinary user-scope skills, you customise them with the same
+knobs as any other skill - there is no special "built-in" mode:
+
+- **Edit in place**: change `~/.infer/skills/tmux/SKILL.md`; a re-run of `infer
+  init` never re-seeds over your edit.
+- **Override per project**: a `.infer/skills/tmux/` (or `.agents/skills/tmux/`)
+  shadows the built-in for that repo (first match wins).
+- **Disable**: add the name to `agent.skills.disabled_skills`.
+- **Reset to the shipped default**: `infer init --overwrite` re-seeds it. Note
+  this refreshes the other shipped `~/.infer` defaults too, so use it when you
+  want a clean baseline; to restore just one skill, replace its `SKILL.md` by
+  hand (a plain `infer init` will not re-seed over an already-initialized home).
+
 ## Enabling
 
 Skills are **disabled by default** (zero token cost when off). Enable via

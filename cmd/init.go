@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/config/utils"
+	skills "github.com/inference-gateway/cli/internal/services/skills"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
@@ -203,6 +204,16 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 
 	userspaceOverwrite := overwrite && !project
+
+	// Seed the built-in skills into the user-scope skills dir (~/.infer/skills),
+	// the same directory the loader reads user skills from. Seed-if-absent, so a
+	// user's edits survive a re-init; --overwrite (home mode) resets to shipped
+	// defaults. Skipped in --project mode - built-ins are user-scope, not project.
+	if !project {
+		if err := skills.SeedBuiltins(skillsDirPath, userspaceOverwrite); err != nil {
+			return fmt.Errorf("failed to seed built-in skills: %w", err)
+		}
+	}
 
 	kbCreated, err := createFileIfAbsent(keybindingsPath, userspaceOverwrite, func(p string) error {
 		return createKeybindingsConfigFile(p)
