@@ -224,9 +224,6 @@ func extractPlanArgs(args map[string]any) (title, plan string, err error) {
 	if title == "" {
 		return "", "", fmt.Errorf("title cannot be empty")
 	}
-	if strings.ContainsAny(title, `/\`) || strings.Contains(title, "..") {
-		return "", "", fmt.Errorf("title must not contain path separators or '..'")
-	}
 
 	rawPlan, ok := args["plan"].(string)
 	if !ok {
