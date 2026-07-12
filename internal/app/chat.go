@@ -1918,19 +1918,7 @@ func (app *ChatApplication) renderDiffViewer() string {
 	width, height := app.stateManager.GetDimensions()
 	app.diffViewer.SetWidth(width)
 	app.diffViewer.SetHeight(height)
-	return app.diffViewer.Render(app.renderDiffViewerInput())
-}
-
-// renderDiffViewerInput renders the chat input (disabled, with a hint) sized to
-// the diff pane width, so it sits beneath the diff to the right of the sidebar.
-func (app *ChatApplication) renderDiffViewerInput() string {
-	iv, ok := app.inputView.(*components.InputView)
-	if !ok {
-		return ""
-	}
-	iv.SetCustomHint(app.diffViewer.HintText())
-	iv.SetWidth(app.diffViewer.PaneWidth())
-	return app.inputView.Render()
+	return app.diffViewer.Render(app.diffViewer.FooterBar(app.diffViewer.PaneWidth()))
 }
 
 // handleExplorerView drives the VS Code-style file explorer panel. It is lazily
