@@ -67,6 +67,26 @@ func TestUnifiedRendersWithLineNumbers(t *testing.T) {
 	}
 }
 
+func TestLineNumberOffsetShiftsGutter(t *testing.T) {
+	before := "alpha\nbeta\ngamma\n"
+	after := "alpha\nBETA\ngamma\n"
+
+	out := New().
+		Before("f", before).
+		After("f", after).
+		Layout(LayoutUnified).
+		LineNumberOffset(99).
+		String()
+	plain := stripANSI(out)
+
+	if !strings.Contains(plain, "101") {
+		t.Fatalf("expected offset line number 101 in output:\n%s", plain)
+	}
+	if strings.Contains(plain, "@@ -2,") || strings.Contains(plain, "@@ -1,") {
+		t.Fatalf("hunk header should reflect offset, got:\n%s", plain)
+	}
+}
+
 func TestAutoLayoutPicksSplitWhenWide(t *testing.T) {
 	dv := New().
 		Before("f", "a\n").

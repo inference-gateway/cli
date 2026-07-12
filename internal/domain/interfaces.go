@@ -997,6 +997,7 @@ type EditToolResult struct {
 	LinesDifference      int    `json:"lines_difference"`
 	Diff                 string `json:"diff,omitempty"`
 	WhitespaceNormalized bool   `json:"whitespace_normalized,omitempty"`
+	StartLine            int    `json:"start_line,omitempty"`
 }
 
 // TreeToolResult represents the result of a tree operation
