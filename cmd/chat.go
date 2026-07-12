@@ -225,6 +225,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		imageService,
 		skillsService,
 		githubIssueService,
+		services.GetGitHubSetupService(),
 		mcpManager,
 		messageQueue,
 		modelService,

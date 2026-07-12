@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,6 +49,7 @@ type ChatApplication struct {
 	imageService           domain.ImageService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
+	githubSetupService     domain.GitHubSetupService
 	pricingService         domain.PricingService
 	shortcutRegistry       *shortcuts.Registry
 	themeService           domain.ThemeService
@@ -152,6 +152,7 @@ func NewChatApplication(
 	imageService domain.ImageService,
 	skillsService domain.SkillsService,
 	githubIssueService domain.GitHubIssueService,
+	githubSetupService domain.GitHubSetupService,
 	mcpManager domain.MCPManager,
 	messageQueue domain.MessageQueue,
 	modelService domain.ModelService,
@@ -186,6 +187,7 @@ func NewChatApplication(
 		imageService:             imageService,
 		skillsService:            skillsService,
 		githubIssueService:       githubIssueService,
+		githubSetupService:       githubSetupService,
 		pricingService:           pricingService,
 		shortcutRegistry:         shortcutRegistry,
 		themeService:             themeService,
@@ -305,18 +307,18 @@ func NewChatApplication(
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
 	app.initGithubActionView.SetSecretsExistChecker(func(appID string) bool {
-		repo, err := app.getCurrentRepo()
+		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
 			return false
 		}
 
-		isOrg, err := app.isOrgRepo(repo)
+		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
 		if err != nil || !isOrg {
 			return false
 		}
 
 		orgName := strings.Split(repo, "/")[0]
-		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		secretsExist, err := app.githubSetupService.CheckOrgSecretsExist(orgName)
 		return err == nil && secretsExist
 	})
 
@@ -1172,12 +1174,12 @@ func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 // each check shells out and can take seconds.
 func (app *ChatApplication) checkGithubSetupPreconditions() tea.Cmd {
 	return func() tea.Msg {
-		repo, err := app.getCurrentRepo()
+		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
 			return githubSetupCheckedMsg{err: fmt.Errorf("failed to get repository info: %w", err)}
 		}
 
-		isOrg, err := app.isOrgRepo(repo)
+		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
 		if err != nil {
 			return githubSetupCheckedMsg{err: fmt.Errorf("failed to check repository type: %w", err)}
 		}
@@ -1185,7 +1187,7 @@ func (app *ChatApplication) checkGithubSetupPreconditions() tea.Cmd {
 		msg := githubSetupCheckedMsg{repo: repo, isOrg: isOrg}
 		if isOrg {
 			owner := strings.Split(repo, "/")[0]
-			if msg.secretsExist, err = app.checkOrgSecretsExist(owner); err != nil {
+			if msg.secretsExist, err = app.githubSetupService.CheckOrgSecretsExist(owner); err != nil {
 				return githubSetupCheckedMsg{err: fmt.Errorf("failed to check org secrets: %w", err)}
 			}
 		}
@@ -1250,7 +1252,7 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 
 func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath string) tea.Cmd {
 	return func() tea.Msg {
-		repo, err := app.getCurrentRepo()
+		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
@@ -1258,7 +1260,7 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 			}
 		}
 
-		isOrg, err := app.isOrgRepo(repo)
+		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
 		if err != nil {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
@@ -1275,17 +1277,17 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 }
 
 func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
-	workflowContent := app.generateStandardWorkflowContent()
+	workflowContent := app.githubSetupService.GenerateStandardWorkflowContent()
 	workflowPath := ".github/workflows/infer.yml"
 
-	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
 			Sticky: true,
 		}
 	}
 
-	prURL, err := app.preparePRCreation(repo, workflowPath)
+	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
 	if err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
@@ -1299,7 +1301,7 @@ func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
 func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string) tea.Msg {
 	orgName := strings.Split(repo, "/")[0]
 
-	secretsExist, err := app.checkOrgSecretsExist(orgName)
+	secretsExist, err := app.githubSetupService.CheckOrgSecretsExist(orgName)
 	if err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
@@ -1313,17 +1315,17 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	workflowContent := app.generateGithubActionWorkflowContent()
+	workflowContent := app.githubSetupService.GenerateGithubActionWorkflowContent()
 	workflowPath := ".github/workflows/infer.yml"
 
-	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
 			Sticky: true,
 		}
 	}
 
-	prURL, err := app.preparePRCreation(repo, workflowPath)
+	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
 	if err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
@@ -1343,14 +1345,14 @@ func (app *ChatApplication) setupOrgSecrets(orgName, appID, privateKeyPath strin
 		}
 	}
 
-	if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
 			Sticky: true,
 		}
 	}
 
-	if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
+	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
 			Sticky: true,
@@ -2805,304 +2807,6 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyPressMsg) []t
 	}
 
 	return cmds
-}
-
-func (app *ChatApplication) getCurrentRepo() (string, error) {
-	cmd := exec.Command("gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current repository: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-func (app *ChatApplication) writeWorkflowFile(path, content string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
-}
-
-func (app *ChatApplication) isOrgRepo(repo string) (bool, error) {
-	parts := strings.Split(repo, "/")
-	if len(parts) != 2 {
-		return false, fmt.Errorf("invalid repo format: %s", repo)
-	}
-	owner := parts[0]
-
-	cmd := exec.Command("gh", "api", fmt.Sprintf("/orgs/%s", owner))
-	if err := cmd.Run(); err != nil {
-		return false, nil
-	}
-	return true, nil
-}
-
-func (app *ChatApplication) checkOrgSecretsExist(orgName string) (bool, error) {
-	cmd := exec.Command("gh", "secret", "list", "--org", orgName)
-	output, err := cmd.Output()
-	if err != nil {
-		return false, fmt.Errorf("failed to list org secrets: %w", err)
-	}
-
-	secrets := string(output)
-	hasAppID := strings.Contains(secrets, "INFER_APP_ID")
-	hasPrivateKey := strings.Contains(secrets, "INFER_APP_PRIVATE_KEY")
-
-	return hasAppID && hasPrivateKey, nil
-}
-
-func (app *ChatApplication) setOrgSecret(orgName, name, value string) error {
-	cmd := exec.Command("gh", "secret", "set", name, "--org", orgName, "--visibility", "all", "--body", value)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %w", string(output), err)
-	}
-	return nil
-}
-
-// Version pins and defaults for the generated .github/workflows/infer.yml.
-// Bumping any of these is a one-line change picked up by both templates.
-const (
-	inferActionVersion     = "v0.29.0"
-	checkoutActionVersion  = "v7.0.0"
-	appTokenActionVersion  = "v3.2.0"
-	workflowDefaultModel   = "ollama_cloud/deepseek-v4-flash"
-	workflowTimeoutMinutes = 15
-)
-
-// workflowHeader is the shared prologue of the generated workflow: header
-// comment, triggers (issue/comment mentions + manual workflow_dispatch),
-// permissions, and the gated job preamble with concurrency and timeout.
-func workflowHeader(extraNote string) string {
-	return fmt.Sprintf(`---
-# Infer Agent CI
-#
-# Runs the Infer agent (inference-gateway/infer-action) in three ways:
-#
-# 1. Issue-driven: mention `+"`@infer`"+` in an issue title, body, or comment and
-#    the agent picks up the task, works on it, and opens a draft PR.
-# 2. Review-comment-driven: mention `+"`@infer`"+` in a pull request review comment
-#    (inline or thread reply) and the agent works on the focused file/diff hunk.
-# 3. Manual (workflow_dispatch): run it from the Actions tab with a free-text
-#    prompt — useful for ad-hoc tasks like "find bugs and report them".
-#    Optionally tick "browser-agent" to spin up the A2A
-#    inference-gateway/browser-agent container so the agent can browse the web.
-#
-# Notes:
-# - Jobs are capped at %d minutes (timeout-minutes).
-# - Runs are deduplicated per issue, PR, or dispatch run via concurrency.%s
-name: Infer
-
-on:
-  issues:
-    types:
-      - opened
-      - edited
-  issue_comment:
-    types:
-      - created
-  pull_request_review_comment:
-    types:
-      - created
-  workflow_dispatch:
-    inputs:
-      prompt:
-        description: 'Free-text task for the agent (e.g. "find bugs and report them")'
-        type: string
-        required: true
-      browser-agent:
-        description: 'Start the A2A browser-agent (inference-gateway/browser-agent) so the agent can browse the web'
-        type: boolean
-        required: false
-        default: false
-      debug:
-        description: 'Enable debug output and mirror agent logs'
-        type: boolean
-        required: false
-        default: false
-
-permissions:
-  issues: write
-  contents: write
-  pull-requests: write
-
-jobs:
-  infer:
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
-      cancel-in-progress: true
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.sender.type != 'Bot' &&
-        !endsWith(github.actor, '[bot]') &&
-        (
-          (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@infer')) ||
-          (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@infer')) ||
-          (github.event_name == 'issues' && (contains(github.event.issue.body, '@infer') || contains(github.event.issue.title, '@infer')))
-        )
-      )
-    runs-on: ubuntu-24.04
-    timeout-minutes: %d
-    steps:
-`, workflowTimeoutMinutes, extraNote, workflowTimeoutMinutes)
-}
-
-// workflowAgentInputs is the shared tail of the "Run Infer Agent" step: the
-// agent defaults and the provider API key pass-throughs.
-const workflowAgentInputs = `          trigger-phrase: '@infer'
-          model: ` + workflowDefaultModel + `
-          direct-prompt: ${{ inputs.prompt }}
-          agents: ${{ inputs.browser-agent && 'browser-agent' || '' }}
-          debug: ${{ inputs.debug }}
-          mirror-agent-logs: ${{ inputs.debug }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
-          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
-          groq-api-key: ${{ secrets.GROQ_API_KEY }}
-          mistral-api-key: ${{ secrets.MISTRAL_API_KEY }}
-          cloudflare-api-key: ${{ secrets.CLOUDFLARE_API_KEY }}
-          cohere-api-key: ${{ secrets.COHERE_API_KEY }}
-          ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
-          ollama-cloud-api-key: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
-          moonshot-api-key: ${{ secrets.MOONSHOT_API_KEY }}
-          minimax-api-key: ${{ secrets.MINIMAX_API_KEY }}
-          nvidia-api-key: ${{ secrets.NVIDIA_API_KEY }}
-          zai-api-key: ${{ secrets.ZAI_API_KEY }}
-`
-
-func (app *ChatApplication) generateStandardWorkflowContent() string {
-	return workflowHeader("") + fmt.Sprintf(`      - name: Checkout repository
-        uses: actions/checkout@%s
-
-      - name: Run Infer Agent
-        uses: inference-gateway/infer-action@%s
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-`, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
-}
-
-func (app *ChatApplication) generateGithubActionWorkflowContent() string {
-	extraNote := `
-# - The GitHub App used for the token needs the "Workflows" (read & write)
-#   repository permission so the agent can push changes to .github/workflows.`
-	return workflowHeader(extraNote) + fmt.Sprintf(`      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@%s
-        with:
-          client-id: ${{ secrets.INFER_APP_ID }}
-          private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            ${{ github.event.repository.name }}
-
-      - name: Get GitHub App User ID
-        id: get-user-id
-        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      - name: Set up Git
-        run: |
-          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
-          git config --global commit.gpgsign false
-          git config --global commit.signoff true
-
-      - name: Checkout repository
-        uses: actions/checkout@%s
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Run Infer Agent
-        uses: inference-gateway/infer-action@%s
-        with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          github-app-slug: ${{ steps.app-token.outputs.app-slug }}
-`, appTokenActionVersion, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
-}
-
-func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string, error) {
-	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
-	output, err := cmd.Output()
-	var baseBranch string
-	if err == nil {
-		parts := strings.Split(strings.TrimSpace(string(output)), "/")
-		if len(parts) > 0 {
-			baseBranch = parts[len(parts)-1]
-		}
-	}
-	if baseBranch == "" {
-		baseBranch = "main"
-	}
-
-	gitCtx, cancel := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
-	defer cancel()
-	currentBranch, err := gitdiff.RunGit(gitCtx, "", "branch", "--show-current")
-	if err != nil {
-		return "", fmt.Errorf("failed to get current branch: %w", err)
-	}
-	branch := strings.TrimSpace(string(currentBranch))
-
-	if branch == "main" || branch == "master" {
-		baseBranch = branch
-		branch = "ci/setup-infer-github-action"
-		cmd = exec.Command("git", "checkout", "-b", branch)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("failed to create branch: %s: %w", string(output), err)
-		}
-	}
-
-	cmd = exec.Command("git", "add", workflowPath)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("failed to add file: %s: %w", string(output), err)
-	}
-
-	cmd = exec.Command("git", "commit", "-m", "feat(ci): Setup infer workflow")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("failed to commit: %s: %w", string(output), err)
-	}
-
-	cmd = exec.Command("git", "push", "-u", "origin", branch)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("failed to push: %s: %w", string(output), err)
-	}
-
-	title := "feat(ci): Setup infer workflow"
-	body := `## Summary
-
-This PR sets up the infer workflow for automated code review and assistance.
-
-## Changes
-
-- Added infer workflow configuration
-- Configured to trigger on @infer mentions in issues
-
-## Testing
-
-After merging, @infer mentions in issues will trigger the bot.
-
-🤖 Generated with infer`
-
-	cmd = exec.Command("gh", "pr", "create",
-		"--base", baseBranch,
-		"--head", branch,
-		"--title", title,
-		"--body", body,
-		"--web")
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to open PR creation page: %w", err)
-	}
-
-	return fmt.Sprintf("https://github.com/%s/compare/%s...%s", repo, baseBranch, branch), nil
 }
 
 // buildAgentNameResolver loads ~/.infer/agents.yaml (or the project-level
