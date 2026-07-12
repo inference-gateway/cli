@@ -877,9 +877,9 @@ func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	if !key.Matches(k, inputViewKeys.navUp) &&
-		!key.Matches(k, inputViewKeys.navDown) &&
-		!isNavigationKey(k) {
+	// navUp/navDown already returned above; only cursor-movement keys should
+	// preserve history navigation, everything else resets it.
+	if !isNavigationKey(k) {
 		iv.historyManager.ResetNavigation()
 	}
 
@@ -889,20 +889,7 @@ func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // isNavigationKey reports whether the key is a cursor-movement key that should not
 // reset history navigation.
 func isNavigationKey(msg tea.KeyPressMsg) bool {
-	navigationKeys := []key.Binding{
-		key.NewBinding(key.WithKeys("left")),
-		key.NewBinding(key.WithKeys("right")),
-		key.NewBinding(key.WithKeys("ctrl+a")),
-		key.NewBinding(key.WithKeys("ctrl+e")),
-		key.NewBinding(key.WithKeys("home")),
-		key.NewBinding(key.WithKeys("end")),
-	}
-	for _, b := range navigationKeys {
-		if key.Matches(msg, b) {
-			return true
-		}
-	}
-	return false
+	return key.Matches(msg, inputViewKeys.navigation...)
 }
 
 func (iv *InputView) CanHandle(key tea.KeyPressMsg) bool {
