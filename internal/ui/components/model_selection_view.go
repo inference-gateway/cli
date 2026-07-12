@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	textinput "charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
@@ -137,7 +138,7 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.buildForm()
 		return m, nil
 	case tea.KeyPressMsg:
-		if msg.String() == "ctrl+c" {
+		if key.Matches(msg, modelSelectorKeys.cancel) {
 			m.cancelled = true
 			m.done = true
 			return m, tea.Quit
@@ -145,11 +146,20 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.searchMode {
 			return m, m.handleSearchKey(msg)
 		}
-		switch msg.String() {
-		case "1", "2", "3", "4":
-			m.handleViewSwitch(msg.String())
+		switch {
+		case key.Matches(msg, modelSelectorKeys.tab1):
+			m.handleViewSwitch("1")
 			return m, nil
-		case "/":
+		case key.Matches(msg, modelSelectorKeys.tab2):
+			m.handleViewSwitch("2")
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab3):
+			m.handleViewSwitch("3")
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab4):
+			m.handleViewSwitch("4")
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.search):
 			m.searchMode = true
 			return m, m.search.Focus()
 		}
@@ -162,8 +172,8 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // and selection still reach the list, esc clears the search, and everything
 // else edits the query (rebuilding the option set on change).
 func (m *ModelSelectorImpl) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch msg.String() {
-	case "esc":
+	switch {
+	case key.Matches(msg, modelSelectorKeys.escape):
 		m.searchMode = false
 		m.search.Blur()
 		if m.search.Value() != "" {
@@ -171,7 +181,9 @@ func (m *ModelSelectorImpl) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.buildForm()
 		}
 		return nil
-	case "enter", "up", "down":
+	case key.Matches(msg, modelSelectorKeys.enter),
+		key.Matches(msg, modelSelectorKeys.navUp),
+		key.Matches(msg, modelSelectorKeys.navDown):
 		return m.forwardToForm(msg)
 	}
 

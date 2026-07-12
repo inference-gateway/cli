@@ -3,9 +3,9 @@ package components
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
@@ -59,13 +59,13 @@ const (
 // diffKeymap resolves pressed keys to configurable diff-panel action IDs and
 // exposes each action's primary key for footer hints.
 type diffKeymap struct {
-	keys map[string][]string // actionID -> effective keys
+	bindings map[string]key.Binding // actionID -> key.Binding
 }
 
-// match returns the first of the candidate action IDs bound to the pressed key.
-func (k diffKeymap) match(pressed string, candidates ...string) string {
+// matches returns the first of the candidate action IDs matching the pressed key.
+func (k diffKeymap) matches(msg tea.KeyPressMsg, candidates ...string) string {
 	for _, id := range candidates {
-		if slices.Contains(k.keys[id], pressed) {
+		if b, ok := k.bindings[id]; ok && key.Matches(msg, b) {
 			return id
 		}
 	}
@@ -74,18 +74,10 @@ func (k diffKeymap) match(pressed string, candidates ...string) string {
 
 // display returns the primary (first) key bound to an action, for hint text.
 func (k diffKeymap) display(actionID string) string {
-	if ks := k.keys[actionID]; len(ks) > 0 {
-		return ks[0]
+	if b, ok := k.bindings[actionID]; ok {
+		return b.Help().Key
 	}
 	return ""
-}
-
-// normalizeKey maps the raw space key (" ") to the "space" token used in config.
-func normalizeKey(s string) string {
-	if s == " " {
-		return "space"
-	}
-	return s
 }
 
 // rowKind classifies a visible row in the changes tree.
@@ -211,7 +203,7 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 		styleProvider:  styleProvider,
 		themeService:   themeService,
 		diffRenderer:   NewDiffRenderer(styleProvider),
-		keymap:         diffKeymap{keys: config.ResolveNamespaceBindings(kb, config.NamespaceDiffViewer)},
+		keymap:         newDiffKeymap(kb, config.NamespaceDiffViewer),
 		collapsed:      make(map[string]bool),
 		viewport:       vp,
 		loading:        true,
@@ -312,6 +304,22 @@ func isMutatingAction(action string) bool {
 
 func (t *DiffViewerImpl) IsDone() bool      { return t.done }
 func (t *DiffViewerImpl) IsCancelled() bool { return t.cancel }
+
+// newDiffKeymap builds a diffKeymap from the config namespace bindings, wrapping
+// each action's key strings into a key.Binding.
+func newDiffKeymap(kb config.KeybindingsConfig, namespace config.KeyNamespace) diffKeymap {
+	raw := config.ResolveNamespaceBindings(kb, namespace)
+	bindings := make(map[string]key.Binding, len(raw))
+	for id, keys := range raw {
+		opts := []key.BindingOpt{key.WithKeys(keys...)}
+		if len(keys) > 0 {
+			// primary key drives footer hints via display()/Help().Key
+			opts = append(opts, key.WithHelp(keys[0], ""))
+		}
+		bindings[id] = key.NewBinding(opts...)
+	}
+	return diffKeymap{bindings: bindings}
+}
 
 // HintText returns the footer hint for the current mode (tree vs patch).
 func (t *DiffViewerImpl) HintText() string {
@@ -447,18 +455,17 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.patchMode {
 		return t.handlePatchKey(msg)
 	}
-	pressed := normalizeKey(msg.String())
 	if t.confirmDiscard != nil {
-		return t.handleDiscardConfirm(pressed)
+		return t.handleDiscardConfirm(msg)
 	}
-	if pressed == "ctrl+c" {
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) {
 		t.cancel = true
 		return t, nil
 	}
-	if pressed == "ctrl+r" {
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+r"))) {
 		return t, t.loadCmd()
 	}
-	matched := t.keymap.match(pressed,
+	matched := t.keymap.matches(msg,
 		actDiffNavUp, actDiffNavDown, actDiffToggle, actDiffExpand, actDiffCollapse,
 		actDiffStage, actDiffUnstage, actDiffStageAll, actDiffUnstageAll,
 		actDiffDiscard, actDiffPatch, actDiffEdit, actDiffCommit, actDiffSwitchTab,
@@ -624,11 +631,11 @@ func (t *DiffViewerImpl) discardCmd(fc gitdiff.FileChange) tea.Cmd {
 
 // handleDiscardConfirm resolves the pending discard confirmation: `y` discards
 // the file's working-tree changes; any other key cancels.
-func (t *DiffViewerImpl) handleDiscardConfirm(key string) (tea.Model, tea.Cmd) {
+func (t *DiffViewerImpl) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	fc := t.confirmDiscard
 	t.confirmDiscard = nil
 	t.dirtyDiff = true
-	if key == "y" && fc != nil {
+	if key.Matches(msg, key.NewBinding(key.WithKeys("y"))) && fc != nil {
 		return t, t.discardCmd(*fc)
 	}
 	return t, nil
@@ -699,7 +706,7 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 // [ / ] jump hunks; esc clears a selection or exits. New-action candidates are
 // listed before apply so they win any shared key.
 func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch t.keymap.match(normalizeKey(msg.String()),
+	switch t.keymap.matches(msg,
 		actDiffCancel, actDiffNavUp, actDiffNavDown,
 		actDiffPatchSelect, actDiffPatchSplit, actDiffHunkPrev, actDiffHunkNext,
 		actDiffPatchApply, actDiffScrollUp, actDiffScrollDown, actDiffHalfUp, actDiffHalfDown) {

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
@@ -164,7 +165,7 @@ func NewFileExplorer(root string, styleProvider *styles.Provider, themeService d
 		root:          root,
 		styleProvider: styleProvider,
 		themeService:  themeService,
-		keymap:        diffKeymap{keys: config.ResolveNamespaceBindings(kb, config.NamespaceExplorer)},
+		keymap:        newDiffKeymap(kb, config.NamespaceExplorer),
 		children:      make(map[string][]explorerNode),
 		expanded:      make(map[string]bool),
 		viewport:      vp,
@@ -314,16 +315,15 @@ func (t *FileExplorerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.findMode {
 		return t.handleFindKey(msg)
 	}
-	pressed := normalizeKey(msg.String())
-	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) { // universal escape; intentionally not remappable
 		t.cancel = true
 		return t, nil
 	}
-	if pressed == "ctrl+r" { // manual refresh (replaces the deleted 1s poll)
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+r"))) { // manual refresh
 		t.refresh()
 		return t, nil
 	}
-	switch t.keymap.match(pressed,
+	switch t.keymap.matches(msg,
 		actExpNavUp, actExpNavDown, actExpToggle, actExpExpand, actExpCollapse,
 		actExpOpen, actExpFind, actExpToggleHidden, actExpSelect,
 		actExpScrollUp, actExpScrollDown, actExpHalfUp, actExpHalfDown, actExpCancel) {
@@ -497,23 +497,23 @@ func (t *FileExplorerImpl) exitFind() {
 }
 
 func (t *FileExplorerImpl) handleFindKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch normalizeKey(msg.String()) {
-	case "ctrl+c":
+	switch {
+	case key.Matches(msg, fileExplorerFindKeys.cancel):
 		t.cancel = true
 		return t, nil
-	case "esc":
+	case key.Matches(msg, fileExplorerFindKeys.escape):
 		t.exitFind()
 		return t, nil
-	case "up":
+	case key.Matches(msg, fileExplorerFindKeys.navUp):
 		t.findCursor = clampInt(t.findCursor-1, 0, max(len(t.filtered)-1, 0))
 		return t, nil
-	case "down":
+	case key.Matches(msg, fileExplorerFindKeys.navDown):
 		t.findCursor = clampInt(t.findCursor+1, 0, max(len(t.filtered)-1, 0))
 		return t, nil
-	case "enter":
+	case key.Matches(msg, fileExplorerFindKeys.enter):
 		t.acceptFind()
 		return t, nil
-	case "backspace":
+	case key.Matches(msg, fileExplorerFindKeys.backspace):
 		if r := []rune(t.findQuery); len(r) > 0 {
 			t.findQuery = string(r[:len(r)-1])
 			t.applyFilter()
@@ -667,18 +667,17 @@ func (t *FileExplorerImpl) movePreviewCursor(delta int) {
 }
 
 func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	pressed := normalizeKey(msg.String())
-	if pressed == "ctrl+c" { // universal escape; intentionally not remappable
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) { // universal escape; intentionally not remappable
 		t.cancel = true
 		return t, nil
 	}
-	switch t.keymap.match(pressed,
+	switch t.keymap.matches(msg,
 		actExpNavUp, actExpNavDown, actExpToggleSelect, actExpAnnotate,
 		actExpSubmit, actExpCancel) {
 	case actExpCancel:
 		// esc exits select mode (preserving selections); q (or any other cancel
 		// binding) closes the explorer, carrying captured selections to chat.
-		if pressed == "esc" {
+		if key.Matches(msg, key.NewBinding(key.WithKeys("esc"))) {
 			t.exitSelectMode()
 		} else {
 			t.done = true
@@ -712,18 +711,18 @@ func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.
 // (storing the selection), esc cancels (keeping the anchor so the user can
 // retry). Mirrors handleFindKey's typing model.
 func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch normalizeKey(msg.String()) {
-	case "ctrl+c":
+	switch {
+	case key.Matches(msg, fileExplorerAnnotateKeys.cancel):
 		t.cancel = true
 		return t, nil
-	case "esc":
+	case key.Matches(msg, fileExplorerAnnotateKeys.escape):
 		t.annotateMode = false
 		t.annotateInput = ""
 		return t, nil
-	case "enter":
+	case key.Matches(msg, fileExplorerAnnotateKeys.enter):
 		t.confirmAnnotation()
 		return t, nil
-	case "backspace":
+	case key.Matches(msg, fileExplorerAnnotateKeys.backspace):
 		if r := []rune(t.annotateInput); len(r) > 0 {
 			t.annotateInput = string(r[:len(r)-1])
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	key "charm.land/bubbles/v2/key"
 	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -378,34 +379,34 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 		return t.handleSearchInput(msg)
 	}
 
-	switch msg.String() {
-	case "q", "esc", "ctrl+c":
+	switch {
+	case key.Matches(msg, taskManagerKeys.quit):
 		t.cancelled = true
 		return t, nil
 
-	case "enter":
+	case key.Matches(msg, taskManagerKeys.enter):
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			t.showInfo = true
 			return t, nil
 		}
 
-	case "up", "k":
+	case key.Matches(msg, taskManagerKeys.navUp):
 		if t.selected > 0 {
 			t.selected--
 		}
 
-	case "down", "j":
+	case key.Matches(msg, taskManagerKeys.navDown):
 		if t.selected < len(t.filteredTasks)-1 {
 			t.selected++
 		}
 
-	case "i":
+	case key.Matches(msg, taskManagerKeys.info):
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			t.showInfo = true
 			return t, nil
 		}
 
-	case "c":
+	case key.Matches(msg, taskManagerKeys.cancel):
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
 			if isCancellable(task) {
@@ -414,12 +415,24 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 			}
 		}
 
-	case "/":
+	case key.Matches(msg, taskManagerKeys.search):
 		t.searchMode = true
 		return t, nil
 
-	case "1", "2", "3", "4", "5":
-		t.handleViewSwitch(msg.String())
+	case key.Matches(msg, taskManagerKeys.tab1):
+		t.handleViewSwitch("1")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab2):
+		t.handleViewSwitch("2")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab3):
+		t.handleViewSwitch("3")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab4):
+		t.handleViewSwitch("4")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab5):
+		t.handleViewSwitch("5")
 		return t, nil
 
 	}
@@ -444,15 +457,15 @@ func (t *TaskManagerImpl) handleViewSwitch(key string) {
 }
 
 func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "Y":
+	switch {
+	case key.Matches(msg, taskManagerKeys.confirm):
 		t.confirmCancel = false
 		if t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
 			return t, t.cancelTaskCmd(task)
 		}
 
-	case "n", "N", "esc":
+	case key.Matches(msg, taskManagerKeys.deny):
 		t.confirmCancel = false
 	}
 
@@ -462,21 +475,21 @@ func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Mod
 func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	switch msg.String() {
-	case "q", "esc", "i", "ctrl+c":
+	switch {
+	case key.Matches(msg, taskManagerKeys.close):
 		t.showInfo = false
 		return t, nil
-	case "up", "k":
+	case key.Matches(msg, taskManagerKeys.navUp):
 		t.infoViewport.ScrollUp(1)
-	case "down", "j":
+	case key.Matches(msg, taskManagerKeys.navDown):
 		t.infoViewport.ScrollDown(1)
-	case "pgup", "b":
+	case key.Matches(msg, taskManagerKeys.pgUp):
 		t.infoViewport.PageUp()
-	case "pgdown", "f", " ":
+	case key.Matches(msg, taskManagerKeys.pgDown):
 		t.infoViewport.PageDown()
-	case "g":
+	case key.Matches(msg, taskManagerKeys.top):
 		t.infoViewport.GotoTop()
-	case "G":
+	case key.Matches(msg, taskManagerKeys.bottom):
 		t.infoViewport.GotoBottom()
 	default:
 		t.infoViewport, cmd = t.infoViewport.Update(msg)
@@ -486,25 +499,25 @@ func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 }
 
 func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	switch {
+	case key.Matches(msg, taskManagerKeys.escape):
 		t.searchMode = false
 		t.searchQuery = ""
 		t.applyFilters()
 
-	case "enter":
+	case key.Matches(msg, taskManagerKeys.enter):
 		t.searchMode = false
 		t.applyFilters()
 
-	case "backspace":
+	case key.Matches(msg, taskManagerKeys.backspace):
 		if len(t.searchQuery) > 0 {
 			t.searchQuery = t.searchQuery[:len(t.searchQuery)-1]
 			t.applyFilters()
 		}
 
 	default:
-		if len(msg.String()) == 1 {
-			t.searchQuery += msg.String()
+		if k := msg.String(); len(k) == 1 {
+			t.searchQuery += k
 			t.applyFilters()
 		}
 	}

@@ -10,7 +10,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -18,7 +17,7 @@ import (
 type HelpBar struct {
 	enabled       bool
 	width         int
-	shortcuts     []ui.KeyShortcut
+	shortcuts     []key.Binding
 	styleProvider *styles.Provider
 	help          help.Model
 
@@ -30,21 +29,21 @@ func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
 	return &HelpBar{
 		enabled:       false,
 		width:         80,
-		shortcuts:     make([]ui.KeyShortcut, 0),
+		shortcuts:     make([]key.Binding, 0),
 		styleProvider: styleProvider,
 		help:          help.New(),
 	}
 }
 
-func (hb *HelpBar) SetShortcuts(shortcuts []ui.KeyShortcut) {
-	sortedShortcuts := make([]ui.KeyShortcut, len(shortcuts))
+func (hb *HelpBar) SetShortcuts(shortcuts []key.Binding) {
+	sortedShortcuts := make([]key.Binding, len(shortcuts))
 	copy(sortedShortcuts, shortcuts)
 
-	slices.SortFunc(sortedShortcuts, func(a, b ui.KeyShortcut) int {
-		if c := cmp.Compare(a.Key, b.Key); c != 0 {
+	slices.SortFunc(sortedShortcuts, func(a, b key.Binding) int {
+		if c := cmp.Compare(a.Help().Key, b.Help().Key); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Description, b.Description)
+		return cmp.Compare(a.Help().Desc, b.Help().Desc)
 	})
 
 	hb.shortcuts = sortedShortcuts
@@ -97,16 +96,10 @@ func (hb *HelpBar) refreshStyles() {
 	hb.help.Styles.FullSeparator = lipgloss.NewStyle().Foreground(dimColor)
 }
 
-// helpColumns converts the sorted shortcuts into key.Binding columns laid out
-// column-major, so each column reads top to bottom.
+// helpColumns returns the sorted bindings as column-major groups, so each
+// column reads top to bottom.
 func (hb *HelpBar) helpColumns() [][]key.Binding {
-	bindings := make([]key.Binding, 0, len(hb.shortcuts))
-	for _, s := range hb.shortcuts {
-		bindings = append(bindings, key.NewBinding(
-			key.WithKeys(s.Key),
-			key.WithHelp(s.Key, s.Description),
-		))
-	}
+	bindings := hb.shortcuts
 
 	cols := hb.columnCount()
 	rowsPerCol := (len(bindings) + cols - 1) / cols

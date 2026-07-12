@@ -1,7 +1,9 @@
 package ui
 
 import (
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
@@ -142,7 +144,7 @@ type InputStatusBarComponent interface {
 
 // HelpBarComponent interface for help bar
 type HelpBarComponent interface {
-	SetShortcuts(shortcuts []KeyShortcut)
+	SetShortcuts(shortcuts []key.Binding)
 	IsEnabled() bool
 	SetEnabled(enabled bool)
 	SetWidth(width int)

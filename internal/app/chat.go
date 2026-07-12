@@ -371,30 +371,30 @@ func NewChatApplication(
 
 // updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
 func (app *ChatApplication) updateHelpBarShortcuts() {
-	app.helpBar.SetShortcuts(app.collectKeyShortcuts())
+	app.helpBar.SetShortcuts(app.collectKeyBindings())
 }
 
-// collectKeyShortcuts gathers the input-prefix hints and the active keybinding
+// collectKeyBindings gathers the input-prefix hints and the active keybinding
 // shortcuts into a single list, shared by the help bar and the /help overlay.
-func (app *ChatApplication) collectKeyShortcuts() []ui.KeyShortcut {
-	shortcuts := []ui.KeyShortcut{
-		{Key: "!", Description: "for bash mode"},
-		{Key: "!!", Description: "for tools mode"},
-		{Key: "/", Description: "for shortcuts"},
-		{Key: "@", Description: "for file paths"},
-		{Key: "#", Description: "for github issues"},
+func (app *ChatApplication) collectKeyBindings() []key.Binding {
+	bindings := []key.Binding{
+		key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "for bash mode")),
+		key.NewBinding(key.WithKeys("!!"), key.WithHelp("!!", "for tools mode")),
+		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "for shortcuts")),
+		key.NewBinding(key.WithKeys("@"), key.WithHelp("@", "for file paths")),
+		key.NewBinding(key.WithKeys("#"), key.WithHelp("#", "for github issues")),
 	}
 
 	if app.keyBindingManager != nil {
 		for _, kbShortcut := range app.keyBindingManager.GetHelpShortcuts() {
-			shortcuts = append(shortcuts, ui.KeyShortcut{
-				Key:         kbShortcut.Key,
-				Description: kbShortcut.Description,
-			})
+			bindings = append(bindings, key.NewBinding(
+				key.WithKeys(kbShortcut.Key),
+				key.WithHelp(kbShortcut.Key, kbShortcut.Description),
+			))
 		}
 	}
 
-	return shortcuts
+	return bindings
 }
 
 // Init initializes the application
@@ -1764,7 +1764,14 @@ func (app *ChatApplication) handleHelpViewTrigger() []tea.Cmd {
 	width, height := app.stateManager.GetDimensions()
 	app.helpView.SetWidth(width)
 	app.helpView.SetHeight(height)
-	app.helpView.SetContent(app.buildHelpCommands(), app.collectKeyShortcuts())
+
+	bindings := app.collectKeyBindings()
+	shortcuts := make([]ui.KeyShortcut, len(bindings))
+	for i, b := range bindings {
+		h := b.Help()
+		shortcuts[i] = ui.KeyShortcut{Key: h.Key, Description: h.Desc}
+	}
+	app.helpView.SetContent(app.buildHelpCommands(), shortcuts)
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateHelp); err != nil {
 		cmds = append(cmds, func() tea.Msg {

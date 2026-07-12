@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -154,17 +155,17 @@ func (m *ThemeSelectorImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd te
 		return false, nil
 	}
 
-	switch msg.String() {
-	case "ctrl+c":
+	switch {
+	case key.Matches(msg, listViewKeys.cancel):
 		m.cancel()
 		return true, nil
-	case "esc":
+	case key.Matches(msg, listViewKeys.esc):
 		if m.list.FilterState() == list.FilterApplied {
 			return false, nil
 		}
 		m.cancel()
 		return true, nil
-	case "enter", " ":
+	case key.Matches(msg, listViewKeys.selectKey):
 		return true, m.selectTheme()
 	}
 	return false, nil

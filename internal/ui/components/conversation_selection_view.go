@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	key "charm.land/bubbles/v2/key"
 	spinner "charm.land/bubbles/v2/spinner"
 	table "charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
@@ -215,25 +216,25 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Mode
 		return c.handleDeleteConfirmation(msg)
 	}
 
-	switch msg.String() {
-	case "ctrl+c", "esc":
+	switch {
+	case key.Matches(msg, conversationSelectorKeys.cancel):
 		if c.searchMode {
 			return c.handleSearchClear()
 		}
 		return c.handleCancel()
-	case "enter", " ":
+	case key.Matches(msg, conversationSelectorKeys.enter):
 		return c.handleSelection()
-	case "d", "delete":
+	case key.Matches(msg, conversationSelectorKeys.delete):
 		if !c.searchMode && len(c.filteredConversations) > 0 {
 			return c.handleDeleteRequest()
 		}
 		return c, nil
-	case "/":
+	case key.Matches(msg, conversationSelectorKeys.search):
 		if !c.searchMode {
 			return c.handleSearchToggle()
 		}
 		return c.handleCharacterInput(msg)
-	case "backspace":
+	case key.Matches(msg, conversationSelectorKeys.backspace):
 		return c.handleBackspace()
 	default:
 		if c.searchMode {
@@ -359,10 +360,10 @@ func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
 }
 
 func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "Y":
+	switch {
+	case key.Matches(msg, conversationSelectorKeys.confirm):
 		return c.performDelete()
-	case "n", "N", "esc":
+	case key.Matches(msg, conversationSelectorKeys.deny):
 		c.confirmDelete = false
 		c.deleteError = nil
 		return c, nil
