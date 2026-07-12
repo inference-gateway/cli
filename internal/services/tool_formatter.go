@@ -199,13 +199,10 @@ func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, te
 	return s.RenderToolSummary(styledIcon, result.ToolName, result.Arguments, styledSuffix, terminalWidth)
 }
 
-// cardWidth is the content width for a tool-result card at the given terminal width.
-func (s *ToolFormatterService) cardWidth(terminalWidth int) int {
-	w := formatting.GetResponsiveWidth(terminalWidth) - 2 // rounded border adds 2 columns
-	if w < 20 {
-		w = 20
-	}
-	return w
+// cardWidth is the outer width for a tool-result card; the caller passes an
+// already-responsive width and lipgloss Width() includes the border.
+func (s *ToolFormatterService) cardWidth(width int) int {
+	return max(width, 20)
 }
 
 // wrapCard frames content in a rounded card whose top border carries the tool name,
@@ -221,16 +218,13 @@ func (s *ToolFormatterService) wrapCard(toolName, content string, terminalWidth 
 }
 
 // argsPreviewBudget is the width available for the inline argument preview on the
-// collapsed status line, after reserving room for the icon, tool name, parentheses
-// and the trailing duration. It scales with the terminal width so long values (e.g.
-// bash commands) stay readable on wide terminals instead of being clipped to a fixed
-// cap; the full value is always available via ctrl+o.
-func (s *ToolFormatterService) argsPreviewBudget(toolName string, terminalWidth int) int {
+// collapsed status line, after reserving room for the icon, name and duration.
+func (s *ToolFormatterService) argsPreviewBudget(toolName string, width int) int {
 	const (
 		reserved = 18
 		minimum  = 50
 	)
-	budget := formatting.GetResponsiveWidth(terminalWidth) - len(toolName) - reserved
+	budget := width - len(toolName) - reserved
 	if budget < minimum {
 		return minimum
 	}

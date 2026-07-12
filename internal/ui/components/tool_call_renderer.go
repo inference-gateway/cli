@@ -59,10 +59,7 @@ func (r *ToolCallRenderer) summaryLine(icon, name, argsJSON, trailing string) st
 // liveCard frames a running tool's preview in a rounded card whose top border carries
 // the tool name, coloured by tool type (AC8).
 func (r *ToolCallRenderer) liveCard(name, content string) string {
-	w := r.width - 2
-	if w < 20 {
-		w = 20
-	}
+	w := max(r.width, 20)
 	return r.styleProvider.RenderTitledCard(
 		content, name,
 		r.styleProvider.GetThemeColor("border"),

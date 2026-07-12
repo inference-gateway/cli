@@ -15,6 +15,7 @@ import (
 	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -462,6 +463,9 @@ func (cv *ConversationView) SetWidth(width int) {
 	if cv.markdownRenderer != nil {
 		cv.markdownRenderer.SetWidth(width)
 	}
+	if cv.toolCallRenderer != nil {
+		cv.toolCallRenderer.SetWidth(width)
+	}
 }
 
 func (cv *ConversationView) SetHeight(height int) {
@@ -532,14 +536,7 @@ func (cv *ConversationView) renderStreamingContent() string {
 		result.WriteString(thinkingBlock)
 	}
 
-	rolePrefixLength := 13
-	if model != "" {
-		rolePrefixLength += len(fmt.Sprintf(" (%s)", model))
-	}
-
-	wrapWidth := max(cv.width-rolePrefixLength, 40)
-
-	streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
+	streamingContent = cv.applyMarkdownIfEnabled(streamingContent, max(cv.width-2, 40))
 
 	assistantColor := cv.styleProvider.GetThemeColor("assistant")
 	var roleStyled string
@@ -552,10 +549,7 @@ func (cv *ConversationView) renderStreamingContent() string {
 		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
 	}
 
-	result.WriteString(roleStyled)
-	result.WriteString(" ")
-	result.WriteString(streamingContent)
-	result.WriteString("\n")
+	cv.writeRoleAndBody(&result, roleStyled, streamingContent)
 	return result.String()
 }
 
@@ -886,15 +880,30 @@ func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleSt
 
 // renderInlineContent renders content inline with the role
 func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry domain.ConversationEntry, contentStr string, wrapWidth int) {
-	var formattedContent string
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
-		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
-	} else {
-		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+		body := cv.applyMarkdownIfEnabled(contentStr, max(cv.width-2, 40))
+		cv.writeRoleAndBody(result, roleStyled, body)
+		return
 	}
+	formattedContent := formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 	result.WriteString(roleStyled)
 	result.WriteString(" ")
 	result.WriteString(formattedContent)
+	result.WriteString("\n")
+}
+
+// writeRoleAndBody joins a role prefix and an already-wrapped body. The body wraps
+// to the full width, so its first line is kept on the role line only when it still
+// fits after the prefix; otherwise the body starts on its own line to avoid clipping.
+func (cv *ConversationView) writeRoleAndBody(result *strings.Builder, roleStyled, body string) {
+	result.WriteString(roleStyled)
+	firstLine, _, _ := strings.Cut(body, "\n")
+	if lipgloss.Width(roleStyled)+1+lipgloss.Width(firstLine) <= cv.width {
+		result.WriteString(" ")
+	} else {
+		result.WriteString("\n")
+	}
+	result.WriteString(body)
 	result.WriteString("\n")
 }
 
@@ -1284,7 +1293,7 @@ func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
 // handleWindowSizeEvents processes window resize events
 func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		cv.SetWidth(windowMsg.Width)
+		cv.SetWidth(formatting.GetResponsiveWidth(windowMsg.Width))
 		cv.height = windowMsg.Height
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.updateViewportContentFull()
