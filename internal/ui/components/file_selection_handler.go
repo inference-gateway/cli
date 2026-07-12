@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -32,32 +33,32 @@ func (h *FileSelectionHandler) HandleKeyEvent(
 ) (newSearchQuery string, newSelectedIndex int, action FileSelectionAction, selectedFile string) {
 	filteredFiles := h.filterFiles(files, searchQuery)
 
-	switch keyMsg.String() {
-	case "up":
+	switch {
+	case key.Matches(keyMsg, fileSelectionKeys.navUp):
 		if selectedIndex > 0 {
 			return searchQuery, selectedIndex - 1, FileSelectionActionNone, ""
 		}
 		return searchQuery, selectedIndex, FileSelectionActionNone, ""
 
-	case "down":
+	case key.Matches(keyMsg, fileSelectionKeys.navDown):
 		if selectedIndex < len(filteredFiles)-1 {
 			return searchQuery, selectedIndex + 1, FileSelectionActionNone, ""
 		}
 		return searchQuery, selectedIndex, FileSelectionActionNone, ""
 
-	case "enter", "return":
+	case key.Matches(keyMsg, fileSelectionKeys.selectKey):
 		if len(filteredFiles) > 0 && selectedIndex >= 0 && selectedIndex < len(filteredFiles) {
 			return searchQuery, selectedIndex, FileSelectionActionSelect, filteredFiles[selectedIndex]
 		}
 		return searchQuery, selectedIndex, FileSelectionActionNone, ""
 
-	case "backspace":
+	case key.Matches(keyMsg, fileSelectionKeys.backspace):
 		if len(searchQuery) > 0 {
 			return searchQuery[:len(searchQuery)-1], selectedIndex, FileSelectionActionNone, ""
 		}
 		return searchQuery, selectedIndex, FileSelectionActionNone, ""
 
-	case "esc":
+	case key.Matches(keyMsg, fileSelectionKeys.cancel):
 		return searchQuery, selectedIndex, FileSelectionActionCancel, ""
 
 	default:

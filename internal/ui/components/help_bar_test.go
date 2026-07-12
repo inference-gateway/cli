@@ -4,12 +4,18 @@ import (
 	"strings"
 	"testing"
 
+	key "charm.land/bubbles/v2/key"
+
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
-	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
+
+// kb builds a key.Binding with a help key/description for help-bar tests.
+func kb(k, desc string) key.Binding {
+	return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc))
+}
 
 // createMockStyleProviderForHelpBar creates a mock styles provider for testing
 func createMockStyleProviderForHelpBar() *styles.Provider {
@@ -38,10 +44,10 @@ func TestNewHelpBar(t *testing.T) {
 func TestHelpBar_SetShortcuts(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
-	shortcuts := []ui.KeyShortcut{
-		{Key: "Enter", Description: "Send message"},
-		{Key: "Ctrl+C", Description: "Cancel"},
-		{Key: "↑↓", Description: "History"},
+	shortcuts := []key.Binding{
+		kb("Enter", "Send message"),
+		kb("Ctrl+C", "Cancel"),
+		kb("↑↓", "History"),
 	}
 
 	hb.SetShortcuts(shortcuts)
@@ -50,16 +56,16 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 		t.Errorf("Expected 3 shortcuts, got %d", len(hb.shortcuts))
 	}
 
-	if hb.shortcuts[0].Key != "Ctrl+C" {
-		t.Errorf("Expected first shortcut key 'Ctrl+C', got '%s'", hb.shortcuts[0].Key)
+	if got := hb.shortcuts[0].Help().Key; got != "Ctrl+C" {
+		t.Errorf("Expected first shortcut key 'Ctrl+C', got '%s'", got)
 	}
 
-	if hb.shortcuts[0].Description != "Cancel" {
-		t.Errorf("Expected first shortcut description 'Cancel', got '%s'", hb.shortcuts[0].Description)
+	if got := hb.shortcuts[0].Help().Desc; got != "Cancel" {
+		t.Errorf("Expected first shortcut description 'Cancel', got '%s'", got)
 	}
 
-	if hb.shortcuts[1].Key != "Enter" {
-		t.Errorf("Expected second shortcut key 'Enter', got '%s'", hb.shortcuts[1].Key)
+	if got := hb.shortcuts[1].Help().Key; got != "Enter" {
+		t.Errorf("Expected second shortcut key 'Enter', got '%s'", got)
 	}
 }
 
@@ -131,10 +137,10 @@ func TestHelpBar_Render_WithShortcuts(t *testing.T) {
 	hb := NewHelpBar(styleProvider)
 	hb.SetEnabled(true)
 
-	shortcuts := []ui.KeyShortcut{
-		{Key: "Enter", Description: "Send"},
-		{Key: "Ctrl+C", Description: "Cancel"},
-		{Key: "?", Description: "Help"},
+	shortcuts := []key.Binding{
+		kb("Enter", "Send"),
+		kb("Ctrl+C", "Cancel"),
+		kb("?", "Help"),
 	}
 
 	hb.SetShortcuts(shortcuts)
@@ -162,9 +168,9 @@ func TestHelpBar_Render_LongShortcuts(t *testing.T) {
 	hb.SetEnabled(true)
 	hb.SetWidth(20)
 
-	shortcuts := []ui.KeyShortcut{
-		{Key: "Ctrl+Shift+Alt+D", Description: "Very long description that should be truncated"},
-		{Key: "F1", Description: "Short"},
+	shortcuts := []key.Binding{
+		kb("Ctrl+Shift+Alt+D", "Very long description that should be truncated"),
+		kb("F1", "Short"),
 	}
 
 	hb.SetShortcuts(shortcuts)
@@ -183,7 +189,7 @@ func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
-	hb.SetShortcuts([]ui.KeyShortcut{})
+	hb.SetShortcuts([]key.Binding{})
 	output := hb.Render()
 
 	if output != "" {
@@ -195,8 +201,8 @@ func TestHelpBar_Render_SingleShortcut(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
-	shortcuts := []ui.KeyShortcut{
-		{Key: "?", Description: "Help"},
+	shortcuts := []key.Binding{
+		kb("?", "Help"),
 	}
 
 	hb.SetShortcuts(shortcuts)

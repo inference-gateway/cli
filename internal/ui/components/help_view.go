@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -109,20 +110,20 @@ func (h *HelpViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h *HelpViewImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q", "ctrl+c":
+	switch {
+	case key.Matches(msg, helpViewKeys.dismiss):
 		h.cancelled = true
-	case "up", "k":
+	case key.Matches(msg, helpViewKeys.navUp):
 		h.viewport.ScrollUp(1)
-	case "down", "j":
+	case key.Matches(msg, helpViewKeys.navDown):
 		h.viewport.ScrollDown(1)
-	case "pgup", "b":
+	case key.Matches(msg, helpViewKeys.pgUp):
 		h.viewport.PageUp()
-	case "pgdown", "f", " ":
+	case key.Matches(msg, helpViewKeys.pgDown):
 		h.viewport.PageDown()
-	case "home", "g":
+	case key.Matches(msg, helpViewKeys.top):
 		h.viewport.GotoTop()
-	case "end", "G":
+	case key.Matches(msg, helpViewKeys.bottom):
 		h.viewport.GotoBottom()
 	default:
 		var cmd tea.Cmd

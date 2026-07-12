@@ -857,21 +857,19 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return iv, cmd
 }
 
-func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	keyStr := key.String()
-
-	if keyStr == "tab" {
+func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(k, inputViewKeys.tab) {
 		if iv.HasHistorySuggestion() && iv.GetCursor() == len(iv.ta.Value()) {
 			iv.cycleHistorySuggestion()
 			return iv, nil
 		}
 	}
 
-	switch keyStr {
-	case "up":
+	switch {
+	case key.Matches(k, inputViewKeys.navUp):
 		iv.navigateHistoryUp()
 		return iv, nil
-	case "down":
+	case key.Matches(k, inputViewKeys.navDown):
 		if !iv.IsNavigatingHistory() {
 			return iv, func() tea.Msg { return domain.FocusStatusBarEvent{} }
 		}
@@ -879,12 +877,19 @@ func (iv *InputView) HandleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
-		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
+	// navUp/navDown already returned above; only cursor-movement keys should
+	// preserve history navigation, everything else resets it.
+	if !isNavigationKey(k) {
 		iv.historyManager.ResetNavigation()
 	}
 
 	return iv, nil
+}
+
+// isNavigationKey reports whether the key is a cursor-movement key that should not
+// reset history navigation.
+func isNavigationKey(msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, inputViewKeys.navigation...)
 }
 
 func (iv *InputView) CanHandle(key tea.KeyPressMsg) bool {

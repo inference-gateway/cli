@@ -583,7 +583,7 @@ func TestDiffViewer_EditKeyBound(t *testing.T) {
 		diffs:    map[string][2]string{},
 	}
 	v := newTestDiffViewer(src)
-	if v.keymap.match("v", actDiffEdit) != actDiffEdit {
+	if v.keymap.matches(tea.KeyPressMsg{Code: 'v', Text: "v"}, actDiffEdit) != actDiffEdit {
 		t.Errorf("default 'v' should be bound to the diff-viewer edit action")
 	}
 }

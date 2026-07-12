@@ -4,6 +4,7 @@ package ui
 import (
 	"sync"
 
+	"charm.land/bubbles/v2/key"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -38,10 +39,10 @@ type FakeHelpBarComponent struct {
 	setHeightArgsForCall []struct {
 		arg1 int
 	}
-	SetShortcutsStub        func([]ui.KeyShortcut)
+	SetShortcutsStub        func([]key.Binding)
 	setShortcutsMutex       sync.RWMutex
 	setShortcutsArgsForCall []struct {
-		arg1 []ui.KeyShortcut
+		arg1 []key.Binding
 	}
 	SetWidthStub        func(int)
 	setWidthMutex       sync.RWMutex
@@ -222,15 +223,15 @@ func (fake *FakeHelpBarComponent) SetHeightArgsForCall(i int) int {
 	return argsForCall.arg1
 }
 
-func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []ui.KeyShortcut) {
-	var arg1Copy []ui.KeyShortcut
+func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []key.Binding) {
+	var arg1Copy []key.Binding
 	if arg1 != nil {
-		arg1Copy = make([]ui.KeyShortcut, len(arg1))
+		arg1Copy = make([]key.Binding, len(arg1))
 		copy(arg1Copy, arg1)
 	}
 	fake.setShortcutsMutex.Lock()
 	fake.setShortcutsArgsForCall = append(fake.setShortcutsArgsForCall, struct {
-		arg1 []ui.KeyShortcut
+		arg1 []key.Binding
 	}{arg1Copy})
 	stub := fake.SetShortcutsStub
 	fake.recordInvocation("SetShortcuts", []interface{}{arg1Copy})
@@ -246,13 +247,13 @@ func (fake *FakeHelpBarComponent) SetShortcutsCallCount() int {
 	return len(fake.setShortcutsArgsForCall)
 }
 
-func (fake *FakeHelpBarComponent) SetShortcutsCalls(stub func([]ui.KeyShortcut)) {
+func (fake *FakeHelpBarComponent) SetShortcutsCalls(stub func([]key.Binding)) {
 	fake.setShortcutsMutex.Lock()
 	defer fake.setShortcutsMutex.Unlock()
 	fake.SetShortcutsStub = stub
 }
 
-func (fake *FakeHelpBarComponent) SetShortcutsArgsForCall(i int) []ui.KeyShortcut {
+func (fake *FakeHelpBarComponent) SetShortcutsArgsForCall(i int) []key.Binding {
 	fake.setShortcutsMutex.RLock()
 	defer fake.setShortcutsMutex.RUnlock()
 	argsForCall := fake.setShortcutsArgsForCall[i]

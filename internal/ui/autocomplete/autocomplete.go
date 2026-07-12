@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -17,6 +18,21 @@ import (
 	ui "github.com/inference-gateway/cli/internal/ui"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
+
+// autocompleteKeys holds the key.Binding set for the autocomplete overlay.
+var autocompleteKeys = struct {
+	navUp   key.Binding
+	navDown key.Binding
+	tab     key.Binding
+	enter   key.Binding
+	esc     key.Binding
+}{
+	navUp:   key.NewBinding(key.WithKeys("up", "ctrl+p")),
+	navDown: key.NewBinding(key.WithKeys("down", "ctrl+n")),
+	tab:     key.NewBinding(key.WithKeys("tab")),
+	enter:   key.NewBinding(key.WithKeys("enter")),
+	esc:     key.NewBinding(key.WithKeys("esc")),
+}
 
 // ShortcutOption represents a shortcut option for autocomplete
 type ShortcutOption struct {
@@ -675,13 +691,13 @@ func (a *AutocompleteImpl) filterSuggestions() {
 }
 
 // HandleKey processes key input for autocomplete navigation
-func (a *AutocompleteImpl) HandleKey(key tea.KeyPressMsg) (bool, string) {
+func (a *AutocompleteImpl) HandleKey(k tea.KeyPressMsg) (bool, string) {
 	if !a.visible || len(a.filtered) == 0 {
 		return false, ""
 	}
 
-	switch key.String() {
-	case "up", "ctrl+p":
+	switch {
+	case key.Matches(k, autocompleteKeys.navUp):
 		if a.selected > 0 {
 			a.selected--
 		} else {
@@ -689,7 +705,7 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyPressMsg) (bool, string) {
 		}
 		return true, ""
 
-	case "down", "ctrl+n":
+	case key.Matches(k, autocompleteKeys.navDown):
 		if a.selected < len(a.filtered)-1 {
 			a.selected++
 		} else {
@@ -697,17 +713,17 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyPressMsg) (bool, string) {
 		}
 		return true, ""
 
-	case "tab":
+	case key.Matches(k, autocompleteKeys.tab):
 		if a.selected >= len(a.filtered) {
 			return true, ""
 		}
 		return a.handleSelection()
 
-	case "enter":
+	case key.Matches(k, autocompleteKeys.enter):
 		a.visible = false
 		return false, ""
 
-	case "esc":
+	case key.Matches(k, autocompleteKeys.esc):
 		a.visible = false
 		return true, ""
 	}

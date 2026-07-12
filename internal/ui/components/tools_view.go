@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -202,17 +203,17 @@ func (m *ToolsViewImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cm
 		return false, nil
 	}
 
-	switch msg.String() {
-	case "ctrl+c":
+	switch {
+	case key.Matches(msg, listViewKeys.cancel):
 		m.cancelled = true
 		return true, nil
-	case "esc":
+	case key.Matches(msg, listViewKeys.esc):
 		if m.list.FilterState() == list.FilterApplied {
 			return false, nil
 		}
 		m.cancelled = true
 		return true, nil
-	case "enter", " ":
+	case key.Matches(msg, listViewKeys.selectKey):
 		return true, nil
 	}
 	return false, nil
