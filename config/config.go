@@ -596,7 +596,9 @@ const (
 // activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT) is set.
 // Named "telemetry" (not "metrics") to leave room for traces/logs later.
 type TelemetryConfig struct {
-	Enabled       bool       `yaml:"enabled" mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	// RetentionDays is how long a session's telemetry file stays active before
+	// `infer stats` archives it. 0 disables archiving.
 	RetentionDays int        `yaml:"retention_days" mapstructure:"retention_days"`
 	OTLP          OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
 }
@@ -977,7 +979,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Telemetry: TelemetryConfig{
 			Enabled:       true,
-			RetentionDays: 90,
+			RetentionDays: 7,
 			OTLP: OTLPConfig{
 				Endpoint: "",
 				Interval: 60,

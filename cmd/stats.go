@@ -54,7 +54,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 
 	dir := filepath.Join(Cfg.GetConfigDir(), "telemetry")
 	if Cfg.Telemetry.RetentionDays > 0 {
-		telemetry.Prune(dir, time.Now().AddDate(0, 0, -Cfg.Telemetry.RetentionDays))
+		telemetry.Archive(dir, time.Now().AddDate(0, 0, -Cfg.Telemetry.RetentionDays))
 	}
 
 	stats, err := telemetry.Aggregate(dir, since)

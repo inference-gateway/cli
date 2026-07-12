@@ -2,6 +2,8 @@ package telemetry
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -67,6 +69,33 @@ func TestAggregateEmptyStore(t *testing.T) {
 	}
 	if !stats.Empty {
 		t.Fatal("expected Empty on a fresh store")
+	}
+}
+
+func TestArchiveMovesStaleFiles(t *testing.T) {
+	dir := t.TempDir()
+	old := filepath.Join(dir, "old.jsonl")
+	fresh := filepath.Join(dir, "fresh.jsonl")
+	for _, f := range []string{old, fresh} {
+		if err := os.WriteFile(f, []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stale := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(old, stale, stale); err != nil {
+		t.Fatal(err)
+	}
+
+	Archive(dir, time.Now().Add(-24*time.Hour))
+
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Fatal("stale file should have left the active dir")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "archive", "old.jsonl")); err != nil {
+		t.Fatalf("stale file should be in archive/: %v", err)
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Fatalf("fresh file should stay: %v", err)
 	}
 }
 

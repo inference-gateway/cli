@@ -74,13 +74,20 @@ func Aggregate(dir string, since time.Time) (Stats, error) {
 	}, nil
 }
 
-// Prune removes per-session files last modified before cutoff. Best-effort.
-func Prune(dir string, cutoff time.Time) {
+// Archive moves session files older than cutoff into an archive/ subdir instead
+// of deleting them; Aggregate's non-recursive glob then skips them. Best-effort.
+func Archive(dir string, cutoff time.Time) {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	archiveDir := filepath.Join(dir, "archive")
 	for _, f := range files {
-		if info, err := os.Stat(f); err == nil && info.ModTime().Before(cutoff) {
-			_ = os.Remove(f)
+		info, err := os.Stat(f)
+		if err != nil || !info.ModTime().Before(cutoff) {
+			continue
 		}
+		if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+			return
+		}
+		_ = os.Rename(f, filepath.Join(archiveDir, filepath.Base(f)))
 	}
 }
 
