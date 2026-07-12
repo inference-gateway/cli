@@ -10,8 +10,10 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -42,11 +44,12 @@ const (
 )
 
 type ApprovalBoxView struct {
-	width         int
-	height        int
-	styleProvider *styles.Provider
-	stateManager  domain.ApprovalUIManager
-	toolFormatter domain.ToolFormatter
+	width            int
+	height           int
+	styleProvider    *styles.Provider
+	stateManager     domain.ApprovalUIManager
+	toolFormatter    domain.ToolFormatter
+	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
 	// the StateManager (cleared externally) marks the form stale.
@@ -109,6 +112,23 @@ func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.Appr
 		stateManager:  stateManager,
 		toolFormatter: toolFormatter,
 	}
+}
+
+func (av *ApprovalBoxView) SetKeyHintFormatter(formatter *hints.Formatter) {
+	av.keyHintFormatter = formatter
+}
+
+// expandKey is the configured key for expand/collapse (ctrl+o by default), so the
+// hints track the user's keybindings instead of hardcoding the default.
+func (av *ApprovalBoxView) expandKey() string {
+	if av.keyHintFormatter == nil {
+		return "ctrl+o"
+	}
+	if key := av.keyHintFormatter.GetKeyOnly(
+		config.ActionID(config.NamespaceTools, "toggle_tool_expansion")); key != "" {
+		return key
+	}
+	return "ctrl+o"
 }
 
 func (av *ApprovalBoxView) SetWidth(width int) {
@@ -239,14 +259,14 @@ func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) 
 	// pathologically long command ever blows out the box.
 	if av.expanded && !fits {
 		return av.highlightSummary(formatting.WrapText(full, budget)) + "\n" +
-			av.styleProvider.RenderDimText("(ctrl+o to collapse)")
+			av.styleProvider.RenderDimText(fmt.Sprintf("(%s to collapse)", av.expandKey()))
 	}
 
 	line := av.highlightSummary(oneLine)
 	if fits {
 		return line
 	}
-	return line + "\n" + av.styleProvider.RenderDimText("(ctrl+o to expand)")
+	return line + "\n" + av.styleProvider.RenderDimText(fmt.Sprintf("(%s to expand)", av.expandKey()))
 }
 
 // highlightSummary renders the name and parentheses dim and the inner arguments in
@@ -315,7 +335,7 @@ func (av *ApprovalBoxView) capLines(s string) string {
 	if !av.expanded {
 		hidden := len(lines) - limit
 		hint := av.styleProvider.RenderDimText(
-			fmt.Sprintf("… %d more lines (ctrl+o to expand, full diff shown after approval)", hidden),
+			fmt.Sprintf("… %d more lines (%s to expand, full diff shown after approval)", hidden, av.expandKey()),
 		)
 		return strings.Join(lines[:limit], "\n") + "\n" + hint
 	}
@@ -326,8 +346,8 @@ func (av *ApprovalBoxView) capLines(s string) string {
 	}
 	window := strings.Join(lines[av.scrollOffset:av.scrollOffset+limit], "\n")
 	hint := av.styleProvider.RenderDimText(
-		fmt.Sprintf("↑/↓ scroll · lines %d-%d of %d (ctrl+o to collapse)",
-			av.scrollOffset+1, av.scrollOffset+limit, len(lines)),
+		fmt.Sprintf("↑/↓ scroll · lines %d-%d of %d (%s to collapse)",
+			av.scrollOffset+1, av.scrollOffset+limit, len(lines), av.expandKey()),
 	)
 	return window + "\n" + hint
 }

@@ -300,6 +300,7 @@ func NewChatApplication(
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
+	app.approvalBoxView.SetKeyHintFormatter(keyHintFormatter)
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
