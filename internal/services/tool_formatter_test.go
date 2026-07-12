@@ -10,6 +10,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
+	lipgloss "charm.land/lipgloss/v2"
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -280,6 +281,25 @@ func TestRenderToolSummary_SharedAndWidthAware(t *testing.T) {
 	}
 	if strings.Contains(got, "�") {
 		t.Errorf("truncation split a multibyte rune: %q", got)
+	}
+}
+
+// TestFormatToolResultForUI_CardWidthTracksInput checks the card fills the width it is
+// handed and grows with the terminal, rather than double-shrinking.
+func TestFormatToolResultForUI_CardWidthTracksInput(t *testing.T) {
+	svc := newTestService(&fakeTool{name: "Bash", hasBody: true, body: "l1\nl2"})
+
+	for _, w := range []int{60, 100, 148} {
+		card := svc.FormatToolResultForUI(bashResult(true, map[string]any{"command": "ls"}), w)
+		if got := lipgloss.Width(stripANSI(card)); got != w {
+			t.Errorf("card outer width at input %d = %d, want %d (must not double-shrink)", w, got, w)
+		}
+	}
+
+	narrow := lipgloss.Width(stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 60)))
+	wide := lipgloss.Width(stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 120)))
+	if wide <= narrow {
+		t.Errorf("card width should grow with terminal width: 60→%d, 120→%d", narrow, wide)
 	}
 }
 

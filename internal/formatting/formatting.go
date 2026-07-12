@@ -23,26 +23,16 @@ func WrapText(text string, width int) string {
 	return wordwrap.String(text, width)
 }
 
-// GetResponsiveWidth calculates appropriate width based on terminal size
+// GetResponsiveWidth returns the content width for a terminal: the full width
+// minus a small right margin, floored at minWidth. No upper cap — content fills
+// the screen at any terminal size.
 func GetResponsiveWidth(terminalWidth int) int {
 	const (
-		minWidth    = 40
-		maxWidth    = 150
-		rightBuffer = 6
-		margin      = rightBuffer
+		minWidth = 40
+		margin   = 6
 	)
 
-	availableWidth := terminalWidth - margin
-
-	if availableWidth < minWidth {
-		return minWidth
-	}
-
-	if availableWidth > maxWidth {
-		return maxWidth
-	}
-
-	return availableWidth
+	return max(terminalWidth-margin, minWidth)
 }
 
 // FormatResponsiveMessage formats a message with responsive text wrapping
