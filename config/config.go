@@ -313,6 +313,7 @@ type AgentToolConfig struct {
 	MaxParallel        int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
 	MaxDepth           int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer agent`)
 	Model              string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	InheritMock        bool                   `yaml:"inherit_mock" mapstructure:"inherit_mock"` // propagate gateway.mock to spawned subagents
 	Interactive        AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
 	CompletedRetention int                    `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
@@ -891,6 +892,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Wait:               true,
 				MaxParallel:        4,
 				MaxDepth:           1,
+				InheritMock:        true,
 				CompletedRetention: 5,
 				Interactive: AgentInteractiveConfig{
 					Multiplexer: "tmux",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -21,7 +22,9 @@ type headlessSubagentJob struct {
 	state     *domain.SubagentState
 	runCtx    context.Context
 	cancelRun context.CancelFunc
-	output    string
+
+	mu     sync.Mutex
+	output string
 }
 
 // Meta describes the subagent for the task view.
@@ -53,7 +56,9 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 	}
 
 	answer, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	j.mu.Lock()
 	j.output = answer
+	j.mu.Unlock()
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 
 	status := domain.SubagentCompleted
@@ -76,7 +81,11 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 }
 
 // Output returns the subagent's final result message for the /tasks detail panel.
-func (j *headlessSubagentJob) Output() string { return j.output }
+func (j *headlessSubagentJob) Output() string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.output
+}
 
 // Wind is a no-op: the supervisor cancels Run's context, which kills the
 // subprocess.
@@ -105,6 +114,9 @@ type interactiveSubagentJob struct {
 	pollInterval time.Duration
 	grace        time.Duration
 	stableNeeded int
+
+	mu     sync.Mutex
+	output string
 }
 
 func newInteractiveSubagentJob(tool *AgentTool, state *domain.SubagentState) *interactiveSubagentJob {
@@ -205,9 +217,19 @@ func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emi
 		return
 	}
 	*last = body
+	j.mu.Lock()
+	j.output = body
+	j.mu.Unlock()
 	logger.Debug("interactive subagent turn harvested", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "bytes", len(body))
 	emit(domain.JobSignal{Note: j.completedMessage(body), Enqueue: true})
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
+}
+
+// Output returns the last harvested turn for the /tasks detail panel.
+func (j *interactiveSubagentJob) Output() string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.output
 }
 
 // Wind kills the pane on WindStop (which makes Run observe Gone and return);

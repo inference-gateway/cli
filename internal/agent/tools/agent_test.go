@@ -197,11 +197,44 @@ func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 
 func TestSubagentExtraEnv_EmitsSubagentMode(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
-	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
+	tool := newTestAgentTool(t)
+	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
 		t.Fatalf("ReadOnly subagent must add the readonly mode var to headless env; got %q", env)
 	}
-	if env := strings.Join(subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
+	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
 		t.Fatalf("ReadWrite (Standard) subagent must NOT add the mode var; got %q", env)
+	}
+}
+
+// A mock-mode parent must propagate mock mode to its subagents explicitly:
+// headless subprocesses only inherit env vars (not config/flag state) and tmux
+// panes run under the tmux server's environment, so without this a mock parent
+// spawns subagents that talk to the real gateway.
+func TestSubagentMockModePropagation(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	tool := newTestAgentTool(t)
+
+	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
+		t.Fatalf("non-mock parent must not set the mock var; got %q", env)
+	}
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
+		t.Fatalf("non-mock parent must not set the mock var in pane command; got %q", cmd)
+	}
+
+	tool.config.Gateway.Mock = true
+	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); !strings.Contains(env, "INFER_GATEWAY_MOCK=true") {
+		t.Fatalf("mock parent must propagate INFER_GATEWAY_MOCK=true to headless env; got %q", env)
+	}
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); !strings.Contains(cmd, "INFER_GATEWAY_MOCK=true") {
+		t.Fatalf("mock parent must propagate INFER_GATEWAY_MOCK=true to pane command; got %q", cmd)
+	}
+
+	tool.config.Tools.Agent.InheritMock = false
+	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
+		t.Fatalf("inherit_mock=false must opt subagents out of mock propagation; got %q", env)
+	}
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
+		t.Fatalf("inherit_mock=false must opt pane subagents out of mock propagation; got %q", cmd)
 	}
 }
 
