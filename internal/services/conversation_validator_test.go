@@ -63,7 +63,7 @@ func checkSynthetics(t *testing.T, synthetics []services.SyntheticToolResponse, 
 	}
 }
 
-//nolint:gocyclo,cyclop
+//nolint:funlen,gocyclo,cyclop
 func TestEnsureToolCallsClosed(t *testing.T) {
 	tests := []struct {
 		name           string
