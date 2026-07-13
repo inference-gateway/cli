@@ -5,7 +5,9 @@ import (
 	"time"
 
 	attribute "go.opentelemetry.io/otel/attribute"
+	codes "go.opentelemetry.io/otel/codes"
 	trace "go.opentelemetry.io/otel/trace"
+	noop "go.opentelemetry.io/otel/trace/noop"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -31,7 +33,6 @@ func NewToolService(inner domain.ToolService, rec *Recorder) domain.ToolService 
 func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 
-	// Create a child span for this tool execution
 	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
 	defer span.End()
 
@@ -39,12 +40,10 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))
 
-	// Set span attributes based on outcome
-	span.SetAttributes(
-		attribute.String("infer.tool.outcome", outcome),
-	)
+	span.SetAttributes(attribute.String("infer.tool.outcome", outcome))
 	if errType != "" {
 		span.SetAttributes(attribute.String("error.type", errType))
+		span.SetStatus(codes.Error, errType)
 	}
 	if err != nil {
 		span.RecordError(err)
@@ -53,10 +52,11 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 	return res, err
 }
 
-// startToolSpan creates a child span for a tool execution with GenAI semconv attributes.
+// startToolSpan creates a child span for a tool execution with GenAI semconv
+// attributes. Returns ctx unchanged and a no-op span when the Recorder is nil.
 func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.Context, trace.Span) {
 	if r == nil {
-		return ctx, trace.SpanFromContext(ctx)
+		return ctx, noop.Span{}
 	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
 		trace.WithAttributes(

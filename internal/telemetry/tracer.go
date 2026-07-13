@@ -18,9 +18,9 @@ import (
 
 // newTracerProvider creates a TracerProvider sharing the resource and OTLP
 // config with the meter provider. Local file export is always attempted; OTLP
-// export is added when an endpoint is configured. Returns (nil, nil, nil) when
-// no sink could be created.
-func newTracerProvider(res *resource.Resource, dir, session, endpoint string, headers map[string]string, interval time.Duration) (*sdktrace.TracerProvider, *os.File, error) {
+// export is added when an endpoint is configured. Sink failures are logged
+// and dropped; returns (nil, nil) when no sink could be created.
+func newTracerProvider(res *resource.Resource, dir, session, endpoint string, headers map[string]string, interval time.Duration) (*sdktrace.TracerProvider, *os.File) {
 	var spanProcessors []sdktrace.SpanProcessor
 
 	file, fileProc, err := newTraceFileProcessor(dir, session)
@@ -42,20 +42,20 @@ func newTracerProvider(res *resource.Resource, dir, session, endpoint string, he
 		if file != nil {
 			_ = file.Close()
 		}
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	opts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
 	for _, p := range spanProcessors {
 		opts = append(opts, sdktrace.WithSpanProcessor(p))
 	}
-	provider := sdktrace.NewTracerProvider(opts...)
-
-	return provider, file, nil
+	return sdktrace.NewTracerProvider(opts...), file
 }
 
 // newTraceFileProcessor creates a local file exporter and a simple span
 // processor that writes spans as OTLP/semconv JSON to a per-session file.
+// Simple (synchronous) rather than batch on purpose: a CLI session's span
+// volume is tiny and a synchronous write means spans survive an abrupt exit.
 func newTraceFileProcessor(dir, session string) (*os.File, sdktrace.SpanProcessor, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, nil, err

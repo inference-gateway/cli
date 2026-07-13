@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,9 @@ func Aggregate(dir string, since time.Time) (Stats, error) {
 	seen := false
 
 	for _, f := range files {
+		if strings.HasSuffix(f, "-traces.jsonl") {
+			continue
+		}
 		if err := foldFile(f, since, tools, models, sessions, &seen); err != nil {
 			return Stats{}, err
 		}

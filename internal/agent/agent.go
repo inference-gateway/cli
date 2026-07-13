@@ -417,6 +417,9 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 	defer cancel()
 
+	timeoutCtx, turnSpan := s.recorder.StartLLMTurnSpan(timeoutCtx, req.Model)
+	defer turnSpan.End()
+
 	startTime := time.Now()
 
 	var availableTools []sdk.ChatCompletionTool
@@ -641,6 +644,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
 	sessionCtx = domain.WithModel(sessionCtx, req.Model)
+	sessionCtx = s.recorder.SpanContext(sessionCtx)
 	sc := &sessionCancel{
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),

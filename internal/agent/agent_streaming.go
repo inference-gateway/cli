@@ -102,6 +102,9 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
+	requestCtx, turnSpan := a.service.recorder.StartLLMTurnSpan(requestCtx, a.req.Model)
+	defer turnSpan.End()
+
 	events, err := a.openStream(requestCtx, requestCancel, client)
 	if err != nil {
 		if errors.Is(err, errConnectStalled) {
