@@ -73,7 +73,7 @@ func readFrames(t *testing.T, body io.Reader) ([]sdk.CreateChatCompletionStreamR
 
 func TestDefaultScenariosAreValid(t *testing.T) {
 	defs := Default()
-	require.Len(t, defs.Scenarios, 17)
+	require.Len(t, defs.Scenarios, 19)
 	require.Equal(t, "Done.", defs.Fallback.Content)
 }
 
@@ -112,6 +112,17 @@ func TestResolveIgnoresLaterUserMessages(t *testing.T) {
 	name, step, _ := defs.resolve(req)
 	require.Equal(t, "text-only", name)
 	require.Equal(t, 1, step)
+}
+
+func TestResolveIgnoresJobCompletionNotices(t *testing.T) {
+	defs := Default()
+	req := chatRequest(t, "run a background shell", 1, false)
+	req.Messages = append(req.Messages, mustText(t, sdk.User, "[Background Shell Completed: shell-123]\n\nExit code: 0"))
+
+	name, step, turn := defs.resolve(req)
+	require.Equal(t, "background-shell", name)
+	require.Equal(t, 1, step)
+	require.Equal(t, "The background shell task ran.", turn.Content)
 }
 
 func TestResolveReroutesOnNewChatPrompt(t *testing.T) {

@@ -85,6 +85,49 @@ func TestChatTUIBackgroundShellOutput(t *testing.T) {
 		"the background shell output never appeared in /tasks; last frame:\n%s", capturePane(session))
 }
 
+// TestChatTUIBackgroundSubagentOutput launches a headless background subagent
+// and verifies its final result appears in the /tasks "Output" detail section.
+func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed; skipping TUI drive test")
+	}
+
+	const session = "infer-e2e-subagent-output"
+	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
+	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
+
+	launch := "env HOME=" + t.TempDir() +
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_TOOLS_AGENT_MODE=headless INFER_TOOLS_AGENT_WAIT=false" +
+		" INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false " + binPath + " chat"
+	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
+		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
+
+	require.True(t, waitForPane(t, session, "Select a Model", 25*time.Second),
+		"model picker never rendered; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "Type your message", 20*time.Second),
+		"input view never appeared after model select; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "-l", "launch a subagent")
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "The subagent task was launched.", 30*time.Second),
+		"agent never acknowledged the subagent launch; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "-l", "/tasks")
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "Completed", 45*time.Second),
+		"the subagent never completed in /tasks; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "hello-from-subagent-probe", 15*time.Second),
+		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
+}
+
 // capturePane returns the last 200 lines of the session's pane, or "" if it
 // cannot be read.
 func capturePane(session string) string {

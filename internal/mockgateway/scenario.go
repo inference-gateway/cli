@@ -232,19 +232,25 @@ func (f *ScenarioFile) resolve(req *sdk.CreateChatCompletionRequest) (string, in
 	return "", step, f.Fallback
 }
 
+// jobNoticeRe matches the background-job completion notices the supervisor
+// injects as user messages (see jobs.Supervisor.formatResult and the subagent
+// notices in subagent_jobs.go).
+var jobNoticeRe = regexp.MustCompile(`^\[(A2A Task|Background Shell|Subagent|Background Job) (Completed|Failed|Awaiting Approval): `)
+
 // anchorUserMessage returns the text and index of the latest user message that
-// is not injected CLI content (<system-reminder>). Anchoring on the latest real
-// prompt lets an interactive chat session re-route to a new scenario on every
-// message, while the headless loop's automated-check reminder never re-routes
-// a run mid-loop. Steps count the assistant messages after the anchor, so each
-// new prompt restarts its scenario at turn 0.
+// is not injected CLI content (<system-reminder> or a background-job completion
+// notice). Anchoring on the latest real prompt lets an interactive chat session
+// re-route to a new scenario on every message, while the headless loop's
+// automated-check reminder and background-job notices never re-route a run
+// mid-loop. Steps count the assistant messages after the anchor, so each new
+// prompt restarts its scenario at turn 0.
 func anchorUserMessage(messages []sdk.Message) (string, int) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role != sdk.User {
 			continue
 		}
 		text := textContent(messages[i].Content)
-		if strings.Contains(text, "<system-reminder>") {
+		if strings.Contains(text, "<system-reminder>") || jobNoticeRe.MatchString(text) {
 			continue
 		}
 		return text, i
