@@ -107,112 +107,88 @@ func TestHelpBar_SetHeight(t *testing.T) {
 	hb.SetHeight(2)
 }
 
-func TestHelpBar_Render_Disabled(t *testing.T) {
-	hb := NewHelpBar(createMockStyleProviderForHelpBar())
-	hb.SetEnabled(false)
-
-	output := hb.Render()
-
-	if output != "" {
-		t.Errorf("Expected empty output when disabled, got '%s'", output)
-	}
-}
-
-func TestHelpBar_Render_NoShortcuts(t *testing.T) {
-	hb := NewHelpBar(createMockStyleProviderForHelpBar())
-	hb.SetEnabled(true)
-
-	output := hb.Render()
-
-	if output != "" {
-		t.Error("Expected empty output with no shortcuts")
-	}
-}
-
-func TestHelpBar_Render_WithShortcuts(t *testing.T) {
-	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
-	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
-	styleProvider := styles.NewProvider(fakeThemeService)
-	hb := NewHelpBar(styleProvider)
-	hb.SetEnabled(true)
-
-	shortcuts := []key.Binding{
-		kb("Enter", "Send"),
-		kb("Ctrl+C", "Cancel"),
-		kb("?", "Help"),
-	}
-
-	hb.SetShortcuts(shortcuts)
-	output := hb.Render()
-
-	if output == "" {
-		t.Error("Expected non-empty output with shortcuts")
-	}
-
-	if !strings.Contains(output, "Enter") {
-		t.Error("Expected output to contain 'Enter'")
-	}
-
-	if !strings.Contains(output, "Send") {
-		t.Error("Expected output to contain 'Send'")
-	}
-
-	if !strings.Contains(output, "Cancel") {
-		t.Error("Expected output to contain 'Cancel'")
-	}
-}
-
-func TestHelpBar_Render_LongShortcuts(t *testing.T) {
-	hb := NewHelpBar(createMockStyleProviderForHelpBar())
-	hb.SetEnabled(true)
-	hb.SetWidth(20)
-
-	shortcuts := []key.Binding{
-		kb("Ctrl+Shift+Alt+D", "Very long description that should be truncated"),
-		kb("F1", "Short"),
+func TestHelpBar_Render(t *testing.T) {
+	tests := []struct {
+		name      string
+		enabled   bool
+		shortcuts []key.Binding
+		width     int
+		wantEmpty bool
+		wantKeys  []string
+	}{
+		{
+			name:      "disabled returns empty",
+			enabled:   false,
+			wantEmpty: true,
+		},
+		{
+			name:      "no shortcuts returns empty",
+			enabled:   true,
+			wantEmpty: true,
+		},
+		{
+			name:    "with shortcuts renders keys and descriptions",
+			enabled: true,
+			shortcuts: []key.Binding{
+				kb("Enter", "Send"),
+				kb("Ctrl+C", "Cancel"),
+				kb("?", "Help"),
+			},
+			wantKeys: []string{"Enter", "Send", "Cancel"},
+		},
+		{
+			name:    "long shortcuts truncated",
+			enabled: true,
+			width:   20,
+			shortcuts: []key.Binding{
+				kb("Ctrl+Shift+Alt+D", "Very long description that should be truncated"),
+				kb("F1", "Short"),
+			},
+			wantEmpty: false,
+		},
+		{
+			name:      "empty shortcuts array returns empty",
+			enabled:   true,
+			shortcuts: []key.Binding{},
+			wantEmpty: true,
+		},
+		{
+			name:    "single shortcut renders",
+			enabled: true,
+			shortcuts: []key.Binding{
+				kb("?", "Help"),
+			},
+			wantKeys: []string{"?", "Help"},
+		},
 	}
 
-	hb.SetShortcuts(shortcuts)
-	output := hb.Render()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hb := NewHelpBar(createMockStyleProviderForHelpBar())
+			hb.SetEnabled(tt.enabled)
+			if tt.width > 0 {
+				hb.SetWidth(tt.width)
+			}
+			if tt.shortcuts != nil {
+				hb.SetShortcuts(tt.shortcuts)
+			}
+			output := hb.Render()
 
-	if output == "" {
-		t.Error("Expected non-empty output with long shortcuts")
-	}
+			if tt.wantEmpty {
+				if output != "" {
+					t.Errorf("expected empty output, got %q", output)
+				}
+				return
+			}
 
-	if len(output) == 0 {
-		t.Error("Expected some output even with long shortcuts")
-	}
-}
-
-func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
-	hb := NewHelpBar(createMockStyleProviderForHelpBar())
-	hb.SetEnabled(true)
-
-	hb.SetShortcuts([]key.Binding{})
-	output := hb.Render()
-
-	if output != "" {
-		t.Error("Expected empty output with empty shortcuts array")
-	}
-}
-
-func TestHelpBar_Render_SingleShortcut(t *testing.T) {
-	hb := NewHelpBar(createMockStyleProviderForHelpBar())
-	hb.SetEnabled(true)
-
-	shortcuts := []key.Binding{
-		kb("?", "Help"),
-	}
-
-	hb.SetShortcuts(shortcuts)
-	output := hb.Render()
-
-	if !strings.Contains(output, "?") {
-		t.Error("Expected output to contain single shortcut key")
-	}
-
-	if !strings.Contains(output, "Help") {
-		t.Error("Expected output to contain single shortcut description")
+			if output == "" {
+				t.Error("expected non-empty output")
+			}
+			for _, k := range tt.wantKeys {
+				if !strings.Contains(output, k) {
+					t.Errorf("expected output to contain %q, got %q", k, output)
+				}
+			}
+		})
 	}
 }

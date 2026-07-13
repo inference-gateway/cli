@@ -11,81 +11,172 @@ func nameOfFixture(e collectionFixture) string { return e.Name }
 
 const fixtureKind = "fixture"
 
-func TestAppendEntry_AppendsNew(t *testing.T) {
-	in := []collectionFixture{{Name: "a"}}
-	out, err := appendEntry(in, collectionFixture{Name: "b"}, "b", nameOfFixture, fixtureKind)
-	if err != nil {
-		t.Fatalf("unexpected: %v", err)
+func TestAppendEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []collectionFixture
+		item    collectionFixture
+		wantErr bool
+		wantLen int
+	}{
+		{
+			name:    "appends new entry",
+			input:   []collectionFixture{{Name: "a"}},
+			item:    collectionFixture{Name: "b"},
+			wantLen: 2,
+		},
+		{
+			name:    "rejects duplicate",
+			input:   []collectionFixture{{Name: "a"}},
+			item:    collectionFixture{Name: "a"},
+			wantErr: true,
+		},
 	}
-	if len(out) != 2 || out[1].Name != "b" {
-		t.Errorf("got %+v", out)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := appendEntry(tt.input, tt.item, tt.item.Name, nameOfFixture, fixtureKind)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if !strings.Contains(err.Error(), "already exists") || !strings.Contains(err.Error(), fixtureKind) {
+					t.Errorf("error should mention duplicate and kind: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected: %v", err)
+			}
+			if len(out) != tt.wantLen || out[tt.wantLen-1].Name != tt.item.Name {
+				t.Errorf("got %+v", out)
+			}
+		})
 	}
 }
 
-func TestAppendEntry_RejectsDuplicate(t *testing.T) {
-	in := []collectionFixture{{Name: "a"}}
-	_, err := appendEntry(in, collectionFixture{Name: "a"}, "a", nameOfFixture, fixtureKind)
-	if err == nil {
-		t.Fatal("expected duplicate error")
+func TestReplaceEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []collectionFixture
+		item    collectionFixture
+		wantErr bool
+		wantVal string
+	}{
+		{
+			name:    "replaces existing entry",
+			input:   []collectionFixture{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}},
+			item:    collectionFixture{Name: "b", Value: "X"},
+			wantVal: "X",
+		},
+		{
+			name:    "not found returns error",
+			input:   []collectionFixture{{Name: "a"}},
+			item:    collectionFixture{Name: "b"},
+			wantErr: true,
+		},
 	}
-	if !strings.Contains(err.Error(), "already exists") || !strings.Contains(err.Error(), fixtureKind) {
-		t.Errorf("error should mention duplicate and kind: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := replaceEntry(tt.input, tt.item, tt.item.Name, nameOfFixture, fixtureKind)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected not-found error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected: %v", err)
+			}
+			if out[1].Value != tt.wantVal {
+				t.Errorf("expected replacement, got %+v", out)
+			}
+			if tt.input[1].Value != "2" {
+				t.Errorf("input slice mutated: got %+v", tt.input)
+			}
+		})
 	}
 }
 
-func TestReplaceEntry_ReplacesExisting(t *testing.T) {
-	in := []collectionFixture{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}
-	out, err := replaceEntry(in, collectionFixture{Name: "b", Value: "X"}, "b", nameOfFixture, fixtureKind)
-	if err != nil {
-		t.Fatalf("unexpected: %v", err)
+func TestRemoveEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []collectionFixture
+		remove  string
+		wantErr bool
+		wantLen int
+	}{
+		{
+			name:    "removes existing entry",
+			input:   []collectionFixture{{Name: "a"}, {Name: "b"}, {Name: "c"}},
+			remove:  "b",
+			wantLen: 2,
+		},
+		{
+			name:    "not found returns error",
+			input:   []collectionFixture{{Name: "a"}},
+			remove:  "z",
+			wantErr: true,
+		},
 	}
-	if out[1].Value != "X" {
-		t.Errorf("expected replacement, got %+v", out)
-	}
-	if in[1].Value != "2" {
-		t.Errorf("input slice mutated: got %+v", in)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := removeEntry(tt.input, tt.remove, nameOfFixture, fixtureKind)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected not-found error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected: %v", err)
+			}
+			if len(out) != tt.wantLen || out[0].Name != "a" || out[1].Name != "c" {
+				t.Errorf("got %+v", out)
+			}
+		})
 	}
 }
 
-func TestReplaceEntry_NotFound(t *testing.T) {
-	_, err := replaceEntry([]collectionFixture{{Name: "a"}}, collectionFixture{Name: "b"}, "b", nameOfFixture, fixtureKind)
-	if err == nil {
-		t.Fatal("expected not-found error")
+func TestFindEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []collectionFixture
+		find    string
+		wantErr bool
+		wantVal string
+	}{
+		{
+			name:    "finds existing entry",
+			input:   []collectionFixture{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}},
+			find:    "b",
+			wantVal: "2",
+		},
+		{
+			name:    "not found returns error",
+			input:   []collectionFixture{{Name: "a"}},
+			find:    "z",
+			wantErr: true,
+		},
 	}
-}
 
-func TestRemoveEntry_RemovesExisting(t *testing.T) {
-	in := []collectionFixture{{Name: "a"}, {Name: "b"}, {Name: "c"}}
-	out, err := removeEntry(in, "b", nameOfFixture, fixtureKind)
-	if err != nil {
-		t.Fatalf("unexpected: %v", err)
-	}
-	if len(out) != 2 || out[0].Name != "a" || out[1].Name != "c" {
-		t.Errorf("got %+v", out)
-	}
-}
-
-func TestRemoveEntry_NotFound(t *testing.T) {
-	_, err := removeEntry([]collectionFixture{{Name: "a"}}, "z", nameOfFixture, fixtureKind)
-	if err == nil {
-		t.Fatal("expected not-found error")
-	}
-}
-
-func TestFindEntry_FindsExisting(t *testing.T) {
-	in := []collectionFixture{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}
-	got, err := findEntry(in, "b", nameOfFixture, fixtureKind)
-	if err != nil {
-		t.Fatalf("unexpected: %v", err)
-	}
-	if got.Value != "2" {
-		t.Errorf("got %+v", got)
-	}
-}
-
-func TestFindEntry_NotFound(t *testing.T) {
-	_, err := findEntry([]collectionFixture{{Name: "a"}}, "z", nameOfFixture, fixtureKind)
-	if err == nil {
-		t.Fatal("expected not-found error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := findEntry(tt.input, tt.find, nameOfFixture, fixtureKind)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected not-found error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected: %v", err)
+			}
+			if got.Value != tt.wantVal {
+				t.Errorf("got %+v", got)
+			}
+		})
 	}
 }

@@ -416,203 +416,126 @@ func TestInputView_BashModeBorderColor(t *testing.T) {
 	}
 }
 
-func TestInputView_HistorySuggestions_SingleMatch(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-	require.NoError(t, iv.historyManager.AddToHistory("list files"))
-
-	iv.SetText("cre")
-	iv.SetCursor(len(iv.GetInput()))
-
-	iv.Render()
-
-	if !iv.HasHistorySuggestion() {
-		t.Error("Expected history suggestion to be available")
+func TestInputView_HistorySuggestions(t *testing.T) {
+	tests := []struct {
+		name        string
+		history     []string
+		input       string
+		cursorAtEnd bool
+		cursorPos   int
+		wantHas     bool
+		wantSuggest string
+		wantCount   int
+		accept      bool
+		wantAfter   string
+	}{
+		{
+			name:        "single match completes the entry",
+			history:     []string{"create a pull request", "list files"},
+			input:       "cre",
+			cursorAtEnd: true,
+			wantHas:     true,
+			wantSuggest: "ate a pull request",
+			wantCount:   1,
+		},
+		{
+			name:        "multiple matches keep most recent first",
+			history:     []string{"create a pull request", "create a new branch", "create tests"},
+			input:       "create",
+			cursorAtEnd: true,
+			wantHas:     true,
+			wantSuggest: " a pull request",
+			wantCount:   3,
+		},
+		{
+			name:        "no match when empty",
+			history:     []string{"create a pull request"},
+			input:       "",
+			cursorAtEnd: true,
+			wantHas:     false,
+			wantCount:   0,
+		},
+		{
+			name:      "no match when cursor not at end",
+			history:   []string{"create a pull request"},
+			input:     "create",
+			cursorPos: 3,
+			wantHas:   false,
+			wantCount: 0,
+		},
+		{
+			name:        "no match when no prefix",
+			history:     []string{"create a pull request"},
+			input:       "xyz",
+			cursorAtEnd: true,
+			wantHas:     false,
+			wantCount:   0,
+		},
+		{
+			name:        "case-insensitive matching",
+			history:     []string{"Create a pull request"},
+			input:       "cre",
+			cursorAtEnd: true,
+			wantHas:     true,
+			wantSuggest: "ate a pull request",
+			wantCount:   1,
+		},
+		{
+			name:        "excludes exact match",
+			history:     []string{"create"},
+			input:       "create",
+			cursorAtEnd: true,
+			wantHas:     false,
+			wantCount:   0,
+		},
+		{
+			name:        "accept suggestion completes the entry",
+			history:     []string{"create a pull request"},
+			input:       "cre",
+			cursorAtEnd: true,
+			accept:      true,
+			wantAfter:   "create a pull request",
+		},
+		{
+			name:      "accept with no suggestion returns false",
+			accept:    true,
+			wantAfter: "",
+		},
 	}
 
-	if iv.historySuggestion != "ate a pull request" {
-		t.Errorf("Expected suggestion 'ate a pull request', got '%s'", iv.historySuggestion)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := createInputViewWithTheme(createMockModelService())
+			for _, h := range tt.history {
+				require.NoError(t, iv.historyManager.AddToHistory(h))
+			}
+			iv.SetText(tt.input)
+			if tt.cursorAtEnd {
+				iv.SetCursor(len(iv.GetInput()))
+			} else if tt.cursorPos != 0 {
+				iv.SetCursor(tt.cursorPos)
+			}
+			iv.Render()
 
-	if len(iv.historySuggestions) != 1 {
-		t.Errorf("Expected 1 matching suggestion, got %d", len(iv.historySuggestions))
-	}
-}
+			if tt.accept {
+				accepted := iv.AcceptHistorySuggestion()
+				if tt.wantAfter != "" {
+					require.True(t, accepted)
+					require.Equal(t, tt.wantAfter, iv.GetInput())
+					require.Equal(t, len(iv.GetInput()), iv.GetCursor())
+					require.False(t, iv.HasHistorySuggestion())
+				} else {
+					require.False(t, accepted)
+				}
+				return
+			}
 
-func TestInputView_HistorySuggestions_MultipleMatches(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
-	require.NoError(t, iv.historyManager.AddToHistory("create tests"))
-
-	iv.SetText("create")
-	iv.SetCursor(len(iv.GetInput()))
-
-	iv.Render()
-
-	if len(iv.historySuggestions) != 3 {
-		t.Errorf("Expected 3 matching suggestions, got %d", len(iv.historySuggestions))
-	}
-
-	if iv.historySuggestion != " a pull request" {
-		t.Errorf("Expected suggestion ' a pull request', got '%s'", iv.historySuggestion)
-	}
-}
-
-func TestInputView_HistorySuggestions_CycleThrough(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
-
-	iv.SetText("create")
-	iv.SetCursor(len(iv.GetInput()))
-	iv.Render()
-
-	firstSuggestion := iv.historySuggestion
-
-	iv.cycleHistorySuggestion()
-	secondSuggestion := iv.historySuggestion
-
-	if firstSuggestion == secondSuggestion {
-		t.Error("Expected different suggestion after cycling")
-	}
-
-	iv.cycleHistorySuggestion()
-	if iv.historySuggestion != firstSuggestion {
-		t.Errorf("Expected to cycle back to first suggestion '%s', got '%s'", firstSuggestion, iv.historySuggestion)
-	}
-}
-
-func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-
-	iv.SetText("cre")
-	iv.SetCursor(len(iv.GetInput()))
-	iv.Render()
-
-	accepted := iv.AcceptHistorySuggestion()
-
-	if !accepted {
-		t.Error("Expected AcceptHistorySuggestion to return true")
-	}
-
-	if iv.GetInput() != "create a pull request" {
-		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.GetInput())
-	}
-
-	if iv.GetCursor() != len(iv.GetInput()) {
-		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.GetInput()), iv.GetCursor())
-	}
-
-	if iv.HasHistorySuggestion() {
-		t.Error("Expected suggestion to be cleared after acceptance")
-	}
-}
-
-func TestInputView_HistorySuggestions_NoMatchWhenEmpty(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-
-	iv.SetText("")
-	iv.SetCursor(0)
-	iv.Render()
-
-	if iv.HasHistorySuggestion() {
-		t.Error("Expected no suggestion for empty text")
-	}
-
-	if len(iv.historySuggestions) != 0 {
-		t.Errorf("Expected 0 suggestions, got %d", len(iv.historySuggestions))
-	}
-}
-
-func TestInputView_HistorySuggestions_NoMatchWhenCursorNotAtEnd(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-
-	iv.SetText("create")
-	iv.SetCursor(3)
-	iv.Render()
-
-	if iv.HasHistorySuggestion() {
-		t.Error("Expected no suggestion when cursor is not at end")
-	}
-}
-
-func TestInputView_HistorySuggestions_NoMatchWhenNoPrefix(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
-
-	iv.SetText("xyz")
-	iv.SetCursor(len(iv.GetInput()))
-	iv.Render()
-
-	if iv.HasHistorySuggestion() {
-		t.Error("Expected no suggestion for non-matching prefix")
-	}
-
-	if len(iv.historySuggestions) != 0 {
-		t.Errorf("Expected 0 suggestions, got %d", len(iv.historySuggestions))
-	}
-}
-
-func TestInputView_HistorySuggestions_CaseInsensitive(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("Create a pull request"))
-
-	iv.SetText("cre")
-	iv.SetCursor(len(iv.GetInput()))
-	iv.Render()
-
-	if !iv.HasHistorySuggestion() {
-		t.Error("Expected case-insensitive matching to work")
-	}
-
-	if len(iv.historySuggestions) != 1 {
-		t.Errorf("Expected 1 suggestion with case-insensitive match, got %d", len(iv.historySuggestions))
-	}
-}
-
-func TestInputView_HistorySuggestions_ExcludesExactMatch(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	require.NoError(t, iv.historyManager.AddToHistory("create"))
-
-	iv.SetText("create")
-	iv.SetCursor(len(iv.GetInput()))
-	iv.Render()
-
-	if iv.HasHistorySuggestion() {
-		t.Error("Expected no suggestion for exact match")
-	}
-}
-
-func TestInputView_HistorySuggestions_AcceptWithNoSuggestion(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := createInputViewWithTheme(mockModelService)
-
-	accepted := iv.AcceptHistorySuggestion()
-
-	if accepted {
-		t.Error("Expected AcceptHistorySuggestion to return false when no suggestion")
+			require.Equal(t, tt.wantHas, iv.HasHistorySuggestion())
+			if tt.wantHas {
+				require.Equal(t, tt.wantSuggest, iv.historySuggestion)
+			}
+			require.Len(t, iv.historySuggestions, tt.wantCount)
+		})
 	}
 }
 
@@ -635,6 +558,11 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 	if iv.historySuggestion == firstSuggestion {
 		t.Error("Expected Tab to cycle to different suggestion")
 	}
+
+	_, _ = iv.HandleKey(tabKey)
+	if iv.historySuggestion != firstSuggestion {
+		t.Errorf("Expected second Tab to wrap back to first suggestion %q, got %q", firstSuggestion, iv.historySuggestion)
+	}
 }
 
 // newInputViewWithBranch builds an InputView with the git branch cache pre-seeded
@@ -649,59 +577,139 @@ func newInputViewWithBranch(t *testing.T, branch string) *InputView {
 }
 
 func TestInputView_BuildGitBranchLabel(t *testing.T) {
-	iv := newInputViewWithBranch(t, "main")
-	require.Equal(t, "⎇ main", iv.buildGitBranchLabel())
+	tests := []struct {
+		name      string
+		branch    string
+		pr        string
+		disablePR bool
+		disableBR bool
+		want      string
+	}{
+		{
+			name:   "branch label with branch only",
+			branch: "main",
+			want:   "⎇ main",
+		},
+		{
+			name:      "branch label disabled by config",
+			branch:    "main",
+			disableBR: true,
+			want:      "",
+		},
+		{
+			name:   "branch label with PR",
+			branch: "fix/issue-785",
+			pr:     "792",
+			want:   "⎇ fix/issue-785  #792",
+		},
+		{
+			name:      "branch label with PR disabled by config",
+			branch:    "fix/issue-785",
+			pr:        "792",
+			disablePR: true,
+			want:      "⎇ fix/issue-785",
+		},
+		{
+			name:   "branch label with PR but no PR number",
+			branch: "main",
+			pr:     "",
+			want:   "⎇ main",
+		},
+		{
+			name:      "branch label with PR but git branch disabled",
+			branch:    "main",
+			pr:        "123",
+			disableBR: true,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := newInputViewWithPR(t, tt.branch, tt.pr)
+			cfg := config.DefaultConfig()
+			if tt.disableBR {
+				cfg.Chat.StatusBar.Indicators.GitBranch = false
+			}
+			if tt.disablePR {
+				cfg.Chat.StatusBar.Indicators.GitPR = false
+			}
+			iv.config = cfg
+			require.Equal(t, tt.want, iv.buildGitBranchLabel())
+		})
+	}
 }
 
-func TestInputView_BuildGitBranchLabel_DisabledByConfig(t *testing.T) {
-	iv := newInputViewWithBranch(t, "main")
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
-	iv.config = cfg
+func TestInputView_RenderBranchInTopBorder(t *testing.T) {
+	tests := []struct {
+		name     string
+		branch   string
+		width    int
+		disabled bool
+		wantIcon bool
+		wantDots bool
+		wantFull bool
+	}{
+		{
+			name:     "embeds branch in top border",
+			branch:   "feature/test-branch",
+			width:    80,
+			wantIcon: true,
+			wantFull: true,
+		},
+		{
+			name:     "truncates long branch in border",
+			branch:   "feature/a-really-long-branch-name-that-keeps-going-and-going",
+			width:    80,
+			wantIcon: true,
+			wantDots: true,
+		},
+		{
+			name:     "drops branch when too narrow",
+			branch:   "main",
+			width:    12,
+			wantIcon: false,
+		},
+		{
+			name:     "omits branch when disabled",
+			branch:   "main",
+			width:    80,
+			disabled: true,
+			wantIcon: false,
+		},
+	}
 
-	require.Empty(t, iv.buildGitBranchLabel())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := newInputViewWithBranch(t, tt.branch)
+			if tt.disabled {
+				cfg := config.DefaultConfig()
+				cfg.Chat.StatusBar.Indicators.GitBranch = false
+				iv.config = cfg
+			}
+			iv.SetWidth(tt.width)
+			if tt.width < 80 {
+				iv.SetText("hi")
+			}
 
-func TestInputView_RenderEmbedsBranchInTopBorder(t *testing.T) {
-	iv := newInputViewWithBranch(t, "feature/test-branch")
-	iv.SetWidth(80)
+			rendered := iv.Render()
+			if !tt.wantIcon {
+				require.NotContains(t, rendered, "⎇")
+				return
+			}
 
-	topLine, _, _ := strings.Cut(iv.Render(), "\n")
-
-	require.Contains(t, topLine, "⎇")
-	require.Contains(t, topLine, "feature/test-branch")
-	require.Contains(t, topLine, "╮", "top border should keep its rounded right corner")
-}
-
-func TestInputView_RenderTruncatesLongBranchInBorder(t *testing.T) {
-	iv := newInputViewWithBranch(t, "feature/a-really-long-branch-name-that-keeps-going-and-going")
-	iv.SetWidth(80)
-
-	topLine, _, _ := strings.Cut(iv.Render(), "\n")
-
-	require.Contains(t, topLine, "⎇")
-	require.Contains(t, topLine, "...")
-	require.NotContains(t, topLine, "going-and-going")
-}
-
-func TestInputView_RenderDropsBranchWhenTooNarrow(t *testing.T) {
-	iv := newInputViewWithBranch(t, "main")
-	iv.SetText("hi")
-	iv.SetWidth(12)
-
-	topLine, _, _ := strings.Cut(iv.Render(), "\n")
-
-	require.NotContains(t, topLine, "⎇")
-}
-
-func TestInputView_RenderOmitsBranchWhenDisabled(t *testing.T) {
-	iv := newInputViewWithBranch(t, "main")
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
-	iv.config = cfg
-	iv.SetWidth(80)
-
-	require.NotContains(t, iv.Render(), "⎇")
+			topLine, _, _ := strings.Cut(rendered, "\n")
+			require.Contains(t, topLine, "⎇")
+			if tt.wantDots {
+				require.Contains(t, topLine, "...")
+				require.NotContains(t, topLine, "going-and-going")
+			}
+			if tt.wantFull {
+				require.Contains(t, topLine, tt.branch)
+				require.Contains(t, topLine, "╮", "top border should keep its rounded right corner")
+			}
+		})
+	}
 }
 
 func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
@@ -750,34 +758,6 @@ func newInputViewWithPR(t *testing.T, branch, pr string) *InputView {
 	iv.gitBranchCacheTTL = 5 * time.Second
 	iv.gitPRCache = pr
 	return iv
-}
-
-func TestInputView_BuildGitBranchLabel_WithPR(t *testing.T) {
-	iv := newInputViewWithPR(t, "fix/issue-785", "792")
-	require.Equal(t, "⎇ fix/issue-785  #792", iv.buildGitBranchLabel())
-}
-
-func TestInputView_BuildGitBranchLabel_WithPR_DisabledByConfig(t *testing.T) {
-	iv := newInputViewWithPR(t, "fix/issue-785", "792")
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitPR = false
-	iv.config = cfg
-
-	require.Equal(t, "⎇ fix/issue-785", iv.buildGitBranchLabel())
-}
-
-func TestInputView_BuildGitBranchLabel_WithPR_NoPR(t *testing.T) {
-	iv := newInputViewWithPR(t, "main", "")
-	require.Equal(t, "⎇ main", iv.buildGitBranchLabel())
-}
-
-func TestInputView_BuildGitBranchLabel_WithPR_GitBranchDisabled(t *testing.T) {
-	iv := newInputViewWithPR(t, "main", "123")
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
-	iv.config = cfg
-
-	require.Empty(t, iv.buildGitBranchLabel())
 }
 
 func TestInputView_RenderEmbedsBranchAndPRInTopBorder(t *testing.T) {
