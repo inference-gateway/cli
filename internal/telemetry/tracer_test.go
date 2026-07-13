@@ -62,9 +62,6 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	}
 
 	endSession := rec.StartSession("standard")
-
-	// The chat TUI builds per-message contexts detached from the session
-	// start; SpanContext must graft the root span onto them.
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
 	_, toolSpan := rec.startToolSpan(turnCtx, "Read")
 	toolSpan.End()
