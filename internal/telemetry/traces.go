@@ -121,6 +121,8 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 			p.Children = append(p.Children, n.span)
 		case strings.Trim(n.parent, "0") == "":
 			roots = append(roots, n.span)
+		case n.span.Name == "session":
+			roots = append(roots, n.span)
 		default:
 			orphans[n.parent] = append(orphans[n.parent], n.span)
 		}

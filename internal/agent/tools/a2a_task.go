@@ -14,6 +14,7 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // A2ASubmitTaskTool handles A2A task submission and management
@@ -170,7 +171,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	if t.client != nil {
 		adkClient = t.client
 	} else {
-		adkClient = client.NewClient(agentURL)
+		adkClient = telemetry.NewA2AClient(agentURL)
 	}
 
 	if result := t.validateExistingTask(ctx, adkClient, existingTaskID, agentURL, args, startTime); result != nil {
@@ -352,7 +353,7 @@ func (t *A2ASubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient 
 	if t.client != nil {
 		return t.client
 	}
-	return client.NewClient(agentURL)
+	return telemetry.NewA2AClient(agentURL)
 }
 
 func (t *A2ASubmitTaskTool) initializePollingStrategy(_ /* agentURL */, _ /* taskID */, strategy string) time.Duration {

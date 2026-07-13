@@ -1025,6 +1025,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 	if wasApproved {
 		execCtx = domain.WithToolApproved(execCtx)
 	}
+	execCtx = domain.WithToolCallID(execCtx, tc.ID)
 
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {

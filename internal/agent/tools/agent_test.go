@@ -198,10 +198,10 @@ func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 func TestSubagentExtraEnv_EmitsSubagentMode(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	tool := newTestAgentTool(t)
-	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
 		t.Fatalf("ReadOnly subagent must add the readonly mode var to headless env; got %q", env)
 	}
-	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
 		t.Fatalf("ReadWrite (Standard) subagent must NOT add the mode var; got %q", env)
 	}
 }
@@ -214,7 +214,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	tool := newTestAgentTool(t)
 
-	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("non-mock parent must not set the mock var; got %q", env)
 	}
 	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
@@ -222,7 +222,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	}
 
 	tool.config.Gateway.Mock = true
-	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); !strings.Contains(env, "INFER_GATEWAY_MOCK=true") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); !strings.Contains(env, "INFER_GATEWAY_MOCK=true") {
 		t.Fatalf("mock parent must propagate INFER_GATEWAY_MOCK=true to headless env; got %q", env)
 	}
 	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); !strings.Contains(cmd, "INFER_GATEWAY_MOCK=true") {
@@ -230,7 +230,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	}
 
 	tool.config.Tools.Agent.InheritMock = false
-	if env := strings.Join(tool.subagentExtraEnv(AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("inherit_mock=false must opt subagents out of mock propagation; got %q", env)
 	}
 	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {

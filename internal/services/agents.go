@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 type A2AAgentService struct {
@@ -49,7 +49,7 @@ func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*a
 		}
 	}
 
-	adkClient := client.NewClient(agentURL)
+	adkClient := telemetry.NewA2AClient(agentURL)
 	card, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
 		logger.Error("failed to fetch agent card", "agent_url", agentURL, "error", err)

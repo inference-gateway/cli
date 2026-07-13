@@ -35,6 +35,11 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
 	defer span.End()
 
+	ctx = t.rec.contextWithBaggage(ctx)
+	if env := t.rec.ChildEnv(ctx); env != nil {
+		ctx = domain.WithTraceEnv(ctx, env)
+	}
+
 	res, err := t.ToolService.ExecuteTool(ctx, tool)
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))

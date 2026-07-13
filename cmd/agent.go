@@ -749,13 +749,14 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 // The mode is carried on the context so the Bash tool resolves the right
 // per-mode allow-list. approved is set only after an explicit IPC approval,
 // marking the context so an off-list but user-approved command is allowed to run.
-func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*domain.ToolExecutionResult, error) {
+func (s *AgentSession) executeToolCall(toolName, args, callID string, approved bool) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(s.baseCtx(), s.sessionID), s.agentMode), s.model)
+	ctx = domain.WithToolCallID(ctx, callID)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
 	}
@@ -786,7 +787,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
+			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, false)
 			if err != nil {
 				logger.Error("tool execution failed", "tool", tc.Function.Name, "error", err)
 				errorResult := &domain.ToolExecutionResult{
@@ -961,7 +962,7 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 			"tool execution rejected by user")
 	}
 
-	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, true)
+	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, true)
 	return s.toolResultMessage(tc, result, err)
 }
 

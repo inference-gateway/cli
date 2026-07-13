@@ -329,7 +329,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		Model:      spec.Model,
 		Files:      spec.Files,
 		ResultFile: resultFile,
-		ExtraEnv:   t.subagentExtraEnv(spec),
+		ExtraEnv:   t.subagentExtraEnv(ctx, spec),
 	})
 
 	answer := res.FinalAssistant
@@ -461,9 +461,10 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 }
 
 // subagentExtraEnv builds the environment passed to a headless subagent: the
-// depth guard plus an optional per-subagent system prompt.
-func (t *AgentTool) subagentExtraEnv(spec AgentTaskSpec) []string {
+// depth guard plus an optional per-subagent system prompt and trace context.
+func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	env = append(env, domain.GetTraceEnv(ctx)...)
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}

@@ -162,6 +162,28 @@ func HasSessionID(ctx context.Context) bool {
 	return GetSessionID(ctx) != ""
 }
 
+// WithToolCallID returns a new context with the LLM tool call id
+func WithToolCallID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, ToolCallIDKey, id)
+}
+
+// GetToolCallID retrieves the tool call id from context
+func GetToolCallID(ctx context.Context) string {
+	id, _ := ctx.Value(ToolCallIDKey).(string)
+	return id
+}
+
+// WithTraceEnv returns a new context with the subprocess trace environment
+func WithTraceEnv(ctx context.Context, env []string) context.Context {
+	return context.WithValue(ctx, TraceEnvKey, env)
+}
+
+// GetTraceEnv retrieves the subprocess trace environment from context
+func GetTraceEnv(ctx context.Context) []string {
+	env, _ := ctx.Value(TraceEnvKey).([]string)
+	return env
+}
+
 // ========================================
 // User Question Broker
 // ========================================
