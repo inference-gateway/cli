@@ -968,10 +968,6 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 
 // isToolApprovalRequired checks if a tool requires user approval based on config.
 func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCall) bool {
-	// Auto-accept bypasses approval entirely, matching chat YOLO mode. A headless
-	// run only reaches this mode when spawned by the Agent tool from an
-	// auto-accept parent (via INFER_SUBAGENT_AGENT_MODE); top-level runs stay
-	// Standard and fall through to the per-mode gating below.
 	if s.agentMode == domain.AgentModeAutoAccept {
 		return false
 	}
@@ -984,10 +980,6 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		if !ok {
 			return true
 		}
-		// An allowed command (per the session's mode allow-list) runs without
-		// approval; an off-list one needs approval and is then delivered per
-		// tools.safety.approval_behaviour (IPC when a broker is attached, else
-		// blocked) by deliverApprovalRequiredTool.
 		if s.config.IsBashCommandAllowed(command, s.agentMode.AllowedlistKey()) {
 			return false
 		}

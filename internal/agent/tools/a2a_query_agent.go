@@ -7,11 +7,12 @@ import (
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 type A2AQueryAgentTool struct {
