@@ -47,7 +47,6 @@ func TestStatsShortcut_WithData(t *testing.T) {
 		t.Fatal("expected Success to be true")
 	}
 
-	// Should contain tool, token, and session sections
 	if !strings.Contains(res.Output, "Tool Calls") {
 		t.Errorf("expected 'Tool Calls' section, got: %q", res.Output)
 	}
