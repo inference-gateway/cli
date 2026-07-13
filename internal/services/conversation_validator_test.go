@@ -63,7 +63,7 @@ func checkSynthetics(t *testing.T, synthetics []services.SyntheticToolResponse, 
 	}
 }
 
-//nolint:funlen,gocyclo,cyclop
+//nolint:funlen,gocyclo,cyclop,gocognit
 func TestEnsureToolCallsClosed(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -140,6 +140,13 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				if repaired[5].Role != sdk.User {
 					t.Errorf("user message should land after synthetics, got role=%s at index 5", repaired[5].Role)
 				}
+				for i, s := range synthetics {
+					body, err := s.Message.Content.AsMessageContent0()
+					if err != nil || body != services.CancelledToolResponseContent {
+						t.Errorf("synthetics[%d] body = %q (err %v), want %q",
+							i, body, err, services.CancelledToolResponseContent)
+					}
+				}
 			},
 		},
 		{
@@ -150,6 +157,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				userMsg("hi"),
 			},
 			wantSynthCount: 2,
+			wantLen:        5,
 			check: func(t *testing.T, repaired []sdk.Message, synthetics []services.SyntheticToolResponse) {
 				twice, synth2 := services.EnsureToolCallsClosed(repaired)
 				if len(synth2) != 0 {
@@ -171,6 +179,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				userMsg("third"),
 			},
 			wantSynthIDs: []string{"a1", "b1"},
+			wantLen:      8,
 			check: func(t *testing.T, repaired []sdk.Message, synthetics []services.SyntheticToolResponse) {
 				if repaired[2].Role != sdk.Tool || *repaired[2].ToolCallID != "a1" {
 					t.Errorf("synthetic for a1 should land at index 2, got role=%s id=%v",
@@ -191,6 +200,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				return []sdk.Message{userMsg("read"), asst, userMsg("hi")}
 			}(),
 			wantSynthCount: 2,
+			wantLen:        5,
 			check: func(t *testing.T, repaired []sdk.Message, synthetics []services.SyntheticToolResponse) {
 				reasoning := "I should read these files"
 				if repaired[1].Reasoning == nil || *repaired[1].Reasoning != reasoning {
@@ -213,6 +223,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				userMsg("hi"),
 			},
 			wantSynthIDs: []string{"a"},
+			wantLen:      5,
 		},
 		{
 			name: "preserves tool name for UI",
@@ -234,6 +245,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				}
 			}(),
 			wantSynthCount: 1,
+			wantLen:        4,
 			check: func(t *testing.T, repaired []sdk.Message, synthetics []services.SyntheticToolResponse) {
 				if len(synthetics) != 1 || synthetics[0].ToolName != "Read" {
 					t.Errorf("expected synthetic with ToolName=Read, got %+v", synthetics)
@@ -254,6 +266,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 				}
 			}(),
 			wantSynthIDs: []string{"good"},
+			wantLen:      4,
 		},
 	}
 
@@ -263,7 +276,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 
 			checkSynthetics(t, synthetics, tt.wantSynthCount, tt.wantSynthIDs)
 
-			if tt.wantLen > 0 && len(repaired) != tt.wantLen {
+			if len(repaired) != tt.wantLen {
 				t.Errorf("expected len %d, got %d", tt.wantLen, len(repaired))
 			}
 

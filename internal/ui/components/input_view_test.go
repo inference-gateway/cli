@@ -493,9 +493,6 @@ func TestInputView_HistorySuggestions(t *testing.T) {
 			history:     []string{"create a pull request"},
 			input:       "cre",
 			cursorAtEnd: true,
-			wantHas:     true,
-			wantSuggest: "ate a pull request",
-			wantCount:   1,
 			accept:      true,
 			wantAfter:   "create a pull request",
 		},
@@ -560,6 +557,11 @@ func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
 
 	if iv.historySuggestion == firstSuggestion {
 		t.Error("Expected Tab to cycle to different suggestion")
+	}
+
+	_, _ = iv.HandleKey(tabKey)
+	if iv.historySuggestion != firstSuggestion {
+		t.Errorf("Expected second Tab to wrap back to first suggestion %q, got %q", firstSuggestion, iv.historySuggestion)
 	}
 }
 

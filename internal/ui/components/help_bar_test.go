@@ -115,7 +115,6 @@ func TestHelpBar_Render(t *testing.T) {
 		width     int
 		wantEmpty bool
 		wantKeys  []string
-		wantDescs []string
 	}{
 		{
 			name:      "disabled returns empty",
@@ -185,9 +184,9 @@ func TestHelpBar_Render(t *testing.T) {
 			if output == "" {
 				t.Error("expected non-empty output")
 			}
-			for _, key := range tt.wantKeys {
-				if !strings.Contains(output, key) {
-					t.Errorf("expected output to contain %q, got %q", key, output)
+			for _, k := range tt.wantKeys {
+				if !strings.Contains(output, k) {
+					t.Errorf("expected output to contain %q, got %q", k, output)
 				}
 			}
 		})
