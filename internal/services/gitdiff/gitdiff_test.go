@@ -127,76 +127,87 @@ func TestIsRepo(t *testing.T) {
 	}
 }
 
-func TestChanges_ModifiedUnstaged(t *testing.T) {
-	repo := newTestRepo(t)
-	writeFile(t, repo, "tracked.txt", "line1\nline2\nline3\n")
-
-	src := NewGitSource(repo)
-	staged, unstaged, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	if len(staged) != 0 {
-		t.Errorf("staged = %v, want empty", staged)
-	}
-	fc, ok := findChange(unstaged, "tracked.txt")
-	if !ok || fc.Status != StatusModified || fc.Staged {
-		t.Fatalf("unstaged tracked.txt = %+v (ok=%v), want modified/unstaged", fc, ok)
-	}
-
-	oldC, newC, isBin, err := src.Diff(fc)
-	if err != nil || isBin {
-		t.Fatalf("Diff err=%v isBin=%v", err, isBin)
-	}
-	if oldC != "line1\nline2\n" || newC != "line1\nline2\nline3\n" {
-		t.Errorf("Diff old=%q new=%q", oldC, newC)
-	}
-}
-
-func TestChanges_StagedNewFile(t *testing.T) {
-	repo := newTestRepo(t)
-	writeFile(t, repo, "added.txt", "hello\n")
-	runGit(t, repo, "add", "added.txt")
-
-	src := NewGitSource(repo)
-	staged, _, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	fc, ok := findChange(staged, "added.txt")
-	if !ok || fc.Status != StatusAdded || !fc.Staged {
-		t.Fatalf("staged added.txt = %+v (ok=%v), want added/staged", fc, ok)
-	}
-
-	oldC, newC, _, err := src.Diff(fc)
-	if err != nil {
-		t.Fatalf("Diff: %v", err)
-	}
-	if oldC != "" || newC != "hello\n" {
-		t.Errorf("Diff old=%q new=%q, want ''/'hello\\n'", oldC, newC)
-	}
-}
-
-func TestChanges_Untracked(t *testing.T) {
-	repo := newTestRepo(t)
-	writeFile(t, repo, "sub/new.txt", "fresh\n")
-
-	src := NewGitSource(repo)
-	_, unstaged, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	fc, ok := findChange(unstaged, "sub/new.txt")
-	if !ok || fc.Status != StatusUntracked {
-		t.Fatalf("untracked sub/new.txt = %+v (ok=%v)", fc, ok)
+// TestChanges_SingleFileStates covers one changed file per state: the file
+// lands in the expected group with the expected status/staged flag, and Diff
+// returns the expected old/new contents.
+func TestChanges_SingleFileStates(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, repo string)
+		path       string
+		staged     bool
+		wantStatus Status
+		wantOld    string
+		wantNew    string
+	}{
+		{
+			name: "modified unstaged",
+			setup: func(t *testing.T, repo string) {
+				writeFile(t, repo, "tracked.txt", "line1\nline2\nline3\n")
+			},
+			path: "tracked.txt", staged: false, wantStatus: StatusModified,
+			wantOld: "line1\nline2\n", wantNew: "line1\nline2\nline3\n",
+		},
+		{
+			name: "staged new file",
+			setup: func(t *testing.T, repo string) {
+				writeFile(t, repo, "added.txt", "hello\n")
+				runGit(t, repo, "add", "added.txt")
+			},
+			path: "added.txt", staged: true, wantStatus: StatusAdded,
+			wantOld: "", wantNew: "hello\n",
+		},
+		{
+			name: "untracked",
+			setup: func(t *testing.T, repo string) {
+				writeFile(t, repo, "sub/new.txt", "fresh\n")
+			},
+			path: "sub/new.txt", staged: false, wantStatus: StatusUntracked,
+			wantOld: "", wantNew: "fresh\n",
+		},
+		{
+			name: "deleted unstaged",
+			setup: func(t *testing.T, repo string) {
+				if err := os.Remove(filepath.Join(repo, "tracked.txt")); err != nil {
+					t.Fatalf("remove: %v", err)
+				}
+			},
+			path: "tracked.txt", staged: false, wantStatus: StatusDeleted,
+			wantOld: "line1\nline2\n", wantNew: "",
+		},
 	}
 
-	oldC, newC, _, err := src.Diff(fc)
-	if err != nil {
-		t.Fatalf("Diff: %v", err)
-	}
-	if oldC != "" || newC != "fresh\n" {
-		t.Errorf("Diff old=%q new=%q", oldC, newC)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newTestRepo(t)
+			tt.setup(t, repo)
+
+			src := NewGitSource(repo)
+			staged, unstaged, err := src.Changes()
+			if err != nil {
+				t.Fatalf("Changes: %v", err)
+			}
+
+			group, other := unstaged, staged
+			if tt.staged {
+				group, other = staged, unstaged
+			}
+			if len(other) != 0 {
+				t.Errorf("other group = %v, want empty", other)
+			}
+			fc, ok := findChange(group, tt.path)
+			if !ok || fc.Status != tt.wantStatus || fc.Staged != tt.staged {
+				t.Fatalf("%s = %+v (ok=%v), want status=%v staged=%v", tt.path, fc, ok, tt.wantStatus, tt.staged)
+			}
+
+			oldC, newC, isBin, err := src.Diff(fc)
+			if err != nil || isBin {
+				t.Fatalf("Diff err=%v isBin=%v", err, isBin)
+			}
+			if oldC != tt.wantOld || newC != tt.wantNew {
+				t.Errorf("Diff old=%q new=%q, want old=%q new=%q", oldC, newC, tt.wantOld, tt.wantNew)
+			}
+		})
 	}
 }
 
@@ -216,31 +227,6 @@ func TestChanges_StagedAndUnstaged(t *testing.T) {
 	}
 	if _, ok := findChange(unstaged, "tracked.txt"); !ok {
 		t.Errorf("expected tracked.txt in unstaged group")
-	}
-}
-
-func TestChanges_DeletedUnstaged(t *testing.T) {
-	repo := newTestRepo(t)
-	if err := os.Remove(filepath.Join(repo, "tracked.txt")); err != nil {
-		t.Fatalf("remove: %v", err)
-	}
-
-	src := NewGitSource(repo)
-	_, unstaged, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	fc, ok := findChange(unstaged, "tracked.txt")
-	if !ok || fc.Status != StatusDeleted {
-		t.Fatalf("deleted tracked.txt = %+v (ok=%v)", fc, ok)
-	}
-
-	oldC, newC, _, err := src.Diff(fc)
-	if err != nil {
-		t.Fatalf("Diff: %v", err)
-	}
-	if oldC != "line1\nline2\n" || newC != "" {
-		t.Errorf("Diff old=%q new=%q, want full/''", oldC, newC)
 	}
 }
 
@@ -282,14 +268,22 @@ func writeNumberedFile(t *testing.T, dir, name string, n int) {
 	writeFile(t, dir, name, b.String())
 }
 
-func TestApplyHunk_StagesSingleHunk(t *testing.T) {
+// newNumberedRepo creates a git repo whose only commit contains f.txt with n
+// numbered lines, and returns its path.
+func newNumberedRepo(t *testing.T, n int) string {
+	t.Helper()
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "config", "user.email", "test@example.com")
 	runGit(t, dir, "config", "user.name", "Test")
-	writeNumberedFile(t, dir, "f.txt", 20)
+	writeNumberedFile(t, dir, "f.txt", n)
 	runGit(t, dir, "add", "-A")
 	runGit(t, dir, "commit", "-q", "-m", "init")
+	return dir
+}
+
+func TestApplyHunk_StagesSingleHunk(t *testing.T) {
+	dir := newNumberedRepo(t, 20)
 
 	content := readFileLines(t, dir, "f.txt")
 	content[0] = "CHANGED1"
@@ -334,13 +328,7 @@ func TestApplyHunk_StagesSingleHunk(t *testing.T) {
 }
 
 func TestApplyHunk_Reverse_Unstages(t *testing.T) {
-	dir := t.TempDir()
-	runGit(t, dir, "init", "-q")
-	runGit(t, dir, "config", "user.email", "test@example.com")
-	runGit(t, dir, "config", "user.name", "Test")
-	writeNumberedFile(t, dir, "f.txt", 20)
-	runGit(t, dir, "add", "-A")
-	runGit(t, dir, "commit", "-q", "-m", "init")
+	dir := newNumberedRepo(t, 20)
 
 	content := readFileLines(t, dir, "f.txt")
 	content[0] = "CHANGED1"
@@ -366,106 +354,78 @@ func TestApplyHunk_Reverse_Unstages(t *testing.T) {
 	}
 }
 
-func TestApplyLines_StagesOnlySelectedChange(t *testing.T) {
-	dir := t.TempDir()
-	runGit(t, dir, "init", "-q")
-	runGit(t, dir, "config", "user.email", "test@example.com")
-	runGit(t, dir, "config", "user.name", "Test")
-	writeNumberedFile(t, dir, "f.txt", 8)
-	runGit(t, dir, "add", "-A")
-	runGit(t, dir, "commit", "-q", "-m", "init")
-
-	content := readFileLines(t, dir, "f.txt")
-	content[2] = "CHANGED3"
-	content[4] = "CHANGED5"
-	writeFileLines(t, dir, "f.txt", content)
-
-	src := NewGitSource(dir)
-	fp, err := src.WorktreePatch("f.txt")
-	if err != nil {
-		t.Fatalf("WorktreePatch: %v", err)
-	}
-	if len(fp.Hunks) != 1 {
-		t.Fatalf("expected the two edits to share one hunk, got %d", len(fp.Hunks))
+// TestApplyLines stages (forward, from the worktree patch) or unstages
+// (reverse, from the index patch) only the selected line pair, leaving the
+// unselected edit on the other side of the index.
+func TestApplyLines(t *testing.T) {
+	tests := []struct {
+		name          string
+		preStage      bool
+		reverse       bool
+		wantStaged    string
+		wantNotStaged string
+	}{
+		{
+			name:       "forward stages only selected change",
+			wantStaged: "CHANGED3", wantNotStaged: "CHANGED5",
+		},
+		{
+			name: "reverse unstages only selected change", preStage: true, reverse: true,
+			wantStaged: "CHANGED5", wantNotStaged: "CHANGED3",
+		},
 	}
 
-	sel := selectLines(fp.Hunks[0], "-line3", "+CHANGED3")
-	if err := src.ApplyLines(fp, 0, sel, false); err != nil {
-		t.Fatalf("ApplyLines: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := newNumberedRepo(t, 8)
+			content := readFileLines(t, dir, "f.txt")
+			content[2] = "CHANGED3"
+			content[4] = "CHANGED5"
+			writeFileLines(t, dir, "f.txt", content)
 
-	staged, unstaged, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	sfc, ok := findChange(staged, "f.txt")
-	if !ok {
-		t.Fatal("f.txt should be staged")
-	}
-	_, newC, _, err := src.Diff(sfc)
-	if err != nil {
-		t.Fatalf("Diff: %v", err)
-	}
-	if !strings.Contains(newC, "CHANGED3") {
-		t.Errorf("staged content should include the selected edit CHANGED3:\n%s", newC)
-	}
-	if strings.Contains(newC, "CHANGED5") {
-		t.Errorf("staged content should NOT include the unselected edit CHANGED5:\n%s", newC)
-	}
-	if _, ok := findChange(unstaged, "f.txt"); !ok {
-		t.Error("f.txt should still have the unselected edit unstaged")
-	}
-}
+			src := NewGitSource(dir)
+			var fp FilePatch
+			var err error
+			if tt.preStage {
+				runGit(t, dir, "add", "f.txt")
+				fp, err = src.IndexPatch("f.txt")
+			} else {
+				fp, err = src.WorktreePatch("f.txt")
+			}
+			if err != nil {
+				t.Fatalf("patch: %v", err)
+			}
+			if len(fp.Hunks) != 1 {
+				t.Fatalf("expected the two edits to share one hunk, got %d", len(fp.Hunks))
+			}
 
-func TestApplyLines_Reverse_UnstagesOnlySelectedChange(t *testing.T) {
-	dir := t.TempDir()
-	runGit(t, dir, "init", "-q")
-	runGit(t, dir, "config", "user.email", "test@example.com")
-	runGit(t, dir, "config", "user.name", "Test")
-	writeNumberedFile(t, dir, "f.txt", 8)
-	runGit(t, dir, "add", "-A")
-	runGit(t, dir, "commit", "-q", "-m", "init")
+			sel := selectLines(fp.Hunks[0], "-line3", "+CHANGED3")
+			if err := src.ApplyLines(fp, 0, sel, tt.reverse); err != nil {
+				t.Fatalf("ApplyLines: %v", err)
+			}
 
-	content := readFileLines(t, dir, "f.txt")
-	content[2] = "CHANGED3"
-	content[4] = "CHANGED5"
-	writeFileLines(t, dir, "f.txt", content)
-	runGit(t, dir, "add", "f.txt")
-
-	src := NewGitSource(dir)
-	fp, err := src.IndexPatch("f.txt")
-	if err != nil {
-		t.Fatalf("IndexPatch: %v", err)
-	}
-	if len(fp.Hunks) != 1 {
-		t.Fatalf("expected one staged hunk, got %d", len(fp.Hunks))
-	}
-
-	sel := selectLines(fp.Hunks[0], "-line3", "+CHANGED3")
-	if err := src.ApplyLines(fp, 0, sel, true); err != nil {
-		t.Fatalf("ApplyLines reverse: %v", err)
-	}
-
-	staged, unstaged, err := src.Changes()
-	if err != nil {
-		t.Fatalf("Changes: %v", err)
-	}
-	sfc, ok := findChange(staged, "f.txt")
-	if !ok {
-		t.Fatal("f.txt should still be staged (CHANGED5 remains)")
-	}
-	_, newC, _, err := src.Diff(sfc)
-	if err != nil {
-		t.Fatalf("Diff: %v", err)
-	}
-	if !strings.Contains(newC, "CHANGED5") {
-		t.Errorf("staged content should still include CHANGED5:\n%s", newC)
-	}
-	if strings.Contains(newC, "CHANGED3") {
-		t.Errorf("staged content should no longer include the unstaged edit CHANGED3:\n%s", newC)
-	}
-	if _, ok := findChange(unstaged, "f.txt"); !ok {
-		t.Error("the unstaged edit (CHANGED3) should now appear as a working-tree change")
+			staged, unstaged, err := src.Changes()
+			if err != nil {
+				t.Fatalf("Changes: %v", err)
+			}
+			sfc, ok := findChange(staged, "f.txt")
+			if !ok {
+				t.Fatal("f.txt should be staged")
+			}
+			_, newC, _, err := src.Diff(sfc)
+			if err != nil {
+				t.Fatalf("Diff: %v", err)
+			}
+			if !strings.Contains(newC, tt.wantStaged) {
+				t.Errorf("staged content should include %s:\n%s", tt.wantStaged, newC)
+			}
+			if strings.Contains(newC, tt.wantNotStaged) {
+				t.Errorf("staged content should NOT include %s:\n%s", tt.wantNotStaged, newC)
+			}
+			if _, ok := findChange(unstaged, "f.txt"); !ok {
+				t.Errorf("f.txt should still have %s unstaged", tt.wantNotStaged)
+			}
+		})
 	}
 }
 

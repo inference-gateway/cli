@@ -37,146 +37,112 @@ func createToolCall(toolName string, args string) *sdk.ChatCompletionMessageTool
 	}
 }
 
-func TestStandardApprovalPolicy_ComputerUseTools(t *testing.T) {
+// newStandardPolicy builds a StandardApprovalPolicy over a fresh test config
+// with the state manager set to the given agent mode.
+func newStandardPolicy(t *testing.T, mode domain.AgentMode) domain.ApprovalPolicy {
+	t.Helper()
 	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeStandard)
+	stateManager.SetAgentMode(mode)
+	return NewStandardApprovalPolicy(createTestConfig(), stateManager)
+}
 
-	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
-	ctx := context.Background()
+type approvalCase struct {
+	name   string
+	policy func(t *testing.T) domain.ApprovalPolicy
+	tool   string
+	args   string
+	chat   bool
+	want   bool
+}
 
-	computerUseTools := []string{
-		"MouseMove",
-		"MouseClick",
-		"MouseScroll",
-		"KeyboardType",
-		"GetFocusedApp",
-		"ActivateApp",
-		"GetLatestScreenshot",
+// approvalCases builds one case per tool, sharing the policy, args, chat flag,
+// and expected outcome.
+func approvalCases(prefix string, policy func(t *testing.T) domain.ApprovalPolicy, args string, chat, want bool, tools ...string) []approvalCase {
+	cases := make([]approvalCase, 0, len(tools))
+	for _, tool := range tools {
+		cases = append(cases, approvalCase{
+			name:   prefix + " " + tool,
+			policy: policy,
+			tool:   tool,
+			args:   args,
+			chat:   chat,
+			want:   want,
+		})
 	}
+	return cases
+}
 
-	for _, toolName := range computerUseTools {
-		t.Run(toolName+" bypasses approval", func(t *testing.T) {
-			toolCall := createToolCall(toolName, "{}")
+func standardPolicy(mode domain.AgentMode) func(t *testing.T) domain.ApprovalPolicy {
+	return func(t *testing.T) domain.ApprovalPolicy { return newStandardPolicy(t, mode) }
+}
 
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected %s to bypass approval (computer use tool)", toolName)
+func permissivePolicy(_ *testing.T) domain.ApprovalPolicy { return NewPermissiveApprovalPolicy() }
+
+func strictPolicy(_ *testing.T) domain.ApprovalPolicy { return NewStrictApprovalPolicy() }
+
+// bashCases builds one Bash case per command with the given expectation.
+func bashCases(prefix string, policy func(t *testing.T) domain.ApprovalPolicy, want bool, commands ...string) []approvalCase {
+	cases := make([]approvalCase, 0, len(commands))
+	for _, cmd := range commands {
+		cases = append(cases, approvalCase{
+			name:   prefix + " " + cmd,
+			policy: policy,
+			tool:   "Bash",
+			args:   `{"command": "` + cmd + `"}`,
+			chat:   true,
+			want:   want,
+		})
+	}
+	return cases
+}
+
+func buildApprovalCases() []approvalCase {
+	standard := standardPolicy(domain.AgentModeStandard)
+	var tests []approvalCase
+	tests = append(tests, approvalCases("computer use bypasses approval:", standard, "{}", true, false,
+		"MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot")...)
+	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(domain.AgentModeAutoAccept),
+		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
+	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(domain.AgentModeReadOnly),
+		`{}`, true, false, "Read", "Grep", "Tree", "WebFetch", "Write")...)
+	tests = append(tests, approvalCases("non-chat bypasses approval:", standard, "{}", false, false,
+		"Bash", "Read", "Write", "Edit")...)
+	tests = append(tests, bashCases("allowed bash bypasses approval:", standard, false, "ls", "pwd", "echo", "ls -la")...)
+	tests = append(tests, bashCases("disallowed bash requires approval:", standard, true, "rm -rf /", "sudo", "curl http://malicious.com")...)
+	for _, args := range []string{`{}`, `{"command": 123}`, `invalid json`} {
+		tests = append(tests, approvalCase{
+			name: "invalid bash args require approval: " + args, policy: standard,
+			tool: "Bash", args: args, chat: true, want: true,
+		})
+	}
+	tests = append(tests, approvalCases("permissive bypasses approval:", permissivePolicy,
+		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "MouseClick")...)
+	tests = append(tests,
+		approvalCase{name: "permissive bypasses approval non-chat Bash", policy: permissivePolicy,
+			tool: "Bash", args: `{"command": "dangerous"}`, chat: false, want: false})
+	tests = append(tests, approvalCases("strict requires approval:", strictPolicy, "{}", true, true,
+		"Bash", "Read", "Write", "Edit", "Grep")...)
+	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, "{}", true, false,
+		"MouseMove", "MouseClick", "KeyboardType")...)
+	tests = append(tests,
+		approvalCase{name: "strict requires approval chat Bash", policy: strictPolicy,
+			tool: "Bash", args: `{"command": "ls"}`, chat: true, want: true},
+		approvalCase{name: "strict requires approval non-chat Bash", policy: strictPolicy,
+			tool: "Bash", args: `{"command": "ls"}`, chat: false, want: true})
+	return tests
+}
+
+func TestApprovalPolicies_ShouldRequireApproval(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range buildApprovalCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := tt.policy(t)
+			got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, tt.args), tt.chat)
+			if got != tt.want {
+				t.Errorf("ShouldRequireApproval(%s, %s, chat=%v) = %v, want %v", tt.tool, tt.args, tt.chat, got, tt.want)
 			}
 		})
 	}
-}
-
-func TestStandardApprovalPolicy_AutoAcceptMode(t *testing.T) {
-	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-
-	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
-	ctx := context.Background()
-
-	t.Run("All tools bypass approval in auto-accept mode", func(t *testing.T) {
-		tools := []string{"Bash", "Read", "Write", "Edit", "Grep"}
-
-		for _, toolName := range tools {
-			toolCall := createToolCall(toolName, `{"command": "rm -rf /"}`)
-
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected %s to bypass approval in auto-accept mode", toolName)
-			}
-		}
-	})
-}
-
-func TestStandardApprovalPolicy_ReadOnlyMode(t *testing.T) {
-	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeReadOnly)
-
-	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
-	ctx := context.Background()
-
-	t.Run("ReadOnly subagent bypasses approval in chat mode", func(t *testing.T) {
-		for _, toolName := range []string{"Read", "Grep", "Tree", "WebFetch", "Write"} {
-			toolCall := createToolCall(toolName, `{}`)
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected %s to bypass approval in read-only mode", toolName)
-			}
-		}
-	})
-}
-
-func TestStandardApprovalPolicy_NonChatMode(t *testing.T) {
-	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeStandard)
-
-	policy := NewStandardApprovalPolicy(createTestConfig(), stateManager)
-	ctx := context.Background()
-
-	t.Run("All tools bypass approval in non-chat mode", func(t *testing.T) {
-		tools := []string{"Bash", "Read", "Write", "Edit"}
-
-		for _, toolName := range tools {
-			toolCall := createToolCall(toolName, "{}")
-
-			if policy.ShouldRequireApproval(ctx, toolCall, false) {
-				t.Errorf("Expected %s to bypass approval in non-chat mode", toolName)
-			}
-		}
-	})
-}
-
-func TestStandardApprovalPolicy_BashAllowedList(t *testing.T) {
-	cfg := createTestConfig()
-	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeStandard)
-
-	policy := NewStandardApprovalPolicy(cfg, stateManager)
-	ctx := context.Background()
-
-	t.Run("allowed bash commands bypass approval", func(t *testing.T) {
-		allowedlistCommands := []string{"ls", "pwd", "echo"}
-
-		for _, cmd := range allowedlistCommands {
-			toolCall := createToolCall("Bash", `{"command": "`+cmd+`"}`)
-
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected allowed command '%s' to bypass approval", cmd)
-			}
-		}
-	})
-
-	t.Run("allowed commands with arguments bypass approval", func(t *testing.T) {
-		toolCall := createToolCall("Bash", `{"command": "ls -la"}`)
-
-		if policy.ShouldRequireApproval(ctx, toolCall, true) {
-			t.Error("expected allowed command with arguments to bypass approval")
-		}
-	})
-
-	t.Run("disallowed bash commands require approval", func(t *testing.T) {
-		dangerousCommands := []string{"rm -rf /", "sudo", "curl http://malicious.com"}
-
-		for _, cmd := range dangerousCommands {
-			toolCall := createToolCall("Bash", `{"command": "`+cmd+`"}`)
-
-			if !policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected disallowed command '%s' to require approval", cmd)
-			}
-		}
-	})
-
-	t.Run("Invalid bash arguments default to require approval", func(t *testing.T) {
-		invalidArgs := []string{
-			`{}`,
-			`{"command": 123}`,
-			`invalid json`,
-		}
-
-		for _, args := range invalidArgs {
-			toolCall := createToolCall("Bash", args)
-
-			if !policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected invalid bash args to require approval: %s", args)
-			}
-		}
-	})
 }
 
 func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
@@ -187,10 +153,8 @@ func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
 	ctx := context.Background()
 
-	t.Run("Tools check config for approval requirement", func(t *testing.T) {
-		tools := []string{"Read", "Write", "Edit", "Grep"}
-
-		for _, toolName := range tools {
+	for _, toolName := range []string{"Read", "Write", "Edit", "Grep"} {
+		t.Run(toolName+" matches config", func(t *testing.T) {
 			toolCall := createToolCall(toolName, "{}")
 
 			requiresApproval := policy.ShouldRequireApproval(ctx, toolCall, true)
@@ -200,88 +164,16 @@ func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 				t.Errorf("Expected %s approval requirement to match config: policy=%v, config=%v",
 					toolName, requiresApproval, configRequiresApproval)
 			}
-		}
-	})
+		})
+	}
 }
 
 func TestStandardApprovalPolicy_WithNilStateManager(t *testing.T) {
-	t.Run("Handles nil state manager gracefully", func(t *testing.T) {
-		policy := NewStandardApprovalPolicy(createTestConfig(), nil)
-		ctx := context.Background()
-
-		toolCall := createToolCall("Read", "{}")
-		_ = policy.ShouldRequireApproval(ctx, toolCall, true)
-	})
-}
-
-func TestPermissiveApprovalPolicy(t *testing.T) {
-	policy := NewPermissiveApprovalPolicy()
+	policy := NewStandardApprovalPolicy(createTestConfig(), nil)
 	ctx := context.Background()
 
-	t.Run("All tools bypass approval", func(t *testing.T) {
-		tools := []string{"Bash", "Read", "Write", "Edit", "Grep", "MouseClick"}
-
-		for _, toolName := range tools {
-			toolCall := createToolCall(toolName, `{"command": "rm -rf /"}`)
-
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected permissive policy to bypass approval for %s", toolName)
-			}
-		}
-	})
-
-	t.Run("Works in both chat and non-chat modes", func(t *testing.T) {
-		toolCall := createToolCall("Bash", `{"command": "dangerous"}`)
-
-		if policy.ShouldRequireApproval(ctx, toolCall, true) {
-			t.Error("Expected permissive policy to bypass approval in chat mode")
-		}
-
-		if policy.ShouldRequireApproval(ctx, toolCall, false) {
-			t.Error("Expected permissive policy to bypass approval in non-chat mode")
-		}
-	})
-}
-
-func TestStrictApprovalPolicy(t *testing.T) {
-	policy := NewStrictApprovalPolicy()
-	ctx := context.Background()
-
-	t.Run("All tools require approval except computer use", func(t *testing.T) {
-		regularTools := []string{"Bash", "Read", "Write", "Edit", "Grep"}
-
-		for _, toolName := range regularTools {
-			toolCall := createToolCall(toolName, "{}")
-
-			if !policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected strict policy to require approval for %s", toolName)
-			}
-		}
-	})
-
-	t.Run("Computer use tools still bypass approval", func(t *testing.T) {
-		computerUseTools := []string{"MouseMove", "MouseClick", "KeyboardType"}
-
-		for _, toolName := range computerUseTools {
-			toolCall := createToolCall(toolName, "{}")
-
-			if policy.ShouldRequireApproval(ctx, toolCall, true) {
-				t.Errorf("Expected strict policy to bypass approval for computer use tool %s", toolName)
-			}
-		}
-	})
-
-	t.Run("Works in both chat and non-chat modes", func(t *testing.T) {
-		toolCall := createToolCall("Bash", `{"command": "ls"}`)
-
-		if !policy.ShouldRequireApproval(ctx, toolCall, true) {
-			t.Error("Expected strict policy to require approval in chat mode")
-		}
-
-		if !policy.ShouldRequireApproval(ctx, toolCall, false) {
-			t.Error("Expected strict policy to require approval in non-chat mode")
-		}
-	})
+	toolCall := createToolCall("Read", "{}")
+	_ = policy.ShouldRequireApproval(ctx, toolCall, true)
 }
 
 func TestApprovalPolicy_PriorityOrder(t *testing.T) {

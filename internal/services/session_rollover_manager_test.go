@@ -164,132 +164,113 @@ func TestResolveSessionID_GroupKeyAfterRollover(t *testing.T) {
 	}
 }
 
-func TestShouldRollover_EmptyConversation(t *testing.T) {
-	mgr, _, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
-	defer cleanup()
-
-	if mgr.ShouldRollover("openai/gpt-4") {
-		t.Error("empty conversation should not trigger rollover")
-	}
-}
-
-func TestShouldRollover_IdleTriggerFires(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
-	defer cleanup()
-
-	addUserMessage(t, repo, "old message", time.Now().Add(-31*time.Minute))
-
-	if !mgr.ShouldRollover("openai/gpt-4") {
-		t.Error("31 min old message should trigger idle rollover (threshold=30)")
-	}
-}
-
-func TestShouldRollover_IdleTriggerDoesNotFireUnderThreshold(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
-	defer cleanup()
-
-	addUserMessage(t, repo, "recent", time.Now().Add(-5*time.Minute))
-
-	if mgr.ShouldRollover("openai/gpt-4") {
-		t.Error("5 min old message should not trigger idle rollover")
-	}
-}
-
-func TestShouldRollover_IdleDisabledByZero(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
-	defer cleanup()
-
-	addUserMessage(t, repo, "old", time.Now().Add(-24*time.Hour))
-
-	if mgr.ShouldRollover("openai/gpt-4") {
-		t.Error("idle threshold 0 should disable the trigger entirely")
-	}
-}
-
-func TestShouldRollover_TokenTriggerFires(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
-	defer cleanup()
-
+// addBigMessages seeds n copies of a large user message so the entries-only
+// token estimate exceeds any small-model threshold.
+func addBigMessages(t *testing.T, repo *PersistentConversationRepository, n int) {
+	t.Helper()
 	bigContent := strings.Repeat("token ", 2000)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < n; i++ {
 		addUserMessage(t, repo, bigContent, time.Now())
 	}
-
-	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
-		t.Error("large conversation should trigger token rollover against known context window")
-	}
 }
 
-func TestShouldRollover_TokenTriggerFiresFromLastInputTokens(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
-	defer cleanup()
-
-	// One short message - entries-only estimate is far below the threshold.
-	addUserMessage(t, repo, "hi", time.Now())
-
-	// Simulate the gateway reporting a large prompt_tokens value (system
-	// prompt + tool defs + history). Threshold for moonshot-v1-8k is
-	// 8192*80/100=6553 tokens.
-	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
+func addTokenUsage(t *testing.T, repo *PersistentConversationRepository, model string, input, output, total int) {
+	t.Helper()
+	if err := repo.AddTokenUsage(model, input, output, total); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
-
-	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
-		t.Error("LastInputTokens above threshold should trigger token rollover even when entries-only estimate is small")
-	}
 }
 
-func TestShouldRollover_TokenTriggerFiresOnSingleTurnSpike(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
-	defer cleanup()
-
-	bigContent := strings.Repeat("token ", 2000)
-	for i := 0; i < 10; i++ {
-		addUserMessage(t, repo, bigContent, time.Now())
+func TestShouldRollover(t *testing.T) {
+	tests := []struct {
+		name       string
+		autoAt     int
+		idleMin    int
+		compactOff bool
+		seed       func(t *testing.T, repo *PersistentConversationRepository)
+		model      string
+		want       bool
+	}{
+		{
+			name: "empty conversation does not trigger", autoAt: 80, idleMin: 30,
+			model: "openai/gpt-4", want: false,
+		},
+		{
+			name: "idle trigger fires past threshold", autoAt: 80, idleMin: 30,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addUserMessage(t, repo, "old message", time.Now().Add(-31*time.Minute))
+			},
+			model: "openai/gpt-4", want: true,
+		},
+		{
+			name: "idle trigger does not fire under threshold", autoAt: 80, idleMin: 30,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addUserMessage(t, repo, "recent", time.Now().Add(-5*time.Minute))
+			},
+			model: "openai/gpt-4", want: false,
+		},
+		{
+			name: "idle trigger disabled by zero threshold", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addUserMessage(t, repo, "old", time.Now().Add(-24*time.Hour))
+			},
+			model: "openai/gpt-4", want: false,
+		},
+		{
+			name: "token trigger fires on large conversation", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addBigMessages(t, repo, 10)
+			},
+			model: "moonshot/moonshot-v1-8k", want: true,
+		},
+		{
+			name: "token trigger fires from LastInputTokens despite small estimate", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addUserMessage(t, repo, "hi", time.Now())
+				addTokenUsage(t, repo, "moonshot/moonshot-v1-8k", 7000, 100, 7100)
+			},
+			model: "moonshot/moonshot-v1-8k", want: true,
+		},
+		{
+			name: "token trigger fires on single-turn spike despite stale LastInputTokens", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addBigMessages(t, repo, 10)
+				addTokenUsage(t, repo, "moonshot/moonshot-v1-8k", 1000, 100, 1100)
+			},
+			model: "moonshot/moonshot-v1-8k", want: true,
+		},
+		{
+			name: "token trigger skipped for model with no configured context window", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addBigMessages(t, repo, 10)
+				addTokenUsage(t, repo, "ollama_cloud/some-unlisted-model", 500000, 100, 500100)
+			},
+			model: "ollama_cloud/some-unlisted-model", want: false,
+		},
+		{
+			name: "compact disabled turns off all triggers", autoAt: 80, idleMin: 30, compactOff: true,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				addUserMessage(t, repo, "old", time.Now().Add(-31*time.Minute))
+			},
+			model: "openai/gpt-4", want: false,
+		},
 	}
 
-	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 1000, 100, 1100); err != nil {
-		t.Fatalf("AddTokenUsage: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, tt.autoAt, tt.idleMin)
+			defer cleanup()
+			if tt.compactOff {
+				mgr.cfg.Compact.Enabled = false
+			}
+			if tt.seed != nil {
+				tt.seed(t, repo)
+			}
 
-	if !mgr.ShouldRollover("moonshot/moonshot-v1-8k") {
-		t.Error("a single-turn estimate spike above threshold should trigger rollover even when LastInputTokens is stale and small")
-	}
-}
-
-// TestShouldRollover_TokenTriggerSkippedForUnknownModel verifies that a model
-// with no configured context window never trips the token trigger, no matter
-// how large the conversation or the gateway-reported token count. Otherwise the
-// session would roll over against the default fallback window every few messages
-// (this was the minimax-m3 bug, before that model was added to the registry).
-// The idle trigger is disabled here (idleMin=0) to isolate the token path.
-func TestShouldRollover_TokenTriggerSkippedForUnknownModel(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
-	defer cleanup()
-
-	bigContent := strings.Repeat("token ", 2000)
-	for i := 0; i < 10; i++ {
-		addUserMessage(t, repo, bigContent, time.Now())
-	}
-	// A gateway-reported count far above any default-window threshold.
-	if err := repo.AddTokenUsage("ollama_cloud/some-unlisted-model", 500000, 100, 500100); err != nil {
-		t.Fatalf("AddTokenUsage: %v", err)
-	}
-
-	if mgr.ShouldRollover("ollama_cloud/some-unlisted-model") {
-		t.Error("model with no configured context window must not trigger token rollover")
-	}
-}
-
-func TestShouldRollover_DisabledWhenCompactOff(t *testing.T) {
-	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 30)
-	defer cleanup()
-	mgr.cfg.Compact.Enabled = false
-
-	addUserMessage(t, repo, "old", time.Now().Add(-31*time.Minute))
-
-	if mgr.ShouldRollover("openai/gpt-4") {
-		t.Error("compact.enabled=false should disable all rollover triggers")
+			if got := mgr.ShouldRollover(tt.model); got != tt.want {
+				t.Errorf("ShouldRollover(%q) = %v, want %v", tt.model, got, tt.want)
+			}
+		})
 	}
 }
 
