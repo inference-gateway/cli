@@ -575,6 +575,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
