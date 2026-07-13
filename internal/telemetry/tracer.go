@@ -30,8 +30,8 @@ func newTracerProvider(res *resource.Resource, dir, session, endpoint string, he
 		spanProcessors = append(spanProcessors, fileProc)
 	}
 
-	if ep := resolveOTLPEndpoint(endpoint); ep != "" {
-		if p, err := newOTLPTraceProcessor(ep, headers, interval); err != nil {
+	if otlpEnabled(endpoint, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") {
+		if p, err := newOTLPTraceProcessor(endpoint, headers, interval); err != nil {
 			logger.Warn("telemetry: OTLP trace export disabled", "error", err)
 		} else {
 			spanProcessors = append(spanProcessors, p)
@@ -70,11 +70,20 @@ func newTraceFileProcessor(dir, session string) (*os.File, sdktrace.SpanProcesso
 	return f, sdktrace.NewSimpleSpanProcessor(exp), nil
 }
 
-// newOTLPTraceProcessor creates a batch span processor that exports spans
-// over OTLP/HTTP to the configured endpoint.
+// newOTLPTraceProcessor creates a batch span processor exporting over
+// OTLP/HTTP. A configured endpoint takes precedence; when empty, the
+// exporter's native spec-compliant env handling applies
+// (OTEL_EXPORTER_OTLP_TRACES_ENDPOINT over OTEL_EXPORTER_OTLP_ENDPOINT,
+// per-signal path appending, headers, timeouts).
 func newOTLPTraceProcessor(endpoint string, headers map[string]string, interval time.Duration) (sdktrace.SpanProcessor, error) {
-	opts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpointURL(endpoint),
+	var opts []otlptracehttp.Option
+	if host, insecure, ok := baseEndpoint(endpoint); ok {
+		opts = append(opts, otlptracehttp.WithEndpoint(host))
+		if insecure {
+			opts = append(opts, otlptracehttp.WithInsecure())
+		}
+	} else if endpoint != "" {
+		opts = append(opts, otlptracehttp.WithEndpointURL(endpoint))
 	}
 	if len(headers) > 0 {
 		opts = append(opts, otlptracehttp.WithHeaders(headers))

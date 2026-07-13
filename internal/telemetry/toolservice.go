@@ -59,6 +59,7 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
 		trace.WithAttributes(
+			attribute.String("gen_ai.operation.name", "execute_tool"),
 			attribute.String("gen_ai.tool.name", toolName),
 			attribute.String("gen_ai.tool.type", "function"),
 		),

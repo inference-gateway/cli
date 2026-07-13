@@ -457,6 +457,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		return response, nil
 	}(timeoutCtx, req.Model, messages)
 	if err != nil {
+		telemetry.SetSpanError(timeoutCtx, err)
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
@@ -464,7 +465,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	content, reasoningContent, toolCalls := extractFirstChoice(response)
 
-	effectiveUsage := s.storeIterationMetrics(req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
+	effectiveUsage := s.storeIterationMetrics(timeoutCtx, req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
 		inputMessages:   messages,
 		outputContent:   content,
 		outputToolCalls: toolCalls,
@@ -749,6 +750,7 @@ type storeIterationMetricsInput struct {
 // was nothing to record. Both the streaming path and the sync Run path funnel through here so
 // chat and headless token accounting stay identical (issue #835).
 func (s *AgentServiceImpl) storeIterationMetrics(
+	ctx context.Context,
 	requestID string,
 	model string,
 	startTime time.Time,
@@ -791,6 +793,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	if s.recorder != nil {
 		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 	}
+	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 
 	return effectiveUsage
 }

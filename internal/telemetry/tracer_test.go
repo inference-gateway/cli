@@ -13,6 +13,7 @@ import (
 // exportedSpan is a minimal decode of one stdouttrace span stub.
 type exportedSpan struct {
 	Name        string
+	SpanKind    int
 	SpanContext struct {
 		TraceID string
 		SpanID  string
@@ -21,6 +22,21 @@ type exportedSpan struct {
 		TraceID string
 		SpanID  string
 	}
+	Attributes []struct {
+		Key   string
+		Value struct {
+			Value any
+		}
+	}
+}
+
+func (s exportedSpan) attr(key string) any {
+	for _, a := range s.Attributes {
+		if a.Key == key {
+			return a.Value.Value
+		}
+	}
+	return nil
 }
 
 const zeroSpanID = "0000000000000000"
@@ -63,6 +79,7 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 
 	endSession := rec.StartSession("standard")
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
+	SetSpanUsage(turnCtx, 100, 42)
 	_, toolSpan := rec.startToolSpan(turnCtx, "Read")
 	toolSpan.End()
 	turnSpan.End()
@@ -87,10 +104,22 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	if turn.Parent.SpanID != session.SpanContext.SpanID {
 		t.Fatalf("turn parent=%s, want session %s", turn.Parent.SpanID, session.SpanContext.SpanID)
 	}
+	if turn.SpanKind != 3 { // trace.SpanKindClient - a remote call to the gateway
+		t.Fatalf("turn span kind=%d, want CLIENT (3)", turn.SpanKind)
+	}
+	if got := turn.attr("gen_ai.conversation.id"); got != "sess-t" {
+		t.Fatalf("gen_ai.conversation.id=%v, want sess-t", got)
+	}
+	if in, out := turn.attr("gen_ai.usage.input_tokens"), turn.attr("gen_ai.usage.output_tokens"); in != float64(100) || out != float64(42) {
+		t.Fatalf("usage attrs=(%v,%v), want (100,42)", in, out)
+	}
 
 	tool := spans["execute_tool Read"]
 	if tool.Parent.SpanID != turn.SpanContext.SpanID {
 		t.Fatalf("tool parent=%s, want turn %s", tool.Parent.SpanID, turn.SpanContext.SpanID)
+	}
+	if got := tool.attr("gen_ai.operation.name"); got != "execute_tool" {
+		t.Fatalf("tool gen_ai.operation.name=%v, want execute_tool", got)
 	}
 
 	for name, s := range spans {
