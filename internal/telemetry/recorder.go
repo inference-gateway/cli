@@ -28,18 +28,18 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel"
+	otel "go.opentelemetry.io/otel"
 	attribute "go.opentelemetry.io/otel/attribute"
 	otlpmetrichttp "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	stdoutmetric "go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	metric "go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/propagation"
+	propagation "go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	metricdata "go.opentelemetry.io/otel/sdk/metric/metricdata"
 	resource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
+	trace "go.opentelemetry.io/otel/trace"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )

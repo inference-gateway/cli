@@ -8,10 +8,10 @@ import (
 
 	otlptracehttp "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	stdouttrace "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/sdk/resource"
+	resource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
+	trace "go.opentelemetry.io/otel/trace"
+	noop "go.opentelemetry.io/otel/trace/noop"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )

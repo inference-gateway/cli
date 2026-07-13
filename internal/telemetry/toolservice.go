@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	attribute "go.opentelemetry.io/otel/attribute"
+	trace "go.opentelemetry.io/otel/trace"
 
 	sdk "github.com/inference-gateway/sdk"
 

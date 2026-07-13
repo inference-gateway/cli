@@ -8,10 +8,10 @@ import (
 
 	otlploghttp "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	stdoutlog "go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
-	"go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/noop"
+	log "go.opentelemetry.io/otel/log"
+	noop "go.opentelemetry.io/otel/log/noop"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
-	"go.opentelemetry.io/otel/sdk/resource"
+	resource "go.opentelemetry.io/otel/sdk/resource"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
