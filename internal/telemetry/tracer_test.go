@@ -104,7 +104,7 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	if turn.Parent.SpanID != session.SpanContext.SpanID {
 		t.Fatalf("turn parent=%s, want session %s", turn.Parent.SpanID, session.SpanContext.SpanID)
 	}
-	if turn.SpanKind != 3 { // trace.SpanKindClient - a remote call to the gateway
+	if turn.SpanKind != 3 {
 		t.Fatalf("turn span kind=%d, want CLIENT (3)", turn.SpanKind)
 	}
 	if got := turn.attr("gen_ai.conversation.id"); got != "sess-t" {
