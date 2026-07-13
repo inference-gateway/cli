@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	cobra "github.com/spf13/cobra"
@@ -47,7 +46,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 	sinceStr, _ := cmd.Flags().GetString("since")
 	format, _ := cmd.Flags().GetString("format")
 
-	since, err := parseSince(sinceStr)
+	since, err := telemetry.ParseSince(sinceStr)
 	if err != nil {
 		return err
 	}
@@ -66,27 +65,6 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		return renderStatsJSON(stats)
 	}
 	return renderStatsText(stats)
-}
-
-// parseSince converts a window like "7d"/"24h"/"30m" to an absolute cutoff.
-// Empty means all time (zero cutoff). time.ParseDuration has no day unit, so
-// "Nd" is handled here.
-func parseSince(s string) (time.Time, error) {
-	if s == "" {
-		return time.Time{}, nil
-	}
-	if days, ok := strings.CutSuffix(s, "d"); ok {
-		n, err := strconv.Atoi(days)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("invalid --since %q", s)
-		}
-		return time.Now().AddDate(0, 0, -n), nil
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid --since %q: %w", s, err)
-	}
-	return time.Now().Add(-d), nil
 }
 
 func renderStatsJSON(stats telemetry.Stats) error {
