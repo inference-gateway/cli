@@ -73,7 +73,7 @@ func readFrames(t *testing.T, body io.Reader) ([]sdk.CreateChatCompletionStreamR
 
 func TestDefaultScenariosAreValid(t *testing.T) {
 	defs := Default()
-	require.Len(t, defs.Scenarios, 16)
+	require.Len(t, defs.Scenarios, 17)
 	require.Equal(t, "Done.", defs.Fallback.Content)
 }
 

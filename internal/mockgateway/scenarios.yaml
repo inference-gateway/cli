@@ -117,3 +117,10 @@ scenarios:
     turns:
       - reasoning: "Considering the question carefully before answering."
         content: "Answer: 42."
+
+  - name: background-shell
+    match: '(?i)run a background shell'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-background-shell", detached: true } }
+      - content: "The background shell task ran."

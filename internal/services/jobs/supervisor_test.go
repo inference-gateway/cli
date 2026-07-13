@@ -637,6 +637,85 @@ func TestSupervisor_FinishWithoutRetentionService(t *testing.T) {
 	}
 }
 
+// fakeOutputJob is a fakeJob that also implements domain.JobOutputProvider, returning
+// a preset output string so the supervisor's snapshot-output path can be tested in
+// isolation from any real job's output extraction logic.
+type fakeOutputJob struct {
+	*fakeJob
+	output string
+}
+
+func (j *fakeOutputJob) Output() string { return j.output }
+
+// TestSupervisor_SnapshotPopulatesOutput: a job implementing JobOutputProvider
+// has its output populated in the snapshot. This is the core data path for the
+// /tasks detail panel "Output" section for shells and subagents.
+func TestSupervisor_SnapshotPopulatesOutput(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	job := &fakeOutputJob{
+		fakeJob: newFakeJob("output-shell", domain.JobKindShell),
+		output:  "hello from background shell\nline2\nline3",
+	}
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	snap := sup.Snapshot()
+	if len(snap) != 1 {
+		t.Fatalf("snapshot len = %d, want 1", len(snap))
+	}
+	if snap[0].Output != job.output {
+		t.Fatalf("snapshot Output = %q, want %q", snap[0].Output, job.output)
+	}
+}
+
+// TestSupervisor_SnapshotOmitsOutputForNonProvider: a job that does not
+// implement JobOutputProvider has an empty Output in the snapshot.
+func TestSupervisor_SnapshotOmitsOutputForNonProvider(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	job := newFakeJob("no-output", domain.JobKindShell)
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	snap := sup.Snapshot()
+	if len(snap) != 1 {
+		t.Fatalf("snapshot len = %d, want 1", len(snap))
+	}
+	if snap[0].Output != "" {
+		t.Fatalf("snapshot Output = %q, want empty string for non-OutputProvider job", snap[0].Output)
+	}
+}
+
+// TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap: output survives in the
+// snapshot until the job is reaped by cleanup, not cleared on finish.
+func TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap(t *testing.T) {
+	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+
+	job := &fakeOutputJob{
+		fakeJob: newFakeJob("output-reap", domain.JobKindShell),
+		output:  "output that must survive until cleanup",
+	}
+	sup.Submit(job)
+	<-job.started
+	close(job.finish)
+	sup.Stop()
+
+	snap := sup.Snapshot()
+	if len(snap) != 1 || snap[0].Output != job.output {
+		t.Fatalf("output lost before cleanup: got %+v", snap)
+	}
+
+	sup.Cleanup(0)
+	if len(sup.Snapshot()) != 0 {
+		t.Fatalf("snapshot not empty after cleanup")
+	}
+}
+
 // fakeA2AJob is a fakeJob that also implements domain.A2AStateProvider, so it is
 // visible to Supervisor.A2APollingStates while running.
 type fakeA2AJob struct {

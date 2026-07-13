@@ -43,6 +43,48 @@ func TestChatTUIViaTmux(t *testing.T) {
 		"the mock reply never appeared in the TUI; last frame:\n%s", capturePane(session))
 }
 
+// TestChatTUIBackgroundShellOutput drives the TUI to trigger a background shell
+// and then opens /tasks to verify the "Output" section displays the captured
+// stdout. This tests the full pipeline: shell stdout → OutputRingBuffer →
+// shellJob.Output() → Supervisor.Snapshot() → TaskInfo.Output →
+// renderJobOutput() in the TUI.
+func TestChatTUIBackgroundShellOutput(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed; skipping TUI drive test")
+	}
+
+	const session = "infer-e2e-shell-output"
+	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
+	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
+
+	launch := "env HOME=" + t.TempDir() +
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false " + binPath + " chat"
+	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
+		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
+
+	require.True(t, waitForPane(t, session, "Select a Model", 25*time.Second),
+		"model picker never rendered; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "Type your message", 20*time.Second),
+		"input view never appeared after model select; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "-l", "run a background shell")
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "The background shell task ran.", 30*time.Second),
+		"agent never acknowledged the background shell; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "-l", "/tasks")
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "Output", 15*time.Second),
+		"the /tasks panel never showed the Output section; last frame:\n%s", capturePane(session))
+
+	require.True(t, waitForPane(t, session, "hello-from-background-shell", 10*time.Second),
+		"the background shell output never appeared in /tasks; last frame:\n%s", capturePane(session))
+}
+
 // capturePane returns the last 200 lines of the session's pane, or "" if it
 // cannot be read.
 func capturePane(session string) string {
