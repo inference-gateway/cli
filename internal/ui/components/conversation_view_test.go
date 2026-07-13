@@ -384,51 +384,120 @@ func TestConversationView_Render(t *testing.T) {
 	}
 }
 
-func TestBackgroundTaskDisplay_SubmittedCreatesEntry(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
+func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
-		TaskID:    "task-1",
-		AgentName: "weather-agent",
-	}, nil)
+	cases := []struct {
+		name           string
+		events         func(cv *ConversationView)
+		wantAgentName  string
+		wantAgentURL   string
+		wantState      string
+		wantMessage    string
+		wantErrorMsg   string
+		wantIsTerminal *bool
+	}{
+		{
+			name: "submitted creates entry",
+			events: func(cv *ConversationView) {
+				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+					TaskID:    "task-1",
+					AgentName: "weather-agent",
+				}, nil)
+			},
+			wantAgentName:  "weather-agent",
+			wantState:      "submitted",
+			wantIsTerminal: boolPtr(false),
+		},
+		{
+			name: "submitted captures agent url",
+			events: func(cv *ConversationView) {
+				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+					TaskID:   "task-1",
+					AgentURL: "http://localhost:8081",
+				}, nil)
+			},
+			wantAgentURL: "http://localhost:8081",
+			wantState:    "submitted",
+		},
+		{
+			name: "status update captures agent url",
+			events: func(cv *ConversationView) {
+				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+					TaskID:   "task-1",
+					AgentURL: "http://localhost:8081",
+					Status:   "TASK_STATE_WORKING",
+				}, nil)
+			},
+			wantAgentURL: "http://localhost:8081",
+		},
+		{
+			name: "status update changes state",
+			events: func(cv *ConversationView) {
+				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+					TaskID:    "task-1",
+					AgentName: "weather-agent",
+				}, nil)
+				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+					TaskID:  "task-1",
+					Status:  "working",
+					Message: "fetching forecast",
+				}, nil)
+			},
+			wantAgentName: "weather-agent",
+			wantState:     "working",
+			wantMessage:   "fetching forecast",
+		},
+		{
+			name: "failed captures error",
+			events: func(cv *ConversationView) {
+				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+					TaskID:    "task-1",
+					AgentName: "weather-agent",
+				}, nil)
+				cv.handleA2ATaskFailed(domain.A2ATaskFailedEvent{
+					TaskID: "task-1",
+					Error:  "connection refused",
+					Result: domain.ToolExecutionResult{
+						ToolName: "A2A_SubmitTask",
+						Success:  false,
+					},
+				}, nil)
+			},
+			wantState:      "failed",
+			wantErrorMsg:   "connection refused",
+			wantIsTerminal: boolPtr(true),
+		},
+	}
 
-	display, ok := cv.backgroundTasks["task-1"]
-	if !ok {
-		t.Fatal("expected backgroundTasks to contain entry for task-1")
-	}
-	if display.AgentName != "weather-agent" {
-		t.Errorf("expected AgentName 'weather-agent', got %q", display.AgentName)
-	}
-	if display.State != "submitted" {
-		t.Errorf("expected State 'submitted', got %q", display.State)
-	}
-	if display.IsTerminal {
-		t.Error("expected IsTerminal to be false on submission")
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cv := NewConversationView(createMockStyleProvider())
+			tc.events(cv)
 
-func TestBackgroundTaskDisplay_StatusUpdateChangesState(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
-		TaskID:    "task-1",
-		AgentName: "weather-agent",
-	}, nil)
-	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
-		TaskID:  "task-1",
-		Status:  "working",
-		Message: "fetching forecast",
-	}, nil)
-
-	display := cv.backgroundTasks["task-1"]
-	if display.State != "working" {
-		t.Errorf("expected State 'working', got %q", display.State)
-	}
-	if display.Message != "fetching forecast" {
-		t.Errorf("expected Message 'fetching forecast', got %q", display.Message)
-	}
-	if display.AgentName != "weather-agent" {
-		t.Errorf("expected AgentName preserved as 'weather-agent', got %q", display.AgentName)
+			display, ok := cv.backgroundTasks["task-1"]
+			if !ok {
+				t.Fatal("expected backgroundTasks to contain entry for task-1")
+			}
+			if tc.wantAgentName != "" && display.AgentName != tc.wantAgentName {
+				t.Errorf("expected AgentName %q, got %q", tc.wantAgentName, display.AgentName)
+			}
+			if tc.wantAgentURL != "" && display.AgentURL != tc.wantAgentURL {
+				t.Errorf("expected AgentURL %q, got %q", tc.wantAgentURL, display.AgentURL)
+			}
+			if tc.wantState != "" && display.State != tc.wantState {
+				t.Errorf("expected State %q, got %q", tc.wantState, display.State)
+			}
+			if tc.wantMessage != "" && display.Message != tc.wantMessage {
+				t.Errorf("expected Message %q, got %q", tc.wantMessage, display.Message)
+			}
+			if tc.wantErrorMsg != "" && display.ErrorMsg != tc.wantErrorMsg {
+				t.Errorf("expected ErrorMsg %q, got %q", tc.wantErrorMsg, display.ErrorMsg)
+			}
+			if tc.wantIsTerminal != nil && display.IsTerminal != *tc.wantIsTerminal {
+				t.Errorf("expected IsTerminal %v, got %v", *tc.wantIsTerminal, display.IsTerminal)
+			}
+		})
 	}
 }
 
@@ -541,64 +610,85 @@ func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 	}
 }
 
-func TestBackgroundTaskDisplay_CompletedWithoutMetadataRendersBareName(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	out := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
-		TaskID:     "t1",
-		AgentName:  "old-agent",
-		State:      "completed",
-		IsTerminal: true,
-	}, 0)
-	if !strings.Contains(out, "Agent(old-agent=completed)") {
-		t.Errorf("expected 'Agent(old-agent=completed)' header, got %q", out)
-	}
-	if strings.Contains(out, "\n") {
-		t.Errorf("expected single-line output when no metadata to show, got %q", out)
-	}
-}
-
-func TestBackgroundTaskDisplay_CompletedUsesLastBranchWhenOnlyOneDetail(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	out := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
-		TaskID:     "t1",
-		AgentName:  "x",
-		State:      "completed",
-		UsageJSON:  `{"total_tokens":10}`,
-		IsTerminal: true,
-	}, 0)
-	if !strings.Contains(out, "└── usage=") {
-		t.Errorf("expected single detail to use └── branch, got %q", out)
-	}
-	if strings.Contains(out, "├──") {
-		t.Errorf("did not expect ├── branch with only one detail, got %q", out)
-	}
-}
-
-func TestBackgroundTaskDisplay_FailedCapturesError(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
-		TaskID:    "task-1",
-		AgentName: "weather-agent",
-	}, nil)
-	cv.handleA2ATaskFailed(domain.A2ATaskFailedEvent{
-		TaskID: "task-1",
-		Error:  "connection refused",
-		Result: domain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
-			Success:  false,
+func TestBackgroundTaskDisplay_RenderLineVariants(t *testing.T) {
+	cases := []struct {
+		name         string
+		display      *BackgroundTaskDisplay
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name: "completed without metadata renders bare name",
+			display: &BackgroundTaskDisplay{
+				TaskID:     "t1",
+				AgentName:  "old-agent",
+				State:      "completed",
+				IsTerminal: true,
+			},
+			wantContains: []string{"Agent(old-agent=completed)"},
+			wantAbsent:   []string{"\n"},
 		},
-	}, nil)
+		{
+			name: "completed uses last branch when only one detail",
+			display: &BackgroundTaskDisplay{
+				TaskID:     "t1",
+				AgentName:  "x",
+				State:      "completed",
+				UsageJSON:  `{"total_tokens":10}`,
+				IsTerminal: true,
+			},
+			wantContains: []string{"└── usage="},
+			wantAbsent:   []string{"├──"},
+		},
+		{
+			name: "falls back to shortened url",
+			display: &BackgroundTaskDisplay{
+				TaskID:   "t1",
+				AgentURL: "http://localhost:8081",
+				State:    "working",
+			},
+			wantContains: []string{"Agent(localhost:8081=working...)"},
+			wantAbsent:   []string{"http://"},
+		},
+		{
+			name: "omits model when unknown",
+			display: &BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "browser-agent",
+				State:     "working",
+				Model:     "",
+				StartedAt: time.Now().Add(-5 * time.Second),
+			},
+			wantContains: []string{"Agent(browser-agent=working...) 5s"},
+			wantAbsent:   []string{"model=", ","},
+		},
+		{
+			name: "formats elapsed minutes",
+			display: &BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "x",
+				State:     "working",
+				StartedAt: time.Now().Add(-83 * time.Second),
+			},
+			wantContains: []string{"1m23s"},
+		},
+	}
 
-	display := cv.backgroundTasks["task-1"]
-	if display.State != "failed" {
-		t.Errorf("expected State 'failed', got %q", display.State)
-	}
-	if display.ErrorMsg != "connection refused" {
-		t.Errorf("expected ErrorMsg 'connection refused', got %q", display.ErrorMsg)
-	}
-	if !display.IsTerminal {
-		t.Error("expected IsTerminal to be true after failure")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cv := NewConversationView(createMockStyleProvider())
+			line := cv.renderBackgroundTaskLine(tc.display, 0)
+			for _, want := range tc.wantContains {
+				if !strings.Contains(line, want) {
+					t.Errorf("expected line to contain %q, got %q", want, line)
+				}
+			}
+			for _, absent := range tc.wantAbsent {
+				if strings.Contains(line, absent) {
+					t.Errorf("expected line to not contain %q, got %q", absent, line)
+				}
+			}
+		})
 	}
 }
 
@@ -822,68 +912,78 @@ func TestBackgroundTaskDisplay_NormalizesStateString(t *testing.T) {
 	}
 }
 
-func TestBackgroundTaskDisplay_StatusUpdateCapturesAgentURL(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
-		TaskID:   "task-1",
-		AgentURL: "http://localhost:8081",
-		Status:   "TASK_STATE_WORKING",
-	}, nil)
-
-	display := cv.backgroundTasks["task-1"]
-	if display.AgentURL != "http://localhost:8081" {
-		t.Errorf("expected AgentURL captured from status update, got %q", display.AgentURL)
+func TestBackgroundTaskDisplay_RenderLineResolverAndWidth(t *testing.T) {
+	cases := []struct {
+		name          string
+		display       *BackgroundTaskDisplay
+		width         int
+		resolver      func(string) string
+		wantContains  []string
+		checkMaxWidth bool
+	}{
+		{
+			name: "agent name resolver used",
+			display: &BackgroundTaskDisplay{
+				TaskID:   "t1",
+				AgentURL: "http://localhost:8081",
+				State:    "working",
+			},
+			resolver: func(url string) string {
+				if url == "http://localhost:8081" {
+					return "weather-agent"
+				}
+				return ""
+			},
+			wantContains: []string{"Agent(weather-agent=working...)"},
+		},
+		{
+			name: "resolver falls back to shortened url",
+			display: &BackgroundTaskDisplay{
+				TaskID:   "t1",
+				AgentURL: "http://localhost:9090",
+				State:    "working",
+			},
+			resolver:     func(_ string) string { return "" },
+			wantContains: []string{"Agent(localhost:9090=working...)"},
+		},
+		{
+			name: "truncates long model",
+			display: &BackgroundTaskDisplay{
+				TaskID:    "t1",
+				AgentName: "browser-agent",
+				State:     "working",
+				Model:     "extremely-long-vendor-name/very-verbose-model-identifier-v42-flash-preview-experimental",
+				StartedAt: time.Now().Add(-3 * time.Second),
+			},
+			width: 60,
+			wantContains: []string{
+				"Agent(browser-agent=working..., model=",
+				"...) 3s",
+				"browser-agent",
+				"working...",
+			},
+			checkMaxWidth: true,
+		},
 	}
-}
 
-func TestBackgroundTaskDisplay_SubmittedCapturesAgentURL(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
-		TaskID:   "task-1",
-		AgentURL: "http://localhost:8081",
-	}, nil)
-
-	display := cv.backgroundTasks["task-1"]
-	if display.AgentURL != "http://localhost:8081" {
-		t.Errorf("expected AgentURL captured from submitted event, got %q", display.AgentURL)
-	}
-	if display.State != "submitted" {
-		t.Errorf("expected default state 'submitted', got %q", display.State)
-	}
-}
-
-func TestBackgroundTaskDisplay_AgentNameResolverUsed(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	cv.SetAgentNameResolver(func(url string) string {
-		if url == "http://localhost:8081" {
-			return "weather-agent"
-		}
-		return ""
-	})
-
-	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
-		TaskID:   "t1",
-		AgentURL: "http://localhost:8081",
-		State:    "working",
-	}, 0)
-	if !strings.Contains(line, "Agent(weather-agent=working...)") {
-		t.Errorf("expected resolver-mapped name, got %q", line)
-	}
-}
-
-func TestBackgroundTaskDisplay_AgentNameResolverFallsBackToShortenedURL(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	cv.SetAgentNameResolver(func(_ string) string { return "" })
-
-	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
-		TaskID:   "t1",
-		AgentURL: "http://localhost:9090",
-		State:    "working",
-	}, 0)
-	if !strings.Contains(line, "Agent(localhost:9090=working...)") {
-		t.Errorf("expected fallback to shortened URL when resolver returns empty, got %q", line)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cv := NewConversationView(createMockStyleProvider())
+			if tc.resolver != nil {
+				cv.SetAgentNameResolver(tc.resolver)
+			}
+			line := cv.renderBackgroundTaskLine(tc.display, tc.width)
+			if tc.checkMaxWidth {
+				if got := lipgloss.Width(line); got > tc.width {
+					t.Errorf("expected visible width <= %d, got %d for line %q", tc.width, got, line)
+				}
+			}
+			for _, want := range tc.wantContains {
+				if !strings.Contains(line, want) {
+					t.Errorf("expected line to contain %q, got %q", want, line)
+				}
+			}
+		})
 	}
 }
 
@@ -921,21 +1021,6 @@ func TestBackgroundTaskDisplay_ShortenAgentURLDropsScheme(t *testing.T) {
 				t.Errorf("shortenAgentURL(%q) = %q, want %q", c.raw, got, c.want)
 			}
 		})
-	}
-}
-
-func TestBackgroundTaskDisplay_FallsBackToShortenedURL(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	line := cv.renderBackgroundTaskLine(&BackgroundTaskDisplay{
-		TaskID:   "t1",
-		AgentURL: "http://localhost:8081",
-		State:    "working",
-	}, 0)
-	if strings.Contains(line, "http://") {
-		t.Errorf("expected scheme stripped from fallback URL, got %q", line)
-	}
-	if !strings.Contains(line, "Agent(localhost:8081=working...)") {
-		t.Errorf("expected shortened URL, got %q", line)
 	}
 }
 
@@ -983,29 +1068,6 @@ func TestBackgroundTaskDisplay_RenderLine_IncludesModelAndElapsed(t *testing.T) 
 	}
 }
 
-func TestBackgroundTaskDisplay_RenderLine_OmitsModelWhenUnknown(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	display := &BackgroundTaskDisplay{
-		TaskID:    "t1",
-		AgentName: "browser-agent",
-		State:     "working",
-		Model:     "",
-		StartedAt: time.Now().Add(-5 * time.Second),
-	}
-	line := cv.renderBackgroundTaskLine(display, 0)
-
-	if !strings.Contains(line, "Agent(browser-agent=working...) 5s") {
-		t.Errorf("expected no-model form 'Agent(browser-agent=working...) 5s', got %q", line)
-	}
-	if strings.Contains(line, "model=") {
-		t.Errorf("expected no 'model=' segment when model is unknown, got %q", line)
-	}
-	if strings.Contains(line, ",") {
-		t.Errorf("expected no trailing comma artefact when model is unknown, got %q", line)
-	}
-}
-
 func TestBackgroundTaskDisplay_RenderLine_FreezesElapsedOnTerminal(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
@@ -1036,51 +1098,6 @@ func TestBackgroundTaskDisplay_RenderLine_FreezesElapsedOnTerminal(t *testing.T)
 	}
 	if strings.Contains(line2, "43s") {
 		t.Errorf("expected elapsed to NOT tick past 42s after terminal transition, got %q", line2)
-	}
-}
-
-func TestBackgroundTaskDisplay_RenderLine_FormatElapsedMinutes(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	display := &BackgroundTaskDisplay{
-		TaskID:    "t1",
-		AgentName: "x",
-		State:     "working",
-		StartedAt: time.Now().Add(-83 * time.Second),
-	}
-	line := cv.renderBackgroundTaskLine(display, 0)
-	if !strings.Contains(line, "1m23s") {
-		t.Errorf("expected elapsed '1m23s' for 83s, got %q", line)
-	}
-}
-
-func TestBackgroundTaskDisplay_RenderLine_TruncatesLongModel(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-
-	display := &BackgroundTaskDisplay{
-		TaskID:    "t1",
-		AgentName: "browser-agent",
-		State:     "working",
-		Model:     "extremely-long-vendor-name/very-verbose-model-identifier-v42-flash-preview-experimental",
-		StartedAt: time.Now().Add(-3 * time.Second),
-	}
-	const width = 60
-	line := cv.renderBackgroundTaskLine(display, width)
-
-	if got := lipgloss.Width(line); got > width {
-		t.Errorf("expected visible width <= %d, got %d for line %q", width, got, line)
-	}
-	if !strings.Contains(line, "Agent(browser-agent=working..., model=") {
-		t.Errorf("expected name and state preserved with model prefix, got %q", line)
-	}
-	if !strings.Contains(line, "...) 3s") {
-		t.Errorf("expected truncated model ending with '...) 3s', got %q", line)
-	}
-	if !strings.Contains(line, "browser-agent") {
-		t.Errorf("expected name preserved verbatim, got %q", line)
-	}
-	if !strings.Contains(line, "working...") {
-		t.Errorf("expected state preserved verbatim, got %q", line)
 	}
 }
 
@@ -1256,40 +1273,54 @@ func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
 	}
 }
 
-func TestRenderPendingToolEntry_ApprovedThemedHeader(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	cv.SetToolFormatter(&stubToolFormatter{})
-
-	out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalApproved))
-
-	if !strings.Contains(out, "Approved") {
-		t.Errorf("expected Approved label, got %q", out)
+func TestRenderPendingToolEntry(t *testing.T) {
+	cases := []struct {
+		name         string
+		status       domain.ToolApprovalStatus
+		wantContains []string
+		wantAbsent   []string
+		wantEmpty    bool
+	}{
+		{
+			name:         "approved themed header",
+			status:       domain.ToolApprovalApproved,
+			wantContains: []string{"Approved", "Bash"},
+			wantAbsent:   []string{"Tool:", "Arguments:"},
+		},
+		{
+			name:         "rejected themed header",
+			status:       domain.ToolApprovalRejected,
+			wantContains: []string{"Rejected"},
+		},
+		{
+			name:      "pending renders nothing",
+			status:    domain.ToolApprovalPending,
+			wantEmpty: true,
+		},
 	}
-	if !strings.Contains(out, "Bash") {
-		t.Errorf("expected tool name in header, got %q", out)
-	}
 
-	if strings.Contains(out, "Tool:") || strings.Contains(out, "Arguments:") {
-		t.Errorf("approval header should not contain raw Tool:/Arguments: block, got %q", out)
-	}
-}
-
-func TestRenderPendingToolEntry_RejectedThemedHeader(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	cv.SetToolFormatter(&stubToolFormatter{})
-
-	out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalRejected))
-	if !strings.Contains(out, "Rejected") {
-		t.Errorf("expected Rejected label, got %q", out)
-	}
-}
-
-func TestRenderPendingToolEntry_PendingRendersNothing(t *testing.T) {
-	cv := NewConversationView(createMockStyleProvider())
-	cv.SetToolFormatter(&stubToolFormatter{})
-
-	if out := cv.renderPendingToolEntry(approvalEntry(domain.ToolApprovalPending)); out != "" {
-		t.Errorf("pending approval should render nothing, got %q", out)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cv := NewConversationView(createMockStyleProvider())
+			cv.SetToolFormatter(&stubToolFormatter{})
+			out := cv.renderPendingToolEntry(approvalEntry(tc.status))
+			if tc.wantEmpty {
+				if out != "" {
+					t.Errorf("pending approval should render nothing, got %q", out)
+				}
+				return
+			}
+			for _, want := range tc.wantContains {
+				if !strings.Contains(out, want) {
+					t.Errorf("expected output to contain %q, got %q", want, out)
+				}
+			}
+			for _, absent := range tc.wantAbsent {
+				if strings.Contains(out, absent) {
+					t.Errorf("expected output to not contain %q, got %q", absent, out)
+				}
+			}
+		})
 	}
 }
 

@@ -178,33 +178,33 @@ func TestExplorer_ReanchorAcrossRefresh(t *testing.T) {
 	}
 }
 
-func TestExplorer_TickPicksUpNewFileInExpandedDir(t *testing.T) {
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "dir", "old.txt"), "o")
-
-	e := newTestExplorer(t, root)
-	e.cursor = mustRowIndex(t, e, "dir")
-	e.setExpanded(true)
-
-	writeTestFile(t, filepath.Join(root, "dir", "new.txt"), "n")
-	e.refresh()
-
-	if !explorerHasRow(e, "dir/new.txt") {
-		t.Fatalf("new file in an expanded dir should appear after a tick; rows=%v", rowRels(e))
+func TestExplorer_TickRefreshRespectsExpansion(t *testing.T) {
+	cases := []struct {
+		name        string
+		expandDir   bool
+		wantVisible bool
+	}{
+		{"picks up new file in expanded dir", true, true},
+		{"ignores new file in collapsed dir", false, false},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, filepath.Join(root, "dir", "old.txt"), "o")
 
-func TestExplorer_TickIgnoresNewFileInCollapsedDir(t *testing.T) {
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "dir", "old.txt"), "o")
+			e := newTestExplorer(t, root)
+			if tc.expandDir {
+				e.cursor = mustRowIndex(t, e, "dir")
+				e.setExpanded(true)
+			}
 
-	e := newTestExplorer(t, root) // dir is collapsed by default
+			writeTestFile(t, filepath.Join(root, "dir", "new.txt"), "n")
+			e.refresh()
 
-	writeTestFile(t, filepath.Join(root, "dir", "new.txt"), "n")
-	e.refresh()
-
-	if explorerHasRow(e, "dir/new.txt") {
-		t.Fatal("a file in a collapsed dir should not be read/shown on refresh")
+			if got := explorerHasRow(e, "dir/new.txt"); got != tc.wantVisible {
+				t.Fatalf("dir/new.txt visible = %v, want %v after refresh; rows=%v", got, tc.wantVisible, rowRels(e))
+			}
+		})
 	}
 }
 
@@ -281,7 +281,7 @@ func TestExplorer_RevealPathExpandsAncestors(t *testing.T) {
 func TestExplorer_FindModeKeyCapture(t *testing.T) {
 	root := t.TempDir()
 	e := newTestExplorer(t, root)
-	e.candidates = []string{} // non-nil so enterFind does not kick off a walk
+	e.candidates = []string{}
 
 	if cmd := e.enterFind(); cmd != nil {
 		t.Fatal("enterFind should not start a walk when candidates are already loaded")
@@ -323,7 +323,6 @@ func TestExplorer_RenderSmoke(t *testing.T) {
 		t.Fatal("render with input row should be non-empty")
 	}
 
-	// Select the file and render the preview pane.
 	e.cursor = mustRowIndex(t, e, "main.go")
 	e.selectedKey = "main.go"
 	e.dirtyPreview = true
@@ -331,7 +330,6 @@ func TestExplorer_RenderSmoke(t *testing.T) {
 		t.Fatalf("preview should show file content; got %q", out)
 	}
 
-	// Find mode render.
 	e.candidates = []string{"main.go", "dir/nested.txt"}
 	e.enterFind()
 	e.findQuery = "main"
@@ -341,23 +339,25 @@ func TestExplorer_RenderSmoke(t *testing.T) {
 	}
 }
 
-func TestExplorer_BinaryPreviewPlaceholder(t *testing.T) {
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "bin"), "abc\x00def")
-
-	e := newTestExplorer(t, root)
-	if out := e.computePreview("bin"); !strings.Contains(out, "Binary or large file") {
-		t.Fatalf("expected binary placeholder, got %q", out)
+func TestExplorer_PreviewPlaceholder(t *testing.T) {
+	cases := []struct {
+		name     string
+		filename string
+		content  string
+	}{
+		{"binary content", "bin", "abc\x00def"},
+		{"oversized content", "big.txt", strings.Repeat("a", explorerMaxPreviewBytes+1)},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, filepath.Join(root, tc.filename), tc.content)
 
-func TestExplorer_OversizedPreviewPlaceholder(t *testing.T) {
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "big.txt"), strings.Repeat("a", explorerMaxPreviewBytes+1))
-
-	e := newTestExplorer(t, root)
-	if out := e.computePreview("big.txt"); !strings.Contains(out, "Binary or large file") {
-		t.Fatalf("expected oversized placeholder, got %q", out)
+			e := newTestExplorer(t, root)
+			if out := e.computePreview(tc.filename); !strings.Contains(out, "Binary or large file") {
+				t.Fatalf("expected placeholder, got %q", out)
+			}
+		})
 	}
 }
 
@@ -369,7 +369,7 @@ func selectFileForPreview(t *testing.T, e *FileExplorerImpl, rel string) *FileEx
 	e.cursor = mustRowIndex(t, e, rel)
 	e.selectedKey = rel
 	e.dirtyPreview = true
-	e.Render("") // triggers ensurePreview → sets previewLines
+	e.Render("")
 	return e
 }
 
@@ -400,7 +400,6 @@ func TestExplorer_EnterSelectModeNoFile(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "main.go"), "package main\n")
 	e := newTestExplorer(t, root)
 
-	// No file selected (cursor on a dir or nothing).
 	e.enterSelectMode()
 	if e.selectMode {
 		t.Fatal("enterSelectMode should be a no-op when no file is previewed")
@@ -414,27 +413,23 @@ func TestExplorer_PreviewCursorMovement(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Move down a few lines.
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	if e.previewCursor != 2 {
 		t.Fatalf("after 2x nav_down previewCursor = %d, want 2", e.previewCursor)
 	}
 
-	// Move back up.
 	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'})
 	if e.previewCursor != 1 {
 		t.Fatalf("after nav_up previewCursor = %d, want 1", e.previewCursor)
 	}
 
-	// Clamp at bottom.
 	e.previewCursor = e.previewLines - 1
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	if e.previewCursor != e.previewLines-1 {
 		t.Fatalf("nav_down at bottom: previewCursor = %d, want %d", e.previewCursor, e.previewLines-1)
 	}
 
-	// Clamp at top.
 	e.previewCursor = 0
 	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'})
 	if e.previewCursor != 0 {
@@ -456,9 +451,9 @@ func TestExplorer_PreviewCursorKeepsSelectionInView(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "tall.go"), sb.String())
 
 	e := newTestExplorer(t, root)
-	e.SetHeight(8) // force a short pane (well under the 40-line file); h is read back below
+	e.SetHeight(8)
 	selectFileForPreview(t, e, "tall.go")
-	e.Render("") // apply the short height to the viewport
+	e.Render("")
 
 	h := e.viewport.Height()
 	if h <= 0 || h >= e.previewLines {
@@ -466,12 +461,9 @@ func TestExplorer_PreviewCursorKeepsSelectionInView(t *testing.T) {
 	}
 
 	e.enterSelectMode()
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at the top line
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	anchor := e.selAnchor
 
-	// Drive the cursor to a mid-file line: far enough below the fold to scroll,
-	// but well clear of the bottom clamp (where pin-to-top and keep-in-view would
-	// coincide at maxYOffset and the test couldn't tell them apart).
 	target := e.previewLines / 2
 	for i := 0; i < target; i++ {
 		e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
@@ -644,10 +636,8 @@ func TestExplorer_EnterAttachesSelection(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Enter attaches the current range immediately (no annotation required),
-	// stays in select mode, and does NOT close the explorer.
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at line 1
-	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // extend to line 2
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	sels := e.Selections()
@@ -720,10 +710,9 @@ func TestExplorer_PreviewHighlightRender(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Select lines 2-3 (0-indexed 1-2).
 	e.previewCursor = 1
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor at 1
-	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // cursor → 2
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 
 	out := e.Render("")
 	if !strings.Contains(out, "▌") {
@@ -757,85 +746,86 @@ func TestExplorer_AnnotateModeRenderSmoke(t *testing.T) {
 }
 
 func TestExplorer_FormatAnnotations(t *testing.T) {
-	root := t.TempDir()
-	content := "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\n"
-	writeTestFile(t, filepath.Join(root, "main.go"), content)
+	three := 3
+	cases := []struct {
+		name            string
+		files           map[string]string
+		sels            []SnippetSelection
+		wantContains    []string
+		wantNotContains []string
+		wantLineCount   *int
+		wantEmpty       bool
+	}{
+		{
+			name:  "single file selected lines with note",
+			files: map[string]string{"main.go": "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\n"},
+			sels: []SnippetSelection{
+				{File: "main.go", StartLine: 3, EndLine: 5, Annotation: "refactor to use early returns"},
+			},
+			wantContains: []string{
+				"main.go (lines 3-5):",
+				"```go",
+				"func main() {",
+				"println(\"hi\")",
+				"note: refactor to use early returns",
+			},
+			wantNotContains: []string{"package main"},
+		},
+		{
+			name:  "large file emits selected lines only",
+			files: map[string]string{"big.txt": strings.Repeat("line\n", explorerMaxPreviewBytes/5+10)},
+			sels: []SnippetSelection{
+				{File: "big.txt", StartLine: 10, EndLine: 12, Annotation: "fix this"},
+			},
+			wantContains:    []string{"big.txt (lines 10-12):", "note: fix this"},
+			wantNotContains: []string{"### Lines", "(context "},
+			wantLineCount:   &three,
+		},
+		{
+			name:  "multiple files and a missing file",
+			files: map[string]string{"a.go": "a\nb\nc\n", "b.go": "d\ne\nf\n"},
+			sels: []SnippetSelection{
+				{File: "a.go", StartLine: 1, EndLine: 2, Annotation: "first"},
+				{File: "b.go", StartLine: 2, EndLine: 3, Annotation: "second"},
+				{File: "gone.go", StartLine: 1, EndLine: 1, Annotation: "missing"},
+			},
+			wantContains: []string{"a.go", "b.go", "first", "second", "unavailable"},
+		},
+		{
+			name:      "nil selections yield empty output",
+			wantEmpty: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for name, content := range tc.files {
+				writeTestFile(t, filepath.Join(root, name), content)
+			}
 
-	sels := []SnippetSelection{
-		{File: "main.go", StartLine: 3, EndLine: 5, Annotation: "refactor to use early returns"},
-	}
-	out := FormatAnnotations(root, sels)
+			out := FormatAnnotations(root, tc.sels)
 
-	checks := []string{
-		"main.go (lines 3-5):",
-		"```go",
-		"func main() {",
-		"println(\"hi\")",
-		"note: refactor to use early returns",
-	}
-	for _, want := range checks {
-		if !strings.Contains(out, want) {
-			t.Errorf("FormatAnnotations output missing %q\n--- output ---\n%s", want, out)
-		}
-	}
-	// Only the selected lines (3-5) are emitted - not the whole file.
-	if strings.Contains(out, "package main") {
-		t.Errorf("output should not include non-selected line 1 (package main)\n--- output ---\n%s", out)
-	}
-}
-
-func TestExplorer_FormatAnnotationsLargeFileSelectedLinesOnly(t *testing.T) {
-	root := t.TempDir()
-	// A large file: the formatter must still emit ONLY the selected lines, never
-	// the whole file or a context window.
-	content := strings.Repeat("line\n", explorerMaxPreviewBytes/5+10)
-	writeTestFile(t, filepath.Join(root, "big.txt"), content)
-
-	sels := []SnippetSelection{
-		{File: "big.txt", StartLine: 10, EndLine: 12, Annotation: "fix this"},
-	}
-	out := FormatAnnotations(root, sels)
-
-	if !strings.Contains(out, "big.txt (lines 10-12):") {
-		t.Errorf("output should head the snippet with the file + range\n--- output ---\n%s", out)
-	}
-	if !strings.Contains(out, "note: fix this") {
-		t.Errorf("output should contain the note\n--- output ---\n%s", out)
-	}
-	if strings.Contains(out, "### Lines") || strings.Contains(out, "(context ") {
-		t.Errorf("the old windowed/context format must be gone\n--- output ---\n%s", out)
-	}
-	// Exactly the 3 selected lines are emitted (not the whole file).
-	if got := strings.Count(out, "line\n"); got != 3 {
-		t.Errorf("expected exactly 3 selected lines, got %d\n--- output ---\n%s", got, out)
-	}
-}
-
-func TestExplorer_FormatAnnotationsMultiFileAndMissing(t *testing.T) {
-	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "a.go"), "a\nb\nc\n")
-	writeTestFile(t, filepath.Join(root, "b.go"), "d\ne\nf\n")
-
-	sels := []SnippetSelection{
-		{File: "a.go", StartLine: 1, EndLine: 2, Annotation: "first"},
-		{File: "b.go", StartLine: 2, EndLine: 3, Annotation: "second"},
-		{File: "gone.go", StartLine: 1, EndLine: 1, Annotation: "missing"},
-	}
-	out := FormatAnnotations(root, sels)
-
-	if !strings.Contains(out, "a.go") || !strings.Contains(out, "b.go") {
-		t.Errorf("output should list both files\n--- output ---\n%s", out)
-	}
-	if !strings.Contains(out, "first") || !strings.Contains(out, "second") {
-		t.Errorf("output should contain both annotations\n--- output ---\n%s", out)
-	}
-	if !strings.Contains(out, "unavailable") {
-		t.Errorf("output should mention the missing file\n--- output ---\n%s", out)
-	}
-}
-
-func TestExplorer_FormatAnnotationsEmpty(t *testing.T) {
-	if out := FormatAnnotations(t.TempDir(), nil); out != "" {
-		t.Fatalf("FormatAnnotations(nil) = %q, want empty", out)
+			if tc.wantEmpty {
+				if out != "" {
+					t.Fatalf("FormatAnnotations(nil) = %q, want empty", out)
+				}
+				return
+			}
+			for _, want := range tc.wantContains {
+				if !strings.Contains(out, want) {
+					t.Errorf("FormatAnnotations output missing %q\n--- output ---\n%s", want, out)
+				}
+			}
+			for _, unwanted := range tc.wantNotContains {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("output should not contain %q\n--- output ---\n%s", unwanted, out)
+				}
+			}
+			if tc.wantLineCount != nil {
+				if got := strings.Count(out, "line\n"); got != *tc.wantLineCount {
+					t.Errorf("expected exactly %d selected lines, got %d\n--- output ---\n%s", *tc.wantLineCount, got, out)
+				}
+			}
+		})
 	}
 }
