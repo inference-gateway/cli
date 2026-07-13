@@ -13,7 +13,7 @@ func TestCreateEntry_Agent(t *testing.T) {
 	tests := []struct {
 		name      string
 		agent     config.AgentEntry
-		seedFirst bool // whether to create the entry once before the test call
+		seedFirst bool
 		wantErr   bool
 	}{
 		{
