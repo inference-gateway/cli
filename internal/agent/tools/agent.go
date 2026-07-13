@@ -329,7 +329,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		Model:      spec.Model,
 		Files:      spec.Files,
 		ResultFile: resultFile,
-		ExtraEnv:   subagentExtraEnv(spec),
+		ExtraEnv:   t.subagentExtraEnv(spec),
 	})
 
 	answer := res.FinalAssistant
@@ -444,6 +444,9 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
 	}
+	if t.config.Gateway.Mock && t.config.Tools.Agent.InheritMock {
+		parts = append(parts, "INFER_GATEWAY_MOCK=true")
+	}
 
 	historyName := project.Slugify(spec.Label)
 	if historyName == "" {
@@ -459,13 +462,16 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 
 // subagentExtraEnv builds the environment passed to a headless subagent: the
 // depth guard plus an optional per-subagent system prompt.
-func subagentExtraEnv(spec AgentTaskSpec) []string {
+func (t *AgentTool) subagentExtraEnv(spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
 	if spec.Mode != domain.AgentModeStandard {
 		env = append(env, domain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
+	}
+	if t.config.Gateway.Mock && t.config.Tools.Agent.InheritMock {
+		env = append(env, "INFER_GATEWAY_MOCK=true")
 	}
 	return env
 }

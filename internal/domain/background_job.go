@@ -158,6 +158,14 @@ type A2AStateProvider interface {
 	A2APollingState() TaskPollingState
 }
 
+// JobOutputProvider is an optional BackgroundJob extension. A job that implements
+// it provides its output text for the /tasks detail panel - e.g. a shell's
+// captured stdout/stderr or a subagent's final result. Jobs that do not
+// implement it show no output section in the detail panel.
+type JobOutputProvider interface {
+	Output() string
+}
+
 // TrackedJob is a point-in-time snapshot of one supervised job for the task view
 // and status line.
 type TrackedJob struct {
@@ -165,4 +173,5 @@ type TrackedJob struct {
 	Status      JobStatus
 	CompletedAt *time.Time
 	LastNote    string
+	Output      string
 }

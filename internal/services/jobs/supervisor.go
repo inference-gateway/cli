@@ -443,19 +443,24 @@ func (s *Supervisor) wind(sj *supervised, sig domain.WindSignal) error {
 }
 
 // Snapshot returns a copy of all tracked jobs (running and recently finished)
-// for the task view.
+// for the task view. For jobs that implement JobOutputProvider, the Output field
+// is populated from the job's output (shell stdout/stderr or subagent result).
 func (s *Supervisor) Snapshot() []domain.TrackedJob {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	out := make([]domain.TrackedJob, 0, len(s.jobs))
 	for _, sj := range s.jobs {
-		out = append(out, domain.TrackedJob{
+		tj := domain.TrackedJob{
 			Meta:        sj.meta,
 			Status:      sj.status,
 			CompletedAt: sj.completedAt,
 			LastNote:    sj.lastNote,
-		})
+		}
+		if p, ok := sj.job.(domain.JobOutputProvider); ok {
+			tj.Output = p.Output()
+		}
+		out = append(out, tj)
 	}
 	return out
 }

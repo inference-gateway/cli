@@ -69,6 +69,9 @@ func TestInteractiveSubagentJob_HarvestEmitsCompletionOnce(t *testing.T) {
 	if !strings.Contains(all[0], "the subagent's real answer") || !strings.Contains(all[0], "Subagent Completed") {
 		t.Fatalf("completion note missing harvested answer: %q", all[0])
 	}
+	if j.Output() != "the subagent's real answer" {
+		t.Fatalf("Output() = %q, want the harvested turn for the /tasks detail panel", j.Output())
+	}
 }
 
 func TestInteractiveSubagentJob_IdleFallbackEmits(t *testing.T) {

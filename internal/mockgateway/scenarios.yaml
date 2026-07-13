@@ -117,3 +117,23 @@ scenarios:
     turns:
       - reasoning: "Considering the question carefully before answering."
         content: "Answer: 42."
+
+  - name: background-shell
+    match: '(?i)run a background shell'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-background-shell", detached: true } }
+      - content: "The background shell task ran."
+
+  - name: launch-subagent
+    match: '(?i)launch a subagent'
+    turns:
+      - tool_calls:
+              - { name: Agent, args: { description: "subagent-e2e-probe task", label: "probe" } }
+      - content: "The subagent task was launched."
+
+  - name: subagent-probe
+    match: 'subagent-e2e-probe task'
+    turns:
+      - content: "hello-from-subagent-probe"
+      - content: "hello-from-subagent-probe"
