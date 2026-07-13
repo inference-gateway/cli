@@ -4,14 +4,19 @@ import (
 	"context"
 	"time"
 
+	attribute "go.opentelemetry.io/otel/attribute"
+	codes "go.opentelemetry.io/otel/codes"
+	trace "go.opentelemetry.io/otel/trace"
+	noop "go.opentelemetry.io/otel/trace/noop"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// toolService decorates a domain.ToolService, recording one tool metric per
-// ExecuteTool call. It embeds the interface so every other method passes through
-// unchanged - only ExecuteTool is overridden.
+// toolService decorates a domain.ToolService, recording one metric and one
+// span per ExecuteTool call. It embeds the interface so every other method
+// passes through unchanged - only ExecuteTool is overridden.
 type toolService struct {
 	domain.ToolService
 	rec *Recorder
@@ -26,10 +31,39 @@ func NewToolService(inner domain.ToolService, rec *Recorder) domain.ToolService 
 
 func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
+
+	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
+	defer span.End()
+
 	res, err := t.ToolService.ExecuteTool(ctx, tool)
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))
+
+	span.SetAttributes(attribute.String("infer.tool.outcome", outcome))
+	if errType != "" {
+		span.SetAttributes(attribute.String("error.type", errType))
+		span.SetStatus(codes.Error, errType)
+	}
+	if err != nil {
+		span.RecordError(err)
+	}
+
 	return res, err
+}
+
+// startToolSpan creates a span for a tool execution with GenAI semconv
+// attributes. Safe on nil (returns ctx unchanged and a no-op span).
+func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.Context, trace.Span) {
+	if r == nil {
+		return ctx, noop.Span{}
+	}
+	return r.Tracer().Start(ctx, "execute_tool "+toolName,
+		trace.WithAttributes(
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", toolName),
+			attribute.String("gen_ai.tool.type", "function"),
+		),
+	)
 }
 
 // classify maps an execution result to (infer.tool.outcome, error.type). A nil

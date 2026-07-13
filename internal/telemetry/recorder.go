@@ -1,34 +1,41 @@
-// Package telemetry records the CLI's OpenTelemetry metrics - tool outcomes,
-// token usage, and sessions - and exports them, with room to grow into traces
-// and logs later (hence "telemetry", not "metrics").
+// Package telemetry records and exports the CLI's OpenTelemetry metrics and
+// traces.
 //
-// There is one instrumentation path: events are recorded into OpenTelemetry SDK
+// Metrics: tool outcomes, token usage, and sessions, recorded into OTel SDK
 // instruments named per the GenAI semantic conventions and infer-action's
 // exporter, so they line up with the gateway's OTLP ingest and existing
-// dashboards. The recorded data is then written by OTel exporters, unchanged:
+// dashboards.
 //
-//   - local (always, private): the SDK's stdout exporter appended to a per-session
-//     file under ~/.infer/telemetry/ - OTLP/semconv JSON as-is, no custom format.
-//   - remote (opt-in): the OTLP/HTTP exporter, active only when an endpoint is set.
+// Traces: one root span per session, child spans for each LLM turn and each
+// tool call. No prompt/response content is recorded.
 //
-// Both use delta temporality (what the gateway ingest requires, and what makes
-// the local files trivially summable by `infer stats`).
+// Both signals share the same resource and OTLP endpoint/headers config.
+// Local file export is always attempted; OTLP/HTTP export is opt-in via an
+// endpoint (config or OTEL_EXPORTER_OTLP_ENDPOINT). Metrics use delta
+// temporality (required by the gateway ingest, and what makes the local
+// files trivially summable by `infer stats`).
 package telemetry
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	attribute "go.opentelemetry.io/otel/attribute"
+	codes "go.opentelemetry.io/otel/codes"
 	otlpmetrichttp "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	stdoutmetric "go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	metric "go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	metricdata "go.opentelemetry.io/otel/sdk/metric/metricdata"
 	resource "go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	trace "go.opentelemetry.io/otel/trace"
+	noop "go.opentelemetry.io/otel/trace/noop"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -79,13 +86,15 @@ type Options struct {
 	Cost         CostFunc
 }
 
-// Recorder maps recorded events onto OTel instruments. A nil *Recorder is a
-// valid no-op, so callers guard hot paths with `if rec != nil` and the container
-// skips wrapping when disabled.
+// Recorder maps recorded events onto OTel instruments and spans. A nil
+// *Recorder is a valid no-op, so callers guard hot paths with `if rec != nil`
+// and the container skips wrapping when disabled.
 type Recorder struct {
-	provider *sdkmetric.MeterProvider
-	file     *os.File // local stdout-exporter target; closed on Shutdown
-	cost     CostFunc
+	// Meter provider and instruments (metrics)
+	provider  *sdkmetric.MeterProvider
+	file      *os.File // local metric stdout-exporter target; closed on Shutdown
+	cost      CostFunc
+	sessionID string // gen_ai.conversation.id on session and turn spans
 
 	tokenUsage   metric.Int64Histogram   // gen_ai.client.token.usage
 	toolDuration metric.Float64Histogram // gen_ai.execute_tool.duration
@@ -93,6 +102,14 @@ type Recorder struct {
 	runs         metric.Int64Counter     // infer.agent.runs
 	runDuration  metric.Float64Histogram // infer.agent.run.duration
 	costCounter  metric.Float64Counter   // infer.client.cost
+
+	// Tracer provider (traces)
+	tracerProvider *sdktrace.TracerProvider
+	traceFile      *os.File // local trace stdout-exporter target
+
+	// sessionCtx carries the root span from StartSession so SpanContext can
+	// graft it onto request contexts that don't descend from session start.
+	sessionCtx atomic.Pointer[context.Context]
 }
 
 func deltaTemporality(sdkmetric.InstrumentKind) metricdata.Temporality {
@@ -122,8 +139,8 @@ func New(opts Options) *Recorder {
 		readers = append(readers, fileReader)
 	}
 
-	if endpoint := resolveOTLPEndpoint(opts.OTLPEndpoint); endpoint != "" {
-		if r, err := newOTLPReader(endpoint, opts.OTLPHeaders, interval); err != nil {
+	if otlpEnabled(opts.OTLPEndpoint, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") {
+		if r, err := newOTLPReader(opts.OTLPEndpoint, opts.OTLPHeaders, interval); err != nil {
 			logger.Warn("telemetry: OTLP export disabled", "error", err)
 		} else {
 			readers = append(readers, r)
@@ -137,13 +154,25 @@ func New(opts Options) *Recorder {
 		return nil
 	}
 
-	mpOpts := []sdkmetric.Option{sdkmetric.WithResource(newResource())}
+	res := newResource()
+
+	mpOpts := []sdkmetric.Option{sdkmetric.WithResource(res)}
 	for _, r := range readers {
 		mpOpts = append(mpOpts, sdkmetric.WithReader(r))
 	}
 	provider := sdkmetric.NewMeterProvider(mpOpts...)
 
-	rec := &Recorder{provider: provider, file: file, cost: opts.Cost}
+	traceProvider, traceFile := newTracerProvider(res, opts.Dir, opts.SessionID, opts.OTLPEndpoint, opts.OTLPHeaders, interval)
+
+	rec := &Recorder{
+		provider:       provider,
+		file:           file,
+		cost:           opts.Cost,
+		sessionID:      opts.SessionID,
+		tracerProvider: traceProvider,
+		traceFile:      traceFile,
+	}
+
 	if err := rec.initInstruments(provider.Meter("infer-cli")); err != nil {
 		logger.Warn("telemetry: instrument init failed", "error", err)
 		rec.Shutdown(context.Background())
@@ -174,10 +203,21 @@ func newFileReader(dir, session string, interval time.Duration) (*os.File, sdkme
 	return f, sdkmetric.NewPeriodicReader(exp, sdkmetric.WithInterval(interval)), nil
 }
 
+// newOTLPReader builds the remote metric exporter. A configured endpoint takes
+// precedence; when empty, the exporter's native spec-compliant env handling
+// applies (OTEL_EXPORTER_OTLP_METRICS_ENDPOINT over OTEL_EXPORTER_OTLP_ENDPOINT,
+// per-signal path appending, headers, timeouts).
 func newOTLPReader(endpoint string, headers map[string]string, interval time.Duration) (sdkmetric.Reader, error) {
 	opts := []otlpmetrichttp.Option{
-		otlpmetrichttp.WithEndpointURL(endpoint),
 		otlpmetrichttp.WithTemporalitySelector(deltaTemporality),
+	}
+	if host, insecure, ok := baseEndpoint(endpoint); ok {
+		opts = append(opts, otlpmetrichttp.WithEndpoint(host))
+		if insecure {
+			opts = append(opts, otlpmetrichttp.WithInsecure())
+		}
+	} else if endpoint != "" {
+		opts = append(opts, otlpmetrichttp.WithEndpointURL(endpoint))
 	}
 	if len(headers) > 0 {
 		opts = append(opts, otlpmetrichttp.WithHeaders(headers))
@@ -189,25 +229,39 @@ func newOTLPReader(endpoint string, headers map[string]string, interval time.Dur
 	return sdkmetric.NewPeriodicReader(exp, sdkmetric.WithInterval(interval)), nil
 }
 
-// resolveOTLPEndpoint prefers the explicit config value, then the standard OTel
-// env var, so `OTEL_EXPORTER_OTLP_ENDPOINT=... infer chat` works.
-func resolveOTLPEndpoint(configured string) string {
-	if configured != "" {
-		return configured
-	}
-	return os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+// otlpEnabled reports whether remote OTLP export is on for a signal: an
+// explicit config endpoint, the generic OTEL_EXPORTER_OTLP_ENDPOINT, or the
+// signal-specific env var (which the exporter resolves itself, per spec).
+func otlpEnabled(configured, signalEnvVar string) bool {
+	return configured != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv(signalEnvVar) != ""
 }
 
-// newResource stamps the CLI's identity onto every metric, then merges the
-// standard OTel env vars (OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) on top so
-// callers - CI, infer-action, an operator - can add or override attributes
-// (e.g. actor/repo/run id) without a code change. Env wins on conflicts.
+// baseEndpoint splits a path-less endpoint URL ("https://collector:4318") into
+// host and scheme so the exporter appends its own per-signal path (/v1/traces,
+// /v1/metrics) per the OTLP spec. A URL with an explicit path is left to
+// WithEndpointURL verbatim.
+func baseEndpoint(endpoint string) (host string, insecure, ok bool) {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" || (u.Path != "" && u.Path != "/") {
+		return "", false, false
+	}
+	return u.Host, u.Scheme == "http", true
+}
+
+// newResource stamps the CLI's identity onto every signal: the SDK defaults
+// (telemetry.sdk.*, required by the resource semconv), then our identity, then
+// the standard OTel env vars (OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) on
+// top so callers - CI, infer-action, an operator - can add or override
+// attributes without a code change. Later wins on conflicts.
 func newResource() *resource.Resource {
 	base := resource.NewSchemaless(
 		attribute.String("service.name", "infer"),
 		attribute.String("service.version", Version),
 		attribute.String("infer.execution.mode", ExecutionMode),
 	)
+	if merged, err := resource.Merge(resource.Default(), base); err == nil && merged != nil {
+		base = merged
+	}
 	env, err := resource.New(context.Background(), resource.WithFromEnv())
 	if err != nil || env == nil {
 		return base
@@ -310,26 +364,42 @@ func (r *Recorder) RecordSession(mode, outcome string, dur time.Duration) {
 // Flush forces an immediate export of everything recorded so far, without
 // tearing down (used by tests and callers that want data on disk now). Safe on nil.
 func (r *Recorder) Flush(ctx context.Context) {
-	if r == nil || r.provider == nil {
+	if r == nil {
 		return
 	}
-	if err := r.provider.ForceFlush(ctx); err != nil {
-		logger.Warn("telemetry: flush failed", "error", err)
+	if r.provider != nil {
+		if err := r.provider.ForceFlush(ctx); err != nil {
+			logger.Warn("telemetry: metric flush failed", "error", err)
+		}
+	}
+	if r.tracerProvider != nil {
+		if err := r.tracerProvider.ForceFlush(ctx); err != nil {
+			logger.Warn("telemetry: trace flush failed", "error", err)
+		}
 	}
 }
 
-// Shutdown flushes the final export and releases resources. Safe on nil.
+// Shutdown flushes the final export and releases resources for both OTel
+// signals. Safe on nil.
 func (r *Recorder) Shutdown(ctx context.Context) {
 	if r == nil {
 		return
 	}
 	if r.provider != nil {
 		if err := r.provider.Shutdown(ctx); err != nil {
-			logger.Warn("telemetry: shutdown/flush failed", "error", err)
+			logger.Warn("telemetry: metric shutdown failed", "error", err)
+		}
+	}
+	if r.tracerProvider != nil {
+		if err := r.tracerProvider.Shutdown(ctx); err != nil {
+			logger.Warn("telemetry: trace shutdown failed", "error", err)
 		}
 	}
 	if r.file != nil {
 		_ = r.file.Close()
+	}
+	if r.traceFile != nil {
+		_ = r.traceFile.Close()
 	}
 }
 
@@ -340,4 +410,77 @@ func providerFromModel(model string) string {
 		return provider
 	}
 	return "unknown"
+}
+
+// StartSession begins the session root span. The returned end function
+// stamps infer.run.outcome and ends the span. Safe on nil.
+func (r *Recorder) StartSession(mode string) func(outcome string) {
+	if r == nil || r.tracerProvider == nil {
+		return func(string) {}
+	}
+	ctx, span := r.Tracer().Start(context.Background(), "session",
+		trace.WithAttributes(
+			attribute.String("infer.execution.mode", ExecutionMode),
+			attribute.String("infer.agent.mode", mode),
+			attribute.String("gen_ai.conversation.id", r.sessionID),
+		),
+	)
+	r.sessionCtx.Store(&ctx)
+	return func(outcome string) {
+		span.SetAttributes(attribute.String("infer.run.outcome", outcome))
+		if outcome == RunFailed {
+			span.SetStatus(codes.Error, outcome)
+		}
+		span.End()
+	}
+}
+
+// SpanContext grafts the session root span onto ctx so spans created from
+// the returned context parent to it. Safe on nil.
+func (r *Recorder) SpanContext(ctx context.Context) context.Context {
+	if r == nil {
+		return ctx
+	}
+	if p := r.sessionCtx.Load(); p != nil {
+		return trace.ContextWithSpan(ctx, trace.SpanFromContext(*p))
+	}
+	return ctx
+}
+
+// StartLLMTurnSpan creates a span for one LLM request with GenAI semconv
+// attributes and CLIENT kind (a remote call to the gateway). Safe on nil
+// (returns ctx unchanged and a no-op span).
+func (r *Recorder) StartLLMTurnSpan(ctx context.Context, model string) (context.Context, trace.Span) {
+	if r == nil {
+		return ctx, noop.Span{}
+	}
+	return r.Tracer().Start(ctx, "chat "+model,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("gen_ai.request.model", model),
+			attribute.String("gen_ai.provider.name", providerFromModel(model)),
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.conversation.id", r.sessionID),
+		),
+	)
+}
+
+// SetSpanUsage stamps token usage (gen_ai.usage.*) onto the span in ctx.
+func SetSpanUsage(ctx context.Context, inputTokens, outputTokens int) {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("gen_ai.usage.input_tokens", inputTokens),
+		attribute.Int("gen_ai.usage.output_tokens", outputTokens),
+	)
+}
+
+// SetSpanError marks the span in ctx failed: error.type attribute, recorded
+// error event, and Error status, per the semconv recording-errors rules.
+func SetSpanError(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(attribute.String("error.type", "_OTHER"))
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }

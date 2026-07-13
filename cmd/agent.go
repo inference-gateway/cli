@@ -107,6 +107,15 @@ type AgentSession struct {
 	approvalCh       chan domain.ApprovalResponse
 	rolloverManager  *services.SessionRolloverManager
 	groupKey         string
+	telemetryCtx     context.Context
+}
+
+// baseCtx carries the session root span so LLM-turn and tool spans nest under it.
+func (s *AgentSession) baseCtx() context.Context {
+	if s.telemetryCtx != nil {
+		return s.telemetryCtx
+	}
+	return context.Background()
 }
 
 // inheritedSubagentMode returns the coding mode a subagent should start in, read
@@ -231,9 +240,12 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	rec := svc.GetTelemetryRecorder()
 	sessionStart := time.Now()
+	endSessionSpan := rec.StartSession(agentMode.AllowedlistKey())
+	session.telemetryCtx = rec.SpanContext(context.Background())
 
 	err = session.execute(taskDescription, files)
 
+	endSessionSpan(agentSessionOutcome(err))
 	rec.RecordSession(agentMode.AllowedlistKey(), agentSessionOutcome(err), time.Since(sessionStart))
 	if resultFile != "" {
 		writeSubagentResultFile(resultFile, session, err)
@@ -604,7 +616,7 @@ func anyToolResultFailed(results []ConversationMessage) bool {
 
 func (s *AgentSession) executeTurn() error {
 	s.lastToolFailed = false
-	ctx := context.Background()
+	ctx := s.baseCtx()
 	requestID := uuid.New().String()
 
 	messages := s.buildSDKMessages()
@@ -743,7 +755,7 @@ func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*d
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(context.Background(), s.sessionID), s.agentMode), s.model)
+	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(s.baseCtx(), s.sessionID), s.agentMode), s.model)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
 	}

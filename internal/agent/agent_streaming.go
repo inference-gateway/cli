@@ -12,6 +12,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // errConnectStalled marks a stream request that produced no response within
@@ -102,6 +103,9 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
+	requestCtx, turnSpan := a.service.recorder.StartLLMTurnSpan(requestCtx, a.req.Model)
+	defer turnSpan.End()
+
 	events, err := a.openStream(requestCtx, requestCancel, client)
 	if err != nil {
 		if errors.Is(err, errConnectStalled) {
@@ -115,6 +119,7 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 			"turn", a.agentCtx.Turns,
 			"conversationLength", len(*a.agentCtx.Conversation),
 			"provider", a.provider)
+		telemetry.SetSpanError(requestCtx, err)
 		a.failStream(err)
 		return false
 	}
@@ -221,7 +226,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 
 		case event, ok := <-events:
 			if !ok {
-				a.finalizeStream(message, allToolCallDeltas, streamUsage, iterationStartTime)
+				a.finalizeStream(requestCtx, message, allToolCallDeltas, streamUsage, iterationStartTime)
 				return false
 			}
 
@@ -250,6 +255,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
 	if requestCtx.Err() == context.DeadlineExceeded {
 		logger.Error("stream timeout", "error", requestCtx.Err())
+		telemetry.SetSpanError(requestCtx, requestCtx.Err())
 		a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
 			RequestID: a.req.RequestID,
 			Timestamp: time.Now(),
@@ -456,6 +462,7 @@ func buildAssistantMessage(
 
 // finalizeStream processes the completed stream and transitions to next state
 func (a *EventDrivenAgent) finalizeStream(
+	ctx context.Context,
 	message sdk.Message,
 	allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk,
 	streamUsage *sdk.CompletionUsage,
@@ -507,7 +514,7 @@ func (a *EventDrivenAgent) finalizeStream(
 		availableTools:  a.availableTools,
 	}
 
-	a.service.storeIterationMetrics(a.req.RequestID, a.req.Model, iterationStartTime, streamUsage, polyfillInput)
+	a.service.storeIterationMetrics(ctx, a.req.RequestID, a.req.Model, iterationStartTime, streamUsage, polyfillInput)
 
 	toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(completeToolCalls))
 	for i := range completeToolCalls {

@@ -417,6 +417,9 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 	defer cancel()
 
+	timeoutCtx, turnSpan := s.recorder.StartLLMTurnSpan(timeoutCtx, req.Model)
+	defer turnSpan.End()
+
 	startTime := time.Now()
 
 	var availableTools []sdk.ChatCompletionTool
@@ -454,6 +457,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		return response, nil
 	}(timeoutCtx, req.Model, messages)
 	if err != nil {
+		telemetry.SetSpanError(timeoutCtx, err)
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
@@ -461,7 +465,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	content, reasoningContent, toolCalls := extractFirstChoice(response)
 
-	effectiveUsage := s.storeIterationMetrics(req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
+	effectiveUsage := s.storeIterationMetrics(timeoutCtx, req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
 		inputMessages:   messages,
 		outputContent:   content,
 		outputToolCalls: toolCalls,
@@ -641,6 +645,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
 	sessionCtx = domain.WithModel(sessionCtx, req.Model)
+	sessionCtx = s.recorder.SpanContext(sessionCtx)
 	sc := &sessionCancel{
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),
@@ -745,6 +750,7 @@ type storeIterationMetricsInput struct {
 // was nothing to record. Both the streaming path and the sync Run path funnel through here so
 // chat and headless token accounting stay identical (issue #835).
 func (s *AgentServiceImpl) storeIterationMetrics(
+	ctx context.Context,
 	requestID string,
 	model string,
 	startTime time.Time,
@@ -787,6 +793,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	if s.recorder != nil {
 		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 	}
+	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 
 	return effectiveUsage
 }

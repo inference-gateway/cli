@@ -771,7 +771,7 @@ func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
 			startTime := time.Now().Add(-1 * time.Second)
 			requestID := "test-request-123"
 
-			agentService.storeIterationMetrics(requestID, "test-model", startTime, tt.usage, nil)
+			agentService.storeIterationMetrics(context.Background(), requestID, "test-model", startTime, tt.usage, nil)
 
 			if tt.expectSave {
 				assert.NotNil(t, agentService.metrics[requestID])
