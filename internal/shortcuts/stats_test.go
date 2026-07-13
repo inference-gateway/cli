@@ -31,14 +31,11 @@ func TestStatsShortcut_WithData(t *testing.T) {
 	dir := t.TempDir()
 	writeTestTelemetry(t, dir, time.Now())
 
-	// Override TelemetryDir by setting HOME
 	t.Setenv("HOME", dir)
-	// Create the expected telemetry subdir structure
 	telemetryDir := filepath.Join(dir, ".infer", "telemetry")
 	if err := os.MkdirAll(telemetryDir, 0o755); err != nil {
 		t.Fatalf("failed to create telemetry dir: %v", err)
 	}
-	// Move the test file there
 	if err := os.Rename(filepath.Join(dir, "test.jsonl"), filepath.Join(telemetryDir, "test.jsonl")); err != nil {
 		t.Fatalf("failed to move test telemetry: %v", err)
 	}
@@ -63,7 +60,6 @@ func TestStatsShortcut_WithData(t *testing.T) {
 		t.Errorf("expected 'Sessions' section, got: %q", res.Output)
 	}
 
-	// Should contain the tool name
 	if !strings.Contains(res.Output, "bash") {
 		t.Errorf("expected 'bash' tool in output, got: %q", res.Output)
 	}
@@ -71,7 +67,6 @@ func TestStatsShortcut_WithData(t *testing.T) {
 
 func TestStatsShortcut_WithSince(t *testing.T) {
 	dir := t.TempDir()
-	// Write telemetry with an old timestamp
 	writeTestTelemetry(t, dir, time.Now().AddDate(0, 0, -30))
 
 	t.Setenv("HOME", dir)
@@ -85,7 +80,6 @@ func TestStatsShortcut_WithSince(t *testing.T) {
 
 	s := NewStatsShortcut()
 
-	// With --since 7d, the 30-day-old data should be excluded
 	res, err := s.Execute(context.Background(), []string{"7d"})
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
@@ -129,8 +123,6 @@ func TestStatsShortcut_CanExecute(t *testing.T) {
 // into dir/test.jsonl with the given timestamp.
 func writeTestTelemetry(t *testing.T, dir string, ts time.Time) {
 	t.Helper()
-	// Build a minimal resource-metrics JSON matching the stdout exporter format.
-	// One tool call, one duration, one token usage, one cost, one session run.
 	line := `{"Resource":[{"Key":"infer.execution.mode","Value":{"Value":"interactive"}}],"ScopeMetrics":[{"Metrics":[{"Name":"infer.agent.tool.calls","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.tool.name","Value":{"Value":"bash"}},{"Key":"infer.tool.outcome","Value":{"Value":"success"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Value":1}]}},{"Name":"gen_ai.execute_tool.duration","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.tool.name","Value":{"Value":"bash"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Sum":1.5,"Count":1}]}},{"Name":"gen_ai.client.token.usage","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.request.model","Value":{"Value":"openai/gpt-4o"}},{"Key":"gen_ai.token.type","Value":{"Value":"input"}}],"Time":"` +
