@@ -52,80 +52,62 @@ func TestNewStatusView(t *testing.T) {
 	}
 }
 
-func TestStatusView_ShowStatus(t *testing.T) {
-	sv := NewStatusView(createMockStyleProviderForStatus())
-
-	testMessage := "Processing request..."
-	sv.ShowStatus(testMessage)
-
-	if sv.message != testMessage {
-		t.Errorf("Expected message '%s', got '%s'", testMessage, sv.message)
+func TestStatusView_ShowMethods(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(sv *StatusView)
+		wantMsg     string
+		wantError   bool
+		wantSpinner bool
+	}{
+		{
+			name:        "show status sets message and clears flags",
+			setup:       func(sv *StatusView) { sv.ShowStatus("Processing request...") },
+			wantMsg:     "Processing request...",
+			wantError:   false,
+			wantSpinner: false,
+		},
+		{
+			name:        "show error sets message and error flag",
+			setup:       func(sv *StatusView) { sv.ShowError("Connection failed") },
+			wantMsg:     "Connection failed",
+			wantError:   true,
+			wantSpinner: false,
+		},
+		{
+			name:        "show spinner sets message and spinner flag",
+			setup:       func(sv *StatusView) { sv.ShowSpinner("Loading...") },
+			wantMsg:     "Loading...",
+			wantError:   false,
+			wantSpinner: true,
+		},
+		{
+			name: "clear status resets message and flags",
+			setup: func(sv *StatusView) {
+				sv.ShowError("Some error")
+				sv.ClearStatus()
+			},
+			wantMsg:     "",
+			wantError:   false,
+			wantSpinner: false,
+		},
 	}
 
-	if sv.IsShowingSpinner() {
-		t.Error("Expected showSpinner to be false for status message")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sv := NewStatusView(createMockStyleProviderForStatus())
+			tt.setup(sv)
 
-	if sv.IsShowingError() {
-		t.Error("Expected showError to be false for status message")
-	}
-}
-
-func TestStatusView_ShowError(t *testing.T) {
-	sv := NewStatusView(createMockStyleProviderForStatus())
-
-	testError := "Connection failed"
-	sv.ShowError(testError)
-
-	if sv.message != testError {
-		t.Errorf("Expected error message '%s', got '%s'", testError, sv.message)
-	}
-
-	if !sv.IsShowingError() {
-		t.Error("Expected showError to be true")
-	}
-
-	if sv.IsShowingSpinner() {
-		t.Error("Expected showSpinner to be false for error message")
-	}
-}
-
-func TestStatusView_ShowSpinner(t *testing.T) {
-	sv := NewStatusView(createMockStyleProviderForStatus())
-
-	testMessage := "Loading..."
-	sv.ShowSpinner(testMessage)
-
-	if sv.message != testMessage {
-		t.Errorf("Expected spinner message '%s', got '%s'", testMessage, sv.message)
-	}
-
-	if !sv.IsShowingSpinner() {
-		t.Error("Expected showSpinner to be true")
-	}
-
-	if sv.IsShowingError() {
-		t.Error("Expected showError to be false for spinner message")
-	}
-}
-
-func TestStatusView_ClearStatus(t *testing.T) {
-	sv := NewStatusView(createMockStyleProviderForStatus())
-
-	sv.ShowError("Some error")
-
-	sv.ClearStatus()
-
-	if sv.message != "" {
-		t.Errorf("Expected empty message after clear, got '%s'", sv.message)
-	}
-
-	if sv.IsShowingSpinner() {
-		t.Error("Expected showSpinner to be false after clear")
-	}
-
-	if sv.IsShowingError() {
-		t.Error("Expected showError to be false after clear")
+			if sv.message != tt.wantMsg {
+				t.Errorf("Expected message %q, got %q", tt.wantMsg, sv.message)
+			}
+			if sv.IsShowingError() != tt.wantError {
+				t.Errorf("Expected IsShowingError=%v, got %v", tt.wantError, sv.IsShowingError())
+			}
+			if sv.IsShowingSpinner() != tt.wantSpinner {
+				t.Errorf("Expected IsShowingSpinner=%v, got %v", tt.wantSpinner, sv.IsShowingSpinner())
+			}
+		})
 	}
 }
 
