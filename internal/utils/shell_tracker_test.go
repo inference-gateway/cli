@@ -9,7 +9,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	require "github.com/stretchr/testify/require"
 )
 
 func createTestShell(id string, state domain.ShellState) *domain.BackgroundShell {
@@ -24,6 +23,13 @@ func createTestShell(id string, state domain.ShellState) *domain.BackgroundShell
 		OutputBuffer: NewOutputRingBuffer(1024),
 		CancelFunc:   cancel,
 		ReadOffset:   0,
+	}
+}
+
+func mustAddShell(t *testing.T, tracker *shellTracker, shell *domain.BackgroundShell) {
+	t.Helper()
+	if err := tracker.Add(shell); err != nil {
+		t.Fatalf("Add(%s) failed: %v", shell.ShellID, err)
 	}
 }
 
@@ -43,262 +49,312 @@ func TestNewShellTracker(t *testing.T) {
 	}
 }
 
-func TestAdd_Success(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	shell := createTestShell("shell-123", domain.ShellStateRunning)
-
-	err := tracker.Add(shell)
-	if err != nil {
-		t.Fatalf("Add failed: %v", err)
+func TestShellTracker_Add(t *testing.T) {
+	tests := []struct {
+		name             string
+		maxConcurrent    int
+		preAdd           []*domain.BackgroundShell
+		add              *domain.BackgroundShell
+		wantErr          bool
+		wantCount        int
+		wantCountRunning int
+	}{
+		{
+			name:             "success",
+			maxConcurrent:    5,
+			add:              createTestShell("shell-123", domain.ShellStateRunning),
+			wantErr:          false,
+			wantCount:        1,
+			wantCountRunning: 1,
+		},
+		{
+			name:          "duplicate ID rejected",
+			maxConcurrent: 5,
+			preAdd: []*domain.BackgroundShell{
+				createTestShell("shell-123", domain.ShellStateRunning),
+			},
+			add:              createTestShell("shell-123", domain.ShellStateRunning),
+			wantErr:          true,
+			wantCount:        1,
+			wantCountRunning: 1,
+		},
+		{
+			name:          "max concurrent limit rejects running shell",
+			maxConcurrent: 3,
+			preAdd: []*domain.BackgroundShell{
+				createTestShell("shell-0", domain.ShellStateRunning),
+				createTestShell("shell-1", domain.ShellStateRunning),
+				createTestShell("shell-2", domain.ShellStateRunning),
+			},
+			add:              createTestShell("shell-4", domain.ShellStateRunning),
+			wantErr:          true,
+			wantCount:        3,
+			wantCountRunning: 3,
+		},
+		{
+			name:          "max concurrent limit allows completed shell",
+			maxConcurrent: 2,
+			preAdd: []*domain.BackgroundShell{
+				createTestShell("shell-running-0", domain.ShellStateRunning),
+				createTestShell("shell-running-1", domain.ShellStateRunning),
+			},
+			add:              createTestShell("shell-completed", domain.ShellStateCompleted),
+			wantErr:          false,
+			wantCount:        3,
+			wantCountRunning: 2,
+		},
 	}
 
-	if tracker.Count() != 1 {
-		t.Errorf("Expected count=1, got %d", tracker.Count())
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewShellTracker(tt.maxConcurrent)
+			for _, shell := range tt.preAdd {
+				mustAddShell(t, tracker, shell)
+			}
 
-	if tracker.CountRunning() != 1 {
-		t.Errorf("Expected countRunning=1, got %d", tracker.CountRunning())
-	}
-}
+			err := tracker.Add(tt.add)
 
-func TestAdd_DuplicateID(t *testing.T) {
-	tracker := NewShellTracker(5)
+			if tt.wantErr && err == nil {
+				t.Fatal("Expected error from Add, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("Add failed: %v", err)
+			}
 
-	shell1 := createTestShell("shell-123", domain.ShellStateRunning)
-	shell2 := createTestShell("shell-123", domain.ShellStateRunning)
+			if tracker.Count() != tt.wantCount {
+				t.Errorf("Expected count=%d, got %d", tt.wantCount, tracker.Count())
+			}
 
-	err := tracker.Add(shell1)
-	if err != nil {
-		t.Fatalf("First Add failed: %v", err)
-	}
-
-	err = tracker.Add(shell2)
-	if err == nil {
-		t.Fatal("Expected error when adding duplicate ID, got nil")
-	}
-
-	if tracker.Count() != 1 {
-		t.Errorf("Expected count=1 after duplicate, got %d", tracker.Count())
-	}
-}
-
-func TestAdd_MaxConcurrentLimit(t *testing.T) {
-	tracker := NewShellTracker(3)
-
-	for i := 0; i < 3; i++ {
-		shell := createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning)
-		err := tracker.Add(shell)
-		if err != nil {
-			t.Fatalf("Add shell %d failed: %v", i, err)
-		}
-	}
-
-	shell4 := createTestShell("shell-4", domain.ShellStateRunning)
-	err := tracker.Add(shell4)
-	if err == nil {
-		t.Fatal("Expected error when exceeding max concurrent, got nil")
-	}
-
-	if tracker.CountRunning() != 3 {
-		t.Errorf("Expected countRunning=3, got %d", tracker.CountRunning())
-	}
-}
-
-func TestAdd_MaxConcurrentLimit_AllowsCompleted(t *testing.T) {
-	tracker := NewShellTracker(2)
-
-	for i := 0; i < 2; i++ {
-		shell := createTestShell(fmt.Sprintf("shell-running-%d", i), domain.ShellStateRunning)
-		err := tracker.Add(shell)
-		if err != nil {
-			t.Fatalf("Add running shell %d failed: %v", i, err)
-		}
-	}
-
-	shell := createTestShell("shell-completed", domain.ShellStateCompleted)
-	err := tracker.Add(shell)
-	if err != nil {
-		t.Fatalf("Should allow adding completed shell: %v", err)
-	}
-
-	if tracker.Count() != 3 {
-		t.Errorf("Expected count=3, got %d", tracker.Count())
-	}
-
-	if tracker.CountRunning() != 2 {
-		t.Errorf("Expected countRunning=2, got %d", tracker.CountRunning())
+			if tracker.CountRunning() != tt.wantCountRunning {
+				t.Errorf("Expected countRunning=%d, got %d", tt.wantCountRunning, tracker.CountRunning())
+			}
+		})
 	}
 }
 
-func TestGet_Success(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	shell := createTestShell("shell-123", domain.ShellStateRunning)
-	require.NoError(t, tracker.Add(shell))
-
-	retrieved := tracker.Get("shell-123")
-
-	if retrieved == nil {
-		t.Fatal("Get returned nil")
+func TestShellTracker_Get(t *testing.T) {
+	tests := []struct {
+		name    string
+		preAdd  []*domain.BackgroundShell
+		getID   string
+		wantNil bool
+		wantID  string
+	}{
+		{
+			name:   "found",
+			preAdd: []*domain.BackgroundShell{createTestShell("shell-123", domain.ShellStateRunning)},
+			getID:  "shell-123",
+			wantID: "shell-123",
+		},
+		{
+			name:    "not found",
+			getID:   "nonexistent",
+			wantNil: true,
+		},
 	}
 
-	if retrieved.ShellID != "shell-123" {
-		t.Errorf("Expected ShellID=shell-123, got %s", retrieved.ShellID)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewShellTracker(5)
+			for _, shell := range tt.preAdd {
+				mustAddShell(t, tracker, shell)
+			}
 
-func TestGet_NotFound(t *testing.T) {
-	tracker := NewShellTracker(5)
+			retrieved := tracker.Get(tt.getID)
 
-	retrieved := tracker.Get("nonexistent")
+			if tt.wantNil {
+				if retrieved != nil {
+					t.Error("Expected Get to return nil for nonexistent shell")
+				}
+				return
+			}
 
-	if retrieved != nil {
-		t.Error("Expected Get to return nil for nonexistent shell")
-	}
-}
+			if retrieved == nil {
+				t.Fatal("Get returned nil")
+			}
 
-func TestGetAll(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	for i := 0; i < 3; i++ {
-		shell := createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning)
-		require.NoError(t, tracker.Add(shell))
-	}
-
-	all := tracker.GetAll()
-
-	if len(all) != 3 {
-		t.Errorf("Expected 3 shells, got %d", len(all))
-	}
-}
-
-func TestGetAll_Empty(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	all := tracker.GetAll()
-
-	if len(all) != 0 {
-		t.Errorf("Expected empty slice, got %d shells", len(all))
+			if retrieved.ShellID != tt.wantID {
+				t.Errorf("Expected ShellID=%s, got %s", tt.wantID, retrieved.ShellID)
+			}
+		})
 	}
 }
 
-func TestRemove_Success(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	shell := createTestShell("shell-123", domain.ShellStateRunning)
-	require.NoError(t, tracker.Add(shell))
-
-	err := tracker.Remove("shell-123")
-	if err != nil {
-		t.Fatalf("Remove failed: %v", err)
+func TestShellTracker_GetAll(t *testing.T) {
+	tests := []struct {
+		name    string
+		numAdd  int
+		wantLen int
+	}{
+		{name: "three shells", numAdd: 3, wantLen: 3},
+		{name: "empty", numAdd: 0, wantLen: 0},
 	}
 
-	if tracker.Count() != 0 {
-		t.Errorf("Expected count=0 after remove, got %d", tracker.Count())
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewShellTracker(5)
+			for i := 0; i < tt.numAdd; i++ {
+				mustAddShell(t, tracker, createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning))
+			}
 
-	retrieved := tracker.Get("shell-123")
-	if retrieved != nil {
-		t.Error("Shell should not exist after remove")
-	}
-}
+			all := tracker.GetAll()
 
-func TestRemove_NotFound(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	err := tracker.Remove("nonexistent")
-	if err == nil {
-		t.Fatal("Expected error when removing nonexistent shell, got nil")
+			if len(all) != tt.wantLen {
+				t.Errorf("Expected %d shells, got %d", tt.wantLen, len(all))
+			}
+		})
 	}
 }
 
-func TestCleanup_RemovesOldCompletedShells(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	oldShell := createTestShell("old-shell", domain.ShellStateCompleted)
-	oldTime := time.Now().Add(-2 * time.Hour)
-	oldShell.CompletedAt = &oldTime
-	require.NoError(t, tracker.Add(oldShell))
-
-	recentShell := createTestShell("recent-shell", domain.ShellStateCompleted)
-	recentTime := time.Now().Add(-5 * time.Minute)
-	recentShell.CompletedAt = &recentTime
-	require.NoError(t, tracker.Add(recentShell))
-
-	removed := tracker.Cleanup(1 * time.Hour)
-
-	if removed != 1 {
-		t.Errorf("Expected 1 shell removed, got %d", removed)
+func TestShellTracker_Remove(t *testing.T) {
+	tests := []struct {
+		name     string
+		preAdd   []*domain.BackgroundShell
+		removeID string
+		wantErr  bool
+	}{
+		{
+			name:     "success",
+			preAdd:   []*domain.BackgroundShell{createTestShell("shell-123", domain.ShellStateRunning)},
+			removeID: "shell-123",
+		},
+		{
+			name:     "not found",
+			removeID: "nonexistent",
+			wantErr:  true,
+		},
 	}
 
-	if tracker.Count() != 1 {
-		t.Errorf("Expected count=1 after cleanup, got %d", tracker.Count())
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewShellTracker(5)
+			for _, shell := range tt.preAdd {
+				mustAddShell(t, tracker, shell)
+			}
 
-	if tracker.Get("old-shell") != nil {
-		t.Error("Old shell should have been removed")
-	}
+			err := tracker.Remove(tt.removeID)
 
-	if tracker.Get("recent-shell") == nil {
-		t.Error("Recent shell should still exist")
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error when removing nonexistent shell, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Remove failed: %v", err)
+			}
+
+			if tracker.Count() != 0 {
+				t.Errorf("Expected count=0 after remove, got %d", tracker.Count())
+			}
+
+			if tracker.Get(tt.removeID) != nil {
+				t.Error("Shell should not exist after remove")
+			}
+		})
 	}
 }
 
-func TestCleanup_DoesNotRemoveRunningShells(t *testing.T) {
-	tracker := NewShellTracker(5)
-
-	oldRunning := createTestShell("old-running", domain.ShellStateRunning)
-	oldRunning.StartedAt = time.Now().Add(-2 * time.Hour)
-	require.NoError(t, tracker.Add(oldRunning))
-
-	removed := tracker.Cleanup(1 * time.Hour)
-
-	if removed != 0 {
-		t.Errorf("Expected 0 shells removed (running shells not cleaned), got %d", removed)
+func TestShellTracker_Cleanup(t *testing.T) {
+	type shellSpec struct {
+		id           string
+		state        domain.ShellState
+		startedAgo   time.Duration
+		completedAgo time.Duration
 	}
 
-	if tracker.Count() != 1 {
-		t.Errorf("Expected count=1, got %d", tracker.Count())
+	tests := []struct {
+		name          string
+		shells        []shellSpec
+		maxAge        time.Duration
+		wantRemoved   int
+		wantCount     int
+		wantGone      []string
+		wantRemaining []string
+	}{
+		{
+			name: "removes old completed shells only",
+			shells: []shellSpec{
+				{id: "old-shell", state: domain.ShellStateCompleted, completedAgo: 2 * time.Hour},
+				{id: "recent-shell", state: domain.ShellStateCompleted, completedAgo: 5 * time.Minute},
+			},
+			maxAge:        1 * time.Hour,
+			wantRemoved:   1,
+			wantCount:     1,
+			wantGone:      []string{"old-shell"},
+			wantRemaining: []string{"recent-shell"},
+		},
+		{
+			name: "does not remove running shells",
+			shells: []shellSpec{
+				{id: "old-running", state: domain.ShellStateRunning, startedAgo: 2 * time.Hour},
+			},
+			maxAge:      1 * time.Hour,
+			wantRemoved: 0,
+			wantCount:   1,
+		},
+		{
+			name: "removes all terminal states",
+			shells: []shellSpec{
+				{id: "completed", state: domain.ShellStateCompleted, completedAgo: 2 * time.Hour},
+				{id: "failed", state: domain.ShellStateFailed, completedAgo: 2 * time.Hour},
+				{id: "cancelled", state: domain.ShellStateCancelled, completedAgo: 2 * time.Hour},
+			},
+			maxAge:      1 * time.Hour,
+			wantRemoved: 3,
+			wantCount:   0,
+		},
 	}
-}
 
-func TestCleanup_AllTerminalStates(t *testing.T) {
-	tracker := NewShellTracker(10)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewShellTracker(10)
+			for _, spec := range tt.shells {
+				shell := createTestShell(spec.id, spec.state)
+				if spec.startedAgo != 0 {
+					shell.StartedAt = time.Now().Add(-spec.startedAgo)
+				}
+				if spec.completedAgo != 0 {
+					completedAt := time.Now().Add(-spec.completedAgo)
+					shell.CompletedAt = &completedAt
+				}
+				mustAddShell(t, tracker, shell)
+			}
 
-	oldTime := time.Now().Add(-2 * time.Hour)
+			removed := tracker.Cleanup(tt.maxAge)
 
-	completedShell := createTestShell("completed", domain.ShellStateCompleted)
-	completedShell.CompletedAt = &oldTime
-	require.NoError(t, tracker.Add(completedShell))
+			if removed != tt.wantRemoved {
+				t.Errorf("Expected %d shells removed, got %d", tt.wantRemoved, removed)
+			}
 
-	failedShell := createTestShell("failed", domain.ShellStateFailed)
-	failedShell.CompletedAt = &oldTime
-	require.NoError(t, tracker.Add(failedShell))
+			if tracker.Count() != tt.wantCount {
+				t.Errorf("Expected count=%d after cleanup, got %d", tt.wantCount, tracker.Count())
+			}
 
-	cancelledShell := createTestShell("cancelled", domain.ShellStateCancelled)
-	cancelledShell.CompletedAt = &oldTime
-	require.NoError(t, tracker.Add(cancelledShell))
+			for _, id := range tt.wantGone {
+				if tracker.Get(id) != nil {
+					t.Errorf("Shell %s should have been removed", id)
+				}
+			}
 
-	removed := tracker.Cleanup(1 * time.Hour)
-
-	if removed != 3 {
-		t.Errorf("Expected 3 shells removed, got %d", removed)
-	}
-
-	if tracker.Count() != 0 {
-		t.Errorf("Expected count=0, got %d", tracker.Count())
+			for _, id := range tt.wantRemaining {
+				if tracker.Get(id) == nil {
+					t.Errorf("Shell %s should still exist", id)
+				}
+			}
+		})
 	}
 }
 
 func TestCountRunning(t *testing.T) {
 	tracker := NewShellTracker(10)
 
-	require.NoError(t, tracker.Add(createTestShell("running-1", domain.ShellStateRunning)))
-	require.NoError(t, tracker.Add(createTestShell("running-2", domain.ShellStateRunning)))
-	require.NoError(t, tracker.Add(createTestShell("completed-1", domain.ShellStateCompleted)))
-	require.NoError(t, tracker.Add(createTestShell("failed-1", domain.ShellStateFailed)))
-	require.NoError(t, tracker.Add(createTestShell("cancelled-1", domain.ShellStateCancelled)))
+	mustAddShell(t, tracker, createTestShell("running-1", domain.ShellStateRunning))
+	mustAddShell(t, tracker, createTestShell("running-2", domain.ShellStateRunning))
+	mustAddShell(t, tracker, createTestShell("completed-1", domain.ShellStateCompleted))
+	mustAddShell(t, tracker, createTestShell("failed-1", domain.ShellStateFailed))
+	mustAddShell(t, tracker, createTestShell("cancelled-1", domain.ShellStateCancelled))
 
 	if tracker.Count() != 5 {
 		t.Errorf("Expected count=5, got %d", tracker.Count())
@@ -376,7 +432,10 @@ func TestConcurrentAddRemove(t *testing.T) {
 				return
 			default:
 				shell := createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning)
-				require.NoError(t, tracker.Add(shell))
+				if err := tracker.Add(shell); err != nil {
+					t.Errorf("Add failed: %v", err)
+					return
+				}
 				i++
 				time.Sleep(1 * time.Millisecond)
 			}
@@ -394,8 +453,10 @@ func TestConcurrentAddRemove(t *testing.T) {
 			default:
 				shells := tracker.GetAll()
 				if len(shells) > 0 {
-					err := tracker.Remove(shells[0].ShellID)
-					require.NoError(t, err)
+					if err := tracker.Remove(shells[0].ShellID); err != nil {
+						t.Errorf("Remove failed: %v", err)
+						return
+					}
 				}
 				time.Sleep(1 * time.Millisecond)
 			}

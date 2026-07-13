@@ -75,80 +75,74 @@ func TestParse_ValidFrontmatter(t *testing.T) {
 	require.Empty(t, s.Errors())
 }
 
-func TestParse_MissingName(t *testing.T) {
-	tmp := t.TempDir()
-	writeSkill(t, tmp, "no-name", "---\ndescription: No name field at all.\n---\n")
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "name")
-}
-
-func TestParse_MissingDescription(t *testing.T) {
-	tmp := t.TempDir()
-	writeSkill(t, tmp, "no-desc", "---\nname: no-desc\n---\n")
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "description")
-}
-
-func TestParse_NameTooLong(t *testing.T) {
-	tmp := t.TempDir()
+// TestParse_InvalidSkills covers every frontmatter validation failure: each
+// case writes one skill dir, expects zero loaded skills and exactly one error,
+// optionally asserting on the error reason.
+func TestParse_InvalidSkills(t *testing.T) {
 	longName := strings.Repeat("a", 65)
-	writeSkill(t, tmp, longName, validSkillBody(longName, "Too long."))
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "max")
-}
-
-func TestParse_NameInvalidChars(t *testing.T) {
-	tmp := t.TempDir()
-	for _, badName := range []string{"With_Underscore", "UPPERCASE", "with space"} {
-		sub := filepath.Join(tmp, "case-"+strings.ReplaceAll(badName, " ", "_"))
-		require.NoError(t, os.MkdirAll(sub, 0o755))
-		writeSkill(t, sub, badName, validSkillBody(badName, "Invalid charset."))
-
-		s := newWithScopes(enabledCfg(), scope(sub))
-		require.NoError(t, s.Load(context.Background()))
-		require.Empty(t, s.List(), "expected no skills loaded for name %q", badName)
-		require.Len(t, s.Errors(), 1)
+	tests := []struct {
+		name       string
+		dirName    string
+		body       string
+		wantReason string
+	}{
+		{
+			name: "missing name", dirName: "no-name",
+			body: "---\ndescription: No name field at all.\n---\n", wantReason: "name",
+		},
+		{
+			name: "missing description", dirName: "no-desc",
+			body: "---\nname: no-desc\n---\n", wantReason: "description",
+		},
+		{
+			name: "name too long", dirName: longName,
+			body: validSkillBody(longName, "Too long."), wantReason: "max",
+		},
+		{
+			name: "name with underscore", dirName: "With_Underscore",
+			body: validSkillBody("With_Underscore", "Invalid charset."),
+		},
+		{
+			name: "name uppercase", dirName: "UPPERCASE",
+			body: validSkillBody("UPPERCASE", "Invalid charset."),
+		},
+		{
+			name: "name with space", dirName: "with space",
+			body: validSkillBody("with space", "Invalid charset."),
+		},
+		{
+			name: "name does not match dir", dirName: "foo",
+			body: validSkillBody("bar", "Mismatched name."), wantReason: "directory",
+		},
+		{
+			name: "description too long", dirName: "long-desc",
+			body: validSkillBody("long-desc", strings.Repeat("x", 1025)), wantReason: "max",
+		},
+		{
+			name: "malformed frontmatter", dirName: "broken",
+			body: "---\nname: broken\ndescription: oops\n\n# Body without closing delim\n",
+		},
+		{
+			name: "no frontmatter", dirName: "plain",
+			body: "# Just a markdown file with no frontmatter at all\n", wantReason: "frontmatter",
+		},
 	}
-}
 
-func TestParse_NameDoesNotMatchDir(t *testing.T) {
-	tmp := t.TempDir()
-	writeSkill(t, tmp, "foo", validSkillBody("bar", "Mismatched name."))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			writeSkill(t, tmp, tt.dirName, tt.body)
 
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
+			s := newWithScopes(enabledCfg(), scope(tmp))
+			require.NoError(t, s.Load(context.Background()))
 
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "directory")
-}
-
-func TestParse_DescriptionTooLong(t *testing.T) {
-	tmp := t.TempDir()
-	longDesc := strings.Repeat("x", 1025)
-	writeSkill(t, tmp, "long-desc", validSkillBody("long-desc", longDesc))
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "max")
+			require.Empty(t, s.List(), "expected no skills loaded for %q", tt.dirName)
+			require.Len(t, s.Errors(), 1)
+			if tt.wantReason != "" {
+				require.Contains(t, s.Errors()[0].Reason, tt.wantReason)
+			}
+		})
+	}
 }
 
 func TestParse_UnknownKeysTolerated(t *testing.T) {
@@ -334,29 +328,6 @@ func TestLoad_SkipsDirsWithoutSkillMD(t *testing.T) {
 
 	require.Len(t, s.List(), 1)
 	require.Empty(t, s.Errors())
-}
-
-func TestParse_MalformedFrontmatter(t *testing.T) {
-	tmp := t.TempDir()
-	writeSkill(t, tmp, "broken", "---\nname: broken\ndescription: oops\n\n# Body without closing delim\n")
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-}
-
-func TestParse_NoFrontmatter(t *testing.T) {
-	tmp := t.TempDir()
-	writeSkill(t, tmp, "plain", "# Just a markdown file with no frontmatter at all\n")
-
-	s := newWithScopes(enabledCfg(), scope(tmp))
-	require.NoError(t, s.Load(context.Background()))
-
-	require.Empty(t, s.List())
-	require.Len(t, s.Errors(), 1)
-	require.Contains(t, s.Errors()[0].Reason, "frontmatter")
 }
 
 func TestGet(t *testing.T) {

@@ -71,38 +71,90 @@ func TestInjectDueReminders_AppendsHiddenMessageAndEmits(t *testing.T) {
 	assert.NotEmpty(t, event["timestamp"])
 }
 
-func TestInjectDueReminders_NoOpWhenDisabled(t *testing.T) {
-	cfg := remindersConfig(false, reminder("todo", "ignored", domain.HookPreStream, config.ReminderTriggerInterval, 2))
-	svc := &AgentServiceImpl{config: cfg}
-	buf := withDebugStreamWriter(t)
+// Gating cases: disabled config, wrong hook, stacked reminders on one hook,
+// pending tool results, and the debug stream gate being off.
+func TestInjectDueReminders_InjectionGating(t *testing.T) {
+	toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
+	tests := []struct {
+		name         string
+		cfg          *config.Config
+		initialConv  []sdk.Message
+		hook         domain.HookPoint
+		turns        int
+		debugOn      bool
+		wantConvLen  int
+		wantBufEmpty bool
+	}{
+		{
+			name:         "no-op when disabled",
+			cfg:          remindersConfig(false, reminder("todo", "ignored", domain.HookPreStream, config.ReminderTriggerInterval, 2)),
+			hook:         domain.HookPreStream,
+			turns:        4,
+			debugOn:      true,
+			wantConvLen:  0,
+			wantBufEmpty: true,
+		},
+		{
+			name:        "no-op on wrong hook",
+			cfg:         remindersConfig(true, reminder("todo", "x", domain.HookPostTool, config.ReminderTriggerAlways, 0)),
+			hook:        domain.HookPreStream,
+			turns:       1,
+			debugOn:     true,
+			wantConvLen: 0,
+		},
+		{
+			name: "stacking injects all reminders on the hook",
+			cfg: remindersConfig(true,
+				reminder("todo", "t", domain.HookPreStream, config.ReminderTriggerAlways, 0),
+				reminder("memory", "m", domain.HookPreStream, config.ReminderTriggerAlways, 0),
+			),
+			hook:        domain.HookPreStream,
+			turns:       1,
+			debugOn:     true,
+			wantConvLen: 2,
+		},
+		{
+			name: "skips while awaiting tool results",
+			cfg:  remindersConfig(true, reminder("note", "n", domain.HookPreTool, config.ReminderTriggerAlways, 0)),
+			initialConv: []sdk.Message{
+				{Role: sdk.User, Content: sdk.NewMessageContent("do it")},
+				{Role: sdk.Assistant, ToolCalls: &toolCalls},
+			},
+			hook:        domain.HookPreTool,
+			turns:       1,
+			debugOn:     true,
+			wantConvLen: 2,
+		},
+		{
+			name:         "debug gate off appends but does not stream",
+			cfg:          remindersConfig(true, reminder("todo", "x", domain.HookPreStream, config.ReminderTriggerAlways, 0)),
+			hook:         domain.HookPreStream,
+			turns:        1,
+			debugOn:      false,
+			wantConvLen:  1,
+			wantBufEmpty: true,
+		},
+	}
 
-	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 4, 0), domain.HookPreStream)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &AgentServiceImpl{config: tt.cfg}
+			var buf bytes.Buffer
+			t.Cleanup(streamevent.SetWriter(&buf))
+			t.Cleanup(streamevent.SetDebugEnabledForTest(tt.debugOn))
 
-	assert.Empty(t, conv)
-	assert.Empty(t, buf.String())
-}
+			conv := tt.initialConv
+			if conv == nil {
+				conv = []sdk.Message{}
+			}
+			svc.injectDueReminders(newReminderAgentCtx(&conv, tt.turns, 0), tt.hook)
 
-func TestInjectDueReminders_NoOpOnWrongHook(t *testing.T) {
-	cfg := remindersConfig(true, reminder("todo", "x", domain.HookPostTool, config.ReminderTriggerAlways, 0))
-	svc := &AgentServiceImpl{config: cfg}
-
-	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 1, 0), domain.HookPreStream)
-	assert.Empty(t, conv, "a post_tool reminder must not fire at pre_stream")
-}
-
-// Multiple reminders configured on the same hook all inject in one dispatch.
-func TestInjectDueReminders_Stacking(t *testing.T) {
-	cfg := remindersConfig(true,
-		reminder("todo", "t", domain.HookPreStream, config.ReminderTriggerAlways, 0),
-		reminder("memory", "m", domain.HookPreStream, config.ReminderTriggerAlways, 0),
-	)
-	svc := &AgentServiceImpl{config: cfg}
-
-	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 1, 0), domain.HookPreStream)
-	require.Len(t, conv, 2, "both reminders on the hook should inject")
+			require.Len(t, conv, tt.wantConvLen)
+			if tt.wantBufEmpty {
+				assert.Empty(t, buf.String())
+			}
+		})
+	}
 }
 
 // A `once` reminder fires the first time its hook dispatches and is suppressed
@@ -122,83 +174,66 @@ func TestInjectDueReminders_OnceSuppressedAfterFiring(t *testing.T) {
 	require.Len(t, conv, 1, "once reminder must not fire again")
 }
 
-// A reminder is a user message; it must not be injected between an assistant
-// turn's tool_calls and its results (would orphan the calls). The mid-turn
-// hooks (post_stream/pre_tool) hit this state when the model requested tools.
-func TestInjectDueReminders_SkipsWhenAwaitingToolResults(t *testing.T) {
-	cfg := remindersConfig(true, reminder("note", "n", domain.HookPreTool, config.ReminderTriggerAlways, 0))
-	svc := &AgentServiceImpl{config: cfg}
-
-	toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
-	conv := []sdk.Message{
-		{Role: sdk.User, Content: sdk.NewMessageContent("do it")},
-		{Role: sdk.Assistant, ToolCalls: &toolCalls},
-	}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 1, 0), domain.HookPreTool)
-	assert.Len(t, conv, 2, "must not inject while awaiting tool results")
-}
-
 // The agent depends on the SystemReminderProvider interface, not the concrete
-// config: a wired provider is consulted with the live query (hook, per-request
-// turn, cumulative session turn, max turns) and whatever it returns is injected.
-func TestInjectDueReminders_UsesWiredProvider(t *testing.T) {
-	fake := &domainmocks.FakeSystemReminderProvider{}
-	fake.RemindersDueReturns([]domain.SystemReminder{{Name: "fake", Text: "from provider"}})
-	svc := &AgentServiceImpl{reminderProvider: fake}
-	svc.sessionTurns.Store(9) // cumulative session turn, distinct from the per-request turn
+// config: the wired provider is consulted with the live query (hook, per-request
+// turn, cumulative session turn, max turns, tool-failed) and its result injected.
+func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
+	tests := []struct {
+		name            string
+		providerReturns []domain.SystemReminder
+		turns           int
+		maxTurns        int
+		sessionTurns    int64
+		lastToolFailed  bool
+		wantContent     string
+	}{
+		{
+			name:            "query fields and returned reminder injected",
+			providerReturns: []domain.SystemReminder{{Name: "fake", Text: "from provider"}},
+			turns:           7,
+			maxTurns:        12,
+			sessionTurns:    9,
+			wantContent:     "from provider",
+		},
+		{
+			name:           "AgentContext.LastToolFailed plumbed into query",
+			turns:          1,
+			lastToolFailed: true,
+		},
+	}
 
-	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 7, 12), domain.HookPostTool)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &domainmocks.FakeSystemReminderProvider{}
+			fake.RemindersDueReturns(tt.providerReturns)
+			svc := &AgentServiceImpl{reminderProvider: fake}
+			svc.sessionTurns.Store(tt.sessionTurns)
 
-	require.Equal(t, 1, fake.RemindersDueCallCount())
-	q := fake.RemindersDueArgsForCall(0)
-	assert.Equal(t, domain.HookPostTool, q.Hook)
-	assert.Equal(t, 7, q.Turn, "per-request turn comes from AgentContext.Turns")
-	assert.Equal(t, 9, q.SessionTurn, "session turn comes from the cumulative counter")
-	assert.Equal(t, 12, q.MaxTurns)
-	assert.False(t, q.ToolFailed, "ToolFailed defaults to false when no tool failed")
+			conv := []sdk.Message{}
+			agentCtx := newReminderAgentCtx(&conv, tt.turns, tt.maxTurns)
+			agentCtx.LastToolFailed = tt.lastToolFailed
+			svc.injectDueReminders(agentCtx, domain.HookPostTool)
 
-	require.Len(t, conv, 1)
-	content, _ := conv[0].Content.AsMessageContent0()
-	assert.Equal(t, "from provider", content)
-}
+			require.Equal(t, 1, fake.RemindersDueCallCount())
+			q := fake.RemindersDueArgsForCall(0)
+			assert.Equal(t, domain.HookPostTool, q.Hook)
+			assert.Equal(t, tt.turns, q.Turn, "per-request turn comes from AgentContext.Turns")
+			assert.Equal(t, int(tt.sessionTurns), q.SessionTurn, "session turn comes from the cumulative counter")
+			assert.Equal(t, tt.maxTurns, q.MaxTurns)
+			assert.Equal(t, tt.lastToolFailed, q.ToolFailed, "ToolFailed must reflect AgentContext.LastToolFailed")
 
-// The post_tool on_failure trigger needs the just-completed batch's failure
-// state; injectDueReminders threads AgentContext.LastToolFailed into the query.
-func TestInjectDueReminders_PlumbsToolFailed(t *testing.T) {
-	fake := &domainmocks.FakeSystemReminderProvider{}
-	svc := &AgentServiceImpl{reminderProvider: fake}
-
-	conv := []sdk.Message{}
-	agentCtx := newReminderAgentCtx(&conv, 1, 0)
-	agentCtx.LastToolFailed = true
-	svc.injectDueReminders(agentCtx, domain.HookPostTool)
-
-	require.Equal(t, 1, fake.RemindersDueCallCount())
-	q := fake.RemindersDueArgsForCall(0)
-	assert.True(t, q.ToolFailed, "ToolFailed must reflect AgentContext.LastToolFailed")
-}
-
-func TestInjectDueReminders_DebugGateOff_AppendsButNoStream(t *testing.T) {
-	cfg := remindersConfig(true, reminder("todo", "x", domain.HookPreStream, config.ReminderTriggerAlways, 0))
-	svc := &AgentServiceImpl{config: cfg}
-
-	var buf bytes.Buffer
-	t.Cleanup(streamevent.SetWriter(&buf))
-	t.Cleanup(streamevent.SetDebugEnabledForTest(false))
-
-	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 1, 0), domain.HookPreStream)
-
-	require.Len(t, conv, 1, "conversation still gets the reminder")
-	assert.Empty(t, buf.String(), "no stream event when the debug gate is off")
+			if tt.wantContent != "" {
+				require.Len(t, conv, 1)
+				content, _ := conv[0].Content.AsMessageContent0()
+				assert.Equal(t, tt.wantContent, content)
+			}
+		})
+	}
 }
 
 // Reminder cadence is session-scoped: an `interval` reminder fires on the Nth
 // cumulative conversational turn even though each user message runs as a fresh
-// AgentContext whose per-request Turns resets to 1. This is the exact scenario
-// that previously never fired in interactive chat - interval keyed off the
-// per-request turn, which a single-turn reply never advanced past 1.
+// AgentContext whose per-request Turns resets to 1.
 func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
 	cfg := remindersConfig(true, reminder("todo", "nudge", domain.HookPreStream, config.ReminderTriggerInterval, 4))
 	svc := &AgentServiceImpl{config: cfg}

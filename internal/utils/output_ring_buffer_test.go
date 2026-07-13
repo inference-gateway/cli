@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -28,103 +27,75 @@ func TestNewOutputRingBuffer(t *testing.T) {
 	}
 }
 
-func TestWrite_Simple(t *testing.T) {
-	rb := NewOutputRingBuffer(100)
-
-	data := []byte("Hello, World!")
-	n, err := rb.Write(data)
-
-	if err != nil {
-		t.Fatalf("Write failed: %v", err)
+func TestWrite(t *testing.T) {
+	tests := []struct {
+		name         string
+		maxSize      int
+		writes       []string
+		wantSize     int
+		wantTotal    int64
+		wantContents string
+	}{
+		{
+			name:         "simple write",
+			maxSize:      100,
+			writes:       []string{"Hello, World!"},
+			wantSize:     13,
+			wantTotal:    13,
+			wantContents: "Hello, World!",
+		},
+		{
+			name:         "multiple writes",
+			maxSize:      100,
+			writes:       []string{"Hello", " ", "World", "!"},
+			wantSize:     12,
+			wantTotal:    12,
+			wantContents: "Hello World!",
+		},
+		{
+			name:         "wraparound",
+			maxSize:      10,
+			writes:       []string{"0123456789ABCDE"},
+			wantSize:     10,
+			wantTotal:    15,
+			wantContents: "56789ABCDE",
+		},
+		{
+			name:         "multiple wraparounds",
+			maxSize:      5,
+			writes:       []string{"12345", "67890", "ABCDE"},
+			wantSize:     5,
+			wantTotal:    15,
+			wantContents: "ABCDE",
+		},
 	}
 
-	if n != len(data) {
-		t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rb := NewOutputRingBuffer(tt.maxSize)
 
-	if rb.Size() != len(data) {
-		t.Errorf("Expected size=%d, got %d", len(data), rb.Size())
-	}
+			for _, w := range tt.writes {
+				n, err := rb.Write([]byte(w))
+				if err != nil {
+					t.Fatalf("Write failed: %v", err)
+				}
+				if n != len(w) {
+					t.Errorf("Expected to write %d bytes, wrote %d", len(w), n)
+				}
+			}
 
-	if rb.TotalWritten() != int64(len(data)) {
-		t.Errorf("Expected totalWritten=%d, got %d", len(data), rb.TotalWritten())
-	}
+			if rb.Size() != tt.wantSize {
+				t.Errorf("Expected size=%d, got %d", tt.wantSize, rb.Size())
+			}
 
-	result := rb.String()
-	if result != string(data) {
-		t.Errorf("Expected buffer contents %q, got %q", string(data), result)
-	}
-}
+			if rb.TotalWritten() != tt.wantTotal {
+				t.Errorf("Expected totalWritten=%d, got %d", tt.wantTotal, rb.TotalWritten())
+			}
 
-func TestWrite_MultipleWrites(t *testing.T) {
-	rb := NewOutputRingBuffer(100)
-
-	writes := []string{"Hello", " ", "World", "!"}
-	expected := "Hello World!"
-
-	for _, w := range writes {
-		_, err := rb.Write([]byte(w))
-		if err != nil {
-			t.Fatalf("Write failed: %v", err)
-		}
-	}
-
-	result := rb.String()
-	if result != expected {
-		t.Errorf("Expected buffer contents %q, got %q", expected, result)
-	}
-
-	if rb.TotalWritten() != int64(len(expected)) {
-		t.Errorf("Expected totalWritten=%d, got %d", len(expected), rb.TotalWritten())
-	}
-}
-
-func TestWrite_Wraparound(t *testing.T) {
-	rb := NewOutputRingBuffer(10)
-
-	data := []byte("0123456789ABCDE")
-	n, err := rb.Write(data)
-
-	if err != nil {
-		t.Fatalf("Write failed: %v", err)
-	}
-
-	if n != len(data) {
-		t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
-	}
-
-	if rb.Size() != 10 {
-		t.Errorf("Expected size=10, got %d", rb.Size())
-	}
-
-	if rb.TotalWritten() != 15 {
-		t.Errorf("Expected totalWritten=15, got %d", rb.TotalWritten())
-	}
-
-	result := rb.String()
-	expected := "56789ABCDE"
-
-	if result != expected {
-		t.Errorf("Expected buffer contents %q, got %q", expected, result)
-	}
-}
-
-func TestWrite_MultipleWraparounds(t *testing.T) {
-	rb := NewOutputRingBuffer(5)
-
-	_, _ = rb.Write([]byte("12345"))
-	_, _ = rb.Write([]byte("67890"))
-	_, _ = rb.Write([]byte("ABCDE"))
-
-	result := rb.String()
-	expected := "ABCDE"
-
-	if result != expected {
-		t.Errorf("Expected buffer contents %q, got %q", expected, result)
-	}
-
-	if rb.TotalWritten() != 15 {
-		t.Errorf("Expected totalWritten=15, got %d", rb.TotalWritten())
+			if rb.String() != tt.wantContents {
+				t.Errorf("Expected buffer contents %q, got %q", tt.wantContents, rb.String())
+			}
+		})
 	}
 }
 
@@ -220,50 +191,28 @@ func TestReadFrom_Incremental(t *testing.T) {
 }
 
 func TestRecent(t *testing.T) {
-	rb := NewOutputRingBuffer(100)
-
-	_, _ = rb.Write([]byte("Hello World"))
-
 	tests := []struct {
 		name     string
+		bufSize  int
+		write    string
 		maxBytes int
 		expected string
 	}{
-		{"Last 5 bytes", 5, "World"},
-		{"Last 11 bytes", 11, "Hello World"},
-		{"More than available", 50, "Hello World"},
-		{"Zero bytes", 0, ""},
-		{"Negative bytes", -5, ""},
+		{"Last 5 bytes", 100, "Hello World", 5, "World"},
+		{"Last 11 bytes", 100, "Hello World", 11, "Hello World"},
+		{"More than available", 100, "Hello World", 50, "Hello World"},
+		{"Zero bytes", 100, "Hello World", 0, ""},
+		{"Negative bytes", 100, "Hello World", -5, ""},
+		{"With wrap: last 5 bytes", 10, "0123456789ABCDE", 5, "ABCDE"},
+		{"With wrap: last 10 bytes", 10, "0123456789ABCDE", 10, "56789ABCDE"},
+		{"With wrap: more than buffer", 10, "0123456789ABCDE", 20, "56789ABCDE"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := rb.Recent(tt.maxBytes)
+			rb := NewOutputRingBuffer(tt.bufSize)
+			_, _ = rb.Write([]byte(tt.write))
 
-			if result != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestRecent_WithWrap(t *testing.T) {
-	rb := NewOutputRingBuffer(10)
-
-	_, _ = rb.Write([]byte("0123456789ABCDE"))
-
-	tests := []struct {
-		name     string
-		maxBytes int
-		expected string
-	}{
-		{"Last 5 bytes", 5, "ABCDE"},
-		{"Last 10 bytes", 10, "56789ABCDE"},
-		{"More than buffer", 20, "56789ABCDE"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
 			result := rb.Recent(tt.maxBytes)
 
 			if result != tt.expected {
@@ -396,9 +345,6 @@ func TestConcurrentReadWrite(t *testing.T) {
 
 func TestIOWriterInterface(t *testing.T) {
 	rb := NewOutputRingBuffer(100)
-
-	var buf bytes.Buffer
-	buf.Write([]byte("Test"))
 
 	n, err := rb.Write([]byte("Hello"))
 

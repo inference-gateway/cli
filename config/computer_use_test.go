@@ -8,6 +8,48 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
+const computerUseValidYAML = `---
+enabled: true
+floating_window:
+  enabled: false
+  position: bottom-left
+  always_on_top: false
+  respawn_on_close: false
+screenshot:
+  enabled: true
+  max_width: 800
+  max_height: 600
+  target_width: 640
+  target_height: 480
+  format: png
+  quality: 100
+  streaming_enabled: false
+  capture_interval: 5
+  buffer_size: 2
+  temp_dir: /tmp/cu
+  log_captures: true
+  show_overlay: false
+rate_limit:
+  enabled: false
+  max_actions_per_minute: 30
+  window_seconds: 30
+tools:
+  mouse_move:
+    enabled: false
+  mouse_click:
+    enabled: false
+  mouse_scroll:
+    enabled: false
+  keyboard_type:
+    enabled: true
+    max_text_length: 500
+    typing_delay_ms: 50
+  get_focused_app:
+    enabled: false
+  activate_app:
+    enabled: false
+`
+
 func TestComputerUseConstants(t *testing.T) {
 	if config.ComputerUseFileName != "computer_use.yaml" {
 		t.Errorf("Expected ComputerUseFileName 'computer_use.yaml', got %q", config.ComputerUseFileName)
@@ -67,143 +109,107 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	}
 }
 
-func TestLoadComputerUse_NonExistentFile(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "non-existent.yaml")
-
-	cfg, err := config.LoadComputerUse(path)
-	if err != nil {
-		t.Fatalf("LoadComputerUse() should not error for missing file, got: %v", err)
-	}
-	if cfg == nil {
-		t.Fatal("LoadComputerUse() returned nil")
-	}
+func TestLoadComputerUse(t *testing.T) {
 	defaults := config.DefaultComputerUseConfig()
-	if cfg.Enabled != defaults.Enabled || cfg.Screenshot.MaxWidth != defaults.Screenshot.MaxWidth {
-		t.Errorf("Expected defaults, got %+v", cfg)
-	}
-}
 
-func TestLoadComputerUse_ValidYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "computer_use.yaml")
-
-	yamlContent := `---
-enabled: true
-floating_window:
-  enabled: false
-  position: bottom-left
-  always_on_top: false
-  respawn_on_close: false
-screenshot:
-  enabled: true
-  max_width: 800
-  max_height: 600
-  target_width: 640
-  target_height: 480
-  format: png
-  quality: 100
-  streaming_enabled: false
-  capture_interval: 5
-  buffer_size: 2
-  temp_dir: /tmp/cu
-  log_captures: true
-  show_overlay: false
-rate_limit:
-  enabled: false
-  max_actions_per_minute: 30
-  window_seconds: 30
-tools:
-  mouse_move:
-    enabled: false
-  mouse_click:
-    enabled: false
-  mouse_scroll:
-    enabled: false
-  keyboard_type:
-    enabled: true
-    max_text_length: 500
-    typing_delay_ms: 50
-  get_focused_app:
-    enabled: false
-  activate_app:
-    enabled: false
-`
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
-	}
-
-	cfg, err := config.LoadComputerUse(path)
-	if err != nil {
-		t.Fatalf("LoadComputerUse() failed: %v", err)
-	}
-	if !cfg.Enabled {
-		t.Error("Expected Enabled true")
-	}
-	if cfg.FloatingWindow.Position != "bottom-left" {
-		t.Errorf("Expected FloatingWindow.Position 'bottom-left', got %q", cfg.FloatingWindow.Position)
-	}
-	if cfg.Screenshot.MaxWidth != 800 {
-		t.Errorf("Expected Screenshot.MaxWidth=800, got %d", cfg.Screenshot.MaxWidth)
-	}
-	if cfg.Screenshot.Format != "png" {
-		t.Errorf("Expected Screenshot.Format 'png', got %q", cfg.Screenshot.Format)
-	}
-	if cfg.RateLimit.Enabled {
-		t.Error("Expected RateLimit.Enabled false")
-	}
-	if cfg.RateLimit.MaxActionsPerMinute != 30 {
-		t.Errorf("Expected RateLimit.MaxActionsPerMinute=30, got %d", cfg.RateLimit.MaxActionsPerMinute)
-	}
-	if cfg.Tools.MouseMove.Enabled {
-		t.Error("Expected Tools.MouseMove.Enabled false")
-	}
-	if cfg.Tools.KeyboardType.MaxTextLength != 500 {
-		t.Errorf("Expected Tools.KeyboardType.MaxTextLength=500, got %d", cfg.Tools.KeyboardType.MaxTextLength)
-	}
-}
-
-func TestLoadComputerUse_EnvironmentVariableExpansion(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "computer_use.yaml")
-
-	t.Setenv("TEST_CU_TEMP_DIR", "/var/tmp/expanded")
-
-	yamlContent := `---
+	tests := []struct {
+		name    string
+		yaml    string
+		env     map[string]string
+		wantErr bool
+		check   func(t *testing.T, cfg *config.ComputerUseConfig)
+	}{
+		{
+			name: "non-existent file returns defaults",
+			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
+				if cfg.Enabled != defaults.Enabled || cfg.Screenshot.MaxWidth != defaults.Screenshot.MaxWidth {
+					t.Errorf("Expected defaults, got %+v", cfg)
+				}
+			},
+		},
+		{
+			name: "valid yaml",
+			yaml: computerUseValidYAML,
+			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
+				if !cfg.Enabled {
+					t.Error("Expected Enabled true")
+				}
+				if cfg.FloatingWindow.Position != "bottom-left" {
+					t.Errorf("Expected FloatingWindow.Position 'bottom-left', got %q", cfg.FloatingWindow.Position)
+				}
+				if cfg.Screenshot.MaxWidth != 800 {
+					t.Errorf("Expected Screenshot.MaxWidth=800, got %d", cfg.Screenshot.MaxWidth)
+				}
+				if cfg.Screenshot.Format != "png" {
+					t.Errorf("Expected Screenshot.Format 'png', got %q", cfg.Screenshot.Format)
+				}
+				if cfg.RateLimit.Enabled {
+					t.Error("Expected RateLimit.Enabled false")
+				}
+				if cfg.RateLimit.MaxActionsPerMinute != 30 {
+					t.Errorf("Expected RateLimit.MaxActionsPerMinute=30, got %d", cfg.RateLimit.MaxActionsPerMinute)
+				}
+				if cfg.Tools.MouseMove.Enabled {
+					t.Error("Expected Tools.MouseMove.Enabled false")
+				}
+				if cfg.Tools.KeyboardType.MaxTextLength != 500 {
+					t.Errorf("Expected Tools.KeyboardType.MaxTextLength=500, got %d", cfg.Tools.KeyboardType.MaxTextLength)
+				}
+			},
+		},
+		{
+			name: "environment variable expansion",
+			env:  map[string]string{"TEST_CU_TEMP_DIR": "/var/tmp/expanded"},
+			yaml: `---
 enabled: true
 screenshot:
   temp_dir: "${TEST_CU_TEMP_DIR}"
-`
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
+`,
+			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
+				if cfg.Screenshot.TempDir != "/var/tmp/expanded" {
+					t.Errorf("Expected expanded temp_dir '/var/tmp/expanded', got %q", cfg.Screenshot.TempDir)
+				}
+			},
+		},
+		{
+			name:    "invalid yaml returns error",
+			yaml:    "not: valid: yaml: [",
+			wantErr: true,
+		},
 	}
 
-	cfg, err := config.LoadComputerUse(path)
-	if err != nil {
-		t.Fatalf("LoadComputerUse() failed: %v", err)
-	}
-	if cfg.Screenshot.TempDir != "/var/tmp/expanded" {
-		t.Errorf("Expected expanded temp_dir '/var/tmp/expanded', got %q", cfg.Screenshot.TempDir)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "computer_use.yaml")
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			if tt.yaml != "" {
+				if err := os.WriteFile(path, []byte(tt.yaml), 0644); err != nil {
+					t.Fatalf("Failed to write yaml: %v", err)
+				}
+			}
+
+			cfg, err := config.LoadComputerUse(path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error from invalid YAML, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadComputerUse() failed: %v", err)
+			}
+			if cfg == nil {
+				t.Fatal("LoadComputerUse() returned nil")
+			}
+			tt.check(t, cfg)
+		})
 	}
 }
 
-func TestLoadComputerUse_InvalidYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "computer_use.yaml")
-	if err := os.WriteFile(path, []byte("not: valid: yaml: ["), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
-	}
-
-	if _, err := config.LoadComputerUse(path); err == nil {
-		t.Fatal("Expected error from invalid YAML, got nil")
-	}
-}
-
-func TestSaveComputerUse_RoundTrip(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "subdir", "computer_use.yaml")
-
-	cfg := &config.ComputerUseConfig{
+func TestSaveComputerUse(t *testing.T) {
+	roundTrip := &config.ComputerUseConfig{
 		Enabled: true,
 		FloatingWindow: config.FloatingWindowConfig{
 			Enabled:        false,
@@ -245,37 +251,53 @@ func TestSaveComputerUse_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := config.SaveComputerUse(path, cfg); err != nil {
-		t.Fatalf("SaveComputerUse() failed: %v", err)
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Fatal("File was not created")
+	tests := []struct {
+		name  string
+		path  []string
+		cfg   *config.ComputerUseConfig
+		check func(t *testing.T, path string)
+	}{
+		{
+			name: "round trip preserves fields",
+			path: []string{"subdir", "computer_use.yaml"},
+			cfg:  roundTrip,
+			check: func(t *testing.T, path string) {
+				loaded, err := config.LoadComputerUse(path)
+				if err != nil {
+					t.Fatalf("LoadComputerUse() failed: %v", err)
+				}
+				if loaded.Enabled != roundTrip.Enabled ||
+					loaded.FloatingWindow.Position != roundTrip.FloatingWindow.Position ||
+					loaded.Screenshot.MaxWidth != roundTrip.Screenshot.MaxWidth ||
+					loaded.Screenshot.Format != roundTrip.Screenshot.Format ||
+					loaded.RateLimit.MaxActionsPerMinute != roundTrip.RateLimit.MaxActionsPerMinute {
+					t.Errorf("Round-trip mismatch: got %+v", loaded)
+				}
+				if loaded.Tools.KeyboardType.MaxTextLength != roundTrip.Tools.KeyboardType.MaxTextLength ||
+					loaded.Tools.KeyboardType.TypingDelayMs != roundTrip.Tools.KeyboardType.TypingDelayMs {
+					t.Errorf("Tools.KeyboardType mismatch: got %+v", loaded.Tools.KeyboardType)
+				}
+			},
+		},
+		{
+			name: "creates parent directory",
+			path: []string{"deeply", "nested", "computer_use.yaml"},
+			cfg:  config.DefaultComputerUseConfig(),
+		},
 	}
 
-	loaded, err := config.LoadComputerUse(path)
-	if err != nil {
-		t.Fatalf("LoadComputerUse() failed: %v", err)
-	}
-	if loaded.Enabled != cfg.Enabled ||
-		loaded.FloatingWindow.Position != cfg.FloatingWindow.Position ||
-		loaded.Screenshot.MaxWidth != cfg.Screenshot.MaxWidth ||
-		loaded.Screenshot.Format != cfg.Screenshot.Format ||
-		loaded.RateLimit.MaxActionsPerMinute != cfg.RateLimit.MaxActionsPerMinute {
-		t.Errorf("Round-trip mismatch: got %+v", loaded)
-	}
-	if loaded.Tools.KeyboardType.MaxTextLength != cfg.Tools.KeyboardType.MaxTextLength ||
-		loaded.Tools.KeyboardType.TypingDelayMs != cfg.Tools.KeyboardType.TypingDelayMs {
-		t.Errorf("Tools.KeyboardType mismatch: got %+v", loaded.Tools.KeyboardType)
-	}
-}
-
-func TestSaveComputerUse_CreatesParentDirectory(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "deeply", "nested", "computer_use.yaml")
-	if err := config.SaveComputerUse(path, config.DefaultComputerUseConfig()); err != nil {
-		t.Fatalf("SaveComputerUse() failed: %v", err)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("File not created at nested path: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(append([]string{t.TempDir()}, tt.path...)...)
+			if err := config.SaveComputerUse(path, tt.cfg); err != nil {
+				t.Fatalf("SaveComputerUse() failed: %v", err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("File not created at %q: %v", path, err)
+			}
+			if tt.check != nil {
+				tt.check(t, path)
+			}
+		})
 	}
 }

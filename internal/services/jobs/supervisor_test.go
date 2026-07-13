@@ -90,43 +90,42 @@ func (j *fakeRetainerJob) RetainedTask(domain.ToolExecutionResult) (domain.TaskI
 	return j.info, j.ok
 }
 
-// TestSupervisor_FinishOnce: a finished non-silent job lands exactly one note on
-// the shared queue (the chat-UI ticker / headless waiter deliver it) and the
-// terminal entry is kept for the task view until cleanup. The supervisor has no
-// per-request binding - it only ever produces queue messages.
-func TestSupervisor_FinishOnce(t *testing.T) {
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
-
-	job := newFakeJob("job-1", domain.JobKindShell)
-	sup.Submit(job)
-	<-job.started
-
-	close(job.finish)
-	sup.Stop()
-
-	if n := queue.EnqueueCallCount(); n != 1 {
-		t.Fatalf("Enqueue called %d times, want 1", n)
+// TestSupervisor_FinishEnqueue: a finished non-silent job lands exactly one
+// note on the shared queue and keeps its terminal entry for the task view; a
+// silent job never enqueues. The supervisor only ever produces queue messages.
+func TestSupervisor_FinishEnqueue(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          string
+		kind        domain.JobKind
+		silent      bool
+		wantEnqueue int
+	}{
+		{name: "non-silent job enqueues once and stays in snapshot", id: "job-1", kind: domain.JobKindShell, wantEnqueue: 1},
+		{name: "silent job does not enqueue", id: "silent", kind: domain.JobKindSubagent, silent: true, wantEnqueue: 0},
 	}
 
-	snap := sup.Snapshot()
-	if len(snap) != 1 || snap[0].Status != domain.JobCompleted {
-		t.Fatalf("snapshot = %+v, want one completed job", snap)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queue := &domainmocks.FakeMessageQueue{}
+			sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
 
-func TestSupervisor_SilentJobDoesNotEnqueue(t *testing.T) {
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
-	job := newFakeJob("silent", domain.JobKindSubagent)
-	job.meta.Silent = true
-	sup.Submit(job)
-	<-job.started
-	close(job.finish)
-	sup.Stop()
+			job := newFakeJob(tt.id, tt.kind)
+			job.meta.Silent = tt.silent
+			sup.Submit(job)
+			<-job.started
+			close(job.finish)
+			sup.Stop()
 
-	if n := queue.EnqueueCallCount(); n != 0 {
-		t.Fatalf("silent job enqueued %d times, want 0", n)
+			if n := queue.EnqueueCallCount(); n != tt.wantEnqueue {
+				t.Fatalf("Enqueue called %d times, want %d", n, tt.wantEnqueue)
+			}
+
+			snap := sup.Snapshot()
+			if len(snap) != 1 || snap[0].Status != domain.JobCompleted {
+				t.Fatalf("snapshot = %+v, want one completed job", snap)
+			}
+		})
 	}
 }
 
@@ -562,63 +561,66 @@ func TestSupervisor_RunningJobNeverEvicted(t *testing.T) {
 	sup.Stop()
 }
 
-// TestSupervisor_FinishRetainsTerminalTask: a finished job implementing TaskRetainer
-// (opting in) has its TaskInfo handed to the retention service exactly once, so the
-// completed A2A task stays in the task view after its monitor goroutine exits.
-func TestSupervisor_FinishRetainsTerminalTask(t *testing.T) {
-	retention := &domainmocks.FakeTaskRetentionService{}
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
-	sup.SetTaskRetention(retention)
-
-	info := domain.TaskInfo{AgentURL: "http://agent", Task: adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}}
-	job := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: info, ok: true}
-	sup.Submit(job)
-	<-job.started
-	close(job.finish)
-	sup.Stop()
-
-	if n := retention.AddTaskCallCount(); n != 1 {
-		t.Fatalf("AddTask called %d times, want 1", n)
+// TestSupervisor_FinishRetention: a finished job implementing TaskRetainer
+// (opting in) lands exactly one retention entry with its TaskInfo; a
+// non-retainer or an opted-out retainer leaves retention untouched.
+func TestSupervisor_FinishRetention(t *testing.T) {
+	tests := []struct {
+		name       string
+		job        func() (domain.BackgroundJob, *fakeJob)
+		wantAdds   int
+		wantURL    string
+		wantTaskID string
+	}{
+		{
+			name: "retainer retains terminal task",
+			job: func() (domain.BackgroundJob, *fakeJob) {
+				info := domain.TaskInfo{AgentURL: "http://agent", Task: adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}}
+				inner := newFakeJob("t1", domain.JobKindA2A)
+				return &fakeRetainerJob{fakeJob: inner, info: info, ok: true}, inner
+			},
+			wantAdds: 1, wantURL: "http://agent", wantTaskID: "t1",
+		},
+		{
+			name: "not a retainer",
+			job: func() (domain.BackgroundJob, *fakeJob) {
+				inner := newFakeJob("plain", domain.JobKindShell)
+				return inner, inner
+			},
+			wantAdds: 0,
+		},
+		{
+			name: "retainer opts out",
+			job: func() (domain.BackgroundJob, *fakeJob) {
+				inner := newFakeJob("optout", domain.JobKindA2A)
+				return &fakeRetainerJob{fakeJob: inner, ok: false}, inner
+			},
+			wantAdds: 0,
+		},
 	}
-	if got := retention.AddTaskArgsForCall(0); got.AgentURL != "http://agent" || got.Task.ID != "t1" {
-		t.Fatalf("AddTask got %+v, want AgentURL=http://agent Task.ID=t1", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			retention := &domainmocks.FakeTaskRetentionService{}
+			sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+			sup.SetTaskRetention(retention)
+
+			job, inner := tt.job()
+			sup.Submit(job)
+			<-inner.started
+			close(inner.finish)
+			sup.Stop()
+
+			if n := retention.AddTaskCallCount(); n != tt.wantAdds {
+				t.Fatalf("AddTask called %d times, want %d", n, tt.wantAdds)
+			}
+			if tt.wantAdds == 1 {
+				if got := retention.AddTaskArgsForCall(0); got.AgentURL != tt.wantURL || got.Task.ID != tt.wantTaskID {
+					t.Fatalf("AddTask got %+v, want AgentURL=%s Task.ID=%s", got, tt.wantURL, tt.wantTaskID)
+				}
+			}
+		})
 	}
-}
-
-// TestSupervisor_FinishSkipsRetention: retention is untouched when the job is not a
-// TaskRetainer, or is one that opts out (ok=false).
-func TestSupervisor_FinishSkipsRetention(t *testing.T) {
-	t.Run("not a retainer", func(t *testing.T) {
-		retention := &domainmocks.FakeTaskRetentionService{}
-		sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
-		sup.SetTaskRetention(retention)
-
-		job := newFakeJob("plain", domain.JobKindShell)
-		sup.Submit(job)
-		<-job.started
-		close(job.finish)
-		sup.Stop()
-
-		if n := retention.AddTaskCallCount(); n != 0 {
-			t.Fatalf("AddTask called %d times, want 0", n)
-		}
-	})
-
-	t.Run("retainer opts out", func(t *testing.T) {
-		retention := &domainmocks.FakeTaskRetentionService{}
-		sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
-		sup.SetTaskRetention(retention)
-
-		job := &fakeRetainerJob{fakeJob: newFakeJob("optout", domain.JobKindA2A), ok: false}
-		sup.Submit(job)
-		<-job.started
-		close(job.finish)
-		sup.Stop()
-
-		if n := retention.AddTaskCallCount(); n != 0 {
-			t.Fatalf("AddTask called %d times, want 0", n)
-		}
-	})
 }
 
 // TestSupervisor_FinishWithoutRetentionService: a retainer job finishing with no
@@ -647,47 +649,51 @@ type fakeOutputJob struct {
 
 func (j *fakeOutputJob) Output() string { return j.output }
 
-// TestSupervisor_SnapshotPopulatesOutput: a job implementing JobOutputProvider
-// has its output populated in the snapshot. This is the core data path for the
-// /tasks detail panel "Output" section for shells and subagents.
-func TestSupervisor_SnapshotPopulatesOutput(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
-
-	job := &fakeOutputJob{
-		fakeJob: newFakeJob("output-shell", domain.JobKindShell),
-		output:  "hello from background shell\nline2\nline3",
+// TestSupervisor_SnapshotOutput: a job implementing JobOutputProvider has its
+// output populated in the snapshot (the /tasks detail panel data path); a job
+// that does not gets an empty Output.
+func TestSupervisor_SnapshotOutput(t *testing.T) {
+	tests := []struct {
+		name       string
+		job        func() (domain.BackgroundJob, *fakeJob)
+		wantOutput string
+	}{
+		{
+			name: "output provider populates snapshot output",
+			job: func() (domain.BackgroundJob, *fakeJob) {
+				inner := newFakeJob("output-shell", domain.JobKindShell)
+				return &fakeOutputJob{fakeJob: inner, output: "hello from background shell\nline2\nline3"}, inner
+			},
+			wantOutput: "hello from background shell\nline2\nline3",
+		},
+		{
+			name: "non-provider leaves snapshot output empty",
+			job: func() (domain.BackgroundJob, *fakeJob) {
+				inner := newFakeJob("no-output", domain.JobKindShell)
+				return inner, inner
+			},
+			wantOutput: "",
+		},
 	}
-	sup.Submit(job)
-	<-job.started
-	close(job.finish)
-	sup.Stop()
 
-	snap := sup.Snapshot()
-	if len(snap) != 1 {
-		t.Fatalf("snapshot len = %d, want 1", len(snap))
-	}
-	if snap[0].Output != job.output {
-		t.Fatalf("snapshot Output = %q, want %q", snap[0].Output, job.output)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
 
-// TestSupervisor_SnapshotOmitsOutputForNonProvider: a job that does not
-// implement JobOutputProvider has an empty Output in the snapshot.
-func TestSupervisor_SnapshotOmitsOutputForNonProvider(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+			job, inner := tt.job()
+			sup.Submit(job)
+			<-inner.started
+			close(inner.finish)
+			sup.Stop()
 
-	job := newFakeJob("no-output", domain.JobKindShell)
-	sup.Submit(job)
-	<-job.started
-	close(job.finish)
-	sup.Stop()
-
-	snap := sup.Snapshot()
-	if len(snap) != 1 {
-		t.Fatalf("snapshot len = %d, want 1", len(snap))
-	}
-	if snap[0].Output != "" {
-		t.Fatalf("snapshot Output = %q, want empty string for non-OutputProvider job", snap[0].Output)
+			snap := sup.Snapshot()
+			if len(snap) != 1 {
+				t.Fatalf("snapshot len = %d, want 1", len(snap))
+			}
+			if snap[0].Output != tt.wantOutput {
+				t.Fatalf("snapshot Output = %q, want %q", snap[0].Output, tt.wantOutput)
+			}
+		})
 	}
 }
 

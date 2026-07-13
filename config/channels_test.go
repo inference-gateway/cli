@@ -46,55 +46,8 @@ func TestDefaultChannelsConfig(t *testing.T) {
 	}
 }
 
-func TestLoadChannels_NonExistentFile(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "non-existent.yaml")
-
-	cfg, err := config.LoadChannels(path)
-	if err != nil {
-		t.Fatalf("LoadChannels() should not error for missing file, got: %v", err)
-	}
-	if cfg == nil {
-		t.Fatal("LoadChannels() returned nil")
-	}
-	defaults := config.DefaultChannelsConfig()
-	if cfg.Enabled != defaults.Enabled || cfg.MaxWorkers != defaults.MaxWorkers {
-		t.Errorf("Expected defaults, got %+v", cfg)
-	}
-}
-
-func TestLoadChannels_ValidYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "channels.yaml")
-
-	yamlContent := `---
-enabled: true
-max_workers: 8
-image_retention: 10
-require_approval: false
-telegram:
-  enabled: true
-  bot_token: "abc123"
-  allowed_users:
-    - "111"
-    - "222"
-  poll_timeout: 60
-whatsapp:
-  enabled: false
-  phone_number_id: ""
-  access_token: ""
-  verify_token: ""
-  webhook_port: 9000
-  allowed_users: []
-`
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
-	}
-
-	cfg, err := config.LoadChannels(path)
-	if err != nil {
-		t.Fatalf("LoadChannels() failed: %v", err)
-	}
+func checkChannelsValidYAML(t *testing.T, cfg *config.ChannelsConfig) {
+	t.Helper()
 	if !cfg.Enabled {
 		t.Error("Expected Enabled true")
 	}
@@ -121,54 +74,110 @@ whatsapp:
 	}
 }
 
-func TestLoadChannels_EnvironmentVariableExpansion(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "channels.yaml")
+func TestLoadChannels(t *testing.T) {
+	defaults := config.DefaultChannelsConfig()
 
-	t.Setenv("TEST_CHANNELS_BOT_TOKEN", "expanded-token")
-	t.Setenv("TEST_CHANNELS_ACCESS_TOKEN", "expanded-access")
-
-	yamlContent := `---
+	tests := []struct {
+		name    string
+		yaml    string
+		env     map[string]string
+		wantErr bool
+		check   func(t *testing.T, cfg *config.ChannelsConfig)
+	}{
+		{
+			name: "non-existent file returns defaults",
+			check: func(t *testing.T, cfg *config.ChannelsConfig) {
+				if cfg.Enabled != defaults.Enabled || cfg.MaxWorkers != defaults.MaxWorkers {
+					t.Errorf("Expected defaults, got %+v", cfg)
+				}
+			},
+		},
+		{
+			name: "valid yaml",
+			yaml: `---
+enabled: true
+max_workers: 8
+image_retention: 10
+require_approval: false
+telegram:
+  enabled: true
+  bot_token: "abc123"
+  allowed_users:
+    - "111"
+    - "222"
+  poll_timeout: 60
+whatsapp:
+  enabled: false
+  phone_number_id: ""
+  access_token: ""
+  verify_token: ""
+  webhook_port: 9000
+  allowed_users: []
+`,
+			check: checkChannelsValidYAML,
+		},
+		{
+			name: "environment variable expansion",
+			env: map[string]string{
+				"TEST_CHANNELS_BOT_TOKEN":    "expanded-token",
+				"TEST_CHANNELS_ACCESS_TOKEN": "expanded-access",
+			},
+			yaml: `---
 enabled: true
 telegram:
   enabled: true
   bot_token: "${TEST_CHANNELS_BOT_TOKEN}"
 whatsapp:
   access_token: "${TEST_CHANNELS_ACCESS_TOKEN}"
-`
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
+`,
+			check: func(t *testing.T, cfg *config.ChannelsConfig) {
+				if cfg.Telegram.BotToken != "expanded-token" {
+					t.Errorf("Expected expanded bot_token 'expanded-token', got %q", cfg.Telegram.BotToken)
+				}
+				if cfg.WhatsApp.AccessToken != "expanded-access" {
+					t.Errorf("Expected expanded access_token 'expanded-access', got %q", cfg.WhatsApp.AccessToken)
+				}
+			},
+		},
+		{
+			name:    "invalid yaml returns error",
+			yaml:    "not: valid: yaml: [",
+			wantErr: true,
+		},
 	}
 
-	cfg, err := config.LoadChannels(path)
-	if err != nil {
-		t.Fatalf("LoadChannels() failed: %v", err)
-	}
-	if cfg.Telegram.BotToken != "expanded-token" {
-		t.Errorf("Expected expanded bot_token 'expanded-token', got %q", cfg.Telegram.BotToken)
-	}
-	if cfg.WhatsApp.AccessToken != "expanded-access" {
-		t.Errorf("Expected expanded access_token 'expanded-access', got %q", cfg.WhatsApp.AccessToken)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "channels.yaml")
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			if tt.yaml != "" {
+				if err := os.WriteFile(path, []byte(tt.yaml), 0644); err != nil {
+					t.Fatalf("Failed to write yaml: %v", err)
+				}
+			}
+
+			cfg, err := config.LoadChannels(path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error from invalid YAML, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadChannels() failed: %v", err)
+			}
+			if cfg == nil {
+				t.Fatal("LoadChannels() returned nil")
+			}
+			tt.check(t, cfg)
+		})
 	}
 }
 
-func TestLoadChannels_InvalidYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "channels.yaml")
-	if err := os.WriteFile(path, []byte("not: valid: yaml: ["), 0644); err != nil {
-		t.Fatalf("Failed to write yaml: %v", err)
-	}
-
-	if _, err := config.LoadChannels(path); err == nil {
-		t.Fatal("Expected error from invalid YAML, got nil")
-	}
-}
-
-func TestSaveChannels_RoundTrip(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "subdir", "channels.yaml")
-
-	cfg := &config.ChannelsConfig{
+func TestSaveChannels(t *testing.T) {
+	roundTrip := &config.ChannelsConfig{
 		Enabled:         true,
 		MaxWorkers:      3,
 		ImageRetention:  7,
@@ -189,39 +198,55 @@ func TestSaveChannels_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := config.SaveChannels(path, cfg); err != nil {
-		t.Fatalf("SaveChannels() failed: %v", err)
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Fatal("File was not created")
+	tests := []struct {
+		name  string
+		path  []string
+		cfg   *config.ChannelsConfig
+		check func(t *testing.T, path string)
+	}{
+		{
+			name: "round trip preserves fields",
+			path: []string{"subdir", "channels.yaml"},
+			cfg:  roundTrip,
+			check: func(t *testing.T, path string) {
+				loaded, err := config.LoadChannels(path)
+				if err != nil {
+					t.Fatalf("LoadChannels() failed: %v", err)
+				}
+				if loaded.Enabled != roundTrip.Enabled || loaded.MaxWorkers != roundTrip.MaxWorkers ||
+					loaded.RequireApproval != roundTrip.RequireApproval || loaded.ImageRetention != roundTrip.ImageRetention {
+					t.Errorf("Top-level fields mismatch: got %+v", loaded)
+				}
+				if loaded.Telegram.BotToken != roundTrip.Telegram.BotToken ||
+					loaded.Telegram.PollTimeout != roundTrip.Telegram.PollTimeout ||
+					len(loaded.Telegram.AllowedUsers) != 1 {
+					t.Errorf("Telegram mismatch: got %+v", loaded.Telegram)
+				}
+				if loaded.WhatsApp.PhoneNumberID != roundTrip.WhatsApp.PhoneNumberID ||
+					loaded.WhatsApp.WebhookPort != roundTrip.WhatsApp.WebhookPort {
+					t.Errorf("WhatsApp mismatch: got %+v", loaded.WhatsApp)
+				}
+			},
+		},
+		{
+			name: "creates parent directory",
+			path: []string{"deeply", "nested", "channels.yaml"},
+			cfg:  config.DefaultChannelsConfig(),
+		},
 	}
 
-	loaded, err := config.LoadChannels(path)
-	if err != nil {
-		t.Fatalf("LoadChannels() failed: %v", err)
-	}
-	if loaded.Enabled != cfg.Enabled || loaded.MaxWorkers != cfg.MaxWorkers ||
-		loaded.RequireApproval != cfg.RequireApproval || loaded.ImageRetention != cfg.ImageRetention {
-		t.Errorf("Top-level fields mismatch: got %+v", loaded)
-	}
-	if loaded.Telegram.BotToken != cfg.Telegram.BotToken ||
-		loaded.Telegram.PollTimeout != cfg.Telegram.PollTimeout ||
-		len(loaded.Telegram.AllowedUsers) != 1 {
-		t.Errorf("Telegram mismatch: got %+v", loaded.Telegram)
-	}
-	if loaded.WhatsApp.PhoneNumberID != cfg.WhatsApp.PhoneNumberID ||
-		loaded.WhatsApp.WebhookPort != cfg.WhatsApp.WebhookPort {
-		t.Errorf("WhatsApp mismatch: got %+v", loaded.WhatsApp)
-	}
-}
-
-func TestSaveChannels_CreatesParentDirectory(t *testing.T) {
-	tempDir := t.TempDir()
-	path := filepath.Join(tempDir, "deeply", "nested", "channels.yaml")
-	if err := config.SaveChannels(path, config.DefaultChannelsConfig()); err != nil {
-		t.Fatalf("SaveChannels() failed: %v", err)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("File not created at nested path: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(append([]string{t.TempDir()}, tt.path...)...)
+			if err := config.SaveChannels(path, tt.cfg); err != nil {
+				t.Fatalf("SaveChannels() failed: %v", err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("File not created at %q: %v", path, err)
+			}
+			if tt.check != nil {
+				tt.check(t, path)
+			}
+		})
 	}
 }

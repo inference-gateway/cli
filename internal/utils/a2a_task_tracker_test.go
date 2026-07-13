@@ -8,291 +8,386 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func TestA2ATaskTracker_RegisterAndGetContextsForAgent(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-
-	contexts := tracker.GetContextsForAgent(agentURL)
-	assert.Empty(t, contexts)
-
-	tracker.RegisterContext(agentURL, "context-1")
-	contexts = tracker.GetContextsForAgent(agentURL)
-	assert.Equal(t, []string{"context-1"}, contexts)
-
-	tracker.RegisterContext(agentURL, "context-2")
-	contexts = tracker.GetContextsForAgent(agentURL)
-	assert.Equal(t, []string{"context-1", "context-2"}, contexts)
-
-	tracker.RegisterContext(agentURL, "context-3")
-	contexts = tracker.GetContextsForAgent(agentURL)
-	assert.Equal(t, []string{"context-1", "context-2", "context-3"}, contexts)
-
-	tracker.RegisterContext(agentURL, "context-2")
-	contexts = tracker.GetContextsForAgent(agentURL)
-	assert.Equal(t, []string{"context-1", "context-2", "context-3"}, contexts)
+type a2aReg struct {
+	agent   string
+	context string
 }
 
-func TestA2ATaskTracker_AddAndGetTasksForContext(t *testing.T) {
+type a2aTaskAdd struct {
+	context string
+	task    string
+}
+
+type a2aPollSpec struct {
+	task    string
+	context string
+	agent   string
+	offset  time.Duration
+}
+
+// newTrackerWith builds a tracker pre-populated with the given registrations and tasks.
+func newTrackerWith(t *testing.T, regs []a2aReg, adds []a2aTaskAdd) *A2ATaskTrackerImpl {
+	t.Helper()
 	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
+	for _, r := range regs {
+		tracker.RegisterContext(r.agent, r.context)
+	}
+	for _, a := range adds {
+		tracker.AddTask(a.context, a.task)
+	}
+	return tracker
+}
 
-	// Register context first
-	tracker.RegisterContext(agentURL, contextID)
+// assertStringList asserts want against got, treating an empty want as Empty.
+func assertStringList(t *testing.T, want, got []string) {
+	t.Helper()
+	if len(want) == 0 {
+		assert.Empty(t, got)
+		return
+	}
+	assert.Equal(t, want, got)
+}
 
-	tasks := tracker.GetTasksForContext(contextID)
-	assert.Empty(t, tasks)
+func TestA2ATaskTracker_ContextQueries(t *testing.T) {
+	tests := []struct {
+		name            string
+		regs            []a2aReg
+		contextsByAgent map[string][]string
+		latestByAgent   map[string]string
+		hasContext      map[string]bool
+		agentByContext  map[string]string
+		allAgents       []string
+		checkAllAgents  bool
+		allContexts     []string
+		checkAllCtxs    bool
+	}{
+		{
+			name:            "no registrations",
+			contextsByAgent: map[string][]string{"http://agent1.com": nil},
+			latestByAgent:   map[string]string{"http://agent1.com": ""},
+			hasContext:      map[string]bool{"context-1": false},
+			checkAllAgents:  true,
+			checkAllCtxs:    true,
+		},
+		{
+			name:            "single context",
+			regs:            []a2aReg{{"http://agent1.com", "context-1"}},
+			contextsByAgent: map[string][]string{"http://agent1.com": {"context-1"}},
+			latestByAgent:   map[string]string{"http://agent1.com": "context-1"},
+			hasContext:      map[string]bool{"context-1": true, "context-2": false},
+		},
+		{
+			name: "two contexts in order",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-1"},
+				{"http://agent1.com", "context-2"},
+			},
+			contextsByAgent: map[string][]string{"http://agent1.com": {"context-1", "context-2"}},
+			latestByAgent:   map[string]string{"http://agent1.com": "context-2"},
+			hasContext:      map[string]bool{"context-1": true, "context-2": true},
+		},
+		{
+			name: "three contexts in order",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-1"},
+				{"http://agent1.com", "context-2"},
+				{"http://agent1.com", "context-3"},
+			},
+			contextsByAgent: map[string][]string{"http://agent1.com": {"context-1", "context-2", "context-3"}},
+			latestByAgent:   map[string]string{"http://agent1.com": "context-3"},
+		},
+		{
+			name: "duplicate registration ignored",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-1"},
+				{"http://agent1.com", "context-2"},
+				{"http://agent1.com", "context-3"},
+				{"http://agent1.com", "context-2"},
+			},
+			contextsByAgent: map[string][]string{"http://agent1.com": {"context-1", "context-2", "context-3"}},
+		},
+		{
+			name: "multiple agents",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-agent1-1"},
+				{"http://agent1.com", "context-agent1-2"},
+				{"http://agent2.com", "context-agent2-1"},
+			},
+			contextsByAgent: map[string][]string{
+				"http://agent1.com": {"context-agent1-1", "context-agent1-2"},
+				"http://agent2.com": {"context-agent2-1"},
+			},
+		},
+		{
+			name: "agent lookup per context",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-1"},
+				{"http://agent2.com", "context-2"},
+			},
+			agentByContext: map[string]string{
+				"context-1":           "http://agent1.com",
+				"context-2":           "http://agent2.com",
+				"context-nonexistent": "",
+			},
+		},
+		{
+			name: "all agents in insertion order",
+			regs: []a2aReg{
+				{"http://agent-zulu.com", "context-1"},
+				{"http://agent-alpha.com", "context-2"},
+				{"http://agent-charlie.com", "context-3"},
+			},
+			allAgents:      []string{"http://agent-zulu.com", "http://agent-alpha.com", "http://agent-charlie.com"},
+			checkAllAgents: true,
+			allContexts:    []string{"context-1", "context-2", "context-3"},
+			checkAllCtxs:   true,
+		},
+		{
+			name: "re-registration keeps agent order",
+			regs: []a2aReg{
+				{"http://agent-zulu.com", "context-1"},
+				{"http://agent-alpha.com", "context-2"},
+				{"http://agent-charlie.com", "context-3"},
+				{"http://agent-alpha.com", "context-4"},
+			},
+			allAgents:      []string{"http://agent-zulu.com", "http://agent-alpha.com", "http://agent-charlie.com"},
+			checkAllAgents: true,
+		},
+		{
+			name: "empty agent or context ignored",
+			regs: []a2aReg{
+				{"", "context-1"},
+				{"http://agent1.com", ""},
+			},
+			checkAllCtxs: true,
+		},
+	}
 
-	tracker.AddTask(contextID, "task-1")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-1"}, tasks)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := newTrackerWith(t, tt.regs, nil)
 
-	tracker.AddTask(contextID, "task-2")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-1", "task-2"}, tasks)
+			for agent, want := range tt.contextsByAgent {
+				assertStringList(t, want, tracker.GetContextsForAgent(agent))
+			}
+			for agent, want := range tt.latestByAgent {
+				assert.Equal(t, want, tracker.GetLatestContextForAgent(agent))
+			}
+			for contextID, want := range tt.hasContext {
+				assert.Equal(t, want, tracker.HasContext(contextID))
+			}
+			for contextID, want := range tt.agentByContext {
+				assert.Equal(t, want, tracker.GetAgentForContext(contextID))
+			}
+			if tt.checkAllAgents {
+				assertStringList(t, tt.allAgents, tracker.GetAllAgents())
+			}
+			if tt.checkAllCtxs {
+				got := tracker.GetAllContexts()
+				assert.Len(t, got, len(tt.allContexts))
+				for _, contextID := range tt.allContexts {
+					assert.Contains(t, got, contextID)
+				}
+			}
+		})
+	}
+}
 
-	tracker.AddTask(contextID, "task-3")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-1", "task-2", "task-3"}, tasks)
+func TestA2ATaskTracker_TaskQueries(t *testing.T) {
+	reg1 := []a2aReg{{"http://agent1.com", "context-1"}}
 
-	// Duplicate should be ignored
-	tracker.AddTask(contextID, "task-2")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-1", "task-2", "task-3"}, tasks)
+	tests := []struct {
+		name            string
+		regs            []a2aReg
+		adds            []a2aTaskAdd
+		tasksByContext  map[string][]string
+		latestByContext map[string]string
+		hasTask         map[string]bool
+		contextByTask   map[string]string
+	}{
+		{
+			name:            "no tasks",
+			regs:            reg1,
+			tasksByContext:  map[string][]string{"context-1": nil},
+			latestByContext: map[string]string{"context-1": ""},
+			hasTask:         map[string]bool{"task-1": false},
+		},
+		{
+			name:            "single task",
+			regs:            reg1,
+			adds:            []a2aTaskAdd{{"context-1", "task-1"}},
+			tasksByContext:  map[string][]string{"context-1": {"task-1"}},
+			latestByContext: map[string]string{"context-1": "task-1"},
+			hasTask:         map[string]bool{"task-1": true, "task-2": false},
+		},
+		{
+			name:            "two tasks in order",
+			regs:            reg1,
+			adds:            []a2aTaskAdd{{"context-1", "task-1"}, {"context-1", "task-2"}},
+			tasksByContext:  map[string][]string{"context-1": {"task-1", "task-2"}},
+			latestByContext: map[string]string{"context-1": "task-2"},
+			hasTask:         map[string]bool{"task-1": true, "task-2": true},
+			contextByTask: map[string]string{
+				"task-1":           "context-1",
+				"task-2":           "context-1",
+				"task-nonexistent": "",
+			},
+		},
+		{
+			name:            "three tasks in order",
+			regs:            reg1,
+			adds:            []a2aTaskAdd{{"context-1", "task-1"}, {"context-1", "task-2"}, {"context-1", "task-3"}},
+			tasksByContext:  map[string][]string{"context-1": {"task-1", "task-2", "task-3"}},
+			latestByContext: map[string]string{"context-1": "task-3"},
+		},
+		{
+			name: "duplicate task ignored",
+			regs: reg1,
+			adds: []a2aTaskAdd{
+				{"context-1", "task-1"},
+				{"context-1", "task-2"},
+				{"context-1", "task-3"},
+				{"context-1", "task-2"},
+			},
+			tasksByContext: map[string][]string{"context-1": {"task-1", "task-2", "task-3"}},
+		},
+		{
+			name: "tasks across multiple contexts and agents",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-agent1-1"},
+				{"http://agent1.com", "context-agent1-2"},
+				{"http://agent2.com", "context-agent2-1"},
+			},
+			adds: []a2aTaskAdd{
+				{"context-agent1-1", "task-1"},
+				{"context-agent1-1", "task-2"},
+				{"context-agent1-2", "task-3"},
+				{"context-agent2-1", "task-4"},
+			},
+			tasksByContext: map[string][]string{
+				"context-agent1-1": {"task-1", "task-2"},
+				"context-agent1-2": {"task-3"},
+				"context-agent2-1": {"task-4"},
+			},
+		},
+		{
+			name:           "task without registered context ignored",
+			adds:           []a2aTaskAdd{{"context-nonexistent", "task-1"}},
+			tasksByContext: map[string][]string{"context-nonexistent": nil},
+			hasTask:        map[string]bool{"task-1": false},
+		},
+		{
+			name:           "empty context or task ignored",
+			regs:           reg1,
+			adds:           []a2aTaskAdd{{"", "task-1"}, {"context-1", ""}},
+			tasksByContext: map[string][]string{"context-1": nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := newTrackerWith(t, tt.regs, tt.adds)
+
+			for contextID, want := range tt.tasksByContext {
+				assertStringList(t, want, tracker.GetTasksForContext(contextID))
+			}
+			for contextID, want := range tt.latestByContext {
+				assert.Equal(t, want, tracker.GetLatestTaskForContext(contextID))
+			}
+			for taskID, want := range tt.hasTask {
+				assert.Equal(t, want, tracker.HasTask(taskID))
+			}
+			for taskID, want := range tt.contextByTask {
+				assert.Equal(t, want, tracker.GetContextForTask(taskID))
+			}
+		})
+	}
 }
 
 func TestA2ATaskTracker_RemoveTask(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
+	tests := []struct {
+		name   string
+		remove []string
+		want   []string
+	}{
+		{name: "remove middle", remove: []string{"task-2"}, want: []string{"task-1", "task-3"}},
+		{name: "remove middle then first", remove: []string{"task-2", "task-1"}, want: []string{"task-3"}},
+		{name: "remove all", remove: []string{"task-2", "task-1", "task-3"}},
+	}
 
-	tracker.RegisterContext(agentURL, contextID)
-	tracker.AddTask(contextID, "task-1")
-	tracker.AddTask(contextID, "task-2")
-	tracker.AddTask(contextID, "task-3")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := newTrackerWith(t,
+				[]a2aReg{{"http://agent1.com", "context-1"}},
+				[]a2aTaskAdd{{"context-1", "task-1"}, {"context-1", "task-2"}, {"context-1", "task-3"}},
+			)
 
-	tracker.RemoveTask("task-2")
-	tasks := tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-1", "task-3"}, tasks)
+			for _, taskID := range tt.remove {
+				tracker.RemoveTask(taskID)
+			}
 
-	tracker.RemoveTask("task-1")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Equal(t, []string{"task-3"}, tasks)
-
-	tracker.RemoveTask("task-3")
-	tasks = tracker.GetTasksForContext(contextID)
-	assert.Empty(t, tasks)
+			assertStringList(t, tt.want, tracker.GetTasksForContext("context-1"))
+		})
+	}
 }
 
-func TestA2ATaskTracker_RemoveContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
+func TestA2ATaskTracker_RemoveContextAndClearAll(t *testing.T) {
+	tests := []struct {
+		name         string
+		regs         []a2aReg
+		adds         []a2aTaskAdd
+		clear        func(tracker *A2ATaskTrackerImpl)
+		checkAllGone bool
+	}{
+		{
+			name: "remove context drops its tasks",
+			regs: []a2aReg{{"http://agent1.com", "context-1"}},
+			adds: []a2aTaskAdd{{"context-1", "task-1"}, {"context-1", "task-2"}},
+			clear: func(tracker *A2ATaskTrackerImpl) {
+				tracker.RemoveContext("context-1")
+			},
+		},
+		{
+			name: "clear all agents drops everything",
+			regs: []a2aReg{
+				{"http://agent1.com", "context-1"},
+				{"http://agent2.com", "context-2"},
+			},
+			adds: []a2aTaskAdd{{"context-1", "task-1"}, {"context-2", "task-2"}},
+			clear: func(tracker *A2ATaskTrackerImpl) {
+				tracker.ClearAllAgents()
+			},
+			checkAllGone: true,
+		},
+	}
 
-	tracker.RegisterContext(agentURL, contextID)
-	tracker.AddTask(contextID, "task-1")
-	tracker.AddTask(contextID, "task-2")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := newTrackerWith(t, tt.regs, tt.adds)
 
-	assert.True(t, tracker.HasContext(contextID))
-	assert.True(t, tracker.HasTask("task-1"))
-	assert.True(t, tracker.HasTask("task-2"))
+			for _, r := range tt.regs {
+				assert.True(t, tracker.HasContext(r.context))
+			}
+			for _, a := range tt.adds {
+				assert.True(t, tracker.HasTask(a.task))
+			}
 
-	tracker.RemoveContext(contextID)
+			tt.clear(tracker)
 
-	assert.False(t, tracker.HasContext(contextID))
-	assert.False(t, tracker.HasTask("task-1"))
-	assert.False(t, tracker.HasTask("task-2"))
-	assert.Empty(t, tracker.GetTasksForContext(contextID))
-	assert.Empty(t, tracker.GetContextsForAgent(agentURL))
-}
-
-func TestA2ATaskTracker_GetLatestContextForAgent(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-
-	latest := tracker.GetLatestContextForAgent(agentURL)
-	assert.Empty(t, latest)
-
-	tracker.RegisterContext(agentURL, "context-1")
-	latest = tracker.GetLatestContextForAgent(agentURL)
-	assert.Equal(t, "context-1", latest)
-
-	tracker.RegisterContext(agentURL, "context-2")
-	latest = tracker.GetLatestContextForAgent(agentURL)
-	assert.Equal(t, "context-2", latest)
-
-	tracker.RegisterContext(agentURL, "context-3")
-	latest = tracker.GetLatestContextForAgent(agentURL)
-	assert.Equal(t, "context-3", latest)
-}
-
-func TestA2ATaskTracker_GetLatestTaskForContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
-
-	tracker.RegisterContext(agentURL, contextID)
-
-	latest := tracker.GetLatestTaskForContext(contextID)
-	assert.Empty(t, latest)
-
-	tracker.AddTask(contextID, "task-1")
-	latest = tracker.GetLatestTaskForContext(contextID)
-	assert.Equal(t, "task-1", latest)
-
-	tracker.AddTask(contextID, "task-2")
-	latest = tracker.GetLatestTaskForContext(contextID)
-	assert.Equal(t, "task-2", latest)
-
-	tracker.AddTask(contextID, "task-3")
-	latest = tracker.GetLatestTaskForContext(contextID)
-	assert.Equal(t, "task-3", latest)
-}
-
-func TestA2ATaskTracker_GetContextForTask(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
-
-	tracker.RegisterContext(agentURL, contextID)
-	tracker.AddTask(contextID, "task-1")
-	tracker.AddTask(contextID, "task-2")
-
-	assert.Equal(t, contextID, tracker.GetContextForTask("task-1"))
-	assert.Equal(t, contextID, tracker.GetContextForTask("task-2"))
-	assert.Empty(t, tracker.GetContextForTask("task-nonexistent"))
-}
-
-func TestA2ATaskTracker_GetAgentForContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agent1 := "http://agent1.com"
-	agent2 := "http://agent2.com"
-
-	tracker.RegisterContext(agent1, "context-1")
-	tracker.RegisterContext(agent2, "context-2")
-
-	assert.Equal(t, agent1, tracker.GetAgentForContext("context-1"))
-	assert.Equal(t, agent2, tracker.GetAgentForContext("context-2"))
-	assert.Empty(t, tracker.GetAgentForContext("context-nonexistent"))
-}
-
-func TestA2ATaskTracker_HasContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-
-	assert.False(t, tracker.HasContext("context-1"))
-
-	tracker.RegisterContext(agentURL, "context-1")
-	assert.True(t, tracker.HasContext("context-1"))
-	assert.False(t, tracker.HasContext("context-2"))
-
-	tracker.RegisterContext(agentURL, "context-2")
-	assert.True(t, tracker.HasContext("context-1"))
-	assert.True(t, tracker.HasContext("context-2"))
-}
-
-func TestA2ATaskTracker_HasTask(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-	contextID := "context-1"
-
-	tracker.RegisterContext(agentURL, contextID)
-
-	assert.False(t, tracker.HasTask("task-1"))
-
-	tracker.AddTask(contextID, "task-1")
-	assert.True(t, tracker.HasTask("task-1"))
-	assert.False(t, tracker.HasTask("task-2"))
-
-	tracker.AddTask(contextID, "task-2")
-	assert.True(t, tracker.HasTask("task-1"))
-	assert.True(t, tracker.HasTask("task-2"))
-}
-
-func TestA2ATaskTracker_MultipleAgents(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agent1 := "http://agent1.com"
-	agent2 := "http://agent2.com"
-
-	// Register multiple contexts per agent
-	tracker.RegisterContext(agent1, "context-agent1-1")
-	tracker.RegisterContext(agent1, "context-agent1-2")
-	tracker.RegisterContext(agent2, "context-agent2-1")
-
-	assert.Equal(t, []string{"context-agent1-1", "context-agent1-2"}, tracker.GetContextsForAgent(agent1))
-	assert.Equal(t, []string{"context-agent2-1"}, tracker.GetContextsForAgent(agent2))
-
-	// Add tasks to different contexts
-	tracker.AddTask("context-agent1-1", "task-1")
-	tracker.AddTask("context-agent1-1", "task-2")
-	tracker.AddTask("context-agent1-2", "task-3")
-	tracker.AddTask("context-agent2-1", "task-4")
-
-	assert.Equal(t, []string{"task-1", "task-2"}, tracker.GetTasksForContext("context-agent1-1"))
-	assert.Equal(t, []string{"task-3"}, tracker.GetTasksForContext("context-agent1-2"))
-	assert.Equal(t, []string{"task-4"}, tracker.GetTasksForContext("context-agent2-1"))
-}
-
-func TestA2ATaskTracker_GetAllAgents(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	agents := tracker.GetAllAgents()
-	assert.Empty(t, agents)
-
-	tracker.RegisterContext("http://agent-zulu.com", "context-1")
-	tracker.RegisterContext("http://agent-alpha.com", "context-2")
-	tracker.RegisterContext("http://agent-charlie.com", "context-3")
-
-	agents = tracker.GetAllAgents()
-	assert.Equal(t, []string{
-		"http://agent-zulu.com",
-		"http://agent-alpha.com",
-		"http://agent-charlie.com",
-	}, agents)
-
-	tracker.RegisterContext("http://agent-alpha.com", "context-4")
-	agents = tracker.GetAllAgents()
-	assert.Equal(t, []string{
-		"http://agent-zulu.com",
-		"http://agent-alpha.com",
-		"http://agent-charlie.com",
-	}, agents)
-}
-
-func TestA2ATaskTracker_GetAllContexts(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	contexts := tracker.GetAllContexts()
-	assert.Empty(t, contexts)
-
-	tracker.RegisterContext("http://agent1.com", "context-zulu")
-	tracker.RegisterContext("http://agent2.com", "context-alpha")
-	tracker.RegisterContext("http://agent3.com", "context-charlie")
-
-	contexts = tracker.GetAllContexts()
-
-	assert.Len(t, contexts, 3)
-	assert.Contains(t, contexts, "context-zulu")
-	assert.Contains(t, contexts, "context-alpha")
-	assert.Contains(t, contexts, "context-charlie")
-}
-
-func TestA2ATaskTracker_ClearAllAgents(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	tracker.RegisterContext("http://agent1.com", "context-1")
-	tracker.RegisterContext("http://agent2.com", "context-2")
-	tracker.AddTask("context-1", "task-1")
-	tracker.AddTask("context-2", "task-2")
-
-	tracker.ClearAllAgents()
-
-	assert.Empty(t, tracker.GetTasksForContext("context-1"))
-	assert.Empty(t, tracker.GetTasksForContext("context-2"))
-	assert.Empty(t, tracker.GetContextsForAgent("http://agent1.com"))
-	assert.Empty(t, tracker.GetContextsForAgent("http://agent2.com"))
-	assert.Empty(t, tracker.GetAllAgents())
-	assert.Empty(t, tracker.GetAllContexts())
+			for _, r := range tt.regs {
+				assert.False(t, tracker.HasContext(r.context))
+				assert.Empty(t, tracker.GetContextsForAgent(r.agent))
+			}
+			for _, a := range tt.adds {
+				assert.False(t, tracker.HasTask(a.task))
+				assert.Empty(t, tracker.GetTasksForContext(a.context))
+			}
+			if tt.checkAllGone {
+				assert.Empty(t, tracker.GetAllAgents())
+				assert.Empty(t, tracker.GetAllContexts())
+			}
+		})
+	}
 }
 
 func TestA2ATaskTracker_PollingState(t *testing.T) {
@@ -321,48 +416,117 @@ func TestA2ATaskTracker_PollingState(t *testing.T) {
 	assert.Nil(t, tracker.GetPollingState("task-1"))
 }
 
-func TestA2ATaskTracker_GetPollingTasksForContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agent1 := "http://agent1.com"
-	context1 := "context-1"
+func TestA2ATaskTracker_PollingTaskLists(t *testing.T) {
+	tests := []struct {
+		name         string
+		specs        []a2aPollSpec
+		stop         []string
+		queryContext string
+		want         []string
+	}{
+		{
+			name: "tasks for context in start order",
+			specs: []a2aPollSpec{
+				{"task-1", "context-1", "http://agent1.com", 0},
+				{"task-2", "context-1", "http://agent1.com", time.Second},
+				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
+			},
+			queryContext: "context-1",
+			want:         []string{"task-1", "task-2", "task-3"},
+		},
+		{
+			name: "stopped task excluded from context",
+			specs: []a2aPollSpec{
+				{"task-1", "context-1", "http://agent1.com", 0},
+				{"task-2", "context-1", "http://agent1.com", time.Second},
+				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
+			},
+			stop:         []string{"task-2"},
+			queryContext: "context-1",
+			want:         []string{"task-1", "task-3"},
+		},
+		{
+			name: "all polling tasks grouped by agent",
+			specs: []a2aPollSpec{
+				{"task-1", "context-1", "http://agent1.com", 0},
+				{"task-2", "context-2", "http://agent2.com", time.Second},
+				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
+			},
+			want: []string{"task-1", "task-3", "task-2"},
+		},
+	}
 
-	tracker.RegisterContext(agent1, context1)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewA2ATaskTracker()
+			startTime := time.Now()
 
-	startTime := time.Now()
+			for _, spec := range tt.specs {
+				tracker.RegisterContext(spec.agent, spec.context)
+				tracker.StartPolling(spec.task, &domain.TaskPollingState{
+					TaskID:    spec.task,
+					ContextID: spec.context,
+					AgentURL:  spec.agent,
+					StartedAt: startTime.Add(spec.offset),
+				})
+			}
+			for _, taskID := range tt.stop {
+				tracker.StopPolling(taskID)
+			}
 
-	state1 := &domain.TaskPollingState{TaskID: "task-1", ContextID: context1, AgentURL: agent1, StartedAt: startTime}
-	state2 := &domain.TaskPollingState{TaskID: "task-2", ContextID: context1, AgentURL: agent1, StartedAt: startTime.Add(time.Second)}
-	state3 := &domain.TaskPollingState{TaskID: "task-3", ContextID: context1, AgentURL: agent1, StartedAt: startTime.Add(2 * time.Second)}
-
-	tracker.StartPolling("task-1", state1)
-	tracker.StartPolling("task-2", state2)
-	tracker.StartPolling("task-3", state3)
-
-	tasks := tracker.GetPollingTasksForContext(context1)
-	assert.Equal(t, []string{"task-1", "task-2", "task-3"}, tasks)
-
-	tracker.StopPolling("task-2")
-	tasks = tracker.GetPollingTasksForContext(context1)
-	assert.Equal(t, []string{"task-1", "task-3"}, tasks)
+			var got []string
+			if tt.queryContext != "" {
+				got = tracker.GetPollingTasksForContext(tt.queryContext)
+			} else {
+				got = tracker.GetAllPollingTasks()
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
-func TestA2ATaskTracker_GetAllPollingTasks(t *testing.T) {
+func TestA2ATaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
 	tracker := NewA2ATaskTracker()
 
-	tracker.RegisterContext("http://agent1.com", "context-1")
-	tracker.RegisterContext("http://agent2.com", "context-2")
+	tasks := []a2aPollSpec{
+		{"task-zulu", "context-zulu", "http://agent-zulu.com", 0},
+		{"task-alpha", "context-alpha", "http://agent-alpha.com", 10 * time.Millisecond},
+		{"task-charlie", "context-charlie", "http://agent-charlie.com", 20 * time.Millisecond},
+		{"task-bravo", "context-bravo", "http://agent-bravo.com", 30 * time.Millisecond},
+	}
+
+	for _, task := range tasks {
+		tracker.RegisterContext(task.agent, task.context)
+	}
 
 	startTime := time.Now()
-	state1 := &domain.TaskPollingState{TaskID: "task-1", ContextID: "context-1", AgentURL: "http://agent1.com", StartedAt: startTime}
-	state2 := &domain.TaskPollingState{TaskID: "task-2", ContextID: "context-2", AgentURL: "http://agent2.com", StartedAt: startTime.Add(time.Second)}
-	state3 := &domain.TaskPollingState{TaskID: "task-3", ContextID: "context-1", AgentURL: "http://agent1.com", StartedAt: startTime.Add(2 * time.Second)}
+	for _, task := range tasks {
+		state := &domain.TaskPollingState{
+			AgentURL:  task.agent,
+			ContextID: task.context,
+			TaskID:    task.task,
+			StartedAt: startTime.Add(task.offset),
+			IsPolling: true,
+		}
+		tracker.StartPolling(task.task, state)
+	}
 
-	tracker.StartPolling("task-1", state1)
-	tracker.StartPolling("task-2", state2)
-	tracker.StartPolling("task-3", state3)
+	var previousOrder []string
+	for i := 0; i < 10; i++ {
+		currentOrder := tracker.GetAllPollingTasks()
 
-	tasks := tracker.GetAllPollingTasks()
-	assert.Equal(t, []string{"task-1", "task-3", "task-2"}, tasks)
+		if i == 0 {
+			assert.Equal(t, []string{
+				"task-zulu",
+				"task-alpha",
+				"task-charlie",
+				"task-bravo",
+			}, currentOrder, "tasks should be in FIFO order (agent → context → task)")
+			previousOrder = currentOrder
+		} else {
+			assert.Equal(t, previousOrder, currentOrder, "order should be consistent across calls")
+		}
+	}
 }
 
 func TestA2ATaskTracker_ConcurrentAccess(t *testing.T) {
@@ -395,76 +559,4 @@ func TestA2ATaskTracker_ConcurrentAccess(t *testing.T) {
 
 	<-done
 	<-done
-}
-
-func TestA2ATaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	tasks := []struct {
-		id        string
-		agentURL  string
-		contextID string
-		delay     time.Duration
-	}{
-		{"task-zulu", "http://agent-zulu.com", "context-zulu", 0},
-		{"task-alpha", "http://agent-alpha.com", "context-alpha", 10 * time.Millisecond},
-		{"task-charlie", "http://agent-charlie.com", "context-charlie", 20 * time.Millisecond},
-		{"task-bravo", "http://agent-bravo.com", "context-bravo", 30 * time.Millisecond},
-	}
-
-	for _, task := range tasks {
-		tracker.RegisterContext(task.agentURL, task.contextID)
-	}
-
-	startTime := time.Now()
-	for _, task := range tasks {
-		state := &domain.TaskPollingState{
-			AgentURL:  task.agentURL,
-			ContextID: task.contextID,
-			TaskID:    task.id,
-			StartedAt: startTime.Add(task.delay),
-			IsPolling: true,
-		}
-		tracker.StartPolling(task.id, state)
-	}
-
-	var previousOrder []string
-	for i := 0; i < 10; i++ {
-		currentOrder := tracker.GetAllPollingTasks()
-
-		if i == 0 {
-			assert.Equal(t, []string{
-				"task-zulu",
-				"task-alpha",
-				"task-charlie",
-				"task-bravo",
-			}, currentOrder, "tasks should be in FIFO order (agent → context → task)")
-			previousOrder = currentOrder
-		} else {
-			assert.Equal(t, previousOrder, currentOrder, "order should be consistent across calls")
-		}
-	}
-}
-
-func TestA2ATaskTracker_AddTaskWithoutContext(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	tracker.AddTask("context-nonexistent", "task-1")
-
-	assert.False(t, tracker.HasTask("task-1"))
-	assert.Empty(t, tracker.GetTasksForContext("context-nonexistent"))
-}
-
-func TestA2ATaskTracker_EmptyValues(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-	agentURL := "http://agent1.com"
-
-	tracker.RegisterContext("", "context-1")
-	tracker.RegisterContext(agentURL, "")
-	assert.Empty(t, tracker.GetAllContexts())
-
-	tracker.RegisterContext(agentURL, "context-1")
-	tracker.AddTask("", "task-1")
-	tracker.AddTask("context-1", "")
-	assert.Empty(t, tracker.GetTasksForContext("context-1"))
 }
