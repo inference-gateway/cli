@@ -150,6 +150,16 @@ func TestIsCompleteJSON(t *testing.T) {
 			input:    `{"content": "hello \"world\""}`,
 			expected: true,
 		},
+		{
+			name:     "truncated Write tool call at output token limit",
+			input:    `{"file_path": "/home/user/project/src/components/MyComponent.tsx", "content": "import React from 'react';\n\nexport const MyComponent: React.FC = () => {\n  const [state, setState] = React.useState<string>('');\n\n  return (\n    <div className=\"container\">\n      <h1>My Component</h1>\n      <p>This is a test component that demonstrates`,
+			expected: false,
+		},
+		{
+			name:     "complete Write tool call for large file",
+			input:    `{"file_path": "/home/user/project/src/components/MyComponent.tsx", "content": "import React from 'react';\n\nexport const MyComponent: React.FC = () => {\n  return <div>Hello</div>;\n};\n"}`,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -159,25 +169,6 @@ func TestIsCompleteJSON(t *testing.T) {
 				t.Errorf("isCompleteJSON(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
-	}
-}
-
-// TestIsCompleteJSON_LargeFileSimulation tests the scenario where an LLM
-// hits output token limits while generating large file content
-func TestIsCompleteJSON_LargeFileSimulation(t *testing.T) {
-	// Simulate a truncated Write tool call that would occur when
-	// DeepSeek or another LLM hits output token limits
-	incompleteWriteCall := `{"file_path": "/home/user/project/src/components/MyComponent.tsx", "content": "import React from 'react';\n\nexport const MyComponent: React.FC = () => {\n  const [state, setState] = React.useState<string>('');\n\n  return (\n    <div className=\"container\">\n      <h1>My Component</h1>\n      <p>This is a test component that demonstrates`
-
-	if isCompleteJSON(incompleteWriteCall) {
-		t.Error("Expected incomplete JSON to return false - this simulates the DeepSeek token limit issue")
-	}
-
-	// A complete version should pass
-	completeWriteCall := `{"file_path": "/home/user/project/src/components/MyComponent.tsx", "content": "import React from 'react';\n\nexport const MyComponent: React.FC = () => {\n  return <div>Hello</div>;\n};\n"}`
-
-	if !isCompleteJSON(completeWriteCall) {
-		t.Error("Expected complete JSON to return true")
 	}
 }
 
@@ -258,53 +249,109 @@ func TestGetRecentCommits(t *testing.T) {
 	}
 }
 
-func TestBuildSkillsInfo_NilService(t *testing.T) {
-	s := &AgentServiceImpl{}
-	require.Empty(t, s.buildSkillsInfo())
+// twoStubSkills returns the pair of distinctive skills used by the
+// buildSkillsInfo formatting case.
+func twoStubSkills() []domain.Skill {
+	return []domain.Skill{
+		{Name: "pdf-helper", Description: "Extract text from PDFs.", Path: "/abs/path/.infer/skills/pdf-helper/SKILL.md", Scope: domain.SkillScopeProject},
+		{Name: "diagrams", Description: "Render mermaid diagrams.", Path: "/home/me/.infer/skills/diagrams/SKILL.md", Scope: domain.SkillScopeUser},
+	}
 }
 
-func TestBuildSkillsInfo_EmptyList(t *testing.T) {
-	s := &AgentServiceImpl{skillsService: &stubSkillsService{}}
-	require.Empty(t, s.buildSkillsInfo())
+// manyStubSkills returns four long-description skills so the char cap kicks in.
+func manyStubSkills() []domain.Skill {
+	var skills []domain.Skill
+	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
+		skills = append(skills, domain.Skill{
+			Name:        name,
+			Description: strings.Repeat("x", 200),
+			Path:        "/abs/.infer/skills/" + name + "/SKILL.md",
+			Scope:       domain.SkillScopeProject,
+		})
+	}
+	return skills
 }
 
-func TestBuildSkillsInfo_FormatsSkills(t *testing.T) {
-	s := &AgentServiceImpl{
-		skillsService: &stubSkillsService{
-			skills: []domain.Skill{
-				{
-					Name:        "pdf-helper",
-					Description: "Extract text from PDFs.",
-					Path:        "/abs/path/.infer/skills/pdf-helper/SKILL.md",
-					Scope:       domain.SkillScopeProject,
-				},
-				{
-					Name:        "diagrams",
-					Description: "Render mermaid diagrams.",
-					Path:        "/home/me/.infer/skills/diagrams/SKILL.md",
-					Scope:       domain.SkillScopeUser,
-				},
+func skillsCapConfig(maxChars int) *config.Config {
+	return &config.Config{Agent: config.AgentConfig{Skills: config.AgentSkillsConfig{Enabled: true, MaxChars: maxChars}}}
+}
+
+func TestBuildSkillsInfo(t *testing.T) {
+	tests := []struct {
+		name         string
+		svc          *AgentServiceImpl
+		wantEmpty    bool
+		wantContains []string
+		wantAbsent   []string
+		minPaths     int
+		exactPaths   int
+	}{
+		{
+			name:       "nil service",
+			svc:        &AgentServiceImpl{},
+			wantEmpty:  true,
+			exactPaths: -1,
+		},
+		{
+			name:       "empty list",
+			svc:        &AgentServiceImpl{skillsService: &stubSkillsService{}},
+			wantEmpty:  true,
+			exactPaths: -1,
+		},
+		{
+			name: "formats skills",
+			svc:  &AgentServiceImpl{skillsService: &stubSkillsService{skills: twoStubSkills()}},
+			wantContains: []string{
+				"AVAILABLE SKILLS:",
+				"Read tool",
+				"pdf-helper",
+				"Extract text from PDFs.",
+				"/abs/path/.infer/skills/pdf-helper/SKILL.md",
+				"diagrams",
+				"Render mermaid diagrams.",
+				"/home/me/.infer/skills/diagrams/SKILL.md",
+				"project",
+				"user",
 			},
+			minPaths:   2,
+			exactPaths: -1,
+		},
+		{
+			name:         "caps rendered list at max chars",
+			svc:          &AgentServiceImpl{config: skillsCapConfig(700), skillsService: &stubSkillsService{skills: manyStubSkills()}},
+			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "delta"},
+			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md"},
+			exactPaths:   1,
+		},
+		{
+			name:       "no cap when max chars is zero",
+			svc:        &AgentServiceImpl{config: skillsCapConfig(0), skillsService: &stubSkillsService{skills: manyStubSkills()}},
+			wantAbsent: []string{"more skills not expanded"},
+			exactPaths: 4,
 		},
 	}
 
-	got := s.buildSkillsInfo()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.svc.buildSkillsInfo()
 
-	require.Contains(t, got, "AVAILABLE SKILLS:")
-	require.Contains(t, got, "Read tool")
-	for _, want := range []string{
-		"pdf-helper",
-		"Extract text from PDFs.",
-		"/abs/path/.infer/skills/pdf-helper/SKILL.md",
-		"diagrams",
-		"Render mermaid diagrams.",
-		"/home/me/.infer/skills/diagrams/SKILL.md",
-		"project",
-		"user",
-	} {
-		require.Contains(t, got, want)
+			if tt.wantEmpty {
+				require.Empty(t, got)
+			}
+			for _, want := range tt.wantContains {
+				require.Contains(t, got, want)
+			}
+			for _, absent := range tt.wantAbsent {
+				require.NotContains(t, got, absent)
+			}
+			if tt.minPaths > 0 {
+				require.GreaterOrEqual(t, strings.Count(got, "Path: "), tt.minPaths)
+			}
+			if tt.exactPaths >= 0 {
+				require.Equal(t, tt.exactPaths, strings.Count(got, "Path: "))
+			}
+		})
 	}
-	require.GreaterOrEqual(t, strings.Count(got, "Path: "), 2)
 }
 
 // toolDef builds an sdk.ChatCompletionTool with the given name and (optional)
@@ -317,70 +364,92 @@ func toolDef(name, description string) sdk.ChatCompletionTool {
 	return sdk.ChatCompletionTool{Type: sdk.ChatCompletionToolType("function"), Function: fn}
 }
 
-func TestBuildToolsInfo_NilService(t *testing.T) {
-	s := &AgentServiceImpl{}
-	require.Empty(t, s.buildToolsInfo())
-}
-
-func TestBuildToolsInfo_EmptyList(t *testing.T) {
-	fake := &domainmocks.FakeToolService{}
-	fake.ListToolsForModeReturns(nil)
-	s := &AgentServiceImpl{toolService: fake}
-	require.Empty(t, s.buildToolsInfo())
-}
-
-func TestBuildToolsInfo_FormatsRoster(t *testing.T) {
-	fake := &domainmocks.FakeToolService{}
-	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
-		toolDef("Read", "Read a file from disk.\nSupports line ranges."),
-		toolDef("Grep", "Search file contents with a regex."),
-		toolDef("Bare", ""),
-	})
-	s := &AgentServiceImpl{toolService: fake}
-
-	got := s.buildToolsInfo()
-
-	require.Contains(t, got, "AVAILABLE TOOLS:")
-	require.Contains(t, got, "- Read: Read a file from disk.")
-	require.NotContains(t, got, "Supports line ranges.")
-	require.Contains(t, got, "- Grep: Search file contents with a regex.")
-	require.Contains(t, got, "- Bare\n")
-	require.NotContains(t, got, "- Bare:")
-}
-
-func TestBuildToolsInfo_TruncatesLongDescription(t *testing.T) {
+func TestBuildToolsInfo(t *testing.T) {
 	long := strings.Repeat("x", 200)
-	fake := &domainmocks.FakeToolService{}
-	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Big", long)})
-	s := &AgentServiceImpl{toolService: fake}
+	tests := []struct {
+		name         string
+		noService    bool
+		tools        []sdk.ChatCompletionTool
+		stateMode    *domain.AgentMode
+		wantEmpty    bool
+		wantContains []string
+		wantAbsent   []string
+		wantModeArg  *domain.AgentMode
+	}{
+		{
+			name:      "nil service returns empty",
+			noService: true,
+			wantEmpty: true,
+		},
+		{
+			name:      "empty tool list returns empty",
+			wantEmpty: true,
+		},
+		{
+			name: "formats roster with first description line",
+			tools: []sdk.ChatCompletionTool{
+				toolDef("Read", "Read a file from disk.\nSupports line ranges."),
+				toolDef("Grep", "Search file contents with a regex."),
+				toolDef("Bare", ""),
+			},
+			wantContains: []string{
+				"AVAILABLE TOOLS:",
+				"- Read: Read a file from disk.",
+				"- Grep: Search file contents with a regex.",
+				"- Bare\n",
+			},
+			wantAbsent: []string{"Supports line ranges.", "- Bare:"},
+		},
+		{
+			name:         "truncates long description",
+			tools:        []sdk.ChatCompletionTool{toolDef("Big", long)},
+			wantContains: []string{"..."},
+			wantAbsent:   []string{long},
+		},
+		{
+			name:        "defaults to standard mode without state manager",
+			tools:       []sdk.ChatCompletionTool{toolDef("Read", "Read a file.")},
+			wantModeArg: ptr(domain.AgentModeStandard),
+		},
+		{
+			name:        "uses current agent mode from state manager",
+			tools:       []sdk.ChatCompletionTool{toolDef("Read", "Read a file.")},
+			stateMode:   ptr(domain.AgentModePlan),
+			wantModeArg: ptr(domain.AgentModePlan),
+		},
+	}
 
-	got := s.buildToolsInfo()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &AgentServiceImpl{}
+			fake := &domainmocks.FakeToolService{}
+			if !tt.noService {
+				fake.ListToolsForModeReturns(tt.tools)
+				s.toolService = fake
+			}
+			if tt.stateMode != nil {
+				sm := services.NewStateManager(false)
+				sm.SetAgentMode(*tt.stateMode)
+				s.stateManager = sm
+			}
 
-	require.Contains(t, got, "...")
-	require.NotContains(t, got, long)
-}
+			got := s.buildToolsInfo()
 
-func TestBuildToolsInfo_DefaultsToStandardModeWhenNoStateManager(t *testing.T) {
-	fake := &domainmocks.FakeToolService{}
-	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Read", "Read a file.")})
-	s := &AgentServiceImpl{toolService: fake}
-
-	s.buildToolsInfo()
-
-	require.Equal(t, 1, fake.ListToolsForModeCallCount())
-	require.Equal(t, domain.AgentModeStandard, fake.ListToolsForModeArgsForCall(0))
-}
-
-func TestBuildToolsInfo_UsesCurrentAgentMode(t *testing.T) {
-	fake := &domainmocks.FakeToolService{}
-	fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{toolDef("Read", "Read a file.")})
-	sm := services.NewStateManager(false)
-	sm.SetAgentMode(domain.AgentModePlan)
-	s := &AgentServiceImpl{toolService: fake, stateManager: sm}
-
-	s.buildToolsInfo()
-
-	require.Equal(t, domain.AgentModePlan, fake.ListToolsForModeArgsForCall(0))
+			if tt.wantEmpty {
+				require.Empty(t, got)
+			}
+			for _, want := range tt.wantContains {
+				require.Contains(t, got, want)
+			}
+			for _, absent := range tt.wantAbsent {
+				require.NotContains(t, got, absent)
+			}
+			if tt.wantModeArg != nil {
+				require.Equal(t, 1, fake.ListToolsForModeCallCount())
+				require.Equal(t, *tt.wantModeArg, fake.ListToolsForModeArgsForCall(0))
+			}
+		})
+	}
 }
 
 func userMsg(text string) sdk.Message {
@@ -404,64 +473,98 @@ func activeSkillsAgent() *AgentServiceImpl {
 	}
 }
 
-func TestBuildActiveSkillInfo_NilService(t *testing.T) {
-	s := &AgentServiceImpl{}
-	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo")}))
-}
-
-func TestBuildActiveSkillInfo_NoTrigger(t *testing.T) {
-	s := activeSkillsAgent()
-	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("just a normal message about foo")}))
-}
-
-// The deterministic path injects only metadata (description + path) and points
-// the model at the Read tool - it never inlines the SKILL.md body.
-func TestBuildActiveSkillInfo_SlashTriggerInjectsMetadataNotBody(t *testing.T) {
-	s := activeSkillsAgent()
-	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo please do the thing")})
-	require.Contains(t, got, "ACTIVE SKILL ")
-	require.Contains(t, got, "Read tool")
-	require.Contains(t, got, "foo (project): FOO_DESC")
-	require.Contains(t, got, "Path: /abs/.infer/skills/foo/SKILL.md")
-}
-
-func TestBuildActiveSkillInfo_PhraseTriggerCaseInsensitive(t *testing.T) {
-	for _, text := range []string{"use the bar skill now", "use bar skill", "Please Use The Bar Skill"} {
-		s := activeSkillsAgent()
-		got := s.buildActiveSkillInfo([]sdk.Message{userMsg(text)})
-		require.Contains(t, got, "bar (user): BAR_DESC", "text: %q", text)
+func TestBuildActiveSkillInfo(t *testing.T) {
+	tests := []struct {
+		name         string
+		nilService   bool
+		messages     []sdk.Message
+		wantEmpty    bool
+		wantContains []string
+		wantFooCount int
+	}{
+		{
+			name:       "nil service returns empty",
+			nilService: true,
+			messages:   []sdk.Message{userMsg("/foo")},
+			wantEmpty:  true,
+		},
+		{
+			name:      "no trigger returns empty",
+			messages:  []sdk.Message{userMsg("just a normal message about foo")},
+			wantEmpty: true,
+		},
+		{
+			name:     "slash trigger injects metadata not body",
+			messages: []sdk.Message{userMsg("/foo please do the thing")},
+			wantContains: []string{
+				"ACTIVE SKILL ",
+				"Read tool",
+				"foo (project): FOO_DESC",
+				"Path: /abs/.infer/skills/foo/SKILL.md",
+			},
+		},
+		{
+			name:         "phrase trigger with article",
+			messages:     []sdk.Message{userMsg("use the bar skill now")},
+			wantContains: []string{"bar (user): BAR_DESC"},
+		},
+		{
+			name:         "phrase trigger without article",
+			messages:     []sdk.Message{userMsg("use bar skill")},
+			wantContains: []string{"bar (user): BAR_DESC"},
+		},
+		{
+			name:         "phrase trigger is case-insensitive",
+			messages:     []sdk.Message{userMsg("Please Use The Bar Skill")},
+			wantContains: []string{"bar (user): BAR_DESC"},
+		},
+		{
+			name:         "two skills use plural header",
+			messages:     []sdk.Message{userMsg("/foo and use the bar skill")},
+			wantContains: []string{"ACTIVE SKILLS ", "FOO_DESC", "BAR_DESC"},
+		},
+		{
+			name:         "dedupes across messages",
+			messages:     []sdk.Message{userMsg("/foo"), userMsg("/foo again")},
+			wantFooCount: 1,
+		},
+		{
+			name:      "unknown token ignored",
+			messages:  []sdk.Message{userMsg("/unknown-skill do it")},
+			wantEmpty: true,
+		},
+		{
+			name:      "only user messages scanned",
+			messages:  []sdk.Message{assistantMsg("you could /foo here")},
+			wantEmpty: true,
+		},
+		{
+			name:         "adjacent slash tokens both trigger",
+			messages:     []sdk.Message{userMsg("/foo /bar")},
+			wantContains: []string{"FOO_DESC", "BAR_DESC"},
+		},
 	}
-}
 
-func TestBuildActiveSkillInfo_TwoSkillsPluralHeader(t *testing.T) {
-	s := activeSkillsAgent()
-	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo and use the bar skill")})
-	require.Contains(t, got, "ACTIVE SKILLS ")
-	require.Contains(t, got, "FOO_DESC")
-	require.Contains(t, got, "BAR_DESC")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := activeSkillsAgent()
+			if tt.nilService {
+				s = &AgentServiceImpl{}
+			}
 
-func TestBuildActiveSkillInfo_DedupesAcrossMessages(t *testing.T) {
-	s := activeSkillsAgent()
-	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo"), userMsg("/foo again")})
-	require.Equal(t, 1, strings.Count(got, "FOO_DESC"))
-}
+			got := s.buildActiveSkillInfo(tt.messages)
 
-func TestBuildActiveSkillInfo_UnknownTokenIgnored(t *testing.T) {
-	s := activeSkillsAgent()
-	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{userMsg("/unknown-skill do it")}))
-}
-
-func TestBuildActiveSkillInfo_OnlyUserMessagesScanned(t *testing.T) {
-	s := activeSkillsAgent()
-	require.Empty(t, s.buildActiveSkillInfo([]sdk.Message{assistantMsg("you could /foo here")}))
-}
-
-func TestBuildActiveSkillInfo_AdjacentSlashTokens(t *testing.T) {
-	s := activeSkillsAgent()
-	got := s.buildActiveSkillInfo([]sdk.Message{userMsg("/foo /bar")})
-	require.Contains(t, got, "FOO_DESC")
-	require.Contains(t, got, "BAR_DESC")
+			if tt.wantEmpty {
+				require.Empty(t, got)
+			}
+			for _, want := range tt.wantContains {
+				require.Contains(t, got, want)
+			}
+			if tt.wantFooCount > 0 {
+				require.Equal(t, tt.wantFooCount, strings.Count(got, "FOO_DESC"))
+			}
+		})
+	}
 }
 
 func TestFilterMemoryIndex(t *testing.T) {
@@ -500,33 +603,6 @@ func TestFilterMemoryIndex(t *testing.T) {
 	if got := filterMemoryIndex(onlyGlobal, "p"); strings.Contains(got, "other projects") {
 		t.Errorf("no foreign projects must mean no summary line:\n%s", got)
 	}
-}
-
-func TestBuildSkillsInfo_CapsRenderedList(t *testing.T) {
-	var skills []domain.Skill
-	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
-		skills = append(skills, domain.Skill{
-			Name:        name,
-			Description: strings.Repeat("x", 200),
-			Path:        "/abs/.infer/skills/" + name + "/SKILL.md",
-			Scope:       domain.SkillScopeProject,
-		})
-	}
-	cfg := &config.Config{Agent: config.AgentConfig{Skills: config.AgentSkillsConfig{Enabled: true, MaxChars: 700}}}
-	s := &AgentServiceImpl{config: cfg, skillsService: &stubSkillsService{skills: skills}}
-
-	got := s.buildSkillsInfo()
-
-	require.Contains(t, got, "/abs/.infer/skills/alpha/SKILL.md")
-	require.Contains(t, got, "more skills not expanded")
-	require.Contains(t, got, "delta")
-	require.NotContains(t, got, "/abs/.infer/skills/delta/SKILL.md")
-	require.Equal(t, 1, strings.Count(got, "Path: "))
-
-	cfg.Agent.Skills.MaxChars = 0
-	got = s.buildSkillsInfo()
-	require.NotContains(t, got, "more skills not expanded")
-	require.Equal(t, 4, strings.Count(got, "Path: "))
 }
 
 func TestBuildMemoryInfo_TruncatesAtLineBoundary(t *testing.T) {
