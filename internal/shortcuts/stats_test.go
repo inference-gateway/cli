@@ -10,8 +10,6 @@ import (
 )
 
 func TestStatsShortcut_EmptyStore(t *testing.T) {
-	// No telemetry files -> empty store; TelemetryDir falls back to a
-	// non-existent temp dir, so Aggregate returns Empty.
 	t.Setenv("HOME", t.TempDir())
 
 	s := NewStatsShortcut()
