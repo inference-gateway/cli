@@ -109,51 +109,11 @@ func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 // Reminders moved out of prompts.yaml into their own reminders.yaml; their
 // defaults are covered by TestDefaultRemindersConfig in reminders_test.go.
 
-func TestLoadPrompts_NonExistentFile(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "non-existent.yaml")
-
-	cfg, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() should not error for non-existent file, got: %v", err)
-	}
-	if cfg == nil {
-		t.Fatal("LoadPrompts() returned nil config")
-	}
-	if cfg.Agent.SystemPrompt == "" {
-		t.Error("Default prompts config should populate agent.system_prompt")
-	}
-	if cfg.Agent.SystemPromptPlan == "" {
-		t.Error("Default prompts config should populate agent.system_prompt_plan")
-	}
-	if cfg.Git.CommitMessage.SystemPrompt == "" {
-		t.Error("Default prompts config should populate git.commit_message.system_prompt")
-	}
-}
-
-func TestLoadPrompts_ValidYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
-
-	yamlContent := `---
-agent:
-  system_prompt: custom agent prompt
-  system_prompt_plan: custom plan prompt
-git:
-  commit_message:
-    system_prompt: custom commit prompt
-init:
-  prompt: custom init prompt
-`
-
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write test config file: %v", err)
-	}
-
-	cfg, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() failed: %v", err)
-	}
+// LoadPrompts backfills unset fields from DefaultPromptsConfig() (via
+// mergeToolDefaults for tools), and tool YAML keys use the LLM-visible
+// names (PascalCase or A2A_* forms) - both contracts are guarded here.
+func checkPromptsValidYAML(t *testing.T, cfg *config.PromptsConfig) {
+	t.Helper()
 	if cfg.Agent.SystemPrompt != "custom agent prompt" {
 		t.Errorf("Expected custom system_prompt, got %q", cfg.Agent.SystemPrompt)
 	}
@@ -168,112 +128,125 @@ init:
 	}
 }
 
-func TestLoadPrompts_PartialYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
+func TestLoadPrompts(t *testing.T) {
+	defaults := config.DefaultPromptsConfig()
 
-	yamlContent := `---
+	tests := []struct {
+		name  string
+		yaml  string
+		check func(t *testing.T, cfg *config.PromptsConfig)
+	}{
+		{
+			name: "non-existent file returns populated defaults",
+			check: func(t *testing.T, cfg *config.PromptsConfig) {
+				if cfg.Agent.SystemPrompt == "" {
+					t.Error("Default prompts config should populate agent.system_prompt")
+				}
+				if cfg.Agent.SystemPromptPlan == "" {
+					t.Error("Default prompts config should populate agent.system_prompt_plan")
+				}
+				if cfg.Git.CommitMessage.SystemPrompt == "" {
+					t.Error("Default prompts config should populate git.commit_message.system_prompt")
+				}
+			},
+		},
+		{
+			name: "valid yaml",
+			yaml: `---
+agent:
+  system_prompt: custom agent prompt
+  system_prompt_plan: custom plan prompt
+git:
+  commit_message:
+    system_prompt: custom commit prompt
+init:
+  prompt: custom init prompt
+`,
+			check: checkPromptsValidYAML,
+		},
+		{
+			name: "partial yaml backfills unset prompts",
+			yaml: `---
 agent:
   system_prompt: only this field is set
-`
-
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write test config file: %v", err)
-	}
-
-	cfg, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() failed: %v", err)
-	}
-	if cfg.Agent.SystemPrompt != "only this field is set" {
-		t.Errorf("Expected user override to be preserved, got %q", cfg.Agent.SystemPrompt)
-	}
-	// Unset fields are backfilled from DefaultPromptsConfig() inside
-	// LoadPrompts so callers always get a fully populated config without
-	// running their own overlay.
-	defaults := config.DefaultPromptsConfig()
-	if cfg.Agent.SystemPromptPlan != defaults.Agent.SystemPromptPlan {
-		t.Errorf("Expected unset plan prompt to be backfilled with default, got %q", cfg.Agent.SystemPromptPlan)
-	}
-	if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
-		t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
-	}
-}
-
-// A user customising a single tool description must keep the defaults
-// for every other tool. Backfill happens inside LoadPrompts via
-// mergeToolDefaults, so the file alone tells us whether the contract
-// holds.
-func TestLoadPrompts_PartialToolOverride(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
-
-	yamlContent := `---
+`,
+			check: func(t *testing.T, cfg *config.PromptsConfig) {
+				if cfg.Agent.SystemPrompt != "only this field is set" {
+					t.Errorf("Expected user override to be preserved, got %q", cfg.Agent.SystemPrompt)
+				}
+				if cfg.Agent.SystemPromptPlan != defaults.Agent.SystemPromptPlan {
+					t.Errorf("Expected unset plan prompt to be backfilled with default, got %q", cfg.Agent.SystemPromptPlan)
+				}
+				if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
+					t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
+				}
+			},
+		},
+		{
+			name: "partial tool override backfills other tools",
+			yaml: `---
 tools:
   Bash:
     description: my custom bash description
-`
-
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write test config file: %v", err)
-	}
-
-	cfg, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() failed: %v", err)
-	}
-	if cfg.Tools.Bash.Description != "my custom bash description" {
-		t.Errorf("Expected Bash override to be preserved, got %q", cfg.Tools.Bash.Description)
-	}
-
-	defaults := config.DefaultPromptsConfig()
-	if cfg.Tools.Read.Description != defaults.Tools.Read.Description {
-		t.Errorf("Expected unset Read description to be backfilled, got %q", cfg.Tools.Read.Description)
-	}
-	if cfg.Tools.Edit.Description != defaults.Tools.Edit.Description {
-		t.Errorf("Expected unset Edit description to be backfilled, got %q", cfg.Tools.Edit.Description)
-	}
-	if cfg.Tools.A2ASubmitTask.Description != defaults.Tools.A2ASubmitTask.Description {
-		t.Errorf("Expected unset A2A_SubmitTask description to be backfilled, got %q", cfg.Tools.A2ASubmitTask.Description)
-	}
-}
-
-// YAML keys for tools use the LLM-visible tool names (PascalCase or
-// snake-with-underscores like A2A_SubmitTask) - this guards both forms
-// from accidental renames during refactors.
-func TestLoadPrompts_ToolYAMLKeyContract(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
-
-	yamlContent := `---
+`,
+			check: func(t *testing.T, cfg *config.PromptsConfig) {
+				if cfg.Tools.Bash.Description != "my custom bash description" {
+					t.Errorf("Expected Bash override to be preserved, got %q", cfg.Tools.Bash.Description)
+				}
+				if cfg.Tools.Read.Description != defaults.Tools.Read.Description {
+					t.Errorf("Expected unset Read description to be backfilled, got %q", cfg.Tools.Read.Description)
+				}
+				if cfg.Tools.Edit.Description != defaults.Tools.Edit.Description {
+					t.Errorf("Expected unset Edit description to be backfilled, got %q", cfg.Tools.Edit.Description)
+				}
+				if cfg.Tools.A2ASubmitTask.Description != defaults.Tools.A2ASubmitTask.Description {
+					t.Errorf("Expected unset A2A_SubmitTask description to be backfilled, got %q", cfg.Tools.A2ASubmitTask.Description)
+				}
+			},
+		},
+		{
+			name: "tool yaml key contract",
+			yaml: `---
 tools:
   MultiEdit:
     description: pascal case worked
   A2A_SubmitTask:
     description: a2a key worked
-`
-
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to write test config file: %v", err)
+`,
+			check: func(t *testing.T, cfg *config.PromptsConfig) {
+				if cfg.Tools.MultiEdit.Description != "pascal case worked" {
+					t.Errorf("Expected MultiEdit YAML key to map to MultiEdit field, got %q", cfg.Tools.MultiEdit.Description)
+				}
+				if cfg.Tools.A2ASubmitTask.Description != "a2a key worked" {
+					t.Errorf("Expected A2A_SubmitTask YAML key to map to A2ASubmitTask field, got %q", cfg.Tools.A2ASubmitTask.Description)
+				}
+			},
+		},
 	}
 
-	cfg, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() failed: %v", err)
-	}
-	if cfg.Tools.MultiEdit.Description != "pascal case worked" {
-		t.Errorf("Expected MultiEdit YAML key to map to MultiEdit field, got %q", cfg.Tools.MultiEdit.Description)
-	}
-	if cfg.Tools.A2ASubmitTask.Description != "a2a key worked" {
-		t.Errorf("Expected A2A_SubmitTask YAML key to map to A2ASubmitTask field, got %q", cfg.Tools.A2ASubmitTask.Description)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "prompts.yaml")
+			if tt.yaml != "" {
+				if err := os.WriteFile(configPath, []byte(tt.yaml), 0644); err != nil {
+					t.Fatalf("Failed to write test config file: %v", err)
+				}
+			}
+
+			cfg, err := config.LoadPrompts(configPath)
+			if err != nil {
+				t.Fatalf("LoadPrompts() failed: %v", err)
+			}
+			if cfg == nil {
+				t.Fatal("LoadPrompts() returned nil config")
+			}
+			tt.check(t, cfg)
+		})
 	}
 }
 
-func TestSavePrompts_RoundTrip(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
-
-	original := &config.PromptsConfig{
+func TestSavePrompts(t *testing.T) {
+	roundTrip := &config.PromptsConfig{
 		Agent: config.PromptsAgentConfig{
 			SystemPrompt: "round trip system prompt",
 		},
@@ -284,47 +257,62 @@ func TestSavePrompts_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := config.SavePrompts(configPath, original); err != nil {
-		t.Fatalf("SavePrompts() failed: %v", err)
+	tests := []struct {
+		name  string
+		path  []string
+		cfg   *config.PromptsConfig
+		check func(t *testing.T, path string)
+	}{
+		{
+			name: "round trip preserves prompts",
+			path: []string{"prompts.yaml"},
+			cfg:  roundTrip,
+			check: func(t *testing.T, path string) {
+				loaded, err := config.LoadPrompts(path)
+				if err != nil {
+					t.Fatalf("LoadPrompts() after save failed: %v", err)
+				}
+				if loaded.Agent.SystemPrompt != roundTrip.Agent.SystemPrompt {
+					t.Errorf("agent.system_prompt not preserved, got %q", loaded.Agent.SystemPrompt)
+				}
+				if loaded.Git.CommitMessage.SystemPrompt != roundTrip.Git.CommitMessage.SystemPrompt {
+					t.Errorf("git.commit_message.system_prompt not preserved, got %q", loaded.Git.CommitMessage.SystemPrompt)
+				}
+			},
+		},
+		{
+			name: "creates parent directory",
+			path: []string{"nested", "deep", "prompts.yaml"},
+			cfg:  config.DefaultPromptsConfig(),
+		},
+		{
+			name: "starts with yaml document marker",
+			path: []string{"prompts.yaml"},
+			cfg:  config.DefaultPromptsConfig(),
+			check: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("ReadFile failed: %v", err)
+				}
+				if !strings.HasPrefix(string(data), "---\n") {
+					t.Errorf("Saved file should start with YAML document marker, got: %q", string(data[:min(20, len(data))]))
+				}
+			},
+		},
 	}
 
-	loaded, err := config.LoadPrompts(configPath)
-	if err != nil {
-		t.Fatalf("LoadPrompts() after save failed: %v", err)
-	}
-	if loaded.Agent.SystemPrompt != original.Agent.SystemPrompt {
-		t.Errorf("agent.system_prompt not preserved, got %q", loaded.Agent.SystemPrompt)
-	}
-	if loaded.Git.CommitMessage.SystemPrompt != original.Git.CommitMessage.SystemPrompt {
-		t.Errorf("git.commit_message.system_prompt not preserved, got %q", loaded.Git.CommitMessage.SystemPrompt)
-	}
-}
-
-func TestSavePrompts_CreatesParentDirectory(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "nested", "deep", "prompts.yaml")
-
-	if err := config.SavePrompts(configPath, config.DefaultPromptsConfig()); err != nil {
-		t.Fatalf("SavePrompts() failed to create nested dirs: %v", err)
-	}
-	if _, err := os.Stat(configPath); err != nil {
-		t.Fatalf("File not created at nested path: %v", err)
-	}
-}
-
-func TestSavePrompts_StartsWithYAMLDocumentMarker(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "prompts.yaml")
-
-	if err := config.SavePrompts(configPath, config.DefaultPromptsConfig()); err != nil {
-		t.Fatalf("SavePrompts() failed: %v", err)
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
-	}
-	if !strings.HasPrefix(string(data), "---\n") {
-		t.Errorf("Saved file should start with YAML document marker, got: %q", string(data[:min(20, len(data))]))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(append([]string{t.TempDir()}, tt.path...)...)
+			if err := config.SavePrompts(path, tt.cfg); err != nil {
+				t.Fatalf("SavePrompts() failed: %v", err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("File not created at %q: %v", path, err)
+			}
+			if tt.check != nil {
+				tt.check(t, path)
+			}
+		})
 	}
 }
