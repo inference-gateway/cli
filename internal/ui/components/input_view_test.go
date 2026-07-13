@@ -107,15 +107,85 @@ func TestNewInputView(t *testing.T) {
 	}
 }
 
-func TestInputView_GetInput(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
+func TestInputView_GettersAndSetters(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(iv *InputView)
+		got    func(iv *InputView) any
+		want   any
+	}{
+		{
+			name:   "get input returns set text",
+			mutate: func(iv *InputView) { iv.SetText("Hello, world!") },
+			got:    func(iv *InputView) any { return iv.GetInput() },
+			want:   "Hello, world!",
+		},
+		{
+			name:   "set text stores content",
+			mutate: func(iv *InputView) { iv.SetText("New text content") },
+			got:    func(iv *InputView) any { return iv.GetInput() },
+			want:   "New text content",
+		},
+		{
+			name:   "set text moves cursor to end",
+			mutate: func(iv *InputView) { iv.SetText("New text content") },
+			got:    func(iv *InputView) any { return iv.GetCursor() },
+			want:   16,
+		},
+		{
+			name: "get cursor returns position set in text",
+			mutate: func(iv *InputView) {
+				iv.SetText("Hello World")
+				iv.SetCursor(5)
+			},
+			got:  func(iv *InputView) any { return iv.GetCursor() },
+			want: 5,
+		},
+		{
+			name:   "set cursor keeps zero for invalid position",
+			mutate: func(iv *InputView) { iv.SetCursor(15) },
+			got:    func(iv *InputView) any { return iv.GetCursor() },
+			want:   0,
+		},
+		{
+			name: "set cursor moves within text",
+			mutate: func(iv *InputView) {
+				iv.SetText("Hello World")
+				iv.SetCursor(5)
+			},
+			got:  func(iv *InputView) any { return iv.GetCursor() },
+			want: 5,
+		},
+		{
+			name:   "set width updates width",
+			mutate: func(iv *InputView) { iv.SetWidth(120) },
+			got:    func(iv *InputView) any { return iv.width },
+			want:   120,
+		},
+		{
+			name:   "set height updates height",
+			mutate: func(iv *InputView) { iv.SetHeight(8) },
+			got:    func(iv *InputView) any { return iv.height },
+			want:   8,
+		},
+		{
+			name:   "set placeholder updates placeholder",
+			mutate: func(iv *InputView) { iv.SetPlaceholder("Enter your message...") },
+			got:    func(iv *InputView) any { return iv.placeholder },
+			want:   "Enter your message...",
+		},
+	}
 
-	testText := "Hello, world!"
-	iv.SetText(testText)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := NewInputView(createMockModelService())
 
-	if iv.GetInput() != testText {
-		t.Errorf("Expected GetInput to return '%s', got '%s'", testText, iv.GetInput())
+			tt.mutate(iv)
+
+			if got := tt.got(iv); got != tt.want {
+				t.Errorf("Expected %v, got %v", tt.want, got)
+			}
+		})
 	}
 }
 
@@ -153,84 +223,6 @@ func TestInputView_AddImageAttachmentTokenHasNoIssueRef(t *testing.T) {
 	}
 	if got := len(iv.GetImageAttachments()); got != 2 {
 		t.Errorf("expected 2 tracked attachments, got %d", got)
-	}
-}
-
-func TestInputView_SetPlaceholder(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	testPlaceholder := "Enter your message..."
-	iv.SetPlaceholder(testPlaceholder)
-
-	if iv.placeholder != testPlaceholder {
-		t.Errorf("Expected placeholder '%s', got '%s'", testPlaceholder, iv.placeholder)
-	}
-}
-
-func TestInputView_GetCursor(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	iv.SetText("Hello World")
-	iv.SetCursor(5)
-
-	if iv.GetCursor() != 5 {
-		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
-	}
-}
-
-func TestInputView_SetCursor(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	iv.SetCursor(15)
-	if iv.GetCursor() != 0 {
-		t.Errorf("Expected cursor to remain at 0 for invalid position, got %d", iv.GetCursor())
-	}
-
-	iv.SetText("Hello World")
-	iv.SetCursor(5)
-	if iv.GetCursor() != 5 {
-		t.Errorf("Expected cursor position 5, got %d", iv.GetCursor())
-	}
-}
-
-func TestInputView_SetText(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	testText := "New text content"
-	iv.SetText(testText)
-
-	if iv.GetInput() != testText {
-		t.Errorf("Expected text '%s', got '%s'", testText, iv.GetInput())
-	}
-
-	if iv.GetCursor() != 16 {
-		t.Errorf("Expected cursor at end of text (16), got %d", iv.GetCursor())
-	}
-}
-
-func TestInputView_SetWidth(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	iv.SetWidth(120)
-
-	if iv.width != 120 {
-		t.Errorf("Expected width 120, got %d", iv.width)
-	}
-}
-
-func TestInputView_SetHeight(t *testing.T) {
-	mockModelService := createMockModelService()
-	iv := NewInputView(mockModelService)
-
-	iv.SetHeight(8)
-
-	if iv.height != 8 {
-		t.Errorf("Expected height 8, got %d", iv.height)
 	}
 }
 

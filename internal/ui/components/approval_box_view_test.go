@@ -96,24 +96,80 @@ func TestApprovalBox_EmptyWhenNoPendingCall(t *testing.T) {
 	}
 }
 
-func TestApprovalBox_FramesSummaryAndButtons(t *testing.T) {
-	sm := approvalStateManager(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
+// TestApprovalBox_SummaryRendering covers the one-liner summary path: framing,
+// formatter fallbacks, and narrow-width truncation.
+func TestApprovalBox_SummaryRendering(t *testing.T) {
+	const longPath = "/very/long/path/to/some/deeply/nested/file/name/that/keeps/going.txt"
 
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(80)
-	_ = av.Begin()
-	out := av.Render()
+	cases := []struct {
+		name         string
+		toolName     string
+		arguments    string
+		nilFormatter bool
+		width        int
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:      "frames summary and buttons",
+			toolName:  "Read",
+			arguments: `{"file_path":"/x/y.txt"}`,
+			width:     80,
+			wantContains: []string{
+				"Approval required",
+				"Read(file_path=/x/y.txt)",
+				"Approve",
+				"╭", "╰",
+			},
+		},
+		{
+			name:         "nil formatter falls back to name",
+			toolName:     "Read",
+			arguments:    `{"file_path":"/x/y.txt"}`,
+			nilFormatter: true,
+			width:        80,
+			wantContains: []string{"Read(...)"},
+		},
+		{
+			name:         "unparseable args fall back",
+			toolName:     "Bash",
+			arguments:    `not json`,
+			width:        80,
+			wantContains: []string{"Bash(...)"},
+		},
+		{
+			name:         "truncates long summary on narrow width",
+			toolName:     "Read",
+			arguments:    fmt.Sprintf(`{"file_path":%q}`, longPath),
+			width:        34,
+			wantContains: []string{"..."},
+			wantAbsent:   []string{longPath},
+		},
+	}
 
-	// The inline select shows only the focused option (← Approve →).
-	for _, want := range []string{
-		"Approval required",
-		"Read(file_path=/x/y.txt)",
-		"Approve",
-		"╭", "╰",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("approval box render missing %q\n---\n%s", want, out)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
+			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			if tc.nilFormatter {
+				formatter = nil
+			}
+			av := NewApprovalBoxView(createMockStyleProvider(), sm, formatter)
+			av.SetWidth(tc.width)
+			_ = av.Begin()
+			out := av.Render()
+
+			for _, want := range tc.wantContains {
+				if !strings.Contains(out, want) {
+					t.Errorf("approval box render missing %q\n---\n%s", want, out)
+				}
+			}
+			for _, absent := range tc.wantAbsent {
+				if strings.Contains(out, absent) {
+					t.Errorf("approval box render should not contain %q\n---\n%s", absent, out)
+				}
+			}
+		})
 	}
 }
 
@@ -140,99 +196,6 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 		cmd = av.Forward(msg)
 	}
 	t.Fatal("expected a ToolApprovalResponseEvent after enter")
-}
-
-func TestApprovalBox_NilFormatterFallsBackToName(t *testing.T) {
-	sm := approvalStateManager(approvalStateWith("Read", `{"file_path":"/x/y.txt"}`))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
-	av.SetWidth(80)
-	_ = av.Begin()
-	out := av.Render()
-
-	if !strings.Contains(out, "Read(...)") {
-		t.Errorf("expected nil-formatter fallback to render \"Read(...)\", got:\n%s", out)
-	}
-}
-
-func TestApprovalBox_UnparseableArgsFallBack(t *testing.T) {
-	sm := approvalStateManager(approvalStateWith("Bash", `not json`))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(80)
-	_ = av.Begin()
-	out := av.Render()
-
-	if !strings.Contains(out, "Bash(...)") {
-		t.Errorf("expected unparseable-args fallback to render \"Bash(...)\", got:\n%s", out)
-	}
-}
-
-func TestApprovalBox_TruncatesLongSummaryOnNarrowWidth(t *testing.T) {
-	longPath := "/very/long/path/to/some/deeply/nested/file/name/that/keeps/going.txt"
-	sm := approvalStateManager(approvalStateWith("Read", fmt.Sprintf(`{"file_path":%q}`, longPath)))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(34)
-	_ = av.Begin()
-	out := av.Render()
-
-	if strings.Contains(out, longPath) {
-		t.Errorf("expected long summary to be truncated on a narrow box, but full path is present:\n%s", out)
-	}
-	if !strings.Contains(out, "...") {
-		t.Errorf("expected truncation ellipsis in narrow box, got:\n%s", out)
-	}
-}
-
-// TestApprovalBox_RendersEditDiff asserts the file-mutating tools show a colored
-// diff of the change (file path + old/new content) instead of the one-liner, so the
-// user can see what they are approving before approving.
-func TestApprovalBox_RendersEditDiff(t *testing.T) {
-	args := `{"file_path":"/x/y.txt","old_string":"OLD_CONTENT","new_string":"NEW_CONTENT"}`
-	sm := approvalStateManager(approvalStateWith("Edit", args))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(80)
-	_ = av.Begin()
-	out := stripANSI(av.Render())
-
-	if !strings.Contains(out, "/x/y.txt") {
-		t.Errorf("expected the diff preview to show the file path, got:\n%s", out)
-	}
-	if !strings.Contains(out, "NEW_CONTENT") {
-		t.Errorf("expected the diff preview to show the new content, got:\n%s", out)
-	}
-	if strings.Contains(out, "Edit(") {
-		t.Errorf("expected a diff preview, not the one-liner summary, got:\n%s", out)
-	}
-}
-
-// TestApprovalBox_CapsLongDiffWithHint asserts a large edit is height-capped (so it
-// cannot push the conversation/input off-screen) and that the omitted tail is
-// summarised with a "more lines" hint.
-func TestApprovalBox_CapsLongDiffWithHint(t *testing.T) {
-	var b strings.Builder
-	for i := 0; i < 80; i++ {
-		fmt.Fprintf(&b, "LINE_%02d\n", i)
-	}
-	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, b.String())
-
-	sm := approvalStateManager(approvalStateWith("Edit", args))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(80)
-	av.SetHeight(24) // previewLineLimit -> 12
-
-	_ = av.Begin()
-	out := stripANSI(av.Render())
-
-	if !strings.Contains(out, "more lines") {
-		t.Errorf("expected a truncation hint for a long diff, got:\n%s", out)
-	}
-	if strings.Contains(out, "LINE_79") {
-		t.Errorf("expected the tail of a long diff to be capped away, but LINE_79 is present:\n%s", out)
-	}
 }
 
 // TestApprovalBox_ExpandScrollsToDiffTail asserts ctrl+o (ToggleExpanded) opens a
@@ -310,25 +273,6 @@ func TestApprovalBox_IsActiveFalseAfterExternalClear(t *testing.T) {
 	}
 }
 
-// TestApprovalBox_DiffToolIgnoresFormatter asserts the diff path does not depend on
-// the tool formatter (a nil formatter still yields a diff, not the name fallback).
-func TestApprovalBox_DiffToolIgnoresFormatter(t *testing.T) {
-	args := `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`
-	sm := approvalStateManager(approvalStateWith("Edit", args))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, nil)
-	av.SetWidth(80)
-	_ = av.Begin()
-	out := stripANSI(av.Render())
-
-	if strings.Contains(out, "Edit(") {
-		t.Errorf("expected a diff even with a nil formatter, got summary:\n%s", out)
-	}
-	if !strings.Contains(out, "/x/y.txt") {
-		t.Errorf("expected the diff preview to render the file path, got:\n%s", out)
-	}
-}
-
 // contextSnippet is a 9-line block with a single changed middle line, so a diff
 // renders one hunk whose context width (2 vs 3 lines) is observable: at 2 lines
 // only charlie/delta and foxtrot/golf survive; at 3 lines bravo/hotel show too.
@@ -337,51 +281,96 @@ const (
 	newContextSnippet = "alpha\nbravo\ncharlie\ndelta\necho_NEW\nfoxtrot\ngolf\nhotel\nindia"
 )
 
-// TestApprovalBox_EditDiffUsesTwoContextLines asserts the snippet-fallback path
-// (the target file does not exist, so old_string/new_string are diffed directly)
-// is tightened to 2 context lines: the 2 nearest unchanged lines on each side
-// remain while the 3rd-out lines (and beyond) are trimmed.
-func TestApprovalBox_EditDiffUsesTwoContextLines(t *testing.T) {
-	args := fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet)
-
-	sm := approvalStateManager(approvalStateWith("Edit", args))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(120)
-	av.SetHeight(60)
-	_ = av.Begin()
-	out := stripANSI(av.Render())
-
-	for _, want := range []string{"charlie", "delta", "foxtrot", "golf", "echo_NEW"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("expected the Edit approval diff to keep 2 context lines incl %q:\n%s", want, out)
-		}
+// TestApprovalBox_DiffRendering covers the diff-preview path for file-mutating
+// tools: diff instead of summary, formatter independence, context-line widths,
+// and the height cap with its "more lines" hint.
+func TestApprovalBox_DiffRendering(t *testing.T) {
+	var longNew strings.Builder
+	for i := 0; i < 80; i++ {
+		fmt.Fprintf(&longNew, "LINE_%02d\n", i)
 	}
-	for _, absent := range []string{"bravo", "hotel", "alpha", "india"} {
-		if strings.Contains(out, absent) {
-			t.Fatalf("expected the Edit approval diff to trim context beyond 2 lines, but %q is present:\n%s", absent, out)
-		}
+
+	cases := []struct {
+		name         string
+		toolName     string
+		arguments    string
+		nilFormatter bool
+		width        int
+		height       int
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "renders edit diff",
+			toolName:     "Edit",
+			arguments:    `{"file_path":"/x/y.txt","old_string":"OLD_CONTENT","new_string":"NEW_CONTENT"}`,
+			width:        80,
+			wantContains: []string{"/x/y.txt", "NEW_CONTENT"},
+			wantAbsent:   []string{"Edit("},
+		},
+		{
+			name:         "diff tool ignores formatter",
+			toolName:     "Edit",
+			arguments:    `{"file_path":"/x/y.txt","old_string":"OLD","new_string":"NEW"}`,
+			nilFormatter: true,
+			width:        80,
+			wantContains: []string{"/x/y.txt"},
+			wantAbsent:   []string{"Edit("},
+		},
+		{
+			name:         "edit diff uses two context lines",
+			toolName:     "Edit",
+			arguments:    fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":%q,"new_string":%q}`, oldContextSnippet, newContextSnippet),
+			width:        120,
+			height:       60,
+			wantContains: []string{"charlie", "delta", "foxtrot", "golf", "echo_NEW"},
+			wantAbsent:   []string{"bravo", "hotel", "alpha", "india"},
+		},
+		{
+			name:         "multiedit keeps three context lines",
+			toolName:     "MultiEdit",
+			arguments:    fmt.Sprintf(`{"file_path":"/x/y.txt","edits":[{"old_string":%q,"new_string":%q}]}`, oldContextSnippet, newContextSnippet),
+			width:        120,
+			height:       60,
+			wantContains: []string{"bravo", "hotel", "echo_NEW"},
+		},
+		{
+			name:         "caps long diff with hint",
+			toolName:     "Edit",
+			arguments:    fmt.Sprintf(`{"file_path":"/x/y.txt","old_string":"","new_string":%q}`, longNew.String()),
+			width:        80,
+			height:       24,
+			wantContains: []string{"more lines"},
+			wantAbsent:   []string{"LINE_79"},
+		},
 	}
-}
 
-// TestApprovalBox_MultiEditKeepsThreeContext locks in that only Edit was tightened:
-// the MultiEdit approval preview still renders the default 3 context lines (so the
-// 3rd-out lines bravo/hotel remain visible).
-func TestApprovalBox_MultiEditKeepsThreeContext(t *testing.T) {
-	args := fmt.Sprintf(`{"file_path":"/x/y.txt","edits":[{"old_string":%q,"new_string":%q}]}`, oldContextSnippet, newContextSnippet)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
+			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			if tc.nilFormatter {
+				formatter = nil
+			}
+			av := NewApprovalBoxView(createMockStyleProvider(), sm, formatter)
+			av.SetWidth(tc.width)
+			if tc.height > 0 {
+				av.SetHeight(tc.height)
+			}
+			_ = av.Begin()
+			out := stripANSI(av.Render())
 
-	sm := approvalStateManager(approvalStateWith("MultiEdit", args))
-
-	av := NewApprovalBoxView(createMockStyleProvider(), sm, argsAwareToolFormatter{})
-	av.SetWidth(120)
-	av.SetHeight(60)
-	_ = av.Begin()
-	out := stripANSI(av.Render())
-
-	for _, want := range []string{"bravo", "hotel", "echo_NEW"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("expected the MultiEdit approval diff to keep the default 3 context lines incl %q:\n%s", want, out)
-		}
+			for _, want := range tc.wantContains {
+				if !strings.Contains(out, want) {
+					t.Errorf("expected diff render to contain %q, got:\n%s", want, out)
+				}
+			}
+			for _, absent := range tc.wantAbsent {
+				if strings.Contains(out, absent) {
+					t.Errorf("expected diff render to not contain %q, got:\n%s", absent, out)
+				}
+			}
+		})
 	}
 }
 

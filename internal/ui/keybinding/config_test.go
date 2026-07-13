@@ -2,143 +2,145 @@ package keybinding_test
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 
-// TestConfigOverrides tests that keybinding configuration overrides are applied correctly
-func TestConfigOverrides(t *testing.T) {
-	cfg := config.DefaultConfig()
-
-	cfg.Chat.Keybindings.Enabled = true
-	enabled := true
-	cfg.Chat.Keybindings.Bindings = map[string]config.KeyBindingEntry{
-		"mode_cycle_agent_mode": {
-			Keys:    []string{"ctrl+m"},
-			Enabled: &enabled,
-		},
-	}
-
-	registry := keybinding.NewRegistry(cfg)
-
-	action := registry.GetAction("mode_cycle_agent_mode")
-	if action == nil {
-		t.Fatal("Expected mode_cycle_agent_mode action to exist")
-	}
-
-	if len(action.Binding.Keys()) != 1 || action.Binding.Keys()[0] != "ctrl+m" {
-		t.Errorf("Expected keys to be [ctrl+m], got %v", action.Binding.Keys())
-	}
-
-	if !action.Binding.Enabled() {
-		t.Error("Expected action to be enabled")
-	}
+type configOverrideCase struct {
+	name             string
+	nilConfig        bool
+	enabled          bool
+	bindings         map[string]config.KeyBindingEntry
+	action           string
+	wantNil          bool
+	wantKeys         []string
+	wantNonEmptyKeys bool
+	wantEnabled      *bool
+	wantKeyContains  string
 }
 
-// TestConfigDisableAction tests that actions can be disabled via config
-func TestConfigDisableAction(t *testing.T) {
-	cfg := config.DefaultConfig()
+func assertConfigOverride(t *testing.T, action *keybinding.KeyAction, tc configOverrideCase) {
+	t.Helper()
 
-	disabled := false
-	cfg.Chat.Keybindings.Enabled = true
-	cfg.Chat.Keybindings.Bindings = map[string]config.KeyBindingEntry{
-		"tools_toggle_tool_expansion": {
-			Keys:    []string{"ctrl+o"},
-			Enabled: &disabled,
-		},
-	}
-
-	registry := keybinding.NewRegistry(cfg)
-
-	action := registry.GetAction("tools_toggle_tool_expansion")
-	if action == nil {
-		t.Fatal("Expected tools_toggle_tool_expansion action to exist")
-	}
-
-	if action.Binding.Enabled() {
-		t.Error("Expected action to be disabled")
-	}
-}
-
-// TestConfigMultipleKeys tests that multiple keys can be assigned to one action
-func TestConfigMultipleKeys(t *testing.T) {
-	cfg := config.DefaultConfig()
-
-	enabled := true
-	cfg.Chat.Keybindings.Enabled = true
-	cfg.Chat.Keybindings.Bindings = map[string]config.KeyBindingEntry{
-		"chat_enter_key_handler": {
-			Keys:    []string{"ctrl+enter", "enter"},
-			Enabled: &enabled,
-		},
-	}
-
-	registry := keybinding.NewRegistry(cfg)
-
-	action := registry.GetAction("chat_enter_key_handler")
-	if action == nil {
-		t.Fatal("Expected chat_enter_key_handler action to exist")
-	}
-
-	if len(action.Binding.Keys()) != 2 {
-		t.Errorf("Expected 2 keys, got %d", len(action.Binding.Keys()))
-	}
-
-	expectedKeys := map[string]bool{"ctrl+enter": true, "enter": true}
-	for _, key := range action.Binding.Keys() {
-		if !expectedKeys[key] {
-			t.Errorf("Unexpected key: %s", key)
+	if tc.wantKeys != nil {
+		keys := action.Binding.Keys()
+		if len(keys) != len(tc.wantKeys) {
+			t.Errorf("Expected %d keys, got %d", len(tc.wantKeys), len(keys))
+		}
+		expectedKeys := make(map[string]bool, len(tc.wantKeys))
+		for _, key := range tc.wantKeys {
+			expectedKeys[key] = true
+		}
+		for _, key := range keys {
+			if !expectedKeys[key] {
+				t.Errorf("Unexpected key: %s", key)
+			}
 		}
 	}
-}
-
-// TestConfigWithoutOverrides tests that registry works without custom bindings
-func TestConfigWithoutOverrides(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Chat.Keybindings.Enabled = false
-
-	registry := keybinding.NewRegistry(cfg)
-
-	action := registry.GetAction("global_quit")
-	if action == nil {
-		t.Fatal("Expected global_quit action to exist even without custom bindings")
-	}
-
-	if len(action.Binding.Keys()) == 0 {
+	if tc.wantNonEmptyKeys && len(action.Binding.Keys()) == 0 {
 		t.Error("Expected default keys to be present")
 	}
+	if tc.wantEnabled != nil && action.Binding.Enabled() != *tc.wantEnabled {
+		t.Errorf("Expected enabled=%v, got %v", *tc.wantEnabled, action.Binding.Enabled())
+	}
+	if tc.wantKeyContains != "" && !slices.Contains(action.Binding.Keys(), tc.wantKeyContains) {
+		t.Error("Expected config key to be applied without runtime validation")
+	}
 }
 
-// TestConfigUnknownActionIgnored tests that unknown action IDs are ignored
-func TestConfigUnknownActionIgnored(t *testing.T) {
-	cfg := config.DefaultConfig()
+// TestConfigOverrides tests how keybinding configuration is applied to the registry
+func TestConfigOverrides(t *testing.T) {
+	on, off := true, false
 
-	enabled := true
-	cfg.Chat.Keybindings.Enabled = true
-	cfg.Chat.Keybindings.Bindings = map[string]config.KeyBindingEntry{
-		"nonexistent_action": {
-			Keys:    []string{"ctrl+z"},
-			Enabled: &enabled,
+	tests := []configOverrideCase{
+		{
+			name:    "override replaces keys and keeps action enabled",
+			enabled: true,
+			bindings: map[string]config.KeyBindingEntry{
+				"mode_cycle_agent_mode": {Keys: []string{"ctrl+m"}, Enabled: &on},
+			},
+			action:      "mode_cycle_agent_mode",
+			wantKeys:    []string{"ctrl+m"},
+			wantEnabled: &on,
+		},
+		{
+			name:    "action disabled via config",
+			enabled: true,
+			bindings: map[string]config.KeyBindingEntry{
+				"tools_toggle_tool_expansion": {Keys: []string{"ctrl+o"}, Enabled: &off},
+			},
+			action:      "tools_toggle_tool_expansion",
+			wantEnabled: &off,
+		},
+		{
+			name:    "multiple keys assigned to one action",
+			enabled: true,
+			bindings: map[string]config.KeyBindingEntry{
+				"chat_enter_key_handler": {Keys: []string{"ctrl+enter", "enter"}, Enabled: &on},
+			},
+			action:   "chat_enter_key_handler",
+			wantKeys: []string{"ctrl+enter", "enter"},
+		},
+		{
+			name:             "defaults kept when overrides disabled",
+			enabled:          false,
+			action:           "global_quit",
+			wantNonEmptyKeys: true,
+		},
+		{
+			name:    "unknown action id ignored",
+			enabled: true,
+			bindings: map[string]config.KeyBindingEntry{
+				"nonexistent_action": {Keys: []string{"ctrl+z"}, Enabled: &on},
+			},
+			action:  "nonexistent_action",
+			wantNil: true,
+		},
+		{
+			name:      "nil config falls back to defaults",
+			nilConfig: true,
+			action:    "global_quit",
+		},
+		{
+			name:    "conflicting key applied without runtime validation",
+			enabled: true,
+			bindings: map[string]config.KeyBindingEntry{
+				"mode_cycle_agent_mode": {Keys: []string{"ctrl+c"}, Enabled: &on},
+			},
+			action:          "mode_cycle_agent_mode",
+			wantKeyContains: "ctrl+c",
 		},
 	}
 
-	registry := keybinding.NewRegistry(cfg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg *config.Config
+			if !tt.nilConfig {
+				cfg = config.DefaultConfig()
+				cfg.Chat.Keybindings.Enabled = tt.enabled
+				if tt.bindings != nil {
+					cfg.Chat.Keybindings.Bindings = tt.bindings
+				}
+			}
 
-	action := registry.GetAction("nonexistent_action")
-	if action != nil {
-		t.Error("Expected unknown action to be ignored, not registered")
-	}
-}
+			registry := keybinding.NewRegistry(cfg)
+			action := registry.GetAction(tt.action)
 
-// TestConfigNilSafe tests that nil config is handled safely
-func TestConfigNilSafe(t *testing.T) {
-	registry := keybinding.NewRegistry(nil)
+			if tt.wantNil {
+				if action != nil {
+					t.Error("Expected unknown action to be ignored, not registered")
+				}
+				return
+			}
+			if action == nil {
+				t.Fatalf("Expected %s action to exist", tt.action)
+			}
 
-	action := registry.GetAction("global_quit")
-	if action == nil {
-		t.Fatal("Expected default bindings to work with nil config")
+			assertConfigOverride(t, action, tt)
+		})
 	}
 }
 
@@ -180,38 +182,5 @@ func TestKeybindingsExcludedFromMainConfigYAML(t *testing.T) {
 	}
 	if got := field.Tag.Get("mapstructure"); got != "-" {
 		t.Errorf("Expected mapstructure tag '-', got %q (viper would unmarshal into the field)", got)
-	}
-}
-
-// TestConfigNoRuntimeValidation tests that conflicts are allowed at runtime (last wins)
-func TestConfigNoRuntimeValidation(t *testing.T) {
-	cfg := config.DefaultConfig()
-
-	enabled := true
-	cfg.Chat.Keybindings.Enabled = true
-	cfg.Chat.Keybindings.Bindings = map[string]config.KeyBindingEntry{
-		"mode_cycle_agent_mode": {
-			Keys:    []string{"ctrl+c"},
-			Enabled: &enabled,
-		},
-	}
-
-	registry := keybinding.NewRegistry(cfg)
-
-	action := registry.GetAction("mode_cycle_agent_mode")
-	if action == nil {
-		t.Fatal("Expected mode_cycle_agent_mode action to exist")
-	}
-
-	hasConfigKey := false
-	for _, key := range action.Binding.Keys() {
-		if key == "ctrl+c" {
-			hasConfigKey = true
-			break
-		}
-	}
-
-	if !hasConfigKey {
-		t.Error("Expected config key to be applied without runtime validation")
 	}
 }

@@ -45,99 +45,128 @@ func newTestContext(currentView domain.ViewState, inputText string) *keybindingm
 	return fake
 }
 
-func TestRegistryCreation(t *testing.T) {
-	registry := keybinding.NewRegistry(nil)
-	if registry == nil {
-		t.Fatal("Expected registry to be created")
+func TestActiveActionMembership(t *testing.T) {
+	tests := []struct {
+		name        string
+		view        domain.ViewState
+		inputText   string
+		actionID    string
+		wantPresent bool
+	}{
+		{
+			name:        "global quit registered in chat view",
+			view:        domain.ViewStateChat,
+			inputText:   "test message",
+			actionID:    "global_quit",
+			wantPresent: true,
+		},
+		{
+			name:        "tool expansion toggle registered in chat view",
+			view:        domain.ViewStateChat,
+			inputText:   "test message",
+			actionID:    "tools_toggle_tool_expansion",
+			wantPresent: true,
+		},
+		{
+			name:        "tool expansion toggle filtered out in model selection view",
+			view:        domain.ViewStateModelSelection,
+			inputText:   "",
+			actionID:    "tools_toggle_tool_expansion",
+			wantPresent: false,
+		},
 	}
 
-	mockContext := newTestContext(domain.ViewStateChat, "test message")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := keybinding.NewRegistry(nil)
+			if registry == nil {
+				t.Fatal("Expected registry to be created")
+			}
 
-	actions := registry.GetActiveActions(mockContext)
+			mockContext := newTestContext(tt.view, tt.inputText)
+			actions := registry.GetActiveActions(mockContext)
+			if tt.wantPresent && len(actions) == 0 {
+				t.Fatal("Expected default actions to be registered")
+			}
 
-	if len(actions) == 0 {
-		t.Fatal("Expected default actions to be registered")
-	}
-
-	foundQuit := false
-	foundToggle := false
-	for _, action := range actions {
-		switch action.ID {
-		case "global_quit":
-			foundQuit = true
-		case "tools_toggle_tool_expansion":
-			foundToggle = true
-		}
-	}
-
-	if !foundQuit {
-		t.Error("Expected 'global_quit' action to be registered")
-	}
-	if !foundToggle {
-		t.Error("Expected 'tools_toggle_tool_expansion' action to be registered")
+			present := false
+			for _, action := range actions {
+				if action.ID == tt.actionID {
+					present = true
+					break
+				}
+			}
+			if present != tt.wantPresent {
+				t.Errorf("Expected %s present=%v in view %v, got %v", tt.actionID, tt.wantPresent, tt.view, present)
+			}
+		})
 	}
 }
 
 func TestKeyResolution(t *testing.T) {
-	registry := keybinding.NewRegistry(nil)
-	mockContext := newTestContext(domain.ViewStateChat, "test message")
-
-	action := registry.ResolveKey("ctrl+c", mockContext)
-	if action == nil {
-		t.Fatal("Expected ctrl+c to resolve to an action")
-	} else if action.ID != "global_quit" {
-		t.Errorf("Expected ctrl+c to resolve to 'global_quit', got %s", action.ID)
+	tests := []struct {
+		name      string
+		inputText string
+		key       string
+		wantID    string
+	}{
+		{
+			name:      "ctrl+c resolves to global quit",
+			inputText: "test message",
+			key:       "ctrl+c",
+			wantID:    "global_quit",
+		},
+		{
+			name:      "ctrl+o resolves to tool expansion toggle",
+			inputText: "test message",
+			key:       "ctrl+o",
+			wantID:    "tools_toggle_tool_expansion",
+		},
+		{
+			name:      "ctrl+r resolves to raw format toggle",
+			inputText: "test message",
+			key:       "ctrl+r",
+			wantID:    "display_toggle_raw_format",
+		},
+		{
+			name:      "ctrl+z resolves to no action",
+			inputText: "test message",
+			key:       "ctrl+z",
+			wantID:    "",
+		},
+		{
+			name:      "enter resolves to enter handler when input is empty",
+			inputText: "",
+			key:       "enter",
+			wantID:    "chat_enter_key_handler",
+		},
+		{
+			name:      "enter resolves to enter handler when input has content",
+			inputText: "hello",
+			key:       "enter",
+			wantID:    "chat_enter_key_handler",
+		},
 	}
 
-	action = registry.ResolveKey("ctrl+o", mockContext)
-	if action == nil {
-		t.Fatal("Expected ctrl+o to resolve to an action")
-	} else if action.ID != "tools_toggle_tool_expansion" {
-		t.Errorf("Expected ctrl+o to resolve to 'tools_toggle_tool_expansion', got %s", action.ID)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := keybinding.NewRegistry(nil)
+			mockContext := newTestContext(domain.ViewStateChat, tt.inputText)
 
-	action = registry.ResolveKey("ctrl+r", mockContext)
-	if action == nil {
-		t.Fatal("Expected ctrl+r to resolve to an action")
-	} else if action.ID != "display_toggle_raw_format" {
-		t.Errorf("Expected ctrl+r to resolve to 'display_toggle_raw_format', got %s", action.ID)
-	}
-
-	action = registry.ResolveKey("ctrl+z", mockContext)
-	if action != nil {
-		t.Errorf("Expected ctrl+z to not resolve to any action, got %s", action.ID)
-	}
-}
-
-func TestViewContextFiltering(t *testing.T) {
-	registry := keybinding.NewRegistry(nil)
-
-	chatContext := newTestContext(domain.ViewStateChat, "test message")
-
-	chatActions := registry.GetActiveActions(chatContext)
-	hasToggleAction := false
-	for _, action := range chatActions {
-		if action.ID == "tools_toggle_tool_expansion" {
-			hasToggleAction = true
-			break
-		}
-	}
-	if !hasToggleAction {
-		t.Error("Expected tools_toggle_tool_expansion to be available in chat view")
-	}
-
-	modelContext := newTestContext(domain.ViewStateModelSelection, "")
-
-	modelActions := registry.GetActiveActions(modelContext)
-	hasToggleActionInModel := false
-	for _, action := range modelActions {
-		if action.ID == "tools_toggle_tool_expansion" {
-			hasToggleActionInModel = true
-			break
-		}
-	}
-	if hasToggleActionInModel {
-		t.Error("Expected tools_toggle_tool_expansion to NOT be available in model selection view")
+			action := registry.ResolveKey(tt.key, mockContext)
+			if tt.wantID == "" {
+				if action != nil {
+					t.Errorf("Expected %s to not resolve to any action, got %s", tt.key, action.ID)
+				}
+				return
+			}
+			if action == nil {
+				t.Fatalf("Expected %s to resolve to an action", tt.key)
+			}
+			if action.ID != tt.wantID {
+				t.Errorf("Expected %s to resolve to '%s', got %s", tt.key, tt.wantID, action.ID)
+			}
+		})
 	}
 }
 
@@ -177,49 +206,24 @@ func TestHelpShortcutGeneration(t *testing.T) {
 		t.Fatal("Expected help shortcuts to be generated")
 	}
 
-	foundQuit := false
-	foundToggle := false
-	foundRaw := false
-	for _, shortcut := range shortcuts {
-		if shortcut.Key == "ctrl+c" && shortcut.Description == "exit application" {
-			foundQuit = true
-		}
-		if shortcut.Key == "ctrl+o" && shortcut.Description == "expand/collapse tool results" {
-			foundToggle = true
-		}
-		if shortcut.Key == "ctrl+r" && shortcut.Description == "toggle raw/rendered markdown" {
-			foundRaw = true
-		}
+	expected := []struct {
+		key         string
+		description string
+	}{
+		{key: "ctrl+c", description: "exit application"},
+		{key: "ctrl+o", description: "expand/collapse tool results"},
+		{key: "ctrl+r", description: "toggle raw/rendered markdown"},
 	}
 
-	if !foundQuit {
-		t.Error("Expected quit shortcut in help")
-	}
-	if !foundToggle {
-		t.Error("Expected toggle shortcut in help")
-	}
-	if !foundRaw {
-		t.Error("Expected raw format shortcut in help (ctrl+r)")
-	}
-}
-
-func TestConditionalKeyBindings(t *testing.T) {
-	registry := keybinding.NewRegistry(nil)
-
-	emptyInputContext := newTestContext(domain.ViewStateChat, "")
-	action := registry.ResolveKey("enter", emptyInputContext)
-	if action == nil {
-		t.Fatal("Expected enter key to resolve to chat_enter_key_handler even when input is empty")
-	} else if action.ID != "chat_enter_key_handler" {
-		t.Errorf("Expected enter to resolve to 'chat_enter_key_handler', got %s", action.ID)
-	}
-
-	nonEmptyInputContext := newTestContext(domain.ViewStateChat, "hello")
-	action = registry.ResolveKey("enter", nonEmptyInputContext)
-	if action == nil {
-		t.Fatal("Expected enter key to resolve to chat_enter_key_handler when input has content")
-	} else if action.ID != "chat_enter_key_handler" {
-		t.Errorf("Expected enter to resolve to 'chat_enter_key_handler', got %s", action.ID)
+	for _, want := range expected {
+		t.Run(want.key, func(t *testing.T) {
+			for _, shortcut := range shortcuts {
+				if shortcut.Key == want.key && shortcut.Description == want.description {
+					return
+				}
+			}
+			t.Errorf("Expected shortcut %q (%s) in help", want.key, want.description)
+		})
 	}
 }
 

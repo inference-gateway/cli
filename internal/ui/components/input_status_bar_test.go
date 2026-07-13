@@ -557,37 +557,41 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 	}
 }
 
-func TestInputStatusBar_BuildSessionTokensIndicator_FallsBackToEstimator(t *testing.T) {
-	mockRepo := &domainmocks.FakeConversationRepository{}
-	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
-	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
-		{Message: sdk.Message{Role: sdk.User}},
-	})
-
-	statusBar := &InputStatusBar{
-		conversationRepo: mockRepo,
-		tokenEstimator:   &stubTokenEstimator{estimate: 6643},
+func TestInputStatusBar_FallsBackToEstimator(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(*InputStatusBar) string
+		want string
+	}{
+		{
+			name: "session tokens indicator uses estimate",
+			call: func(sb *InputStatusBar) string { return sb.buildSessionTokensIndicator() },
+			want: "T.6643",
+		},
+		{
+			name: "context usage indicator uses estimate",
+			call: func(sb *InputStatusBar) string { return sb.getContextUsageIndicator("deepseek/deepseek-v4-flash") },
+			want: "Context: 0.7%",
+		},
 	}
 
-	if got := statusBar.buildSessionTokensIndicator(); got != "T.6643" {
-		t.Errorf("expected fallback estimate T.6643, got: %s", got)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &domainmocks.FakeConversationRepository{}
+			mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
+			mockRepo.GetMessagesReturns([]domain.ConversationEntry{
+				{Message: sdk.Message{Role: sdk.User}},
+			})
 
-func TestInputStatusBar_GetContextUsageIndicator_FallsBackToEstimator(t *testing.T) {
-	mockRepo := &domainmocks.FakeConversationRepository{}
-	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
-	mockRepo.GetMessagesReturns([]domain.ConversationEntry{
-		{Message: sdk.Message{Role: sdk.User}},
-	})
+			statusBar := &InputStatusBar{
+				conversationRepo: mockRepo,
+				tokenEstimator:   &stubTokenEstimator{estimate: 6643},
+			}
 
-	statusBar := &InputStatusBar{
-		conversationRepo: mockRepo,
-		tokenEstimator:   &stubTokenEstimator{estimate: 6643},
-	}
-
-	if got := statusBar.getContextUsageIndicator("deepseek/deepseek-v4-flash"); got != "Context: 0.7%" {
-		t.Errorf("expected fallback estimator percentage, got: %s", got)
+			if got := tt.call(statusBar); got != tt.want {
+				t.Errorf("expected fallback estimate %s, got: %s", tt.want, got)
+			}
+		})
 	}
 }
 
@@ -624,35 +628,6 @@ func TestInputStatusBar_ShouldShowIndicator_SessionTokens(t *testing.T) {
 				t.Errorf("Expected %v but got %v", tt.expected, result)
 			}
 		})
-	}
-}
-
-func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Agent.MaxTokens = 8000
-	cfg.Chat.StatusBar.Indicators.SessionTokens = true
-
-	mockRepo := &domainmocks.FakeConversationRepository{}
-	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
-		TotalInputTokens: 1234,
-	})
-
-	themeService := &domainmocks.FakeThemeService{}
-	themeService.GetCurrentThemeNameReturns("tokyo-night")
-
-	statusBar := &InputStatusBar{
-		config:           cfg,
-		themeService:     themeService,
-		conversationRepo: mockRepo,
-	}
-
-	result := statusBar.buildModelDisplayText("test-model")
-
-	if result == "" {
-		t.Error("Expected non-empty output when indicators are enabled")
-	}
-	if !strings.Contains(result, "T.1234") {
-		t.Errorf("Expected output to contain 'T.1234', got: %s", result)
 	}
 }
 
@@ -693,48 +668,84 @@ func TestInputStatusBar_ShouldShowIndicator_GitBranch(t *testing.T) {
 }
 
 func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.Model = false
-	cfg.Chat.StatusBar.Indicators.Theme = false
-	cfg.Chat.StatusBar.Indicators.MaxOutput = false
-	cfg.Chat.StatusBar.Indicators.A2AAgents = false
-	cfg.Chat.StatusBar.Indicators.Tools = false
-	cfg.Chat.StatusBar.Indicators.BackgroundShells = false
-	cfg.Chat.StatusBar.Indicators.MCP = false
-	cfg.Chat.StatusBar.Indicators.ContextUsage = false
-	cfg.Chat.StatusBar.Indicators.SessionTokens = false
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	tests := []struct {
+		name         string
+		setup        func(t *testing.T) *InputStatusBar
+		wantEmpty    bool
+		wantContains string
+	}{
+		{
+			name: "all indicators disabled yields empty",
+			setup: func(t *testing.T) *InputStatusBar {
+				cfg := config.DefaultConfig()
+				cfg.Chat.StatusBar.Indicators.Model = false
+				cfg.Chat.StatusBar.Indicators.Theme = false
+				cfg.Chat.StatusBar.Indicators.MaxOutput = false
+				cfg.Chat.StatusBar.Indicators.A2AAgents = false
+				cfg.Chat.StatusBar.Indicators.Tools = false
+				cfg.Chat.StatusBar.Indicators.BackgroundShells = false
+				cfg.Chat.StatusBar.Indicators.MCP = false
+				cfg.Chat.StatusBar.Indicators.ContextUsage = false
+				cfg.Chat.StatusBar.Indicators.SessionTokens = false
+				cfg.Chat.StatusBar.Indicators.GitBranch = false
 
-	statusBar := &InputStatusBar{
-		config: cfg,
+				return &InputStatusBar{config: cfg}
+			},
+			wantEmpty: true,
+		},
+		{
+			name: "all enabled contains model information",
+			setup: func(t *testing.T) *InputStatusBar {
+				cfg := config.DefaultConfig()
+				cfg.Agent.MaxTokens = 8000
+
+				themeService := &domainmocks.FakeThemeService{}
+				themeService.GetCurrentThemeNameReturns("tokyo-night")
+
+				return &InputStatusBar{config: cfg, themeService: themeService}
+			},
+			wantContains: "test-model",
+		},
+		{
+			name: "session tokens indicator included when enabled",
+			setup: func(t *testing.T) *InputStatusBar {
+				cfg := config.DefaultConfig()
+				cfg.Agent.MaxTokens = 8000
+				cfg.Chat.StatusBar.Indicators.SessionTokens = true
+
+				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
+					TotalInputTokens: 1234,
+				})
+
+				themeService := &domainmocks.FakeThemeService{}
+				themeService.GetCurrentThemeNameReturns("tokyo-night")
+
+				return &InputStatusBar{config: cfg, themeService: themeService, conversationRepo: mockRepo}
+			},
+			wantContains: "T.1234",
+		},
 	}
 
-	result := statusBar.buildModelDisplayText("test-model")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusBar := tt.setup(t)
 
-	if result != "" {
-		t.Errorf("Expected empty string when all indicators disabled, got: %s", result)
-	}
-}
+			result := statusBar.buildModelDisplayText("test-model")
 
-func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Agent.MaxTokens = 8000
-
-	themeService := &domainmocks.FakeThemeService{}
-	themeService.GetCurrentThemeNameReturns("tokyo-night")
-
-	statusBar := &InputStatusBar{
-		config:       cfg,
-		themeService: themeService,
-	}
-
-	result := statusBar.buildModelDisplayText("test-model")
-
-	if result == "" {
-		t.Error("Expected non-empty output when indicators are enabled")
-	}
-	if !strings.Contains(result, "test-model") {
-		t.Error("Expected output to contain model information")
+			if tt.wantEmpty {
+				if result != "" {
+					t.Errorf("Expected empty string when all indicators disabled, got: %s", result)
+				}
+				return
+			}
+			if result == "" {
+				t.Error("Expected non-empty output when indicators are enabled")
+			}
+			if !strings.Contains(result, tt.wantContains) {
+				t.Errorf("Expected output to contain '%s', got: %s", tt.wantContains, result)
+			}
+		})
 	}
 }
 
