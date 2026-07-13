@@ -5,7 +5,6 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/inference-gateway/cli?style=flat-square&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/inference-gateway/cli/ci.yml?style=flat-square&logo=github)](https://github.com/inference-gateway/cli/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/inference-gateway/cli?style=flat-square)](https://goreportcard.com/report/github.com/inference-gateway/cli)
 [![Release](https://img.shields.io/github/v/release/inference-gateway/cli?style=flat-square&logo=github)](https://github.com/inference-gateway/cli/releases)
 
 An agentic command-line assistant that writes code, understands project context, and uses tools to perform real tasks.
