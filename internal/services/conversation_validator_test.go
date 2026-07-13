@@ -39,6 +39,31 @@ func userMsg(content string) sdk.Message {
 	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}
 }
 
+func checkSynthetics(t *testing.T, synthetics []services.SyntheticToolResponse, wantSynthCount int, wantSynthIDs []string) {
+	t.Helper()
+	if wantSynthCount > 0 {
+		if len(synthetics) != wantSynthCount {
+			t.Fatalf("expected %d synthetics, got %d", wantSynthCount, len(synthetics))
+		}
+		return
+	}
+	if wantSynthIDs != nil {
+		if len(synthetics) != len(wantSynthIDs) {
+			t.Fatalf("expected %d synthetics, got %d", len(wantSynthIDs), len(synthetics))
+		}
+		for i, id := range wantSynthIDs {
+			if synthetics[i].ToolCallID != id {
+				t.Errorf("synthetics[%d].ToolCallID = %s, want %s", i, synthetics[i].ToolCallID, id)
+			}
+		}
+		return
+	}
+	if len(synthetics) != 0 {
+		t.Errorf("expected no synthetics, got %d", len(synthetics))
+	}
+}
+
+//nolint:gocyclo,cyclop
 func TestEnsureToolCallsClosed(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -236,24 +261,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repaired, synthetics := services.EnsureToolCallsClosed(tt.conv)
 
-			if tt.wantSynthCount > 0 {
-				if len(synthetics) != tt.wantSynthCount {
-					t.Fatalf("expected %d synthetics, got %d", tt.wantSynthCount, len(synthetics))
-				}
-			} else if tt.wantSynthIDs != nil {
-				if len(synthetics) != len(tt.wantSynthIDs) {
-					t.Fatalf("expected %d synthetics, got %d", len(tt.wantSynthIDs), len(synthetics))
-				}
-				for i, id := range tt.wantSynthIDs {
-					if synthetics[i].ToolCallID != id {
-						t.Errorf("synthetics[%d].ToolCallID = %s, want %s", i, synthetics[i].ToolCallID, id)
-					}
-				}
-			} else {
-				if len(synthetics) != 0 {
-					t.Errorf("expected no synthetics, got %d", len(synthetics))
-				}
-			}
+			checkSynthetics(t, synthetics, tt.wantSynthCount, tt.wantSynthIDs)
 
 			if tt.wantLen > 0 && len(repaired) != tt.wantLen {
 				t.Errorf("expected len %d, got %d", tt.wantLen, len(repaired))
