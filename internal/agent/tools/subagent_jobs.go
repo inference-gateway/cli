@@ -21,10 +21,7 @@ type headlessSubagentJob struct {
 	state     *domain.SubagentState
 	runCtx    context.Context
 	cancelRun context.CancelFunc
-
-	// output is the subagent's final result message, stored after Run completes
-	// so the supervisor can surface it in the /tasks detail panel.
-	output string
+	output    string
 }
 
 // Meta describes the subagent for the task view.

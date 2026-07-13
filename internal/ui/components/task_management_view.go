@@ -932,8 +932,6 @@ func (t *TaskManagerImpl) renderJobOutput(content *strings.Builder, task TaskInf
 
 	textWidth := max(t.infoViewport.Width()-4, 40)
 
-	// Bound the output to prevent a chatty shell from blowing up the panel.
-	// Show at most the last 10KB of output.
 	const maxOutputBytes = 10 * 1024
 	output := task.Output
 	if len(output) > maxOutputBytes {
