@@ -1,18 +1,24 @@
-// Package telemetry records the CLI's OpenTelemetry metrics - tool outcomes,
-// token usage, and sessions - and exports them, with room to grow into traces
-// and logs later (hence "telemetry", not "metrics").
+// Package telemetry records the CLI's OpenTelemetry signals - metrics, traces,
+// and logs - and exports them. Named "telemetry" (not "metrics") to cover all
+// three OTel signals.
 //
-// There is one instrumentation path: events are recorded into OpenTelemetry SDK
+// Metrics: tool outcomes, token usage, and sessions. Recorded into OTel SDK
 // instruments named per the GenAI semantic conventions and infer-action's
 // exporter, so they line up with the gateway's OTLP ingest and existing
-// dashboards. The recorded data is then written by OTel exporters, unchanged:
+// dashboards.
 //
-//   - local (always, private): the SDK's stdout exporter appended to a per-session
-//     file under ~/.infer/telemetry/ - OTLP/semconv JSON as-is, no custom format.
-//   - remote (opt-in): the OTLP/HTTP exporter, active only when an endpoint is set.
+// Traces: one root span per session, child spans for each LLM turn and each
+// tool call, so latency and failures attribute to a specific step.
 //
-// Both use delta temporality (what the gateway ingest requires, and what makes
-// the local files trivially summable by `infer stats`).
+// Logs: structured logs emitted through the OTel logs signal, correlated to
+// the active trace/span.
+//
+// All three signals share the same resource and OTLP endpoint/headers config.
+// Local file export is always attempted; OTLP/HTTP export is opt-in via
+// endpoint configuration or OTEL_EXPORTER_OTLP_ENDPOINT.
+//
+// Metrics use delta temporality (what the gateway ingest requires, and what
+// makes the local files trivially summable by `infer stats`).
 package telemetry
 
 import (
@@ -22,13 +28,18 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	attribute "go.opentelemetry.io/otel/attribute"
 	otlpmetrichttp "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	stdoutmetric "go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	metric "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	metricdata "go.opentelemetry.io/otel/sdk/metric/metricdata"
 	resource "go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -79,12 +90,14 @@ type Options struct {
 	Cost         CostFunc
 }
 
-// Recorder maps recorded events onto OTel instruments. A nil *Recorder is a
-// valid no-op, so callers guard hot paths with `if rec != nil` and the container
-// skips wrapping when disabled.
+// Recorder maps recorded events onto OTel instruments and manages the three
+// OTel signals (metrics, traces, logs). A nil *Recorder is a valid no-op, so
+// callers guard hot paths with `if rec != nil` and the container skips wrapping
+// when disabled.
 type Recorder struct {
+	// Meter provider and instruments (metrics)
 	provider *sdkmetric.MeterProvider
-	file     *os.File // local stdout-exporter target; closed on Shutdown
+	file     *os.File // local metric stdout-exporter target; closed on Shutdown
 	cost     CostFunc
 
 	tokenUsage   metric.Int64Histogram   // gen_ai.client.token.usage
@@ -93,6 +106,14 @@ type Recorder struct {
 	runs         metric.Int64Counter     // infer.agent.runs
 	runDuration  metric.Float64Histogram // infer.agent.run.duration
 	costCounter  metric.Float64Counter   // infer.client.cost
+
+	// Tracer provider (traces)
+	tracerProvider *sdktrace.TracerProvider
+	traceFile      *os.File // local trace stdout-exporter target
+
+	// Logger provider (logs)
+	loggerProvider *sdklog.LoggerProvider
+	logFile        *os.File // local log stdout-exporter target
 }
 
 func deltaTemporality(sdkmetric.InstrumentKind) metricdata.Temporality {
@@ -143,7 +164,26 @@ func New(opts Options) *Recorder {
 	}
 	provider := sdkmetric.NewMeterProvider(mpOpts...)
 
-	rec := &Recorder{provider: provider, file: file, cost: opts.Cost}
+	res := newResource()
+	traceProvider, traceFile, _ := newTracerProvider(res, opts.Dir, opts.SessionID, opts.OTLPEndpoint, opts.OTLPHeaders, interval)
+	logProvider, logFile, _ := newLoggerProvider(res, opts.Dir, opts.SessionID, opts.OTLPEndpoint, opts.OTLPHeaders, interval)
+
+	rec := &Recorder{
+		provider:       provider,
+		file:           file,
+		cost:           opts.Cost,
+		tracerProvider: traceProvider,
+		traceFile:      traceFile,
+		loggerProvider: logProvider,
+		logFile:        logFile,
+	}
+
+	// Set the global W3C trace-context propagator so SDK client requests
+	// carry the traceparent header when a span is active.
+	if traceProvider != nil {
+		otel.SetTextMapPropagator(propagation.TraceContext{})
+	}
+
 	if err := rec.initInstruments(provider.Meter("infer-cli")); err != nil {
 		logger.Warn("telemetry: instrument init failed", "error", err)
 		rec.Shutdown(context.Background())
@@ -310,26 +350,55 @@ func (r *Recorder) RecordSession(mode, outcome string, dur time.Duration) {
 // Flush forces an immediate export of everything recorded so far, without
 // tearing down (used by tests and callers that want data on disk now). Safe on nil.
 func (r *Recorder) Flush(ctx context.Context) {
-	if r == nil || r.provider == nil {
+	if r == nil {
 		return
 	}
-	if err := r.provider.ForceFlush(ctx); err != nil {
-		logger.Warn("telemetry: flush failed", "error", err)
+	if r.provider != nil {
+		if err := r.provider.ForceFlush(ctx); err != nil {
+			logger.Warn("telemetry: metric flush failed", "error", err)
+		}
+	}
+	if r.tracerProvider != nil {
+		if err := r.tracerProvider.ForceFlush(ctx); err != nil {
+			logger.Warn("telemetry: trace flush failed", "error", err)
+		}
+	}
+	if r.loggerProvider != nil {
+		if err := r.loggerProvider.ForceFlush(ctx); err != nil {
+			logger.Warn("telemetry: log flush failed", "error", err)
+		}
 	}
 }
 
-// Shutdown flushes the final export and releases resources. Safe on nil.
+// Shutdown flushes the final export and releases resources for all three
+// OTel signals. Safe on nil.
 func (r *Recorder) Shutdown(ctx context.Context) {
 	if r == nil {
 		return
 	}
 	if r.provider != nil {
 		if err := r.provider.Shutdown(ctx); err != nil {
-			logger.Warn("telemetry: shutdown/flush failed", "error", err)
+			logger.Warn("telemetry: metric shutdown failed", "error", err)
+		}
+	}
+	if r.tracerProvider != nil {
+		if err := r.tracerProvider.Shutdown(ctx); err != nil {
+			logger.Warn("telemetry: trace shutdown failed", "error", err)
+		}
+	}
+	if r.loggerProvider != nil {
+		if err := r.loggerProvider.Shutdown(ctx); err != nil {
+			logger.Warn("telemetry: log shutdown failed", "error", err)
 		}
 	}
 	if r.file != nil {
 		_ = r.file.Close()
+	}
+	if r.traceFile != nil {
+		_ = r.traceFile.Close()
+	}
+	if r.logFile != nil {
+		_ = r.logFile.Close()
 	}
 }
 
@@ -340,4 +409,34 @@ func providerFromModel(model string) string {
 		return provider
 	}
 	return "unknown"
+}
+
+// StartLLMTurnSpan creates a child span for an LLM turn with GenAI semconv
+// attributes. Returns a no-op span when the Recorder is nil.
+func (r *Recorder) StartLLMTurnSpan(ctx context.Context, model string) (context.Context, trace.Span) {
+	if r == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	provider := providerFromModel(model)
+	return r.Tracer().Start(ctx, "chat "+model,
+		trace.WithAttributes(
+			attribute.String("gen_ai.request.model", model),
+			attribute.String("gen_ai.provider.name", provider),
+			attribute.String("gen_ai.operation.name", "chat"),
+		),
+	)
+}
+
+// StartSessionSpan creates a root span for an agent session. Returns a no-op
+// span when the Recorder is nil.
+func (r *Recorder) StartSessionSpan(ctx context.Context, mode string) (context.Context, trace.Span) {
+	if r == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return r.Tracer().Start(ctx, "session",
+		trace.WithAttributes(
+			attribute.String("infer.execution.mode", ExecutionMode),
+			attribute.String("infer.agent.mode", mode),
+		),
+	)
 }

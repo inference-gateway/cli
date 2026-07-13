@@ -4,14 +4,18 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // toolService decorates a domain.ToolService, recording one tool metric per
-// ExecuteTool call. It embeds the interface so every other method passes through
-// unchanged - only ExecuteTool is overridden.
+// ExecuteTool call and creating a child span for each tool execution. It
+// embeds the interface so every other method passes through unchanged - only
+// ExecuteTool is overridden.
 type toolService struct {
 	domain.ToolService
 	rec *Recorder
@@ -26,10 +30,40 @@ func NewToolService(inner domain.ToolService, rec *Recorder) domain.ToolService 
 
 func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
+
+	// Create a child span for this tool execution
+	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
+	defer span.End()
+
 	res, err := t.ToolService.ExecuteTool(ctx, tool)
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))
+
+	// Set span attributes based on outcome
+	span.SetAttributes(
+		attribute.String("infer.tool.outcome", outcome),
+	)
+	if errType != "" {
+		span.SetAttributes(attribute.String("error.type", errType))
+	}
+	if err != nil {
+		span.RecordError(err)
+	}
+
 	return res, err
+}
+
+// startToolSpan creates a child span for a tool execution with GenAI semconv attributes.
+func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.Context, trace.Span) {
+	if r == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return r.Tracer().Start(ctx, "execute_tool "+toolName,
+		trace.WithAttributes(
+			attribute.String("gen_ai.tool.name", toolName),
+			attribute.String("gen_ai.tool.type", "function"),
+		),
+	)
 }
 
 // classify maps an execution result to (infer.tool.outcome, error.type). A nil
