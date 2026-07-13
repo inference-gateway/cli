@@ -7,33 +7,115 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func TestSubagentTracker_AddGetRemove(t *testing.T) {
-	tr := NewSubagentTracker()
+func TestSubagentTracker_AddSubagent(t *testing.T) {
+	tests := []struct {
+		name    string
+		preAdd  *domain.SubagentState
+		add     *domain.SubagentState
+		wantErr bool
+	}{
+		{
+			name: "success",
+			add:  &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
+		},
+		{
+			name:    "duplicate ID rejected",
+			preAdd:  &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
+			add:     &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
+			wantErr: true,
+		},
+		{
+			name:    "nil state rejected",
+			add:     nil,
+			wantErr: true,
+		},
+	}
 
-	state := &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning}
-	if err := tr.AddSubagent(state); err != nil {
-		t.Fatalf("AddSubagent: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := NewSubagentTracker()
+			if tt.preAdd != nil {
+				if err := tr.AddSubagent(tt.preAdd); err != nil {
+					t.Fatalf("AddSubagent(preAdd): %v", err)
+				}
+			}
+
+			err := tr.AddSubagent(tt.add)
+
+			if tt.wantErr && err == nil {
+				t.Fatalf("expected AddSubagent to error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("AddSubagent: %v", err)
+			}
+		})
 	}
-	if err := tr.AddSubagent(state); err == nil {
-		t.Fatalf("expected duplicate AddSubagent to error")
+}
+
+func TestSubagentTracker_GetSubagent(t *testing.T) {
+	tests := []struct {
+		name      string
+		getID     string
+		wantNil   bool
+		wantLabel string
+	}{
+		{name: "existing", getID: "a", wantLabel: "one"},
+		{name: "missing", getID: "missing", wantNil: true},
 	}
 
-	if got := tr.GetSubagent("a"); got == nil || got.Label != "one" {
-		t.Fatalf("GetSubagent returned %+v", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := NewSubagentTracker()
+			if err := tr.AddSubagent(&domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning}); err != nil {
+				t.Fatalf("AddSubagent: %v", err)
+			}
+
+			if all := tr.GetAllSubagents(); len(all) != 1 {
+				t.Fatalf("GetAllSubagents len = %d, want 1", len(all))
+			}
+
+			got := tr.GetSubagent(tt.getID)
+
+			if tt.wantNil {
+				if got != nil {
+					t.Fatalf("GetSubagent(%s) = %+v, want nil", tt.getID, got)
+				}
+				return
+			}
+
+			if got == nil || got.Label != tt.wantLabel {
+				t.Fatalf("GetSubagent returned %+v", got)
+			}
+		})
 	}
-	if got := tr.GetSubagent("missing"); got != nil {
-		t.Fatalf("GetSubagent(missing) = %+v, want nil", got)
+}
+
+func TestSubagentTracker_RemoveSubagent(t *testing.T) {
+	tests := []struct {
+		name     string
+		removeID string
+		wantErr  bool
+	}{
+		{name: "existing", removeID: "a"},
+		{name: "missing", removeID: "missing", wantErr: true},
 	}
 
-	if all := tr.GetAllSubagents(); len(all) != 1 {
-		t.Fatalf("GetAllSubagents len = %d, want 1", len(all))
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := NewSubagentTracker()
+			if err := tr.AddSubagent(&domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning}); err != nil {
+				t.Fatalf("AddSubagent: %v", err)
+			}
 
-	if err := tr.RemoveSubagent("a"); err != nil {
-		t.Fatalf("RemoveSubagent: %v", err)
-	}
-	if err := tr.RemoveSubagent("a"); err == nil {
-		t.Fatalf("expected RemoveSubagent of missing id to error")
+			err := tr.RemoveSubagent(tt.removeID)
+
+			if tt.wantErr && err == nil {
+				t.Fatalf("expected RemoveSubagent of missing id to error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("RemoveSubagent: %v", err)
+			}
+		})
 	}
 }
 
@@ -45,13 +127,6 @@ func TestSubagentTracker_CountRunning(t *testing.T) {
 
 	if got := tr.CountRunningSubagents(); got != 2 {
 		t.Fatalf("CountRunningSubagents = %d, want 2", got)
-	}
-}
-
-func TestSubagentTracker_NilState(t *testing.T) {
-	tr := NewSubagentTracker()
-	if err := tr.AddSubagent(nil); err == nil {
-		t.Fatalf("expected AddSubagent(nil) to error")
 	}
 }
 
