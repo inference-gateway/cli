@@ -52,10 +52,8 @@ func newTracerProvider(res *resource.Resource, dir, session, endpoint string, he
 	return sdktrace.NewTracerProvider(opts...), file
 }
 
-// newTraceFileProcessor creates a local file exporter and a simple span
-// processor that writes spans as OTLP/semconv JSON to a per-session file.
-// Simple (synchronous) rather than batch on purpose: a CLI session's span
-// volume is tiny and a synchronous write means spans survive an abrupt exit.
+// newTraceFileProcessor writes spans as OTLP/semconv JSON to a per-session
+// file, synchronously (tiny volume; spans survive an abrupt exit).
 func newTraceFileProcessor(dir, session string) (*os.File, sdktrace.SpanProcessor, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, nil, err
@@ -88,8 +86,8 @@ func newOTLPTraceProcessor(endpoint string, headers map[string]string, interval 
 	return sdktrace.NewBatchSpanProcessor(exp, sdktrace.WithBatchTimeout(interval)), nil
 }
 
-// Tracer returns the tracer for the CLI's instrumentation scope. Returns a
-// no-op tracer when the Recorder is nil or has no tracer provider.
+// Tracer returns the tracer for the CLI's instrumentation scope. Safe on nil
+// (returns a no-op tracer).
 func (r *Recorder) Tracer() trace.Tracer {
 	if r == nil || r.tracerProvider == nil {
 		return noop.NewTracerProvider().Tracer("infer-cli")

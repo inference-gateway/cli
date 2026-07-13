@@ -14,10 +14,9 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// toolService decorates a domain.ToolService, recording one tool metric per
-// ExecuteTool call and creating a child span for each tool execution. It
-// embeds the interface so every other method passes through unchanged - only
-// ExecuteTool is overridden.
+// toolService decorates a domain.ToolService, recording one metric and one
+// span per ExecuteTool call. It embeds the interface so every other method
+// passes through unchanged - only ExecuteTool is overridden.
 type toolService struct {
 	domain.ToolService
 	rec *Recorder
@@ -52,8 +51,8 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 	return res, err
 }
 
-// startToolSpan creates a child span for a tool execution with GenAI semconv
-// attributes. Returns ctx unchanged and a no-op span when the Recorder is nil.
+// startToolSpan creates a span for a tool execution with GenAI semconv
+// attributes. Safe on nil (returns ctx unchanged and a no-op span).
 func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.Context, trace.Span) {
 	if r == nil {
 		return ctx, noop.Span{}

@@ -110,8 +110,7 @@ type AgentSession struct {
 	telemetryCtx     context.Context
 }
 
-// baseCtx is the root context for LLM turns and tool calls, carrying the
-// session root span so their child spans nest under it.
+// baseCtx carries the session root span so LLM-turn and tool spans nest under it.
 func (s *AgentSession) baseCtx() context.Context {
 	if s.telemetryCtx != nil {
 		return s.telemetryCtx

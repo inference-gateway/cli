@@ -1,23 +1,19 @@
-// Package telemetry records the CLI's OpenTelemetry signals - metrics and
-// traces - and exports them. Named "telemetry" (not "metrics") to cover all
-// OTel signals; logs are tracked separately in issue #893.
+// Package telemetry records and exports the CLI's OpenTelemetry metrics and
+// traces.
 //
-// Metrics: tool outcomes, token usage, and sessions. Recorded into OTel SDK
+// Metrics: tool outcomes, token usage, and sessions, recorded into OTel SDK
 // instruments named per the GenAI semantic conventions and infer-action's
 // exporter, so they line up with the gateway's OTLP ingest and existing
 // dashboards.
 //
-// Traces: one root span per session (StartSession), child spans for each LLM
-// turn (StartLLMTurnSpan) and each tool call (the tool service decorator), so
-// latency and failures attribute to a specific step. No prompt/response
-// content is recorded.
+// Traces: one root span per session, child spans for each LLM turn and each
+// tool call. No prompt/response content is recorded.
 //
 // Both signals share the same resource and OTLP endpoint/headers config.
-// Local file export is always attempted; OTLP/HTTP export is opt-in via
-// endpoint configuration or OTEL_EXPORTER_OTLP_ENDPOINT.
-//
-// Metrics use delta temporality (what the gateway ingest requires, and what
-// makes the local files trivially summable by `infer stats`).
+// Local file export is always attempted; OTLP/HTTP export is opt-in via an
+// endpoint (config or OTEL_EXPORTER_OTLP_ENDPOINT). Metrics use delta
+// temporality (required by the gateway ingest, and what makes the local
+// files trivially summable by `infer stats`).
 package telemetry
 
 import (
@@ -109,11 +105,8 @@ type Recorder struct {
 	tracerProvider *sdktrace.TracerProvider
 	traceFile      *os.File // local trace stdout-exporter target
 
-	// sessionCtx carries the root session span started by StartSession, so
-	// SpanContext can graft it onto request contexts created elsewhere (the
-	// chat TUI builds per-message contexts that don't descend from the one
-	// that started the session). One session per process, like the
-	// per-session files and the ExecutionMode package var.
+	// sessionCtx carries the root span from StartSession so SpanContext can
+	// graft it onto request contexts that don't descend from session start.
 	sessionCtx atomic.Pointer[context.Context]
 }
 
@@ -391,10 +384,8 @@ func providerFromModel(model string) string {
 	return "unknown"
 }
 
-// StartSession begins the root span for this process's agent session and
-// remembers its context so SpanContext can parent later spans to it. The
-// returned end function stamps infer.run.outcome and ends the span - call it
-// exactly once when the session finishes. Safe on nil (returns a no-op end).
+// StartSession begins the session root span. The returned end function
+// stamps infer.run.outcome and ends the span. Safe on nil.
 func (r *Recorder) StartSession(mode string) func(outcome string) {
 	if r == nil || r.tracerProvider == nil {
 		return func(string) {}
@@ -415,9 +406,8 @@ func (r *Recorder) StartSession(mode string) func(outcome string) {
 	}
 }
 
-// SpanContext grafts the session root span (if StartSession ran) onto ctx so
-// spans created from the returned context parent to it. Cancellation and
-// values of ctx are unaffected. Safe on nil.
+// SpanContext grafts the session root span onto ctx so spans created from
+// the returned context parent to it. Safe on nil.
 func (r *Recorder) SpanContext(ctx context.Context) context.Context {
 	if r == nil {
 		return ctx
@@ -428,9 +418,8 @@ func (r *Recorder) SpanContext(ctx context.Context) context.Context {
 	return ctx
 }
 
-// StartLLMTurnSpan creates a child span for one LLM request with GenAI
-// semconv attributes. Returns ctx unchanged and a no-op span when the
-// Recorder is nil, so `defer span.End()` is always safe.
+// StartLLMTurnSpan creates a span for one LLM request with GenAI semconv
+// attributes. Safe on nil (returns ctx unchanged and a no-op span).
 func (r *Recorder) StartLLMTurnSpan(ctx context.Context, model string) (context.Context, trace.Span) {
 	if r == nil {
 		return ctx, noop.Span{}
