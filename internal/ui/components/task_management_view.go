@@ -24,6 +24,8 @@ import (
 // and its kind-specific columns so the view can render one table per kind from a
 // single flat, selectable list. A2A rows keep using the embedded
 // TaskPollingState/TaskRef; shell and subagent rows populate Kind/Label/Detail.
+// Output carries the job's captured output (shell stdout/stderr or subagent
+// result) for the detail panel.
 type TaskInfo struct {
 	domain.TaskPollingState
 	Status      string
@@ -32,6 +34,7 @@ type TaskInfo struct {
 	Kind        domain.JobKind
 	Label       string
 	Detail      string
+	Output      string
 }
 
 // TaskManagerImpl implements task management UI similar to conversation selection
@@ -261,6 +264,7 @@ func jobToTaskInfo(job domain.TrackedJob) TaskInfo {
 		Kind:        job.Meta.Kind,
 		Label:       label,
 		Detail:      job.Meta.Detail,
+		Output:      job.Output,
 	}
 }
 
@@ -736,6 +740,10 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 		t.renderTaskHistory(&content, task)
 	}
 
+	if task.Output != "" {
+		t.renderJobOutput(&content, task)
+	}
+
 	t.infoViewport.SetContent(content.String())
 
 	var view strings.Builder
@@ -898,6 +906,43 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 				fmt.Fprintf(content, "  %s\n", line)
 			}
 		}
+	}
+}
+
+// renderJobOutput renders the captured output for a shell or subagent job in
+// the detail panel. The output is bounded (truncated) so a chatty shell does
+// not blow up the viewport.
+func (t *TaskManagerImpl) renderJobOutput(content *strings.Builder, task TaskInfo) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	content.WriteString("\n")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator)
+	content.WriteString("\n")
+
+	outputHeader := t.styleProvider.RenderWithColorAndBold("Output", accentColor)
+	content.WriteString(outputHeader)
+	content.WriteString("\n")
+
+	content.WriteString(separator)
+	content.WriteString("\n\n")
+
+	textWidth := max(t.infoViewport.Width()-4, 40)
+
+	// Bound the output to prevent a chatty shell from blowing up the panel.
+	// Show at most the last 10KB of output.
+	const maxOutputBytes = 10 * 1024
+	output := task.Output
+	if len(output) > maxOutputBytes {
+		output = "(truncated, showing last 10KB)\n" + output[len(output)-maxOutputBytes:]
+	}
+
+	wrappedText := formatting.FormatResponsiveMessage(output, textWidth)
+	for line := range strings.SplitSeq(wrappedText, "\n") {
+		fmt.Fprintf(content, "  %s\n", line)
 	}
 }
 

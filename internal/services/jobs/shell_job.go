@@ -96,6 +96,16 @@ func (j *shellJob) Close() {
 	_ = j.tracker.Remove(j.shell.ShellID)
 }
 
+// Output returns the shell's captured stdout/stderr from the ring buffer.
+// For a running shell this is the output so far; for a finished one it is the
+// full captured output (bounded by the ring buffer's max size).
+func (j *shellJob) Output() string {
+	if j.shell.OutputBuffer == nil {
+		return ""
+	}
+	return j.shell.OutputBuffer.String()
+}
+
 // Notification formats the shell's completion summary (the generic tool-result
 // formatter does not know about exit codes or durations).
 func (j *shellJob) Notification(result domain.ToolExecutionResult) string {

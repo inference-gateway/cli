@@ -21,6 +21,10 @@ type headlessSubagentJob struct {
 	state     *domain.SubagentState
 	runCtx    context.Context
 	cancelRun context.CancelFunc
+
+	// output is the subagent's final result message, stored after Run completes
+	// so the supervisor can surface it in the /tasks detail panel.
+	output string
 }
 
 // Meta describes the subagent for the task view.
@@ -52,6 +56,7 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 	}
 
 	answer, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	j.output = answer
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 
 	status := domain.SubagentCompleted
@@ -72,6 +77,9 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 		Data:      sub,
 	}
 }
+
+// Output returns the subagent's final result message for the /tasks detail panel.
+func (j *headlessSubagentJob) Output() string { return j.output }
 
 // Wind is a no-op: the supervisor cancels Run's context, which kills the
 // subprocess.
