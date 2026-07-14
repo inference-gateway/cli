@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	client "github.com/inference-gateway/adk/client"
 	baggage "go.opentelemetry.io/otel/baggage"
 	propagation "go.opentelemetry.io/otel/propagation"
 	trace "go.opentelemetry.io/otel/trace"
@@ -99,6 +98,25 @@ func (r *Recorder) ChildEnv(ctx context.Context) []string {
 	return env
 }
 
+// propagatingTransport is an http.RoundTripper that injects W3C trace-context
+// and baggage headers into every outgoing request.
+type propagatingTransport struct{ base http.RoundTripper }
+
+func (t propagatingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	propagator.Inject(req.Context(), propagation.HeaderCarrier(req.Header))
+	return t.base.RoundTrip(req)
+}
+
+// PropagationTransport returns an http.RoundTripper that injects W3C
+// trace-context and baggage headers into every outgoing request.
+// When base is nil, http.DefaultTransport is used.
+func PropagationTransport(base http.RoundTripper) http.RoundTripper {
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return propagatingTransport{base: base}
+}
+
 func joinHeaders(headers map[string]string) string {
 	if len(headers) == 0 {
 		return ""
@@ -109,21 +127,4 @@ func joinHeaders(headers map[string]string) string {
 	}
 	sort.Strings(pairs)
 	return strings.Join(pairs, ",")
-}
-
-type propagatingTransport struct{ base http.RoundTripper }
-
-func (t propagatingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	propagator.Inject(req.Context(), propagation.HeaderCarrier(req.Header))
-	return t.base.RoundTrip(req)
-}
-
-// NewA2AClient is client.NewClient plus W3C trace-context/baggage header propagation
-func NewA2AClient(url string) client.A2AClient {
-	cfg := client.DefaultConfig(url)
-	cfg.HTTPClient = &http.Client{
-		Timeout:   cfg.Timeout,
-		Transport: propagatingTransport{http.DefaultTransport},
-	}
-	return client.NewClientWithConfig(cfg)
 }

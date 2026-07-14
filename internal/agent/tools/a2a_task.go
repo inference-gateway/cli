@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 
-	client "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
@@ -171,7 +171,9 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	if t.client != nil {
 		adkClient = t.client
 	} else {
-		adkClient = telemetry.NewA2AClient(agentURL)
+		cfg := client.DefaultConfig(agentURL)
+		cfg.Transport = telemetry.PropagationTransport(nil)
+		adkClient = client.NewClientWithConfig(cfg)
 	}
 
 	if result := t.validateExistingTask(ctx, adkClient, existingTaskID, agentURL, args, startTime); result != nil {
@@ -353,7 +355,9 @@ func (t *A2ASubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient 
 	if t.client != nil {
 		return t.client
 	}
-	return telemetry.NewA2AClient(agentURL)
+	cfg := client.DefaultConfig(agentURL)
+	cfg.Transport = telemetry.PropagationTransport(nil)
+	return client.NewClientWithConfig(cfg)
 }
 
 func (t *A2ASubmitTaskTool) initializePollingStrategy(_ /* agentURL */, _ /* taskID */, strategy string) time.Duration {

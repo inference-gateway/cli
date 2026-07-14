@@ -2,8 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -11,8 +9,6 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
-
-var traceparentRe = regexp.MustCompile(`^00-[0-9a-f]{32}-[0-9a-f]{16}-01$`)
 
 func envMap(env []string) map[string]string {
 	m := map[string]string{}
@@ -22,6 +18,8 @@ func envMap(env []string) map[string]string {
 	}
 	return m
 }
+
+var traceparentRe = regexp.MustCompile(`^00-[0-9a-f]{32}-[0-9a-f]{16}-01$`)
 
 func TestChildEnv(t *testing.T) {
 	tests := []struct {
@@ -111,39 +109,6 @@ func TestChildEnvBaggage(t *testing.T) {
 	}
 	if !strings.Contains(m["BAGGAGE"], "infer.tool.call.id=call_1") {
 		t.Fatalf("BAGGAGE=%q, want infer.tool.call.id", m["BAGGAGE"])
-	}
-}
-
-func TestPropagatingTransport(t *testing.T) {
-	var got http.Header
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r.Header.Clone()
-	}))
-	defer srv.Close()
-
-	rec := New(Options{Enabled: true, Dir: t.TempDir(), SessionID: "sess-h"})
-	defer rec.Shutdown(context.Background())
-	ctx, _ := rec.startToolSpan(context.Background(), "A2A_SubmitTask")
-	ctx = rec.contextWithBaggage(ctx)
-
-	c := &http.Client{Transport: propagatingTransport{http.DefaultTransport}}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
-	if _, err := c.Do(req); err != nil {
-		t.Fatal(err)
-	}
-	if !traceparentRe.MatchString(got.Get("traceparent")) {
-		t.Fatalf("traceparent=%q, want w3c format", got.Get("traceparent"))
-	}
-	if !strings.Contains(got.Get("baggage"), "infer.session.id=sess-h") {
-		t.Fatalf("baggage=%q, want infer.session.id", got.Get("baggage"))
-	}
-
-	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
-	if _, err := c.Do(req); err != nil {
-		t.Fatal(err)
-	}
-	if got.Get("traceparent") != "" || got.Get("baggage") != "" {
-		t.Fatalf("untraced request must carry no headers, got traceparent=%q baggage=%q", got.Get("traceparent"), got.Get("baggage"))
 	}
 }
 

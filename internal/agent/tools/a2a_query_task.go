@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 
@@ -107,7 +108,9 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, startTime, t.buildPollingBlockedError(agentURL))
 	}
 
-	adkClient := telemetry.NewA2AClient(agentURL)
+	cfg := client.DefaultConfig(agentURL)
+	cfg.Transport = telemetry.PropagationTransport(nil)
+	adkClient := client.NewClientWithConfig(cfg)
 	queryParams := adk.TaskQueryParams{ID: taskID}
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
