@@ -103,7 +103,7 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		ta:                ta,
 		placeholder:       placeholder,
 		width:             80,
-		height:            5,
+		height:            20,
 		modelService:      modelService,
 		historyManager:    historyManager,
 		themeService:      nil,
@@ -118,7 +118,7 @@ func newInputTextarea(placeholder string) textarea.Model {
 	ta := textarea.New()
 	ta.Placeholder = placeholder
 	ta.CharLimit = 0
-	ta.MaxHeight = 5
+	ta.MaxHeight = 20
 	ta.ShowLineNumbers = false
 	ta.EndOfBufferCharacter = 0
 	ta.Prompt = ""
@@ -155,6 +155,10 @@ func (iv *InputView) SetStateManager(stateManager inputViewState) {
 func (iv *InputView) SetConfig(cfg *config.Config) {
 	iv.config = cfg
 	iv.applyKeybindings(cfg.Chat.Keybindings)
+	if cfg.Chat.InputMaxLines > 0 {
+		iv.ta.MaxHeight = cfg.Chat.InputMaxLines
+		iv.height = cfg.Chat.InputMaxLines + 2
+	}
 }
 
 // applyKeybindings rebuilds the textarea KeyMap entries that correspond to
