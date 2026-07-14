@@ -103,7 +103,7 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		ta:                ta,
 		placeholder:       placeholder,
 		width:             80,
-		height:            5,
+		height:            20,
 		modelService:      modelService,
 		historyManager:    historyManager,
 		themeService:      nil,
@@ -118,14 +118,17 @@ func newInputTextarea(placeholder string) textarea.Model {
 	ta := textarea.New()
 	ta.Placeholder = placeholder
 	ta.CharLimit = 0
-	ta.MaxHeight = 5
+	ta.MaxHeight = 20
 	ta.ShowLineNumbers = false
 	ta.EndOfBufferCharacter = 0
 	ta.Prompt = ""
-	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("enter", "ctrl+m", "ctrl+j", "alt+enter"))
+	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("enter", "ctrl+m", "ctrl+j", "alt+enter", "shift+enter", "super+enter"))
 	ta.KeyMap.WordBackward = key.NewBinding(key.WithKeys("alt+left", "ctrl+left", "alt+b"))
 	ta.KeyMap.WordForward = key.NewBinding(key.WithKeys("alt+right", "ctrl+right", "alt+f"))
+	ta.KeyMap.DeleteCharacterBackward = key.NewBinding(key.WithKeys("backspace", "shift+backspace"))
+	ta.KeyMap.DeleteCharacterForward = key.NewBinding(key.WithKeys("delete", "shift+delete"))
 	ta.KeyMap.DeleteWordBackward = key.NewBinding(key.WithKeys("alt+backspace", "ctrl+w", "ctrl+backspace"))
+	ta.KeyMap.DeleteWordForward = key.NewBinding(key.WithKeys("alt+delete", "ctrl+delete"))
 	ta.KeyMap.LineStart = key.NewBinding(key.WithKeys("home"))
 	ta.KeyMap.LineEnd = key.NewBinding(key.WithKeys("end"))
 	ta.KeyMap.InputBegin = key.NewBinding(key.WithKeys("ctrl+a", "alt+<", "ctrl+home"))
@@ -155,6 +158,10 @@ func (iv *InputView) SetStateManager(stateManager inputViewState) {
 func (iv *InputView) SetConfig(cfg *config.Config) {
 	iv.config = cfg
 	iv.applyKeybindings(cfg.Chat.Keybindings)
+	if cfg.Chat.InputMaxLines > 0 {
+		iv.ta.MaxHeight = cfg.Chat.InputMaxLines
+		iv.height = cfg.Chat.InputMaxLines + 2
+	}
 }
 
 // applyKeybindings rebuilds the textarea KeyMap entries that correspond to
