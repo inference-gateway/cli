@@ -94,8 +94,8 @@ func TestNewInputView(t *testing.T) {
 		t.Errorf("Expected default width 80, got %d", iv.width)
 	}
 
-	if iv.height != 5 {
-		t.Errorf("Expected default height 5, got %d", iv.height)
+	if iv.height != 20 {
+		t.Errorf("Expected default height 20, got %d", iv.height)
 	}
 
 	if iv.modelService != mockModelService {

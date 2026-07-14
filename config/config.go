@@ -534,9 +534,10 @@ type ConversationTitleConfig struct {
 
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
-	Theme       string            `yaml:"theme" mapstructure:"theme"`
-	Keybindings KeybindingsConfig `yaml:"-" mapstructure:"-"`
-	StatusBar   StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
+	Theme         string            `yaml:"theme" mapstructure:"theme"`
+	Keybindings   KeybindingsConfig `yaml:"-" mapstructure:"-"`
+	StatusBar     StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
+	InputMaxLines int               `yaml:"input_max_lines" mapstructure:"input_max_lines"`
 }
 
 // StatusBarConfig contains settings for the chat status bar
@@ -1000,7 +1001,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:  true,
 				Bindings: GetDefaultKeybindings(),
 			},
-			StatusBar: GetDefaultStatusBarConfig(),
+			StatusBar:     GetDefaultStatusBarConfig(),
+			InputMaxLines: 20,
 		},
 		A2A: A2AConfig{
 			Enabled: true,

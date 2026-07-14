@@ -450,6 +450,12 @@ func loadConfigFromViper() (*config.Config, error) {
 
 	applyKeybindingEnvOverrides(cfg)
 
+	if v, ok := os.LookupEnv("INFER_CHAT_INPUT_MAX_LINES"); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			cfg.Chat.InputMaxLines = n
+		}
+	}
+
 	promptsPath := getEffectivePromptsConfigPath()
 	prompts, err := config.LoadPrompts(promptsPath)
 	if err != nil {
