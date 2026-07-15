@@ -1,199 +1,126 @@
 # A2A Traces Example
 
-This example demonstrates W3C trace context propagation between the `infer` CLI
-and A2A agents. When the CLI delegates a task to a remote A2A agent (via
-`A2A_SubmitTask`), the trace context flows through HTTP headers
-(`traceparent`, `tracestate`, `baggage`) so the remote agent can create child
-spans that parent under the CLI's `execute_tool` span.
+End-to-end distributed telemetry between the `infer` CLI and an A2A agent
+(mock-agent), with an OpenTelemetry Collector in the middle. It demonstrates
+both telemetry models for traces **and** metrics:
 
-With ADK 0.22.0+, the mock-agent natively receives and propagates these trace
-headers, and can export its own spans via standard OTel environment variables.
-
-## Prerequisites
-
-1. Configure the Inference Gateway server:
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-2. Start the services:
-
-```bash
-docker compose up -d
-```
-
-3. Verify everything is running:
-
-```bash
-docker compose ps
-docker compose logs -f
-```
-
-## How It Works
-
-### Trace Context Propagation
-
-The CLI injects W3C trace context into every outgoing A2A HTTP request:
-
-- **`traceparent`**: The current span's trace ID, span ID, and trace flags
-- **`tracestate`**: Vendor-specific trace data
-- **`baggage`**: Application context (`infer.session.id`, `infer.tool.call.id`)
-
-The mock-agent (ADK 0.22.0+) receives these headers and can create child spans
-that parent under the CLI's `execute_tool` span, forming a single distributed
-trace across process boundaries.
-
-### Viewing Traces
-
-The CLI records its own spans locally (no OTLP collector required). After
-interacting with the mock-agent, view the span tree:
-
-```bash
-# List sessions with trace data
-docker compose run --rm cli infer traces --list
-
-# View the most recent session's span tree
-docker compose run --rm cli infer traces
-
-# View a specific session
-docker compose run --rm cli infer traces <session-id>
-
-# JSON output for programmatic use
-docker compose run --rm cli infer traces --format json
-```
-
-The span tree shows the full call chain:
+- **Push (OTLP)**: the CLI exports its traces and metrics to the collector;
+  the mock-agent exports its traces to the collector.
+- **Pull (Prometheus)**: the collector scrapes the mock-agent's
+  `:9090/metrics` endpoint.
 
 ```text
-session (standard, success)            152ms
-|-- chat openai/gpt-4o                   5ms
-|-- execute_tool A2A_SubmitTask         89ms
-|   `-- session (readonly, success)     52ms
-|       |-- chat openai/gpt-4o           5ms
-|       `-- chat openai/gpt-4o          13ms
-`-- chat openai/gpt-4o                  12ms
+infer CLI ──(OTLP push: traces+metrics)──► otel-collector ──(traces, otlphttp)──► cli:4318
+mock-agent ──(OTLP push: traces)─────────►      │              (CLI's local OTLP receiver
+mock-agent :9090/metrics ◄─(Prometheus pull)────┘               → `infer traces`)
 ```
 
-### Mock-Agent OTel Export
+The CLI injects W3C trace context (`traceparent`, `tracestate`, `baggage`)
+into every outgoing A2A request, so the mock-agent's spans share the CLI's
+trace ID and parent under the CLI's `execute_tool` span. The collector fans
+all traces back to the CLI's local OTLP receiver
+(`INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4318`), so `infer traces` shows
+the **full distributed trace**, including the mock-agent's spans.
 
-The mock-agent can export its own spans to a shared OTLP collector. Configure
-it via standard OTel environment variables:
+## Quick start
 
-```yaml
-OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-OTEL_SERVICE_NAME: mock-agent
-```
+1. Configure provider API keys:
 
-When no collector is configured, the mock-agent writes spans to stdout (visible
-in `docker compose logs mock-agent`).
+   ```bash
+   cp .env.example .env
+   # set the key matching INFER_AGENT_MODEL in docker-compose.yaml
+   ```
 
-## Configuration
+2. Start everything (the CLI image is built from source):
 
-### CLI Environment
+   ```bash
+   docker compose up -d --build
+   ```
 
-```yaml
-INFER_GATEWAY_URL: http://inference-gateway:8080
-INFER_A2A_ENABLED: true
-INFER_AGENT_MODEL: deepseek/deepseek-v4-pro
-INFER_TELEMETRY_ENABLED: true
-```
+3. Attach to the CLI's chat session:
 
-`INFER_TELEMETRY_ENABLED: true` enables local trace recording. The CLI stores
-spans in `<config-dir>/telemetry/<session-id>-traces.jsonl` and exposes them
-via `infer traces`.
+   ```bash
+   docker compose attach cli
+   ```
 
-### Mock-Agent Environment
+4. Delegate a task to the mock-agent:
 
-```yaml
-A2A_AGENT_URL: http://mock-agent:8080
-A2A_AGENT_CLIENT_PROVIDER: ""
-A2A_AGENT_CLIENT_MODEL: ""
-A2A_AGENT_CLIENT_BASE_URL: ""
-```
+   ```text
+   Ask the mock-agent to summarize the current project.
+   ```
 
-The mock-agent runs without an LLM backend (it responds with canned data), so
-no API keys are needed. With ADK 0.22.0+, it automatically reads incoming
-`traceparent` headers and creates child spans.
+   The model uses `A2A_SubmitTask`; trace context flows to the mock-agent,
+   whose spans are exported to the collector and fanned back to the CLI.
 
-## Usage
+5. Detach with `ctrl-p ctrl-q` (keep the session running), then view the
+   distributed trace:
 
-### 1. Start the services
+   ```bash
+   docker compose exec cli infer traces
+   ```
+
+   ```text
+   session (standard, success)                 152ms
+   ├── chat deepseek/deepseek-v4-pro             5ms
+   ├── execute_tool A2A_SubmitTask              89ms
+   │   ╰── a2a.request                          52ms
+   ╰── chat deepseek/deepseek-v4-pro            12ms
+   ```
+
+   Ingested spans are labeled `name [service]` when the producing agent
+   reports a `service.name` resource attribute.
+
+   `infer traces --list` shows all sessions, `infer traces --format json`
+   emits the tree for programmatic use, and `infer stats` shows the CLI's
+   local metrics.
+
+## Where the telemetry goes
+
+| Signal | Producer | Path |
+| --- | --- | --- |
+| Traces | CLI | local session file (always) + OTLP push to collector |
+| Traces | mock-agent | OTLP push to collector → fanned back to the CLI receiver → `infer traces` |
+| Metrics | CLI | local session file (`infer stats`) + OTLP push to collector every 10s |
+| Metrics | mock-agent | Prometheus `:9090/metrics`, scraped by the collector every 10s |
+
+The collector's `debug` exporter logs everything it receives:
 
 ```bash
-docker compose up -d
+docker compose logs -f otel-collector
 ```
 
-### 2. Enter the CLI container
+You should see spans with `service.name: infer` and `service.name: mock-agent`
+sharing a trace ID, plus `a2a.*` metrics from the scrape and `infer`/`gen_ai`
+metrics from the CLI's push.
 
-```bash
-docker compose run --rm cli
-```
+## Configuration notes
 
-### 3. Query the mock-agent
-
-Inside the CLI, ask the model to query the mock-agent:
-
-```text
-Can you ask the mock-agent at http://mock-agent:8080 what it can do?
-```
-
-The model will use `A2A_QueryAgent` to fetch the agent card. The trace context
-flows from the CLI to the mock-agent via HTTP headers.
-
-### 4. Delegate a task
-
-```text
-Ask the mock-agent to summarize the current project.
-```
-
-The model will use `A2A_SubmitTask` to delegate the task. The trace context
-flows with the request, and the mock-agent's spans (if it exports them) parent
-under the CLI's `execute_tool` span.
-
-### 5. View the traces
-
-Exit the CLI (Ctrl+D) and view the trace tree:
-
-```bash
-docker compose run --rm cli infer traces
-```
-
-You should see the `execute_tool A2A_SubmitTask` span with its children,
-showing the full distributed trace.
-
-## Viewing Mock-Agent Logs
-
-The mock-agent logs show incoming trace context:
-
-```bash
-docker compose logs mock-agent
-```
-
-With ADK 0.22.0+, you will see trace IDs in the agent's request logs,
-confirming that the W3C trace context was received.
+- `INFER_TELEMETRY_OTLP_ENDPOINT` enables the CLI's OTLP push (traces and
+  metrics); without it the CLI still records everything locally.
+- `INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4318` binds the CLI's local OTLP
+  receiver on a fixed address so the collector can feed external spans into
+  the session's trace file. Unset, the receiver only serves loopback
+  subprocesses.
+- The mock-agent enables telemetry via `A2A_TELEMETRY_ENABLE`, pushes traces
+  with `A2A_OTEL_TRACES_EXPORTER: otlp` to `A2A_OTEL_EXPORTER_OTLP_ENDPOINT`,
+  and serves Prometheus metrics on `A2A_OTEL_EXPORTER_PROMETHEUS_PORT`.
+- Use `docker compose exec` (not `run`) for `infer traces`/`infer stats`: the
+  trace files live in the chat container's filesystem, and the collector
+  reaches the receiver via the `cli` service hostname.
 
 ## Troubleshooting
 
 ```bash
-# Check CLI logs
 docker compose logs cli
-
-# Check mock-agent logs
 docker compose logs mock-agent
-
-# Verify telemetry is working
-docker compose run --rm cli infer traces --list
-
-# Run a direct A2A query
-docker compose run --rm cli infer tools execute A2A_QueryAgent '{"agent_url":"http://mock-agent:8080"}'
+docker compose logs otel-collector
+docker compose exec cli infer traces --list
+docker compose exec cli infer tools execute A2A_QueryAgent '{"agent_url":"http://mock-agent:8080"}'
 ```
 
 ## See Also
 
 - [A2A Protocol Documentation](https://github.com/inference-gateway/schemas)
-- [ADK 0.22.0 Release Notes](https://github.com/inference-gateway/adk/releases/tag/v0.22.0)
+- [mock-agent](https://github.com/inference-gateway/mock-agent)
 - [W3C Trace Context Specification](https://www.w3.org/TR/trace-context/)
-- [OpenTelemetry](https://opentelemetry.io/docs/)
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)

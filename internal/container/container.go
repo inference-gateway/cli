@@ -333,13 +333,14 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.modelService = services.NewHTTPModelService(modelClient)
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
-		Enabled:      c.config.Telemetry.Enabled,
-		Dir:          config.TelemetryDir(),
-		SessionID:    string(c.sessionID),
-		OTLPEndpoint: c.config.Telemetry.OTLP.Endpoint,
-		OTLPHeaders:  c.config.Telemetry.OTLP.Headers,
-		OTLPInterval: time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
-		Cost:         c.GetPricingService().CalculateCost,
+		Enabled:         c.config.Telemetry.Enabled,
+		Dir:             config.TelemetryDir(),
+		SessionID:       string(c.sessionID),
+		OTLPEndpoint:    c.config.Telemetry.OTLP.Endpoint,
+		OTLPHeaders:     c.config.Telemetry.OTLP.Headers,
+		OTLPInterval:    time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
+		ReceiverAddress: c.config.Telemetry.ReceiverAddress,
+		Cost:            c.GetPricingService().CalculateCost,
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {

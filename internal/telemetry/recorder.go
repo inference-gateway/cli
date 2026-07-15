@@ -79,13 +79,14 @@ type CostFunc func(model string, prompt, completion int) (input, output, total f
 // Options configures a Recorder. Dir + SessionID locate the per-process local
 // file; OTLP* enable the optional remote export.
 type Options struct {
-	Enabled      bool
-	Dir          string
-	SessionID    string
-	OTLPEndpoint string
-	OTLPHeaders  map[string]string
-	OTLPInterval time.Duration
-	Cost         CostFunc
+	Enabled         bool
+	Dir             string
+	SessionID       string
+	OTLPEndpoint    string
+	OTLPHeaders     map[string]string
+	OTLPInterval    time.Duration
+	ReceiverAddress string
+	Cost            CostFunc
 }
 
 // Recorder maps recorded events onto OTel instruments and spans. A nil
@@ -191,6 +192,9 @@ func New(opts Options) *Recorder {
 		logger.Warn("telemetry: instrument init failed", "error", err)
 		rec.Shutdown(context.Background())
 		return nil
+	}
+	if opts.ReceiverAddress != "" {
+		rec.startReceiver(opts.ReceiverAddress)
 	}
 	return rec
 }

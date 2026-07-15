@@ -1,13 +1,16 @@
 package telemetry
 
 import (
+	"compress/gzip"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
+	trace "go.opentelemetry.io/otel/trace"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -28,8 +31,18 @@ func (r *Recorder) localReceiverURL() string {
 	if r == nil || r.traceWriter == nil {
 		return ""
 	}
+	r.startReceiver("127.0.0.1:0")
+	return r.recvURL
+}
+
+// startReceiver starts the OTLP/HTTP receiver bound to addr (once per
+// Recorder). Failures are logged and never fatal.
+func (r *Recorder) startReceiver(addr string) {
+	if r == nil || r.traceWriter == nil {
+		return
+	}
 	r.recvOnce.Do(func() {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			logger.Warn("telemetry: local OTLP receiver disabled", "error", err)
 			return
@@ -40,16 +53,29 @@ func (r *Recorder) localReceiverURL() string {
 			w.WriteHeader(http.StatusOK)
 		})
 		r.recvSrv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-		r.recvURL = "http://" + ln.Addr().String()
+		host := ln.Addr().String()
+		if tcp, ok := ln.Addr().(*net.TCPAddr); ok && tcp.IP.IsUnspecified() {
+			host = net.JoinHostPort("127.0.0.1", strconv.Itoa(tcp.Port))
+		}
+		r.recvURL = "http://" + host
 		go func() { _ = r.recvSrv.Serve(ln) }()
 	})
-	return r.recvURL
 }
 
 func (r *Recorder) handleTraces(w http.ResponseWriter, req *http.Request) {
 	defer w.WriteHeader(http.StatusOK)
 
-	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, recvMaxBody))
+	var reader io.Reader = http.MaxBytesReader(w, req.Body, recvMaxBody)
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(reader)
+		if err != nil {
+			logger.Warn("telemetry: OTLP receiver bad gzip payload", "error", err)
+			return
+		}
+		defer func() { _ = gz.Close() }()
+		reader = gz
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		logger.Warn("telemetry: OTLP receiver read failed", "error", err)
 		return
@@ -59,13 +85,29 @@ func (r *Recorder) handleTraces(w http.ResponseWriter, req *http.Request) {
 		logger.Warn("telemetry: OTLP receiver bad payload", "error", err)
 		return
 	}
+	sessionTraceID := ""
+	if ctxp := r.sessionCtx.Load(); ctxp != nil {
+		if sc := trace.SpanContextFromContext(*ctxp); sc.IsValid() {
+			sessionTraceID = sc.TraceID().String()
+		}
+	}
 	for _, rs := range export.ResourceSpans {
+		service := ""
+		for _, attr := range rs.GetResource().GetAttributes() {
+			if attr.Key == "service.name" {
+				_, v := anyValue(attr.Value)
+				service, _ = v.(string)
+			}
+		}
 		for _, ss := range rs.ScopeSpans {
 			for _, span := range ss.Spans {
+				if sessionTraceID != "" && hex.EncodeToString(span.TraceId) != sessionTraceID {
+					continue
+				}
 				if r.recvSpans.Add(1) > recvMaxSpans {
 					return
 				}
-				r.appendSpanStub(span)
+				r.appendSpanStub(span, service)
 			}
 		}
 	}
@@ -98,7 +140,7 @@ type recvAttr struct {
 	}
 }
 
-func (r *Recorder) appendSpanStub(span *tracepb.Span) {
+func (r *Recorder) appendSpanStub(span *tracepb.Span, service string) {
 	stub := recvStub{
 		Name:        span.Name,
 		SpanContext: recvSpanCtx{TraceID: hex.EncodeToString(span.TraceId), SpanID: hex.EncodeToString(span.SpanId)},
@@ -109,6 +151,11 @@ func (r *Recorder) appendSpanStub(span *tracepb.Span) {
 	for _, attr := range span.Attributes {
 		a := recvAttr{Key: attr.Key}
 		a.Value.Type, a.Value.Value = anyValue(attr.Value)
+		stub.Attributes = append(stub.Attributes, a)
+	}
+	if service != "" {
+		a := recvAttr{Key: "service.name"}
+		a.Value.Type, a.Value.Value = "STRING", service
 		stub.Attributes = append(stub.Attributes, a)
 	}
 	if span.Status != nil {

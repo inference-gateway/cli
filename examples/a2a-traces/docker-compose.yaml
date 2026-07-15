@@ -24,6 +24,9 @@ services:
     image: ghcr.io/inference-gateway/cli:latest
     pull_policy: always
     tty: true
+    stdin_open: true
+    depends_on:
+      - otel-collector
     environment:
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_AGENT_MODEL: deepseek/deepseek-v4-pro
@@ -31,6 +34,9 @@ services:
       INFER_A2A_AGENTS: |
         http://mock-agent:8080
       INFER_TELEMETRY_ENABLED: true
+      INFER_TELEMETRY_OTLP_ENDPOINT: http://otel-collector:4318
+      INFER_TELEMETRY_OTLP_INTERVAL: 10
+      INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4318
       INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS: |
         mock-agent
     command:
@@ -39,8 +45,7 @@ services:
       - a2a-traces-network
 
   mock-agent:
-    image: ghcr.io/inference-gateway/mock-agent:latest
-    pull_policy: always
+    image: ghcr.io/inference-gateway/mock-agent:0.2.1
     environment:
       A2A_AGENT_URL: http://mock-agent:8080
       A2A_AGENT_CLIENT_PROVIDER: ""
@@ -60,11 +65,22 @@ services:
       A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
       A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
       A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
-      # OTel trace export (ADK 0.22.0+): uncomment to send mock-agent spans
-      # to a shared OTLP collector. When unset, spans are written to stdout.
-      # OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      # OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      # OTEL_SERVICE_NAME: mock-agent
+      A2A_TELEMETRY_ENABLE: true
+      A2A_TELEMETRY_TRACE_ENABLE: true
+      A2A_OTEL_TRACES_EXPORTER: otlp
+      A2A_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      A2A_OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      A2A_OTEL_METRICS_EXPORTER: prometheus
+      A2A_OTEL_EXPORTER_PROMETHEUS_PORT: 9090
+    restart: unless-stopped
+    networks:
+      - a2a-traces-network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.0
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     restart: unless-stopped
     networks:
       - a2a-traces-network
