@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	fang "charm.land/fang/v2"
+	colorprofile "github.com/charmbracelet/colorprofile"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
@@ -29,6 +30,12 @@ var rootCmd = &cobra.Command{
 	Long: `A powerful command-line interface for managing and interacting with
 the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		noColors, _ := cmd.Flags().GetBool("no-colors")
+		if noColors || colorprofile.Detect(os.Stdout, os.Environ()) < colorprofile.ANSI {
+			disableOutputColors()
+		}
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Welcome to the Inference Gateway CLI!")
 		fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
@@ -46,6 +53,9 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().Bool("no-colors", false,
+		"disable ANSI colors in command output (colors are also auto-disabled "+
+			"when stdout is not a terminal or NO_COLOR is set)")
 	rootCmd.PersistentFlags().String("tools-bash-allow-append", "",
 		"comma/newline-separated commands added to the bash allow-list in every mode "+
 			"(standard, plan, auto); INFER_TOOLS_BASH_ALLOW_APPEND takes precedence")
