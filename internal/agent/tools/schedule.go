@@ -8,6 +8,7 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"

@@ -9,10 +9,13 @@ import (
 	"strings"
 	"time"
 
+	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // plansSubdir is the directory (relative to the resolved config dir) where
@@ -28,7 +31,7 @@ const maxSlugLength = 60
 var titleSlugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 
 // RequestPlanApprovalTool handles requesting plan approval from the user.
-// On execute it persists the plan as a markdown file under
+// On execute it persists the plan to PlanStorage and as a markdown file under
 // "<configDir>/plans/" so users have an auditable record of every plan the
 // agent produced - even when they reject it.
 type RequestPlanApprovalTool struct {
@@ -36,6 +39,7 @@ type RequestPlanApprovalTool struct {
 	enabled   bool
 	formatter domain.BaseFormatter
 	now       func() time.Time
+	planStore storage.PlanStorage
 }
 
 // NewRequestPlanApprovalTool creates a new RequestPlanApproval tool
@@ -77,9 +81,10 @@ func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-// Execute runs the RequestPlanApproval tool with given arguments. It writes
-// the plan markdown to disk and returns the plan content plus the saved
-// path so downstream consumers can surface both to the user and the LLM.
+// Execute runs the RequestPlanApproval tool with given arguments. It persists
+// the plan to PlanStorage and writes the plan markdown to disk, then returns
+// the plan content plus an infer://plans/<id> URI so downstream consumers can
+// surface both to the user and the LLM.
 func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := t.now()
 
@@ -94,7 +99,11 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 		}, nil
 	}
 
-	path, err := t.writePlanFile(title, plan, start)
+	// Build the plan markdown body
+	body := buildPlanMarkdown(title, plan)
+
+	// Persist to PlanStorage
+	planID, err := t.savePlanToStore(title, body, start)
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "RequestPlanApproval",
@@ -105,16 +114,14 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 		}, nil
 	}
 
-	canonical, err := os.ReadFile(path)
+	// Also write the markdown file for backward compatibility
+	path, err := t.writePlanFile(title, plan, start)
 	if err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "RequestPlanApproval",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     fmt.Errorf("failed to read back plan file %s: %w", path, err).Error(),
-		}, nil
+		// Log but don't fail - the plan is already in the store
+		logger.Warn("failed to write plan markdown file", "error", err)
 	}
+
+	planURI := fmt.Sprintf("infer://plans/%s", planID)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "RequestPlanApproval",
@@ -123,9 +130,11 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 		Duration:  time.Since(start),
 		Data: map[string]any{
 			"title":   title,
-			"plan":    string(canonical),
+			"plan":    body,
 			"path":    path,
-			"message": "Plan approval requested - waiting for user decision",
+			"plan_id": planID,
+			"uri":     planURI,
+			"message": fmt.Sprintf("Plan approval requested - saved as %s", planURI),
 		},
 	}, nil
 }
@@ -164,6 +173,9 @@ func (t *RequestPlanApprovalTool) FormatPreview(result *domain.ToolExecutionResu
 	}
 
 	if result.Success {
+		if uri := planURI(result); uri != "" {
+			return fmt.Sprintf("Plan saved to %s", uri)
+		}
 		if path := planPath(result); path != "" {
 			return fmt.Sprintf("Plan saved to %s", path)
 		}
@@ -180,6 +192,9 @@ func (t *RequestPlanApprovalTool) FormatForUI(result *domain.ToolExecutionResult
 	}
 
 	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	if uri := planURI(result); uri != "" {
+		return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan saved to %s", statusIcon, uri)
+	}
 	if path := planPath(result); path != "" {
 		return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan saved to %s", statusIcon, path)
 	}
@@ -193,6 +208,9 @@ func (t *RequestPlanApprovalTool) FormatForLLM(result *domain.ToolExecutionResul
 	}
 
 	if result.Success {
+		if uri := planURI(result); uri != "" {
+			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject.", uri)
+		}
 		if path := planPath(result); path != "" {
 			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject.", path)
 		}
@@ -338,4 +356,56 @@ func planPath(result *domain.ToolExecutionResult) string {
 	}
 	path, _ := data["path"].(string)
 	return path
+}
+
+// savePlanToStore persists the plan to PlanStorage and returns the plan ID.
+func (t *RequestPlanApprovalTool) savePlanToStore(title, body string, ts time.Time) (string, error) {
+	store, err := t.getPlanStore()
+	if err != nil {
+		return "", fmt.Errorf("plan storage: %w", err)
+	}
+
+	id := uuid.New().String()
+	slug := slugifyTitle(title)
+	record := &storage.PlanRecord{
+		ID:        id,
+		Title:     title,
+		Slug:      slug,
+		Body:      body,
+		CreatedAt: ts.UTC(),
+	}
+
+	if err := store.SavePlan(context.Background(), record); err != nil {
+		return "", fmt.Errorf("save plan: %w", err)
+	}
+
+	return id, nil
+}
+
+// getPlanStore lazily opens the PlanStorage from config.
+func (t *RequestPlanApprovalTool) getPlanStore() (storage.PlanStorage, error) {
+	if t.planStore != nil {
+		return t.planStore, nil
+	}
+	storageConfig := storage.NewStorageFromConfig(t.config)
+	stores, err := storage.NewStorage(storageConfig)
+	if err != nil {
+		return nil, fmt.Errorf("storage init: %w", err)
+	}
+	t.planStore = stores.Plans
+	return t.planStore, nil
+}
+
+// planURI safely extracts the infer://plans/<id> URI from a tool result.
+// Returns "" when the result has no URI.
+func planURI(result *domain.ToolExecutionResult) string {
+	if result == nil || result.Data == nil {
+		return ""
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return ""
+	}
+	uri, _ := data["uri"].(string)
+	return uri
 }

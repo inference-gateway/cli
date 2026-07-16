@@ -2,13 +2,12 @@ package tools
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 )
 
 // channelCtx returns a context tagged with a channel-formatted session ID,
@@ -312,8 +311,7 @@ func TestScheduleTool_Execute_GetMissing(t *testing.T) {
 	if r.Success {
 		t.Fatal("get on missing job should fail")
 	}
-	// Verify the underlying error is ErrNotFound from the store layer.
-	if !errors.Is(scheduler.ErrNotFound, scheduler.ErrNotFound) {
-		t.Fatal("sanity check failed")
+	if !strings.Contains(r.Error, "not found") {
+		t.Fatalf("expected error to contain 'not found', got %q", r.Error)
 	}
 }
