@@ -601,8 +601,9 @@ type TelemetryConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 	// RetentionDays is how long a session's telemetry file stays active before
 	// `infer stats` archives it. 0 disables archiving.
-	RetentionDays int        `yaml:"retention_days" mapstructure:"retention_days"`
-	OTLP          OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
+	RetentionDays   int        `yaml:"retention_days" mapstructure:"retention_days"`
+	OTLP            OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
+	ReceiverAddress string     `yaml:"receiver_address" mapstructure:"receiver_address"`
 }
 
 // OTLPConfig configures the optional OTLP export. When Endpoint is empty (and

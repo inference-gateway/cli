@@ -218,6 +218,42 @@ func TestBashTool_Execute(t *testing.T) {
 	}
 }
 
+func TestBashTool_Execute_TraceEnv(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"env"}},
+				},
+			},
+		},
+	}
+	tool := NewBashTool(cfg, nil)
+
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		contains bool
+	}{
+		{name: "trace env exported", ctx: domain.WithTraceEnv(context.Background(), []string{"TRACEPARENT=00-abc-def-01", "BAGGAGE=infer.session.id=s1"}), contains: true},
+		{name: "no trace env without ctx value", ctx: context.Background(), contains: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tool.Execute(tt.ctx, map[string]any{"command": "env"})
+			if err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+			output := result.Data.(*domain.BashToolResult).Output
+			if got := strings.Contains(output, "TRACEPARENT=00-abc-def-01"); got != tt.contains {
+				t.Errorf("TRACEPARENT in child env=%v, want %v", got, tt.contains)
+			}
+		})
+	}
+}
+
 func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{

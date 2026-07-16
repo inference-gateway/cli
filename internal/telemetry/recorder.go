@@ -18,10 +18,12 @@ package telemetry
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -77,13 +79,14 @@ type CostFunc func(model string, prompt, completion int) (input, output, total f
 // Options configures a Recorder. Dir + SessionID locate the per-process local
 // file; OTLP* enable the optional remote export.
 type Options struct {
-	Enabled      bool
-	Dir          string
-	SessionID    string
-	OTLPEndpoint string
-	OTLPHeaders  map[string]string
-	OTLPInterval time.Duration
-	Cost         CostFunc
+	Enabled         bool
+	Dir             string
+	SessionID       string
+	OTLPEndpoint    string
+	OTLPHeaders     map[string]string
+	OTLPInterval    time.Duration
+	ReceiverAddress string
+	Cost            CostFunc
 }
 
 // Recorder maps recorded events onto OTel instruments and spans. A nil
@@ -105,7 +108,16 @@ type Recorder struct {
 
 	// Tracer provider (traces)
 	tracerProvider *sdktrace.TracerProvider
-	traceFile      *os.File // local trace stdout-exporter target
+	traceFile      *os.File      // local trace stdout-exporter target
+	traceWriter    *lockedWriter // serialized writer shared with the OTLP receiver
+
+	otlpEndpoint string
+	otlpHeaders  map[string]string
+
+	recvOnce  sync.Once
+	recvSrv   *http.Server
+	recvURL   string
+	recvSpans atomic.Int64
 
 	// sessionCtx carries the root span from StartSession so SpanContext can
 	// graft it onto request contexts that don't descend from session start.
@@ -162,7 +174,7 @@ func New(opts Options) *Recorder {
 	}
 	provider := sdkmetric.NewMeterProvider(mpOpts...)
 
-	traceProvider, traceFile := newTracerProvider(res, opts.Dir, opts.SessionID, opts.OTLPEndpoint, opts.OTLPHeaders, interval)
+	traceProvider, traceFile, traceWriter := newTracerProvider(res, opts.Dir, opts.SessionID, opts.OTLPEndpoint, opts.OTLPHeaders, interval)
 
 	rec := &Recorder{
 		provider:       provider,
@@ -171,12 +183,18 @@ func New(opts Options) *Recorder {
 		sessionID:      opts.SessionID,
 		tracerProvider: traceProvider,
 		traceFile:      traceFile,
+		traceWriter:    traceWriter,
+		otlpEndpoint:   opts.OTLPEndpoint,
+		otlpHeaders:    opts.OTLPHeaders,
 	}
 
 	if err := rec.initInstruments(provider.Meter("infer-cli")); err != nil {
 		logger.Warn("telemetry: instrument init failed", "error", err)
 		rec.Shutdown(context.Background())
 		return nil
+	}
+	if opts.ReceiverAddress != "" {
+		rec.startReceiver(opts.ReceiverAddress)
 	}
 	return rec
 }
@@ -395,6 +413,9 @@ func (r *Recorder) Shutdown(ctx context.Context) {
 			logger.Warn("telemetry: trace shutdown failed", "error", err)
 		}
 	}
+	if r.recvSrv != nil {
+		_ = r.recvSrv.Close()
+	}
 	if r.file != nil {
 		_ = r.file.Close()
 	}
@@ -418,7 +439,7 @@ func (r *Recorder) StartSession(mode string) func(outcome string) {
 	if r == nil || r.tracerProvider == nil {
 		return func(string) {}
 	}
-	ctx, span := r.Tracer().Start(context.Background(), "session",
+	ctx, span := r.Tracer().Start(propagator.Extract(context.Background(), envCarrier{}), "session",
 		trace.WithAttributes(
 			attribute.String("infer.execution.mode", ExecutionMode),
 			attribute.String("infer.agent.mode", mode),

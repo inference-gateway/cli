@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -213,6 +214,10 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
+
+	if env := domain.GetTraceEnv(ctx); env != nil {
+		cmd.Env = append(os.Environ(), env...)
+	}
 
 	if hasCallback && outputCallback != nil {
 		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, start)

@@ -2,8 +2,10 @@ package telemetry
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	otlptracehttp "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -20,10 +22,10 @@ import (
 // config with the meter provider. Local file export is always attempted; OTLP
 // export is added when an endpoint is configured. Sink failures are logged
 // and dropped; returns (nil, nil) when no sink could be created.
-func newTracerProvider(res *resource.Resource, dir, session, endpoint string, headers map[string]string, interval time.Duration) (*sdktrace.TracerProvider, *os.File) {
+func newTracerProvider(res *resource.Resource, dir, session, endpoint string, headers map[string]string, interval time.Duration) (*sdktrace.TracerProvider, *os.File, *lockedWriter) {
 	var spanProcessors []sdktrace.SpanProcessor
 
-	file, fileProc, err := newTraceFileProcessor(dir, session)
+	file, writer, fileProc, err := newTraceFileProcessor(dir, session)
 	if err != nil {
 		logger.Warn("telemetry: local trace file disabled", "error", err)
 	} else {
@@ -42,32 +44,46 @@ func newTracerProvider(res *resource.Resource, dir, session, endpoint string, he
 		if file != nil {
 			_ = file.Close()
 		}
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	opts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
 	for _, p := range spanProcessors {
 		opts = append(opts, sdktrace.WithSpanProcessor(p))
 	}
-	return sdktrace.NewTracerProvider(opts...), file
+	return sdktrace.NewTracerProvider(opts...), file, writer
+}
+
+// lockedWriter serializes trace-file writes between the stdouttrace exporter
+// and the OTLP receiver's appends
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }
 
 // newTraceFileProcessor writes spans as OTLP/semconv JSON to a per-session
 // file, synchronously (tiny volume; spans survive an abrupt exit).
-func newTraceFileProcessor(dir, session string) (*os.File, sdktrace.SpanProcessor, error) {
+func newTraceFileProcessor(dir, session string) (*os.File, *lockedWriter, sdktrace.SpanProcessor, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	f, err := os.OpenFile(filepath.Join(dir, session+"-traces.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	exp, err := stdouttrace.New(stdouttrace.WithWriter(f))
+	w := &lockedWriter{w: f}
+	exp, err := stdouttrace.New(stdouttrace.WithWriter(w))
 	if err != nil {
 		_ = f.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return f, sdktrace.NewSimpleSpanProcessor(exp), nil
+	return f, w, sdktrace.NewSimpleSpanProcessor(exp), nil
 }
 
 // newOTLPTraceProcessor creates a batch span processor exporting over

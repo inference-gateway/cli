@@ -8,10 +8,12 @@ import (
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 type A2AQueryAgentTool struct {
@@ -80,7 +82,9 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
 	}
 
-	adkClient := client.NewClient(agentURL)
+	cfg := client.DefaultConfig(agentURL)
+	cfg.Transport = telemetry.PropagationTransport(nil)
+	adkClient := client.NewClientWithConfig(cfg)
 	response, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
 		logger.Error("failed to fetch agent card", "agent_url", agentURL, "error", err)

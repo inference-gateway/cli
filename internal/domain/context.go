@@ -50,6 +50,12 @@ const AgentModeKey ContextKey = "agent_mode"
 // by default (otherwise the subagent process would fail with "no model specified").
 const ModelKey ContextKey = "model"
 
+// ToolCallIDKey is the context key for the LLM tool call id of the current tool execution
+const ToolCallIDKey ContextKey = "tool_call_id"
+
+// TraceEnvKey is the context key for the W3C trace-context subprocess environment
+const TraceEnvKey ContextKey = "trace_env"
+
 // UserQuestionBrokerKey is the context key for the interactive question broker.
 // It is injected only on the chat path (where a TUI event loop exists), so the
 // AskUserQuestion tool sees a nil broker on headless/no-TTY runs and degrades

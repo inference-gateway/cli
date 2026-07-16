@@ -94,6 +94,9 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 		if json.Unmarshal(scanner.Bytes(), &tl) != nil || tl.Name == "" {
 			continue
 		}
+		if id := tl.SpanContext.SpanID; id != "" && byID[id] != nil {
+			continue
+		}
 		span := &TraceSpan{
 			Name:       tl.Name,
 			Start:      tl.StartTime,
@@ -120,6 +123,8 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 		case p != nil && p != n.span:
 			p.Children = append(p.Children, n.span)
 		case strings.Trim(n.parent, "0") == "":
+			roots = append(roots, n.span)
+		case n.span.Name == "session":
 			roots = append(roots, n.span)
 		default:
 			orphans[n.parent] = append(orphans[n.parent], n.span)
@@ -223,11 +228,15 @@ func RenderTraceTree(roots []*TraceSpan, style TreeStyle) string {
 // spanLabel decorates the session root with its agent mode and run outcome,
 // mirroring the resource-level facts a reader wants at the top of the tree.
 func spanLabel(s *TraceSpan) string {
+	name := s.Name
+	if svc := s.Attributes["service.name"]; svc != "" {
+		name += " [" + svc + "]"
+	}
 	mode, outcome := s.Attributes["infer.agent.mode"], s.Attributes["infer.run.outcome"]
 	if mode != "" && outcome != "" {
-		return fmt.Sprintf("%s (%s, %s)", s.Name, mode, outcome)
+		return fmt.Sprintf("%s (%s, %s)", name, mode, outcome)
 	}
-	return s.Name
+	return name
 }
 
 // formatSpanDuration renders a span duration compactly: 117µs, 41ms, 3.2s, 1m32s.

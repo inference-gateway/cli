@@ -94,6 +94,14 @@ func TestLoadTraceTree(t *testing.T) {
 			wantRoots: []string{"session"},
 		},
 		{
+			name: "duplicate span IDs deduped keeping first",
+			lines: []string{
+				line("session", "aa", "0000000000000000", "2026-01-01T00:00:00Z", "2026-01-01T00:00:10Z", "Unset"),
+				line("session-echo", "aa", "0000000000000000", "2026-01-01T00:00:00Z", "2026-01-01T00:00:10Z", "Unset"),
+			},
+			wantRoots: []string{"session"},
+		},
+		{
 			name:    "missing file errors",
 			lines:   nil,
 			wantErr: true,
@@ -129,6 +137,13 @@ func TestLoadTraceTree(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSpanLabelServiceName(t *testing.T) {
+	s := &TraceSpan{Name: "a2a.request", Attributes: map[string]string{"service.name": "mock-agent"}}
+	if got := spanLabel(s); got != "a2a.request [mock-agent]" {
+		t.Fatalf("spanLabel=%q, want %q", got, "a2a.request [mock-agent]")
 	}
 }
 

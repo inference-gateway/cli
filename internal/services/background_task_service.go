@@ -8,8 +8,10 @@ import (
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // a2aJobController is the narrow job-supervisor surface this service needs: the
@@ -38,7 +40,9 @@ func NewBackgroundTaskService(taskTracker domain.A2ATaskTracker, jobs a2aJobCont
 		taskTracker: taskTracker,
 		jobs:        jobs,
 		createADKClient: func(agentURL string) client.A2AClient {
-			return client.NewClient(agentURL)
+			cfg := client.DefaultConfig(agentURL)
+			cfg.Transport = telemetry.PropagationTransport(nil)
+			return client.NewClientWithConfig(cfg)
 		},
 	}
 }

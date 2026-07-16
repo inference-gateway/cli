@@ -1,0 +1,89 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      SERVER_READ_TIMEOUT: 230s
+      SERVER_WRITE_TIMEOUT: 230s
+      SERVER_IDLE_TIMEOUT: 230s
+      CLIENT_TIMEOUT: 230s
+    restart: unless-stopped
+    networks:
+      - a2a-traces-network
+
+  cli:
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
+    tty: true
+    stdin_open: true
+    depends_on:
+      - otel-collector
+    environment:
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_AGENT_MODEL: deepseek/deepseek-v4-flash
+      INFER_A2A_ENABLED: true
+      INFER_A2A_AGENTS: |
+        http://mock-agent:8080
+      INFER_TELEMETRY_ENABLED: true
+      INFER_TELEMETRY_OTLP_ENDPOINT: http://otel-collector:4318
+      INFER_TELEMETRY_OTLP_INTERVAL: 10
+      INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4318
+      INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS: |
+        mock-agent
+    command:
+      - chat
+    networks:
+      - a2a-traces-network
+
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:0.3.2
+    environment:
+      A2A_AGENT_URL: http://mock-agent:8080
+      A2A_AGENT_CLIENT_PROVIDER: ""
+      A2A_AGENT_CLIENT_MODEL: ""
+      A2A_AGENT_CLIENT_BASE_URL: ""
+      A2A_AGENT_CLIENT_TIMEOUT: 120s
+      A2A_SERVER_READ_TIMEOUT: 120s
+      A2A_SERVER_WRITE_TIMEOUT: 120s
+      A2A_SERVER_IDLE_TIMEOUT: 120s
+      A2A_QUEUE_CLEANUP_INTERVAL: 500s
+      A2A_ARTIFACTS_ENABLE: true
+      A2A_ARTIFACTS_SERVER_HOST: localhost
+      A2A_ARTIFACTS_SERVER_PORT: 8081
+      A2A_ARTIFACTS_STORAGE_PROVIDER: filesystem
+      A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/artifacts
+      A2A_ARTIFACTS_STORAGE_BASE_URL: http://mock-agent:8081
+      A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
+      A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
+      A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
+      A2A_TELEMETRY_ENABLE: true
+      A2A_OTEL_TRACES_EXPORTER: otlp
+      A2A_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      A2A_OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      A2A_OTEL_METRICS_EXPORTER: prometheus
+      A2A_OTEL_EXPORTER_PROMETHEUS_PORT: 9090
+    restart: unless-stopped
+    networks:
+      - a2a-traces-network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.0
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    restart: unless-stopped
+    networks:
+      - a2a-traces-network
+
+networks:
+  a2a-traces-network:
+    driver: bridge

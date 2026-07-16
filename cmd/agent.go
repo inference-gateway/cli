@@ -749,13 +749,14 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 // The mode is carried on the context so the Bash tool resolves the right
 // per-mode allow-list. approved is set only after an explicit IPC approval,
 // marking the context so an off-list but user-approved command is allowed to run.
-func (s *AgentSession) executeToolCall(toolName, args string, approved bool) (*domain.ToolExecutionResult, error) {
+func (s *AgentSession) executeToolCall(toolName, args, callID string, approved bool) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(s.baseCtx(), s.sessionID), s.agentMode), s.model)
+	ctx = domain.WithToolCallID(ctx, callID)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
 	}
@@ -786,7 +787,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, false)
+			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, false)
 			if err != nil {
 				logger.Error("tool execution failed", "tool", tc.Function.Name, "error", err)
 				errorResult := &domain.ToolExecutionResult{
@@ -961,16 +962,12 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 			"tool execution rejected by user")
 	}
 
-	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, true)
+	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, true)
 	return s.toolResultMessage(tc, result, err)
 }
 
 // isToolApprovalRequired checks if a tool requires user approval based on config.
 func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCall) bool {
-	// Auto-accept bypasses approval entirely, matching chat YOLO mode. A headless
-	// run only reaches this mode when spawned by the Agent tool from an
-	// auto-accept parent (via INFER_SUBAGENT_AGENT_MODE); top-level runs stay
-	// Standard and fall through to the per-mode gating below.
 	if s.agentMode == domain.AgentModeAutoAccept {
 		return false
 	}
@@ -983,10 +980,6 @@ func (s *AgentSession) isToolApprovalRequired(tc sdk.ChatCompletionMessageToolCa
 		if !ok {
 			return true
 		}
-		// An allowed command (per the session's mode allow-list) runs without
-		// approval; an off-list one needs approval and is then delivered per
-		// tools.safety.approval_behaviour (IPC when a broker is attached, else
-		// blocked) by deliverApprovalRequiredTool.
 		if s.config.IsBashCommandAllowed(command, s.agentMode.AllowedlistKey()) {
 			return false
 		}

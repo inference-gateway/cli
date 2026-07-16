@@ -9,10 +9,12 @@ import (
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 type A2AQueryTaskTool struct {
@@ -106,7 +108,9 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, startTime, t.buildPollingBlockedError(agentURL))
 	}
 
-	adkClient := client.NewClient(agentURL)
+	cfg := client.DefaultConfig(agentURL)
+	cfg.Transport = telemetry.PropagationTransport(nil)
+	adkClient := client.NewClientWithConfig(cfg)
 	queryParams := adk.TaskQueryParams{ID: taskID}
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
