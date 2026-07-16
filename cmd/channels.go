@@ -116,8 +116,6 @@ func RunChannelsCommand(cfg *config.Config) error {
 	logger.Info("shutting down...")
 	cancel()
 
-	// Flush telemetry before stopping subsystems so the final metrics
-	// (messages processed, uptime) reach the collector.
 	tel.Shutdown(context.Background())
 
 	if hb != nil {
