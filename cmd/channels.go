@@ -62,11 +62,11 @@ func RunChannelsCommand(cfg *config.Config) error {
 	telemetry.ExecutionMode = telemetry.ExecDaemon
 	sessionID := domain.GenerateSessionID()
 	tel := telemetry.New(telemetry.Options{
-		Enabled:      cfg.Telemetry.Enabled,
-		Dir:          config.TelemetryDir(),
-		SessionID:    string(sessionID),
-		OTLPEndpoint: cfg.Telemetry.OTLP.Endpoint,
-		OTLPHeaders:  cfg.Telemetry.OTLP.Headers,
+		Enabled:           cfg.Telemetry.Enabled,
+		Dir:               config.TelemetryDir(),
+		SessionID:         string(sessionID),
+		OTLPEndpoint:      cfg.Telemetry.OTLP.Endpoint,
+		OTLPHeaders:       cfg.Telemetry.OTLP.Headers,
 		OTLPInterval:      time.Duration(cfg.Telemetry.OTLP.Interval) * time.Second,
 		AttrSessionIDKey:  cfg.Telemetry.AttrSessionIDKey,
 		AttrToolCallIDKey: cfg.Telemetry.AttrToolCallIDKey,
