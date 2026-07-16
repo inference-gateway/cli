@@ -12,7 +12,8 @@ receivers:
         - job_name: mock-agent
           scrape_interval: 10s
           static_configs:
-            - targets: ['mock-agent:9090']
+            - targets:
+                - mock-agent:9090
 
 exporters:
   debug: {}
@@ -24,8 +25,14 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      exporters: [debug, otlphttp]
+      receivers:
+        - otlp
+      exporters:
+        - debug
+        - otlphttp
     metrics:
-      receivers: [otlp, prometheus]
-      exporters: [debug]
+      receivers:
+        - otlp
+        - prometheus
+      exporters:
+        - debug
