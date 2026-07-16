@@ -19,6 +19,11 @@ type MemoryStorage struct {
 	plans         map[string]*PlanRecord
 	shellHistory  []string
 	mutex         sync.RWMutex
+
+	// jobWatchers is a set of channels that receive scheduled-job change events.
+	// Each channel is registered by Watch() and removed when the caller's ctx
+	// is cancelled. Must only be accessed under mutex.
+	jobWatchers map[chan<- ScheduledJobChangeEvent]struct{}
 }
 
 type conversationData struct {
@@ -222,6 +227,7 @@ func (m *MemoryStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) e
 		m.scheduledJobs = make(map[string]*domain.ScheduledJob)
 	}
 	m.scheduledJobs[job.ID] = job
+	m.emitJobEventLocked(ScheduledJobChangeEvent{ID: job.ID, Type: "save"})
 	return nil
 }
 
@@ -258,17 +264,40 @@ func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
 		return ErrJobNotFound
 	}
 	delete(m.scheduledJobs, id)
+	m.emitJobEventLocked(ScheduledJobChangeEvent{ID: id, Type: "delete"})
 	return nil
 }
 
 // Watch returns a channel that emits change events via in-process broadcast.
 func (m *MemoryStorage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
-	ch := make(chan ScheduledJobChangeEvent)
+	ch := make(chan ScheduledJobChangeEvent, 64)
+	m.mutex.Lock()
+	if m.jobWatchers == nil {
+		m.jobWatchers = make(map[chan<- ScheduledJobChangeEvent]struct{})
+	}
+	m.jobWatchers[ch] = struct{}{}
+	m.mutex.Unlock()
+
 	go func() {
 		<-ctx.Done()
+		m.mutex.Lock()
+		delete(m.jobWatchers, ch)
+		m.mutex.Unlock()
 		close(ch)
 	}()
 	return ch
+}
+
+// emitJobEventLocked broadcasts a change event to all active watchers.
+// Must be called with m.mutex held.
+func (m *MemoryStorage) emitJobEventLocked(ev ScheduledJobChangeEvent) {
+	for ch := range m.jobWatchers {
+		select {
+		case ch <- ev:
+		default:
+			// Drop if watcher is not reading fast enough.
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

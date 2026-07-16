@@ -39,6 +39,7 @@ type ScheduleTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter domain.BaseFormatter
+	store     storage.ScheduledJobStorage
 }
 
 // NewScheduleTool creates a new Schedule tool.
@@ -210,13 +211,18 @@ func optionalBool(args map[string]any, key string) bool {
 }
 
 // openStore resolves the storage directory and constructs a Store.
+// The store is cached on the tool so CRUD operations share state.
 func (t *ScheduleTool) openStore() (storage.ScheduledJobStorage, error) {
+	if t.store != nil {
+		return t.store, nil
+	}
 	storageConfig := storage.NewStorageFromConfig(t.config)
 	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("storage init: %w", err)
 	}
-	return stores.ScheduledJobs, nil
+	t.store = stores.ScheduledJobs
+	return t.store, nil
 }
 
 // channelConfigured reports whether the named channel is enabled in config.
