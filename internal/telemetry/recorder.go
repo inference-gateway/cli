@@ -54,6 +54,7 @@ var (
 const (
 	ExecInteractive = "interactive"
 	ExecHeadless    = "headless"
+	ExecDaemon      = "daemon"
 )
 
 // Tool outcomes (attribute infer.tool.outcome; error.type on non-success).
@@ -377,6 +378,16 @@ func (r *Recorder) RecordSession(mode, outcome string, dur time.Duration) {
 		attribute.String("infer.agent.mode", mode),
 	))
 	r.runDuration.Record(ctx, dur.Seconds(), metric.WithAttributes(attribute.String("infer.run.outcome", outcome)))
+}
+
+// Meter returns the meter from the provider, or nil when the recorder is nil
+// or the provider is nil. Used by subsystems (e.g. channels-manager) to
+// register their own instruments on the shared meter provider.
+func (r *Recorder) Meter() metric.Meter {
+	if r == nil || r.provider == nil {
+		return nil
+	}
+	return r.provider.Meter("infer-cli")
 }
 
 // Flush forces an immediate export of everything recorded so far, without

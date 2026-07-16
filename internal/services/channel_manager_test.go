@@ -17,7 +17,7 @@ import (
 
 func TestChannelManagerService_Register(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	ch := &fakesdomain.FakeChannel{}
 	ch.NameReturns("test")
@@ -34,7 +34,7 @@ func TestChannelManagerService_Register(t *testing.T) {
 
 func TestChannelManagerService_StartDisabled(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: false}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	err := cm.Start(context.Background())
 	if err != nil {
@@ -44,7 +44,7 @@ func TestChannelManagerService_StartDisabled(t *testing.T) {
 
 func TestChannelManagerService_StopChannels(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	ch := &fakesdomain.FakeChannel{}
 	ch.NameReturns("test")
@@ -81,7 +81,7 @@ func TestChannelManagerService_IsAllowedUser(t *testing.T) {
 			AllowedUsers: []string{"123", "456"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	tests := []struct {
 		channel  string
@@ -109,7 +109,7 @@ func TestChannelManagerService_IsAllowedUser_EmptyList(t *testing.T) {
 			AllowedUsers: []string{},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	if cm.isAllowedUser("telegram", "123") {
 		t.Fatal("expected rejection with empty allowed list")
@@ -123,7 +123,7 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"Hello from agent!","timestamp":"2024-01-01T00:00:00Z"}`)
@@ -179,7 +179,7 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		return exec.CommandContext(ctx, "printf",
@@ -239,7 +239,7 @@ func TestChannelManagerService_UnauthorizedUserRejected(t *testing.T) {
 			AllowedUsers: []string{"allowed_user"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	agentCalled := false
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -412,7 +412,7 @@ func TestChannelManagerService_SessionID(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	var capturedArgs []string
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -616,7 +616,7 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	var capturedArgs []string
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -752,7 +752,7 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	// Simulate: the agent outputs an approval request, then an assistant message after approval
 	approvalReq := domain.ApprovalRequest{
@@ -833,7 +833,7 @@ func TestChannelManagerService_RequireApprovalFlag(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	var capturedArgs []string
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -892,7 +892,7 @@ func TestChannelManagerService_NoApprovalFlagByDefault(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	var capturedArgs []string
 	cm.execCommandFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -947,7 +947,7 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	approvalReq := domain.ApprovalRequest{
 		Type:       "approval_request",
@@ -1040,7 +1040,7 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 
 	approvalReq := domain.ApprovalRequest{
 		Type:       "approval_request",
@@ -1126,7 +1126,7 @@ func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name str
 			AllowedUsers: []string{"123"},
 		},
 	}
-	cm := NewChannelManagerService(cfg)
+	cm := NewChannelManagerService(cfg, nil)
 	cm.execCommandFunc = exec
 
 	sent := make(chan domain.OutboundMessage, 8)

@@ -10,12 +10,14 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	stt "github.com/inference-gateway/cli/internal/stt"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -57,7 +59,18 @@ func RunChannelsCommand(cfg *config.Config) error {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, or heartbeat in .infer/")
 	}
 
-	cm := services.NewChannelManagerService(cfg.Channels)
+	telemetry.ExecutionMode = telemetry.ExecDaemon
+	sessionID := domain.GenerateSessionID()
+	tel := telemetry.New(telemetry.Options{
+		Enabled:      cfg.Telemetry.Enabled,
+		Dir:          config.TelemetryDir(),
+		SessionID:    string(sessionID),
+		OTLPEndpoint: cfg.Telemetry.OTLP.Endpoint,
+		OTLPHeaders:  cfg.Telemetry.OTLP.Headers,
+		OTLPInterval: time.Duration(cfg.Telemetry.OTLP.Interval) * time.Second,
+	})
+
+	cm := services.NewChannelManagerService(cfg.Channels, tel)
 
 	if cfg.Channels.Enabled {
 		if err := registerChannels(cm, cfg); err != nil {
@@ -102,6 +115,10 @@ func RunChannelsCommand(cfg *config.Config) error {
 	<-sigChan
 	logger.Info("shutting down...")
 	cancel()
+
+	// Flush telemetry before stopping subsystems so the final metrics
+	// (messages processed, uptime) reach the collector.
+	tel.Shutdown(context.Background())
 
 	if hb != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)

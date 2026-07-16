@@ -13,11 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // ChannelManagerService manages pluggable messaging channels and triggers
@@ -42,21 +45,64 @@ type ChannelManagerService struct {
 	pendingApprovals sync.Map
 
 	cancel context.CancelFunc
+
+	// telemetryRecorder records daemon-level operational metrics (messages
+	// processed, active channels, per-message duration). Nil-safe.
+	telemetryRecorder *telemetry.Recorder
+
+	// daemon instruments (lazily initialised on first use)
+	messagesProcessed metric.Int64Counter
+	messageDuration   metric.Float64Histogram
+	activeChannels    metric.Int64UpDownCounter
 }
 
 // NewChannelManagerService creates a new channel manager
-func NewChannelManagerService(cfg config.ChannelsConfig) *ChannelManagerService {
+func NewChannelManagerService(cfg config.ChannelsConfig, tel *telemetry.Recorder) *ChannelManagerService {
 	maxWorkers := cfg.MaxWorkers
 	if maxWorkers <= 0 {
 		maxWorkers = 5
 	}
 
-	return &ChannelManagerService{
-		channels:        make(map[string]domain.Channel),
-		inbox:           make(chan domain.InboundMessage, 100),
-		cfg:             cfg,
-		semaphore:       make(chan struct{}, maxWorkers),
-		execCommandFunc: exec.CommandContext,
+	cm := &ChannelManagerService{
+		channels:          make(map[string]domain.Channel),
+		inbox:             make(chan domain.InboundMessage, 100),
+		cfg:               cfg,
+		semaphore:         make(chan struct{}, maxWorkers),
+		execCommandFunc:   exec.CommandContext,
+		telemetryRecorder: tel,
+	}
+
+	cm.initDaemonInstruments()
+	return cm
+}
+
+// initDaemonInstruments lazily initialises the daemon-level OTel instruments
+// from the telemetry recorder's meter. Failures are logged and dropped so
+// telemetry never affects daemon operation.
+func (cm *ChannelManagerService) initDaemonInstruments() {
+	if cm.telemetryRecorder == nil {
+		return
+	}
+	meter := cm.telemetryRecorder.Meter()
+	if meter == nil {
+		return
+	}
+
+	var err error
+	if cm.messagesProcessed, err = meter.Int64Counter("infer.daemon.messages_processed",
+		metric.WithDescription("Number of inbound messages processed"),
+		metric.WithUnit("{message}")); err != nil {
+		logger.Warn("telemetry: failed to create messages_processed counter", "error", err)
+	}
+	if cm.messageDuration, err = meter.Float64Histogram("infer.daemon.message.duration",
+		metric.WithDescription("Per-message processing duration"),
+		metric.WithUnit("s")); err != nil {
+		logger.Warn("telemetry: failed to create message.duration histogram", "error", err)
+	}
+	if cm.activeChannels, err = meter.Int64UpDownCounter("infer.daemon.active_channels",
+		metric.WithDescription("Number of active channels"),
+		metric.WithUnit("{channel}")); err != nil {
+		logger.Warn("telemetry: failed to create active_channels updown counter", "error", err)
 	}
 }
 
