@@ -5,17 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 
-	fsnotify "github.com/fsnotify/fsnotify"
 	cron "github.com/robfig/cron/v3"
 )
 
@@ -23,15 +22,15 @@ import (
 type ChannelLookupFn func(name string) domain.Channel
 
 // Service runs scheduled jobs inside the channels-manager daemon. Jobs are
-// loaded from the on-disk Store, registered with a robfig/cron scheduler, and
-// hot-reloaded when the storage directory changes (via fsnotify).
+// loaded from the configured ScheduledJobStorage, registered with a robfig/cron
+// scheduler, and hot-reloaded when the storage reports changes (via Watch).
 //
 // On fire, a fresh `infer agent --session-id <uuid>` subprocess is spawned -
 // every fire gets a brand-new session, so no context carries between runs.
 // Each assistant line emitted by the agent is forwarded to the configured
 // channel/recipient via the in-process channel lookup.
 type Service struct {
-	store         *Store
+	store         storage.ScheduledJobStorage
 	cron          *cron.Cron
 	parser        cron.Parser
 	channelLookup ChannelLookupFn
@@ -41,19 +40,16 @@ type Service struct {
 	mu       sync.Mutex
 	entryIDs map[string]cron.EntryID
 
-	watcher    *fsnotify.Watcher
-	watchCtx   context.Context
-	watchStop  context.CancelFunc
-	watcherWG  sync.WaitGroup
-	debounceMu sync.Mutex
-	debounce   map[string]*time.Timer
+	watchCtx  context.Context
+	watchStop context.CancelFunc
+	watcherWG sync.WaitGroup
 
 	started bool
 }
 
 // Options bundles dependencies and configuration for NewService.
 type Options struct {
-	Store         *Store
+	Store         storage.ScheduledJobStorage
 	ChannelLookup ChannelLookupFn
 	// ExecCommand defaults to exec.CommandContext when nil.
 	ExecCommand agentrunner.ExecFunc
@@ -79,7 +75,6 @@ func NewService(opts Options) (*Service, error) {
 		execCmd:       opts.ExecCommand,
 		binaryPath:    opts.BinaryPath,
 		entryIDs:      make(map[string]cron.EntryID),
-		debounce:      make(map[string]*time.Timer),
 	}, nil
 }
 
@@ -100,8 +95,8 @@ func ParseCron(expr string) error {
 	return err
 }
 
-// Start initialises the cron scheduler, loads all jobs from disk, and begins
-// watching the storage directory for changes.
+// Start initialises the cron scheduler, loads all jobs from storage, and begins
+// watching for changes via the storage backend's Watch channel.
 func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
 	if s.started {
@@ -125,7 +120,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
 	jobCount := len(s.entryIDs)
 	s.mu.Unlock()
-	logger.Info("scheduler started", "dir", s.store.Dir(), "jobs", jobCount)
+	logger.Info("scheduler started", "jobs", jobCount)
 	return nil
 }
 
@@ -145,10 +140,6 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.watchStop()
 	}
 	s.watcherWG.Wait()
-	if s.watcher != nil {
-		_ = s.watcher.Close()
-		s.watcher = nil
-	}
 
 	if c != nil {
 		stopCtx := c.Stop()
@@ -164,11 +155,11 @@ func (s *Service) Stop(ctx context.Context) error {
 }
 
 // LoadJobs replaces all currently-registered cron entries with the jobs
-// currently on disk. Safe to call repeatedly.
+// currently in storage. Safe to call repeatedly.
 func (s *Service) LoadJobs() error {
-	jobs, errs := s.store.List()
-	for _, e := range errs {
-		logger.Warn("skipping invalid schedule file", "error", e)
+	jobs, err := s.store.ListJobs(context.Background())
+	if err != nil {
+		return fmt.Errorf("list jobs: %w", err)
 	}
 
 	s.mu.Lock()
@@ -274,7 +265,7 @@ func (s *Service) fire(job domain.ScheduledJob) {
 	}
 
 	if job.RunOnce {
-		if err := s.store.Delete(job.ID); err != nil {
+		if err := s.store.DeleteJob(context.Background(), job.ID); err != nil {
 			logger.Warn("failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
 		} else {
 			logger.Info("one-off scheduled job consumed and deleted", "id", job.ID)
@@ -287,14 +278,14 @@ func (s *Service) fire(job domain.ScheduledJob) {
 // persistRun writes the updated LastRun/LastError back to disk. Errors are
 // only logged - a failed metadata write should not crash the daemon.
 func (s *Service) persistRun(job *domain.ScheduledJob) {
-	current, err := s.store.Load(job.ID)
+	current, err := s.store.LoadJob(context.Background(), job.ID)
 	if err != nil {
 		// Job may have been deleted concurrently; ignore.
 		return
 	}
 	current.LastRun = job.LastRun
 	current.LastError = job.LastError
-	if err := s.store.Save(current); err != nil {
+	if err := s.store.SaveJob(context.Background(), current); err != nil {
 		logger.Warn("failed to persist scheduled job run state", "id", job.ID, "error", err)
 	}
 }
@@ -367,23 +358,14 @@ func displayName(job *domain.ScheduledJob) string {
 	return job.ID
 }
 
-// startWatcher begins watching the storage directory and keeps cron entries
-// in sync with file changes. Operates with a small debounce per file so
-// editor-style "write tmp + rename" sequences only trigger one reload.
+// startWatcher subscribes to the storage backend's Watch channel and keeps
+// cron entries in sync with job changes.
 func (s *Service) startWatcher(ctx context.Context) error {
-	w, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("create watcher: %w", err)
-	}
-	if err := w.Add(s.store.Dir()); err != nil {
-		_ = w.Close()
-		return fmt.Errorf("watch dir: %w", err)
-	}
-	s.watcher = w
 	wctx, cancel := context.WithCancel(ctx)
 	s.watchCtx = wctx
 	s.watchStop = cancel
 
+	ch := s.store.Watch(wctx)
 	s.watcherWG.Add(1)
 	go func() {
 		defer s.watcherWG.Done()
@@ -391,56 +373,28 @@ func (s *Service) startWatcher(ctx context.Context) error {
 			select {
 			case <-wctx.Done():
 				return
-			case ev, ok := <-w.Events:
+			case ev, ok := <-ch:
 				if !ok {
 					return
 				}
-				s.handleFSEvent(ev)
-			case err, ok := <-w.Errors:
-				if !ok {
-					return
+				switch ev.Type {
+				case "delete":
+					s.removeJob(ev.ID)
+				default:
+					// Reload the job and re-register
+					job, err := s.store.LoadJob(context.Background(), ev.ID)
+					if err != nil {
+						logger.Warn("failed to reload job from watch event", "id", ev.ID, "error", err)
+						continue
+					}
+					if err := s.registerJob(job); err != nil {
+						logger.Warn("failed to register reloaded job", "id", ev.ID, "error", err)
+					}
 				}
-				logger.Warn("schedule watcher error", "error", err)
 			}
 		}
 	}()
 	return nil
-}
-
-func (s *Service) handleFSEvent(ev fsnotify.Event) {
-	if filepath.Ext(ev.Name) != ".yaml" {
-		return
-	}
-	id := IDFromPath(ev.Name)
-	if id == "" {
-		return
-	}
-
-	if ev.Op&fsnotify.Remove != 0 {
-		s.removeJob(id)
-		return
-	}
-
-	s.scheduleReload(id, ev.Name)
-}
-
-// scheduleReload debounces back-to-back events for the same file.
-func (s *Service) scheduleReload(id, path string) {
-	s.debounceMu.Lock()
-	defer s.debounceMu.Unlock()
-	if t, ok := s.debounce[id]; ok {
-		t.Stop()
-	}
-	s.debounce[id] = time.AfterFunc(150*time.Millisecond, func() {
-		job, err := s.store.LoadFromPath(path)
-		if err != nil {
-			logger.Warn("failed to reload schedule file", "id", id, "error", err)
-			return
-		}
-		if err := s.registerJob(job); err != nil {
-			logger.Warn("failed to register reloaded schedule", "id", id, "error", err)
-		}
-	})
 }
 
 // JobIDs returns the set of currently-registered job IDs (test helper).

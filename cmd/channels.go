@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
@@ -152,20 +153,15 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 	if !cfg.Tools.Schedule.Enabled {
 		return nil, nil
 	}
-	dir := cfg.Tools.Schedule.StorageDir
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("resolve home dir: %w", err)
-		}
-		dir = filepath.Join(home, config.ConfigDirName, "schedules")
-	}
-	store, err := scheduler.NewStore(dir)
+
+	storageConfig := storage.NewStorageFromConfig(cfg)
+	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
+
 	svc, err := scheduler.NewService(scheduler.Options{
-		Store:         store,
+		Store:         stores.ScheduledJobs,
 		ChannelLookup: cm.GetChannel,
 	})
 	if err != nil {

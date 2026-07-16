@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	uuid "github.com/google/uuid"
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -211,16 +209,13 @@ func optionalBool(args map[string]any, key string) bool {
 }
 
 // openStore resolves the storage directory and constructs a Store.
-func (t *ScheduleTool) openStore() (*scheduler.Store, error) {
-	dir := t.config.Tools.Schedule.StorageDir
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("resolve home dir: %w", err)
-		}
-		dir = filepath.Join(home, config.ConfigDirName, "schedules")
+func (t *ScheduleTool) openStore() (storage.ScheduledJobStorage, error) {
+	storageConfig := storage.NewStorageFromConfig(t.config)
+	stores, err := storage.NewStorage(storageConfig)
+	if err != nil {
+		return nil, fmt.Errorf("storage init: %w", err)
 	}
-	return scheduler.NewStore(dir)
+	return stores.ScheduledJobs, nil
 }
 
 // channelConfigured reports whether the named channel is enabled in config.
@@ -237,7 +232,7 @@ func (t *ScheduleTool) channelConfigured(name string) bool {
 	}
 }
 
-func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
 	if err := validateCreateArgs(args); err != nil {
 		return t.fail(args, start, err)
 	}
@@ -247,7 +242,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 	}
 	max := t.config.Tools.Schedule.MaxJobs
 	if max > 0 {
-		existing, _ := store.List()
+		existing, _ := store.ListJobs(context.Background())
 		if len(existing) >= max {
 			return t.fail(args, start, fmt.Errorf("max_jobs limit (%d) reached", max))
 		}
@@ -266,7 +261,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
-	if err := store.Save(job); err != nil {
+	if err := store.SaveJob(context.Background(), job); err != nil {
 		return t.fail(args, start, err)
 	}
 	mode := "recurring"
@@ -300,19 +295,10 @@ func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient s
 	return channel, recipient, nil
 }
 
-func (t *ScheduleTool) execList(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
-	jobs, errs := store.List()
-	if len(errs) > 0 {
-		// Surface skipped files but still return what we got.
-		var msgs []string
-		for _, e := range errs {
-			msgs = append(msgs, e.Error())
-		}
-		return t.success(args, start, &ScheduleToolResult{
-			Operation: scheduleOpList,
-			Jobs:      jobs,
-			Message:   "Some files were skipped: " + strings.Join(msgs, "; "),
-		})
+func (t *ScheduleTool) execList(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+	jobs, err := store.ListJobs(context.Background())
+	if err != nil {
+		return t.fail(args, start, err)
 	}
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpList,
@@ -321,12 +307,12 @@ func (t *ScheduleTool) execList(args map[string]any, store *scheduler.Store, sta
 	})
 }
 
-func (t *ScheduleTool) execGet(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
-	job, err := store.Load(id)
+	job, err := store.LoadJob(context.Background(), id)
 	if err != nil {
 		return t.fail(args, start, err)
 	}
@@ -336,12 +322,12 @@ func (t *ScheduleTool) execGet(args map[string]any, store *scheduler.Store, star
 	})
 }
 
-func (t *ScheduleTool) execUpdate(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
-	job, err := store.Load(id)
+	job, err := store.LoadJob(context.Background(), id)
 	if err != nil {
 		return t.fail(args, start, err)
 	}
@@ -377,7 +363,7 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store *scheduler.Store, s
 		return t.fail(args, start, errors.New("update: no fields provided"))
 	}
 	job.UpdatedAt = time.Now().UTC()
-	if err := store.Save(job); err != nil {
+	if err := store.SaveJob(context.Background(), job); err != nil {
 		return t.fail(args, start, err)
 	}
 	return t.success(args, start, &ScheduleToolResult{
@@ -387,12 +373,12 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store *scheduler.Store, s
 	})
 }
 
-func (t *ScheduleTool) execDelete(args map[string]any, store *scheduler.Store, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
-	if err := store.Delete(id); err != nil {
+	if err := store.DeleteJob(context.Background(), id); err != nil {
 		return t.fail(args, start, err)
 	}
 	return t.success(args, start, &ScheduleToolResult{
