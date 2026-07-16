@@ -6,15 +6,17 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	table "charm.land/lipgloss/v2/table"
 
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // Shared styling for non-TUI `infer ... list` command output. These draw from
 // the static CLI palette (internal/ui/styles/colors) so list commands render
-// consistently without needing an interactive theme session. lipgloss degrades
-// colour automatically when stdout is not a TTY (e.g. piped), while the table
-// borders still render as box-drawing characters.
+// consistently without needing an interactive theme session. lipgloss v2 does
+// NOT degrade colour on a non-TTY stdout (it always emits the style's escape
+// sequences), so disableOutputColors resets these vars when colour is off;
+// the table borders still render as box-drawing characters either way.
 var (
 	listTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(colors.AccentColor.GetLipglossColor())
 	listLabelStyle  = lipgloss.NewStyle().Bold(true).Foreground(colors.HeaderColor.GetLipglossColor())
@@ -23,6 +25,20 @@ var (
 	tableBodyCell   = lipgloss.NewStyle().Padding(0, 1)
 	tableBorderInk  = lipgloss.NewStyle().Foreground(colors.BorderColor.GetLipglossColor())
 )
+
+// disableOutputColors strips every SGR-emitting attribute (colour and bold)
+// from the shared command-output styles, keeping only layout (cell padding),
+// so piped/redirected output and --no-colors runs contain no escape sequences.
+// Must run before any command renders (wired into rootCmd.PersistentPreRun).
+func disableOutputColors() {
+	listTitleStyle = lipgloss.NewStyle()
+	listLabelStyle = lipgloss.NewStyle()
+	listHintStyle = lipgloss.NewStyle()
+	tableHeaderCell = lipgloss.NewStyle().Padding(0, 1)
+	tableBodyCell = lipgloss.NewStyle().Padding(0, 1)
+	tableBorderInk = lipgloss.NewStyle()
+	traceTreeStyle = telemetry.TreeStyle{}
+}
 
 // newListTable returns a lipgloss table pre-styled for command-line list
 // output: a rounded border in the palette's border colour, a bold accent
