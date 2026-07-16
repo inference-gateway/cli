@@ -120,8 +120,8 @@ type Recorder struct {
 	otlpEndpoint string
 	otlpHeaders  map[string]string
 
-	attrSessionIDKey  string // baggage member name for the session id
-	attrToolCallIDKey string // baggage member name for the tool call id
+	attrSessionIDKey  string
+	attrToolCallIDKey string
 
 	recvOnce  sync.Once
 	recvSrv   *http.Server
