@@ -19,11 +19,6 @@ type MemoryStorage struct {
 	plans         map[string]*PlanRecord
 	shellHistory  []string
 	mutex         sync.RWMutex
-
-	// jobWatchers is a set of channels that receive scheduled-job change events.
-	// Each channel is registered by Watch() and removed when the caller's ctx
-	// is cancelled. Must only be accessed under mutex.
-	jobWatchers map[chan<- ScheduledJobChangeEvent]struct{}
 }
 
 type conversationData struct {
@@ -226,12 +221,12 @@ func (m *MemoryStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) e
 	if m.scheduledJobs == nil {
 		m.scheduledJobs = make(map[string]*domain.ScheduledJob)
 	}
-	m.scheduledJobs[job.ID] = job
-	m.emitJobEventLocked(ScheduledJobChangeEvent{ID: job.ID, Type: "save"})
+	cp := *job
+	m.scheduledJobs[job.ID] = &cp
 	return nil
 }
 
-// LoadJob returns a job by ID.
+// LoadJob returns a copy of a job by ID, so callers can't mutate stored state.
 func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -239,16 +234,18 @@ func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*domain.Schedul
 	if !ok {
 		return nil, ErrJobNotFound
 	}
-	return job, nil
+	cp := *job
+	return &cp, nil
 }
 
-// ListJobs returns all jobs sorted by CreatedAt ascending.
+// ListJobs returns copies of all jobs sorted by CreatedAt ascending.
 func (m *MemoryStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	var jobs []*domain.ScheduledJob
 	for _, job := range m.scheduledJobs {
-		jobs = append(jobs, job)
+		cp := *job
+		jobs = append(jobs, &cp)
 	}
 	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
 		return a.CreatedAt.Compare(b.CreatedAt)
@@ -264,40 +261,7 @@ func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
 		return ErrJobNotFound
 	}
 	delete(m.scheduledJobs, id)
-	m.emitJobEventLocked(ScheduledJobChangeEvent{ID: id, Type: "delete"})
 	return nil
-}
-
-// Watch returns a channel that emits change events via in-process broadcast.
-func (m *MemoryStorage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
-	ch := make(chan ScheduledJobChangeEvent, 64)
-	m.mutex.Lock()
-	if m.jobWatchers == nil {
-		m.jobWatchers = make(map[chan<- ScheduledJobChangeEvent]struct{})
-	}
-	m.jobWatchers[ch] = struct{}{}
-	m.mutex.Unlock()
-
-	go func() {
-		<-ctx.Done()
-		m.mutex.Lock()
-		delete(m.jobWatchers, ch)
-		m.mutex.Unlock()
-		close(ch)
-	}()
-	return ch
-}
-
-// emitJobEventLocked broadcasts a change event to all active watchers.
-// Must be called with m.mutex held.
-func (m *MemoryStorage) emitJobEventLocked(ev ScheduledJobChangeEvent) {
-	for ch := range m.jobWatchers {
-		select {
-		case ch <- ev:
-		default:
-			// Drop if watcher is not reading fast enough.
-		}
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -311,11 +275,12 @@ func (m *MemoryStorage) SavePlan(ctx context.Context, plan *PlanRecord) error {
 	if m.plans == nil {
 		m.plans = make(map[string]*PlanRecord)
 	}
-	m.plans[plan.ID] = plan
+	cp := *plan
+	m.plans[plan.ID] = &cp
 	return nil
 }
 
-// LoadPlan returns a plan by ID.
+// LoadPlan returns a copy of a plan by ID.
 func (m *MemoryStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -323,16 +288,18 @@ func (m *MemoryStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, e
 	if !ok {
 		return nil, fmt.Errorf("plan not found: %s", id)
 	}
-	return plan, nil
+	cp := *plan
+	return &cp, nil
 }
 
-// ListPlans returns all plans sorted by CreatedAt descending.
+// ListPlans returns copies of all plans sorted by CreatedAt descending.
 func (m *MemoryStorage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	var plans []*PlanRecord
 	for _, plan := range m.plans {
-		plans = append(plans, plan)
+		cp := *plan
+		plans = append(plans, &cp)
 	}
 	slices.SortFunc(plans, func(a, b *PlanRecord) int {
 		return b.CreatedAt.Compare(a.CreatedAt)

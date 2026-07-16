@@ -66,12 +66,12 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 func TestNewInputViewWithName_HistorySelection(t *testing.T) {
 	ms := createMockModelService()
 
-	iv := NewInputViewWithName(ms, "cfgdir", domain.SubagentHistoryMemoryOnly)
+	iv := NewInputViewWithName(ms, "cfgdir", domain.SubagentHistoryMemoryOnly, nil)
 	if got := iv.historyManager.GetShellHistoryFile(); got != "" {
 		t.Errorf("memory-only sentinel must have no history file, got %q", got)
 	}
 
-	iv = NewInputViewWithName(ms, "cfgdir", "refactor")
+	iv = NewInputViewWithName(ms, "cfgdir", "refactor", nil)
 	want := filepath.Join("cfgdir", "history", "history-refactor")
 	if got := iv.historyManager.GetShellHistoryFile(); got != want {
 		t.Errorf("named subagent history: want %q, got %q", want, got)

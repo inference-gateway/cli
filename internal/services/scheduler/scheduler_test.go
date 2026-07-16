@@ -155,7 +155,7 @@ func TestService_Fire_SendsToChannel(t *testing.T) {
 	}
 }
 
-func TestService_WatchReload_AddsNewJob(t *testing.T) {
+func TestService_PollReload_AddsNewJob(t *testing.T) {
 	ch := &fakeChannel{name: "telegram"}
 	fired := &atomic.Int32{}
 	svc, store := newTestService(t, ch, fired)
@@ -182,7 +182,7 @@ func TestService_WatchReload_AddsNewJob(t *testing.T) {
 		t.Fatalf("SaveJob: %v", err)
 	}
 
-	// Wait for the memory store's Watch to pick up the change (2s poll interval)
+	// Wait for the poller to pick up the change (2s poll interval)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if len(svc.JobIDs()) == 1 {
@@ -195,7 +195,43 @@ func TestService_WatchReload_AddsNewJob(t *testing.T) {
 	}
 }
 
-func TestService_WatchReload_RemovesJob(t *testing.T) {
+func TestService_PollReload_UpdatesChangedJob(t *testing.T) {
+	ch := &fakeChannel{name: "telegram"}
+	fired := &atomic.Int32{}
+	svc, store := newTestService(t, ch, fired)
+
+	job := &domain.ScheduledJob{
+		ID:             "editable",
+		CronExpression: "0 8 * * *",
+		Prompt:         "before",
+		Channel:        "telegram",
+		RecipientID:    "user1",
+		CreatedAt:      time.Now().UTC(),
+	}
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = svc.Stop(ctx) }()
+
+	job.Prompt = "after"
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob update: %v", err)
+	}
+
+	// The changed fingerprint re-registers the job; there must never be a
+	// duplicate or a dropped entry.
+	time.Sleep(3 * time.Second)
+	if got := svc.JobIDs(); len(got) != 1 || got[0] != "editable" {
+		t.Fatalf("expected [editable] after update, got %v", got)
+	}
+}
+
+func TestService_PollReload_RemovesJob(t *testing.T) {
 	ch := &fakeChannel{name: "telegram"}
 	fired := &atomic.Int32{}
 	svc, store := newTestService(t, ch, fired)

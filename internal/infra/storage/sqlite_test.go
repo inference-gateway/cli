@@ -33,4 +33,19 @@ func TestSQLiteStorage_Conformance(t *testing.T) {
 		t.Cleanup(cleanup)
 		return storage
 	})
+	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage {
+		storage, cleanup := setupTestStorage(t)
+		t.Cleanup(cleanup)
+		return storage
+	})
+	runPlanStorageConformance(t, func(t *testing.T) PlanStorage {
+		storage, cleanup := setupTestStorage(t)
+		t.Cleanup(cleanup)
+		return storage
+	})
+	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		storage, cleanup := setupTestStorage(t)
+		t.Cleanup(cleanup)
+		return storage
+	})
 }

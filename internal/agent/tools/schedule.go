@@ -32,9 +32,8 @@ type ScheduleToolResult struct {
 }
 
 // ScheduleTool lets the LLM create, inspect, and remove recurring jobs that
-// are executed by the channels-manager daemon's scheduler. The tool itself
-// only reads/writes YAML files under the configured storage directory; the
-// daemon hot-reloads via fsnotify.
+// are executed by the channels-manager daemon's scheduler. Jobs are persisted
+// through the injected storage backend; the daemon hot-reloads by polling it.
 type ScheduleTool struct {
 	config    *config.Config
 	enabled   bool
@@ -42,12 +41,14 @@ type ScheduleTool struct {
 	store     storage.ScheduledJobStorage
 }
 
-// NewScheduleTool creates a new Schedule tool.
-func NewScheduleTool(cfg *config.Config) *ScheduleTool {
+// NewScheduleTool creates a new Schedule tool. store may be nil when storage
+// failed to initialize; Execute then fails with a clear error.
+func NewScheduleTool(cfg *config.Config, store storage.ScheduledJobStorage) *ScheduleTool {
 	return &ScheduleTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Schedule.Enabled,
 		formatter: domain.NewBaseFormatter("Schedule"),
+		store:     store,
 	}
 }
 
@@ -114,9 +115,9 @@ func (t *ScheduleTool) Execute(ctx context.Context, args map[string]any) (*domai
 	op, _ := args["operation"].(string)
 	op = strings.ToLower(strings.TrimSpace(op))
 
-	store, err := t.openStore()
-	if err != nil {
-		return t.fail(args, start, fmt.Errorf("storage init: %w", err))
+	store := t.store
+	if store == nil {
+		return t.fail(args, start, errors.New("scheduled-job storage is not available"))
 	}
 
 	switch op {
@@ -208,21 +209,6 @@ func optionalString(args map[string]any, key string) string {
 func optionalBool(args map[string]any, key string) bool {
 	v, _ := args[key].(bool)
 	return v
-}
-
-// openStore resolves the storage directory and constructs a Store.
-// The store is cached on the tool so CRUD operations share state.
-func (t *ScheduleTool) openStore() (storage.ScheduledJobStorage, error) {
-	if t.store != nil {
-		return t.store, nil
-	}
-	storageConfig := storage.NewStorageFromConfig(t.config)
-	stores, err := storage.NewStorage(storageConfig)
-	if err != nil {
-		return nil, fmt.Errorf("storage init: %w", err)
-	}
-	t.store = stores.ScheduledJobs
-	return t.store, nil
 }
 
 // channelConfigured reports whether the named channel is enabled in config.

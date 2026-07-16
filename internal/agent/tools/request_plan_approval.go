@@ -3,24 +3,16 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
 )
-
-// plansSubdir is the directory (relative to the resolved config dir) where
-// approved plan markdown files are persisted.
-const plansSubdir = "plans"
 
 // maxSlugLength caps the title-derived slug used in plan filenames so that
 // long titles cannot produce unwieldy paths.
@@ -31,9 +23,8 @@ const maxSlugLength = 60
 var titleSlugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 
 // RequestPlanApprovalTool handles requesting plan approval from the user.
-// On execute it persists the plan to PlanStorage and as a markdown file under
-// "<configDir>/plans/" so users have an auditable record of every plan the
-// agent produced - even when they reject it.
+// On execute it persists the plan to the injected PlanStorage so users have an
+// auditable record of every plan the agent produced - even when they reject it.
 type RequestPlanApprovalTool struct {
 	config    *config.Config
 	enabled   bool
@@ -42,13 +33,16 @@ type RequestPlanApprovalTool struct {
 	planStore storage.PlanStorage
 }
 
-// NewRequestPlanApprovalTool creates a new RequestPlanApproval tool
-func NewRequestPlanApprovalTool(cfg *config.Config) *RequestPlanApprovalTool {
+// NewRequestPlanApprovalTool creates a new RequestPlanApproval tool. planStore
+// may be nil when storage failed to initialize; Execute then fails with a
+// clear error.
+func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorage) *RequestPlanApprovalTool {
 	return &RequestPlanApprovalTool{
 		config:    cfg,
 		enabled:   true,
 		formatter: domain.NewBaseFormatter("RequestPlanApproval"),
 		now:       time.Now,
+		planStore: planStore,
 	}
 }
 
@@ -82,9 +76,9 @@ func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the RequestPlanApproval tool with given arguments. It persists
-// the plan to PlanStorage and writes the plan markdown to disk, then returns
-// the plan content plus an infer://plans/<id> URI so downstream consumers can
-// surface both to the user and the LLM.
+// the plan to PlanStorage and returns the plan content plus an
+// infer://plans/<id> URI so downstream consumers can surface both to the user
+// and the LLM.
 func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := t.now()
 
@@ -99,11 +93,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 		}, nil
 	}
 
-	// Build the plan markdown body
-	body := buildPlanMarkdown(title, plan)
-
-	// Persist to PlanStorage
-	planID, err := t.savePlanToStore(title, body, start)
+	planID, err := t.savePlanToStore(ctx, title, plan, start)
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "RequestPlanApproval",
@@ -112,13 +102,6 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 			Duration:  time.Since(start),
 			Error:     err.Error(),
 		}, nil
-	}
-
-	// Also write the markdown file for backward compatibility
-	path, err := t.writePlanFile(title, plan, start)
-	if err != nil {
-		// Log but don't fail - the plan is already in the store
-		logger.Warn("failed to write plan markdown file", "error", err)
 	}
 
 	planURI := fmt.Sprintf("infer://plans/%s", planID)
@@ -130,8 +113,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 		Duration:  time.Since(start),
 		Data: map[string]any{
 			"title":   title,
-			"plan":    body,
-			"path":    path,
+			"plan":    buildPlanMarkdown(title, plan),
 			"plan_id": planID,
 			"uri":     planURI,
 			"message": fmt.Sprintf("Plan approval requested - saved as %s", planURI),
@@ -176,9 +158,6 @@ func (t *RequestPlanApprovalTool) FormatPreview(result *domain.ToolExecutionResu
 		if uri := planURI(result); uri != "" {
 			return fmt.Sprintf("Plan saved to %s", uri)
 		}
-		if path := planPath(result); path != "" {
-			return fmt.Sprintf("Plan saved to %s", path)
-		}
 		return "Plan approval requested"
 	}
 
@@ -195,9 +174,6 @@ func (t *RequestPlanApprovalTool) FormatForUI(result *domain.ToolExecutionResult
 	if uri := planURI(result); uri != "" {
 		return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan saved to %s", statusIcon, uri)
 	}
-	if path := planPath(result); path != "" {
-		return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan saved to %s", statusIcon, path)
-	}
 	return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan submitted for approval", statusIcon)
 }
 
@@ -210,9 +186,6 @@ func (t *RequestPlanApprovalTool) FormatForLLM(result *domain.ToolExecutionResul
 	if result.Success {
 		if uri := planURI(result); uri != "" {
 			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject.", uri)
-		}
-		if path := planPath(result); path != "" {
-			return fmt.Sprintf("Plan approval requested. Plan saved to %s. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject.", path)
 		}
 		return "Plan approval requested. The user will review your plan and decide whether to accept (which enables auto-approve mode), approve each step (standard mode), or reject."
 	}
@@ -254,62 +227,6 @@ func extractPlanArgs(args map[string]any) (title, plan string, err error) {
 	return title, plan, nil
 }
 
-// writePlanFile materialises the plan as a markdown file in the configured
-// plans directory. Writes go through a `.tmp` sibling and an os.Rename so
-// the final file is never observed half-written.
-func (t *RequestPlanApprovalTool) writePlanFile(title, plan string, ts time.Time) (string, error) {
-	dir := filepath.Join(t.config.GetConfigDir(), plansSubdir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create plans directory %s: %w", dir, err)
-	}
-
-	final, err := uniquePlanPath(dir, title, ts)
-	if err != nil {
-		return "", err
-	}
-
-	body := buildPlanMarkdown(title, plan)
-	tmp := final + ".tmp"
-	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
-		return "", fmt.Errorf("failed to write plan file %s: %w", tmp, err)
-	}
-	if err := os.Rename(tmp, final); err != nil {
-		_ = os.Remove(tmp)
-		return "", fmt.Errorf("failed to finalise plan file %s: %w", final, err)
-	}
-
-	if abs, err := filepath.Abs(final); err == nil {
-		return abs, nil
-	}
-	return final, nil
-}
-
-// uniquePlanPath builds a non-colliding path for a plan file in `dir`.
-// Same-second titles get a `-1`, `-2`, … suffix so concurrent or rapid
-// Schedule writes do not clobber each other.
-func uniquePlanPath(dir, title string, ts time.Time) (string, error) {
-	slug := slugifyTitle(title)
-	stamp := ts.Format("2006-01-02-150405")
-	base := fmt.Sprintf("%s-%s", stamp, slug)
-
-	candidate := filepath.Join(dir, base+".md")
-	if _, err := os.Stat(candidate); os.IsNotExist(err) {
-		return candidate, nil
-	} else if err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("failed to stat plan path %s: %w", candidate, err)
-	}
-
-	for i := 1; i < 1000; i++ {
-		candidate = filepath.Join(dir, fmt.Sprintf("%s-%d.md", base, i))
-		if _, err := os.Stat(candidate); os.IsNotExist(err) {
-			return candidate, nil
-		} else if err != nil && !os.IsNotExist(err) {
-			return "", fmt.Errorf("failed to stat plan path %s: %w", candidate, err)
-		}
-	}
-	return "", fmt.Errorf("could not find unique plan filename in %s", dir)
-}
-
 // slugifyTitle converts a free-form title into a lower-case, hyphen-separated
 // slug bounded by maxSlugLength. Falls back to "plan" if the title contains
 // no slug-friendly characters.
@@ -344,56 +261,30 @@ func buildPlanMarkdown(title, plan string) string {
 	return b.String()
 }
 
-// planPath safely extracts the persisted-file path from a tool result.
-// Returns "" when the result has no path (e.g. legacy callers).
-func planPath(result *domain.ToolExecutionResult) string {
-	if result == nil || result.Data == nil {
-		return ""
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return ""
-	}
-	path, _ := data["path"].(string)
-	return path
-}
-
-// savePlanToStore persists the plan to PlanStorage and returns the plan ID.
-func (t *RequestPlanApprovalTool) savePlanToStore(title, body string, ts time.Time) (string, error) {
-	store, err := t.getPlanStore()
-	if err != nil {
-		return "", fmt.Errorf("plan storage: %w", err)
+// savePlanToStore persists the plan to PlanStorage and returns the plan ID:
+// "<UTC stamp>-<slug>", identical across backends. On jsonl the ID is also the
+// markdown filename stem under <configDir>/plans/.
+//
+// ponytail: a second plan with the same title in the same second overwrites
+// the first (upsert); resubmits after a rejection are minutes apart in practice.
+func (t *RequestPlanApprovalTool) savePlanToStore(ctx context.Context, title, plan string, ts time.Time) (string, error) {
+	if t.planStore == nil {
+		return "", fmt.Errorf("plan storage is not available")
 	}
 
-	id := uuid.New().String()
-	slug := slugifyTitle(title)
+	id := fmt.Sprintf("%s-%s", ts.UTC().Format("2006-01-02-150405"), slugifyTitle(title))
 	record := &storage.PlanRecord{
 		ID:        id,
 		Title:     title,
-		Slug:      slug,
-		Body:      body,
+		Body:      plan,
 		CreatedAt: ts.UTC(),
 	}
 
-	if err := store.SavePlan(context.Background(), record); err != nil {
+	if err := t.planStore.SavePlan(ctx, record); err != nil {
 		return "", fmt.Errorf("save plan: %w", err)
 	}
 
 	return id, nil
-}
-
-// getPlanStore lazily opens the PlanStorage from config.
-func (t *RequestPlanApprovalTool) getPlanStore() (storage.PlanStorage, error) {
-	if t.planStore != nil {
-		return t.planStore, nil
-	}
-	storageConfig := storage.NewStorageFromConfig(t.config)
-	stores, err := storage.NewStorage(storageConfig)
-	if err != nil {
-		return nil, fmt.Errorf("storage init: %w", err)
-	}
-	t.planStore = stores.Plans
-	return t.planStore, nil
 }
 
 // planURI safely extracts the infer://plans/<id> URI from a tool result.

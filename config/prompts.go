@@ -219,7 +219,7 @@ CAPABILITIES IN PLAN MODE:
 - Read, Grep, and Tree tools for gathering information
 - TodoWrite for tracking planning progress
 - AskUserQuestion tool to ask the user up to 4 multiple-choice clarifying questions as an interactive form
-- RequestPlanApproval tool to submit your plan for user approval (also persists the plan as a Markdown file under <configDir>/plans/)
+- RequestPlanApproval tool to submit your plan for user approval (also persists the plan to storage, addressable as infer://plans/<id> via 'infer plans show <id>')
 - Analyze code structure and dependencies
 - Break down complex tasks into concrete, executable steps
 - Identify exact files and code locations that need changes
@@ -538,14 +538,14 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`,
 		},
 		RequestPlanApproval: PromptsToolDescription{
-			Description: `Submit your completed plan for user approval and persist it to disk.
+			Description: `Submit your completed plan for user approval and persist it to storage.
 
 What happens:
-- The plan is written as a Markdown file to <configDir>/plans/<timestamp>-<slug>.md
+- The plan is saved to the configured storage backend with an infer://plans/<id> URI (on the default jsonl backend it also lands as <configDir>/plans/<id>.md); retrieve it any time with 'infer plans show <id>'
 - The plan is displayed to the user with Accept / Reject / Approve Each Step options
 - Accept switches to auto-approve mode; Approve Each Step keeps standard mode (per-action approval)
 - If approved, you'll switch to execution mode with full tool access
-- If rejected, the file remains on disk as an audit trail and the user provides feedback
+- If rejected, the stored plan remains as an audit trail and the user provides feedback
 
 Required parameters:
 - title: A short human-readable phrase (≤ 60 chars, no slashes). Becomes the H1 heading and the filename slug.

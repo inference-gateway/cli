@@ -406,7 +406,7 @@ type ApprovalUIState struct {
 type PlanApprovalUIState struct {
 	SelectedIndex int                     `json:"selected_index"`
 	PlanContent   string                  `json:"plan_content"`
-	PlanPath      string                  `json:"plan_path"`
+	PlanID        string                  `json:"plan_id"`
 	ResponseChan  chan PlanApprovalAction `json:"-"`
 }
 
@@ -879,11 +879,11 @@ func (s *ApplicationState) ClearApprovalUIState() {
 // Plan Approval State Management
 
 // SetupPlanApprovalUIState initializes plan approval UI state
-func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planPath string, responseChan chan PlanApprovalAction) {
+func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, responseChan chan PlanApprovalAction) {
 	s.planApprovalUIState = &PlanApprovalUIState{
 		SelectedIndex: int(PlanApprovalAccept),
 		PlanContent:   planContent,
-		PlanPath:      planPath,
+		PlanID:        planID,
 		ResponseChan:  responseChan,
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -794,51 +795,6 @@ func (s *D1Storage) DeleteJob(ctx context.Context, id string) error {
 	return nil
 }
 
-// Watch returns a channel that polls every 2s for changes.
-func (s *D1Storage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
-	ch := make(chan ScheduledJobChangeEvent)
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		known := make(map[string]time.Time)
-		jobs, err := s.ListJobs(ctx)
-		if err == nil {
-			for _, j := range jobs {
-				known[j.ID] = j.UpdatedAt
-			}
-		}
-		for {
-			select {
-			case <-ctx.Done():
-				close(ch)
-				return
-			case <-ticker.C:
-				current, err := s.ListJobs(ctx)
-				if err != nil {
-					continue
-				}
-				seen := make(map[string]bool)
-				for _, j := range current {
-					seen[j.ID] = true
-					if prev, ok := known[j.ID]; !ok {
-						ch <- ScheduledJobChangeEvent{ID: j.ID, Type: "create"}
-					} else if !j.UpdatedAt.Equal(prev) {
-						ch <- ScheduledJobChangeEvent{ID: j.ID, Type: "update"}
-					}
-					known[j.ID] = j.UpdatedAt
-				}
-				for id := range known {
-					if !seen[id] {
-						ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
-						delete(known, id)
-					}
-				}
-			}
-		}
-	}()
-	return ch
-}
-
 // ---------------------------------------------------------------------------
 // PlanStorage (D1Storage)
 // ---------------------------------------------------------------------------
@@ -846,14 +802,13 @@ func (s *D1Storage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
 // SavePlan creates a plan record via UPSERT.
 func (s *D1Storage) SavePlan(ctx context.Context, plan *PlanRecord) error {
 	_, err := s.exec(ctx, `
-	INSERT INTO plans(id, title, slug, body, created_at)
-	VALUES (?, ?, ?, ?, ?)
+	INSERT INTO plans(id, title, body, created_at)
+	VALUES (?, ?, ?, ?)
 	ON CONFLICT(id) DO UPDATE SET
 		title = excluded.title,
-		slug = excluded.slug,
 		body = excluded.body,
 		created_at = excluded.created_at
-`, plan.ID, plan.Title, plan.Slug, plan.Body, plan.CreatedAt)
+`, plan.ID, plan.Title, plan.Body, plan.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("save plan %s: %w", plan.ID, err)
 	}
@@ -862,7 +817,7 @@ func (s *D1Storage) SavePlan(ctx context.Context, plan *PlanRecord) error {
 
 // LoadPlan returns a plan by ID.
 func (s *D1Storage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
-	rows, err := s.queryRows(ctx, "SELECT id, title, slug, body, created_at FROM plans WHERE id = ?", id)
+	rows, err := s.queryRows(ctx, "SELECT id, title, body, created_at FROM plans WHERE id = ?", id)
 	if err != nil {
 		return nil, fmt.Errorf("load plan %s: %w", id, err)
 	}
@@ -873,7 +828,6 @@ func (s *D1Storage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error
 	return &PlanRecord{
 		ID:        asString(r["id"]),
 		Title:     asString(r["title"]),
-		Slug:      asString(r["slug"]),
 		Body:      asString(r["body"]),
 		CreatedAt: asTime(r["created_at"]),
 	}, nil
@@ -881,7 +835,7 @@ func (s *D1Storage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error
 
 // ListPlans returns all plans sorted by CreatedAt descending.
 func (s *D1Storage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
-	rows, err := s.queryRows(ctx, "SELECT id, title, slug, body, created_at FROM plans ORDER BY created_at DESC")
+	rows, err := s.queryRows(ctx, "SELECT id, title, body, created_at FROM plans ORDER BY created_at DESC")
 	if err != nil {
 		return nil, fmt.Errorf("list plans: %w", err)
 	}
@@ -890,7 +844,6 @@ func (s *D1Storage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
 		plans = append(plans, &PlanRecord{
 			ID:        asString(r["id"]),
 			Title:     asString(r["title"]),
-			Slug:      asString(r["slug"]),
 			Body:      asString(r["body"]),
 			CreatedAt: asTime(r["created_at"]),
 		})
@@ -923,9 +876,16 @@ func (s *D1Storage) AppendHistory(ctx context.Context, command string) error {
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit.
+// LoadHistory returns the most recent commands up to limit in chronological
+// order; limit <= 0 returns everything.
 func (s *D1Storage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
-	rows, err := s.queryRows(ctx, "SELECT command FROM shell_history ORDER BY id DESC LIMIT ?", limit)
+	query := "SELECT command FROM shell_history ORDER BY id DESC"
+	args := []any{}
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+	rows, err := s.queryRows(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("load shell history: %w", err)
 	}
@@ -933,9 +893,6 @@ func (s *D1Storage) LoadHistory(ctx context.Context, limit int) ([]string, error
 	for _, r := range rows {
 		commands = append(commands, asString(r["command"]))
 	}
-	// Reverse to get chronological order
-	for i, j := 0, len(commands)-1; i < j; i, j = i+1, j-1 {
-		commands[i], commands[j] = commands[j], commands[i]
-	}
+	slices.Reverse(commands)
 	return commands, nil
 }

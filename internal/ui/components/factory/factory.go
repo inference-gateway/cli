@@ -2,6 +2,7 @@ package factory
 
 import (
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
@@ -21,10 +22,10 @@ func CreateInputView(modelService domain.ModelService) ui.InputComponent {
 }
 
 // CreateInputViewWithName creates a new input view component with config directory and name.
-// When name is empty, the history file is stored at <configDir>/history/history (the main agent).
-// When name is non-empty, the history file is stored at <configDir>/history/history-<name> (e.g. for subagents).
-func CreateInputViewWithName(modelService domain.ModelService, configDir, name string) ui.InputComponent {
-	return components.NewInputViewWithName(modelService, configDir, name)
+// When store is non-nil and name is empty (the main agent), input history goes through the
+// storage backend. Named subagent histories are file-based at <configDir>/history/history-<name>.
+func CreateInputViewWithName(modelService domain.ModelService, configDir, name string, store storage.ShellHistoryStorage) ui.InputComponent {
+	return components.NewInputViewWithName(modelService, configDir, name, store)
 }
 
 // CreateAutocomplete creates a new autocomplete component

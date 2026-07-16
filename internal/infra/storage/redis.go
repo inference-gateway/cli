@@ -494,17 +494,14 @@ func (s *RedisStorage) scheduledJobKey(id string) string {
 	return fmt.Sprintf("%s:%s", redisScheduledJobsKey, id)
 }
 
-// SaveJob creates or updates a scheduled job.
+// SaveJob creates or updates a scheduled job. The configured conversation TTL
+// deliberately does not apply - a scheduled job must not silently expire.
 func (s *RedisStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
 	data, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("marshal job %s: %w", job.ID, err)
 	}
-	key := s.scheduledJobKey(job.ID)
-	if s.ttl > 0 {
-		return s.client.Set(ctx, key, data, s.ttl).Err()
-	}
-	return s.client.Set(ctx, key, data, 0).Err()
+	return s.client.Set(ctx, s.scheduledJobKey(job.ID), data, 0).Err()
 }
 
 // LoadJob returns a job by ID.
@@ -523,9 +520,20 @@ func (s *RedisStorage) LoadJob(ctx context.Context, id string) (*domain.Schedule
 	return &job, nil
 }
 
+// scanKeys collects all keys matching pattern via SCAN (KEYS blocks the
+// server and is discouraged in production).
+func (s *RedisStorage) scanKeys(ctx context.Context, pattern string) ([]string, error) {
+	var keys []string
+	iter := s.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	return keys, iter.Err()
+}
+
 // ListJobs returns all jobs sorted by CreatedAt ascending.
 func (s *RedisStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
-	keys, err := s.client.Keys(ctx, redisScheduledJobsKey+":*").Result()
+	keys, err := s.scanKeys(ctx, redisScheduledJobsKey+":*")
 	if err != nil {
 		return nil, fmt.Errorf("list job keys: %w", err)
 	}
@@ -570,43 +578,6 @@ func (s *RedisStorage) DeleteJob(ctx context.Context, id string) error {
 	return nil
 }
 
-// Watch returns a channel that polls every 2s for changes.
-func (s *RedisStorage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
-	ch := make(chan ScheduledJobChangeEvent)
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		known := make(map[string]bool)
-		for {
-			select {
-			case <-ctx.Done():
-				close(ch)
-				return
-			case <-ticker.C:
-				keys, err := s.client.Keys(ctx, redisScheduledJobsKey+":*").Result()
-				if err != nil {
-					continue
-				}
-				seen := make(map[string]bool)
-				for _, k := range keys {
-					id := k[len(redisScheduledJobsKey)+1:]
-					seen[id] = true
-					if !known[id] {
-						ch <- ScheduledJobChangeEvent{ID: id, Type: "create"}
-					}
-				}
-				for id := range known {
-					if !seen[id] {
-						ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
-					}
-				}
-				known = seen
-			}
-		}
-	}()
-	return ch
-}
-
 // ---------------------------------------------------------------------------
 // PlanStorage (RedisStorage)
 // ---------------------------------------------------------------------------
@@ -616,17 +587,14 @@ func (s *RedisStorage) planKey(id string) string {
 	return fmt.Sprintf("%s:%s", redisPlansKey, id)
 }
 
-// SavePlan creates a plan record.
+// SavePlan creates a plan record. The configured conversation TTL deliberately
+// does not apply - plans are an audit trail and must not silently expire.
 func (s *RedisStorage) SavePlan(ctx context.Context, plan *PlanRecord) error {
 	data, err := json.Marshal(plan)
 	if err != nil {
 		return fmt.Errorf("marshal plan %s: %w", plan.ID, err)
 	}
-	key := s.planKey(plan.ID)
-	if s.ttl > 0 {
-		return s.client.Set(ctx, key, data, s.ttl).Err()
-	}
-	return s.client.Set(ctx, key, data, 0).Err()
+	return s.client.Set(ctx, s.planKey(plan.ID), data, 0).Err()
 }
 
 // LoadPlan returns a plan by ID.
@@ -647,7 +615,7 @@ func (s *RedisStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, er
 
 // ListPlans returns all plans sorted by CreatedAt descending.
 func (s *RedisStorage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
-	keys, err := s.client.Keys(ctx, redisPlansKey+":*").Result()
+	keys, err := s.scanKeys(ctx, redisPlansKey+":*")
 	if err != nil {
 		return nil, fmt.Errorf("list plan keys: %w", err)
 	}

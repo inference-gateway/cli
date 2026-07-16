@@ -165,6 +165,15 @@ func TestD1Storage_Conformance(t *testing.T) {
 	runConversationStorageConformance(t, func(t *testing.T) ConversationStorage {
 		return setupTestD1Storage(t)
 	})
+	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage {
+		return setupTestD1Storage(t)
+	})
+	runPlanStorageConformance(t, func(t *testing.T) PlanStorage {
+		return setupTestD1Storage(t)
+	})
+	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		return setupTestD1Storage(t)
+	})
 }
 
 // TestD1Storage_RequestShape asserts the driver hits the documented D1 endpoint

@@ -28,15 +28,16 @@ var plansShowCmd = &cobra.Command{
 	Short: "Show a saved plan by ID",
 	Long: `Print the full content of a saved plan.
 
-The plan ID is the UUID returned by the RequestPlanApproval tool as part
-of the infer://plans/<id> URI. Pass the full URI or just the UUID.
+The plan ID is the "<timestamp>-<slug>" identifier returned by the
+RequestPlanApproval tool as part of the infer://plans/<id> URI. Pass the
+full URI or just the ID.
 
 Examples:
   # Show by plan ID
-  infer plans show 12345678-1234-1234-1234-123456789abc
+  infer plans show 2026-07-17-153000-add-user-auth
 
   # Show by infer URI
-  infer plans show infer://plans/12345678-1234-1234-1234-123456789abc`,
+  infer plans show infer://plans/2026-07-17-153000-add-user-auth`,
 	Args: cobra.ExactArgs(1),
 	RunE: showPlan,
 }
@@ -44,7 +45,7 @@ Examples:
 var plansListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all saved plans",
-	Long: `Display all saved plans with their title, slug, and creation time.
+	Long: `Display all saved plans with their title and creation time.
 
 Examples:
   # List all plans
@@ -62,7 +63,7 @@ func init() {
 	rootCmd.AddCommand(plansCmd)
 }
 
-// resolvePlanID strips an infer://plans/ prefix if present, returning just the UUID.
+// resolvePlanID strips an infer://plans/ prefix if present, returning just the ID.
 func resolvePlanID(input string) string {
 	const prefix = "infer://plans/"
 	if strings.HasPrefix(input, prefix) {
@@ -142,15 +143,11 @@ func renderPlansTable(plans []*storage.PlanRecord) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "| ID | Title | Slug | Created At |\n")
-	_, _ = fmt.Fprintf(os.Stdout, "|---|---|---|---|\n")
+	_, _ = fmt.Fprintf(os.Stdout, "| ID | Title | Created At |\n")
+	_, _ = fmt.Fprintf(os.Stdout, "|---|---|---|\n")
 	for _, p := range plans {
-		shortID := p.ID
-		if len(shortID) > 8 {
-			shortID = shortID[:8] + "..."
-		}
-		_, _ = fmt.Fprintf(os.Stdout, "| %s | %s | %s | %s |\n",
-			shortID, p.Title, p.Slug, p.CreatedAt.Format("2006-01-02 15:04:05"))
+		_, _ = fmt.Fprintf(os.Stdout, "| %s | %s | %s |\n",
+			p.ID, p.Title, p.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
 	return nil
 }

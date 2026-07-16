@@ -90,6 +90,7 @@ type ServiceContainer struct {
 	backgroundShellService *services.BackgroundShellService
 	memoryBackend          domain.MemoryBackend
 	storage                storage.ConversationStorage
+	stores                 *storage.Stores
 
 	// Token polyfill - used by /context, conversation optimizer, and the
 	// session rollover manager. Created unconditionally so any surface can
@@ -314,15 +315,18 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.ensureBackgroundTaskRegistry()
 	c.memoryBackend = memory.NewMemoryBackend(c.config)
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
+
+	storageConfig := storage.NewStorageFromConfig(c.config)
+	stores, err := storage.NewStorage(storageConfig)
+	c.stores = stores
+
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry, stores)
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
-	storageConfig := storage.NewStorageFromConfig(c.config)
-	stores, err := storage.NewStorage(storageConfig)
 	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
 
 	if c.jobSupervisor != nil {
@@ -454,7 +458,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	toolFormatterService *services.ToolFormatterService,
 	err error,
 ) {
-	if c.config.Storage.Enabled && storageConfig.Type != "memory" {
+	if c.config.Storage.Enabled && storageConfig.Type != config.StorageTypeMemory {
 		logger.Error("storage backend initialization failed",
 			"error", err,
 			"type", storageConfig.Type,
@@ -833,6 +837,15 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
+}
+
+// GetShellHistoryStorage returns the shell-history store, or nil when storage
+// failed to initialize (callers fall back to the file-based history).
+func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage {
+	if c.stores == nil {
+		return nil
+	}
+	return c.stores.ShellHistory
 }
 
 // GetGatewayManager returns the gateway manager

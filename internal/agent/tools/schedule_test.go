@@ -2,12 +2,12 @@ package tools
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
 // channelCtx returns a context tagged with a channel-formatted session ID,
@@ -22,9 +22,8 @@ func newScheduleCfg(t *testing.T, telegramEnabled bool) *config.Config {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Schedule: config.ScheduleToolConfig{
-				Enabled:    true,
-				StorageDir: filepath.Join(t.TempDir(), "schedules"),
-				MaxJobs:    100,
+				Enabled: true,
+				MaxJobs: 100,
 			},
 		},
 		Channels: config.ChannelsConfig{
@@ -35,7 +34,7 @@ func newScheduleCfg(t *testing.T, telegramEnabled bool) *config.Config {
 }
 
 func TestScheduleTool_Definition(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, true))
+	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	def := tool.Definition()
 	if def.Function.Name != "Schedule" {
 		t.Errorf("expected name 'Schedule', got %s", def.Function.Name)
@@ -67,7 +66,7 @@ func TestScheduleTool_IsEnabled(t *testing.T) {
 					Schedule: config.ScheduleToolConfig{Enabled: tc.scheduleEnabled},
 				},
 			}
-			if got := NewScheduleTool(cfg).IsEnabled(); got != tc.want {
+			if got := NewScheduleTool(cfg, storage.NewMemoryStorage()).IsEnabled(); got != tc.want {
 				t.Errorf("got %v want %v", got, tc.want)
 			}
 		})
@@ -75,7 +74,7 @@ func TestScheduleTool_IsEnabled(t *testing.T) {
 }
 
 func TestScheduleTool_Validate(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, true))
+	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	cases := []struct {
 		name    string
 		args    map[string]any
@@ -137,7 +136,7 @@ func TestScheduleTool_Validate(t *testing.T) {
 func TestScheduleTool_Execute_Disabled(t *testing.T) {
 	cfg := newScheduleCfg(t, true)
 	cfg.Tools.Enabled = false
-	tool := NewScheduleTool(cfg)
+	tool := NewScheduleTool(cfg, storage.NewMemoryStorage())
 	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "list"}); err == nil {
 		t.Fatal("expected error when tool disabled")
 	}
@@ -145,7 +144,7 @@ func TestScheduleTool_Execute_Disabled(t *testing.T) {
 
 func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 	cfg := newScheduleCfg(t, true)
-	tool := NewScheduleTool(cfg)
+	tool := NewScheduleTool(cfg, storage.NewMemoryStorage())
 	ctx := channelCtx("telegram", "12345")
 
 	// Create - channel + recipient are derived from session ID, never passed by caller.
@@ -224,7 +223,7 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 }
 
 func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, true))
+	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	r, err := tool.Execute(channelCtx("telegram", "42"), map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 18 26 4 *",
@@ -241,7 +240,7 @@ func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
 }
 
 func TestScheduleTool_Execute_RejectsNonChannelSession(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, true))
+	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	// Plain context - no session ID at all.
 	r, err := tool.Execute(context.Background(), map[string]any{
 		"operation":       "create",
@@ -267,7 +266,7 @@ func TestScheduleTool_Execute_RejectsNonChannelSession(t *testing.T) {
 }
 
 func TestScheduleTool_Execute_RejectsDisabledChannel(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, false)) // telegram disabled
+	tool := NewScheduleTool(newScheduleCfg(t, false), storage.NewMemoryStorage()) // telegram disabled
 	r, err := tool.Execute(channelCtx("telegram", "1"), map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",
@@ -284,7 +283,7 @@ func TestScheduleTool_Execute_RejectsDisabledChannel(t *testing.T) {
 func TestScheduleTool_Execute_MaxJobs(t *testing.T) {
 	cfg := newScheduleCfg(t, true)
 	cfg.Tools.Schedule.MaxJobs = 1
-	tool := NewScheduleTool(cfg)
+	tool := NewScheduleTool(cfg, storage.NewMemoryStorage())
 	ctx := channelCtx("telegram", "1")
 	mk := func() *domain.ToolExecutionResult {
 		r, _ := tool.Execute(ctx, map[string]any{
@@ -303,7 +302,7 @@ func TestScheduleTool_Execute_MaxJobs(t *testing.T) {
 }
 
 func TestScheduleTool_Execute_GetMissing(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, true))
+	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	r, _ := tool.Execute(context.Background(), map[string]any{
 		"operation": "get",
 		"job_id":    "nope",

@@ -324,8 +324,6 @@ func createTestMetadata(id string) ConversationMetadata {
 
 // runScheduledJobStorageConformance runs the same behavioural suite against any
 // ScheduledJobStorage implementation.
-//
-//nolint:unused
 func runScheduledJobStorageConformance(t *testing.T, newStorage func(t *testing.T) ScheduledJobStorage) {
 	t.Helper()
 
@@ -334,13 +332,11 @@ func runScheduledJobStorageConformance(t *testing.T, newStorage func(t *testing.
 	})
 }
 
-//nolint:unused
 func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
 	ctx := context.Background()
 
 	now := time.Now().UTC()
 
-	// Create a job
 	job := &domain.ScheduledJob{
 		ID:             "job-1",
 		Name:           "test-job",
@@ -356,14 +352,12 @@ func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
 	}
 	require.NoError(t, store.SaveJob(ctx, job))
 
-	// Load it back
 	loaded, err := store.LoadJob(ctx, "job-1")
 	require.NoError(t, err)
 	assert.Equal(t, "test-job", loaded.Name)
 	assert.Equal(t, "0 8 * * *", loaded.CronExpression)
 	assert.Equal(t, "telegram", loaded.Channel)
 
-	// Update
 	job.Name = "updated-job"
 	job.UpdatedAt = time.Now().UTC()
 	require.NoError(t, store.SaveJob(ctx, job))
@@ -371,17 +365,14 @@ func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
 	require.NoError(t, err)
 	assert.Equal(t, "updated-job", loaded.Name)
 
-	// List
 	jobs, err := store.ListJobs(ctx)
 	require.NoError(t, err)
 	assert.Len(t, jobs, 1)
 
-	// Delete
 	require.NoError(t, store.DeleteJob(ctx, "job-1"))
 	_, err = store.LoadJob(ctx, "job-1")
 	assert.ErrorIs(t, err, ErrJobNotFound)
 
-	// List after delete
 	jobs, err = store.ListJobs(ctx)
 	require.NoError(t, err)
 	assert.Len(t, jobs, 0)
@@ -389,8 +380,6 @@ func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
 
 // runPlanStorageConformance runs the same behavioural suite against any
 // PlanStorage implementation.
-//
-//nolint:unused
 func runPlanStorageConformance(t *testing.T, newStorage func(t *testing.T) PlanStorage) {
 	t.Helper()
 
@@ -399,40 +388,35 @@ func runPlanStorageConformance(t *testing.T, newStorage func(t *testing.T) PlanS
 	})
 }
 
-//nolint:unused
 func conformancePlanCRUD(t *testing.T, store PlanStorage) {
 	ctx := context.Background()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Second)
+	id := now.Format(planStampFormat) + "-test-plan"
 
-	// Create a plan
 	plan := &PlanRecord{
-		ID:        "plan-1",
+		ID:        id,
 		Title:     "Test Plan",
-		Slug:      "test-plan",
-		Body:      "# Test Plan\n\n## Context\n\nDo something.\n",
+		Body:      "## Context\n\nDo something.\n",
 		CreatedAt: now,
 	}
 	require.NoError(t, store.SavePlan(ctx, plan))
 
-	// Load it back
-	loaded, err := store.LoadPlan(ctx, "plan-1")
+	loaded, err := store.LoadPlan(ctx, id)
 	require.NoError(t, err)
+	assert.Equal(t, id, loaded.ID)
 	assert.Equal(t, "Test Plan", loaded.Title)
-	assert.Equal(t, "test-plan", loaded.Slug)
 	assert.Contains(t, loaded.Body, "Do something.")
+	assert.True(t, loaded.CreatedAt.Equal(now), "CreatedAt: want %v, got %v", now, loaded.CreatedAt)
 
-	// List
 	plans, err := store.ListPlans(ctx)
 	require.NoError(t, err)
 	assert.Len(t, plans, 1)
 
-	// Delete
-	require.NoError(t, store.DeletePlan(ctx, "plan-1"))
-	_, err = store.LoadPlan(ctx, "plan-1")
+	require.NoError(t, store.DeletePlan(ctx, id))
+	_, err = store.LoadPlan(ctx, id)
 	assert.Error(t, err)
 
-	// List after delete
 	plans, err = store.ListPlans(ctx)
 	require.NoError(t, err)
 	assert.Len(t, plans, 0)
@@ -440,8 +424,6 @@ func conformancePlanCRUD(t *testing.T, store PlanStorage) {
 
 // runShellHistoryStorageConformance runs the same behavioural suite against any
 // ShellHistoryStorage implementation.
-//
-//nolint:unused
 func runShellHistoryStorageConformance(t *testing.T, newStorage func(t *testing.T) ShellHistoryStorage) {
 	t.Helper()
 
@@ -450,16 +432,13 @@ func runShellHistoryStorageConformance(t *testing.T, newStorage func(t *testing.
 	})
 }
 
-//nolint:unused
 func conformanceShellHistoryCRUD(t *testing.T, store ShellHistoryStorage) {
 	ctx := context.Background()
 
-	// Append commands
 	require.NoError(t, store.AppendHistory(ctx, "echo hello"))
 	require.NoError(t, store.AppendHistory(ctx, "ls -la"))
 	require.NoError(t, store.AppendHistory(ctx, "git status"))
 
-	// Load all
 	history, err := store.LoadHistory(ctx, 0)
 	require.NoError(t, err)
 	assert.Len(t, history, 3)
@@ -467,8 +446,9 @@ func conformanceShellHistoryCRUD(t *testing.T, store ShellHistoryStorage) {
 	assert.Equal(t, "ls -la", history[1])
 	assert.Equal(t, "git status", history[2])
 
-	// Load with limit
 	history, err = store.LoadHistory(ctx, 2)
 	require.NoError(t, err)
-	assert.Len(t, history, 2)
+	require.Len(t, history, 2)
+	assert.Equal(t, "ls -la", history[0])
+	assert.Equal(t, "git status", history[1])
 }

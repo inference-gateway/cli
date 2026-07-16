@@ -80,35 +80,34 @@ func (h *ChatHandler) addHiddenUserMessage(content string) error {
 }
 
 // planExecutionContinuePrompt tells the agent to resume and execute an approved
-// plan. A fresh session has been started, so we point the agent back at the plan
-// file on disk to recall the full plan without keeping the planning conversation
-// in context.
-func planExecutionContinuePrompt(planPath string) string {
-	if planPath == "" {
+// plan. A fresh session has been started, so we point the agent back at the
+// stored plan to recall it without keeping the planning conversation in context.
+func planExecutionContinuePrompt(planID string) string {
+	if planID == "" {
 		return "The plan has been approved. Please proceed with executing it step by step. " +
 			"Start by taking the first action required to implement the plan."
 	}
 	return fmt.Sprintf(
 		"The plan has been approved. A fresh session has been started. "+
-			"The full approved plan is saved at %s. Read that file to recall the plan, then execute "+
-			"it step by step, starting with the first action required to implement it.",
-		planPath,
+			"The full approved plan is stored as %q - run `infer plans show %s` to recall it, "+
+			"then execute it step by step, starting with the first action required to implement it.",
+		planID, planID,
 	)
 }
 
 // newSessionAfterPlanApproval starts a fresh empty conversation (like /new) and
-// adds a hidden user message pointing the agent at the plan file on disk so it
-// can recall the full plan without keeping the planning conversation in context.
+// adds a hidden user message pointing the agent at the stored plan so it can
+// recall the full plan without keeping the planning conversation in context.
 // The old conversation is preserved in storage; only the in-memory working set
 // is replaced. Errors are logged but never block execution (fail open).
-func (h *ChatHandler) newSessionAfterPlanApproval(planPath string) {
+func (h *ChatHandler) newSessionAfterPlanApproval(planID string) {
 	newTitle := fmt.Sprintf("Continued from %s", h.conversationRepo.GetCurrentConversationTitle())
 	if err := h.conversationRepo.StartNewConversation(newTitle); err != nil {
 		logger.Error("failed to start new session after plan approval", "error", err)
 		return
 	}
 
-	if err := h.addHiddenUserMessage(planExecutionContinuePrompt(planPath)); err != nil {
+	if err := h.addHiddenUserMessage(planExecutionContinuePrompt(planID)); err != nil {
 		logger.Error("failed to add plan execution continue message", "error", err)
 	}
 
@@ -116,13 +115,13 @@ func (h *ChatHandler) newSessionAfterPlanApproval(planPath string) {
 }
 
 // newSessionThenExecutePlanCmd starts a fresh empty session (like /new) and then
-// resumes the agent to execute the approved plan. The agent re-reads the plan
-// from disk (planPath), so the plan itself need not survive in context. The
-// generic continue message the coordinator queued is wiped by the new session,
-// so we re-add a plan-path-aware one.
-func (h *ChatHandler) newSessionThenExecutePlanCmd(planPath string) tea.Cmd {
+// resumes the agent to execute the approved plan. The agent re-reads the stored
+// plan (planID), so the plan itself need not survive in context. The generic
+// continue message the coordinator queued is wiped by the new session, so we
+// re-add a plan-id-aware one.
+func (h *ChatHandler) newSessionThenExecutePlanCmd(planID string) tea.Cmd {
 	return func() tea.Msg {
-		h.newSessionAfterPlanApproval(planPath)
+		h.newSessionAfterPlanApproval(planID)
 
 		return tea.Batch(
 			func() tea.Msg {

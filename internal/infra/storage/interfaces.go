@@ -2,9 +2,10 @@ package storage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -67,17 +68,10 @@ type ConversationMetadata = domain.ConversationMetadata
 // ConversationSummary contains summary information about a conversation
 type ConversationSummary = domain.ConversationSummary
 
-// ScheduledJobChangeEvent is emitted by ScheduledJobStorage.Watch when a job
-// is created, updated, or deleted.
-type ScheduledJobChangeEvent struct {
-	// ID is the job identifier that changed.
-	ID string
-	// Type is "create", "update", or "delete".
-	Type string
-}
-
 // ScheduledJobStorage defines the interface for persisting scheduled jobs.
-// Implementations must be safe for concurrent access.
+// Implementations must be safe for concurrent access. Change notification is
+// the consumer's job: the scheduler polls ListJobs and diffs (see
+// internal/services/scheduler).
 type ScheduledJobStorage interface {
 	// SaveJob creates or updates a scheduled job.
 	SaveJob(ctx context.Context, job *domain.ScheduledJob) error
@@ -90,27 +84,24 @@ type ScheduledJobStorage interface {
 
 	// DeleteJob removes a job by ID. Returns ErrJobNotFound when the job does not exist.
 	DeleteJob(ctx context.Context, id string) error
-
-	// Watch returns a channel that emits change events for all jobs. The
-	// implementation must close the channel when ctx is cancelled.
-	Watch(ctx context.Context) <-chan ScheduledJobChangeEvent
 }
 
 // ErrJobNotFound is returned by ScheduledJobStorage when a job ID is not found.
-var ErrJobNotFound = fmt.Errorf("scheduled job not found")
+var ErrJobNotFound = errors.New("scheduled job not found")
 
-// PlanRecord is a stored plan-mode plan.
+// PlanRecord is a stored plan-mode plan. The ID is the filename stem
+// "<UTC stamp>-<slug>" (e.g. "2026-07-17-153000-add-auth"), identical across
+// backends, and Body is the raw plan markdown without the title H1.
 type PlanRecord struct {
 	ID        string    `json:"id" yaml:"id"`
 	Title     string    `json:"title" yaml:"title"`
-	Slug      string    `json:"slug" yaml:"slug"`
 	Body      string    `json:"body" yaml:"body"`
 	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
 }
 
 // PlanStorage defines the interface for persisting plan-mode plans.
 type PlanStorage interface {
-	// SavePlan creates a plan record. The ID must be set by the caller.
+	// SavePlan creates or replaces a plan record. The ID must be set by the caller.
 	SavePlan(ctx context.Context, plan *PlanRecord) error
 
 	// LoadPlan returns a plan by ID. Returns an error when the plan does not exist.
@@ -143,8 +134,8 @@ type Stores struct {
 
 // StorageConfig contains configuration for storage backends
 type StorageConfig struct {
-	// Type specifies the storage backend type (sqlite, postgres, redis, jsonl)
-	Type string `json:"type" yaml:"type"`
+	// Type specifies the storage backend type (see config.StorageType* constants)
+	Type config.StorageType `json:"type" yaml:"type"`
 
 	// SQLite specific configuration
 	SQLite SQLiteConfig `json:"sqlite,omitempty" yaml:"sqlite,omitempty"`

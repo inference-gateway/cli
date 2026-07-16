@@ -59,7 +59,7 @@ func NewService(opts Options) *Service {
 func (s *Service) HandlePlanApprovalRequested(msg domain.PlanApprovalRequestedEvent) tea.Cmd {
 	logger.Info("approvalCoordinator.HandlePlanApprovalRequested called")
 
-	s.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.PlanPath, msg.ResponseChan)
+	s.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.PlanID, msg.ResponseChan)
 
 	return tea.Batch(s.planApprovalRequestedCmds(msg.PlanContent)...)
 }

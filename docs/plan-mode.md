@@ -87,27 +87,34 @@ The H1 of the saved file is derived from the `title` argument, e.g.:
 
 ## Where plans are saved
 
-```text
-<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md
+Plans are persisted through the configured storage backend (`storage.type`:
+jsonl, sqlite, postgres, redis, or d1). Every plan gets a stable ID of the
+form `<YYYY-MM-DD-HHMMSS>-<slug>` (UTC timestamp), returned by the tool as an
+`infer://plans/<id>` URI. Retrieve a plan from any backend with:
+
+```bash
+infer plans show <id>       # full markdown body
+infer plans list            # all plans with title + creation time
 ```
 
-`<configDir>` is whatever
-`config.Config.GetConfigDir()` resolves to - usually `./.infer/` in a
-project, or `~/.infer/` for the userspace config. The `plans/`
-subdirectory is created on first use.
+On the default `jsonl` backend the plan also lands as a plain markdown file:
+
+```text
+<plansDir>/<YYYY-MM-DD-HHMMSS>-<slug>.md
+```
+
+where `<plansDir>` sits next to the configured jsonl conversations directory
+(usually `./.infer/plans/`). Writes are atomic (`<path>.tmp` + rename), so
+you'll never see a half-written plan file.
 
 `<slug>` is the title lowercased, with non-alphanumerics collapsed to
-`-`, capped at 60 characters. If two plans land in the same second with
-the same title, the second filename gets a numeric suffix (`-1`, `-2`, …)
-so writes never clobber each other.
-
-Writes are atomic: the tool writes to `<path>.tmp` and then `os.Rename`s,
-so you'll never see a half-written plan file.
+`-`, capped at 60 characters. A plan with the same title in the same second
+upserts the previous record instead of creating a duplicate.
 
 Example listing:
 
 ```bash
-$ ls ~/.infer/plans/
+$ ls .infer/plans/
 2026-04-25-091230-rip-out-old-auth-middleware.md
 2026-04-26-143015-add-login-flow.md
 2026-04-27-103015-rename-config-loader.md
@@ -129,8 +136,8 @@ When the model calls `RequestPlanApproval`, the chat TUI:
    - **Approve Each Step** (`s`) - agent switches to Standard mode and
      executes the plan, prompting for approval on each action.
 
-In all three cases the plan file remains on disk. Rejecting a plan does
-**not** delete it.
+In all three cases the stored plan remains as an audit trail. Rejecting a
+plan does **not** delete it.
 
 ## Fresh session on approval
 
@@ -141,9 +148,10 @@ plan always:
 
 1. Starts a **fresh empty session** (like `/new`) - the planning conversation
    is preserved in storage but no longer in the working context.
-2. Adds a hidden user message pointing the agent back at the saved plan file
-   (`<configDir>/plans/…`), which it re-reads to execute step by step. The plan
-   itself is never lost - it lives on disk and is captured in the instruction.
+2. Adds a hidden user message pointing the agent back at the stored plan
+   (`infer plans show <id>`), which it re-reads to execute step by step. The
+   plan itself is never lost - it lives in storage and is captured in the
+   instruction.
 
 This is simpler and more efficient than summarizing the planning conversation:
 the plan is already saved on disk, so there is no need to compact the

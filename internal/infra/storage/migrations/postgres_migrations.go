@@ -86,7 +86,6 @@ func GetPostgresMigrations() []Migration {
 				CREATE TABLE IF NOT EXISTS plans (
 					id         TEXT PRIMARY KEY,
 					title      TEXT NOT NULL,
-					slug       TEXT NOT NULL DEFAULT '',
 					body       TEXT NOT NULL,
 					created_at TIMESTAMP WITH TIME ZONE NOT NULL
 				);

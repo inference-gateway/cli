@@ -477,9 +477,9 @@ func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	msg domain.PlanApprovalResponseEvent,
 ) tea.Cmd {
-	planPath := ""
+	planID := ""
 	if st := h.stateManager.GetPlanApprovalUIState(); st != nil {
-		planPath = st.PlanPath
+		planID = st.PlanID
 	}
 
 	cmd, restart := h.approvalCoordinator.HandlePlanApprovalResponse(msg)
@@ -487,8 +487,8 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 		return cmd
 	}
 
-	if planPath != "" {
-		return tea.Batch(cmd, h.newSessionThenExecutePlanCmd(planPath))
+	if planID != "" {
+		return tea.Batch(cmd, h.newSessionThenExecutePlanCmd(planID))
 	}
 	return tea.Batch(cmd, h.startChatCompletion())
 }

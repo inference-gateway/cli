@@ -10,29 +10,20 @@ import (
 // NewStorageFromConfig creates a storage configuration from app config
 func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 	if !cfg.Storage.Enabled {
-		return StorageConfig{Type: "memory"}
+		return StorageConfig{Type: config.StorageTypeMemory}
 	}
 
-	storageType := cfg.Storage.Type
-
-	switch storageType {
-	case "sqlite":
-		path := cfg.Storage.SQLite.Path
-		if !filepath.IsAbs(path) {
-			absPath, err := filepath.Abs(path)
-			if err == nil {
-				path = absPath
-			}
-		}
+	switch cfg.Storage.Type {
+	case config.StorageTypeSQLite:
 		return StorageConfig{
-			Type: "sqlite",
+			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
-				Path: path,
+				Path: absPath(cfg.Storage.SQLite.Path),
 			},
 		}
-	case "postgres":
+	case config.StorageTypePostgres:
 		return StorageConfig{
-			Type: "postgres",
+			Type: config.StorageTypePostgres,
 			Postgres: PostgresConfig{
 				Host:     cfg.Storage.Postgres.Host,
 				Port:     cfg.Storage.Postgres.Port,
@@ -42,9 +33,9 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				SSLMode:  cfg.Storage.Postgres.SSLMode,
 			},
 		}
-	case "redis":
+	case config.StorageTypeRedis:
 		return StorageConfig{
-			Type: "redis",
+			Type: config.StorageTypeRedis,
 			Redis: RedisConfig{
 				Host:     cfg.Storage.Redis.Host,
 				Port:     cfg.Storage.Redis.Port,
@@ -52,9 +43,9 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				Database: cfg.Storage.Redis.DB,
 			},
 		}
-	case "d1":
+	case config.StorageTypeD1:
 		return StorageConfig{
-			Type: "d1",
+			Type: config.StorageTypeD1,
 			D1: D1Config{
 				AccountID:  cfg.Storage.D1.AccountID,
 				DatabaseID: cfg.Storage.D1.DatabaseID,
@@ -62,104 +53,71 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				BaseURL:    cfg.Storage.D1.BaseURL,
 			},
 		}
-	case "jsonl":
-		path := cfg.Storage.Jsonl.Path
-		if !filepath.IsAbs(path) {
-			absPath, err := filepath.Abs(path)
-			if err == nil {
-				path = absPath
-			}
-		}
+	case config.StorageTypeJsonl:
 		return StorageConfig{
-			Type: "jsonl",
+			Type: config.StorageTypeJsonl,
 			Jsonl: JsonlStorageConfig{
-				Path: path,
+				Path: absPath(cfg.Storage.Jsonl.Path),
 			},
 		}
-	case "memory":
-		return StorageConfig{
-			Type: "memory",
-		}
 	default:
-		return StorageConfig{
-			Type: "memory",
-		}
+		return StorageConfig{Type: config.StorageTypeMemory}
 	}
+}
+
+// absPath resolves a relative storage path against the working directory,
+// falling back to the input when resolution fails.
+func absPath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
+// fullBackend is the set of storage interfaces every backend implements; it
+// lets NewStorage build the Stores aggregate from a single value.
+type fullBackend interface {
+	ConversationStorage
+	SessionGroupStorage
+	ScheduledJobStorage
+	PlanStorage
+	ShellHistoryStorage
 }
 
 // NewStorage creates a new storage instance based on the provided configuration
 func NewStorage(config StorageConfig) (*Stores, error) {
-	switch config.Type {
-	case "sqlite":
-		s, err := NewSQLiteStorage(config.SQLite)
-		if err != nil {
-			return nil, err
-		}
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
-	case "postgres":
-		s, err := NewPostgresStorage(config.Postgres)
-		if err != nil {
-			return nil, err
-		}
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
-	case "redis":
-		s, err := NewRedisStorage(config.Redis)
-		if err != nil {
-			return nil, err
-		}
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
-	case "d1":
-		s, err := NewD1Storage(config.D1)
-		if err != nil {
-			return nil, err
-		}
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
-	case "jsonl":
-		s, err := NewJsonlStorage(config.Jsonl)
-		if err != nil {
-			return nil, err
-		}
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
-	case "memory":
-		s := NewMemoryStorage()
-		return &Stores{
-			Conversations: s,
-			SessionGroups: s,
-			ScheduledJobs: s,
-			Plans:         s,
-			ShellHistory:  s,
-		}, nil
+	backend, err := newBackend(config)
+	if err != nil {
+		return nil, err
+	}
+	return &Stores{
+		Conversations: backend,
+		SessionGroups: backend,
+		ScheduledJobs: backend,
+		Plans:         backend,
+		ShellHistory:  backend,
+	}, nil
+}
+
+// newBackend constructs the configured backend.
+func newBackend(cfg StorageConfig) (fullBackend, error) {
+	switch cfg.Type {
+	case config.StorageTypeSQLite:
+		return NewSQLiteStorage(cfg.SQLite)
+	case config.StorageTypePostgres:
+		return NewPostgresStorage(cfg.Postgres)
+	case config.StorageTypeRedis:
+		return NewRedisStorage(cfg.Redis)
+	case config.StorageTypeD1:
+		return NewD1Storage(cfg.D1)
+	case config.StorageTypeJsonl:
+		return NewJsonlStorage(cfg.Jsonl)
+	case config.StorageTypeMemory:
+		return NewMemoryStorage(), nil
 	default:
-		return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
+		return nil, fmt.Errorf("unsupported storage type: %s", cfg.Type)
 	}
 }

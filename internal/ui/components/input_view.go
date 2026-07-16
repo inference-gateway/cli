@@ -17,6 +17,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
@@ -78,22 +79,35 @@ func gitCurrentBranch() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+// maxInMemoryHistory is how many not-yet-persisted input lines the history
+// manager keeps in memory for up-arrow recall.
+const maxInMemoryHistory = 5
+
 func NewInputView(modelService domain.ModelService) *InputView {
-	return NewInputViewWithName(modelService, "", "")
+	return NewInputViewWithName(modelService, "", "", nil)
 }
 
-func NewInputViewWithName(modelService domain.ModelService, configDir, name string) *InputView {
+// NewInputViewWithName creates the input view. The main agent's history
+// (name == "") goes through the storage backend when a store is provided;
+// named subagent histories and the no-store fallback stay file-based under
+// <configDir>/history/.
+func NewInputViewWithName(modelService domain.ModelService, configDir, name string, store storage.ShellHistoryStorage) *InputView {
 	if configDir == "" {
 		configDir = ".infer"
 	}
 
 	var historyManager *history.HistoryManager
-	if name == domain.SubagentHistoryMemoryOnly {
-		historyManager = history.NewMemoryOnlyHistoryManager(5)
-	} else if hm, err := history.NewHistoryManagerWithName(5, configDir, name); err != nil {
-		historyManager = history.NewMemoryOnlyHistoryManager(5)
-	} else {
-		historyManager = hm
+	switch {
+	case name == domain.SubagentHistoryMemoryOnly:
+		historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+	case store != nil && name == "":
+		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
+	default:
+		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, configDir, name); err != nil {
+			historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+		} else {
+			historyManager = hm
+		}
 	}
 
 	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"

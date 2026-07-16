@@ -10,12 +10,13 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	cron "github.com/robfig/cron/v3"
+	yaml "gopkg.in/yaml.v3"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
-
-	cron "github.com/robfig/cron/v3"
 )
 
 // ChannelLookupFn returns the registered Channel for a name, or nil if unknown.
@@ -23,7 +24,7 @@ type ChannelLookupFn func(name string) domain.Channel
 
 // Service runs scheduled jobs inside the channels-manager daemon. Jobs are
 // loaded from the configured ScheduledJobStorage, registered with a robfig/cron
-// scheduler, and hot-reloaded when the storage reports changes (via Watch).
+// scheduler, and hot-reloaded by polling the storage and diffing (reconcile).
 //
 // On fire, a fresh `infer agent --session-id <uuid>` subprocess is spawned -
 // every fire gets a brand-new session, so no context carries between runs.
@@ -40,12 +41,15 @@ type Service struct {
 	mu       sync.Mutex
 	entryIDs map[string]cron.EntryID
 
-	watchCtx  context.Context
-	watchStop context.CancelFunc
-	watcherWG sync.WaitGroup
+	pollStop context.CancelFunc
+	pollWG   sync.WaitGroup
 
 	started bool
 }
+
+// pollInterval is how often the scheduler reconciles its cron entries against
+// the jobs in storage.
+const pollInterval = 2 * time.Second
 
 // Options bundles dependencies and configuration for NewService.
 type Options struct {
@@ -96,7 +100,7 @@ func ParseCron(expr string) error {
 }
 
 // Start initialises the cron scheduler, loads all jobs from storage, and begins
-// watching for changes via the storage backend's Watch channel.
+// polling storage for changes.
 func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
 	if s.started {
@@ -107,15 +111,8 @@ func (s *Service) Start(ctx context.Context) error {
 	s.started = true
 	s.mu.Unlock()
 
-	if err := s.LoadJobs(); err != nil {
-		logger.Error("failed to load scheduled jobs", "error", err)
-	}
-
 	s.cron.Start()
-
-	if err := s.startWatcher(ctx); err != nil {
-		logger.Error("schedule watcher failed to start; jobs will only be loaded once", "error", err)
-	}
+	s.startPoller(ctx)
 
 	s.mu.Lock()
 	jobCount := len(s.entryIDs)
@@ -136,10 +133,10 @@ func (s *Service) Stop(ctx context.Context) error {
 	c := s.cron
 	s.mu.Unlock()
 
-	if s.watchStop != nil {
-		s.watchStop()
+	if s.pollStop != nil {
+		s.pollStop()
 	}
-	s.watcherWG.Wait()
+	s.pollWG.Wait()
 
 	if c != nil {
 		stopCtx := c.Stop()
@@ -151,29 +148,6 @@ func (s *Service) Stop(ctx context.Context) error {
 		}
 	}
 	logger.Info("scheduler stopped")
-	return nil
-}
-
-// LoadJobs replaces all currently-registered cron entries with the jobs
-// currently in storage. Safe to call repeatedly.
-func (s *Service) LoadJobs() error {
-	jobs, err := s.store.ListJobs(context.Background())
-	if err != nil {
-		return fmt.Errorf("list jobs: %w", err)
-	}
-
-	s.mu.Lock()
-	for id, eid := range s.entryIDs {
-		s.cron.Remove(eid)
-		delete(s.entryIDs, id)
-	}
-	s.mu.Unlock()
-
-	for _, job := range jobs {
-		if err := s.registerJob(job); err != nil {
-			logger.Warn("failed to register scheduled job", "id", job.ID, "error", err)
-		}
-	}
 	return nil
 }
 
@@ -358,43 +332,71 @@ func displayName(job *domain.ScheduledJob) string {
 	return job.ID
 }
 
-// startWatcher subscribes to the storage backend's Watch channel and keeps
-// cron entries in sync with job changes.
-func (s *Service) startWatcher(ctx context.Context) error {
-	wctx, cancel := context.WithCancel(ctx)
-	s.watchCtx = wctx
-	s.watchStop = cancel
+// startPoller reconciles cron entries against storage once synchronously (so
+// jobs are registered when Start returns), then keeps reconciling every
+// pollInterval until ctx is cancelled or Stop is called.
+//
+// ponytail: 2s list-and-diff poll across all backends; per-backend push
+// notifications if anything ever needs sub-second reload (cron granularity is
+// one minute).
+func (s *Service) startPoller(ctx context.Context) {
+	pctx, cancel := context.WithCancel(ctx)
+	s.pollStop = cancel
 
-	ch := s.store.Watch(wctx)
-	s.watcherWG.Add(1)
-	go func() {
-		defer s.watcherWG.Done()
+	known := make(map[string]string)
+	s.reconcile(pctx, known)
+
+	s.pollWG.Go(func() {
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-wctx.Done():
+			case <-pctx.Done():
 				return
-			case ev, ok := <-ch:
-				if !ok {
-					return
-				}
-				switch ev.Type {
-				case "delete":
-					s.removeJob(ev.ID)
-				default:
-					// Reload the job and re-register
-					job, err := s.store.LoadJob(context.Background(), ev.ID)
-					if err != nil {
-						logger.Warn("failed to reload job from watch event", "id", ev.ID, "error", err)
-						continue
-					}
-					if err := s.registerJob(job); err != nil {
-						logger.Warn("failed to register reloaded job", "id", ev.ID, "error", err)
-					}
-				}
+			case <-ticker.C:
+				s.reconcile(pctx, known)
 			}
 		}
-	}()
-	return nil
+	})
+}
+
+// reconcile diffs the jobs in storage against the known fingerprints:
+// new/changed jobs are (re-)registered, vanished jobs are removed. The
+// fingerprint is the job's marshaled bytes, so hand-edited YAML files on the
+// jsonl backend are picked up too; unchanged jobs are never re-registered, so
+// the poll does not reset @every schedules.
+func (s *Service) reconcile(ctx context.Context, known map[string]string) {
+	jobs, err := s.store.ListJobs(ctx)
+	if err != nil {
+		logger.Warn("failed to list scheduled jobs", "error", err)
+		return
+	}
+
+	seen := make(map[string]bool, len(jobs))
+	for _, job := range jobs {
+		data, err := yaml.Marshal(job)
+		if err != nil {
+			logger.Warn("failed to fingerprint scheduled job", "id", job.ID, "error", err)
+			continue
+		}
+		fingerprint := string(data)
+		seen[job.ID] = true
+		if known[job.ID] == fingerprint {
+			continue
+		}
+		if err := s.registerJob(job); err != nil {
+			logger.Warn("failed to register scheduled job", "id", job.ID, "error", err)
+			continue
+		}
+		known[job.ID] = fingerprint
+	}
+
+	for id := range known {
+		if !seen[id] {
+			s.removeJob(id)
+			delete(known, id)
+		}
+	}
 }
 
 // JobIDs returns the set of currently-registered job IDs (test helper).

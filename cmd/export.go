@@ -44,7 +44,7 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)

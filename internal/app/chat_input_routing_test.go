@@ -91,7 +91,7 @@ func newInputRoutingTestApp(t *testing.T, view domain.ViewState, draft string) (
 	}
 
 	modelService := &domainmocks.FakeModelService{}
-	inputView := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly)
+	inputView := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
 	inputView.SetText(draft)
 	messageQueue := &domainmocks.FakeMessageQueue{}
 	messageQueue.IsEmptyReturns(true)

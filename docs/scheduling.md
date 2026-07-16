@@ -17,7 +17,7 @@ an inspiring quote"* - initiated from a chat with the bot rather than from the C
 │    ├─ inbound msgs   → spawn `infer agent`                   │
 │    └─ SchedulerService                                       │
 │         ├─ robfig/cron/v3 scheduler                          │
-│         ├─ storage backend Watch channel                     │
+│         ├─ 2s poll + diff against storage backend            │
 │         └─ on fire: spawn `infer agent --session-id <uuid>`  │
 │                     capture stdout → channel.Send(...)       │
 └─────────────────────────────────────────────────────────────┘
@@ -35,8 +35,11 @@ Key properties:
 - **Backend-agnostic storage.** The `Schedule` tool and the scheduler both use the
   configured storage backend (sqlite, postgres, redis, jsonl, or memory). Jobs are
   persisted through the `ScheduledJobStorage` interface.
-- **Hot reload.** The scheduler subscribes to the storage backend's `Watch` channel
-  and re-registers jobs when they are created, updated, or deleted.
+- **Hot reload.** The scheduler polls the storage backend every 2 seconds and
+  diffs the jobs against its cron entries: created, updated (including hand-edited
+  YAML on the jsonl backend), and deleted jobs are picked up within ~2s. The
+  scheduler refuses to start on the memory backend (`storage.enabled: false`),
+  since a per-process store can never be seen by the daemon.
 - **Fresh session per fire.** Each scheduled run gets a brand-new agent session ID.
   Nothing carries between fires; design prompts to be self-contained.
 - **Daemon-bound execution.** Jobs only fire while `infer channels-manager` is running.
@@ -133,7 +136,7 @@ want a one-off or recurring job** before creating one.
 ```
 
 The tool returns the generated job ID. The job is persisted through the configured
-storage backend and the running daemon picks it up via the Watch channel.
+storage backend and the running daemon picks it up within ~2s via its poll loop.
 
 ### list
 

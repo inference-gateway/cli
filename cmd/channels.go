@@ -154,6 +154,9 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 	}
 
 	storageConfig := storage.NewStorageFromConfig(cfg)
+	if storageConfig.Type == config.StorageTypeMemory {
+		return nil, fmt.Errorf("the scheduler requires persistent storage: set storage.enabled: true and a non-memory storage.type (e.g. jsonl)")
+	}
 	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)

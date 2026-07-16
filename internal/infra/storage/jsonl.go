@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	fsnotify "github.com/fsnotify/fsnotify"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -997,69 +996,6 @@ func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
 	return nil
 }
 
-// Watch returns a channel that emits change events via fsnotify on the schedules directory.
-func (s *JsonlStorage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
-	ch := make(chan ScheduledJobChangeEvent)
-	go func() {
-		dir := s.schedulesDir()
-		// Ensure the directory exists so fsnotify can watch it
-		_ = os.MkdirAll(dir, 0o755)
-
-		w, err := fsnotify.NewWatcher()
-		if err != nil {
-			close(ch)
-			return
-		}
-		if err := w.Add(dir); err != nil {
-			_ = w.Close()
-			close(ch)
-			return
-		}
-		defer func() { _ = w.Close() }()
-
-		// Debounce map to avoid duplicate events from atomic writes
-		debounce := make(map[string]*time.Timer)
-
-		for {
-			select {
-			case <-ctx.Done():
-				close(ch)
-				return
-			case ev, ok := <-w.Events:
-				if !ok {
-					close(ch)
-					return
-				}
-				if filepath.Ext(ev.Name) != ".yaml" {
-					continue
-				}
-				id := strings.TrimSuffix(filepath.Base(ev.Name), ".yaml")
-				if id == "" {
-					continue
-				}
-				// Debounce
-				if t, ok := debounce[id]; ok {
-					t.Stop()
-				}
-				debounce[id] = time.AfterFunc(150*time.Millisecond, func() {
-					if ev.Op&fsnotify.Remove != 0 || ev.Op&fsnotify.Rename != 0 {
-						ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
-					} else {
-						ch <- ScheduledJobChangeEvent{ID: id, Type: "update"}
-					}
-				})
-			case err, ok := <-w.Errors:
-				if !ok {
-					close(ch)
-					return
-				}
-				_ = err
-			}
-		}
-	}()
-	return ch
-}
-
 // ---------------------------------------------------------------------------
 // PlanStorage (JsonlStorage) - file-based, keeps historical paths
 // ---------------------------------------------------------------------------
@@ -1069,17 +1005,17 @@ func (s *JsonlStorage) plansDir() string {
 	return filepath.Join(filepath.Dir(s.basePath), "plans")
 }
 
-// SavePlan writes the plan as a markdown file and also records it in a JSON index.
+// planStampFormat is the UTC timestamp prefix of a plan ID / filename stem.
+const planStampFormat = "2006-01-02-150405"
+
+// SavePlan writes the plan as a markdown file named after the plan ID.
 func (s *JsonlStorage) SavePlan(_ context.Context, plan *PlanRecord) error {
 	dir := s.plansDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create plans dir %s: %w", dir, err)
 	}
 
-	// Write the markdown file at the historical path
-	stamp := plan.CreatedAt.Format("2006-01-02-150405")
-	filename := fmt.Sprintf("%s-%s.md", stamp, plan.Slug)
-	path := filepath.Join(dir, filename)
+	path := filepath.Join(dir, plan.ID+".md")
 	body := "# " + plan.Title + "\n\n" + plan.Body
 	if !strings.HasSuffix(body, "\n") {
 		body += "\n"
@@ -1097,54 +1033,39 @@ func (s *JsonlStorage) SavePlan(_ context.Context, plan *PlanRecord) error {
 
 // LoadPlan returns a plan by ID. For JSONL, the ID is the filename stem.
 func (s *JsonlStorage) LoadPlan(_ context.Context, id string) (*PlanRecord, error) {
-	dir := s.plansDir()
-	entries, err := os.ReadDir(dir)
+	data, err := os.ReadFile(filepath.Join(s.plansDir(), id+".md"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("plan not found: %s", id)
 		}
-		return nil, fmt.Errorf("failed to read plans dir: %w", err)
+		return nil, fmt.Errorf("failed to read plan %s: %w", id, err)
 	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		// Match by ID prefix (the ID is the full filename stem)
-		stem := strings.TrimSuffix(e.Name(), ".md")
-		if stem == id {
-			data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-			if err != nil {
-				return nil, fmt.Errorf("failed to read plan %s: %w", id, err)
-			}
-			return parsePlanFile(stem, data), nil
-		}
-	}
-	return nil, fmt.Errorf("plan not found: %s", id)
+	return parsePlanFile(id, data), nil
 }
 
-// parsePlanFile parses a plan markdown file into a PlanRecord.
+// parsePlanFile parses a plan markdown file into a PlanRecord. The title comes
+// from the leading H1, the creation time from the ID's timestamp prefix.
 func parsePlanFile(stem string, data []byte) *PlanRecord {
 	content := string(data)
 	title := ""
 	body := content
 	if strings.HasPrefix(content, "# ") {
-		idx := strings.Index(content, "\n")
-		if idx > 0 {
-			title = strings.TrimPrefix(content[:idx], "# ")
-			body = strings.TrimLeft(content[idx+1:], "\n")
+		if line, rest, ok := strings.Cut(content, "\n"); ok {
+			title = strings.TrimPrefix(line, "# ")
+			body = strings.TrimLeft(rest, "\n")
 		}
 	}
-	slug := title
-	if idx := strings.Index(stem, "-"); idx >= 0 {
-		if rest := stem[idx+1:]; rest != "" {
-			slug = rest
+	var createdAt time.Time
+	if len(stem) >= len(planStampFormat) {
+		if ts, err := time.Parse(planStampFormat, stem[:len(planStampFormat)]); err == nil {
+			createdAt = ts.UTC()
 		}
 	}
 	return &PlanRecord{
-		ID:    stem,
-		Title: title,
-		Slug:  slug,
-		Body:  body,
+		ID:        stem,
+		Title:     title,
+		Body:      body,
+		CreatedAt: createdAt,
 	}
 }
 

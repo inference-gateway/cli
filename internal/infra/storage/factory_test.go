@@ -5,12 +5,14 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestStorageFactory(t *testing.T) {
 	t.Run("SQLite Storage", func(t *testing.T) {
 		config := StorageConfig{
-			Type: "sqlite",
+			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
 				Path: ":memory:",
 			},
@@ -26,7 +28,7 @@ func TestStorageFactory(t *testing.T) {
 
 	t.Run("Redis Storage - Invalid Config", func(t *testing.T) {
 		config := StorageConfig{
-			Type: "redis",
+			Type: config.StorageTypeRedis,
 			Redis: RedisConfig{
 				Host: "invalid-host",
 				Port: 6379,
@@ -39,7 +41,7 @@ func TestStorageFactory(t *testing.T) {
 
 	t.Run("Postgres Storage - Invalid Config", func(t *testing.T) {
 		config := StorageConfig{
-			Type: "postgres",
+			Type: config.StorageTypePostgres,
 			Postgres: PostgresConfig{
 				Host:     "invalid-host",
 				Port:     5432,
@@ -58,7 +60,7 @@ func TestStorageFactory(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := StorageConfig{
-			Type: "jsonl",
+			Type: config.StorageTypeJsonl,
 			Jsonl: JsonlStorageConfig{
 				Path: tempDir,
 			},
@@ -74,7 +76,7 @@ func TestStorageFactory(t *testing.T) {
 
 	t.Run("Memory Storage", func(t *testing.T) {
 		config := StorageConfig{
-			Type: "memory",
+			Type: config.StorageTypeMemory,
 		}
 
 		stores, err := NewStorage(config)

@@ -49,14 +49,23 @@ func NewHistoryManagerWithName(maxInMemory int, configDir, name string) (*Histor
 
 // NewMemoryOnlyHistoryManager creates a history manager that only uses in-memory storage
 func NewMemoryOnlyHistoryManager(maxInMemory int) *HistoryManager {
-	return &HistoryManager{
-		shellHistory:    &MemoryOnlyShellHistory{},
+	return NewHistoryManagerWithProvider(maxInMemory, &MemoryOnlyShellHistory{})
+}
+
+// NewHistoryManagerWithProvider creates a history manager on top of any
+// ShellHistoryProvider (e.g. a storage-backend-backed one).
+func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvider) *HistoryManager {
+	hm := &HistoryManager{
+		shellHistory:    provider,
 		inMemoryHistory: make([]string, 0, maxInMemory),
 		maxInMemory:     maxInMemory,
 		historyIndex:    -1,
 		currentInput:    "",
-		allHistory:      make([]string, 0),
 	}
+	if err := hm.loadCombinedHistory(); err != nil {
+		hm.allHistory = make([]string, 0)
+	}
+	return hm
 }
 
 // loadCombinedHistory loads history from shell and combines with in-memory history

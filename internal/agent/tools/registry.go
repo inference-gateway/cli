@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -54,6 +55,7 @@ type Registry struct {
 	stateManager       computerUseState
 	screenshotProvider domain.ScreenshotProvider
 	memoryBackend      domain.MemoryBackend
+	stores             *storage.Stores
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -69,7 +71,10 @@ type computerUseState interface {
 // taskTracker must be provided by the caller (typically the container, which
 // constructs the unified BackgroundTaskRegistry and passes its A2A view in
 // here so all tools observe the same tracker the agent's wait loop does).
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker) *Registry {
+// stores provides the storage backends for the Schedule and RequestPlanApproval
+// tools; it may be nil when storage failed to initialize, in which case those
+// tools fail at execution with a clear error.
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -83,6 +88,7 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		mcpManager:         mcpManager,
 		stateManager:       stateManager,
 		screenshotProvider: screenshotProvider,
+		stores:             stores,
 	}
 	if st, ok := taskTracker.(domain.SubagentTracker); ok {
 		registry.subagentTracker = st
@@ -139,14 +145,21 @@ func (r *Registry) registerTools() {
 	r.tools["Grep"] = NewGrepTool(cfg)
 	r.tools["Tree"] = NewTreeTool(cfg)
 	r.tools["TodoWrite"] = NewTodoWriteTool(cfg)
-	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg)
+
+	var planStore storage.PlanStorage
+	var jobStore storage.ScheduledJobStorage
+	if r.stores != nil {
+		planStore = r.stores.Plans
+		jobStore = r.stores.ScheduledJobs
+	}
+	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg, planStore)
 
 	if cfg.Tools.AskUserQuestion.Enabled {
 		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
 	}
 
 	if cfg.Tools.Schedule.Enabled {
-		r.tools["Schedule"] = NewScheduleTool(cfg)
+		r.tools["Schedule"] = NewScheduleTool(cfg, jobStore)
 	}
 
 	if cfg.Tools.Wait.Enabled {

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // ShellHistoryProvider interface defines methods for shell history operations
@@ -19,12 +18,9 @@ type ShellHistoryProvider interface {
 	GetHistoryFile() string
 }
 
-// ShellHistory implements project-specific history. When a ShellHistoryStorage
-// is provided, it delegates to the storage backend; otherwise it falls back to
-// the traditional file-based approach.
+// ShellHistory implements project-specific history backed by a plain file.
 type ShellHistory struct {
 	historyFile string
-	store       storage.ShellHistoryStorage
 }
 
 // NewShellHistory creates a new shell history provider
@@ -39,10 +35,6 @@ func NewShellHistory() (*ShellHistory, error) {
 func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
 	historyDir := filepath.Join(configDir, "history")
 
-	if err := migrateLegacyMainHistory(historyDir); err != nil {
-		logger.Warn("could not migrate legacy history file", "error", err)
-	}
-
 	var historyFile string
 	if name == "" {
 		historyFile = filepath.Join(historyDir, "history")
@@ -55,55 +47,38 @@ func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
 	}, nil
 }
 
-// NewShellHistoryWithStore creates a shell history provider backed by the given
-// ShellHistoryStorage. When store is non-nil, LoadHistory and SaveToHistory
-// delegate to it instead of the file system.
-func NewShellHistoryWithStore(configDir, name string, store storage.ShellHistoryStorage) (*ShellHistory, error) {
-	sh, err := NewShellHistoryWithName(configDir, name)
-	if err != nil {
-		return nil, err
-	}
-	sh.store = store
-	return sh, nil
+// StoreShellHistory is a ShellHistoryProvider backed by a storage backend
+// (jsonl/sqlite/postgres/redis/memory/d1) instead of a local file.
+type StoreShellHistory struct {
+	store storage.ShellHistoryStorage
 }
 
-// migrateLegacyMainHistory upgrades the pre-history/ layout in place. Older
-// versions stored the main history at <configDir>/history as a plain file;
-// the current layout needs <configDir>/history to be a directory (holding
-// history/history and history/history-<name>). When the legacy file is present
-// it is moved to history/history so existing history survives and directory
-// creation does not fail with ENOTDIR. No-op when the path is absent or is
-// already a directory.
-//
-// TODO: this one-time migration can be removed in a future version once
-// existing installs have upgraded past the history/ layout change.
-func migrateLegacyMainHistory(historyDir string) error {
-	info, err := os.Stat(historyDir)
-	if err != nil || info.IsDir() {
+// NewStoreShellHistory creates a shell history provider backed by the given
+// ShellHistoryStorage.
+func NewStoreShellHistory(store storage.ShellHistoryStorage) *StoreShellHistory {
+	return &StoreShellHistory{store: store}
+}
+
+// LoadHistory loads all commands from the storage backend.
+func (sh *StoreShellHistory) LoadHistory() ([]string, error) {
+	return sh.store.LoadHistory(context.Background(), 0)
+}
+
+// SaveToHistory appends a command to the storage backend.
+func (sh *StoreShellHistory) SaveToHistory(command string) error {
+	if strings.TrimSpace(command) == "" {
 		return nil
 	}
-
-	staged := historyDir + ".migrating"
-	if err := os.Rename(historyDir, staged); err != nil {
-		return fmt.Errorf("staging legacy history file: %w", err)
-	}
-	if err := os.MkdirAll(historyDir, 0755); err != nil {
-		_ = os.Rename(staged, historyDir)
-		return fmt.Errorf("creating history directory: %w", err)
-	}
-	if err := os.Rename(staged, filepath.Join(historyDir, "history")); err != nil {
-		return fmt.Errorf("moving legacy history into place: %w", err)
-	}
-
-	return nil
+	return sh.store.AppendHistory(context.Background(), command)
 }
 
-// LoadHistory loads commands from history file or storage backend
-func (sh *ShellHistory) LoadHistory() ([]string, error) {
-	if sh.store != nil {
-		return sh.store.LoadHistory(context.Background(), 0)
-	}
+// GetHistoryFile returns "" - the history is not backed by a single local file.
+func (sh *StoreShellHistory) GetHistoryFile() string {
+	return ""
+}
 
+// LoadHistory loads commands from the history file
+func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	file, err := os.Open(sh.historyFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -135,14 +110,10 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	return commands, nil
 }
 
-// SaveToHistory appends a command to the history file or storage backend
+// SaveToHistory appends a command to the history file
 func (sh *ShellHistory) SaveToHistory(command string) error {
 	if strings.TrimSpace(command) == "" {
 		return nil
-	}
-
-	if sh.store != nil {
-		return sh.store.AppendHistory(context.Background(), command)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(sh.historyFile), 0755); err != nil {
