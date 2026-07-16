@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -65,6 +66,80 @@ type ConversationMetadata = domain.ConversationMetadata
 
 // ConversationSummary contains summary information about a conversation
 type ConversationSummary = domain.ConversationSummary
+
+// ScheduledJobChangeEvent is emitted by ScheduledJobStorage.Watch when a job
+// is created, updated, or deleted.
+type ScheduledJobChangeEvent struct {
+	// ID is the job identifier that changed.
+	ID string
+	// Type is "create", "update", or "delete".
+	Type string
+}
+
+// ScheduledJobStorage defines the interface for persisting scheduled jobs.
+// Implementations must be safe for concurrent access.
+type ScheduledJobStorage interface {
+	// SaveJob creates or updates a scheduled job.
+	SaveJob(ctx context.Context, job *domain.ScheduledJob) error
+
+	// LoadJob returns a job by ID. Returns ErrJobNotFound when the job does not exist.
+	LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error)
+
+	// ListJobs returns all jobs sorted by CreatedAt ascending.
+	ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error)
+
+	// DeleteJob removes a job by ID. Returns ErrJobNotFound when the job does not exist.
+	DeleteJob(ctx context.Context, id string) error
+
+	// Watch returns a channel that emits change events for all jobs. The
+	// implementation must close the channel when ctx is cancelled.
+	Watch(ctx context.Context) <-chan ScheduledJobChangeEvent
+}
+
+// ErrJobNotFound is returned by ScheduledJobStorage when a job ID is not found.
+var ErrJobNotFound = fmt.Errorf("scheduled job not found")
+
+// PlanRecord is a stored plan-mode plan.
+type PlanRecord struct {
+	ID        string    `json:"id" yaml:"id"`
+	Title     string    `json:"title" yaml:"title"`
+	Slug      string    `json:"slug" yaml:"slug"`
+	Body      string    `json:"body" yaml:"body"`
+	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
+}
+
+// PlanStorage defines the interface for persisting plan-mode plans.
+type PlanStorage interface {
+	// SavePlan creates a plan record. The ID must be set by the caller.
+	SavePlan(ctx context.Context, plan *PlanRecord) error
+
+	// LoadPlan returns a plan by ID. Returns an error when the plan does not exist.
+	LoadPlan(ctx context.Context, id string) (*PlanRecord, error)
+
+	// ListPlans returns all plans sorted by CreatedAt descending.
+	ListPlans(ctx context.Context) ([]*PlanRecord, error)
+
+	// DeletePlan removes a plan by ID. Returns an error when the plan does not exist.
+	DeletePlan(ctx context.Context, id string) error
+}
+
+// ShellHistoryStorage defines the interface for persisting shell command history.
+type ShellHistoryStorage interface {
+	// AppendHistory appends a command to the history log.
+	AppendHistory(ctx context.Context, command string) error
+
+	// LoadHistory returns the most recent commands up to limit.
+	LoadHistory(ctx context.Context, limit int) ([]string, error)
+}
+
+// Stores is the aggregate returned by NewStorage, holding all storage backends.
+type Stores struct {
+	Conversations ConversationStorage
+	SessionGroups SessionGroupStorage
+	ScheduledJobs ScheduledJobStorage
+	Plans         PlanStorage
+	ShellHistory  ShellHistoryStorage
+}
 
 // StorageConfig contains configuration for storage backends
 type StorageConfig struct {
