@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -31,6 +30,9 @@ var plansShowCmd = &cobra.Command{
 The plan ID is the "<timestamp>-<slug>" identifier returned by the
 RequestPlanApproval tool as part of the infer://plans/<id> URI. Pass the
 full URI or just the ID.
+
+Output is rendered as styled markdown on a terminal and printed as raw
+markdown when piped, redirected, or run with --no-colors.
 
 Examples:
   # Show by plan ID
@@ -90,8 +92,22 @@ func showPlan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plan %q: %w", planID, err)
 	}
 
-	fmt.Println(plan.Body)
+	printMarkdown("# " + plan.Title + "\n\n" + plan.Body)
 	return nil
+}
+
+// printMarkdown renders md with glamour unless colors are disabled
+// (--no-colors, non-TTY stdout, or NO_COLOR — decided once in
+// rootCmd.PersistentPreRun), in which case it prints the raw markdown so
+// piped output and agent Bash calls stay escape-free.
+func printMarkdown(md string) {
+	if !outputColorsDisabled {
+		if rendered, err := renderMarkdown(md); err == nil {
+			fmt.Print(rendered)
+			return
+		}
+	}
+	fmt.Println(md)
 }
 
 func listPlans(cmd *cobra.Command, args []string) error {
@@ -143,11 +159,13 @@ func renderPlansTable(plans []*storage.PlanRecord) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "| ID | Title | Created At |\n")
-	_, _ = fmt.Fprintf(os.Stdout, "|---|---|---|\n")
+	var table strings.Builder
+	table.WriteString("| ID | Title | Created At |\n")
+	table.WriteString("|---|---|---|\n")
 	for _, p := range plans {
-		_, _ = fmt.Fprintf(os.Stdout, "| %s | %s | %s |\n",
+		fmt.Fprintf(&table, "| %s | %s | %s |\n",
 			p.ID, p.Title, p.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
+	printMarkdown(table.String())
 	return nil
 }
