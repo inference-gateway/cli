@@ -104,11 +104,11 @@ func TestChildEnvBaggage(t *testing.T) {
 	ctx = rec.contextWithBaggage(ctx)
 
 	m := envMap(rec.ChildEnv(ctx))
-	if !strings.Contains(m["BAGGAGE"], "infer.session.id=sess-bag") {
-		t.Fatalf("BAGGAGE=%q, want infer.session.id", m["BAGGAGE"])
+	if !strings.Contains(m["BAGGAGE"], "session.id=sess-bag") {
+		t.Fatalf("BAGGAGE=%q, want session.id", m["BAGGAGE"])
 	}
-	if !strings.Contains(m["BAGGAGE"], "infer.tool.call.id=call_1") {
-		t.Fatalf("BAGGAGE=%q, want infer.tool.call.id", m["BAGGAGE"])
+	if !strings.Contains(m["BAGGAGE"], "gen_ai.tool.call.id=call_1") {
+		t.Fatalf("BAGGAGE=%q, want gen_ai.tool.call.id", m["BAGGAGE"])
 	}
 }
 
