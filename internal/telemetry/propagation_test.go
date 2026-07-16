@@ -104,11 +104,33 @@ func TestChildEnvBaggage(t *testing.T) {
 	ctx = rec.contextWithBaggage(ctx)
 
 	m := envMap(rec.ChildEnv(ctx))
+	if !strings.Contains(m["BAGGAGE"], "session.id=sess-bag") {
+		t.Fatalf("BAGGAGE=%q, want session.id", m["BAGGAGE"])
+	}
+	if !strings.Contains(m["BAGGAGE"], "gen_ai.tool.call.id=call_1") {
+		t.Fatalf("BAGGAGE=%q, want gen_ai.tool.call.id", m["BAGGAGE"])
+	}
+}
+
+func TestChildEnvBaggageConfiguredKeys(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	rec := New(Options{
+		Enabled: true, Dir: t.TempDir(), SessionID: "sess-bag",
+		AttrSessionIDKey:  "infer.session.id",
+		AttrToolCallIDKey: "infer.tool.call.id",
+	})
+	defer rec.Shutdown(context.Background())
+
+	ctx := domain.WithToolCallID(context.Background(), "call_1")
+	ctx, _ = rec.startToolSpan(ctx, "Bash")
+	ctx = rec.contextWithBaggage(ctx)
+
+	m := envMap(rec.ChildEnv(ctx))
 	if !strings.Contains(m["BAGGAGE"], "infer.session.id=sess-bag") {
-		t.Fatalf("BAGGAGE=%q, want infer.session.id", m["BAGGAGE"])
+		t.Fatalf("BAGGAGE=%q, want configured infer.session.id", m["BAGGAGE"])
 	}
 	if !strings.Contains(m["BAGGAGE"], "infer.tool.call.id=call_1") {
-		t.Fatalf("BAGGAGE=%q, want infer.tool.call.id", m["BAGGAGE"])
+		t.Fatalf("BAGGAGE=%q, want configured infer.tool.call.id", m["BAGGAGE"])
 	}
 }
 

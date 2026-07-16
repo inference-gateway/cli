@@ -309,6 +309,7 @@ Now that you're up and running, explore these guides:
 - **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
+- **[Telemetry](docs/telemetry.md)** - OpenTelemetry traces/metrics and baggage propagation
 
 ## Commands
 
