@@ -67,7 +67,9 @@ func RunChannelsCommand(cfg *config.Config) error {
 		SessionID:    string(sessionID),
 		OTLPEndpoint: cfg.Telemetry.OTLP.Endpoint,
 		OTLPHeaders:  cfg.Telemetry.OTLP.Headers,
-		OTLPInterval: time.Duration(cfg.Telemetry.OTLP.Interval) * time.Second,
+		OTLPInterval:      time.Duration(cfg.Telemetry.OTLP.Interval) * time.Second,
+		AttrSessionIDKey:  cfg.Telemetry.AttrSessionIDKey,
+		AttrToolCallIDKey: cfg.Telemetry.AttrToolCallIDKey,
 	})
 
 	cm := services.NewChannelManagerService(cfg.Channels, tel)

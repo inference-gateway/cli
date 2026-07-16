@@ -338,9 +338,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 		SessionID:       string(c.sessionID),
 		OTLPEndpoint:    c.config.Telemetry.OTLP.Endpoint,
 		OTLPHeaders:     c.config.Telemetry.OTLP.Headers,
-		OTLPInterval:    time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
-		ReceiverAddress: c.config.Telemetry.ReceiverAddress,
-		Cost:            c.GetPricingService().CalculateCost,
+		OTLPInterval:      time.Duration(c.config.Telemetry.OTLP.Interval) * time.Second,
+		ReceiverAddress:   c.config.Telemetry.ReceiverAddress,
+		Cost:              c.GetPricingService().CalculateCost,
+		AttrSessionIDKey:  c.config.Telemetry.AttrSessionIDKey,
+		AttrToolCallIDKey: c.config.Telemetry.AttrToolCallIDKey,
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {

@@ -36,16 +36,14 @@ func (c envCarrier) Keys() []string {
 	return keys
 }
 
-// baggageKey returns the env-configured baggage member key for the given
-// attribute, defaulting to the OTel semantic convention value. These env vars
-// are a cross-repo contract with the ADK and must match byte-for-byte, so they
-// are read directly from the environment rather than through Viper/INFER_*.
-func baggageKey(env, fallback string) string {
-	if v := os.Getenv(env); v != "" {
-		return v
-	}
-	return fallback
-}
+// Default baggage member names, per the OTel semantic conventions. These are
+// a cross-repo contract with the consumer (the ADK reads the same defaults)
+// and must match byte-for-byte; override via telemetry.attr_session_id_key /
+// telemetry.attr_tool_call_id_key.
+const (
+	defaultAttrSessionIDKey  = "session.id"
+	defaultAttrToolCallIDKey = "gen_ai.tool.call.id"
+)
 
 func (r *Recorder) contextWithBaggage(ctx context.Context) context.Context {
 	if r == nil {
@@ -53,8 +51,8 @@ func (r *Recorder) contextWithBaggage(ctx context.Context) context.Context {
 	}
 	var members []baggage.Member
 	for k, v := range map[string]string{
-		baggageKey("A2A_TELEMETRY_ATTR_SESSION_ID_KEY", "session.id"):            r.sessionID,
-		baggageKey("A2A_TELEMETRY_ATTR_TOOL_CALL_ID_KEY", "gen_ai.tool.call.id"): domain.GetToolCallID(ctx),
+		r.attrSessionIDKey:  r.sessionID,
+		r.attrToolCallIDKey: domain.GetToolCallID(ctx),
 	} {
 		if v == "" {
 			continue

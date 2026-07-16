@@ -112,6 +112,28 @@ func TestChildEnvBaggage(t *testing.T) {
 	}
 }
 
+func TestChildEnvBaggageConfiguredKeys(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	rec := New(Options{
+		Enabled: true, Dir: t.TempDir(), SessionID: "sess-bag",
+		AttrSessionIDKey:  "infer.session.id",
+		AttrToolCallIDKey: "infer.tool.call.id",
+	})
+	defer rec.Shutdown(context.Background())
+
+	ctx := domain.WithToolCallID(context.Background(), "call_1")
+	ctx, _ = rec.startToolSpan(ctx, "Bash")
+	ctx = rec.contextWithBaggage(ctx)
+
+	m := envMap(rec.ChildEnv(ctx))
+	if !strings.Contains(m["BAGGAGE"], "infer.session.id=sess-bag") {
+		t.Fatalf("BAGGAGE=%q, want configured infer.session.id", m["BAGGAGE"])
+	}
+	if !strings.Contains(m["BAGGAGE"], "infer.tool.call.id=call_1") {
+		t.Fatalf("BAGGAGE=%q, want configured infer.tool.call.id", m["BAGGAGE"])
+	}
+}
+
 func TestStartSessionInheritsTraceparent(t *testing.T) {
 	const parentTrace = "4bf92f3577b34da6a3ce929d0e0e4736"
 	const parentSpan = "00f067aa0ba902b7"
