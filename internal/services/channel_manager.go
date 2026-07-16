@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
+	attribute "go.opentelemetry.io/otel/attribute"
+	metric "go.opentelemetry.io/otel/metric"
 
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
@@ -50,7 +51,7 @@ type ChannelManagerService struct {
 	// processed, active channels, per-message duration). Nil-safe.
 	telemetryRecorder *telemetry.Recorder
 
-	// daemon instruments (lazily initialised on first use)
+	// daemon instruments (initialised in the constructor; nil when telemetry is off)
 	messagesProcessed metric.Int64Counter
 	messageDuration   metric.Float64Histogram
 	activeChannels    metric.Int64UpDownCounter
@@ -76,8 +77,8 @@ func NewChannelManagerService(cfg config.ChannelsConfig, tel *telemetry.Recorder
 	return cm
 }
 
-// initDaemonInstruments lazily initialises the daemon-level OTel instruments
-// from the telemetry recorder's meter. Failures are logged and dropped so
+// initDaemonInstruments initialises the daemon-level OTel instruments from
+// the telemetry recorder's meter. Failures are logged and dropped so
 // telemetry never affects daemon operation.
 func (cm *ChannelManagerService) initDaemonInstruments() {
 	if cm.telemetryRecorder == nil {
@@ -140,6 +141,10 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 
 	for name, ch := range channels {
 		go func(name string, ch domain.Channel) {
+			if cm.activeChannels != nil {
+				cm.activeChannels.Add(ctx, 1)
+				defer cm.activeChannels.Add(ctx, -1)
+			}
 			if err := ch.Start(ctx, cm.inbox); err != nil {
 				if ctx.Err() == nil {
 					logger.Error("channel stopped with error", "channel", name, "error", err)
@@ -244,8 +249,30 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 		}
 	}
 
-	if err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn, ch); err != nil {
+	start := time.Now()
+	err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn, ch)
+	cm.recordMessageProcessed(ctx, msg.ChannelName, time.Since(start), err)
+	if err != nil {
 		logger.Error("agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
+	}
+}
+
+// recordMessageProcessed records the per-message daemon metrics. Nil-safe:
+// no-op when telemetry is disabled.
+func (cm *ChannelManagerService) recordMessageProcessed(ctx context.Context, channel string, dur time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	attrs := metric.WithAttributes(
+		attribute.String("infer.channel.name", channel),
+		attribute.String("infer.message.outcome", outcome),
+	)
+	if cm.messagesProcessed != nil {
+		cm.messagesProcessed.Add(ctx, 1, attrs)
+	}
+	if cm.messageDuration != nil {
+		cm.messageDuration.Record(ctx, dur.Seconds(), attrs)
 	}
 }
 

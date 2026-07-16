@@ -116,8 +116,6 @@ func RunChannelsCommand(cfg *config.Config) error {
 	logger.Info("shutting down...")
 	cancel()
 
-	tel.Shutdown(context.Background())
-
 	if hb != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := hb.Stop(stopCtx); err != nil {
@@ -134,8 +132,14 @@ func RunChannelsCommand(cfg *config.Config) error {
 		stopCancel()
 	}
 
-	if err := cm.Stop(); err != nil {
-		return fmt.Errorf("failed to stop channels: %w", err)
+	stopErr := cm.Stop()
+
+	telCtx, telCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	tel.Shutdown(telCtx)
+	telCancel()
+
+	if stopErr != nil {
+		return fmt.Errorf("failed to stop channels: %w", stopErr)
 	}
 
 	logger.Info("daemon stopped.")

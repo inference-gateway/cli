@@ -12,8 +12,25 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
+
+func TestChannelManagerService_DaemonInstruments(t *testing.T) {
+	tel := telemetry.New(telemetry.Options{Enabled: true, Dir: t.TempDir(), SessionID: "test"})
+	if tel == nil {
+		t.Fatal("expected recorder with file sink enabled")
+	}
+	defer tel.Shutdown(context.Background())
+
+	cm := NewChannelManagerService(config.ChannelsConfig{Enabled: true}, tel)
+	if cm.messagesProcessed == nil || cm.messageDuration == nil || cm.activeChannels == nil {
+		t.Fatal("expected daemon instruments to be initialised")
+	}
+
+	cm.recordMessageProcessed(context.Background(), "telegram", time.Second, nil)
+	cm.recordMessageProcessed(context.Background(), "telegram", time.Second, os.ErrClosed)
+}
 
 func TestChannelManagerService_Register(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
