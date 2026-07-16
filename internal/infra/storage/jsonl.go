@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	fsnotify "github.com/fsnotify/fsnotify"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	yaml "gopkg.in/yaml.v3"
 )
 

@@ -88,20 +88,77 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 }
 
 // NewStorage creates a new storage instance based on the provided configuration
-func NewStorage(config StorageConfig) (ConversationStorage, error) {
+func NewStorage(config StorageConfig) (*Stores, error) {
 	switch config.Type {
 	case "sqlite":
-		return NewSQLiteStorage(config.SQLite)
+		s, err := NewSQLiteStorage(config.SQLite)
+		if err != nil {
+			return nil, err
+		}
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	case "postgres":
-		return NewPostgresStorage(config.Postgres)
+		s, err := NewPostgresStorage(config.Postgres)
+		if err != nil {
+			return nil, err
+		}
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	case "redis":
-		return NewRedisStorage(config.Redis)
+		s, err := NewRedisStorage(config.Redis)
+		if err != nil {
+			return nil, err
+		}
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	case "d1":
-		return NewD1Storage(config.D1)
+		s, err := NewD1Storage(config.D1)
+		if err != nil {
+			return nil, err
+		}
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	case "jsonl":
-		return NewJsonlStorage(config.Jsonl)
+		s, err := NewJsonlStorage(config.Jsonl)
+		if err != nil {
+			return nil, err
+		}
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	case "memory":
-		return NewMemoryStorage(), nil
+		s := NewMemoryStorage()
+		return &Stores{
+			Conversations: s,
+			SessionGroups: s,
+			ScheduledJobs: s,
+			Plans:         s,
+			ShellHistory:  s,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
 	}

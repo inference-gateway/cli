@@ -580,27 +580,27 @@ func (s *RedisStorage) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent
 		for {
 			select {
 			case <-ctx.Done():
-					close(ch)
-					return
+				close(ch)
+				return
 			case <-ticker.C:
-					keys, err := s.client.Keys(ctx, redisScheduledJobsKey+":*").Result()
-					if err != nil {
-						continue
+				keys, err := s.client.Keys(ctx, redisScheduledJobsKey+":*").Result()
+				if err != nil {
+					continue
+				}
+				seen := make(map[string]bool)
+				for _, k := range keys {
+					id := k[len(redisScheduledJobsKey)+1:]
+					seen[id] = true
+					if !known[id] {
+						ch <- ScheduledJobChangeEvent{ID: id, Type: "create"}
 					}
-					seen := make(map[string]bool)
-					for _, k := range keys {
-						id := k[len(redisScheduledJobsKey)+1:]
-						seen[id] = true
-						if !known[id] {
-							ch <- ScheduledJobChangeEvent{ID: id, Type: "create"}
-						}
+				}
+				for id := range known {
+					if !seen[id] {
+						ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
 					}
-					for id := range known {
-						if !seen[id] {
-							ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
-						}
-					}
-					known = seen
+				}
+				known = seen
 			}
 		}
 	}()

@@ -16,11 +16,11 @@ func TestStorageFactory(t *testing.T) {
 			},
 		}
 
-		storage, err := NewStorage(config)
+		stores, err := NewStorage(config)
 		require.NoError(t, err)
-		assert.IsType(t, &SQLiteStorage{}, storage)
+		assert.IsType(t, &SQLiteStorage{}, stores.Conversations)
 
-		err = storage.Close()
+		err = stores.Conversations.Close()
 		assert.NoError(t, err)
 	})
 
@@ -64,11 +64,11 @@ func TestStorageFactory(t *testing.T) {
 			},
 		}
 
-		storage, err := NewStorage(config)
+		stores, err := NewStorage(config)
 		require.NoError(t, err)
-		assert.IsType(t, &JsonlStorage{}, storage)
+		assert.IsType(t, &JsonlStorage{}, stores.Conversations)
 
-		err = storage.Close()
+		err = stores.Conversations.Close()
 		assert.NoError(t, err)
 	})
 
@@ -77,11 +77,11 @@ func TestStorageFactory(t *testing.T) {
 			Type: "memory",
 		}
 
-		storage, err := NewStorage(config)
+		stores, err := NewStorage(config)
 		require.NoError(t, err)
-		assert.IsType(t, &MemoryStorage{}, storage)
+		assert.IsType(t, &MemoryStorage{}, stores.Conversations)
 
-		err = storage.Close()
+		err = stores.Conversations.Close()
 		assert.NoError(t, err)
 	})
 

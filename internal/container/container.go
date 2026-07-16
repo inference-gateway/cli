@@ -322,8 +322,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
-	storageBackend, err := storage.NewStorage(storageConfig)
-	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
+	stores, err := storage.NewStorage(storageConfig)
+	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
 
 	if c.jobSupervisor != nil {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
@@ -415,7 +415,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 // (or panics on an explicit, non-default backend so the user gets a clear
 // signal that the configuration is broken).
 func (c *ServiceContainer) initializeStorageBackend(
-	storageBackend storage.ConversationStorage,
+	stores *storage.Stores,
 	storageConfig storage.StorageConfig,
 	toolFormatterService *services.ToolFormatterService,
 	err error,
@@ -425,19 +425,19 @@ func (c *ServiceContainer) initializeStorageBackend(
 		return storage.NewMemorySessionGroupStorage()
 	}
 
-	c.storage = storageBackend
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
+	c.storage = stores.Conversations
+	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
 	titleClient := c.createRawSDKClient()
-	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
+	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
 	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
 
-	if gs, ok := storageBackend.(storage.SessionGroupStorage); ok {
+	if gs, ok := stores.Conversations.(storage.SessionGroupStorage); ok {
 		return gs
 	}
 
