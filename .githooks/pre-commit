@@ -24,4 +24,8 @@ if printf '%s\n' "$staged" | grep -qx 'internal/domain/interfaces\.go'; then
 fi
 
 task fmt
+if [ -n "$staged" ] && ! git diff --quiet -- $staged; then
+  echo "pre-commit: 'task fmt' reformatted staged files; review and 'git add' them, then retry" >&2
+  exit 1
+fi
 task lint
