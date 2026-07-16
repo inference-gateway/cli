@@ -14,7 +14,7 @@ import (
 
 var tracesCmd = &cobra.Command{
 	Use:   "traces [session-id]",
-	Short: "Render a session's span tree from local telemetry",
+	Short: "Render a session's span tree from local or remote telemetry",
 	Long: `Render the span tree of a session (root session span -> LLM turns -> tool
 calls) with per-span durations, read from the local per-session trace file under
 <config-dir>/telemetry. With no argument the most recent session is shown.

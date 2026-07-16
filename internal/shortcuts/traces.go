@@ -31,7 +31,7 @@ func NewTracesShortcut() *TracesShortcut {
 func (s *TracesShortcut) GetName() string { return "traces" }
 
 func (s *TracesShortcut) GetDescription() string {
-	return "Show a session's span tree from local telemetry"
+	return "Show a session's span tree from local or remote telemetry"
 }
 
 func (s *TracesShortcut) GetUsage() string { return "/traces [session-id]" }
