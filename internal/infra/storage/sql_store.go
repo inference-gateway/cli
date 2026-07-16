@@ -509,3 +509,262 @@ func decodeSessionHistory(historyJSON []byte, groupKey string) ([]string, error)
 	}
 	return history, nil
 }
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (sqlStore)
+// ---------------------------------------------------------------------------
+
+// SaveJob creates or updates a scheduled job via UPSERT.
+func (s *sqlStore) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+	_, err := s.db.ExecContext(ctx, s.rebind(`
+		INSERT INTO scheduled_jobs(id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			name = excluded.name,
+			description = excluded.description,
+			cron_expression = excluded.cron_expression,
+			prompt = excluded.prompt,
+			channel = excluded.channel,
+			recipient_id = excluded.recipient_id,
+			model = excluded.model,
+			run_once = excluded.run_once,
+			updated_at = excluded.updated_at,
+			last_run = excluded.last_run,
+			last_error = excluded.last_error
+	`), job.ID, job.Name, job.Description, job.CronExpression, job.Prompt,
+		job.Channel, job.RecipientID, job.Model, job.RunOnce,
+		job.CreatedAt, job.UpdatedAt, job.LastRun, job.LastError)
+	if err != nil {
+		return fmt.Errorf("save scheduled job %s: %w", job.ID, err)
+	}
+	return nil
+}
+
+// LoadJob returns a job by ID. Returns ErrJobNotFound when the job does not exist.
+func (s *sqlStore) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+	var job domain.ScheduledJob
+	var lastRun sql.NullTime
+
+	err := s.db.QueryRowContext(ctx, s.rebind(`
+		SELECT id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error
+		FROM scheduled_jobs WHERE id = ?
+	`), id).Scan(
+		&job.ID, &job.Name, &job.Description, &job.CronExpression, &job.Prompt,
+		&job.Channel, &job.RecipientID, &job.Model, &job.RunOnce,
+		&job.CreatedAt, &job.UpdatedAt, &lastRun, &job.LastError,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("load scheduled job %s: %w", id, err)
+	}
+	if lastRun.Valid {
+		job.LastRun = &lastRun.Time
+	}
+	return &job, nil
+}
+
+// ListJobs returns all jobs sorted by CreatedAt ascending.
+func (s *sqlStore) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+	rows, err := s.db.QueryContext(ctx, s.rebind(`
+		SELECT id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error
+		FROM scheduled_jobs ORDER BY created_at ASC
+	`))
+	if err != nil {
+		return nil, fmt.Errorf("list scheduled jobs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var jobs []*domain.ScheduledJob
+	for rows.Next() {
+		var job domain.ScheduledJob
+		var lastRun sql.NullTime
+		if err := rows.Scan(
+			&job.ID, &job.Name, &job.Description, &job.CronExpression, &job.Prompt,
+			&job.Channel, &job.RecipientID, &job.Model, &job.RunOnce,
+			&job.CreatedAt, &job.UpdatedAt, &lastRun, &job.LastError,
+		); err != nil {
+			return nil, fmt.Errorf("scan scheduled job: %w", err)
+		}
+		if lastRun.Valid {
+			job.LastRun = &lastRun.Time
+		}
+		jobs = append(jobs, &job)
+	}
+	return jobs, rows.Err()
+}
+
+// DeleteJob removes a job by ID. Returns ErrJobNotFound when the job does not exist.
+func (s *sqlStore) DeleteJob(ctx context.Context, id string) error {
+	result, err := s.db.ExecContext(ctx, s.rebind("DELETE FROM scheduled_jobs WHERE id = ?"), id)
+	if err != nil {
+		return fmt.Errorf("delete scheduled job %s: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrJobNotFound
+	}
+	return nil
+}
+
+// Watch returns a channel that polls every 2s for changes via updated_at.
+func (s *sqlStore) Watch(ctx context.Context) <-chan ScheduledJobChangeEvent {
+	ch := make(chan ScheduledJobChangeEvent)
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		// Track known job IDs and their updated_at timestamps
+		known := make(map[string]time.Time)
+		// Initial load
+		jobs, err := s.ListJobs(ctx)
+		if err == nil {
+			for _, j := range jobs {
+				known[j.ID] = j.UpdatedAt
+			}
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				close(ch)
+				return
+			case <-ticker.C:
+				current, err := s.ListJobs(ctx)
+				if err != nil {
+					continue
+				}
+				seen := make(map[string]bool)
+				for _, j := range current {
+					seen[j.ID] = true
+					if prev, ok := known[j.ID]; !ok {
+						ch <- ScheduledJobChangeEvent{ID: j.ID, Type: "create"}
+					} else if !j.UpdatedAt.Equal(prev) {
+						ch <- ScheduledJobChangeEvent{ID: j.ID, Type: "update"}
+					}
+					known[j.ID] = j.UpdatedAt
+				}
+				for id := range known {
+					if !seen[id] {
+						ch <- ScheduledJobChangeEvent{ID: id, Type: "delete"}
+						delete(known, id)
+					}
+				}
+			}
+		}
+	}()
+	return ch
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (sqlStore)
+// ---------------------------------------------------------------------------
+
+// SavePlan creates a plan record via UPSERT.
+func (s *sqlStore) SavePlan(ctx context.Context, plan *PlanRecord) error {
+	_, err := s.db.ExecContext(ctx, s.rebind(`
+		INSERT INTO plans(id, title, slug, body, created_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			title = excluded.title,
+			slug = excluded.slug,
+			body = excluded.body,
+			created_at = excluded.created_at
+	`), plan.ID, plan.Title, plan.Slug, plan.Body, plan.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("save plan %s: %w", plan.ID, err)
+	}
+	return nil
+}
+
+// LoadPlan returns a plan by ID.
+func (s *sqlStore) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
+	var plan PlanRecord
+	err := s.db.QueryRowContext(ctx, s.rebind(`
+		SELECT id, title, slug, body, created_at FROM plans WHERE id = ?
+	`), id).Scan(&plan.ID, &plan.Title, &plan.Slug, &plan.Body, &plan.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("plan not found: %s", id)
+		}
+		return nil, fmt.Errorf("load plan %s: %w", id, err)
+	}
+	return &plan, nil
+}
+
+// ListPlans returns all plans sorted by CreatedAt descending.
+func (s *sqlStore) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
+	rows, err := s.db.QueryContext(ctx, s.rebind(`
+		SELECT id, title, slug, body, created_at FROM plans ORDER BY created_at DESC
+	`))
+	if err != nil {
+		return nil, fmt.Errorf("list plans: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var plans []*PlanRecord
+	for rows.Next() {
+		var plan PlanRecord
+		if err := rows.Scan(&plan.ID, &plan.Title, &plan.Slug, &plan.Body, &plan.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan plan: %w", err)
+		}
+		plans = append(plans, &plan)
+	}
+	return plans, rows.Err()
+}
+
+// DeletePlan removes a plan by ID.
+func (s *sqlStore) DeletePlan(ctx context.Context, id string) error {
+	result, err := s.db.ExecContext(ctx, s.rebind("DELETE FROM plans WHERE id = ?"), id)
+	if err != nil {
+		return fmt.Errorf("delete plan %s: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("plan not found: %s", id)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (sqlStore)
+// ---------------------------------------------------------------------------
+
+// AppendHistory appends a command to the shell history log.
+func (s *sqlStore) AppendHistory(ctx context.Context, command string) error {
+	_, err := s.db.ExecContext(ctx, s.rebind("INSERT INTO shell_history(command) VALUES (?)"), command)
+	if err != nil {
+		return fmt.Errorf("append shell history: %w", err)
+	}
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (s *sqlStore) LoadHistory(ctx context.Context, limit int) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, s.rebind(`
+		SELECT command FROM shell_history ORDER BY id DESC LIMIT ?
+	`), limit)
+	if err != nil {
+		return nil, fmt.Errorf("load shell history: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var commands []string
+	for rows.Next() {
+		var cmd string
+		if err := rows.Scan(&cmd); err != nil {
+			return nil, fmt.Errorf("scan shell history: %w", err)
+		}
+		commands = append(commands, cmd)
+	}
+	// Reverse to get chronological order
+	for i, j := 0, len(commands)-1; i < j; i, j = i+1, j-1 {
+		commands[i], commands[j] = commands[j], commands[i]
+	}
+	return commands, rows.Err()
+}
