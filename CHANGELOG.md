@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.147.0](https://github.com/inference-gateway/cli/compare/v0.146.0...v0.147.0) (2026-07-16)
+
+### 🚀 Features
+
+* **telemetry:** add infer traces command and /traces shortcut ([#908](https://github.com/inference-gateway/cli/issues/908)) ([8000a4b](https://github.com/inference-gateway/cli/commit/8000a4bba74f0a1e3119888e9a8dd823ee6d65f1)), references [#901](https://github.com/inference-gateway/cli/issues/901) [#893](https://github.com/inference-gateway/cli/issues/893) [#904](https://github.com/inference-gateway/cli/issues/904) [#904](https://github.com/inference-gateway/cli/issues/904)
+* **telemetry:** add traces and logs to the telemetry package ([#901](https://github.com/inference-gateway/cli/issues/901)) ([97f11f0](https://github.com/inference-gateway/cli/commit/97f11f0ad236a1024f26415c0762dff994a912a7)), references [#893](https://github.com/inference-gateway/cli/issues/893) [#893](https://github.com/inference-gateway/cli/issues/893) [#904](https://github.com/inference-gateway/cli/issues/904) [inference-gateway/docs#389](https://github.com/inference-gateway/docs/issues/389)
+* **chat:** make input field max lines configurable with default 20 ([#914](https://github.com/inference-gateway/cli/issues/914)) ([cdb2c1f](https://github.com/inference-gateway/cli/commit/cdb2c1f7da5b533262e3276915148d51d46d45c0)), closes [#912](https://github.com/inference-gateway/cli/issues/912)
+* **telemetry:** propagate W3C trace context to subprocesses and ingest child spans via OTLP ([#909](https://github.com/inference-gateway/cli/issues/909)) ([d1c09da](https://github.com/inference-gateway/cli/commit/d1c09da44dc2bd309bbb2a8821031c83904f063e)), references [#903](https://github.com/inference-gateway/cli/issues/903) [#908](https://github.com/inference-gateway/cli/issues/908)
+
+### 🐛 Bug Fixes
+
+* **ui:** handle shift+backspace, shift+delete, cmd+enter and other unhandled modifier key combos in input textarea ([#913](https://github.com/inference-gateway/cli/issues/913)) ([16ffcb1](https://github.com/inference-gateway/cli/commit/16ffcb1d979b53839f82b1ceb9fdba7a55055955)), closes [#910](https://github.com/inference-gateway/cli/issues/910)
+
+### ♻️ Code Refactoring
+
+* **tests:** adopt table-driven tests as suite-wide standard ([#902](https://github.com/inference-gateway/cli/issues/902)) ([87fe467](https://github.com/inference-gateway/cli/commit/87fe467e68d17453adbffb147c616beb22a4e127)), references [#898](https://github.com/inference-gateway/cli/issues/898) [#899](https://github.com/inference-gateway/cli/issues/899) [#900](https://github.com/inference-gateway/cli/issues/900) [#898](https://github.com/inference-gateway/cli/issues/898)
+* **tests:** table-drive config, agent, and services logic tests ([#907](https://github.com/inference-gateway/cli/issues/907)) ([0dec327](https://github.com/inference-gateway/cli/commit/0dec3275d033824f38575494b18d91ad6b85dea6)), closes [#900](https://github.com/inference-gateway/cli/issues/900) [#898](https://github.com/inference-gateway/cli/issues/898), references [902/#906](https://github.com/inference-gateway/cli/issues/906)
+* **tests:** table-drive remaining internal/ui component tests ([#906](https://github.com/inference-gateway/cli/issues/906)) ([51ec060](https://github.com/inference-gateway/cli/commit/51ec060bc6ae90ec8bdc211ce9bbb3adf916564d)), references [#899](https://github.com/inference-gateway/cli/issues/899)
+
+### 🔧 Build System
+
+* **deps:** bump actions/setup-node from 6.4.0 to 7.0.0 in the github-actions group ([#917](https://github.com/inference-gateway/cli/issues/917)) ([cc3da91](https://github.com/inference-gateway/cli/commit/cc3da91f727816a28f89e169b854332de27289a3))
+* **deps:** bump the gomod group with 3 updates ([#916](https://github.com/inference-gateway/cli/issues/916)) ([a462721](https://github.com/inference-gateway/cli/commit/a462721413cf8b8219d2960516e3d4758388a7d2))
+
+### 🧹 Maintenance
+
+* remove Go Report Card badge (retired in favor of golangci-lint) ([4fd08a7](https://github.com/inference-gateway/cli/commit/4fd08a7f4e6df42e915bc235a81407fac0c1cb0d))
+* **release:** update GitHub App credentials to use RELEASER_APP_ID and RELEASER_APP_PRIVATE_KEY ([cc5cf80](https://github.com/inference-gateway/cli/commit/cc5cf80bd593ae384fbcf227ee868408e93a05a0))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.147.0 --help
+npx @inference-gateway/cli@0.147.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.147.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.147.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.147.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.147.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.147.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.146.0](https://github.com/inference-gateway/cli/compare/v0.145.0...v0.146.0) (2026-07-13)
 
 ### 🚀 Features
