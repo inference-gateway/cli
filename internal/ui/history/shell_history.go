@@ -2,11 +2,13 @@ package history
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -17,9 +19,12 @@ type ShellHistoryProvider interface {
 	GetHistoryFile() string
 }
 
-// ShellHistory implements project-specific history
+// ShellHistory implements project-specific history. When a ShellHistoryStorage
+// is provided, it delegates to the storage backend; otherwise it falls back to
+// the traditional file-based approach.
 type ShellHistory struct {
 	historyFile string
+	store       storage.ShellHistoryStorage
 }
 
 // NewShellHistory creates a new shell history provider
@@ -48,6 +53,18 @@ func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
 	return &ShellHistory{
 		historyFile: historyFile,
 	}, nil
+}
+
+// NewShellHistoryWithStore creates a shell history provider backed by the given
+// ShellHistoryStorage. When store is non-nil, LoadHistory and SaveToHistory
+// delegate to it instead of the file system.
+func NewShellHistoryWithStore(configDir, name string, store storage.ShellHistoryStorage) (*ShellHistory, error) {
+	sh, err := NewShellHistoryWithName(configDir, name)
+	if err != nil {
+		return nil, err
+	}
+	sh.store = store
+	return sh, nil
 }
 
 // migrateLegacyMainHistory upgrades the pre-history/ layout in place. Older
@@ -81,8 +98,12 @@ func migrateLegacyMainHistory(historyDir string) error {
 	return nil
 }
 
-// LoadHistory loads commands from history file
+// LoadHistory loads commands from history file or storage backend
 func (sh *ShellHistory) LoadHistory() ([]string, error) {
+	if sh.store != nil {
+		return sh.store.LoadHistory(context.Background(), 0)
+	}
+
 	file, err := os.Open(sh.historyFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -114,10 +135,14 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	return commands, nil
 }
 
-// SaveToHistory appends a command to the history file
+// SaveToHistory appends a command to the history file or storage backend
 func (sh *ShellHistory) SaveToHistory(command string) error {
 	if strings.TrimSpace(command) == "" {
 		return nil
+	}
+
+	if sh.store != nil {
+		return sh.store.AppendHistory(context.Background(), command)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(sh.historyFile), 0755); err != nil {
