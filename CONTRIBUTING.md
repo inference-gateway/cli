@@ -47,42 +47,41 @@ Breaking changes should be indicated by:
 ## Development Workflow
 
 1. Ensure you have flox installed and activated: `flox activate`
-2. Install pre-commit hooks: `flox activate -- task precommit:install`
+2. Install the git pre-commit hook: `flox activate -- task precommit:install`
 3. Make your changes following the code style guidelines in CLAUDE.md
 4. Run tests: `flox activate -- task test`
 5. Run quality checks: `flox activate -- task precommit:run`
-6. Commit with conventional commit messages (pre-commit hooks will run automatically)
+6. Commit with conventional commit messages (the pre-commit hook runs automatically)
 7. Push to your fork and create a pull request
 
 ## Code Quality Tools
 
-### Pre-commit Hooks
+### Pre-commit Hook
 
-This project uses pre-commit hooks to ensure code quality and consistent formatting:
+This project uses a plain git hook (`.githooks/pre-commit`, wired via `git config core.hooksPath .githooks` — no pip pre-commit framework):
 
 - **Setup**: `flox activate -- task precommit:install`
-- **Run on all files**: `flox activate -- task precommit:run`
+- **Run manually**: `flox activate -- task precommit:run`
 
-The hooks automatically:
+The hook automatically:
 
-- Add missing final newlines to files
-- Remove trailing whitespace
-- Validate YAML/JSON/TOML syntax
-- Run golangci-lint on Go code
-- Check for merge conflicts
+- Rejects trailing whitespace and merge-conflict markers (`git diff --cached --check`)
+- Runs `go mod tidy` when `go.mod`/`go.sum` are staged
+- Regenerates mocks when `internal/domain/interfaces.go` is staged
+- Formats code and runs golangci-lint + markdownlint
 
 ### Available Tasks
 
 ```bash
 # Development setup
-flox activate -- task precommit:install  # Install pre-commit hooks
+flox activate -- task precommit:install  # Install the git pre-commit hook
 flox activate -- task mod:download       # Download Go modules
 
 # Code quality
 flox activate -- task fmt            # Format Go code
 flox activate -- task lint           # Run golangci-lint
 flox activate -- task vet            # Run go vet
-flox activate -- task precommit:run  # Run all quality checks (pre-commit hooks)
+flox activate -- task precommit:run  # Run all quality checks (the pre-commit hook)
 
 # Testing
 flox activate -- task test           # Run tests

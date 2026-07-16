@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+if command -v task >/dev/null 2>&1; then
+  echo "pre-commit: using task from PATH ($(command -v task))"
+elif command -v flox >/dev/null 2>&1; then
+  echo "pre-commit: task not on PATH, re-executing inside flox"
+  exec flox activate -- "$0" "$@"
+else
+  echo "pre-commit: task not on PATH and flox not installed" >&2
+  exit 1
+fi
+
+git diff --cached --check
+
+staged="$(git diff --cached --name-only)"
+
+if printf '%s\n' "$staged" | grep -qE '^go\.(mod|sum)$'; then
+  task mod:tidy
+fi
+
+if printf '%s\n' "$staged" | grep -qx 'internal/domain/interfaces\.go'; then
+  task mocks:generate
+fi
+
+task fmt
+task lint
