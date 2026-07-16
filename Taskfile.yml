@@ -240,12 +240,12 @@ tasks:
   precommit:install:
     desc: Install pre-commit hooks
     cmds:
-      - pre-commit install
+      - git config core.hooksPath .githooks
 
   precommit:run:
-    desc: Run pre-commit on all files
+    desc: Run pre-commit checks
     cmds:
-      - pre-commit run --all-files
+      - ./.githooks/pre-commit
 
   mocks:generate:
     desc: Generate mocks using counterfeiter

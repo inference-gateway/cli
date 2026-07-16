@@ -6,7 +6,7 @@ A README for coding agents working on the Inference Gateway CLI.
 
 - **Go 1.26**, module `github.com/inference-gateway/cli`. Entry point: `main.go` → `cmd.Execute()`.
 - **Cobra** for CLI structure. Root subcommands share a dependency-injected service container (`internal/container/container.go`).
-- Dev environment managed via **flox** (`.flox/env/manifest.toml` pins Go, `go-task`, `golangci-lint`, `gopls`, `pre-commit`, `ripgrep`, `markdownlint-cli`, `gh`). Run everything through `flox activate --`.
+- Dev environment managed via **flox** (`.flox/env/manifest.toml` pins Go, `go-task`, `golangci-lint`, `gopls`, `ripgrep`, `markdownlint-cli`, `gh`). Run everything through `flox activate --`.
 
 ## Build / Test / Lint
 
@@ -20,19 +20,19 @@ go test ./internal/agent -run TestBashTool  # single test
 task fmt                      # go fmt ./...
 task lint                     # golangci-lint run + markdownlint fix
 task vet                      # go vet ./...
-task precommit:run            # all pre-commit hooks (MUST run before every push)
+task precommit:run            # the pre-commit hook: .githooks/pre-commit (MUST run before every push)
 task mocks:generate           # regenerate counterfeiter fakes in tests/mocks/
 task mod:tidy                 # go mod tidy
 ```
 
-**IMPORTANT:** Always run `task precommit:run` before pushing any changes. This runs all pre-commit hooks (formatting, linting, vetting, tests) and ensures CI passes locally. Never skip this step.
+**IMPORTANT:** Always run `task precommit:run` before pushing any changes. This runs the pre-commit hook (formatting, linting, mod-tidy, mocks) and ensures CI passes locally. Never skip this step.
 
 ## Architecture
 
 The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`). States flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue … → Completing → Idle`. Each state's executor lives in `internal/agent/states/<state>.go`.
 
 **Domain/Infra split:**
-- `internal/domain/` — pure interfaces and value types. `interfaces.go` is the central contract; touching it triggers mock regeneration in pre-commit.
+- `internal/domain/` — pure interfaces and value types. `interfaces.go` is the central contract; touching it triggers mock regeneration in the pre-commit hook.
 - `internal/infra/` — adapters (SDK clients, storage backends), storage migrations.
 - `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
 - `internal/agent/tools/` — tool implementations. `registry.go` is the source of truth for registered tools.
