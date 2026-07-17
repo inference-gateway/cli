@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +23,12 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-const maxMessageLen = 4096
+// htmlChunkLen leaves headroom below Telegram's 4096-char message limit for
+// HTML entities/tags added by renderTelegramHTML.
+const htmlChunkLen = 3500
+
+// maxPhotoBytes is Telegram's upload limit for sendPhoto.
+const maxPhotoBytes = 10 << 20
 
 // VoiceTranscriber transcribes a downloaded audio file (any format ffmpeg can
 // decode) into text. It is defined here so the channel can be wired with a
@@ -71,9 +78,9 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 				})
 				if update.CallbackQuery.Message.Message != nil {
 					action := strings.SplitN(update.CallbackQuery.Data, ":", 2)[0]
-					statusText := "❌ Rejected"
+					statusText := "Rejected"
 					if action == "approve" {
-						statusText = "✅ Approved"
+						statusText = "Approved"
 					}
 					origMsg := update.CallbackQuery.Message.Message
 					_, _ = b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -127,17 +134,51 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 		return fmt.Errorf("invalid chat ID %q: %w", msg.RecipientID, err)
 	}
 
-	chunks := splitMessage(msg.Content, maxMessageLen)
-	for _, chunk := range chunks {
-		_, err := t.bot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: chatID,
-			Text:   chunk,
-		})
+	paths, text := extractImagePaths(msg.Content)
+
+	if strings.TrimSpace(text) != "" {
+		for _, chunk := range splitMessage(text, htmlChunkLen) {
+			if err := t.sendText(ctx, chatID, chunk, nil); err != nil {
+				return fmt.Errorf("sendMessage: %w", err)
+			}
+		}
+	}
+
+	for _, p := range paths {
+		f, err := os.Open(p)
 		if err != nil {
-			return fmt.Errorf("sendMessage: %w", err)
+			logger.Warn("skipping outbound image", "path", p, "error", err)
+			continue
+		}
+		_, err = t.bot.SendPhoto(ctx, &bot.SendPhotoParams{
+			ChatID: chatID,
+			Photo:  &models.InputFileUpload{Filename: filepath.Base(p), Data: f},
+		})
+		_ = f.Close()
+		if err != nil {
+			logger.Warn("sendPhoto failed", "path", p, "error", err)
 		}
 	}
 	return nil
+}
+
+// sendText sends one chunk rendered as Telegram HTML, retrying once as plain
+// text if Telegram rejects the markup (malformed HTML fails the whole message).
+func (t *TelegramChannel) sendText(ctx context.Context, chatID int64, text string, kb models.ReplyMarkup) error {
+	_, err := t.bot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        renderTelegramHTML(text),
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: kb,
+	})
+	if err != nil {
+		_, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      chatID,
+			Text:        text,
+			ReplyMarkup: kb,
+		})
+	}
+	return err
 }
 
 // SendApproval sends a tool approval prompt with inline keyboard buttons.
@@ -157,18 +198,13 @@ func (t *TelegramChannel) SendApproval(ctx context.Context, recipientID string, 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "✅ Approve", CallbackData: "approve:" + req.ToolCallID},
-				{Text: "❌ Reject", CallbackData: "reject:" + req.ToolCallID},
+				{Text: "Approve", CallbackData: "approve:" + req.ToolCallID},
+				{Text: "Reject", CallbackData: "reject:" + req.ToolCallID},
 			},
 		},
 	}
 
-	_, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        text,
-		ReplyMarkup: kb,
-	})
-	return err
+	return t.sendText(ctx, chatID, text, kb)
 }
 
 // Stop gracefully shuts down the Telegram channel
@@ -426,18 +462,104 @@ func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
 // formatApprovalText creates a prompt for inline keyboard approval (no "Reply yes/no" text).
 func formatApprovalText(req *domain.ApprovalRequest) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
+	fmt.Fprintf(&sb, "Approve %s?\n", req.ToolName)
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
 		if cmd, ok := args["command"].(string); ok {
-			fmt.Fprintf(&sb, "Command: %s\n", cmd)
+			fmt.Fprintf(&sb, "```\n%s\n```", cmd)
 		} else if filePath, ok := args["file_path"].(string); ok {
-			fmt.Fprintf(&sb, "File: %s\n", filePath)
+			fmt.Fprintf(&sb, "`%s`", filePath)
 		}
 	}
 
 	return sb.String()
+}
+
+var (
+	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?(/[^"]+)"[^>]*/?>`)
+	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?(/[^)]+)\)`)
+	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)(/[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
+	fenceRe     = regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\n?(.*?)```")
+	inlCodeRe   = regexp.MustCompile("`([^`\n]+)`")
+	boldRe      = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
+	headerRe    = regexp.MustCompile(`(?m)^#{1,6} +(.+)$`)
+	sendableExt = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true}
+)
+
+// sendableImage reports whether p is an existing image file Telegram will accept as a photo.
+func sendableImage(p string) bool {
+	if !sendableExt[strings.ToLower(filepath.Ext(p))] {
+		return false
+	}
+	fi, err := os.Stat(p)
+	if err != nil || fi.IsDir() {
+		return false
+	}
+	if fi.Size() > maxPhotoBytes {
+		// ponytail: skip >10MB, SendDocument if it ever matters
+		logger.Warn("outbound image exceeds telegram photo limit, skipping", "path", p, "size", fi.Size())
+		return false
+	}
+	return true
+}
+
+// extractImagePaths finds local image file references in agent output —
+// <img src="..."> tags, markdown ![..](path), and bare absolute paths — and
+// returns the sendable ones. Tag and markdown references are stripped from the
+// returned text; bare paths stay visible so the user still sees the location.
+func extractImagePaths(content string) ([]string, string) {
+	var paths []string
+	seen := map[string]bool{}
+	add := func(p string) bool {
+		if !sendableImage(p) {
+			return false
+		}
+		if !seen[p] {
+			seen[p] = true
+			paths = append(paths, p)
+		}
+		return true
+	}
+
+	for _, re := range []*regexp.Regexp{imgTagRe, mdImgRe} {
+		content = re.ReplaceAllStringFunc(content, func(m string) string {
+			if add(re.FindStringSubmatch(m)[1]) {
+				return ""
+			}
+			return m
+		})
+	}
+	for _, m := range bareImgRe.FindAllStringSubmatch(content, -1) {
+		add(m[1])
+	}
+	return paths, content
+}
+
+// renderTelegramHTML converts common Markdown (fenced code, inline code, bold,
+// headers) to Telegram HTML. Everything else is escaped so the message never
+// breaks on user content.
+func renderTelegramHTML(md string) string {
+	// ponytail: no italics — *x*/_x_ collide with globs and snake_case in dev output
+	var sb strings.Builder
+	last := 0
+	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {
+		sb.WriteString(renderInlineHTML(md[last:loc[0]]))
+		sb.WriteString("<pre>")
+		sb.WriteString(html.EscapeString(strings.TrimRight(md[loc[2]:loc[3]], "\n")))
+		sb.WriteString("</pre>")
+		last = loc[1]
+	}
+	sb.WriteString(renderInlineHTML(md[last:]))
+	return sb.String()
+}
+
+func renderInlineHTML(s string) string {
+	s = html.EscapeString(s)
+	s = inlCodeRe.ReplaceAllString(s, "<code>$1</code>")
+	s = boldRe.ReplaceAllString(s, "<b>$1</b>")
+	s = headerRe.ReplaceAllString(s, "<b>$1</b>")
+	return s
 }
 
 // splitMessage splits a long message into chunks that fit Telegram's message limit

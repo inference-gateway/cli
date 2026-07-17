@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -537,5 +540,97 @@ func TestFormatApprovalText_FilePath(t *testing.T) {
 
 	if !strings.Contains(text, "/tmp/test.txt") {
 		t.Error("expected text to contain file path")
+	}
+}
+
+func TestExtractImagePaths(t *testing.T) {
+	dir := t.TempDir()
+	img := filepath.Join(dir, "shot.png")
+	if err := os.WriteFile(img, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	big := filepath.Join(dir, "big.png")
+	if err := os.WriteFile(big, make([]byte, maxPhotoBytes+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name      string
+		content   string
+		wantPaths []string
+		wantText  string
+	}{
+		{
+			name:      "img tag with file scheme is stripped",
+			content:   `Here: <img src="file://` + img + `" alt="x" width="600"/> done`,
+			wantPaths: []string{img},
+			wantText:  "Here:  done",
+		},
+		{
+			name:      "markdown image is stripped",
+			content:   "![shot](" + img + ")",
+			wantPaths: []string{img},
+			wantText:  "",
+		},
+		{
+			name:      "bare path kept in text but sent",
+			content:   "Saved to " + img + " (145 KB)",
+			wantPaths: []string{img},
+			wantText:  "Saved to " + img + " (145 KB)",
+		},
+		{
+			name:      "missing file left untouched",
+			content:   `<img src="/nope/missing.png"/>`,
+			wantPaths: nil,
+			wantText:  `<img src="/nope/missing.png"/>`,
+		},
+		{
+			name:      "oversize file skipped",
+			content:   "see " + big,
+			wantPaths: nil,
+			wantText:  "see " + big,
+		},
+		{
+			name:      "duplicate references deduped",
+			content:   "![a](" + img + ") and " + img,
+			wantPaths: []string{img},
+			wantText:  " and " + img,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths, text := extractImagePaths(tt.content)
+			if !reflect.DeepEqual(paths, tt.wantPaths) {
+				t.Errorf("paths = %v, want %v", paths, tt.wantPaths)
+			}
+			if text != tt.wantText {
+				t.Errorf("text = %q, want %q", text, tt.wantText)
+			}
+		})
+	}
+}
+
+func TestRenderTelegramHTML(t *testing.T) {
+	tests := []struct {
+		name string
+		md   string
+		want string
+	}{
+		{"bold", "**hi**", "<b>hi</b>"},
+		{"inline code", "run `ls -la` now", "run <code>ls -la</code> now"},
+		{"header", "# Title\nbody", "<b>Title</b>\nbody"},
+		{"fenced block", "before\n```bash\nls -la\n```\nafter", "before\n<pre>ls -la</pre>\nafter"},
+		{"html escaped", "a < b & c", "a &lt; b &amp; c"},
+		{"escape inside fence", "```\n<img>\n```", "<pre>&lt;img&gt;</pre>"},
+		{"plain text untouched", "hello world", "hello world"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := renderTelegramHTML(tt.md); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

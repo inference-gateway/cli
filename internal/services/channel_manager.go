@@ -325,7 +325,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 			logger.Error("agent stderr output", "stderr", res.Stderr)
 		}
 		if !errorForwarded {
-			sendFn("❌ Agent failed: " + tailStderr(res.Stderr, 500))
+			sendFn("Agent failed: " + tailStderr(res.Stderr, 500))
 		}
 		return fmt.Errorf("agent process failed: %w", err)
 	}
@@ -400,19 +400,36 @@ func tailStderr(s string, n int) string {
 // formatApprovalPrompt creates a human-readable approval prompt for the channel user.
 func formatApprovalPrompt(req *domain.ApprovalRequest) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
+	fmt.Fprintf(&sb, "Approve %s?\n", req.ToolName)
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
 		if cmd, ok := args["command"].(string); ok {
-			fmt.Fprintf(&sb, "Command: %s\n", cmd)
+			fmt.Fprintf(&sb, "```\n%s\n```", cmd)
 		} else if filePath, ok := args["file_path"].(string); ok {
-			fmt.Fprintf(&sb, "File: %s\n", filePath)
+			fmt.Fprintf(&sb, "`%s`", filePath)
 		}
 	}
 
-	sb.WriteString("\nReply 'yes' to approve or 'no' to reject.")
+	sb.WriteString("\n\nReply 'yes' to approve or 'no' to reject.")
 	return sb.String()
+}
+
+// formatToolLine renders one tool invocation as a compact single line, e.g.
+// "Bash: `wget -O /tmp/shot.png …`". Input looks like "Name(args)".
+func formatToolLine(tool string) string {
+	name, args, found := strings.Cut(tool, "(")
+	if found {
+		args = strings.TrimSuffix(args, ")")
+	}
+	const maxArgs = 200
+	if r := []rune(args); len(r) > maxArgs {
+		args = string(r[:maxArgs]) + "…"
+	}
+	if args == "" {
+		return name
+	}
+	return fmt.Sprintf("%s: `%s`", name, args)
 }
 
 // isApprovalReply checks if a message is an approval or rejection reply.
@@ -436,9 +453,9 @@ func formatAgentMessage(line []byte) string {
 
 	if t, _ := msg["type"].(string); t == "agent_error" {
 		if errMsg, ok := msg["message"].(string); ok && errMsg != "" {
-			return "❌ Error: " + errMsg
+			return "Error: " + errMsg
 		}
-		return "❌ Error: agent failed"
+		return "Error: agent failed"
 	}
 
 	if _, isStatus := msg["type"]; isStatus {
@@ -452,13 +469,13 @@ func formatAgentMessage(line []byte) string {
 		content, _ := msg["content"].(string)
 
 		if tools, ok := msg["tools"].([]interface{}); ok && len(tools) > 0 {
-			toolNames := make([]string, 0, len(tools))
+			lines := make([]string, 0, len(tools))
 			for _, t := range tools {
 				if name, ok := t.(string); ok {
-					toolNames = append(toolNames, name)
+					lines = append(lines, formatToolLine(name))
 				}
 			}
-			toolMsg := fmt.Sprintf("🔧 Using tool: %s", strings.Join(toolNames, ", "))
+			toolMsg := strings.Join(lines, "\n")
 			if content != "" {
 				return content + "\n\n" + toolMsg
 			}

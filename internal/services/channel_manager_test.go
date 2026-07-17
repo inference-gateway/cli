@@ -238,7 +238,7 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 		if len(messages) != 2 {
 			t.Fatalf("expected 2 messages, got %d", len(messages))
 		}
-		if messages[0].Content != "Let me check...\n\n🔧 Using tool: Read" {
+		if messages[0].Content != "Let me check...\n\nRead" {
 			t.Errorf("expected tool message, got %q", messages[0].Content)
 		}
 		if messages[1].Content != "Here are the results." {
@@ -315,12 +315,17 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "assistant with tool calls",
 			line: `{"role":"assistant","content":"Let me check...","tools":["Read","Grep"]}`,
-			want: "Let me check...\n\n🔧 Using tool: Read, Grep",
+			want: "Let me check...\n\nRead\nGrep",
 		},
 		{
 			name: "assistant with tool calls no content",
 			line: `{"role":"assistant","content":"","tools":["Write"]}`,
-			want: "🔧 Using tool: Write",
+			want: "Write",
+		},
+		{
+			name: "assistant tool call with args goes monospace",
+			line: `{"role":"assistant","content":"","tools":["Bash(command=ls -la)"]}`,
+			want: "Bash: `command=ls -la`",
 		},
 		{
 			name: "tool result is skipped",
@@ -350,17 +355,17 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "agent error with message",
 			line: `{"type":"agent_error","message":"context length exceeded"}`,
-			want: "❌ Error: context length exceeded",
+			want: "Error: context length exceeded",
 		},
 		{
 			name: "agent error with empty message falls back",
 			line: `{"type":"agent_error","message":""}`,
-			want: "❌ Error: agent failed",
+			want: "Error: agent failed",
 		},
 		{
 			name: "agent error with no message field falls back",
 			line: `{"type":"agent_error"}`,
-			want: "❌ Error: agent failed",
+			want: "Error: agent failed",
 		},
 	}
 
@@ -1201,7 +1206,7 @@ func TestRunAgent_ForwardsStructuredError(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Error: context length exceeded" {
+	if msgs[0].Content != "Error: context length exceeded" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }
@@ -1217,7 +1222,7 @@ func TestRunAgent_SafetyNetOnExitWithoutForward(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 safety-net message, got %d: %+v", len(msgs), msgs)
 	}
-	if !strings.HasPrefix(msgs[0].Content, "❌ Agent failed: ") {
+	if !strings.HasPrefix(msgs[0].Content, "Agent failed: ") {
 		t.Errorf("expected safety-net prefix, got %q", msgs[0].Content)
 	}
 	if !strings.Contains(msgs[0].Content, "fatal: something broke") {
@@ -1235,7 +1240,7 @@ func TestRunAgent_SafetyNetOnExitWithEmptyStderr(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Agent failed: unknown error" {
+	if msgs[0].Content != "Agent failed: unknown error" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }
@@ -1251,7 +1256,7 @@ func TestRunAgent_NoDoubleSendOnStructuredError(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message (no safety-net duplicate), got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Error: boom" {
+	if msgs[0].Content != "Error: boom" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }
