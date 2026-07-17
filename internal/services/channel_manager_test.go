@@ -219,7 +219,7 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 	}
 	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
 		messages = append(messages, msg)
-		if len(messages) == 2 {
+		if len(messages) == 3 {
 			allSent <- struct{}{}
 		}
 		return nil
@@ -235,14 +235,17 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 
 	select {
 	case <-allSent:
-		if len(messages) != 2 {
-			t.Fatalf("expected 2 messages, got %d", len(messages))
+		if len(messages) != 3 {
+			t.Fatalf("expected 3 messages, got %d", len(messages))
 		}
 		if messages[0].Content != "Let me check...\n\nRead" {
 			t.Errorf("expected tool message, got %q", messages[0].Content)
 		}
-		if messages[1].Content != "Here are the results." {
-			t.Errorf("expected final answer, got %q", messages[1].Content)
+		if messages[1].Content != "```\nfile contents\n```" {
+			t.Errorf("expected tool result, got %q", messages[1].Content)
+		}
+		if messages[2].Content != "Here are the results." {
+			t.Errorf("expected final answer, got %q", messages[2].Content)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timeout waiting for messages, got %d", len(messages))
@@ -328,8 +331,13 @@ func TestFormatAgentMessage(t *testing.T) {
 			want: "Bash: `command=ls -la`",
 		},
 		{
-			name: "tool result is skipped",
+			name: "tool result forwarded in code block",
 			line: `{"role":"tool","content":"file contents","tool_call_id":"123"}`,
+			want: "```\nfile contents\n```",
+		},
+		{
+			name: "empty tool result is skipped",
+			line: `{"role":"tool","content":"  ","tool_call_id":"123"}`,
 			want: "",
 		},
 		{
@@ -776,7 +784,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg, nil)
 
-	// Simulate: the agent outputs an approval request, then an assistant message after approval
 	approvalReq := domain.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
@@ -795,7 +802,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	ch := &fakesdomain.FakeChannel{}
 	ch.NameReturns("telegram")
 	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		// First message triggers the agent
 		inbox <- domain.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
@@ -803,7 +809,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 			Timestamp:   time.Now(),
 		}
 
-		// Wait a bit for approval prompt to be sent, then send approval reply
 		time.Sleep(200 * time.Millisecond)
 		inbox <- domain.InboundMessage{
 			ChannelName: "telegram",
@@ -817,7 +822,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	}
 	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
 		messages = append(messages, msg)
-		// Expect: approval prompt + "Done!" = 2 messages
 		if len(messages) >= 2 {
 			allSent <- struct{}{}
 		}
@@ -834,11 +838,9 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 
 	select {
 	case <-allSent:
-		// First message should be the approval prompt
 		if !strings.Contains(messages[0].Content, "Bash") {
 			t.Errorf("expected approval prompt, got %q", messages[0].Content)
 		}
-		// Second message should be the agent's response
 		if messages[1].Content != "Done!" {
 			t.Errorf("expected 'Done!', got %q", messages[1].Content)
 		}

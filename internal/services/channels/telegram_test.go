@@ -2,15 +2,19 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"
 
 	config "github.com/inference-gateway/cli/config"
@@ -632,5 +636,205 @@ func TestRenderTelegramHTML(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTrackMessageCap(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
+	for i := range maxTrackedMessages + 10 {
+		ch.trackMessage(1, i)
+	}
+	ids := ch.msgIDs[1]
+	if len(ids) != maxTrackedMessages {
+		t.Fatalf("expected %d tracked IDs, got %d", maxTrackedMessages, len(ids))
+	}
+	if ids[0] != 10 {
+		t.Fatalf("expected oldest IDs dropped, first is %d", ids[0])
+	}
+}
+
+func TestClearHistoryBatching(t *testing.T) {
+	var mu sync.Mutex
+	var batches [][]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/deleteMessages") {
+			var params struct {
+				MessageIDs []any `json:"message_ids"`
+			}
+			body, _ := io.ReadAll(r.Body)
+			ids := r.FormValue("message_ids")
+			if ids != "" {
+				var parsed []any
+				_ = json.Unmarshal([]byte(ids), &parsed)
+				params.MessageIDs = parsed
+			} else {
+				_ = json.Unmarshal(body, &params)
+			}
+			mu.Lock()
+			batches = append(batches, params.MessageIDs)
+			failFirst := len(batches) == 1
+			mu.Unlock()
+			if failFirst {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"test failure"}`))
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer srv.Close()
+
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+	for i := range 250 {
+		ch.trackMessage(99, i)
+	}
+
+	if err := ch.ClearHistory(context.Background(), "99"); err != nil {
+		t.Fatalf("ClearHistory returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(batches) != 3 {
+		t.Fatalf("expected 3 deleteMessages batches for 250 IDs, got %d", len(batches))
+	}
+	for i, batch := range batches {
+		if len(batch) > deleteBatchSize {
+			t.Fatalf("batch %d has %d IDs, exceeds %d", i, len(batch), deleteBatchSize)
+		}
+	}
+	if len(ch.msgIDs[99]) != 0 {
+		t.Fatal("expected tracked IDs to be dropped after wipe")
+	}
+}
+
+func TestClearHistoryRequiresBot(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
+	if err := ch.ClearHistory(context.Background(), "1"); err == nil {
+		t.Fatal("expected error when bot not started")
+	}
+}
+
+func TestTelegramBotCommands(t *testing.T) {
+	long := strings.Repeat("d", 300)
+	cmds := telegramBotCommands([]domain.ChannelCommand{
+		{Name: "clear", Description: "ok"},
+		{Name: "Bad-Name", Description: "dropped"},
+		{Name: "UPPER", Description: "dropped"},
+		{Name: strings.Repeat("x", 33), Description: "dropped"},
+		{Name: "release-notes", Description: "dropped"},
+		{Name: "longdesc", Description: long},
+	})
+	if len(cmds) != 2 {
+		t.Fatalf("expected 2 valid commands, got %d: %v", len(cmds), cmds)
+	}
+	if cmds[0].Command != "clear" || cmds[1].Command != "longdesc" {
+		t.Fatalf("unexpected commands: %v", cmds)
+	}
+	if len(cmds[1].Description) != maxCommandDescLen {
+		t.Fatalf("expected description truncated to %d, got %d", maxCommandDescLen, len(cmds[1].Description))
+	}
+}
+
+func TestProcessCallbackQuery_CommandButton(t *testing.T) {
+	cq := &models.CallbackQuery{
+		ID:   "cq_3",
+		From: models.User{ID: 456},
+		Message: models.MaybeInaccessibleMessage{
+			Message: &models.Message{
+				Chat: models.Chat{ID: 123},
+			},
+		},
+		Data: "/conversations 68dd338f-487a-49a8-b8a0-019e222e7771",
+	}
+
+	msg := processCallbackQuery(cq)
+	if msg == nil {
+		t.Fatal("expected non-nil message")
+	}
+	if msg.Content != cq.Data {
+		t.Errorf("expected content %q, got %q", cq.Data, msg.Content)
+	}
+	if msg.SenderID != "123" {
+		t.Errorf("expected sender '123', got %q", msg.SenderID)
+	}
+	if len(msg.Metadata) != 0 {
+		t.Errorf("command buttons must not carry approval metadata, got %v", msg.Metadata)
+	}
+}
+
+func TestSendWithButtons(t *testing.T) {
+	var mu sync.Mutex
+	var markups []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			mu.Lock()
+			markups = append(markups, r.FormValue("reply_markup"))
+			mu.Unlock()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"chat":{"id":99}}}`))
+	}))
+	defer srv.Close()
+
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+
+	err = ch.Send(context.Background(), domain.OutboundMessage{
+		RecipientID: "99",
+		Content:     "Tap a conversation to switch:",
+		Buttons: []domain.MessageButton{
+			{Text: "Weather talk · 4 msgs", Data: "/conversations abc"},
+			{Text: "Trip planning · 9 msgs", Data: "/conversations def"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(markups) != 1 {
+		t.Fatalf("expected 1 sendMessage call, got %d", len(markups))
+	}
+	var kb struct {
+		InlineKeyboard [][]struct {
+			Text         string `json:"text"`
+			CallbackData string `json:"callback_data"`
+		} `json:"inline_keyboard"`
+	}
+	if err := json.Unmarshal([]byte(markups[0]), &kb); err != nil {
+		t.Fatalf("reply_markup is not an inline keyboard: %v (raw: %q)", err, markups[0])
+	}
+	if len(kb.InlineKeyboard) != 2 || len(kb.InlineKeyboard[0]) != 1 {
+		t.Fatalf("expected 2 one-button rows, got %+v", kb.InlineKeyboard)
+	}
+	if kb.InlineKeyboard[0][0].CallbackData != "/conversations abc" {
+		t.Fatalf("unexpected callback data: %+v", kb.InlineKeyboard[0][0])
+	}
+}
+
+func TestInlineKeyboard_TruncatesLabels(t *testing.T) {
+	if inlineKeyboard(nil) != nil {
+		t.Fatal("expected nil markup for no buttons")
+	}
+	kb := inlineKeyboard([]domain.MessageButton{{Text: strings.Repeat("é", 60), Data: "/x"}})
+	markup, ok := kb.(*models.InlineKeyboardMarkup)
+	if !ok {
+		t.Fatalf("expected InlineKeyboardMarkup, got %T", kb)
+	}
+	label := markup.InlineKeyboard[0][0].Text
+	if r := []rune(label); len(r) != maxButtonTextLen || r[len(r)-1] != '…' {
+		t.Fatalf("expected %d-rune label ending in ellipsis, got %q", maxButtonTextLen, label)
 	}
 }

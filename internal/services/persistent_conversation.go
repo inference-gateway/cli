@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -267,6 +268,16 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			TitleInvalidated: false,
 		}
 		r.metadataMutex.Unlock()
+	}
+
+	if msg.Message.Role == sdk.User {
+		if contentStr, _ := msg.Message.Content.AsMessageContent0(); strings.TrimSpace(contentStr) != "" {
+			r.metadataMutex.Lock()
+			if !r.metadata.TitleGenerated && (r.metadata.Title == "" || r.metadata.Title == "New Conversation") {
+				r.metadata.Title = domain.CreateTitleFromMessage(contentStr)
+			}
+			r.metadataMutex.Unlock()
+		}
 	}
 
 	if err := r.InMemoryConversationRepository.AddMessage(msg); err != nil {

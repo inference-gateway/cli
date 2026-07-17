@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	bot "github.com/go-telegram/bot"
@@ -30,6 +31,21 @@ const htmlChunkLen = 3500
 // maxPhotoBytes is Telegram's upload limit for sendPhoto.
 const maxPhotoBytes = 10 << 20
 
+// maxTrackedMessages caps the per-chat message-ID buffer used by ClearHistory.
+const maxTrackedMessages = 500
+
+// deleteBatchSize is Telegram's limit for deleteMessages.
+const deleteBatchSize = 100
+
+// maxCommandDescLen is Telegram's limit for a bot command description.
+const maxCommandDescLen = 256
+
+// maxButtonTextLen keeps inline keyboard labels readable on a phone.
+const maxButtonTextLen = 48
+
+// botCommandNameRe matches Telegram's allowed bot command names.
+var botCommandNameRe = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
+
 // VoiceTranscriber transcribes a downloaded audio file (any format ffmpeg can
 // decode) into text. It is defined here so the channel can be wired with a
 // concrete speech-to-text implementation only when the feature is enabled,
@@ -45,13 +61,101 @@ type TelegramChannel struct {
 	bot         *bot.Bot
 	transcriber VoiceTranscriber
 	retention   *VoiceRetention
+
+	// commands to advertise via SetMyCommands on Start.
+	commands []domain.ChannelCommand
+
+	// msgIDs tracks recent message IDs per chat so ClearHistory can delete them.
+	// ponytail: in-memory + capped; Telegram can't delete >48h-old messages anyway, persistence buys nothing
+	msgMu  sync.Mutex
+	msgIDs map[int64][]int
 }
 
 // NewTelegramChannel creates a new Telegram channel. transcriber may be nil, in
 // which case inbound voice messages are ignored. retention may be nil to disable
 // local persistence of inbound voice/audio files.
 func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber, retention *VoiceRetention) *TelegramChannel {
-	return &TelegramChannel{cfg: cfg, transcriber: transcriber, retention: retention}
+	return &TelegramChannel{cfg: cfg, transcriber: transcriber, retention: retention, msgIDs: make(map[int64][]int)}
+}
+
+// SetCommands sets the slash commands advertised to Telegram on Start.
+func (t *TelegramChannel) SetCommands(cmds []domain.ChannelCommand) {
+	t.commands = cmds
+}
+
+// trackMessage remembers a message ID for later deletion by ClearHistory.
+func (t *TelegramChannel) trackMessage(chatID int64, messageID int) {
+	t.msgMu.Lock()
+	defer t.msgMu.Unlock()
+	ids := append(t.msgIDs[chatID], messageID)
+	if len(ids) > maxTrackedMessages {
+		ids = ids[len(ids)-maxTrackedMessages:]
+	}
+	t.msgIDs[chatID] = ids
+}
+
+// ClearHistory best-effort deletes the tracked messages of a chat.
+// Implements domain.HistoryCleaner. Telegram silently skips messages it can no
+// longer delete (older than 48h), and batches that fail are logged and skipped.
+func (t *TelegramChannel) ClearHistory(ctx context.Context, recipientID string) error {
+	if t.bot == nil {
+		return fmt.Errorf("telegram bot not started")
+	}
+	chatID, err := strconv.ParseInt(recipientID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid chat ID %q: %w", recipientID, err)
+	}
+
+	t.msgMu.Lock()
+	ids := t.msgIDs[chatID]
+	delete(t.msgIDs, chatID)
+	t.msgMu.Unlock()
+
+	for start := 0; start < len(ids); start += deleteBatchSize {
+		batch := ids[start:min(start+deleteBatchSize, len(ids))]
+		if _, err := t.bot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     chatID,
+			MessageIDs: batch,
+		}); err != nil {
+			logger.Warn("deleteMessages batch failed", "chat_id", chatID, "count", len(batch), "error", err)
+		}
+	}
+	return nil
+}
+
+// telegramBotCommands converts channel commands to Telegram bot commands,
+// dropping names Telegram would reject and truncating long descriptions.
+func telegramBotCommands(cmds []domain.ChannelCommand) []models.BotCommand {
+	var out []models.BotCommand
+	for _, c := range cmds {
+		if !botCommandNameRe.MatchString(c.Name) {
+			continue
+		}
+		desc := c.Description
+		if len(desc) > maxCommandDescLen {
+			desc = desc[:maxCommandDescLen]
+		}
+		out = append(out, models.BotCommand{Command: c.Name, Description: desc})
+	}
+	return out
+}
+
+// inlineKeyboard renders message buttons as a one-button-per-row inline
+// keyboard (full-width, thumb-friendly). Returns nil for no buttons so callers
+// can pass it straight to sendText.
+func inlineKeyboard(buttons []domain.MessageButton) models.ReplyMarkup {
+	if len(buttons) == 0 {
+		return nil
+	}
+	rows := make([][]models.InlineKeyboardButton, 0, len(buttons))
+	for _, b := range buttons {
+		text := b.Text
+		if r := []rune(text); len(r) > maxButtonTextLen {
+			text = string(r[:maxButtonTextLen-1]) + "…"
+		}
+		rows = append(rows, []models.InlineKeyboardButton{{Text: text, CallbackData: b.Data}})
+	}
+	return &models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 // Name returns the channel identifier
@@ -67,6 +171,9 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 
 	b, err := bot.New(t.cfg.BotToken,
 		bot.WithDefaultHandler(func(ctx context.Context, b *bot.Bot, update *models.Update) {
+			if update.Message != nil {
+				t.trackMessage(update.Message.Chat.ID, update.Message.ID)
+			}
 			msg := processUpdate(update)
 			if msg == nil {
 				return
@@ -76,18 +183,28 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 				_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 					CallbackQueryID: update.CallbackQuery.ID,
 				})
-				if update.CallbackQuery.Message.Message != nil {
-					action := strings.SplitN(update.CallbackQuery.Data, ":", 2)[0]
-					statusText := "Rejected"
-					if action == "approve" {
-						statusText = "Approved"
+				if origMsg := update.CallbackQuery.Message.Message; origMsg != nil {
+					action, _, _ := strings.Cut(update.CallbackQuery.Data, ":")
+					switch action {
+					case "approve", "reject":
+						statusText := "Rejected"
+						if action == "approve" {
+							statusText = "Approved"
+						}
+						_, _ = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+							ChatID:    origMsg.Chat.ID,
+							MessageID: origMsg.ID,
+							Text:      origMsg.Text + "\n\n" + statusText,
+						})
+					default:
+						// Command buttons (/conversations, /stats ...): strip the
+						// keyboard so a stale list can't be tapped twice.
+						_, _ = b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+							ChatID:      origMsg.Chat.ID,
+							MessageID:   origMsg.ID,
+							ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}},
+						})
 					}
-					origMsg := update.CallbackQuery.Message.Message
-					_, _ = b.EditMessageText(ctx, &bot.EditMessageTextParams{
-						ChatID:    origMsg.Chat.ID,
-						MessageID: origMsg.ID,
-						Text:      origMsg.Text + "\n\n" + statusText,
-					})
 				}
 			}
 
@@ -117,6 +234,12 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 
 	t.bot = b
 
+	if cmds := telegramBotCommands(t.commands); len(cmds) > 0 {
+		if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: cmds}); err != nil {
+			logger.Warn("setMyCommands failed", "error", err)
+		}
+	}
+
 	logger.Info("starting long-polling")
 
 	b.Start(ctx)
@@ -137,8 +260,13 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 	paths, text := extractImagePaths(msg.Content)
 
 	if strings.TrimSpace(text) != "" {
-		for _, chunk := range splitMessage(text, htmlChunkLen) {
-			if err := t.sendText(ctx, chatID, chunk, nil); err != nil {
+		chunks := splitMessage(text, htmlChunkLen)
+		for i, chunk := range chunks {
+			var kb models.ReplyMarkup
+			if i == len(chunks)-1 {
+				kb = inlineKeyboard(msg.Buttons)
+			}
+			if err := t.sendText(ctx, chatID, chunk, kb); err != nil {
 				return fmt.Errorf("sendMessage: %w", err)
 			}
 		}
@@ -150,13 +278,15 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 			logger.Warn("skipping outbound image", "path", p, "error", err)
 			continue
 		}
-		_, err = t.bot.SendPhoto(ctx, &bot.SendPhotoParams{
+		sent, err := t.bot.SendPhoto(ctx, &bot.SendPhotoParams{
 			ChatID: chatID,
 			Photo:  &models.InputFileUpload{Filename: filepath.Base(p), Data: f},
 		})
 		_ = f.Close()
 		if err != nil {
 			logger.Warn("sendPhoto failed", "path", p, "error", err)
+		} else if sent != nil {
+			t.trackMessage(chatID, sent.ID)
 		}
 	}
 	return nil
@@ -165,18 +295,21 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 // sendText sends one chunk rendered as Telegram HTML, retrying once as plain
 // text if Telegram rejects the markup (malformed HTML fails the whole message).
 func (t *TelegramChannel) sendText(ctx context.Context, chatID int64, text string, kb models.ReplyMarkup) error {
-	_, err := t.bot.SendMessage(ctx, &bot.SendMessageParams{
+	sent, err := t.bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        renderTelegramHTML(text),
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: kb,
 	})
 	if err != nil {
-		_, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
+		sent, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
 			ReplyMarkup: kb,
 		})
+	}
+	if err == nil && sent != nil {
+		t.trackMessage(chatID, sent.ID)
 	}
 	return err
 }
@@ -415,8 +548,23 @@ func mimeFromPath(path string) string {
 }
 
 // processCallbackQuery converts a Telegram callback query (e.g., inline button click)
-// into an InboundMessage with approval metadata. Returns nil for unrecognized data.
+// into an InboundMessage. Approval buttons carry approval metadata; command
+// buttons ("/..." callback data) are delivered as if the user typed the
+// command. Returns nil for unrecognized data.
 func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
+	if strings.HasPrefix(cq.Data, "/") {
+		chatID := callbackChatID(cq)
+		if chatID == 0 {
+			return nil
+		}
+		return &domain.InboundMessage{
+			ChannelName: "telegram",
+			SenderID:    strconv.FormatInt(chatID, 10),
+			Content:     cq.Data,
+			Timestamp:   time.Now(),
+		}
+	}
+
 	parts := strings.SplitN(cq.Data, ":", 2)
 	if len(parts) != 2 {
 		return nil
@@ -435,12 +583,8 @@ func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
 		return nil
 	}
 
-	var chatID int64
-	if cq.Message.Message != nil {
-		chatID = cq.Message.Message.Chat.ID
-	} else if cq.Message.InaccessibleMessage != nil {
-		chatID = cq.Message.InaccessibleMessage.Chat.ID
-	} else {
+	chatID := callbackChatID(cq)
+	if chatID == 0 {
 		return nil
 	}
 
@@ -457,6 +601,18 @@ func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
 			"user_id":           strconv.FormatInt(cq.From.ID, 10),
 		},
 	}
+}
+
+// callbackChatID extracts the chat ID a callback query originated from
+// (0 when Telegram provides no message context at all).
+func callbackChatID(cq *models.CallbackQuery) int64 {
+	if cq.Message.Message != nil {
+		return cq.Message.Message.Chat.ID
+	}
+	if cq.Message.InaccessibleMessage != nil {
+		return cq.Message.InaccessibleMessage.Chat.ID
+	}
+	return 0
 }
 
 // formatApprovalText creates a prompt for inline keyboard approval (no "Reply yes/no" text).

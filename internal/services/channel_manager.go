@@ -19,8 +19,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
@@ -55,6 +57,11 @@ type ChannelManagerService struct {
 	messagesProcessed metric.Int64Counter
 	messageDuration   metric.Float64Histogram
 	activeChannels    metric.Int64UpDownCounter
+
+	// slash-command support (see channel_commands.go); nil registry disables it
+	shortcutRegistry *shortcuts.Registry
+	convStore        storage.ConversationStorage
+	groupStore       storage.SessionGroupStorage
 }
 
 // NewChannelManagerService creates a new channel manager
@@ -202,6 +209,11 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 					Type:     "approval_response",
 					Approved: approved,
 				}
+				continue
+			}
+
+			if name, args, ok := cm.parseChannelCommand(msg.Content); ok {
+				go cm.handleCommand(ctx, msg, name, args)
 				continue
 			}
 
@@ -415,6 +427,10 @@ func formatApprovalPrompt(req *domain.ApprovalRequest) string {
 	return sb.String()
 }
 
+// maxToolResultLen caps how much of a tool result is forwarded to the channel
+// so a large file read or command output doesn't flood the chat.
+const maxToolResultLen = 1000
+
 // formatToolLine renders one tool invocation as a compact single line, e.g.
 // "Bash: `wget -O /tmp/shot.png …`". Input looks like "Name(args)".
 func formatToolLine(tool string) string {
@@ -487,7 +503,15 @@ func formatAgentMessage(line []byte) string {
 		}
 
 	case "tool":
-		return ""
+		content, _ := msg["content"].(string)
+		result := strings.TrimSpace(content)
+		if result == "" {
+			return ""
+		}
+		if r := []rune(result); len(r) > maxToolResultLen {
+			result = string(r[:maxToolResultLen]) + "…"
+		}
+		return "```\n" + result + "\n```"
 	}
 
 	return ""
