@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -755,7 +756,7 @@ func (s *AgentSession) executeToolCall(toolName, args, callID string, approved b
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
-	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(s.baseCtx(), s.sessionID), s.agentMode), s.model)
+	ctx := domain.WithModel(domain.WithAgentMode(domain.WithSessionID(s.baseCtx(), cmp.Or(s.groupKey, s.sessionID)), s.agentMode), s.model)
 	ctx = domain.WithToolCallID(ctx, callID)
 	if approved {
 		ctx = domain.WithToolApproved(ctx)
