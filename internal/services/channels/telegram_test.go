@@ -628,6 +628,11 @@ func TestRenderTelegramHTML(t *testing.T) {
 		{"html escaped", "a < b & c", "a &lt; b &amp; c"},
 		{"escape inside fence", "```\n<img>\n```", "<pre>&lt;img&gt;</pre>"},
 		{"plain text untouched", "hello world", "hello world"},
+		{
+			"header and aligned table",
+			"### Tool Calls\n\n| Tool | Calls |\n|------|-------|\n| Bash | 4 |\n| Tree | 3 |",
+			"<b>Tool Calls</b>\n\n<pre>Tool  Calls\nBash  4\nTree  3</pre>",
+		},
 	}
 
 	for _, tt := range tests {

@@ -22,7 +22,7 @@ import (
 var ChannelBuiltinCommands = []domain.ChannelCommand{
 	{Name: "new", Description: "Start a fresh conversation and wipe recent chat messages (previous one is kept)"},
 	{Name: "conversations", Description: "List past conversations, tap one to switch"},
-	{Name: "stats", Description: "Show usage stats, daemon-wide (/stats 24h)"},
+	{Name: "stats", Description: "Usage stats for this conversation — phone-friendly list (/stats 24h; add 'table' for tables)"},
 	{Name: "help", Description: "List available commands"},
 }
 
@@ -111,19 +111,26 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 			reply("Usage: /conversations — or tap a conversation in the list.")
 		}
 	case "stats":
-		res, err := shortcuts.NewStatsShortcut().Execute(ctx, args)
+		groupKey := domain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
+		entry, _, gErr := cm.groupStore.GetSessionGroup(ctx, groupKey)
+		if gErr != nil || entry.CurrentSessionID == "" {
+			reply("No usage recorded for this conversation yet.")
+			return
+		}
+		since, vertical := shortcuts.ParseStatsArgs(args, true)
+		execArgs := make([]string, 0, 2)
+		if since != "" {
+			execArgs = append(execArgs, since)
+		}
+		if vertical {
+			execArgs = append(execArgs, "vertical")
+		}
+		res, err := shortcuts.NewStatsShortcut().WithConversation(entry.CurrentSessionID).Execute(ctx, execArgs)
 		if err != nil {
 			reply(fmt.Sprintf("/stats failed: %v", err))
 			return
 		}
-		var buttons []domain.MessageButton
-		if len(args) == 0 {
-			buttons = []domain.MessageButton{
-				{Text: "Last 24h", Data: "/stats 24h"},
-				{Text: "Last 7d", Data: "/stats 7d"},
-			}
-		}
-		replyWith("```\n"+strings.TrimSpace(res.Output)+"\n```", buttons)
+		replyWith(strings.TrimSpace(res.Output), statsButtons(since, vertical))
 	case "help":
 		reply(cm.buildCommandHelp())
 	case "clear":
@@ -147,6 +154,30 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 			out = fmt.Sprintf("/%s finished with no output.", name)
 		}
 		reply(out)
+	}
+}
+
+// statsButtons builds the window + view-toggle buttons for a /stats reply. Each
+// button's callback data is a /stats command tapped back in, changing only one
+// dimension: the window buttons keep the current view, the toggle keeps the
+// current window. Vertical is the channel default, so only tables carry a token.
+func statsButtons(since string, vertical bool) []domain.MessageButton {
+	win := ""
+	if since != "" {
+		win = " " + since
+	}
+	mode := ""
+	if !vertical {
+		mode = " table"
+	}
+	toggle := domain.MessageButton{Text: "Table view", Data: strings.TrimSpace("/stats" + win + " table")}
+	if !vertical {
+		toggle = domain.MessageButton{Text: "Vertical view", Data: strings.TrimSpace("/stats" + win)}
+	}
+	return []domain.MessageButton{
+		{Text: "Last 24h", Data: strings.TrimSpace("/stats 24h" + mode)},
+		{Text: "Last 7d", Data: strings.TrimSpace("/stats 7d" + mode)},
+		toggle,
 	}
 }
 

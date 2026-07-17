@@ -28,7 +28,7 @@ func TestRecordExportAndAggregate(t *testing.T) {
 
 	rec.Shutdown(context.Background())
 
-	stats, err := Aggregate(dir, time.Time{})
+	stats, err := Aggregate(dir, time.Time{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,8 +62,48 @@ func TestRecordExportAndAggregate(t *testing.T) {
 	}
 }
 
+// TestAggregateFiltersByConversation records two conversations into the same
+// dir (each recorder tags its datapoints via SetConversationID) and checks that
+// Aggregate scopes to one while the empty filter still sums both.
+func TestAggregateFiltersByConversation(t *testing.T) {
+	dir := t.TempDir()
+
+	recA := New(Options{Enabled: true, Dir: dir, SessionID: "sess-a"})
+	recA.SetConversationID("conv-a")
+	recA.RecordTool("Read", ToolSuccess, "", 5*time.Millisecond)
+	recA.RecordUsage("model-x", 100, 20)
+	recA.Shutdown(context.Background())
+
+	recB := New(Options{Enabled: true, Dir: dir, SessionID: "sess-b"})
+	recB.SetConversationID("conv-b")
+	recB.RecordTool("Bash", ToolSuccess, "", 5*time.Millisecond)
+	recB.Shutdown(context.Background())
+
+	all, err := Aggregate(dir, time.Time{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findTool(all.Tools, "Read") == nil || findTool(all.Tools, "Bash") == nil {
+		t.Fatalf("global aggregate should see both tools: %+v", all.Tools)
+	}
+
+	a, err := Aggregate(dir, time.Time{}, "conv-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findTool(a.Tools, "Read") == nil {
+		t.Fatalf("conv-a should include Read: %+v", a.Tools)
+	}
+	if findTool(a.Tools, "Bash") != nil {
+		t.Fatalf("conv-a must not include the other conversation's Bash: %+v", a.Tools)
+	}
+	if len(a.Models) != 1 || a.Models[0].Model != "model-x" {
+		t.Fatalf("conv-a models wrong: %+v", a.Models)
+	}
+}
+
 func TestAggregateEmptyStore(t *testing.T) {
-	stats, err := Aggregate(t.TempDir(), time.Time{})
+	stats, err := Aggregate(t.TempDir(), time.Time{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

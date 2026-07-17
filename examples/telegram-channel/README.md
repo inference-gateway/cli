@@ -139,8 +139,12 @@ persistent storage (`storage.enabled: true`, the default):
 - `/conversations` — lists your past conversations as tappable buttons; tap
   one to switch the agent back to that context (typing
   `/conversations <id-prefix>` works too)
-- `/stats [since]` — usage statistics (tool calls, tokens, cost) for the whole
-  daemon, e.g. `/stats 24h`; the reply offers 24h/7d buttons
+- `/stats [since] [table]` — usage statistics (tool calls, tokens, cost) for
+  **your current conversation** (resets when you `/new` or switch via
+  `/conversations`), e.g. `/stats 24h`. The default is a phone-friendly key/value
+  list that never folds on narrow screens; the reply offers 24h/7d buttons plus a
+  **Table view** toggle (or type `table` for the aligned tables). The host
+  `infer stats` CLI still reports daemon-wide totals
 - `/help` — lists the commands available in the channel plus the TUI-only ones
 
 Custom shortcuts from `.infer/shortcuts/*.yaml` (command type) also work and

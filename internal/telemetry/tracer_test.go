@@ -173,7 +173,7 @@ func TestAggregateSkipsTraceFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stats, err := Aggregate(dir, time.Time{})
+	stats, err := Aggregate(dir, time.Time{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

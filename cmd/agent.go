@@ -240,6 +240,9 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	session.maybeRollover()
 
 	rec := svc.GetTelemetryRecorder()
+	// session.sessionID is the resolved (post-rollover) conversation id; tag
+	// telemetry with it so channel /stats can scope to the current conversation.
+	rec.SetConversationID(session.sessionID)
 	sessionStart := time.Now()
 	endSessionSpan := rec.StartSession(agentMode.AllowedlistKey())
 	session.telemetryCtx = rec.SpanContext(context.Background())

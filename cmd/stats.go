@@ -56,7 +56,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		telemetry.Archive(dir, time.Now().AddDate(0, 0, -Cfg.Telemetry.RetentionDays))
 	}
 
-	stats, err := telemetry.Aggregate(dir, since)
+	stats, err := telemetry.Aggregate(dir, since, "")
 	if err != nil {
 		return fmt.Errorf("failed to aggregate telemetry: %w", err)
 	}

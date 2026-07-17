@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	bot "github.com/go-telegram/bot"
@@ -640,6 +642,8 @@ var (
 	inlCodeRe   = regexp.MustCompile("`([^`\n]+)`")
 	boldRe      = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
 	headerRe    = regexp.MustCompile(`(?m)^#{1,6} +(.+)$`)
+	tableRe     = regexp.MustCompile(`(?m)^\|.*\|[ \t]*$(?:\n^\|.*\|[ \t]*$)*`)
+	tableSepRe  = regexp.MustCompile(`^:?-+:?$`)
 	sendableExt = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true}
 )
 
@@ -709,12 +713,67 @@ func renderTelegramHTML(md string) string {
 	return sb.String()
 }
 
+// renderInlineHTML renders a non-fenced markdown segment: pipe tables become
+// aligned <pre> blocks, everything else goes through renderProseHTML.
 func renderInlineHTML(s string) string {
+	var sb strings.Builder
+	last := 0
+	for _, loc := range tableRe.FindAllStringIndex(s, -1) {
+		sb.WriteString(renderProseHTML(s[last:loc[0]]))
+		sb.WriteString(renderTable(s[loc[0]:loc[1]]))
+		last = loc[1]
+	}
+	sb.WriteString(renderProseHTML(s[last:]))
+	return sb.String()
+}
+
+func renderProseHTML(s string) string {
 	s = html.EscapeString(s)
 	s = inlCodeRe.ReplaceAllString(s, "<code>$1</code>")
 	s = boldRe.ReplaceAllString(s, "<b>$1</b>")
 	s = headerRe.ReplaceAllString(s, "<b>$1</b>")
 	return s
+}
+
+// renderTable turns a markdown pipe table into a column-aligned <pre> block,
+// dropping the |---|---| separator row. Escaping happens after alignment so
+// entity length doesn't skew the columns.
+// ponytail: tabwriter measures rune width — fine for ASCII/stats tables; wide
+// CJK could misalign. Swap to a width-aware writer only if that ever shows up.
+func renderTable(md string) string {
+	var buf bytes.Buffer
+	tw := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	for line := range strings.SplitSeq(strings.TrimRight(md, "\n"), "\n") {
+		cells := splitTableRow(line)
+		if isTableSeparator(cells) {
+			continue
+		}
+		_, _ = fmt.Fprintln(tw, strings.Join(cells, "\t"))
+	}
+	_ = tw.Flush()
+	return "<pre>" + html.EscapeString(strings.TrimRight(buf.String(), "\n")) + "</pre>"
+}
+
+// splitTableRow trims the outer pipes and returns the trimmed cells of one row.
+func splitTableRow(line string) []string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
+	cells := strings.Split(line, "|")
+	for i := range cells {
+		cells[i] = strings.TrimSpace(cells[i])
+	}
+	return cells
+}
+
+// isTableSeparator reports whether every cell is a markdown alignment marker (---, :--, etc.).
+func isTableSeparator(cells []string) bool {
+	for _, c := range cells {
+		if !tableSepRe.MatchString(c) {
+			return false
+		}
+	}
+	return len(cells) > 0
 }
 
 // splitMessage splits a long message into chunks that fit Telegram's message limit

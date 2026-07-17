@@ -124,10 +124,16 @@ func TestHandleCommand_New(t *testing.T) {
 }
 
 func TestHandleCommand_Stats(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // isolate config.TelemetryDir()
-	cm, ch, _ := newCommandTestManager(t)
+	t.Setenv("HOME", t.TempDir())
+	cm, ch, store := newCommandTestManager(t)
+	ctx := context.Background()
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats"}, "stats", nil)
+	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: "conv-42"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats"}, "stats", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -136,8 +142,45 @@ func TestHandleCommand_Stats(t *testing.T) {
 	if strings.TrimSpace(out.Content) == "" {
 		t.Fatal("expected non-empty stats reply")
 	}
-	if len(out.Buttons) != 2 || out.Buttons[0].Data != "/stats 24h" {
-		t.Fatalf("expected 24h/7d window buttons, got %+v", out.Buttons)
+	if strings.HasPrefix(strings.TrimSpace(out.Content), "```") {
+		t.Fatalf("stats reply should not be fence-wrapped (renderer handles tables), got %q", out.Content)
+	}
+
+	if len(out.Buttons) != 3 || out.Buttons[0].Data != "/stats 24h" {
+		t.Fatalf("expected 24h/7d/toggle buttons, got %+v", out.Buttons)
+	}
+	if out.Buttons[2].Text != "Table view" || out.Buttons[2].Data != "/stats table" {
+		t.Fatalf("expected a Table view toggle by default, got %+v", out.Buttons[2])
+	}
+
+	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats table"}, "stats", []string{"table"})
+	if ch.SendCallCount() != 2 {
+		t.Fatalf("expected 2 sends, got %d", ch.SendCallCount())
+	}
+	_, out2 := ch.SendArgsForCall(1)
+	if len(out2.Buttons) != 3 || out2.Buttons[2].Text != "Vertical view" || out2.Buttons[2].Data != "/stats" {
+		t.Fatalf("expected a Vertical view toggle in table mode, got %+v", out2.Buttons)
+	}
+	if out2.Buttons[0].Data != "/stats 24h table" {
+		t.Fatalf("expected window buttons to preserve table mode, got %+v", out2.Buttons[0])
+	}
+}
+
+func TestHandleCommand_StatsNoConversation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cm, ch, _ := newCommandTestManager(t)
+
+	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "99", Content: "/stats"}, "stats", nil)
+
+	if ch.SendCallCount() != 1 {
+		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
+	}
+	_, out := ch.SendArgsForCall(0)
+	if !strings.Contains(out.Content, "No usage recorded for this conversation yet") {
+		t.Fatalf("expected the no-conversation reply, got %q", out.Content)
+	}
+	if len(out.Buttons) != 0 {
+		t.Fatalf("expected no buttons on the empty reply, got %+v", out.Buttons)
 	}
 }
 
@@ -197,7 +240,6 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Full UUID — the shape a button tap sends.
 	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + oldID}, "conversations", []string{oldID})
 
 	entry, _, _ := store.GetSessionGroup(ctx, groupKey)
@@ -215,14 +257,12 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 		t.Fatalf("expected last-exchange recap, got %q", out.Content)
 	}
 
-	// Unique prefix — the typed shape.
 	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + currentID[:8]}, "conversations", []string{currentID[:8]})
 	entry, _, _ = store.GetSessionGroup(ctx, groupKey)
 	if entry.CurrentSessionID != currentID {
 		t.Fatalf("expected prefix switch back to %s, got %q", currentID, entry.CurrentSessionID)
 	}
 
-	// Unknown prefix — no mutation.
 	before := entry
 	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations zzzz"}, "conversations", []string{"zzzz"})
 	entry, _, _ = store.GetSessionGroup(ctx, groupKey)
