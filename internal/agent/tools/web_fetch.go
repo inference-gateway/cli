@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -113,7 +115,9 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 		return result, nil
 	}
 
-	if download {
+	isBinary := isBinaryContent(fetchResult.ContentType, fetchResult.Content)
+
+	if download || isBinary {
 		filename := t.extractFilenameFromURL(url)
 		savedPath, saveErr := t.saveToFile(fetchResult, filename)
 		if saveErr != nil {
@@ -122,6 +126,22 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 			return result, nil
 		}
 		fetchResult.SavedPath = savedPath
+	}
+
+	if isBinary {
+		ct := cmp.Or(fetchResult.ContentType, "unknown type")
+		_, _, inChannel := domain.ParseChannelSessionID(domain.GetSessionID(ctx))
+		if inChannel && fetchResult.SavedPath != "" && strings.HasPrefix(strings.ToLower(ct), "image/") {
+			fetchResult.Content = fmt.Sprintf(
+				"[image (%s, %s) saved to %s — the raw bytes are NOT shown to you. "+
+					"To display it to the user, include exactly this on its own line "+
+					"in your reply (no backticks, no code block): ![image](%s)]",
+				ct, t.formatSize(fetchResult.Size), fetchResult.SavedPath, fetchResult.SavedPath)
+		} else {
+			fetchResult.Content = fmt.Sprintf(
+				"[binary content (%s, %s) saved to disk — not inlined into context]",
+				ct, t.formatSize(fetchResult.Size))
+		}
 	}
 	result.Data = fetchResult
 
@@ -211,6 +231,34 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domai
 	}
 
 	return result, nil
+}
+
+// isBinaryContent reports whether a fetched body is non-text and therefore must
+// not be inlined into the LLM context (raw bytes tokenize into garbage and can
+// blow the context window). Content-Type is the primary signal; when it is
+// missing we fall back to a UTF-8 validity check (a PNG is never valid UTF-8). A
+// declared-textual type is trusted even if the bytes aren't valid UTF-8, so a
+// mislabeled-charset page (e.g. latin-1 HTML) is still treated as text.
+func isBinaryContent(contentType, body string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+
+	switch {
+	case ct == "":
+		return !utf8.ValidString(body)
+	case strings.HasPrefix(ct, "text/"),
+		ct == "application/json",
+		ct == "application/xml",
+		ct == "application/javascript",
+		ct == "application/ecmascript",
+		strings.HasSuffix(ct, "+json"),
+		strings.HasSuffix(ct, "+xml"):
+		return false
+	default:
+		return true
+	}
 }
 
 // validateURL validates URL against security rules and allowed lists
