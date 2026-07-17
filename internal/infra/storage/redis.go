@@ -478,3 +478,209 @@ func (s *RedisStorage) ListSessionGroups(ctx context.Context) (map[string]Sessio
 	}
 	return out, nil
 }
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (RedisStorage)
+// ---------------------------------------------------------------------------
+
+const (
+	redisScheduledJobsKey = "scheduled_jobs"
+	redisPlansKey         = "plans"
+	redisShellHistoryKey  = "shell_history"
+)
+
+// scheduledJobKey returns the Redis key for a scheduled job.
+func (s *RedisStorage) scheduledJobKey(id string) string {
+	return fmt.Sprintf("%s:%s", redisScheduledJobsKey, id)
+}
+
+// SaveJob creates or updates a scheduled job. The configured conversation TTL
+// deliberately does not apply - a scheduled job must not silently expire.
+func (s *RedisStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+	data, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal job %s: %w", job.ID, err)
+	}
+	return s.client.Set(ctx, s.scheduledJobKey(job.ID), data, 0).Err()
+}
+
+// LoadJob returns a job by ID.
+func (s *RedisStorage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+	data, err := s.client.Get(ctx, s.scheduledJobKey(id)).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("get job %s: %w", id, err)
+	}
+	var job domain.ScheduledJob
+	if err := json.Unmarshal(data, &job); err != nil {
+		return nil, fmt.Errorf("unmarshal job %s: %w", id, err)
+	}
+	return &job, nil
+}
+
+// scanKeys collects all keys matching pattern via SCAN (KEYS blocks the
+// server and is discouraged in production).
+func (s *RedisStorage) scanKeys(ctx context.Context, pattern string) ([]string, error) {
+	var keys []string
+	iter := s.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	return keys, iter.Err()
+}
+
+// ListJobs returns all jobs sorted by CreatedAt ascending.
+func (s *RedisStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+	keys, err := s.scanKeys(ctx, redisScheduledJobsKey+":*")
+	if err != nil {
+		return nil, fmt.Errorf("list job keys: %w", err)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	pipe := s.client.Pipeline()
+	var cmds []*redis.StringCmd
+	for _, k := range keys {
+		cmds = append(cmds, pipe.Get(ctx, k))
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("load jobs: %w", err)
+	}
+	var jobs []*domain.ScheduledJob
+	for _, cmd := range cmds {
+		data, err := cmd.Bytes()
+		if err != nil {
+			continue
+		}
+		var job domain.ScheduledJob
+		if err := json.Unmarshal(data, &job); err != nil {
+			continue
+		}
+		jobs = append(jobs, &job)
+	}
+	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	return jobs, nil
+}
+
+// DeleteJob removes a job by ID.
+func (s *RedisStorage) DeleteJob(ctx context.Context, id string) error {
+	result, err := s.client.Del(ctx, s.scheduledJobKey(id)).Result()
+	if err != nil {
+		return fmt.Errorf("delete job %s: %w", id, err)
+	}
+	if result == 0 {
+		return ErrJobNotFound
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (RedisStorage)
+// ---------------------------------------------------------------------------
+
+// planKey returns the Redis key for a plan.
+func (s *RedisStorage) planKey(id string) string {
+	return fmt.Sprintf("%s:%s", redisPlansKey, id)
+}
+
+// SavePlan creates a plan record. The configured conversation TTL deliberately
+// does not apply - plans are an audit trail and must not silently expire.
+func (s *RedisStorage) SavePlan(ctx context.Context, plan *PlanRecord) error {
+	data, err := json.Marshal(plan)
+	if err != nil {
+		return fmt.Errorf("marshal plan %s: %w", plan.ID, err)
+	}
+	return s.client.Set(ctx, s.planKey(plan.ID), data, 0).Err()
+}
+
+// LoadPlan returns a plan by ID.
+func (s *RedisStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
+	data, err := s.client.Get(ctx, s.planKey(id)).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, fmt.Errorf("plan not found: %s", id)
+		}
+		return nil, fmt.Errorf("get plan %s: %w", id, err)
+	}
+	var plan PlanRecord
+	if err := json.Unmarshal(data, &plan); err != nil {
+		return nil, fmt.Errorf("unmarshal plan %s: %w", id, err)
+	}
+	return &plan, nil
+}
+
+// ListPlans returns all plans sorted by CreatedAt descending.
+func (s *RedisStorage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
+	keys, err := s.scanKeys(ctx, redisPlansKey+":*")
+	if err != nil {
+		return nil, fmt.Errorf("list plan keys: %w", err)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	pipe := s.client.Pipeline()
+	var cmds []*redis.StringCmd
+	for _, k := range keys {
+		cmds = append(cmds, pipe.Get(ctx, k))
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("load plans: %w", err)
+	}
+	var plans []*PlanRecord
+	for _, cmd := range cmds {
+		data, err := cmd.Bytes()
+		if err != nil {
+			continue
+		}
+		var plan PlanRecord
+		if err := json.Unmarshal(data, &plan); err != nil {
+			continue
+		}
+		plans = append(plans, &plan)
+	}
+	slices.SortFunc(plans, func(a, b *PlanRecord) int {
+		return b.CreatedAt.Compare(a.CreatedAt)
+	})
+	return plans, nil
+}
+
+// DeletePlan removes a plan by ID.
+func (s *RedisStorage) DeletePlan(ctx context.Context, id string) error {
+	result, err := s.client.Del(ctx, s.planKey(id)).Result()
+	if err != nil {
+		return fmt.Errorf("delete plan %s: %w", id, err)
+	}
+	if result == 0 {
+		return fmt.Errorf("plan not found: %s", id)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (RedisStorage)
+// ---------------------------------------------------------------------------
+
+// AppendHistory appends a command to the shell history list.
+func (s *RedisStorage) AppendHistory(ctx context.Context, command string) error {
+	if err := s.client.LPush(ctx, redisShellHistoryKey, command).Err(); err != nil {
+		return fmt.Errorf("append shell history: %w", err)
+	}
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (s *RedisStorage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
+	commands, err := s.client.LRange(ctx, redisShellHistoryKey, 0, int64(limit-1)).Result()
+	if err != nil {
+		return nil, fmt.Errorf("load shell history: %w", err)
+	}
+	// Reverse to get chronological order
+	for i, j := 0, len(commands)-1; i < j; i, j = i+1, j-1 {
+		commands[i], commands[j] = commands[j], commands[i]
+	}
+	return commands, nil
+}

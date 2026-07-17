@@ -19,6 +19,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
@@ -169,6 +170,7 @@ func NewChatApplication(
 	chatCompletionRunner domain.ChatCompletionRunner,
 	directExecutionService domain.DirectExecutionService,
 	toolExecutionCoordinator domain.ToolExecutionCoordinator,
+	shellHistoryStore storage.ShellHistoryStorage,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -233,7 +235,7 @@ func NewChatApplication(
 	}
 
 	historyName := os.Getenv(domain.EnvSubagentHistoryName)
-	app.inputView = factory.CreateInputViewWithName(app.modelService, configDir, historyName)
+	app.inputView = factory.CreateInputViewWithName(app.modelService, configDir, historyName, shellHistoryStore)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)

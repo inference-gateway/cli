@@ -9,16 +9,15 @@ import (
 )
 
 func TestPlanExecutionContinuePrompt(t *testing.T) {
-	t.Run("points the agent at the plan file when a path is given", func(t *testing.T) {
-		got := planExecutionContinuePrompt(".infer/plans/2026-06-28-plan.md")
-		assert.Contains(t, got, ".infer/plans/2026-06-28-plan.md")
-		assert.Contains(t, got, "Read")
+	t.Run("points the agent at the stored plan when an ID is given", func(t *testing.T) {
+		got := planExecutionContinuePrompt("2026-06-28-090000-plan")
+		assert.Contains(t, got, "infer plans show 2026-06-28-090000-plan")
 		assert.Contains(t, got, "fresh session")
 	})
 
-	t.Run("falls back to a generic prompt without a path", func(t *testing.T) {
+	t.Run("falls back to a generic prompt without an ID", func(t *testing.T) {
 		got := planExecutionContinuePrompt("")
-		assert.NotContains(t, got, "Read that file")
+		assert.NotContains(t, got, "infer plans show")
 		assert.Contains(t, got, "proceed")
 	})
 }
@@ -32,7 +31,7 @@ func TestNewSessionAfterPlanApproval(t *testing.T) {
 			conversationRepo: repo,
 		}
 
-		h.newSessionAfterPlanApproval(".infer/plans/2026-06-28-plan.md")
+		h.newSessionAfterPlanApproval("2026-06-28-090000-plan")
 
 		if repo.StartNewConversationCallCount() != 1 {
 			t.Fatalf("expected StartNewConversation once, got %d", repo.StartNewConversationCallCount())
@@ -42,7 +41,7 @@ func TestNewSessionAfterPlanApproval(t *testing.T) {
 		}
 	})
 
-	t.Run("starts a new session even without a plan path", func(t *testing.T) {
+	t.Run("starts a new session even without a plan ID", func(t *testing.T) {
 		repo := &mocks.FakeConversationRepository{}
 		repo.GetCurrentConversationTitleReturns("Original")
 

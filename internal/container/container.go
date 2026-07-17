@@ -90,6 +90,7 @@ type ServiceContainer struct {
 	backgroundShellService *services.BackgroundShellService
 	memoryBackend          domain.MemoryBackend
 	storage                storage.ConversationStorage
+	stores                 *storage.Stores
 
 	// Token polyfill - used by /context, conversation optimizer, and the
 	// session rollover manager. Created unconditionally so any surface can
@@ -314,16 +315,19 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.ensureBackgroundTaskRegistry()
 	c.memoryBackend = memory.NewMemoryBackend(c.config)
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry)
+
+	storageConfig := storage.NewStorageFromConfig(c.config)
+	stores, err := storage.NewStorage(storageConfig)
+	c.stores = stores
+
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry, stores)
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
-	storageConfig := storage.NewStorageFromConfig(c.config)
-	storageBackend, err := storage.NewStorage(storageConfig)
-	groupStore := c.initializeStorageBackend(storageBackend, storageConfig, toolFormatterService, err)
+	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
 
 	if c.jobSupervisor != nil {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
@@ -417,7 +421,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 // (or panics on an explicit, non-default backend so the user gets a clear
 // signal that the configuration is broken).
 func (c *ServiceContainer) initializeStorageBackend(
-	storageBackend storage.ConversationStorage,
+	stores *storage.Stores,
 	storageConfig storage.StorageConfig,
 	toolFormatterService *services.ToolFormatterService,
 	err error,
@@ -427,19 +431,19 @@ func (c *ServiceContainer) initializeStorageBackend(
 		return storage.NewMemorySessionGroupStorage()
 	}
 
-	c.storage = storageBackend
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
+	c.storage = stores.Conversations
+	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
 	titleClient := c.createRawSDKClient()
-	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
+	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
 	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
 
-	if gs, ok := storageBackend.(storage.SessionGroupStorage); ok {
+	if gs, ok := stores.Conversations.(storage.SessionGroupStorage); ok {
 		return gs
 	}
 
@@ -456,7 +460,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	toolFormatterService *services.ToolFormatterService,
 	err error,
 ) {
-	if c.config.Storage.Enabled && storageConfig.Type != "memory" {
+	if c.config.Storage.Enabled && storageConfig.Type != config.StorageTypeMemory {
 		logger.Error("storage backend initialization failed",
 			"error", err,
 			"type", storageConfig.Type,
@@ -835,6 +839,15 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
+}
+
+// GetShellHistoryStorage returns the shell-history store, or nil when storage
+// failed to initialize (callers fall back to the file-based history).
+func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage {
+	if c.stores == nil {
+		return nil
+	}
+	return c.stores.ShellHistory
 }
 
 // GetGatewayManager returns the gateway manager

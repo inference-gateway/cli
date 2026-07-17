@@ -27,16 +27,22 @@ func TestPostgresStorage_Conformance(t *testing.T) {
 
 	cfg := parsePostgresDSN(t, dsn)
 
-	runConversationStorageConformance(t, func(t *testing.T) ConversationStorage {
+	newStorage := func(t *testing.T) *PostgresStorage {
 		storage, err := NewPostgresStorage(cfg)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = storage.Close() })
 
-		_, err = storage.DB().ExecContext(context.Background(), "TRUNCATE conversations, session_groups")
+		_, err = storage.DB().ExecContext(context.Background(),
+			"TRUNCATE conversations, session_groups, scheduled_jobs, plans, shell_history")
 		require.NoError(t, err)
 
 		return storage
-	})
+	}
+
+	runConversationStorageConformance(t, func(t *testing.T) ConversationStorage { return newStorage(t) })
+	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage { return newStorage(t) })
+	runPlanStorageConformance(t, func(t *testing.T) PlanStorage { return newStorage(t) })
+	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage { return newStorage(t) })
 }
 
 // parsePostgresDSN parses a space-separated "key=value" libpq DSN into a

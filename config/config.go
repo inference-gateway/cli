@@ -282,13 +282,12 @@ type AskUserQuestionToolConfig struct {
 // ScheduleToolConfig contains schedule-specific tool settings.
 // When enabled, the tool lets the LLM create recurring jobs that fire on a
 // cron schedule and deliver their output through a configured channel
-// (e.g. Telegram). Jobs are persisted as YAML files under StorageDir and
-// hot-reloaded by the channels-manager daemon.
+// (e.g. Telegram). Jobs are persisted through the configured storage backend
+// and hot-reloaded by the channels-manager daemon.
 type ScheduleToolConfig struct {
-	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-	StorageDir      string `yaml:"storage_dir,omitempty" mapstructure:"storage_dir,omitempty"`
-	MaxJobs         int    `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	MaxJobs         int   `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
 }
 
 // WaitToolConfig contains settings for the Wait tool, which blocks inside a
@@ -883,7 +882,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			Schedule: ScheduleToolConfig{
 				Enabled:         false,
 				RequireApproval: &[]bool{true}[0],
-				StorageDir:      "",
 				MaxJobs:         100,
 			},
 			AskUserQuestion: AskUserQuestionToolConfig{

@@ -48,5 +48,58 @@ func GetSQLiteMigrations() []Migration {
 				DROP TABLE IF EXISTS session_groups;
 			`,
 		},
+		{
+			Version:     "003",
+			Description: "Scheduled jobs table",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS scheduled_jobs (
+					id              TEXT PRIMARY KEY,
+					name            TEXT NOT NULL DEFAULT '',
+					description     TEXT NOT NULL DEFAULT '',
+					cron_expression TEXT NOT NULL,
+					prompt          TEXT NOT NULL,
+					channel         TEXT NOT NULL DEFAULT '',
+					recipient_id    TEXT NOT NULL DEFAULT '',
+					model           TEXT NOT NULL DEFAULT '',
+					run_once        BOOLEAN NOT NULL DEFAULT FALSE,
+					created_at      DATETIME NOT NULL,
+					updated_at      DATETIME NOT NULL,
+					last_run        DATETIME,
+					last_error      TEXT NOT NULL DEFAULT ''
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS scheduled_jobs;
+			`,
+		},
+		{
+			Version:     "004",
+			Description: "Plans table for plan-mode storage",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS plans (
+					id         TEXT PRIMARY KEY,
+					title      TEXT NOT NULL,
+					body       TEXT NOT NULL,
+					created_at DATETIME NOT NULL
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS plans;
+			`,
+		},
+		{
+			Version:     "005",
+			Description: "Shell history table",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS shell_history (
+					id        INTEGER PRIMARY KEY AUTOINCREMENT,
+					command   TEXT NOT NULL,
+					created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS shell_history;
+			`,
+		},
 	}
 }

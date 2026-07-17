@@ -250,6 +250,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		services.GetChatCompletionRunner(),
 		services.GetDirectExecutionService(),
 		services.GetToolExecutionCoordinator(),
+		services.GetShellHistoryStorage(),
 	)
 
 	program := tea.NewProgram(application)

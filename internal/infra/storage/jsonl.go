@@ -4,19 +4,23 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // JsonlStorage implements ConversationStorage using JSONL files
 type JsonlStorage struct {
 	basePath        string
+	plansPath       string
 	mu              sync.RWMutex
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
@@ -53,13 +57,7 @@ type EntryLine struct {
 
 // NewJsonlStorage creates a new JSONL storage instance
 func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
-	path := config.Path
-	if strings.HasPrefix(path, "~") {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			path = filepath.Join(home, path[1:])
-		}
-	}
+	path := expandHome(config.Path)
 
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create conversations directory: %w", err)
@@ -73,8 +71,19 @@ func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 
 	return &JsonlStorage{
 		basePath:        path,
+		plansPath:       expandHome(config.PlansPath),
 		persistedCounts: make(map[string]int),
 	}, nil
+}
+
+// expandHome resolves a leading "~" against the user's home directory.
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[1:])
+		}
+	}
+	return path
 }
 
 // conversationFilePath returns the path to a conversation's JSONL file
@@ -888,4 +897,287 @@ func (s *JsonlStorage) ListSessionGroups(_ context.Context) (map[string]SessionG
 	defer s.groupIndexMu.Unlock()
 
 	return s.loadSessionGroupsLocked()
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (JsonlStorage) - file-based, keeps historical paths
+// ---------------------------------------------------------------------------
+
+// schedulesDir returns the path to the schedules directory.
+func (s *JsonlStorage) schedulesDir() string {
+	return filepath.Join(filepath.Dir(s.basePath), "schedules")
+}
+
+// jobFilePath returns the YAML path for a given job ID.
+func (s *JsonlStorage) jobFilePath(id string) string {
+	return filepath.Join(s.schedulesDir(), id+".yaml")
+}
+
+// SaveJob writes the job to disk atomically as YAML.
+func (s *JsonlStorage) SaveJob(_ context.Context, job *domain.ScheduledJob) error {
+	if job == nil {
+		return errors.New("job is nil")
+	}
+	if job.ID == "" {
+		return errors.New("job ID is required")
+	}
+	dir := s.schedulesDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create schedules dir %s: %w", dir, err)
+	}
+	data, err := yaml.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal job %s: %w", job.ID, err)
+	}
+	final := s.jobFilePath(job.ID)
+	tmp := final + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to rename %s -> %s: %w", tmp, final, err)
+	}
+	return nil
+}
+
+// LoadJob reads a single job by ID. Returns ErrJobNotFound if the file does not exist.
+func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*domain.ScheduledJob, error) {
+	if id == "" {
+		return nil, errors.New("job ID is required")
+	}
+	data, err := os.ReadFile(s.jobFilePath(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("failed to read job %s: %w", id, err)
+	}
+	job := &domain.ScheduledJob{}
+	if err := yaml.Unmarshal(data, job); err != nil {
+		return nil, fmt.Errorf("failed to parse job %s: %w", id, err)
+	}
+	return job, nil
+}
+
+// ListJobs returns all jobs sorted by CreatedAt ascending.
+func (s *JsonlStorage) ListJobs(_ context.Context) ([]*domain.ScheduledJob, error) {
+	dir := s.schedulesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read schedules dir: %w", err)
+	}
+	var jobs []*domain.ScheduledJob
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		id := strings.TrimSuffix(e.Name(), ".yaml")
+		job, err := s.LoadJob(context.Background(), id)
+		if err != nil {
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	return jobs, nil
+}
+
+// DeleteJob removes a job by ID. Returns ErrJobNotFound if it did not exist.
+func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
+	if id == "" {
+		return errors.New("job ID is required")
+	}
+	if err := os.Remove(s.jobFilePath(id)); err != nil {
+		if os.IsNotExist(err) {
+			return ErrJobNotFound
+		}
+		return fmt.Errorf("failed to delete job %s: %w", id, err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (JsonlStorage) - file-based, keeps historical paths
+// ---------------------------------------------------------------------------
+
+// plansDir returns the path to the plans directory: the configured PlansPath
+// (defaulted to ~/.infer/plans by NewStorageFromConfig), or storage-rooted
+// next to the conversations directory when unset (tests, direct construction).
+func (s *JsonlStorage) plansDir() string {
+	if s.plansPath != "" {
+		return s.plansPath
+	}
+	return filepath.Join(filepath.Dir(s.basePath), "plans")
+}
+
+// planStampFormat is the UTC timestamp prefix of a plan ID / filename stem.
+const planStampFormat = "2006-01-02-150405"
+
+// SavePlan writes the plan as a markdown file named after the plan ID.
+func (s *JsonlStorage) SavePlan(_ context.Context, plan *PlanRecord) error {
+	dir := s.plansDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create plans dir %s: %w", dir, err)
+	}
+
+	path := filepath.Join(dir, plan.ID+".md")
+	body := "# " + plan.Title + "\n\n" + plan.Body
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
+		return fmt.Errorf("failed to write plan file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to finalise plan file %s: %w", path, err)
+	}
+	return nil
+}
+
+// LoadPlan returns a plan by ID. For JSONL, the ID is the filename stem.
+func (s *JsonlStorage) LoadPlan(_ context.Context, id string) (*PlanRecord, error) {
+	data, err := os.ReadFile(filepath.Join(s.plansDir(), id+".md"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("plan not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to read plan %s: %w", id, err)
+	}
+	return parsePlanFile(id, data), nil
+}
+
+// parsePlanFile parses a plan markdown file into a PlanRecord. The title comes
+// from the leading H1, the creation time from the ID's timestamp prefix.
+func parsePlanFile(stem string, data []byte) *PlanRecord {
+	content := string(data)
+	title := ""
+	body := content
+	if strings.HasPrefix(content, "# ") {
+		if line, rest, ok := strings.Cut(content, "\n"); ok {
+			title = strings.TrimPrefix(line, "# ")
+			body = strings.TrimLeft(rest, "\n")
+		}
+	}
+	var createdAt time.Time
+	if len(stem) >= len(planStampFormat) {
+		if ts, err := time.Parse(planStampFormat, stem[:len(planStampFormat)]); err == nil {
+			createdAt = ts.UTC()
+		}
+	}
+	return &PlanRecord{
+		ID:        stem,
+		Title:     title,
+		Body:      body,
+		CreatedAt: createdAt,
+	}
+}
+
+// ListPlans returns all plans sorted by CreatedAt descending.
+func (s *JsonlStorage) ListPlans(_ context.Context) ([]*PlanRecord, error) {
+	dir := s.plansDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read plans dir: %w", err)
+	}
+	var plans []*PlanRecord
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		stem := strings.TrimSuffix(e.Name(), ".md")
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		plans = append(plans, parsePlanFile(stem, data))
+	}
+	slices.SortFunc(plans, func(a, b *PlanRecord) int {
+		return b.CreatedAt.Compare(a.CreatedAt)
+	})
+	return plans, nil
+}
+
+// DeletePlan removes a plan by ID.
+func (s *JsonlStorage) DeletePlan(_ context.Context, id string) error {
+	dir := s.plansDir()
+	path := filepath.Join(dir, id+".md")
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("plan not found: %s", id)
+		}
+		return fmt.Errorf("failed to delete plan %s: %w", id, err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (JsonlStorage) - file-based, keeps historical path
+// ---------------------------------------------------------------------------
+
+// historyFilePath returns the path to the shell history file.
+func (s *JsonlStorage) historyFilePath() string {
+	return filepath.Join(filepath.Dir(s.basePath), "history", "history")
+}
+
+// AppendHistory appends a command to the shell history file.
+func (s *JsonlStorage) AppendHistory(_ context.Context, command string) error {
+	if strings.TrimSpace(command) == "" {
+		return nil
+	}
+	path := s.historyFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create history directory: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	escaped := strings.ReplaceAll(command, "\n", "\\n")
+	if _, err := file.WriteString(escaped + "\n"); err != nil {
+		return fmt.Errorf("failed to write to history file: %w", err)
+	}
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, error) {
+	path := s.historyFilePath()
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	var allLines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		allLines = append(allLines, strings.ReplaceAll(line, "\\n", "\n"))
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading history file: %w", err)
+	}
+	// Return most recent `limit` lines
+	if limit > 0 && len(allLines) > limit {
+		allLines = allLines[len(allLines)-limit:]
+	}
+	return allLines, nil
 }

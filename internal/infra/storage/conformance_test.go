@@ -321,3 +321,134 @@ func createTestMetadata(id string) ConversationMetadata {
 		Tags:  []string{"test", "demo"},
 	}
 }
+
+// runScheduledJobStorageConformance runs the same behavioural suite against any
+// ScheduledJobStorage implementation.
+func runScheduledJobStorageConformance(t *testing.T, newStorage func(t *testing.T) ScheduledJobStorage) {
+	t.Helper()
+
+	t.Run("ScheduledJobCRUD", func(t *testing.T) {
+		conformanceScheduledJobCRUD(t, newStorage(t))
+	})
+}
+
+func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	job := &domain.ScheduledJob{
+		ID:             "job-1",
+		Name:           "test-job",
+		Description:    "A test scheduled job",
+		CronExpression: "0 8 * * *",
+		Prompt:         "run test",
+		Channel:        "telegram",
+		RecipientID:    "12345",
+		Model:          "openai/gpt-4o",
+		RunOnce:        false,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, store.SaveJob(ctx, job))
+
+	loaded, err := store.LoadJob(ctx, "job-1")
+	require.NoError(t, err)
+	assert.Equal(t, "test-job", loaded.Name)
+	assert.Equal(t, "0 8 * * *", loaded.CronExpression)
+	assert.Equal(t, "telegram", loaded.Channel)
+
+	job.Name = "updated-job"
+	job.UpdatedAt = time.Now().UTC()
+	require.NoError(t, store.SaveJob(ctx, job))
+	loaded, err = store.LoadJob(ctx, "job-1")
+	require.NoError(t, err)
+	assert.Equal(t, "updated-job", loaded.Name)
+
+	jobs, err := store.ListJobs(ctx)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 1)
+
+	require.NoError(t, store.DeleteJob(ctx, "job-1"))
+	_, err = store.LoadJob(ctx, "job-1")
+	assert.ErrorIs(t, err, ErrJobNotFound)
+
+	jobs, err = store.ListJobs(ctx)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 0)
+}
+
+// runPlanStorageConformance runs the same behavioural suite against any
+// PlanStorage implementation.
+func runPlanStorageConformance(t *testing.T, newStorage func(t *testing.T) PlanStorage) {
+	t.Helper()
+
+	t.Run("PlanCRUD", func(t *testing.T) {
+		conformancePlanCRUD(t, newStorage(t))
+	})
+}
+
+func conformancePlanCRUD(t *testing.T, store PlanStorage) {
+	ctx := context.Background()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	id := now.Format(planStampFormat) + "-test-plan"
+
+	plan := &PlanRecord{
+		ID:        id,
+		Title:     "Test Plan",
+		Body:      "## Context\n\nDo something.\n",
+		CreatedAt: now,
+	}
+	require.NoError(t, store.SavePlan(ctx, plan))
+
+	loaded, err := store.LoadPlan(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, id, loaded.ID)
+	assert.Equal(t, "Test Plan", loaded.Title)
+	assert.Contains(t, loaded.Body, "Do something.")
+	assert.True(t, loaded.CreatedAt.Equal(now), "CreatedAt: want %v, got %v", now, loaded.CreatedAt)
+
+	plans, err := store.ListPlans(ctx)
+	require.NoError(t, err)
+	assert.Len(t, plans, 1)
+
+	require.NoError(t, store.DeletePlan(ctx, id))
+	_, err = store.LoadPlan(ctx, id)
+	assert.Error(t, err)
+
+	plans, err = store.ListPlans(ctx)
+	require.NoError(t, err)
+	assert.Len(t, plans, 0)
+}
+
+// runShellHistoryStorageConformance runs the same behavioural suite against any
+// ShellHistoryStorage implementation.
+func runShellHistoryStorageConformance(t *testing.T, newStorage func(t *testing.T) ShellHistoryStorage) {
+	t.Helper()
+
+	t.Run("ShellHistoryCRUD", func(t *testing.T) {
+		conformanceShellHistoryCRUD(t, newStorage(t))
+	})
+}
+
+func conformanceShellHistoryCRUD(t *testing.T, store ShellHistoryStorage) {
+	ctx := context.Background()
+
+	require.NoError(t, store.AppendHistory(ctx, "echo hello"))
+	require.NoError(t, store.AppendHistory(ctx, "ls -la"))
+	require.NoError(t, store.AppendHistory(ctx, "git status"))
+
+	history, err := store.LoadHistory(ctx, 0)
+	require.NoError(t, err)
+	assert.Len(t, history, 3)
+	assert.Equal(t, "echo hello", history[0])
+	assert.Equal(t, "ls -la", history[1])
+	assert.Equal(t, "git status", history[2])
+
+	history, err = store.LoadHistory(ctx, 2)
+	require.NoError(t, err)
+	require.Len(t, history, 2)
+	assert.Equal(t, "ls -la", history[0])
+	assert.Equal(t, "git status", history[1])
+}

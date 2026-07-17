@@ -31,8 +31,9 @@ type commandRunner func(ctx context.Context, name string, args ...string) ([]byt
 
 // WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp.
 type WhisperTranscriber struct {
-	cfg    config.SpeechToTextConfig
-	models *ModelManager
+	cfg      config.SpeechToTextConfig
+	models   *ModelManager
+	binaries *BinaryManager
 
 	// run and lookPath are overridable in tests.
 	run      commandRunner
@@ -44,22 +45,23 @@ func NewWhisperTranscriber(cfg config.SpeechToTextConfig) *WhisperTranscriber {
 	return &WhisperTranscriber{
 		cfg:      cfg,
 		models:   NewModelManager(cfg),
+		binaries: NewBinaryManager(cfg),
 		run:      execRun,
 		lookPath: exec.LookPath,
 	}
 }
 
-// EnsureAvailable reports whether the whisper binary can be resolved, without
-// transcribing or downloading a model. It lets callers fail fast (with an
-// actionable install hint) before recording any audio.
+// EnsureAvailable reports whether the whisper binary can be resolved (possibly
+// by downloading it), without transcribing or downloading a model. It lets
+// callers fail fast (with an actionable install hint) before recording audio.
 func (w *WhisperTranscriber) EnsureAvailable() error {
-	_, err := w.resolveBinary()
+	_, err := w.resolveBinary(context.Background())
 	return err
 }
 
 // Transcribe converts the audio at wavPath (16kHz mono WAV) into text.
 func (w *WhisperTranscriber) Transcribe(ctx context.Context, wavPath string) (string, error) {
-	bin, err := w.resolveBinary()
+	bin, err := w.resolveBinary(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -88,9 +90,10 @@ func (w *WhisperTranscriber) Transcribe(ctx context.Context, wavPath string) (st
 	return cleanTranscript(string(out)), nil
 }
 
-// resolveBinary returns the whisper binary to invoke, honoring an explicit
-// configured path before falling back to PATH lookup of the known names.
-func (w *WhisperTranscriber) resolveBinary() (string, error) {
+// resolveBinary returns the whisper binary to invoke: an explicit configured
+// path first, then PATH lookup of the known names, then a prebuilt binary in
+// ~/.infer/bin (downloaded on first use when auto_download is enabled).
+func (w *WhisperTranscriber) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(w.cfg.BinaryPath); p != "" {
 		if _, err := w.lookPath(p); err == nil {
 			return p, nil
@@ -104,6 +107,12 @@ func (w *WhisperTranscriber) resolveBinary() (string, error) {
 	for _, name := range whisperBinaryCandidates {
 		if _, err := w.lookPath(name); err == nil {
 			return name, nil
+		}
+	}
+
+	if w.cfg.AutoDownload && w.binaries != nil {
+		if path, err := w.binaries.EnsureBinary(ctx, "whisper-cli"); err == nil {
+			return path, nil
 		}
 	}
 

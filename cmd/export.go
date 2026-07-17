@@ -39,17 +39,17 @@ func runExport(sessionID string) error {
 	cfg := Cfg
 
 	storageConfig := storage.NewStorageFromConfig(cfg)
-	storageBackend, err := storage.NewStorage(storageConfig)
+	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	themeService := domain.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 	pricingService := services.NewPricingService(&cfg.Pricing)
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)
+	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
 
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {

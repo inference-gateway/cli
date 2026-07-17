@@ -323,3 +323,17 @@ func TestNewMemorySessionGroupStorage_StandaloneFallback(t *testing.T) {
 		t.Errorf("standalone constructor must return a working store; ok=%v err=%v entry=%+v", ok, err, entry)
 	}
 }
+
+// TestMemoryStorage_Conformance runs the shared behavioural suites for the
+// scheduled-job, plan, and shell-history stores against the memory backend.
+func TestMemoryStorage_Conformance(t *testing.T) {
+	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage {
+		return NewMemoryStorage()
+	})
+	runPlanStorageConformance(t, func(t *testing.T) PlanStorage {
+		return NewMemoryStorage()
+	})
+	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		return NewMemoryStorage()
+	})
+}

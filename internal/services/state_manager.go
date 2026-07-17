@@ -434,11 +434,11 @@ func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
 // Plan approval state methods
 
 // SetupPlanApprovalUIState initializes plan approval UI state
-func (sm *StateManager) SetupPlanApprovalUIState(planContent, planPath string, responseChan chan domain.PlanApprovalAction) {
+func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, responseChan chan domain.PlanApprovalAction) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	sm.state.SetupPlanApprovalUIState(planContent, planPath, responseChan)
+	sm.state.SetupPlanApprovalUIState(planContent, planID, responseChan)
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state

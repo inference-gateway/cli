@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
 type fakeChannel struct {
@@ -52,20 +53,17 @@ func TestNewService_ValidatesDeps(t *testing.T) {
 	if _, err := NewService(Options{}); err == nil {
 		t.Fatal("expected error when Store is nil")
 	}
-	store, _ := NewStore(t.TempDir())
-	if _, err := NewService(Options{Store: store}); err == nil {
+	memStore := storage.NewMemoryStorage()
+	if _, err := NewService(Options{Store: memStore}); err == nil {
 		t.Fatal("expected error when ChannelLookup is nil")
 	}
 }
 
-func newTestService(t *testing.T, ch *fakeChannel, fired *atomic.Int32) (*Service, *Store) {
+func newTestService(t *testing.T, ch *fakeChannel, fired *atomic.Int32) (*Service, storage.ScheduledJobStorage) {
 	t.Helper()
-	store, err := NewStore(t.TempDir())
-	if err != nil {
-		t.Fatalf("NewStore: %v", err)
-	}
+	memStore := storage.NewMemoryStorage()
 	svc, err := NewService(Options{
-		Store: store,
+		Store: memStore,
 		ChannelLookup: func(name string) domain.Channel {
 			if name == ch.name {
 				return ch
@@ -82,7 +80,7 @@ func newTestService(t *testing.T, ch *fakeChannel, fired *atomic.Int32) (*Servic
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	return svc, store
+	return svc, memStore
 }
 
 func TestService_Start_LoadsExistingJobs(t *testing.T) {
@@ -98,8 +96,8 @@ func TestService_Start_LoadsExistingJobs(t *testing.T) {
 		RecipientID:    "user1",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -127,8 +125,8 @@ func TestService_Fire_SendsToChannel(t *testing.T) {
 		RecipientID:    "user1",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -157,7 +155,7 @@ func TestService_Fire_SendsToChannel(t *testing.T) {
 	}
 }
 
-func TestService_FsNotifyReload_AddsNewJob(t *testing.T) {
+func TestService_PollReload_AddsNewJob(t *testing.T) {
 	ch := &fakeChannel{name: "telegram"}
 	fired := &atomic.Int32{}
 	svc, store := newTestService(t, ch, fired)
@@ -180,24 +178,60 @@ func TestService_FsNotifyReload_AddsNewJob(t *testing.T) {
 		RecipientID:    "user1",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
-	// Wait for fsnotify + debounce.
-	deadline := time.Now().Add(3 * time.Second)
+	// Wait for the poller to pick up the change (2s poll interval)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if len(svc.JobIDs()) == 1 {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	if got := svc.JobIDs(); len(got) != 1 || got[0] != "added-later" {
-		t.Fatalf("expected [added-later] after fs change, got %v", got)
+		t.Fatalf("expected [added-later] after save, got %v", got)
 	}
 }
 
-func TestService_FsNotifyReload_RemovesJob(t *testing.T) {
+func TestService_PollReload_UpdatesChangedJob(t *testing.T) {
+	ch := &fakeChannel{name: "telegram"}
+	fired := &atomic.Int32{}
+	svc, store := newTestService(t, ch, fired)
+
+	job := &domain.ScheduledJob{
+		ID:             "editable",
+		CronExpression: "0 8 * * *",
+		Prompt:         "before",
+		Channel:        "telegram",
+		RecipientID:    "user1",
+		CreatedAt:      time.Now().UTC(),
+	}
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = svc.Stop(ctx) }()
+
+	job.Prompt = "after"
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob update: %v", err)
+	}
+
+	// The changed fingerprint re-registers the job; there must never be a
+	// duplicate or a dropped entry.
+	time.Sleep(3 * time.Second)
+	if got := svc.JobIDs(); len(got) != 1 || got[0] != "editable" {
+		t.Fatalf("expected [editable] after update, got %v", got)
+	}
+}
+
+func TestService_PollReload_RemovesJob(t *testing.T) {
 	ch := &fakeChannel{name: "telegram"}
 	fired := &atomic.Int32{}
 	svc, store := newTestService(t, ch, fired)
@@ -210,8 +244,8 @@ func TestService_FsNotifyReload_RemovesJob(t *testing.T) {
 		RecipientID:    "user1",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -224,15 +258,15 @@ func TestService_FsNotifyReload_RemovesJob(t *testing.T) {
 		t.Fatalf("expected 1 job, got %d", got)
 	}
 
-	if err := store.Delete("doomed"); err != nil {
-		t.Fatalf("Delete: %v", err)
+	if err := store.DeleteJob(context.Background(), "doomed"); err != nil {
+		t.Fatalf("DeleteJob: %v", err)
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if len(svc.JobIDs()) == 0 {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	if got := svc.JobIDs(); len(got) != 0 {
 		t.Fatalf("expected 0 jobs after delete, got %v", got)
@@ -255,12 +289,9 @@ func (s *sendErrChannel) Send(_ context.Context, _ domain.OutboundMessage) error
 
 func TestService_Fire_SendError_RecordedInLastError(t *testing.T) {
 	ch := &sendErrChannel{name: "telegram", sendErr: errors.New("invalid chat ID \"test\"")}
-	store, err := NewStore(t.TempDir())
-	if err != nil {
-		t.Fatalf("NewStore: %v", err)
-	}
+	memStore := storage.NewMemoryStorage()
 	svc, err := NewService(Options{
-		Store: store,
+		Store: memStore,
 		ChannelLookup: func(name string) domain.Channel {
 			if name == ch.name {
 				return ch
@@ -285,8 +316,8 @@ func TestService_Fire_SendError_RecordedInLastError(t *testing.T) {
 		RecipientID:    "test",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := memStore.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -297,16 +328,16 @@ func TestService_Fire_SendError_RecordedInLastError(t *testing.T) {
 
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
-		loaded, err := store.Load("send-fails")
+		loaded, err := memStore.LoadJob(context.Background(), "send-fails")
 		if err == nil && loaded.LastError != "" {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	loaded, err := store.Load("send-fails")
+	loaded, err := memStore.LoadJob(context.Background(), "send-fails")
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadJob: %v", err)
 	}
 	if loaded.LastError == "" {
 		t.Fatal("expected LastError to be set when channel.Send fails")
@@ -330,8 +361,8 @@ func TestService_Fire_RunOnce_DeletesAfterFire(t *testing.T) {
 		RunOnce:        true,
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -342,13 +373,13 @@ func TestService_Fire_RunOnce_DeletesAfterFire(t *testing.T) {
 
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
-		if _, err := store.Load("one-shot"); errors.Is(err, ErrNotFound) {
+		if _, err := store.LoadJob(context.Background(), "one-shot"); errors.Is(err, storage.ErrJobNotFound) {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	if _, err := store.Load("one-shot"); !errors.Is(err, ErrNotFound) {
+	if _, err := store.LoadJob(context.Background(), "one-shot"); !errors.Is(err, storage.ErrJobNotFound) {
 		t.Fatalf("expected one-off job to be deleted after fire, got err=%v", err)
 	}
 	if fired.Load() < 1 {
@@ -369,8 +400,8 @@ func TestService_Fire_ChannelMissing_RecordsError(t *testing.T) {
 		RecipientID:    "user1",
 		CreatedAt:      time.Now().UTC(),
 	}
-	if err := store.Save(job); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.SaveJob(context.Background(), job); err != nil {
+		t.Fatalf("SaveJob: %v", err)
 	}
 
 	ctx := context.Background()
@@ -381,16 +412,16 @@ func TestService_Fire_ChannelMissing_RecordsError(t *testing.T) {
 
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
-		loaded, err := store.Load("wrong-channel")
+		loaded, err := store.LoadJob(context.Background(), "wrong-channel")
 		if err == nil && loaded.LastError != "" {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	loaded, err := store.Load("wrong-channel")
+	loaded, err := store.LoadJob(context.Background(), "wrong-channel")
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadJob: %v", err)
 	}
 	if loaded.LastError == "" {
 		t.Fatal("expected LastError to be set when channel not found")

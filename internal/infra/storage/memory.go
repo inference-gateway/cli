@@ -15,6 +15,9 @@ import (
 type MemoryStorage struct {
 	conversations map[string]conversationData
 	sessionGroups map[string]SessionGroupEntry
+	scheduledJobs map[string]*domain.ScheduledJob
+	plans         map[string]*PlanRecord
+	shellHistory  []string
 	mutex         sync.RWMutex
 }
 
@@ -205,4 +208,141 @@ func cloneSessionGroupEntry(entry SessionGroupEntry) SessionGroupEntry {
 // Health checks if the storage is healthy and reachable
 func (m *MemoryStorage) Health(ctx context.Context) error {
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SaveJob creates or updates a scheduled job.
+func (m *MemoryStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.scheduledJobs == nil {
+		m.scheduledJobs = make(map[string]*domain.ScheduledJob)
+	}
+	cp := *job
+	m.scheduledJobs[job.ID] = &cp
+	return nil
+}
+
+// LoadJob returns a copy of a job by ID, so callers can't mutate stored state.
+func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	job, ok := m.scheduledJobs[id]
+	if !ok {
+		return nil, ErrJobNotFound
+	}
+	cp := *job
+	return &cp, nil
+}
+
+// ListJobs returns copies of all jobs sorted by CreatedAt ascending.
+func (m *MemoryStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var jobs []*domain.ScheduledJob
+	for _, job := range m.scheduledJobs {
+		cp := *job
+		jobs = append(jobs, &cp)
+	}
+	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	return jobs, nil
+}
+
+// DeleteJob removes a job by ID.
+func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if _, ok := m.scheduledJobs[id]; !ok {
+		return ErrJobNotFound
+	}
+	delete(m.scheduledJobs, id)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SavePlan creates a plan record.
+func (m *MemoryStorage) SavePlan(ctx context.Context, plan *PlanRecord) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.plans == nil {
+		m.plans = make(map[string]*PlanRecord)
+	}
+	cp := *plan
+	m.plans[plan.ID] = &cp
+	return nil
+}
+
+// LoadPlan returns a copy of a plan by ID.
+func (m *MemoryStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	plan, ok := m.plans[id]
+	if !ok {
+		return nil, fmt.Errorf("plan not found: %s", id)
+	}
+	cp := *plan
+	return &cp, nil
+}
+
+// ListPlans returns copies of all plans sorted by CreatedAt descending.
+func (m *MemoryStorage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var plans []*PlanRecord
+	for _, plan := range m.plans {
+		cp := *plan
+		plans = append(plans, &cp)
+	}
+	slices.SortFunc(plans, func(a, b *PlanRecord) int {
+		return b.CreatedAt.Compare(a.CreatedAt)
+	})
+	return plans, nil
+}
+
+// DeletePlan removes a plan by ID.
+func (m *MemoryStorage) DeletePlan(ctx context.Context, id string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if _, ok := m.plans[id]; !ok {
+		return fmt.Errorf("plan not found: %s", id)
+	}
+	delete(m.plans, id)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// AppendHistory appends a command to the shell history.
+func (m *MemoryStorage) AppendHistory(ctx context.Context, command string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.shellHistory = append(m.shellHistory, command)
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (m *MemoryStorage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	if len(m.shellHistory) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 || limit >= len(m.shellHistory) {
+		result := make([]string, len(m.shellHistory))
+		copy(result, m.shellHistory)
+		return result, nil
+	}
+	result := make([]string, limit)
+	copy(result, m.shellHistory[len(m.shellHistory)-limit:])
+	return result, nil
 }

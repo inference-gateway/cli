@@ -20,7 +20,7 @@ func toolNamesForMode(svc *LLMToolService, mode domain.AgentMode) []string {
 
 func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 	names := toolNamesForMode(svc, domain.AgentModeReadOnly)
 
@@ -38,7 +38,7 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 
 func TestListToolsForMode_AskUserQuestionPlanOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	if !slices.Contains(toolNamesForMode(svc, domain.AgentModePlan), "AskUserQuestion") {

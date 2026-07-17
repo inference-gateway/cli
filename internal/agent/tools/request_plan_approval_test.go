@@ -10,8 +10,11 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
+// newPlanToolForTest builds the tool against a jsonl store rooted at a temp
+// dir, so plan files land under <tmpDir>/plans/ (the default-backend layout).
 func newPlanToolForTest(t *testing.T) (*RequestPlanApprovalTool, string) {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -19,7 +22,13 @@ func newPlanToolForTest(t *testing.T) (*RequestPlanApprovalTool, string) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 	cfg.SetConfigDir(tmpDir)
-	tool := NewRequestPlanApprovalTool(cfg)
+	store, err := storage.NewJsonlStorage(storage.JsonlStorageConfig{
+		Path: filepath.Join(tmpDir, "conversations"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create jsonl storage: %v", err)
+	}
+	tool := NewRequestPlanApprovalTool(cfg, store)
 	tool.now = func() time.Time {
 		return time.Date(2026, 4, 27, 10, 30, 15, 0, time.UTC)
 	}
@@ -187,11 +196,15 @@ func TestRequestPlanApprovalTool_Execute_WritesFile(t *testing.T) {
 	if got, _ := data["title"].(string); got != "Add Feature X!" {
 		t.Errorf("title in result Data does not match input, got %q", got)
 	}
-	path, _ := data["path"].(string)
-	if path == "" {
-		t.Fatal("expected non-empty path in result Data")
+	planID, _ := data["plan_id"].(string)
+	if planID == "" {
+		t.Fatal("expected non-empty plan_id in result Data")
+	}
+	if uri, _ := data["uri"].(string); uri != "infer://plans/"+planID {
+		t.Errorf("expected uri infer://plans/%s, got %q", planID, uri)
 	}
 
+	path := filepath.Join(configDir, "plans", planID+".md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected plan file to exist at %s, got %v", path, err)
 	}
@@ -275,7 +288,7 @@ func TestRequestPlanApprovalTool_Execute_CreatesPlansDir(t *testing.T) {
 	}
 }
 
-func TestRequestPlanApprovalTool_Execute_HandlesSlugCollision(t *testing.T) {
+func TestRequestPlanApprovalTool_Execute_SameSecondSameTitleUpserts(t *testing.T) {
 	tool, configDir := newPlanToolForTest(t)
 
 	args := map[string]any{
@@ -283,6 +296,8 @@ func TestRequestPlanApprovalTool_Execute_HandlesSlugCollision(t *testing.T) {
 		"plan":  "body",
 	}
 
+	// The plan ID is <stamp>-<slug>; with a fixed clock all three submissions
+	// share one ID and upsert into a single record/file.
 	for i := range 3 {
 		result, err := tool.Execute(context.Background(), args)
 		if err != nil || !result.Success {
@@ -300,8 +315,27 @@ func TestRequestPlanApprovalTool_Execute_HandlesSlugCollision(t *testing.T) {
 			mdFiles++
 		}
 	}
-	if mdFiles != 3 {
-		t.Errorf("expected 3 distinct plan files after collision handling, got %d", mdFiles)
+	if mdFiles != 1 {
+		t.Errorf("expected a single upserted plan file, got %d", mdFiles)
+	}
+}
+
+func TestRequestPlanApprovalTool_Execute_NilStoreFails(t *testing.T) {
+	cfg := &config.Config{Prompts: *config.DefaultPromptsConfig()}
+	tool := NewRequestPlanApprovalTool(cfg, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"title": "No Store",
+		"plan":  "body",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("expected failure when plan storage is unavailable")
+	}
+	if !strings.Contains(result.Error, "storage") {
+		t.Errorf("expected error to mention storage, got %q", result.Error)
 	}
 }
 

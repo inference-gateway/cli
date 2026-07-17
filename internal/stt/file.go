@@ -28,8 +28,12 @@ type FileTranscriber struct {
 
 // NewFileTranscriber creates a FileTranscriber from the speech-to-text config.
 func NewFileTranscriber(cfg config.SpeechToTextConfig) *FileTranscriber {
+	converter := audio.NewConverter(cfg)
+	if cfg.AutoDownload {
+		converter.SetBinaryEnsurer(NewBinaryManager(cfg).EnsureBinary)
+	}
 	return &FileTranscriber{
-		converter:   audio.NewConverter(cfg),
+		converter:   converter,
 		transcriber: NewWhisperTranscriber(cfg),
 	}
 }

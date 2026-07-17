@@ -30,7 +30,12 @@ var (
 // from the shared command-output styles, keeping only layout (cell padding),
 // so piped/redirected output and --no-colors runs contain no escape sequences.
 // Must run before any command renders (wired into rootCmd.PersistentPreRun).
+// outputColorsDisabled lets commands with non-lipgloss output (e.g. glamour
+// markdown rendering in plans.go) follow the same decision.
+var outputColorsDisabled bool
+
 func disableOutputColors() {
+	outputColorsDisabled = true
 	listTitleStyle = lipgloss.NewStyle()
 	listLabelStyle = lipgloss.NewStyle()
 	listHintStyle = lipgloss.NewStyle()

@@ -244,7 +244,7 @@ func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.Inp
 	}
 
 	modelService := &domainmocks.FakeModelService{}
-	input := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly)
+	input := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
 	if _, cmd := input.Update(tea.FocusMsg{}); cmd != nil {
 		_ = cmd()
 	}

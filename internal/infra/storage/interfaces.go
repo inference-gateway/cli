@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -66,10 +68,74 @@ type ConversationMetadata = domain.ConversationMetadata
 // ConversationSummary contains summary information about a conversation
 type ConversationSummary = domain.ConversationSummary
 
+// ScheduledJobStorage defines the interface for persisting scheduled jobs.
+// Implementations must be safe for concurrent access. Change notification is
+// the consumer's job: the scheduler polls ListJobs and diffs (see
+// internal/services/scheduler).
+type ScheduledJobStorage interface {
+	// SaveJob creates or updates a scheduled job.
+	SaveJob(ctx context.Context, job *domain.ScheduledJob) error
+
+	// LoadJob returns a job by ID. Returns ErrJobNotFound when the job does not exist.
+	LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error)
+
+	// ListJobs returns all jobs sorted by CreatedAt ascending.
+	ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error)
+
+	// DeleteJob removes a job by ID. Returns ErrJobNotFound when the job does not exist.
+	DeleteJob(ctx context.Context, id string) error
+}
+
+// ErrJobNotFound is returned by ScheduledJobStorage when a job ID is not found.
+var ErrJobNotFound = errors.New("scheduled job not found")
+
+// PlanRecord is a stored plan-mode plan. The ID is the filename stem
+// "<UTC stamp>-<slug>" (e.g. "2026-07-17-153000-add-auth"), identical across
+// backends, and Body is the raw plan markdown without the title H1.
+type PlanRecord struct {
+	ID        string    `json:"id" yaml:"id"`
+	Title     string    `json:"title" yaml:"title"`
+	Body      string    `json:"body" yaml:"body"`
+	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
+}
+
+// PlanStorage defines the interface for persisting plan-mode plans.
+type PlanStorage interface {
+	// SavePlan creates or replaces a plan record. The ID must be set by the caller.
+	SavePlan(ctx context.Context, plan *PlanRecord) error
+
+	// LoadPlan returns a plan by ID. Returns an error when the plan does not exist.
+	LoadPlan(ctx context.Context, id string) (*PlanRecord, error)
+
+	// ListPlans returns all plans sorted by CreatedAt descending.
+	ListPlans(ctx context.Context) ([]*PlanRecord, error)
+
+	// DeletePlan removes a plan by ID. Returns an error when the plan does not exist.
+	DeletePlan(ctx context.Context, id string) error
+}
+
+// ShellHistoryStorage defines the interface for persisting shell command history.
+type ShellHistoryStorage interface {
+	// AppendHistory appends a command to the history log.
+	AppendHistory(ctx context.Context, command string) error
+
+	// LoadHistory returns the most recent commands up to limit.
+	LoadHistory(ctx context.Context, limit int) ([]string, error)
+}
+
+// Stores is the aggregate returned by NewStorage, holding all storage backends.
+type Stores struct {
+	Conversations ConversationStorage
+	SessionGroups SessionGroupStorage
+	ScheduledJobs ScheduledJobStorage
+	Plans         PlanStorage
+	ShellHistory  ShellHistoryStorage
+}
+
 // StorageConfig contains configuration for storage backends
 type StorageConfig struct {
-	// Type specifies the storage backend type (sqlite, postgres, redis, jsonl)
-	Type string `json:"type" yaml:"type"`
+	// Type specifies the storage backend type (see config.StorageType* constants)
+	Type config.StorageType `json:"type" yaml:"type"`
 
 	// SQLite specific configuration
 	SQLite SQLiteConfig `json:"sqlite,omitempty" yaml:"sqlite,omitempty"`
@@ -115,6 +181,9 @@ type RedisConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `json:"path" yaml:"path"`
+	// PlansPath is the directory plan markdown files are stored in. When
+	// empty, plans land next to the conversations directory (dir(Path)/plans).
+	PlansPath string `json:"plans_path,omitempty" yaml:"plans_path,omitempty"`
 }
 
 // D1Config contains Cloudflare D1-specific configuration. D1 is SQLite exposed

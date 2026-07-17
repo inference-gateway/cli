@@ -855,3 +855,26 @@ func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, all, 2)
 }
+
+// newConformanceJsonlStorage returns a jsonl backend rooted in an isolated
+// temp dir (schedules/plans/history live next to the conversations dir).
+func newConformanceJsonlStorage(t *testing.T) *JsonlStorage {
+	t.Helper()
+	storage, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(t.TempDir(), "conversations")})
+	require.NoError(t, err)
+	return storage
+}
+
+// TestJsonlStorage_Conformance runs the shared behavioural suites for the
+// scheduled-job, plan, and shell-history stores against the jsonl backend.
+func TestJsonlStorage_Conformance(t *testing.T) {
+	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage {
+		return newConformanceJsonlStorage(t)
+	})
+	runPlanStorageConformance(t, func(t *testing.T) PlanStorage {
+		return newConformanceJsonlStorage(t)
+	})
+	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		return newConformanceJsonlStorage(t)
+	})
+}
