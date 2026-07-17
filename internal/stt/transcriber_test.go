@@ -22,7 +22,7 @@ func TestResolveBinaryConfiguredPath(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	got, err := w.resolveBinary()
+	got, err := w.resolveBinary(context.Background())
 	if err != nil {
 		t.Fatalf("resolveBinary: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestResolveBinaryCandidateFallback(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	got, err := w.resolveBinary()
+	got, err := w.resolveBinary(context.Background())
 	if err != nil {
 		t.Fatalf("resolveBinary: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestResolveBinaryCandidateFallback(t *testing.T) {
 func TestResolveBinaryNotFound(t *testing.T) {
 	w := NewWhisperTranscriber(config.SpeechToTextConfig{})
 	w.lookPath = notFound
-	_, err := w.resolveBinary()
+	_, err := w.resolveBinary(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "whisper binary not found") {
 		t.Fatalf("expected 'whisper binary not found' error, got %v", err)
 	}
