@@ -6,3 +6,6 @@ CLAUDE.md
 # npm wrapper: README.md and LICENSE are copied in from the repo root at
 # publish time (see npm/.gitignore); they are not authored here.
 npm/
+
+# Example runtime artifacts (browser-agent output, etc.) — gitignored, not authored
+examples/telegram-channel/agents/
