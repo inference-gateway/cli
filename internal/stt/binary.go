@@ -17,8 +17,9 @@ import (
 
 // sttBinariesBase is the release hosting prebuilt static STT binaries
 // (whisper-cli, ffmpeg), published as <base>/<name>-<GOOS>-<GOARCH> plus a
-// checksums.txt with sha256 sums.
-const sttBinariesBase = "https://github.com/inference-gateway/stt-binaries/releases/download/stt-v1"
+// checksums.txt with sha256 sums. Releases are immutable; bump the tag here
+// to adopt a newer stt-binaries release.
+const sttBinariesBase = "https://github.com/inference-gateway/stt-binaries/releases/download/v0.1.0"
 
 // BinaryManager downloads prebuilt STT helper binaries (whisper-cli, ffmpeg)
 // into ~/.infer/bin on demand, mirroring ModelManager for GGML models.
