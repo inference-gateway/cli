@@ -17,6 +17,7 @@
 package telemetry
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"net/url"
@@ -88,6 +89,10 @@ type Options struct {
 	OTLPInterval    time.Duration
 	ReceiverAddress string
 	Cost            CostFunc
+	// AttrSessionIDKey / AttrToolCallIDKey override the baggage member names;
+	// empty falls back to the OTel semconv defaults.
+	AttrSessionIDKey  string
+	AttrToolCallIDKey string
 }
 
 // Recorder maps recorded events onto OTel instruments and spans. A nil
@@ -114,6 +119,9 @@ type Recorder struct {
 
 	otlpEndpoint string
 	otlpHeaders  map[string]string
+
+	attrSessionIDKey  string
+	attrToolCallIDKey string
 
 	recvOnce  sync.Once
 	recvSrv   *http.Server
@@ -187,6 +195,9 @@ func New(opts Options) *Recorder {
 		traceWriter:    traceWriter,
 		otlpEndpoint:   opts.OTLPEndpoint,
 		otlpHeaders:    opts.OTLPHeaders,
+
+		attrSessionIDKey:  cmp.Or(opts.AttrSessionIDKey, defaultAttrSessionIDKey),
+		attrToolCallIDKey: cmp.Or(opts.AttrToolCallIDKey, defaultAttrToolCallIDKey),
 	}
 
 	if err := rec.initInstruments(provider.Meter("infer-cli")); err != nil {

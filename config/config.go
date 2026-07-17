@@ -603,6 +603,13 @@ type TelemetryConfig struct {
 	RetentionDays   int        `yaml:"retention_days" mapstructure:"retention_days"`
 	OTLP            OTLPConfig `yaml:"otlp" mapstructure:"otlp"`
 	ReceiverAddress string     `yaml:"receiver_address" mapstructure:"receiver_address"`
+	// AttrSessionIDKey / AttrToolCallIDKey are the baggage member names injected
+	// into subprocess env (BAGGAGE) and outgoing HTTP requests. The defaults are
+	// the OTel semconv attributes and must match what the consumer (e.g. the ADK)
+	// reads; the byte-for-byte cross-repo contract is these member names, not the
+	// config/env names.
+	AttrSessionIDKey  string `yaml:"attr_session_id_key" mapstructure:"attr_session_id_key"`
+	AttrToolCallIDKey string `yaml:"attr_tool_call_id_key" mapstructure:"attr_tool_call_id_key"`
 }
 
 // OTLPConfig configures the optional OTLP export. When Endpoint is empty (and
@@ -986,6 +993,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				Endpoint: "",
 				Interval: 60,
 			},
+			AttrSessionIDKey:  "session.id",
+			AttrToolCallIDKey: "gen_ai.tool.call.id",
 		},
 		Conversation: ConversationConfig{
 			TitleGeneration: ConversationTitleConfig{

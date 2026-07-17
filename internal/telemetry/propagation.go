@@ -36,14 +36,23 @@ func (c envCarrier) Keys() []string {
 	return keys
 }
 
+// Default baggage member names, per the OTel semantic conventions. These are
+// a cross-repo contract with the consumer (the ADK reads the same defaults)
+// and must match byte-for-byte; override via telemetry.attr_session_id_key /
+// telemetry.attr_tool_call_id_key.
+const (
+	defaultAttrSessionIDKey  = "session.id"
+	defaultAttrToolCallIDKey = "gen_ai.tool.call.id"
+)
+
 func (r *Recorder) contextWithBaggage(ctx context.Context) context.Context {
 	if r == nil {
 		return ctx
 	}
 	var members []baggage.Member
 	for k, v := range map[string]string{
-		"infer.session.id":   r.sessionID,
-		"infer.tool.call.id": domain.GetToolCallID(ctx),
+		r.attrSessionIDKey:  r.sessionID,
+		r.attrToolCallIDKey: domain.GetToolCallID(ctx),
 	} {
 		if v == "" {
 			continue

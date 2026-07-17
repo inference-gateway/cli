@@ -237,7 +237,7 @@ func TestBashTool_Execute_TraceEnv(t *testing.T) {
 		ctx      context.Context
 		contains bool
 	}{
-		{name: "trace env exported", ctx: domain.WithTraceEnv(context.Background(), []string{"TRACEPARENT=00-abc-def-01", "BAGGAGE=infer.session.id=s1"}), contains: true},
+		{name: "trace env exported", ctx: domain.WithTraceEnv(context.Background(), []string{"TRACEPARENT=00-abc-def-01", "BAGGAGE=session.id=s1"}), contains: true},
 		{name: "no trace env without ctx value", ctx: context.Background(), contains: false},
 	}
 	for _, tt := range tests {
