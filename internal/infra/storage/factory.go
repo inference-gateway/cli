@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	config "github.com/inference-gateway/cli/config"
@@ -57,12 +58,24 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 		return StorageConfig{
 			Type: config.StorageTypeJsonl,
 			Jsonl: JsonlStorageConfig{
-				Path: absPath(cfg.Storage.Jsonl.Path),
+				Path:      absPath(cfg.Storage.Jsonl.Path),
+				PlansPath: userPlansDir(),
 			},
 		}
 	default:
 		return StorageConfig{Type: config.StorageTypeMemory}
 	}
+}
+
+// userPlansDir returns the userspace plans directory (~/.infer/plans), or ""
+// when the home directory can't be resolved (plans then fall back to the
+// storage-rooted default next to the conversations directory).
+func userPlansDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, config.ConfigDirName, "plans")
 }
 
 // absPath resolves a relative storage path against the working directory,

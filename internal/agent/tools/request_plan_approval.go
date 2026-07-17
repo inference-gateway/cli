@@ -263,7 +263,7 @@ func buildPlanMarkdown(title, plan string) string {
 
 // savePlanToStore persists the plan to PlanStorage and returns the plan ID:
 // "<UTC stamp>-<slug>", identical across backends. On jsonl the ID is also the
-// markdown filename stem under <configDir>/plans/.
+// markdown filename stem under ~/.infer/plans/.
 //
 // ponytail: a second plan with the same title in the same second overwrites
 // the first (upsert); resubmits after a rejection are minutes apart in practice.

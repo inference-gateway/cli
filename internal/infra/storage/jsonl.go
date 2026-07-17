@@ -20,6 +20,7 @@ import (
 // JsonlStorage implements ConversationStorage using JSONL files
 type JsonlStorage struct {
 	basePath        string
+	plansPath       string
 	mu              sync.RWMutex
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
@@ -56,13 +57,7 @@ type EntryLine struct {
 
 // NewJsonlStorage creates a new JSONL storage instance
 func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
-	path := config.Path
-	if strings.HasPrefix(path, "~") {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			path = filepath.Join(home, path[1:])
-		}
-	}
+	path := expandHome(config.Path)
 
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create conversations directory: %w", err)
@@ -76,8 +71,19 @@ func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 
 	return &JsonlStorage{
 		basePath:        path,
+		plansPath:       expandHome(config.PlansPath),
 		persistedCounts: make(map[string]int),
 	}, nil
+}
+
+// expandHome resolves a leading "~" against the user's home directory.
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[1:])
+		}
+	}
+	return path
 }
 
 // conversationFilePath returns the path to a conversation's JSONL file
@@ -1000,8 +1006,13 @@ func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
 // PlanStorage (JsonlStorage) - file-based, keeps historical paths
 // ---------------------------------------------------------------------------
 
-// plansDir returns the path to the plans directory.
+// plansDir returns the path to the plans directory: the configured PlansPath
+// (defaulted to ~/.infer/plans by NewStorageFromConfig), or storage-rooted
+// next to the conversations directory when unset (tests, direct construction).
 func (s *JsonlStorage) plansDir() string {
+	if s.plansPath != "" {
+		return s.plansPath
+	}
 	return filepath.Join(filepath.Dir(s.basePath), "plans")
 }
 

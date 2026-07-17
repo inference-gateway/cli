@@ -5,9 +5,9 @@
 Plan Mode is a read-only operating mode for the agent. The model can use
 `Read`, `Grep`, `Tree`, and `TodoWrite` to investigate the codebase, but it
 cannot write, edit, delete, or run shell commands. Instead, it produces a
-**plan** for the proposed change, persists that plan as a Markdown file
-under `<configDir>/plans/`, and surfaces it to you for approval before any
-real work happens.
+**plan** for the proposed change, persists that plan through the configured
+storage backend (on jsonl as a Markdown file under `~/.infer/plans/`), and
+surfaces it to you for approval before any real work happens.
 
 ## Why use it
 
@@ -19,9 +19,9 @@ Plan mode exists for tasks where you want a human gate between
 - Multi-file features where you want a written record before execution.
 - Pair-programming flows: review the plan, push back, iterate.
 
-Every plan - accepted **or** rejected - is left on disk in
-`<configDir>/plans/` as an audit trail. You can grep, share, or revisit
-them later.
+Every plan - accepted **or** rejected - is kept in storage (on the jsonl
+backend under `~/.infer/plans/`) as an audit trail. You can grep, share, or
+revisit them later.
 
 ## How to enter plan mode
 
@@ -100,11 +100,11 @@ infer plans list            # all plans with title + creation time
 On the default `jsonl` backend the plan also lands as a plain markdown file:
 
 ```text
-<plansDir>/<YYYY-MM-DD-HHMMSS>-<slug>.md
+~/.infer/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md
 ```
 
-where `<plansDir>` sits next to the configured jsonl conversations directory
-(usually `./.infer/plans/`). Writes are atomic (`<path>.tmp` + rename), so
+Plans are user-global, not per-project - every project's plans land in the
+same userspace directory. Writes are atomic (`<path>.tmp` + rename), so
 you'll never see a half-written plan file.
 
 `<slug>` is the title lowercased, with non-alphanumerics collapsed to
@@ -114,7 +114,7 @@ upserts the previous record instead of creating a duplicate.
 Example listing:
 
 ```bash
-$ ls .infer/plans/
+$ ls ~/.infer/plans/
 2026-04-25-091230-rip-out-old-auth-middleware.md
 2026-04-26-143015-add-login-flow.md
 2026-04-27-103015-rename-config-loader.md

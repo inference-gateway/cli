@@ -181,6 +181,9 @@ type RedisConfig struct {
 // JsonlStorageConfig contains JSONL-specific configuration
 type JsonlStorageConfig struct {
 	Path string `json:"path" yaml:"path"`
+	// PlansPath is the directory plan markdown files are stored in. When
+	// empty, plans land next to the conversations directory (dir(Path)/plans).
+	PlansPath string `json:"plans_path,omitempty" yaml:"plans_path,omitempty"`
 }
 
 // D1Config contains Cloudflare D1-specific configuration. D1 is SQLite exposed
