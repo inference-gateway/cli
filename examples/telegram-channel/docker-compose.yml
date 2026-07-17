@@ -77,6 +77,8 @@ services:
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_GATEWAY_RUN: false
       INFER_CHANNELS_ENABLED: true
+      INFER_SPEECH_TO_TEXT_ENABLED: true
+      INFER_LOGGING_STDOUT: true
       INFER_CHANNELS_TELEGRAM_ENABLED: true
       INFER_TOOLS_ENABLED: true
       INFER_TOOLS_SCHEDULE_ENABLED: true
