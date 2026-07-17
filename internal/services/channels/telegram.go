@@ -540,7 +540,6 @@ func extractImagePaths(content string) ([]string, string) {
 // headers) to Telegram HTML. Everything else is escaped so the message never
 // breaks on user content.
 func renderTelegramHTML(md string) string {
-	// ponytail: no italics — *x*/_x_ collide with globs and snake_case in dev output
 	var sb strings.Builder
 	last := 0
 	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {
