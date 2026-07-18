@@ -829,6 +829,90 @@ func TestSendWithButtons(t *testing.T) {
 	}
 }
 
+// sendMessageRecorder is an httptest handler that records every sendMessage
+// call's parse_mode and returns a scripted response per call index, letting a
+// test assert whether sendText retried.
+func sendMessageRecorder(t *testing.T, responses []string) (*httptest.Server, func() []string) {
+	t.Helper()
+	var mu sync.Mutex
+	var parseModes []string
+	i := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+			return
+		}
+		mu.Lock()
+		parseModes = append(parseModes, r.FormValue("parse_mode"))
+		body := responses[min(i, len(responses)-1)]
+		i++
+		mu.Unlock()
+		_, _ = w.Write([]byte(body))
+	}))
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), parseModes...)
+	}
+}
+
+func newTestChannel(t *testing.T, serverURL string) *TelegramChannel {
+	t.Helper()
+	b, err := bot.New("test-token", bot.WithServerURL(serverURL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+	return ch
+}
+
+// TestSendText_NoRetryOnNon400 is the double-message regression guard: a non-400
+// error (here 429) must NOT trigger the plain-text fallback, because the first
+// send may already have been delivered and a resend would show a duplicate.
+func TestSendText_NoRetryOnNon400(t *testing.T) {
+	srv, parseModes := sendMessageRecorder(t, []string{
+		`{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":1}}`,
+	})
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	err := ch.Send(context.Background(), domain.OutboundMessage{RecipientID: "99", Content: "hi"})
+	if err == nil {
+		t.Fatal("expected Send to return the 429 error")
+	}
+	if got := parseModes(); len(got) != 1 {
+		t.Fatalf("expected exactly 1 sendMessage call (no duplicate), got %d: %v", len(got), got)
+	}
+}
+
+// TestSendText_RetriesPlainOn400 verifies a 400 parse error DOES fall back to a
+// plain-text resend (nothing was delivered on a 400, so the resend is safe and
+// necessary), and that the retry drops parse_mode=HTML.
+func TestSendText_RetriesPlainOn400(t *testing.T) {
+	srv, parseModes := sendMessageRecorder(t, []string{
+		`{"ok":false,"error_code":400,"description":"Bad Request: can't parse entities"}`,
+		`{"ok":true,"result":{"message_id":1,"chat":{"id":99}}}`,
+	})
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	if err := ch.Send(context.Background(), domain.OutboundMessage{RecipientID: "99", Content: "hi"}); err != nil {
+		t.Fatalf("expected Send to succeed after plain-text fallback, got %v", err)
+	}
+	got := parseModes()
+	if len(got) != 2 {
+		t.Fatalf("expected 2 sendMessage calls (HTML then plain), got %d: %v", len(got), got)
+	}
+	if got[0] != "HTML" {
+		t.Fatalf("expected first attempt parse_mode=HTML, got %q", got[0])
+	}
+	if got[1] != "" {
+		t.Fatalf("expected retry to be plain text (no parse_mode), got %q", got[1])
+	}
+}
+
 func TestInlineKeyboard_TruncatesLabels(t *testing.T) {
 	if inlineKeyboard(nil) != nil {
 		t.Fatal("expected nil markup for no buttons")

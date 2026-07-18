@@ -198,17 +198,10 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 			senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
 			if respChan, ok := cm.pendingApprovals.Load(senderKey); ok {
 				if msg.Metadata["approval_response"] == "true" {
-					respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
-						Type:     "approval_response",
-						Approved: msg.Metadata["approved"] == "true",
-					}
+					deliverApprovalReply(respChan, msg.Metadata["approved"] == "true")
 					continue
 				}
-				approved := isApprovalReply(msg.Content)
-				respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
-					Type:     "approval_response",
-					Approved: approved,
-				}
+				deliverApprovalReply(respChan, isApprovalReply(msg.Content))
 				continue
 			}
 
@@ -219,6 +212,23 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 
 			go cm.handleMessage(ctx, msg)
 		}
+	}
+}
+
+// deliverApprovalReply forwards an approval decision to the waiting
+// resolveApproval goroutine without blocking. respChan is buffered(1) and
+// one-shot, so a straggler reply (double-tap Approve, or tap + type "yes") that
+// arrives after the approval already resolved is dropped rather than wedging
+// routeInbound — the single consumer of cm.inbox, whose block would freeze
+// message processing for every sender.
+func deliverApprovalReply(respChan any, approved bool) {
+	ch, ok := respChan.(chan domain.ApprovalResponse)
+	if !ok {
+		return
+	}
+	select {
+	case ch <- domain.ApprovalResponse{Type: "approval_response", Approved: approved}:
+	default:
 	}
 }
 

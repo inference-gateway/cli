@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -293,7 +294,10 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 }
 
 // sendText sends one chunk rendered as Telegram HTML, retrying once as plain
-// text if Telegram rejects the markup (malformed HTML fails the whole message).
+// text only when Telegram rejects the markup (a 400 Bad Request: malformed HTML
+// fails the whole message and nothing is delivered). We must NOT retry on other
+// errors (network timeout, 429, response-decode): those may have already
+// delivered the message, so a blind resend shows the user a duplicate.
 func (t *TelegramChannel) sendText(ctx context.Context, chatID int64, text string, kb models.ReplyMarkup) error {
 	sent, err := t.bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
@@ -301,7 +305,7 @@ func (t *TelegramChannel) sendText(ctx context.Context, chatID int64, text strin
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: kb,
 	})
-	if err != nil {
+	if err != nil && errors.Is(err, bot.ErrorBadRequest) {
 		sent, err = t.bot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
