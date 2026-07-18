@@ -1140,12 +1140,23 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, mess
 	agent.State = state
 	agent.Message = message
 
-	// Update ready count
 	if oldState != AgentStateReady && state == AgentStateReady {
 		now := time.Now()
 		agent.ReadyTime = &now
-		s.agentReadiness.ReadyAgents++
 	}
+	s.recountReadyAgents()
+}
+
+// recountReadyAgents derives ReadyAgents from the per-agent states so the
+// count can never drift when agents flap between Ready and Failed.
+func (s *ApplicationState) recountReadyAgents() {
+	ready := 0
+	for _, agent := range s.agentReadiness.Agents {
+		if agent.State == AgentStateReady {
+			ready++
+		}
+	}
+	s.agentReadiness.ReadyAgents = ready
 }
 
 // UpdateAgentPullProgress updates the image pull layer counts for a specific agent
@@ -1175,6 +1186,7 @@ func (s *ApplicationState) SetAgentError(name string, err error) {
 
 	agent.State = AgentStateFailed
 	agent.Error = err.Error()
+	s.recountReadyAgents()
 }
 
 // GetAgentReadiness returns the current agent readiness state
@@ -1201,18 +1213,13 @@ func (s *ApplicationState) RemoveAgent(name string) {
 		return
 	}
 
-	agent, exists := s.agentReadiness.Agents[name]
-	if !exists {
+	if _, exists := s.agentReadiness.Agents[name]; !exists {
 		return
 	}
 
-	if agent.State == AgentStateReady {
-		s.agentReadiness.ReadyAgents--
-	}
-
 	delete(s.agentReadiness.Agents, name)
-
 	s.agentReadiness.TotalAgents--
+	s.recountReadyAgents()
 }
 
 // AgentExecutionState represents the state of the agent execution loop

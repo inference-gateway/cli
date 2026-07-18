@@ -40,7 +40,8 @@ type AgentManager struct {
 	pullProgressCallback func(agentName string, done, total int)
 	containersMutex      sync.Mutex
 	a2aAgentService      domain.A2AAgentService
-	probeCancel          context.CancelFunc
+	probeStop            chan struct{}
+	probeStopOnce        sync.Once
 	probeWg              sync.WaitGroup
 	agentStates          map[string]domain.AgentState
 }
@@ -56,6 +57,7 @@ func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfi
 		assignedPorts:    make(map[string]int),
 		externalAgents:   make(map[string]string),
 		a2aAgentService:  a2aService,
+		probeStop:        make(chan struct{}),
 		agentStates:      make(map[string]domain.AgentState),
 	}
 }
@@ -146,14 +148,13 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 	time.Sleep(2 * time.Second)
 
-	a2aSvc, ok := am.a2aAgentService.(*A2AAgentService)
-	if !ok || a2aSvc == nil {
+	if a2aSvc, ok := am.a2aAgentService.(*A2AAgentService); !ok || a2aSvc == nil {
 		logger.Warn("cannot monitor external agents: A2A service not available")
 		return
 	}
 
 	for agentName, agentURL := range am.externalAgents {
-		am.probeExternalAgent(ctx, a2aSvc, agentName, agentURL)
+		am.probeExternalAgent(ctx, agentName, agentURL)
 	}
 
 	if !am.config.A2A.LivenessProbeEnabled {
@@ -164,9 +165,6 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
-
-	probeCtx, cancel := context.WithCancel(ctx)
-	am.probeCancel = cancel
 
 	logger.Info("starting A2A agent liveness probes", "interval", interval, "agent_count", len(am.externalAgents))
 	for agentName, agentURL := range am.externalAgents {
@@ -179,10 +177,12 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 
 			for {
 				select {
-				case <-probeCtx.Done():
+				case <-ctx.Done():
+					return
+				case <-am.probeStop:
 					return
 				case <-ticker.C:
-					am.probeExternalAgent(probeCtx, a2aSvc, name, url)
+					am.probeExternalAgent(ctx, name, url)
 				}
 			}
 		}()
@@ -191,7 +191,7 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 
 // probeExternalAgent performs a single liveness probe for an external agent
 // and emits a status update only on state change.
-func (am *AgentManager) probeExternalAgent(ctx context.Context, a2aSvc *A2AAgentService, agentName, agentURL string) {
+func (am *AgentManager) probeExternalAgent(ctx context.Context, agentName, agentURL string) {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -289,6 +289,10 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("agent container started successfully", "name", agent.Name, "url", agent.URL)
 
+	am.containersMutex.Lock()
+	am.agentStates[agent.Name] = domain.AgentStateReady
+	am.containersMutex.Unlock()
+
 	if am.config.A2A.LivenessProbeEnabled {
 		am.startLocalAgentProbe(ctx, agent)
 	}
@@ -304,8 +308,6 @@ func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.A
 	}
 
 	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
-	probeCtx, cancel := context.WithCancel(ctx)
-	am.probeCancel = cancel
 
 	am.probeWg.Add(1)
 	go func() {
@@ -317,10 +319,12 @@ func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.A
 
 		for {
 			select {
-			case <-probeCtx.Done():
+			case <-ctx.Done():
+				return
+			case <-am.probeStop:
 				return
 			case <-ticker.C:
-				am.probeLocalAgent(probeCtx, httpClient, agent, healthURL)
+				am.probeLocalAgent(ctx, httpClient, agent, healthURL)
 			}
 		}
 	}()
@@ -329,7 +333,12 @@ func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.A
 // probeLocalAgent performs a single health check for a local (docker) agent
 // and emits a status update only on state change.
 func (am *AgentManager) probeLocalAgent(ctx context.Context, httpClient *http.Client, agent config.AgentEntry, healthURL string) {
-	resp, err := httpClient.Get(healthURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
+		return
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
 		return
@@ -349,10 +358,7 @@ func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState
 	lastState := am.agentStates[agent.Name]
 	am.containersMutex.Unlock()
 
-	if newState == domain.AgentStateFailed && lastState == domain.AgentStateFailed {
-		return
-	}
-	if newState == domain.AgentStateReady && lastState == domain.AgentStateReady {
+	if newState == lastState {
 		return
 	}
 
@@ -375,10 +381,7 @@ func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState
 
 // StopAgents stops all running agent containers, cancels liveness probes, and cleans up the network
 func (am *AgentManager) StopAgents(ctx context.Context) error {
-	if am.probeCancel != nil {
-		am.probeCancel()
-		am.probeCancel = nil
-	}
+	am.probeStopOnce.Do(func() { close(am.probeStop) })
 	am.probeWg.Wait()
 
 	for agentName := range am.containers {

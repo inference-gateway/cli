@@ -1022,6 +1022,29 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			},
 			want: "#f7768e",
 		},
+		{
+			name: "agent going down turns red",
+			setup: func() *domain.ApplicationState {
+				st := domain.NewApplicationState()
+				st.InitializeAgentReadiness(1)
+				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+				return st
+			},
+			want: "#f7768e",
+		},
+		{
+			name: "recovered agent is green again",
+			setup: func() *domain.ApplicationState {
+				st := domain.NewApplicationState()
+				st.InitializeAgentReadiness(1)
+				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				return st
+			},
+			want: "#9ece6a",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1031,5 +1054,29 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 				t.Errorf("a2aIndicatorColor() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestInputStatusBar_A2AIndicatorCountsDown pins the ready count to the live
+// per-agent states: a flapping agent must count down on failure and never
+// exceed the total on recovery (regression for the "A2A: 2/1" drift).
+func TestInputStatusBar_A2AIndicatorCountsDown(t *testing.T) {
+	st := domain.NewApplicationState()
+	st.InitializeAgentReadiness(1)
+	statusBar := &InputStatusBar{stateManager: st}
+
+	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
+		t.Fatalf("after ready: got %q, want %q", got, "A2A: 1/1")
+	}
+
+	st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 0/1" {
+		t.Fatalf("after failure: got %q, want %q", got, "A2A: 0/1")
+	}
+
+	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
+		t.Fatalf("after recovery: got %q, want %q", got, "A2A: 1/1")
 	}
 }
