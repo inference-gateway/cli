@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // exportedSpan is a minimal decode of one stdouttrace span stub.
@@ -80,7 +82,8 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	endSession := rec.StartSession("standard")
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
 	SetSpanUsage(turnCtx, 100, 42)
-	_, toolSpan := rec.startToolSpan(turnCtx, "Read")
+	toolCtx := domain.WithToolCallID(turnCtx, "call_abc123")
+	_, toolSpan := rec.startToolSpan(toolCtx, "Read")
 	toolSpan.End()
 	turnSpan.End()
 	endSession(RunSuccess)
@@ -120,6 +123,9 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	}
 	if got := tool.attr("gen_ai.operation.name"); got != "execute_tool" {
 		t.Fatalf("tool gen_ai.operation.name=%v, want execute_tool", got)
+	}
+	if got := tool.attr("gen_ai.tool.call.id"); got != "call_abc123" {
+		t.Fatalf("tool gen_ai.tool.call.id=%v, want call_abc123", got)
 	}
 
 	for name, s := range spans {

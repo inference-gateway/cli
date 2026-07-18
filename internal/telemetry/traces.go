@@ -227,10 +227,14 @@ func RenderTraceTree(roots []*TraceSpan, style TreeStyle) string {
 
 // spanLabel decorates the session root with its agent mode and run outcome,
 // mirroring the resource-level facts a reader wants at the top of the tree.
+// Tool spans include the tool call ID (gen_ai.tool.call.id) when present.
 func spanLabel(s *TraceSpan) string {
 	name := s.Name
 	if svc := s.Attributes["service.name"]; svc != "" {
 		name += " [" + svc + "]"
+	}
+	if toolCallID := s.Attributes["gen_ai.tool.call.id"]; toolCallID != "" {
+		name += " " + toolCallID
 	}
 	mode, outcome := s.Attributes["infer.agent.mode"], s.Attributes["infer.run.outcome"]
 	if mode != "" && outcome != "" {
