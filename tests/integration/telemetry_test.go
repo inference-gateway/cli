@@ -36,7 +36,7 @@ func TestTelemetryRecorderEndToEnd(t *testing.T) {
 		require.Empty(t, res.errs, "a failing tool must complete, not surface as a stream error")
 
 		e.container.GetTelemetryRecorder().Flush(ctx)
-		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{})
+		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{}, "")
 		require.NoError(t, err)
 		require.False(t, stats.Empty)
 
@@ -53,7 +53,7 @@ func TestTelemetryRecorderEndToEnd(t *testing.T) {
 		require.Empty(t, res.errs)
 
 		e.container.GetTelemetryRecorder().Flush(ctx)
-		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{})
+		stats, err := telemetry.Aggregate(telemetryDir(), time.Time{}, "")
 		require.NoError(t, err)
 		require.Len(t, stats.Models, 1, "one model recorded usage")
 		require.Equal(t, 142, stats.Models[0].Total, "100 prompt + 42 completion tokens")

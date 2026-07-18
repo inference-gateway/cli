@@ -19,8 +19,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
@@ -55,6 +57,11 @@ type ChannelManagerService struct {
 	messagesProcessed metric.Int64Counter
 	messageDuration   metric.Float64Histogram
 	activeChannels    metric.Int64UpDownCounter
+
+	// slash-command support (see channel_commands.go); nil registry disables it
+	shortcutRegistry *shortcuts.Registry
+	convStore        storage.ConversationStorage
+	groupStore       storage.SessionGroupStorage
 }
 
 // NewChannelManagerService creates a new channel manager
@@ -191,22 +198,37 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 			senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
 			if respChan, ok := cm.pendingApprovals.Load(senderKey); ok {
 				if msg.Metadata["approval_response"] == "true" {
-					respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
-						Type:     "approval_response",
-						Approved: msg.Metadata["approved"] == "true",
-					}
+					deliverApprovalReply(respChan, msg.Metadata["approved"] == "true")
 					continue
 				}
-				approved := isApprovalReply(msg.Content)
-				respChan.(chan domain.ApprovalResponse) <- domain.ApprovalResponse{
-					Type:     "approval_response",
-					Approved: approved,
-				}
+				deliverApprovalReply(respChan, isApprovalReply(msg.Content))
+				continue
+			}
+
+			if name, args, ok := cm.parseChannelCommand(msg.Content); ok {
+				go cm.handleCommand(ctx, msg, name, args)
 				continue
 			}
 
 			go cm.handleMessage(ctx, msg)
 		}
+	}
+}
+
+// deliverApprovalReply forwards an approval decision to the waiting
+// resolveApproval goroutine without blocking. respChan is buffered(1) and
+// one-shot, so a straggler reply (double-tap Approve, or tap + type "yes") that
+// arrives after the approval already resolved is dropped rather than wedging
+// routeInbound — the single consumer of cm.inbox, whose block would freeze
+// message processing for every sender.
+func deliverApprovalReply(respChan any, approved bool) {
+	ch, ok := respChan.(chan domain.ApprovalResponse)
+	if !ok {
+		return
+	}
+	select {
+	case ch <- domain.ApprovalResponse{Type: "approval_response", Approved: approved}:
+	default:
 	}
 }
 
@@ -325,7 +347,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 			logger.Error("agent stderr output", "stderr", res.Stderr)
 		}
 		if !errorForwarded {
-			sendFn("❌ Agent failed: " + tailStderr(res.Stderr, 500))
+			sendFn("Agent failed: " + tailStderr(res.Stderr, 500))
 		}
 		return fmt.Errorf("agent process failed: %w", err)
 	}
@@ -400,19 +422,40 @@ func tailStderr(s string, n int) string {
 // formatApprovalPrompt creates a human-readable approval prompt for the channel user.
 func formatApprovalPrompt(req *domain.ApprovalRequest) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🔐 Tool approval required: %s\n", req.ToolName)
+	fmt.Fprintf(&sb, "Approve %s?\n", req.ToolName)
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(req.ToolArgs), &args); err == nil {
 		if cmd, ok := args["command"].(string); ok {
-			fmt.Fprintf(&sb, "Command: %s\n", cmd)
+			fmt.Fprintf(&sb, "```\n%s\n```", cmd)
 		} else if filePath, ok := args["file_path"].(string); ok {
-			fmt.Fprintf(&sb, "File: %s\n", filePath)
+			fmt.Fprintf(&sb, "`%s`", filePath)
 		}
 	}
 
-	sb.WriteString("\nReply 'yes' to approve or 'no' to reject.")
+	sb.WriteString("\n\nReply 'yes' to approve or 'no' to reject.")
 	return sb.String()
+}
+
+// maxToolResultLen caps how much of a tool result is forwarded to the channel
+// so a large file read or command output doesn't flood the chat.
+const maxToolResultLen = 1000
+
+// formatToolLine renders one tool invocation as a compact single line, e.g.
+// "Bash: `wget -O /tmp/shot.png …`". Input looks like "Name(args)".
+func formatToolLine(tool string) string {
+	name, args, found := strings.Cut(tool, "(")
+	if found {
+		args = strings.TrimSuffix(args, ")")
+	}
+	const maxArgs = 200
+	if r := []rune(args); len(r) > maxArgs {
+		args = string(r[:maxArgs]) + "…"
+	}
+	if args == "" {
+		return name
+	}
+	return fmt.Sprintf("%s: `%s`", name, args)
 }
 
 // isApprovalReply checks if a message is an approval or rejection reply.
@@ -436,9 +479,14 @@ func formatAgentMessage(line []byte) string {
 
 	if t, _ := msg["type"].(string); t == "agent_error" {
 		if errMsg, ok := msg["message"].(string); ok && errMsg != "" {
-			return "❌ Error: " + errMsg
+			return "Error: " + errMsg
 		}
-		return "❌ Error: agent failed"
+		return "Error: agent failed"
+	}
+
+	if t, _ := msg["type"].(string); t == "notification" {
+		m, _ := msg["message"].(string)
+		return m
 	}
 
 	if _, isStatus := msg["type"]; isStatus {
@@ -452,13 +500,13 @@ func formatAgentMessage(line []byte) string {
 		content, _ := msg["content"].(string)
 
 		if tools, ok := msg["tools"].([]interface{}); ok && len(tools) > 0 {
-			toolNames := make([]string, 0, len(tools))
+			lines := make([]string, 0, len(tools))
 			for _, t := range tools {
 				if name, ok := t.(string); ok {
-					toolNames = append(toolNames, name)
+					lines = append(lines, formatToolLine(name))
 				}
 			}
-			toolMsg := fmt.Sprintf("🔧 Using tool: %s", strings.Join(toolNames, ", "))
+			toolMsg := strings.Join(lines, "\n")
 			if content != "" {
 				return content + "\n\n" + toolMsg
 			}
@@ -470,7 +518,15 @@ func formatAgentMessage(line []byte) string {
 		}
 
 	case "tool":
-		return ""
+		content, _ := msg["content"].(string)
+		result := strings.TrimSpace(content)
+		if result == "" {
+			return ""
+		}
+		if r := []rune(result); len(r) > maxToolResultLen {
+			result = string(r[:maxToolResultLen]) + "…"
+		}
+		return "```\n" + result + "\n```"
 	}
 
 	return ""

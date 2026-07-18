@@ -219,7 +219,7 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 	}
 	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
 		messages = append(messages, msg)
-		if len(messages) == 2 {
+		if len(messages) == 3 {
 			allSent <- struct{}{}
 		}
 		return nil
@@ -235,14 +235,17 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 
 	select {
 	case <-allSent:
-		if len(messages) != 2 {
-			t.Fatalf("expected 2 messages, got %d", len(messages))
+		if len(messages) != 3 {
+			t.Fatalf("expected 3 messages, got %d", len(messages))
 		}
-		if messages[0].Content != "Let me check...\n\n🔧 Using tool: Read" {
+		if messages[0].Content != "Let me check...\n\nRead" {
 			t.Errorf("expected tool message, got %q", messages[0].Content)
 		}
-		if messages[1].Content != "Here are the results." {
-			t.Errorf("expected final answer, got %q", messages[1].Content)
+		if messages[1].Content != "```\nfile contents\n```" {
+			t.Errorf("expected tool result, got %q", messages[1].Content)
+		}
+		if messages[2].Content != "Here are the results." {
+			t.Errorf("expected final answer, got %q", messages[2].Content)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timeout waiting for messages, got %d", len(messages))
@@ -315,16 +318,26 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "assistant with tool calls",
 			line: `{"role":"assistant","content":"Let me check...","tools":["Read","Grep"]}`,
-			want: "Let me check...\n\n🔧 Using tool: Read, Grep",
+			want: "Let me check...\n\nRead\nGrep",
 		},
 		{
 			name: "assistant with tool calls no content",
 			line: `{"role":"assistant","content":"","tools":["Write"]}`,
-			want: "🔧 Using tool: Write",
+			want: "Write",
 		},
 		{
-			name: "tool result is skipped",
+			name: "assistant tool call with args goes monospace",
+			line: `{"role":"assistant","content":"","tools":["Bash(command=ls -la)"]}`,
+			want: "Bash: `command=ls -la`",
+		},
+		{
+			name: "tool result forwarded in code block",
 			line: `{"role":"tool","content":"file contents","tool_call_id":"123"}`,
+			want: "```\nfile contents\n```",
+		},
+		{
+			name: "empty tool result is skipped",
+			line: `{"role":"tool","content":"  ","tool_call_id":"123"}`,
 			want: "",
 		},
 		{
@@ -350,17 +363,27 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "agent error with message",
 			line: `{"type":"agent_error","message":"context length exceeded"}`,
-			want: "❌ Error: context length exceeded",
+			want: "Error: context length exceeded",
 		},
 		{
 			name: "agent error with empty message falls back",
 			line: `{"type":"agent_error","message":""}`,
-			want: "❌ Error: agent failed",
+			want: "Error: agent failed",
 		},
 		{
 			name: "agent error with no message field falls back",
 			line: `{"type":"agent_error"}`,
-			want: "❌ Error: agent failed",
+			want: "Error: agent failed",
+		},
+		{
+			name: "notification is forwarded verbatim",
+			line: `{"type":"notification","message":"✅ A2A Task Completed"}`,
+			want: "✅ A2A Task Completed",
+		},
+		{
+			name: "notification with empty message is skipped",
+			line: `{"type":"notification","message":""}`,
+			want: "",
 		},
 	}
 
@@ -771,7 +794,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg, nil)
 
-	// Simulate: the agent outputs an approval request, then an assistant message after approval
 	approvalReq := domain.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
@@ -790,7 +812,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	ch := &fakesdomain.FakeChannel{}
 	ch.NameReturns("telegram")
 	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		// First message triggers the agent
 		inbox <- domain.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
@@ -798,7 +819,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 			Timestamp:   time.Now(),
 		}
 
-		// Wait a bit for approval prompt to be sent, then send approval reply
 		time.Sleep(200 * time.Millisecond)
 		inbox <- domain.InboundMessage{
 			ChannelName: "telegram",
@@ -812,7 +832,6 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	}
 	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
 		messages = append(messages, msg)
-		// Expect: approval prompt + "Done!" = 2 messages
 		if len(messages) >= 2 {
 			allSent <- struct{}{}
 		}
@@ -829,11 +848,9 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 
 	select {
 	case <-allSent:
-		// First message should be the approval prompt
 		if !strings.Contains(messages[0].Content, "Bash") {
 			t.Errorf("expected approval prompt, got %q", messages[0].Content)
 		}
-		// Second message should be the agent's response
 		if messages[1].Content != "Done!" {
 			t.Errorf("expected 'Done!', got %q", messages[1].Content)
 		}
@@ -1201,7 +1218,7 @@ func TestRunAgent_ForwardsStructuredError(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Error: context length exceeded" {
+	if msgs[0].Content != "Error: context length exceeded" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }
@@ -1217,7 +1234,7 @@ func TestRunAgent_SafetyNetOnExitWithoutForward(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 safety-net message, got %d: %+v", len(msgs), msgs)
 	}
-	if !strings.HasPrefix(msgs[0].Content, "❌ Agent failed: ") {
+	if !strings.HasPrefix(msgs[0].Content, "Agent failed: ") {
 		t.Errorf("expected safety-net prefix, got %q", msgs[0].Content)
 	}
 	if !strings.Contains(msgs[0].Content, "fatal: something broke") {
@@ -1235,7 +1252,7 @@ func TestRunAgent_SafetyNetOnExitWithEmptyStderr(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message, got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Agent failed: unknown error" {
+	if msgs[0].Content != "Agent failed: unknown error" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }
@@ -1251,7 +1268,7 @@ func TestRunAgent_NoDoubleSendOnStructuredError(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly 1 message (no safety-net duplicate), got %d: %+v", len(msgs), msgs)
 	}
-	if msgs[0].Content != "❌ Error: boom" {
+	if msgs[0].Content != "Error: boom" {
 		t.Errorf("got %q", msgs[0].Content)
 	}
 }

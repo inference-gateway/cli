@@ -16,6 +16,7 @@ import (
 	channels "github.com/inference-gateway/cli/internal/services/channels"
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	stt "github.com/inference-gateway/cli/internal/stt"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	cobra "github.com/spf13/cobra"
@@ -74,8 +75,13 @@ func RunChannelsCommand(cfg *config.Config) error {
 
 	cm := services.NewChannelManagerService(cfg.Channels, tel)
 
+	var channelCommands []domain.ChannelCommand
 	if cfg.Channels.Enabled {
-		if err := registerChannels(cm, cfg); err != nil {
+		if reg, conv, groups := buildCommandSupport(cfg); reg != nil {
+			cm.SetCommandSupport(reg, conv, groups)
+			channelCommands = supportedChannelCommands(reg)
+		}
+		if err := registerChannels(cm, cfg, channelCommands); err != nil {
 			return err
 		}
 	}
@@ -236,8 +242,75 @@ func buildVoiceRetention(cfg config.SpeechToTextConfig) *channels.VoiceRetention
 	return &channels.VoiceRetention{Dir: dir, Keep: cfg.RetainRecordings}
 }
 
+// buildCommandSupport constructs the shortcut registry and storage handles
+// backing slash commands. Returns nils (feature disabled) on memory storage —
+// channel sessions only persist on real backends, so /clear would be a no-op.
+func buildCommandSupport(cfg *config.Config) (*shortcuts.Registry, storage.ConversationStorage, storage.SessionGroupStorage) {
+	storageConfig := storage.NewStorageFromConfig(cfg)
+	if storageConfig.Type == config.StorageTypeMemory {
+		logger.Info("channel slash commands disabled: persistent storage required (set storage.enabled: true)")
+		return nil, nil, nil
+	}
+	stores, err := storage.NewStorage(storageConfig)
+	if err != nil {
+		logger.Warn("channel slash commands disabled: storage init failed", "error", err)
+		return nil, nil, nil
+	}
+	return buildChannelShortcutRegistry(cfg), stores.Conversations, stores.SessionGroups
+}
+
+// buildChannelShortcutRegistry mirrors the chat TUI's shortcut registry with
+// nil dependencies. Built-in shortcuts are used for metadata only (name,
+// description) — the channel manager never Executes them; custom shortcuts
+// guard their own nil dependencies.
+func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
+	reg := shortcuts.NewRegistry()
+
+	reg.Register(shortcuts.NewClearShortcut(nil, nil))
+	reg.Register(shortcuts.NewCompactShortcut(nil))
+	reg.Register(shortcuts.NewCopyShortcut(nil, nil))
+	reg.Register(shortcuts.NewContextShortcut(nil, nil, nil))
+	reg.Register(shortcuts.NewCostShortcut(nil))
+	reg.Register(shortcuts.NewExitShortcut())
+	reg.Register(shortcuts.NewSwitchShortcut(nil))
+	reg.Register(shortcuts.NewThemeShortcut(nil))
+	reg.Register(shortcuts.NewToolsShortcut())
+	reg.Register(shortcuts.NewHelpShortcut(reg))
+	reg.Register(shortcuts.NewDiffShortcut())
+	reg.Register(shortcuts.NewExplorerShortcut())
+	reg.Register(shortcuts.NewReleaseNotesShortcut())
+	reg.Register(shortcuts.NewStatsShortcut())
+	reg.Register(shortcuts.NewTracesShortcut())
+	reg.Register(shortcuts.NewConversationSelectShortcut(nil))
+	reg.Register(shortcuts.NewNewShortcut(nil, nil))
+	reg.Register(shortcuts.NewInitGithubActionShortcut())
+	reg.Register(shortcuts.NewInitShortcut(cfg))
+	if cfg.IsA2AToolsEnabled() {
+		reg.Register(shortcuts.NewA2ATaskManagementShortcut(cfg))
+		reg.Register(shortcuts.NewA2AAgentsShortcut())
+	}
+
+	configDir := cfg.GetConfigDir()
+	if err := reg.LoadCustomShortcuts(configDir, nil, nil, nil, nil); err != nil {
+		logger.Warn("failed to load custom shortcuts for channels", "error", err, "config_dir", configDir)
+	}
+	return reg
+}
+
+// supportedChannelCommands lists the commands worth advertising natively in a
+// channel's command menu: the daemon built-ins plus custom shortcuts.
+func supportedChannelCommands(reg *shortcuts.Registry) []domain.ChannelCommand {
+	cmds := append([]domain.ChannelCommand{}, services.ChannelBuiltinCommands...)
+	for _, sc := range reg.GetAll() {
+		if _, isCustom := sc.(*shortcuts.CustomShortcut); isCustom {
+			cmds = append(cmds, domain.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
+		}
+	}
+	return cmds
+}
+
 // registerChannels registers enabled channel implementations with the manager
-func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) error {
+func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []domain.ChannelCommand) error {
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {
@@ -249,6 +322,7 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config) er
 			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}
 		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber, retention)
+		telegramCh.SetCommands(commands)
 		cm.Register(telegramCh)
 		registered++
 		logger.Info("registered channel", "channel", "telegram")

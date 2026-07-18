@@ -2,12 +2,19 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"
 
 	config "github.com/inference-gateway/cli/config"
@@ -537,5 +544,447 @@ func TestFormatApprovalText_FilePath(t *testing.T) {
 
 	if !strings.Contains(text, "/tmp/test.txt") {
 		t.Error("expected text to contain file path")
+	}
+}
+
+func TestExtractImagePaths(t *testing.T) {
+	dir := t.TempDir()
+	img := filepath.Join(dir, "shot.png")
+	if err := os.WriteFile(img, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	big := filepath.Join(dir, "big.png")
+	if err := os.WriteFile(big, make([]byte, maxPhotoBytes+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name      string
+		content   string
+		wantPaths []string
+		wantText  string
+	}{
+		{
+			name:      "img tag with file scheme is stripped",
+			content:   `Here: <img src="file://` + img + `" alt="x" width="600"/> done`,
+			wantPaths: []string{img},
+			wantText:  "Here:  done",
+		},
+		{
+			name:      "markdown image is stripped",
+			content:   "![shot](" + img + ")",
+			wantPaths: []string{img},
+			wantText:  "",
+		},
+		{
+			name:      "bare path kept in text but sent",
+			content:   "Saved to " + img + " (145 KB)",
+			wantPaths: []string{img},
+			wantText:  "Saved to " + img + " (145 KB)",
+		},
+		{
+			name:      "missing file left untouched",
+			content:   `<img src="/nope/missing.png"/>`,
+			wantPaths: nil,
+			wantText:  `<img src="/nope/missing.png"/>`,
+		},
+		{
+			name:      "oversize file skipped",
+			content:   "see " + big,
+			wantPaths: nil,
+			wantText:  "see " + big,
+		},
+		{
+			name:      "duplicate references deduped",
+			content:   "![a](" + img + ") and " + img,
+			wantPaths: []string{img},
+			wantText:  " and " + img,
+		},
+		{
+			name:      "image inside code fence is not sent",
+			content:   "```\nResult of tool call: {\"saved_path\":\"" + img + "\",\"hint\":\"![image](" + img + ")\"}\n```",
+			wantPaths: nil,
+			wantText:  "```\nResult of tool call: {\"saved_path\":\"" + img + "\",\"hint\":\"![image](" + img + ")\"}\n```",
+		},
+		{
+			name:      "fenced path ignored but unfenced assistant image sent",
+			content:   "```\nsaved to " + img + "\n```\nHere it is:\n![shot](" + img + ")",
+			wantPaths: []string{img},
+			wantText:  "```\nsaved to " + img + "\n```\nHere it is:\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths, text := extractImagePaths(tt.content)
+			if !reflect.DeepEqual(paths, tt.wantPaths) {
+				t.Errorf("paths = %v, want %v", paths, tt.wantPaths)
+			}
+			if text != tt.wantText {
+				t.Errorf("text = %q, want %q", text, tt.wantText)
+			}
+		})
+	}
+}
+
+func TestRenderTelegramHTML(t *testing.T) {
+	tests := []struct {
+		name string
+		md   string
+		want string
+	}{
+		{"bold", "**hi**", "<b>hi</b>"},
+		{"inline code", "run `ls -la` now", "run <code>ls -la</code> now"},
+		{"header", "# Title\nbody", "<b>Title</b>\nbody"},
+		{"fenced block", "before\n```bash\nls -la\n```\nafter", "before\n<pre>ls -la</pre>\nafter"},
+		{"html escaped", "a < b & c", "a &lt; b &amp; c"},
+		{"escape inside fence", "```\n<img>\n```", "<pre>&lt;img&gt;</pre>"},
+		{"plain text untouched", "hello world", "hello world"},
+		{
+			"header and aligned table",
+			"### Tool Calls\n\n| Tool | Calls |\n|------|-------|\n| Bash | 4 |\n| Tree | 3 |",
+			"<b>Tool Calls</b>\n\n<pre>Tool  Calls\nBash  4\nTree  3</pre>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := renderTelegramHTML(tt.md); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrackMessageCap(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
+	for i := range maxTrackedMessages + 10 {
+		ch.trackMessage(1, i)
+	}
+	ids := ch.msgIDs[1]
+	if len(ids) != maxTrackedMessages {
+		t.Fatalf("expected %d tracked IDs, got %d", maxTrackedMessages, len(ids))
+	}
+	if ids[0] != 10 {
+		t.Fatalf("expected oldest IDs dropped, first is %d", ids[0])
+	}
+}
+
+func TestClearHistoryBatching(t *testing.T) {
+	var mu sync.Mutex
+	var batches [][]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/deleteMessages") {
+			var params struct {
+				MessageIDs []any `json:"message_ids"`
+			}
+			body, _ := io.ReadAll(r.Body)
+			ids := r.FormValue("message_ids")
+			if ids != "" {
+				var parsed []any
+				_ = json.Unmarshal([]byte(ids), &parsed)
+				params.MessageIDs = parsed
+			} else {
+				_ = json.Unmarshal(body, &params)
+			}
+			mu.Lock()
+			batches = append(batches, params.MessageIDs)
+			failFirst := len(batches) == 1
+			mu.Unlock()
+			if failFirst {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"test failure"}`))
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer srv.Close()
+
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+	for i := range 250 {
+		ch.trackMessage(99, i)
+	}
+
+	if err := ch.ClearHistory(context.Background(), "99"); err != nil {
+		t.Fatalf("ClearHistory returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(batches) != 3 {
+		t.Fatalf("expected 3 deleteMessages batches for 250 IDs, got %d", len(batches))
+	}
+	for i, batch := range batches {
+		if len(batch) > deleteBatchSize {
+			t.Fatalf("batch %d has %d IDs, exceeds %d", i, len(batch), deleteBatchSize)
+		}
+	}
+	if len(ch.msgIDs[99]) != 0 {
+		t.Fatal("expected tracked IDs to be dropped after wipe")
+	}
+}
+
+func TestClearHistoryRequiresBot(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
+	if err := ch.ClearHistory(context.Background(), "1"); err == nil {
+		t.Fatal("expected error when bot not started")
+	}
+}
+
+func TestTelegramBotCommands(t *testing.T) {
+	long := strings.Repeat("d", 300)
+	cmds := telegramBotCommands([]domain.ChannelCommand{
+		{Name: "clear", Description: "ok"},
+		{Name: "Bad-Name", Description: "dropped"},
+		{Name: "UPPER", Description: "dropped"},
+		{Name: strings.Repeat("x", 33), Description: "dropped"},
+		{Name: "release-notes", Description: "dropped"},
+		{Name: "longdesc", Description: long},
+	})
+	if len(cmds) != 2 {
+		t.Fatalf("expected 2 valid commands, got %d: %v", len(cmds), cmds)
+	}
+	if cmds[0].Command != "clear" || cmds[1].Command != "longdesc" {
+		t.Fatalf("unexpected commands: %v", cmds)
+	}
+	if len(cmds[1].Description) != maxCommandDescLen {
+		t.Fatalf("expected description truncated to %d, got %d", maxCommandDescLen, len(cmds[1].Description))
+	}
+}
+
+func TestProcessCallbackQuery_CommandButton(t *testing.T) {
+	cq := &models.CallbackQuery{
+		ID:   "cq_3",
+		From: models.User{ID: 456},
+		Message: models.MaybeInaccessibleMessage{
+			Message: &models.Message{
+				Chat: models.Chat{ID: 123},
+			},
+		},
+		Data: "/conversations 68dd338f-487a-49a8-b8a0-019e222e7771",
+	}
+
+	msg := processCallbackQuery(cq)
+	if msg == nil {
+		t.Fatal("expected non-nil message")
+	}
+	if msg.Content != cq.Data {
+		t.Errorf("expected content %q, got %q", cq.Data, msg.Content)
+	}
+	if msg.SenderID != "123" {
+		t.Errorf("expected sender '123', got %q", msg.SenderID)
+	}
+	if len(msg.Metadata) != 0 {
+		t.Errorf("command buttons must not carry approval metadata, got %v", msg.Metadata)
+	}
+}
+
+func TestSendWithButtons(t *testing.T) {
+	var mu sync.Mutex
+	var markups []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			mu.Lock()
+			markups = append(markups, r.FormValue("reply_markup"))
+			mu.Unlock()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"chat":{"id":99}}}`))
+	}))
+	defer srv.Close()
+
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+
+	err = ch.Send(context.Background(), domain.OutboundMessage{
+		RecipientID: "99",
+		Content:     "Tap a conversation to switch:",
+		Buttons: []domain.MessageButton{
+			{Text: "Weather talk · 4 msgs", Data: "/conversations abc"},
+			{Text: "Trip planning · 9 msgs", Data: "/conversations def"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(markups) != 1 {
+		t.Fatalf("expected 1 sendMessage call, got %d", len(markups))
+	}
+	var kb struct {
+		InlineKeyboard [][]struct {
+			Text         string `json:"text"`
+			CallbackData string `json:"callback_data"`
+		} `json:"inline_keyboard"`
+	}
+	if err := json.Unmarshal([]byte(markups[0]), &kb); err != nil {
+		t.Fatalf("reply_markup is not an inline keyboard: %v (raw: %q)", err, markups[0])
+	}
+	if len(kb.InlineKeyboard) != 2 || len(kb.InlineKeyboard[0]) != 1 {
+		t.Fatalf("expected 2 one-button rows, got %+v", kb.InlineKeyboard)
+	}
+	if kb.InlineKeyboard[0][0].CallbackData != "/conversations abc" {
+		t.Fatalf("unexpected callback data: %+v", kb.InlineKeyboard[0][0])
+	}
+}
+
+// sendMessageRecorder is an httptest handler that records every sendMessage
+// call's parse_mode and returns a scripted response per call index, letting a
+// test assert whether sendText retried.
+func sendMessageRecorder(t *testing.T, responses []string) (*httptest.Server, func() []string) {
+	t.Helper()
+	var mu sync.Mutex
+	var parseModes []string
+	i := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+			return
+		}
+		mu.Lock()
+		parseModes = append(parseModes, r.FormValue("parse_mode"))
+		body := responses[min(i, len(responses)-1)]
+		i++
+		mu.Unlock()
+		_, _ = w.Write([]byte(body))
+	}))
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), parseModes...)
+	}
+}
+
+func newTestChannel(t *testing.T, serverURL string) *TelegramChannel {
+	t.Helper()
+	b, err := bot.New("test-token", bot.WithServerURL(serverURL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
+	ch.bot = b
+	return ch
+}
+
+// TestSendText_NoRetryOnNon400 is the double-message regression guard: a non-400
+// error (here 429) must NOT trigger the plain-text fallback, because the first
+// send may already have been delivered and a resend would show a duplicate.
+func TestSendText_NoRetryOnNon400(t *testing.T) {
+	srv, parseModes := sendMessageRecorder(t, []string{
+		`{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":1}}`,
+	})
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	err := ch.Send(context.Background(), domain.OutboundMessage{RecipientID: "99", Content: "hi"})
+	if err == nil {
+		t.Fatal("expected Send to return the 429 error")
+	}
+	if got := parseModes(); len(got) != 1 {
+		t.Fatalf("expected exactly 1 sendMessage call (no duplicate), got %d: %v", len(got), got)
+	}
+}
+
+// TestSendText_RetriesPlainOn400 verifies a 400 parse error DOES fall back to a
+// plain-text resend (nothing was delivered on a 400, so the resend is safe and
+// necessary), and that the retry drops parse_mode=HTML.
+func TestSendText_RetriesPlainOn400(t *testing.T) {
+	srv, parseModes := sendMessageRecorder(t, []string{
+		`{"ok":false,"error_code":400,"description":"Bad Request: can't parse entities"}`,
+		`{"ok":true,"result":{"message_id":1,"chat":{"id":99}}}`,
+	})
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	if err := ch.Send(context.Background(), domain.OutboundMessage{RecipientID: "99", Content: "hi"}); err != nil {
+		t.Fatalf("expected Send to succeed after plain-text fallback, got %v", err)
+	}
+	got := parseModes()
+	if len(got) != 2 {
+		t.Fatalf("expected 2 sendMessage calls (HTML then plain), got %d: %v", len(got), got)
+	}
+	if got[0] != "HTML" {
+		t.Fatalf("expected first attempt parse_mode=HTML, got %q", got[0])
+	}
+	if got[1] != "" {
+		t.Fatalf("expected retry to be plain text (no parse_mode), got %q", got[1])
+	}
+}
+
+// TestSendImage_FallsBackToDocumentOnPhotoError verifies that when Telegram
+// rejects an inline photo (e.g. PHOTO_INVALID_DIMENSIONS for an over-tall
+// full-page screenshot), Send retries the upload as a document so the image is
+// still delivered instead of silently dropped.
+func TestSendImage_FallsBackToDocumentOnPhotoError(t *testing.T) {
+	imgPath := filepath.Join(t.TempDir(), "fullpage.png")
+	if err := os.WriteFile(imgPath, []byte("real-file-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	var photo, document int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/sendPhoto"):
+			mu.Lock()
+			photo++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}`))
+		case strings.HasSuffix(r.URL.Path, "/sendDocument"):
+			mu.Lock()
+			document++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"chat":{"id":99}}}`))
+		default:
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+		}
+	}))
+	defer srv.Close()
+
+	ch := newTestChannel(t, srv.URL)
+	if err := ch.Send(context.Background(), domain.OutboundMessage{
+		RecipientID: "99",
+		Content:     "![image](" + imgPath + ")",
+	}); err != nil {
+		t.Fatalf("Send returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if photo != 1 {
+		t.Fatalf("expected exactly 1 sendPhoto attempt, got %d", photo)
+	}
+	if document != 1 {
+		t.Fatalf("expected sendDocument fallback after photo rejection, got %d", document)
+	}
+}
+
+func TestInlineKeyboard_TruncatesLabels(t *testing.T) {
+	if inlineKeyboard(nil) != nil {
+		t.Fatal("expected nil markup for no buttons")
+	}
+	kb := inlineKeyboard([]domain.MessageButton{{Text: strings.Repeat("é", 60), Data: "/x"}})
+	markup, ok := kb.(*models.InlineKeyboardMarkup)
+	if !ok {
+		t.Fatalf("expected InlineKeyboardMarkup, got %T", kb)
+	}
+	label := markup.InlineKeyboard[0][0].Text
+	if r := []rune(label); len(r) != maxButtonTextLen || r[len(r)-1] != '…' {
+		t.Fatalf("expected %d-rune label ending in ellipsis, got %q", maxButtonTextLen, label)
 	}
 }

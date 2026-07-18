@@ -48,7 +48,7 @@ type SessionStat struct {
 // delta datapoints (timestamped on/after since) into Stats. The JSON shape is
 // the SDK stdout exporter's ResourceMetrics; delta temporality means summing
 // every datapoint across every file yields the totals.
-func Aggregate(dir string, since time.Time) (Stats, error) {
+func Aggregate(dir string, since time.Time, conversationID string) (Stats, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	if err != nil {
 		return Stats{}, err
@@ -63,7 +63,7 @@ func Aggregate(dir string, since time.Time) (Stats, error) {
 		if strings.HasSuffix(f, "-traces.jsonl") {
 			continue
 		}
-		if err := foldFile(f, since, tools, models, sessions, &seen); err != nil {
+		if err := foldFile(f, since, conversationID, tools, models, sessions, &seen); err != nil {
 			return Stats{}, err
 		}
 	}
@@ -141,7 +141,7 @@ func attrOf(attrs []otlpAttr, key string) string {
 	return ""
 }
 
-func foldFile(path string, since time.Time, tools map[string]*toolAgg, models map[string]*ModelStat, sessions map[string]*SessionStat, seen *bool) error {
+func foldFile(path string, since time.Time, conversationID string, tools map[string]*toolAgg, models map[string]*ModelStat, sessions map[string]*SessionStat, seen *bool) error {
 	fh, err := os.Open(path)
 	if err != nil {
 		return nil // best-effort: skip unreadable files
@@ -160,6 +160,9 @@ func foldFile(path string, since time.Time, tools map[string]*toolAgg, models ma
 			for _, m := range sm.Metrics {
 				for _, dp := range m.Data.DataPoints {
 					if !since.IsZero() && dp.Time.Before(since) {
+						continue
+					}
+					if conversationID != "" && attrOf(dp.Attributes, "gen_ai.conversation.id") != conversationID {
 						continue
 					}
 					foldPoint(m.Name, execMode, dp, tools, models, sessions, seen)

@@ -127,6 +127,30 @@ You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
 5. The agent processes it (may use tools, call LLM)
 6. The response is parsed from stdout and sent back through Telegram
 
+## Slash Commands
+
+The bot registers a command menu in Telegram (type `/` to see it). Requires
+persistent storage (`storage.enabled: true`, the default):
+
+- `/new` — starts a fresh conversation and best-effort deletes the recent chat
+  messages in Telegram (only messages the daemon has seen since it started,
+  and Telegram refuses to delete messages older than 48 hours). The previous
+  conversation is kept — switch back anytime via `/conversations`
+- `/conversations` — lists your past conversations as tappable buttons; tap
+  one to switch the agent back to that context (typing
+  `/conversations <id-prefix>` works too)
+- `/stats [since] [table]` — usage statistics (tool calls, tokens, cost) for
+  **your current conversation** (resets when you `/new` or switch via
+  `/conversations`), e.g. `/stats 24h`. The default is a phone-friendly key/value
+  list that never folds on narrow screens; the reply offers 24h/7d buttons plus a
+  **Table view** toggle (or type `table` for the aligned tables). The host
+  `infer stats` CLI still reports daemon-wide totals
+- `/help` — lists the commands available in the channel plus the TUI-only ones
+
+Custom shortcuts from `.infer/shortcuts/*.yaml` (command type) also work and
+reply with their output. Unknown `/text` is passed to the agent as a normal
+message.
+
 ## Voice Messages (Optional)
 
 The bot can transcribe inbound Telegram **voice notes** to text locally with

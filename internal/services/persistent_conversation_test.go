@@ -179,6 +179,26 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 	})
 }
 
+func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+
+	repo.SetAutoSave(true)
+	repo.SetConversationID("channel-session-1")
+
+	err := repo.AddMessage(domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent("Hi can you read a file?"),
+		},
+		Time: time.Now(),
+	})
+	assert.NoError(t, err)
+
+	metadata := repo.GetCurrentConversationMetadata()
+	assert.Equal(t, "Hi can you read a file?", metadata.Title)
+}
+
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	mockStorage := &generated.FakeConversationStorage{}
 	formatterService := &ToolFormatterService{}
@@ -204,7 +224,6 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		assert.Contains(t, titles, "Test Conversation")
 		assert.Contains(t, titles, "Another Test")
 
-		// Verify the mock was called with correct parameters
 		assert.Equal(t, 1, mockStorage.ListConversationsCallCount())
 		ctxArg, limitArg, offsetArg := mockStorage.ListConversationsArgsForCall(0)
 		assert.Equal(t, ctx, ctxArg)

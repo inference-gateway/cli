@@ -131,6 +131,28 @@ type Recorder struct {
 	// sessionCtx carries the root span from StartSession so SpanContext can
 	// graft it onto request contexts that don't descend from session start.
 	sessionCtx atomic.Pointer[context.Context]
+
+	// conversationID, when set, is stamped as gen_ai.conversation.id on every
+	// metric datapoint so channel /stats can aggregate a single conversation.
+	conversationID atomic.Pointer[string]
+}
+
+// SetConversationID tags subsequent metric datapoints with the given
+// conversation id (gen_ai.conversation.id) so aggregation can scope to it.
+// No-op on a nil recorder or empty id.
+func (r *Recorder) SetConversationID(id string) {
+	if r == nil || id == "" {
+		return
+	}
+	r.conversationID.Store(&id)
+}
+
+// withConv appends gen_ai.conversation.id to attrs when a conversation id is set.
+func (r *Recorder) withConv(attrs []attribute.KeyValue) []attribute.KeyValue {
+	if id := r.conversationID.Load(); id != nil {
+		return append(attrs, attribute.String("gen_ai.conversation.id", *id))
+	}
+	return attrs
 }
 
 func deltaTemporality(sdkmetric.InstrumentKind) metricdata.Temporality {
@@ -343,14 +365,14 @@ func (r *Recorder) RecordUsage(model string, prompt, completion int) {
 		attribute.String("gen_ai.provider.name", providerFromModel(model)),
 		attribute.String("gen_ai.operation.name", "chat"),
 	}
-	r.tokenUsage.Record(ctx, int64(prompt), metric.WithAttributes(append(base, attribute.String("gen_ai.token.type", "input"))...))
-	r.tokenUsage.Record(ctx, int64(completion), metric.WithAttributes(append(base, attribute.String("gen_ai.token.type", "output"))...))
+	r.tokenUsage.Record(ctx, int64(prompt), metric.WithAttributes(r.withConv(append(base, attribute.String("gen_ai.token.type", "input")))...))
+	r.tokenUsage.Record(ctx, int64(completion), metric.WithAttributes(r.withConv(append(base, attribute.String("gen_ai.token.type", "output")))...))
 
 	if r.cost != nil {
 		in, out, _ := r.cost(model, prompt, completion)
 		m := attribute.String("gen_ai.request.model", model)
-		r.costCounter.Add(ctx, in, metric.WithAttributes(m, attribute.String("infer.cost.type", "input")))
-		r.costCounter.Add(ctx, out, metric.WithAttributes(m, attribute.String("infer.cost.type", "output")))
+		r.costCounter.Add(ctx, in, metric.WithAttributes(r.withConv([]attribute.KeyValue{m, attribute.String("infer.cost.type", "input")})...))
+		r.costCounter.Add(ctx, out, metric.WithAttributes(r.withConv([]attribute.KeyValue{m, attribute.String("infer.cost.type", "output")})...))
 	}
 }
 
@@ -373,8 +395,8 @@ func (r *Recorder) RecordTool(tool, outcome, errType string, dur time.Duration) 
 		callAttrs = append(callAttrs, e)
 		durAttrs = append(durAttrs, e)
 	}
-	r.toolCalls.Add(ctx, 1, metric.WithAttributes(callAttrs...))
-	r.toolDuration.Record(ctx, dur.Seconds(), metric.WithAttributes(durAttrs...))
+	r.toolCalls.Add(ctx, 1, metric.WithAttributes(r.withConv(callAttrs)...))
+	r.toolDuration.Record(ctx, dur.Seconds(), metric.WithAttributes(r.withConv(durAttrs)...))
 }
 
 // RecordSession records one completed agent session (infer.agent.runs +
@@ -384,11 +406,11 @@ func (r *Recorder) RecordSession(mode, outcome string, dur time.Duration) {
 		return
 	}
 	ctx := context.Background()
-	r.runs.Add(ctx, 1, metric.WithAttributes(
+	r.runs.Add(ctx, 1, metric.WithAttributes(r.withConv([]attribute.KeyValue{
 		attribute.String("infer.run.outcome", outcome),
 		attribute.String("infer.agent.mode", mode),
-	))
-	r.runDuration.Record(ctx, dur.Seconds(), metric.WithAttributes(attribute.String("infer.run.outcome", outcome)))
+	})...))
+	r.runDuration.Record(ctx, dur.Seconds(), metric.WithAttributes(r.withConv([]attribute.KeyValue{attribute.String("infer.run.outcome", outcome)})...))
 }
 
 // Meter returns the meter from the provider, or nil when the recorder is nil
