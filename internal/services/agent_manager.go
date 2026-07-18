@@ -195,7 +195,6 @@ func (am *AgentManager) probeExternalAgent(ctx context.Context, a2aSvc *A2AAgent
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// Bypass the A2A service cache by creating a fresh ADK client directly
 	cfg := client.DefaultConfig(agentURL)
 	cfg.Transport = telemetry.PropagationTransport(nil)
 	adkClient := client.NewClientWithConfig(cfg)
