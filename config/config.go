@@ -496,11 +496,13 @@ type GitConfig struct {
 
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
-	Enabled bool           `yaml:"enabled" mapstructure:"enabled"`
-	Agents  []string       `yaml:"agents,omitempty" mapstructure:"agents"`
-	Cache   A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
-	Task    A2ATaskConfig  `yaml:"task" mapstructure:"task"`
-	Tools   A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
+	Enabled               bool           `yaml:"enabled" mapstructure:"enabled"`
+	Agents                []string       `yaml:"agents,omitempty" mapstructure:"agents"`
+	LivenessProbeEnabled  bool           `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
+	LivenessProbeInterval int            `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	Cache                 A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
+	Task                  A2ATaskConfig  `yaml:"task" mapstructure:"task"`
+	Tools                 A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
 }
 
 // A2AToolsConfig contains A2A-specific tool configurations
@@ -1014,7 +1016,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			InputMaxLines: 20,
 		},
 		A2A: A2AConfig{
-			Enabled: true,
+			Enabled:               true,
+			LivenessProbeEnabled:  true,
+			LivenessProbeInterval: 30,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
