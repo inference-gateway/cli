@@ -123,9 +123,13 @@ func ListKnownAgents() []string {
 	return names
 }
 
-// AgentRequiresModel reports whether a known agent requires a model.
-// Unknown agents are presumed to need one (returns true).
-func AgentRequiresModel(name string) bool {
+// AgentRequiresModel reports whether a known agent requires a model when running locally.
+// Agents not running locally never need a model. Unknown agents are presumed to need one
+// when running locally (returns true when run is true).
+func AgentRequiresModel(name string, run bool) bool {
+	if !run {
+		return false
+	}
 	if template, ok := agentBaseDefaults[name]; ok {
 		return template.RequiresModel
 	}

@@ -272,12 +272,12 @@ func extractAgentNameFromURL(url string) string {
 
 // requiresModel reports whether the named agent needs a model when run locally.
 // Known agents consult their metadata; unknown agents are presumed LLM-backed.
-func requiresModel(name string) bool {
-	return config.AgentRequiresModel(name)
+func requiresModel(name string, run bool) bool {
+	return config.AgentRequiresModel(name, run)
 }
 
 func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
-	if run && model == "" && requiresModel(name) {
+	if model == "" && requiresModel(name, run) {
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
@@ -360,7 +360,7 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 		agent.Environment = environment
 	}
 
-	if agent.Run && agent.Model == "" && requiresModel(name) {
+	if agent.Model == "" && requiresModel(name, agent.Run) {
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
