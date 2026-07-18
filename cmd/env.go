@@ -27,8 +27,9 @@ var envVars = []string{
 	"CLOUDFLARE_API_KEY",
 	"COHERE_API_KEY",
 	"GROQ_API_KEY",
-	"OLLAMA_API_KEY",
 	"OLLAMA_CLOUD_API_KEY",
+	"OLLAMA_API_URL",
+	"LLAMACPP_API_URL",
 	"OPENAI_API_KEY",
 	"DEEPSEEK_API_KEY",
 	"GOOGLE_API_KEY",
@@ -36,7 +37,6 @@ var envVars = []string{
 	"MINIMAX_API_KEY",
 	"MOONSHOT_API_KEY",
 	"NVIDIA_API_KEY",
-	"NVIDIA_API_URL",
 }
 
 // envExampleContent generates the content for .env.example

@@ -200,6 +200,7 @@ func initConfig() {
 		os.Exit(1)
 	}
 	Cfg = cfg
+	config.UserContextWindows = cfg.ContextWindows
 
 	if sp := os.Getenv("INFER_SUBAGENT_SYSTEM_PROMPT"); sp != "" {
 		cfg.Prompts.Agent.SystemPrompt = sp

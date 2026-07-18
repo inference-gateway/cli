@@ -354,6 +354,39 @@ func TestFormatModelPricingLabel(t *testing.T) {
 	}
 }
 
+// TestPricingService_FreeLocalProviders verifies that locally-hosted providers
+// (llamacpp, ollama) resolve to "free" for ANY model name - their model list is
+// whatever the user loaded, so there are no per-model default entries. The
+// ollama prefix must NOT capture ollama_cloud, which has its own paid catalog.
+func TestPricingService_FreeLocalProviders(t *testing.T) {
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	for _, model := range []string{
+		"llamacpp/llama", "llamacpp/my-custom-quant.gguf",
+		"ollama/llama3.2", "ollama/anything-at-all",
+	} {
+		t.Run(model, func(t *testing.T) {
+			assert.Equal(t, "free", service.FormatModelPricing(model))
+			_, _, total := service.CalculateCost(model, 100000, 50000)
+			assert.Zero(t, total)
+			assert.False(t, service.RequiresPro(model))
+		})
+	}
+
+	assert.Empty(t, service.FormatModelPricing("ollama_cloud/brand-new-model"),
+		"ollama_cloud must not be captured by the ollama free-provider prefix")
+	assert.Empty(t, service.FormatModelPricing("no-provider-prefix"))
+
+	custom := NewPricingService(&config.PricingConfig{
+		Enabled: true,
+		CustomPrices: map[string]config.CustomPricing{
+			"llamacpp/hosted": {InputPricePerMToken: 1.0, OutputPricePerMToken: 2.0},
+		},
+	})
+	assert.Equal(t, "$1.00/$2.00 per MTok", custom.FormatModelPricing("llamacpp/hosted"),
+		"custom prices must win over the free-provider fallback")
+}
+
 func TestPricingService_CalculateCost(t *testing.T) {
 	cfg := &config.PricingConfig{
 		Enabled: true,

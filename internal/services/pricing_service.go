@@ -2,10 +2,21 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
+
+// freeLocalProviders are providers that serve locally-hosted open-weight
+// models. Their model names are arbitrary (whatever the user loaded), so
+// instead of enumerating per-model zero-price entries, any model under these
+// prefixes resolves to free. ollama_cloud is NOT here - it has paid
+// RequiresPro entries.
+var freeLocalProviders = map[string]bool{
+	"llamacpp": true,
+	"ollama":   true,
+}
 
 // PricingServiceImpl implements the PricingService interface.
 type PricingServiceImpl struct {
@@ -34,6 +45,9 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 	}
 	if defaultPrice, exists := p.defaultPrices[model]; exists {
 		return defaultPrice.InputPricePerMToken, defaultPrice.OutputPricePerMToken, true
+	}
+	if provider, _, found := strings.Cut(model, "/"); found && freeLocalProviders[provider] {
+		return 0.0, 0.0, true
 	}
 	return 0.0, 0.0, false
 }
