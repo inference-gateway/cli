@@ -1,0 +1,7 @@
+---
+# Local testing override — points the channels-manager at the locally built
+# image instead of the published one. Not for commit.
+services:
+  infer-channels-manager:
+    image: ghcr.io/inference-gateway/cli:local
+    pull_policy: never
