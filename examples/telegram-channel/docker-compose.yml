@@ -86,6 +86,8 @@ services:
       INFER_A2A_ENABLED: true
       INFER_A2A_AGENTS: |
         http://browser-agent:8080
+      INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS: |
+        browser-agent
       INFER_AGENT_MODEL: deepseek/deepseek-v4-flash
       INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
     volumes:

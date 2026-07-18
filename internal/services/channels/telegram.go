@@ -199,8 +199,6 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 							Text:      origMsg.Text + "\n\n" + statusText,
 						})
 					default:
-						// Command buttons (/conversations, /stats ...): strip the
-						// keyboard so a stale list can't be tapped twice.
 						_, _ = b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
 							ChatID:      origMsg.Chat.ID,
 							MessageID:   origMsg.ID,
@@ -657,7 +655,6 @@ func sendableImage(p string) bool {
 		return false
 	}
 	if fi.Size() > maxPhotoBytes {
-		// ponytail: skip >10MB, SendDocument if it ever matters
 		logger.Warn("outbound image exceeds telegram photo limit, skipping", "path", p, "size", fi.Size())
 		return false
 	}
