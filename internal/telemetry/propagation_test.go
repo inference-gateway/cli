@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	attribute "go.opentelemetry.io/otel/attribute"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -20,6 +22,16 @@ func envMap(env []string) map[string]string {
 }
 
 var traceparentRe = regexp.MustCompile(`^00-[0-9a-f]{32}-[0-9a-f]{16}-01$`)
+
+// hasAttr checks whether attrs contains a key=value pair.
+func hasAttr(attrs []attribute.KeyValue, key, value string) bool {
+	for _, a := range attrs {
+		if string(a.Key) == key && a.Value.AsString() == value {
+			return true
+		}
+	}
+	return false
+}
 
 func TestChildEnv(t *testing.T) {
 	tests := []struct {
@@ -100,7 +112,10 @@ func TestChildEnvBaggage(t *testing.T) {
 	defer rec.Shutdown(context.Background())
 
 	ctx := domain.WithToolCallID(context.Background(), "call_1")
-	ctx, _ = rec.startToolSpan(ctx, "Bash")
+	ctx, span := rec.startToolSpan(ctx, "Bash")
+	if got := span.(interface{ Attributes() []attribute.KeyValue }).Attributes(); !hasAttr(got, "gen_ai.tool.call.id", "call_1") {
+		t.Fatalf("tool span missing gen_ai.tool.call.id=call_1 in attributes")
+	}
 	ctx = rec.contextWithBaggage(ctx)
 
 	m := envMap(rec.ChildEnv(ctx))
@@ -122,7 +137,10 @@ func TestChildEnvBaggageConfiguredKeys(t *testing.T) {
 	defer rec.Shutdown(context.Background())
 
 	ctx := domain.WithToolCallID(context.Background(), "call_1")
-	ctx, _ = rec.startToolSpan(ctx, "Bash")
+	ctx, span := rec.startToolSpan(ctx, "Bash")
+	if got := span.(interface{ Attributes() []attribute.KeyValue }).Attributes(); !hasAttr(got, "gen_ai.tool.call.id", "call_1") {
+		t.Fatalf("tool span missing gen_ai.tool.call.id=call_1 in attributes")
+	}
 	ctx = rec.contextWithBaggage(ctx)
 
 	m := envMap(rec.ChildEnv(ctx))

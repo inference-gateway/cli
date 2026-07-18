@@ -62,12 +62,16 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 	if r == nil {
 		return ctx, noop.Span{}
 	}
+	attrs := []attribute.KeyValue{
+		attribute.String("gen_ai.operation.name", "execute_tool"),
+		attribute.String("gen_ai.tool.name", toolName),
+		attribute.String("gen_ai.tool.type", "function"),
+	}
+	if toolCallID := domain.GetToolCallID(ctx); toolCallID != "" {
+		attrs = append(attrs, attribute.String("gen_ai.tool.call.id", toolCallID))
+	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
-		trace.WithAttributes(
-			attribute.String("gen_ai.operation.name", "execute_tool"),
-			attribute.String("gen_ai.tool.name", toolName),
-			attribute.String("gen_ai.tool.type", "function"),
-		),
+		trace.WithAttributes(attrs...),
 	)
 }
 
