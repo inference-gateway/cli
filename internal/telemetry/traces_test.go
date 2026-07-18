@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestLoadTraceTree_EndToEnd records a real session -> LLM turn -> failing
@@ -22,7 +24,8 @@ func TestLoadTraceTree_EndToEnd(t *testing.T) {
 
 	endSession := rec.StartSession("standard")
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
-	toolCtx, toolSpan := rec.startToolSpan(turnCtx, "Bash")
+	toolCtx := domain.WithToolCallID(turnCtx, "call_abc123")
+	toolCtx, toolSpan := rec.startToolSpan(toolCtx, "Bash")
 	SetSpanError(toolCtx, errors.New("boom"))
 	toolSpan.End()
 	turnSpan.End()
@@ -49,7 +52,7 @@ func TestLoadTraceTree_EndToEnd(t *testing.T) {
 	}
 
 	rendered := RenderTraceTree(roots, TreeStyle{})
-	for _, want := range []string{"session (standard, success)", "╰── chat openai/gpt-4o", "╰── execute_tool Bash", "[error:"} {
+	for _, want := range []string{"session (standard, success)", "╰── chat openai/gpt-4o", "╰── execute_tool Bash call_abc123", "[error:"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("rendered tree missing %q:\n%s", want, rendered)
 		}
