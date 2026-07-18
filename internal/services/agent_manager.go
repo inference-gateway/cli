@@ -290,7 +290,6 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("agent container started successfully", "name", agent.Name, "url", agent.URL)
 
-	// Start periodic health probe for local agent if liveness probing is enabled
 	if am.config.A2A.LivenessProbeEnabled {
 		am.startLocalAgentProbe(ctx, agent)
 	}
