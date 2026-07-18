@@ -456,6 +456,10 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.modelSelector.Reset()
 	}
 
+	if viewBefore == domain.ViewStateA2AAgents && app.lastView != domain.ViewStateA2AAgents {
+		app.a2aAgentsView.Reset()
+	}
+
 	var cmds []tea.Cmd
 
 	if cmd := app.handleAppEvents(msg); cmd != nil {

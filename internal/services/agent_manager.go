@@ -11,9 +11,12 @@ import (
 	"sync"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	gotenv "github.com/subosito/gotenv"
 )
@@ -37,6 +40,10 @@ type AgentManager struct {
 	pullProgressCallback func(agentName string, done, total int)
 	containersMutex      sync.Mutex
 	a2aAgentService      domain.A2AAgentService
+	probeStop            chan struct{}
+	probeStopOnce        sync.Once
+	probeWg              sync.WaitGroup
+	agentStates          map[string]domain.AgentState
 }
 
 // NewAgentManager creates a new agent manager
@@ -50,6 +57,8 @@ func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfi
 		assignedPorts:    make(map[string]int),
 		externalAgents:   make(map[string]string),
 		a2aAgentService:  a2aService,
+		probeStop:        make(chan struct{}),
+		agentStates:      make(map[string]domain.AgentState),
 	}
 }
 
@@ -135,29 +144,91 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 	go am.monitorExternalAgents(ctx)
 }
 
-// monitorExternalAgents monitors the readiness of external agents
+// monitorExternalAgents monitors the readiness of external agents with periodic probes
 func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 	time.Sleep(2 * time.Second)
 
-	a2aSvc, ok := am.a2aAgentService.(*A2AAgentService)
-	if !ok || a2aSvc == nil {
+	if a2aSvc, ok := am.a2aAgentService.(*A2AAgentService); !ok || a2aSvc == nil {
 		logger.Warn("cannot monitor external agents: A2A service not available")
 		return
 	}
 
 	for agentName, agentURL := range am.externalAgents {
-		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		_, err := a2aSvc.GetAgentCard(checkCtx, agentURL)
-		cancel()
-
-		if err != nil {
-			logger.Warn("external agent not ready", "name", agentName, "url", agentURL, "error", err)
-			am.notifyStatus(agentName, domain.AgentStateFailed, "Agent not reachable", agentURL, "")
-		} else {
-			logger.Info("external agent ready", "name", agentName, "url", agentURL)
-			am.notifyStatus(agentName, domain.AgentStateReady, "Ready (external)", agentURL, "")
-		}
+		am.probeExternalAgent(ctx, agentName, agentURL)
 	}
+
+	if !am.config.A2A.LivenessProbeEnabled {
+		return
+	}
+
+	interval := time.Duration(am.config.A2A.LivenessProbeInterval) * time.Second
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+
+	logger.Info("starting A2A agent liveness probes", "interval", interval, "agent_count", len(am.externalAgents))
+	for agentName, agentURL := range am.externalAgents {
+		am.probeWg.Add(1)
+		name, url := agentName, agentURL
+		go func() {
+			defer am.probeWg.Done()
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-am.probeStop:
+					return
+				case <-ticker.C:
+					am.probeExternalAgent(ctx, name, url)
+				}
+			}
+		}()
+	}
+}
+
+// probeExternalAgent performs a single liveness probe for an external agent
+// and emits a status update only on state change.
+func (am *AgentManager) probeExternalAgent(ctx context.Context, agentName, agentURL string) {
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cfg := client.DefaultConfig(agentURL)
+	cfg.Transport = telemetry.PropagationTransport(nil)
+	adkClient := client.NewClientWithConfig(cfg)
+	_, err := adkClient.GetAgentCard(checkCtx)
+
+	am.containersMutex.Lock()
+	lastState := am.agentStates[agentName]
+	am.containersMutex.Unlock()
+
+	if err != nil {
+		if lastState == domain.AgentStateFailed {
+			return
+		}
+		logger.Warn("external agent not reachable", "name", agentName, "url", agentURL, "error", err)
+		am.notifyStatus(agentName, domain.AgentStateFailed, "Agent not reachable", agentURL, "")
+		am.containersMutex.Lock()
+		am.agentStates[agentName] = domain.AgentStateFailed
+		am.containersMutex.Unlock()
+		return
+	}
+
+	if lastState == domain.AgentStateReady {
+		return
+	}
+
+	message := "Ready (external)"
+	if lastState == domain.AgentStateFailed {
+		message = "Recovered (external)"
+	}
+	logger.Info("external agent ready", "name", agentName, "url", agentURL)
+	am.notifyStatus(agentName, domain.AgentStateReady, message, agentURL, "")
+	am.containersMutex.Lock()
+	am.agentStates[agentName] = domain.AgentStateReady
+	am.containersMutex.Unlock()
 }
 
 // extractAgentNameFromURL extracts a display name from an agent URL
@@ -217,11 +288,102 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("agent container started successfully", "name", agent.Name, "url", agent.URL)
+
+	am.containersMutex.Lock()
+	am.agentStates[agent.Name] = domain.AgentStateReady
+	am.containersMutex.Unlock()
+
+	if am.config.A2A.LivenessProbeEnabled {
+		am.startLocalAgentProbe(ctx, agent)
+	}
+
 	return nil
 }
 
-// StopAgents stops all running agent containers and cleans up the network
+// startLocalAgentProbe starts a periodic health check for a local (docker) agent
+func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.AgentEntry) {
+	interval := time.Duration(am.config.A2A.LivenessProbeInterval) * time.Second
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+
+	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
+
+	am.probeWg.Add(1)
+	go func() {
+		defer am.probeWg.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		httpClient := &http.Client{Timeout: 5 * time.Second}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-am.probeStop:
+				return
+			case <-ticker.C:
+				am.probeLocalAgent(ctx, httpClient, agent, healthURL)
+			}
+		}
+	}()
+}
+
+// probeLocalAgent performs a single health check for a local (docker) agent
+// and emits a status update only on state change.
+func (am *AgentManager) probeLocalAgent(ctx context.Context, httpClient *http.Client, agent config.AgentEntry, healthURL string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
+		return
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
+		return
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", fmt.Errorf("unexpected status: %d", resp.StatusCode))
+		return
+	}
+
+	am.handleLocalProbeResult(agent, domain.AgentStateReady, "Ready", nil)
+}
+
+// handleLocalProbeResult processes a probe result, emitting a status update only on state change.
+func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState domain.AgentState, message string, probeErr error) {
+	am.containersMutex.Lock()
+	lastState := am.agentStates[agent.Name]
+	am.containersMutex.Unlock()
+
+	if newState == lastState {
+		return
+	}
+
+	if newState == domain.AgentStateFailed {
+		logger.Warn("local agent health check failed", "name", agent.Name, "url", agent.URL, "error", probeErr)
+		am.notifyStatus(agent.Name, domain.AgentStateFailed, message, agent.URL, agent.OCI)
+	} else {
+		displayMsg := message
+		if lastState == domain.AgentStateFailed {
+			displayMsg = "Recovered"
+		}
+		logger.Info("local agent health check passed", "name", agent.Name, "url", agent.URL)
+		am.notifyStatus(agent.Name, domain.AgentStateReady, displayMsg, agent.URL, agent.OCI)
+	}
+
+	am.containersMutex.Lock()
+	am.agentStates[agent.Name] = newState
+	am.containersMutex.Unlock()
+}
+
+// StopAgents stops all running agent containers, cancels liveness probes, and cleans up the network
 func (am *AgentManager) StopAgents(ctx context.Context) error {
+	am.probeStopOnce.Do(func() { close(am.probeStop) })
+	am.probeWg.Wait()
+
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
 			logger.Warn("failed to stop agent", "name", agentName, "error", err)
