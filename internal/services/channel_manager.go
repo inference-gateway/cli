@@ -484,6 +484,11 @@ func formatAgentMessage(line []byte) string {
 		return "Error: agent failed"
 	}
 
+	if t, _ := msg["type"].(string); t == "notification" {
+		m, _ := msg["message"].(string)
+		return m
+	}
+
 	if _, isStatus := msg["type"]; isStatus {
 		return ""
 	}

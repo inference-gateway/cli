@@ -1526,3 +1526,25 @@ func TestAgentSession_DispatchHooks_SkipsOffListCommandHook(t *testing.T) {
 		t.Fatal("off-list command hook must not run headless (secure-by-default)")
 	}
 }
+
+// TestCompletionNotice checks the drained-result header is distilled into a
+// clean one-line channel notification (icon + kind/verb, UUID label dropped).
+func TestCompletionNotice(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"a2a completed", "[A2A Task Completed: 2e6320b3-120d-431e]\n\nA2A_SubmitTask()\n╰── Result: ok", "✅ A2A Task Completed"},
+		{"a2a failed", "[A2A Task Failed: abc-123]\n\nsomething broke", "❌ A2A Task Failed"},
+		{"subagent completed", "[Subagent Completed: worker-1]", "✅ Subagent Completed"},
+		{"empty content", "", "✅ Background task completed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := completionNotice(tt.in); got != tt.want {
+				t.Errorf("completionNotice(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

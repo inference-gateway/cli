@@ -600,6 +600,18 @@ func TestExtractImagePaths(t *testing.T) {
 			wantPaths: []string{img},
 			wantText:  " and " + img,
 		},
+		{
+			name:      "image inside code fence is not sent",
+			content:   "```\nResult of tool call: {\"saved_path\":\"" + img + "\",\"hint\":\"![image](" + img + ")\"}\n```",
+			wantPaths: nil,
+			wantText:  "```\nResult of tool call: {\"saved_path\":\"" + img + "\",\"hint\":\"![image](" + img + ")\"}\n```",
+		},
+		{
+			name:      "fenced path ignored but unfenced assistant image sent",
+			content:   "```\nsaved to " + img + "\n```\nHere it is:\n![shot](" + img + ")",
+			wantPaths: []string{img},
+			wantText:  "```\nsaved to " + img + "\n```\nHere it is:\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -910,6 +922,55 @@ func TestSendText_RetriesPlainOn400(t *testing.T) {
 	}
 	if got[1] != "" {
 		t.Fatalf("expected retry to be plain text (no parse_mode), got %q", got[1])
+	}
+}
+
+// TestSendImage_FallsBackToDocumentOnPhotoError verifies that when Telegram
+// rejects an inline photo (e.g. PHOTO_INVALID_DIMENSIONS for an over-tall
+// full-page screenshot), Send retries the upload as a document so the image is
+// still delivered instead of silently dropped.
+func TestSendImage_FallsBackToDocumentOnPhotoError(t *testing.T) {
+	imgPath := filepath.Join(t.TempDir(), "fullpage.png")
+	if err := os.WriteFile(imgPath, []byte("real-file-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	var photo, document int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/sendPhoto"):
+			mu.Lock()
+			photo++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}`))
+		case strings.HasSuffix(r.URL.Path, "/sendDocument"):
+			mu.Lock()
+			document++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"chat":{"id":99}}}`))
+		default:
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+		}
+	}))
+	defer srv.Close()
+
+	ch := newTestChannel(t, srv.URL)
+	if err := ch.Send(context.Background(), domain.OutboundMessage{
+		RecipientID: "99",
+		Content:     "![image](" + imgPath + ")",
+	}); err != nil {
+		t.Fatalf("Send returned error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if photo != 1 {
+		t.Fatalf("expected exactly 1 sendPhoto attempt, got %d", photo)
+	}
+	if document != 1 {
+		t.Fatalf("expected sendDocument fallback after photo rejection, got %d", document)
 	}
 }
 

@@ -375,6 +375,16 @@ func TestFormatAgentMessage(t *testing.T) {
 			line: `{"type":"agent_error"}`,
 			want: "Error: agent failed",
 		},
+		{
+			name: "notification is forwarded verbatim",
+			line: `{"type":"notification","message":"✅ A2A Task Completed"}`,
+			want: "✅ A2A Task Completed",
+		},
+		{
+			name: "notification with empty message is skipped",
+			line: `{"type":"notification","message":""}`,
+			want: "",
+		},
 	}
 
 	for _, tt := range tests {

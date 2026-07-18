@@ -274,23 +274,48 @@ func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) 
 	}
 
 	for _, p := range paths {
-		f, err := os.Open(p)
-		if err != nil {
-			logger.Warn("skipping outbound image", "path", p, "error", err)
-			continue
-		}
-		sent, err := t.bot.SendPhoto(ctx, &bot.SendPhotoParams{
-			ChatID: chatID,
-			Photo:  &models.InputFileUpload{Filename: filepath.Base(p), Data: f},
-		})
-		_ = f.Close()
-		if err != nil {
-			logger.Warn("sendPhoto failed", "path", p, "error", err)
-		} else if sent != nil {
-			t.trackMessage(chatID, sent.ID)
-		}
+		t.sendImageFile(ctx, chatID, p)
 	}
 	return nil
+}
+
+// sendImageFile uploads a local image, preferring an inline photo but falling back
+// to a document when Telegram rejects the photo. Full-page screenshots trip
+// PHOTO_INVALID_DIMENSIONS (Telegram caps width+height ≤ 10000 and side-ratio ≤ 20:1);
+// sendDocument has no dimension limit, so the user still receives the image as a file.
+func (t *TelegramChannel) sendImageFile(ctx context.Context, chatID int64, p string) {
+	f, err := os.Open(p)
+	if err != nil {
+		logger.Warn("skipping outbound image", "path", p, "error", err)
+		return
+	}
+	sent, err := t.bot.SendPhoto(ctx, &bot.SendPhotoParams{
+		ChatID: chatID,
+		Photo:  &models.InputFileUpload{Filename: filepath.Base(p), Data: f},
+	})
+	_ = f.Close()
+
+	if err != nil {
+		logger.Warn("sendPhoto failed, retrying as document", "path", p, "error", err)
+		f2, oerr := os.Open(p) // SendPhoto consumed the first reader; reopen for the retry.
+		if oerr != nil {
+			logger.Warn("skipping outbound image", "path", p, "error", oerr)
+			return
+		}
+		sent, err = t.bot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:   chatID,
+			Document: &models.InputFileUpload{Filename: filepath.Base(p), Data: f2},
+		})
+		_ = f2.Close()
+		if err != nil {
+			logger.Warn("sendDocument fallback failed", "path", p, "error", err)
+			return
+		}
+	}
+
+	if sent != nil {
+		t.trackMessage(chatID, sent.ID)
+	}
 }
 
 // sendText sends one chunk rendered as Telegram HTML, retrying once as plain
@@ -669,6 +694,13 @@ func sendableImage(p string) bool {
 // <img src="..."> tags, markdown ![..](path), and bare absolute paths — and
 // returns the sendable ones. Tag and markdown references are stripped from the
 // returned text; bare paths stay visible so the user still sees the location.
+//
+// Fenced code blocks are skipped: tool results are forwarded as a ``` fence
+// (formatAgentMessage) whose JSON embeds the saved artifact path — and the
+// WebFetch hint's literal ![image](path) template — so scanning it would send the
+// photo a second time on top of the assistant's own ![image](path). The assistant
+// is told to place its image line outside any code block, so only unfenced text
+// is a real "display this" instruction.
 func extractImagePaths(content string) ([]string, string) {
 	var paths []string
 	seen := map[string]bool{}
@@ -683,18 +715,30 @@ func extractImagePaths(content string) ([]string, string) {
 		return true
 	}
 
-	for _, re := range []*regexp.Regexp{imgTagRe, mdImgRe} {
-		content = re.ReplaceAllStringFunc(content, func(m string) string {
-			if add(re.FindStringSubmatch(m)[1]) {
-				return ""
-			}
-			return m
-		})
+	extract := func(seg string) string {
+		for _, re := range []*regexp.Regexp{imgTagRe, mdImgRe} {
+			seg = re.ReplaceAllStringFunc(seg, func(m string) string {
+				if add(re.FindStringSubmatch(m)[1]) {
+					return ""
+				}
+				return m
+			})
+		}
+		for _, m := range bareImgRe.FindAllStringSubmatch(seg, -1) {
+			add(m[1])
+		}
+		return seg
 	}
-	for _, m := range bareImgRe.FindAllStringSubmatch(content, -1) {
-		add(m[1])
+
+	var out strings.Builder
+	last := 0
+	for _, loc := range fenceRe.FindAllStringIndex(content, -1) {
+		out.WriteString(extract(content[last:loc[0]]))
+		out.WriteString(content[loc[0]:loc[1]]) // fenced block preserved verbatim
+		last = loc[1]
 	}
-	return paths, content
+	out.WriteString(extract(content[last:]))
+	return paths, out.String()
 }
 
 // renderTelegramHTML converts common Markdown (fenced code, inline code, bold,

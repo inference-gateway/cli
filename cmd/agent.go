@@ -598,10 +598,36 @@ func (s *AgentSession) drainBackgroundResults(ctx context.Context) int {
 		}
 		s.addMessage(msg)
 		s.outputMessage(msg)
+		s.outputStatusMessage("notification", completionNotice(d.Content), nil)
 	}
 
 	logger.Info("injected background task results into conversation", "count", len(drained))
 	return len(drained)
+}
+
+// completionNotice distills a drained background-task result into a one-line
+// channel notification. The drained content starts with a uniform header,
+// "[<Kind> <verb>: <label>]" (supervisor.formatResult), e.g.
+// "[A2A Task Completed: <uuid>]" — so take the first line, strip the brackets and
+// the ": <label>" suffix (the label is a raw UUID), and pick an icon off the verb.
+func completionNotice(content string) string {
+	head := content
+	if i := strings.IndexByte(head, '\n'); i >= 0 {
+		head = head[:i]
+	}
+	head = strings.Trim(strings.TrimSpace(head), "[]")
+	if i := strings.LastIndex(head, ": "); i >= 0 {
+		head = head[:i]
+	}
+	head = strings.TrimSpace(head)
+	if head == "" {
+		head = "Background task completed"
+	}
+	icon := "✅"
+	if strings.Contains(head, "Failed") {
+		icon = "❌"
+	}
+	return icon + " " + head
 }
 
 // anyToolResultFailed reports whether any tool result in a headless batch
