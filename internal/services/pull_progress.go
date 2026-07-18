@@ -53,7 +53,6 @@ func (p *pullProgress) parse(line string) (done, total int, changed bool) {
 }
 
 func (p *pullProgress) recordDockerLine(id, status string) {
-	// A hex-looking tag produces "<tag>: Pulling from <repo>" — not a layer.
 	if strings.HasPrefix(status, "Pulling from") {
 		return
 	}
