@@ -27,6 +27,12 @@ func isolatedGitEnv(t *testing.T) {
 	t.Setenv("GIT_COMMITTER_NAME", "infer-test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "infer-test@example.com")
 	t.Setenv("GIT_TERMINAL_PROMPT", "0")
+	// Auto-gc detaches from `git pull` and can still be writing .git/objects
+	// when t.TempDir cleanup runs, failing RemoveAll ("directory not empty")
+	// in sandboxed CI. Disable it for all git processes the tests spawn.
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "gc.auto")
+	t.Setenv("GIT_CONFIG_VALUE_0", "0")
 }
 
 func mustGit(t *testing.T, dir string, args ...string) string {
