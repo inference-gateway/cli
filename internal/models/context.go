@@ -25,6 +25,19 @@ func LookupContextWindow(model string) (int, bool) {
 		model = model[idx+1:]
 	}
 
+	bestLen := -1
+	bestWindow := 0
+	for pattern, window := range config.UserContextWindows {
+		p := strings.ToLower(pattern)
+		if strings.Contains(model, p) && len(p) > bestLen {
+			bestLen = len(p)
+			bestWindow = window
+		}
+	}
+	if bestLen >= 0 {
+		return bestWindow, true
+	}
+
 	for _, matcher := range config.ContextMatchers {
 		for _, pattern := range matcher.Patterns {
 			if strings.Contains(model, pattern) {

@@ -9,6 +9,13 @@ type ModelMatcher struct {
 // DefaultContextWindow is the fallback context window size when no pattern matches.
 const DefaultContextWindow = 8192
 
+// UserContextWindows holds user-configured context window overrides
+// (config.yaml `context_windows:` - substring pattern -> tokens), checked
+// before ContextMatchers. Populated once from the loaded Config in
+// cmd/root.go::initConfig. Local servers (llama.cpp -c flag) can have any
+// context size, which no built-in family heuristic can know.
+var UserContextWindows map[string]int
+
 // ContextMatchers defines all model patterns in priority order.
 // More specific patterns must come before less specific ones because matching
 // uses strings.Contains (e.g. "gemma-3-1b" must precede "gemma-3", and
@@ -51,4 +58,6 @@ var ContextMatchers = []ModelMatcher{
 	{Patterns: []string{"moonshot-v1-128k"}, ContextWindow: 131072},
 	{Patterns: []string{"moonshot-v1-32k"}, ContextWindow: 32768},
 	{Patterns: []string{"moonshot-v1-8k", "moonshot-v1-auto"}, ContextWindow: 8192},
+	{Patterns: []string{"llama"}, ContextWindow: 131072},
+	{Patterns: []string{"phi"}, ContextWindow: 16384},
 }

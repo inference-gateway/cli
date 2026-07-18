@@ -46,6 +46,7 @@ type Config struct {
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
+	ContextWindows   map[string]int         `yaml:"context_windows" mapstructure:"context_windows"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`

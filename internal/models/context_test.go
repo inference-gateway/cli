@@ -2,6 +2,8 @@ package models
 
 import (
 	"testing"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestQwenContextWindow(t *testing.T) {
@@ -273,6 +275,61 @@ func TestQwenServedVariants(t *testing.T) {
 	for _, tc := range testModels {
 		if got := EstimateContextWindow(tc.model); got != tc.expected {
 			t.Errorf("Model %s: got %d, expected %d", tc.model, got, tc.expected)
+		}
+	}
+}
+
+// TestLocalFamilyContextWindow covers the generic llama/phi family fallbacks
+// used by local providers (llamacpp, ollama) whose model names are arbitrary.
+func TestLocalFamilyContextWindow(t *testing.T) {
+	testModels := []struct {
+		model    string
+		expected int
+	}{
+		{"llamacpp/llama", 131072},
+		{"ollama/llama3.2", 131072},
+		{"ollama/codellama", 131072},
+		{"llamacpp/phi", 16384},
+		{"llamacpp/mistral", 32768},
+		{"llamacpp/qwen", 128000},
+	}
+
+	for _, tc := range testModels {
+		if got := EstimateContextWindow(tc.model); got != tc.expected {
+			t.Errorf("Model %s: got %d, expected %d", tc.model, got, tc.expected)
+		}
+	}
+}
+
+// TestUserContextWindowOverride covers the config.yaml `context_windows:`
+// override map: it wins over built-in matchers, the longest matching pattern
+// is picked deterministically, and an empty map falls through unchanged. Local
+// servers (llama.cpp -c flag) can run any context size, so users need to be
+// able to declare the truth per deployment.
+func TestUserContextWindowOverride(t *testing.T) {
+	config.UserContextWindows = map[string]int{
+		"qwen":     32768,
+		"qwen3":    65536,
+		"My-Model": 4096,
+	}
+	defer func() { config.UserContextWindows = nil }()
+
+	testCases := []struct {
+		model         string
+		expectedSize  int
+		expectedKnown bool
+	}{
+		{"llamacpp/qwen2", 32768, true},               // override beats built-in qwen matcher (128000)
+		{"llamacpp/qwen3-coder", 65536, true},         // longest pattern wins over "qwen"
+		{"llamacpp/my-model-q4.gguf", 4096, true},     // case-insensitive, unknown model becomes known
+		{"anthropic/claude-opus-4-8", 1000000, true},  // untouched models still use built-ins
+		{"ollama_cloud/brand-new-model", 8192, false}, // no override, no matcher -> default
+	}
+
+	for _, tc := range testCases {
+		size, known := LookupContextWindow(tc.model)
+		if size != tc.expectedSize || known != tc.expectedKnown {
+			t.Errorf("Model %s: got (%d, %v), expected (%d, %v)", tc.model, size, known, tc.expectedSize, tc.expectedKnown)
 		}
 	}
 }
