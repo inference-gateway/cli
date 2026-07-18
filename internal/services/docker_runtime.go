@@ -209,14 +209,9 @@ func (dr *DockerRuntime) StopContainer(ctx context.Context, containerIDOrName st
 	return nil
 }
 
-// PullImage pulls a Docker image
-func (dr *DockerRuntime) PullImage(ctx context.Context, image string) error {
-	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
-	}
-	return nil
+// PullImage pulls a Docker image, reporting layer progress via the optional callback
+func (dr *DockerRuntime) PullImage(ctx context.Context, image string, progress func(done, total int)) error {
+	return runPullCommand(ctx, "docker", image, progress)
 }
 
 // GetContainerHealth returns the health status of a container

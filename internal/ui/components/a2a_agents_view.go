@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
@@ -143,6 +144,12 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 		} else if status.Message != "" {
 			item.detail = status.Message
 		}
+		// Docker errors can span multiple lines; flatten so each agent stays
+		// a single row in the list.
+		item.detail = strings.Join(strings.Fields(item.detail), " ")
+		if status.State == domain.AgentStatePullingImage && status.LayersTotal > 0 {
+			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)
+		}
 		items = append(items, item)
 	}
 	return items, readiness.ReadyAgents, readiness.TotalAgents
@@ -161,6 +168,8 @@ func (m *A2AAgentsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := m.handleKey(msg); handled {
 			return m, cmd
 		}
+	case domain.AgentStatusUpdateEvent:
+		return m, m.refreshItems()
 	}
 
 	var cmd tea.Cmd
@@ -216,8 +225,16 @@ func (m *A2AAgentsViewImpl) SetHeight(height int) {
 func (m *A2AAgentsViewImpl) Reset() {
 	m.cancelled = false
 	m.list.ResetFilter()
-	items, ready, total := m.agentItems()
-	m.list.SetItems(items)
+	m.refreshItems()
 	m.list.Select(0)
+}
+
+// refreshItems rebuilds the rows and title from the latest agent readiness
+// without touching the user's selection or filter, so the open view stays
+// live while agents pull and start (AgentStatusUpdateEvent).
+func (m *A2AAgentsViewImpl) refreshItems() tea.Cmd {
+	items, ready, total := m.agentItems()
+	cmd := m.list.SetItems(items)
 	m.list.Title = fmt.Sprintf("A2A Agents (%d/%d ready)", ready, total)
+	return cmd
 }

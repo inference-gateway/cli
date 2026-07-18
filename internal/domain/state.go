@@ -1037,14 +1037,16 @@ type AgentReadinessState struct {
 
 // AgentStatus represents the status of an individual A2A agent
 type AgentStatus struct {
-	Name      string     `json:"name"`
-	URL       string     `json:"url"`
-	Image     string     `json:"image"`
-	State     AgentState `json:"state"`
-	Message   string     `json:"message,omitempty"`
-	StartTime time.Time  `json:"start_time"`
-	ReadyTime *time.Time `json:"ready_time,omitempty"`
-	Error     string     `json:"error,omitempty"`
+	Name        string     `json:"name"`
+	URL         string     `json:"url"`
+	Image       string     `json:"image"`
+	State       AgentState `json:"state"`
+	Message     string     `json:"message,omitempty"`
+	StartTime   time.Time  `json:"start_time"`
+	ReadyTime   *time.Time `json:"ready_time,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	LayersDone  int        `json:"layers_done,omitempty"`
+	LayersTotal int        `json:"layers_total,omitempty"`
 }
 
 // MCPServerStatus represents the status of MCP server connections
@@ -1143,6 +1145,16 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, mess
 		now := time.Now()
 		agent.ReadyTime = &now
 		s.agentReadiness.ReadyAgents++
+	}
+}
+
+// UpdateAgentPullProgress updates the image pull layer counts for a specific agent
+func (s *ApplicationState) UpdateAgentPullProgress(name string, done, total int) {
+	if s.agentReadiness == nil {
+		return
+	}
+	if agent, exists := s.agentReadiness.Agents[name]; exists {
+		agent.LayersDone, agent.LayersTotal = done, total
 	}
 }
 

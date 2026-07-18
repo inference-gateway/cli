@@ -615,6 +615,14 @@ func (sm *StateManager) UpdateAgentStatus(name string, state domain.AgentState, 
 	sm.state.UpdateAgentStatus(name, state, message, url, image)
 }
 
+// UpdateAgentPullProgress updates the image pull layer counts for a specific agent
+func (sm *StateManager) UpdateAgentPullProgress(name string, done, total int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.UpdateAgentPullProgress(name, done, total)
+}
+
 // SetAgentError sets an error for a specific agent
 func (sm *StateManager) SetAgentError(name string, err error) {
 	sm.mutex.Lock()

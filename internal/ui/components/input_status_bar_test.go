@@ -966,3 +966,70 @@ func TestInputStatusBar_SelectedPillWidthForcesWrap(t *testing.T) {
 		t.Fatalf("the selected pill's padding must count toward the line width, got %d line(s)", len(groups))
 	}
 }
+
+func agentStartupProvider() *styles.Provider {
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+	fakeTheme.GetSuccessColorReturns("#9ece6a")
+	fakeTheme.GetErrorColorReturns("#f7768e")
+	fakeTheme.GetAccentColorReturns("#ff9e64")
+	themeService := &domainmocks.FakeThemeService{}
+	themeService.GetCurrentThemeReturns(fakeTheme)
+	return styles.NewProvider(themeService)
+}
+
+func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
+	provider := agentStartupProvider()
+
+	tests := []struct {
+		name  string
+		setup func() *domain.ApplicationState
+		want  string
+	}{
+		{
+			name:  "no readiness state has no color",
+			setup: domain.NewApplicationState,
+			want:  "",
+		},
+		{
+			name: "startup in progress has no color",
+			setup: func() *domain.ApplicationState {
+				st := domain.NewApplicationState()
+				st.InitializeAgentReadiness(1)
+				st.UpdateAgentStatus("agent-a", domain.AgentStatePullingImage, "", "", "")
+				return st
+			},
+			want: "",
+		},
+		{
+			name: "all ready is green",
+			setup: func() *domain.ApplicationState {
+				st := domain.NewApplicationState()
+				st.InitializeAgentReadiness(1)
+				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				return st
+			},
+			want: "#9ece6a",
+		},
+		{
+			name: "any failed is red",
+			setup: func() *domain.ApplicationState {
+				st := domain.NewApplicationState()
+				st.InitializeAgentReadiness(2)
+				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-b", domain.AgentStateFailed, "", "", "")
+				return st
+			},
+			want: "#f7768e",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusBar := &InputStatusBar{stateManager: tt.setup(), styleProvider: provider}
+			if got := statusBar.a2aIndicatorColor(); got != tt.want {
+				t.Errorf("a2aIndicatorColor() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

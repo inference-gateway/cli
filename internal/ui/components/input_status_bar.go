@@ -44,6 +44,7 @@ type indicatorPart struct {
 	text     string
 	action   ui.StatusIndicatorAction
 	selected bool
+	color    string
 }
 
 // NewInputStatusBar creates a new input status bar
@@ -290,15 +291,26 @@ func (isb *InputStatusBar) renderIndicatorLine(parts []indicatorPart, dimColor s
 		texts[i] = part.text
 	}
 
-	if !isb.focused {
+	hasColor := false
+	for _, part := range parts {
+		if part.color != "" {
+			hasColor = true
+			break
+		}
+	}
+
+	if !isb.focused && !hasColor {
 		return isb.styleProvider.RenderWithColor(strings.Join(texts, " • "), dimColor)
 	}
 
 	styled := make([]string, len(parts))
 	for i, part := range parts {
-		if part.selected {
+		switch {
+		case part.selected:
 			styled[i] = isb.styleProvider.RenderSelectedIndicator(texts[i])
-		} else {
+		case part.color != "":
+			styled[i] = isb.styleProvider.RenderWithColor(texts[i], part.color)
+		default:
 			styled[i] = isb.styleProvider.RenderWithColor(texts[i], dimColor)
 		}
 	}
@@ -343,7 +355,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("a2a_agents") {
 		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
-			parts = append(parts, indicatorPart{text: agentsPart, action: ui.StatusIndicatorActionA2AAgents})
+			parts = append(parts, indicatorPart{text: agentsPart, action: ui.StatusIndicatorActionA2AAgents, color: isb.a2aIndicatorColor()})
 		}
 	}
 
@@ -591,6 +603,27 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 	}
 	if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
 		return fmt.Sprintf("A2A: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
+	}
+	return ""
+}
+
+// a2aIndicatorColor color-codes the A2A segment: green once all agents are
+// ready, red when any agent failed, empty (dim) while starting up.
+func (isb *InputStatusBar) a2aIndicatorColor() string {
+	if isb.stateManager == nil || isb.styleProvider == nil {
+		return ""
+	}
+	readiness := isb.stateManager.GetAgentReadiness()
+	if readiness == nil || readiness.TotalAgents == 0 {
+		return ""
+	}
+	if readiness.ReadyAgents >= readiness.TotalAgents {
+		return isb.styleProvider.GetThemeColor("success")
+	}
+	for _, agent := range readiness.Agents {
+		if agent.State == domain.AgentStateFailed {
+			return isb.styleProvider.GetThemeColor("error")
+		}
 	}
 	return ""
 }
