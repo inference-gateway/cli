@@ -7,12 +7,13 @@ import (
 
 // AgentDefaults contains default configuration for a known agent type
 type AgentDefaults struct {
-	URL          string
-	ArtifactsURL string
-	OCI          string
-	Run          bool
-	Model        string
-	Environment  map[string]string
+	URL           string
+	ArtifactsURL  string
+	OCI           string
+	Run           bool
+	Model         string
+	RequiresModel bool
+	Environment   map[string]string
 }
 
 // agentBaseDefaults is a template for agent configurations with base ports
@@ -23,6 +24,7 @@ var agentBaseDefaults = map[string]struct {
 	OCI                 string
 	Run                 bool
 	Model               string
+	RequiresModel       bool
 	Environment         map[string]string
 }{
 	"browser-agent": {
@@ -31,6 +33,7 @@ var agentBaseDefaults = map[string]struct {
 		OCI:                 "ghcr.io/inference-gateway/browser-agent:latest",
 		Run:                 true,
 		Model:               "deepseek/deepseek-v4-pro",
+		RequiresModel:       true,
 		Environment: map[string]string{
 			"A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT": "true",
 		},
@@ -41,22 +44,25 @@ var agentBaseDefaults = map[string]struct {
 		Run:      true,
 	},
 	"google-calendar-agent": {
-		BasePort: 8082,
-		OCI:      "ghcr.io/inference-gateway/google-calendar-agent:latest",
-		Run:      true,
-		Model:    "deepseek/deepseek-v4-pro",
+		BasePort:      8082,
+		OCI:           "ghcr.io/inference-gateway/google-calendar-agent:latest",
+		Run:           true,
+		Model:         "deepseek/deepseek-v4-pro",
+		RequiresModel: true,
 	},
 	"documentation-agent": {
-		BasePort: 8085,
-		OCI:      "ghcr.io/inference-gateway/documentation-agent:latest",
-		Run:      true,
-		Model:    "deepseek/deepseek-v4-pro",
+		BasePort:      8085,
+		OCI:           "ghcr.io/inference-gateway/documentation-agent:latest",
+		Run:           true,
+		Model:         "deepseek/deepseek-v4-pro",
+		RequiresModel: true,
 	},
 	"n8n-agent": {
-		BasePort: 8086,
-		OCI:      "ghcr.io/inference-gateway/n8n-agent:latest",
-		Run:      true,
-		Model:    "deepseek/deepseek-v4-pro",
+		BasePort:      8086,
+		OCI:           "ghcr.io/inference-gateway/n8n-agent:latest",
+		Run:           true,
+		Model:         "deepseek/deepseek-v4-pro",
+		RequiresModel: true,
 	},
 }
 
@@ -90,11 +96,12 @@ func GetAgentDefaults(name string) *AgentDefaults {
 		mainPort := findAvailablePort(template.BasePort)
 
 		defaults := &AgentDefaults{
-			URL:         fmt.Sprintf("http://localhost:%d", mainPort),
-			OCI:         template.OCI,
-			Run:         template.Run,
-			Model:       template.Model,
-			Environment: template.Environment,
+			URL:           fmt.Sprintf("http://localhost:%d", mainPort),
+			OCI:           template.OCI,
+			Run:           template.Run,
+			Model:         template.Model,
+			RequiresModel: template.RequiresModel,
+			Environment:   template.Environment,
 		}
 
 		if template.ArtifactsPortOffset > 0 {
@@ -114,4 +121,17 @@ func ListKnownAgents() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// AgentRequiresModel reports whether a known agent requires a model when running locally.
+// Agents not running locally never need a model. Unknown agents are presumed to need one
+// when running locally (returns true when run is true).
+func AgentRequiresModel(name string, run bool) bool {
+	if !run {
+		return false
+	}
+	if template, ok := agentBaseDefaults[name]; ok {
+		return template.RequiresModel
+	}
+	return true
 }
