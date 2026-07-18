@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.149.0](https://github.com/inference-gateway/cli/compare/v0.148.1...v0.149.0) (2026-07-18)
+
+### 🚀 Features
+
+* **telemetry:** add gen_ai.tool.call.id attribute to tool execution spans ([#931](https://github.com/inference-gateway/cli/issues/931)) ([b695e16](https://github.com/inference-gateway/cli/commit/b695e16d24de73353a32bbaeab584e9ccf5246a2)), closes [#930](https://github.com/inference-gateway/cli/issues/930)
+* **providers:** add llamacpp provider support ([#929](https://github.com/inference-gateway/cli/issues/929)) ([b9905ff](https://github.com/inference-gateway/cli/commit/b9905ffd9fe8457318cc104b305f4e98743ead29)), closes [#928](https://github.com/inference-gateway/cli/issues/928)
+* **a2a:** add recurring liveness probes for A2A agents ([#936](https://github.com/inference-gateway/cli/issues/936)) ([01ff0d7](https://github.com/inference-gateway/cli/commit/01ff0d780749a8aea8e0e091d9919da7108a6abf)), closes [#932](https://github.com/inference-gateway/cli/issues/932)
+* **channels:** rich Telegram messaging - photos, markdown, slash commands, and per-conversation /stats ([#927](https://github.com/inference-gateway/cli/issues/927)) ([e57a10c](https://github.com/inference-gateway/cli/commit/e57a10cd152fa7a9d273e7742353c7822c8271d3))
+* **a2a:** stream agent image pull progress and color-code readiness indicator ([#933](https://github.com/inference-gateway/cli/issues/933)) ([882e8c2](https://github.com/inference-gateway/cli/commit/882e8c25cd963a4de7b97aaef5d756db37092d65)), references [#932](https://github.com/inference-gateway/cli/issues/932)
+
+### ♻️ Code Refactoring
+
+* **agents:** make model requirement metadata-driven for known agents ([#935](https://github.com/inference-gateway/cli/issues/935)) ([e0b8df8](https://github.com/inference-gateway/cli/commit/e0b8df890b8c585a3149b02749409c5c324a722e)), closes [#934](https://github.com/inference-gateway/cli/issues/934)
+
+### 🧹 Maintenance
+
+* **telegram:** add INFER_SPEECH_TO_TEXT_MODEL configuration ([fadde8f](https://github.com/inference-gateway/cli/commit/fadde8ff18aa82636ad9c90cb2cb395048b69663))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.149.0 --help
+npx @inference-gateway/cli@0.149.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.149.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.149.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.149.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.149.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.149.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.148.1](https://github.com/inference-gateway/cli/compare/v0.148.0...v0.148.1) (2026-07-17)
 
 ### 🐛 Bug Fixes
