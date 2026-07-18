@@ -19,3 +19,6 @@ result-*
 .vscode
 .idea
 .infer
+
+# Inference Gateway
+.env
