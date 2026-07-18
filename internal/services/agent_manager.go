@@ -152,12 +152,10 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 		return
 	}
 
-	// Initial one-shot check for each external agent
 	for agentName, agentURL := range am.externalAgents {
 		am.probeExternalAgent(ctx, a2aSvc, agentName, agentURL)
 	}
 
-	// Start periodic probes if liveness probing is enabled
 	if !am.config.A2A.LivenessProbeEnabled {
 		return
 	}
@@ -379,7 +377,6 @@ func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState
 
 // StopAgents stops all running agent containers, cancels liveness probes, and cleans up the network
 func (am *AgentManager) StopAgents(ctx context.Context) error {
-	// Cancel liveness probes first
 	if am.probeCancel != nil {
 		am.probeCancel()
 		am.probeCancel = nil
