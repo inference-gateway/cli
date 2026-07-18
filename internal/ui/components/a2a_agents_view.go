@@ -144,8 +144,6 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 		} else if status.Message != "" {
 			item.detail = status.Message
 		}
-		// Docker errors can span multiple lines; flatten so each agent stays
-		// a single row in the list.
 		item.detail = strings.Join(strings.Fields(item.detail), " ")
 		if status.State == domain.AgentStatePullingImage && status.LayersTotal > 0 {
 			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)
