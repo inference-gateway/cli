@@ -131,3 +131,30 @@ func TestA2AAgentsView_ResetRefreshesReadiness(t *testing.T) {
 		t.Errorf("Reset should re-read agent state, got %+v", got)
 	}
 }
+
+func TestA2AAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
+	view, stateManager := newA2AAgentsViewForTest(&domain.AgentReadinessState{
+		TotalAgents: 1,
+		ReadyAgents: 0,
+		Agents:      map[string]*domain.AgentStatus{"writer": {Name: "writer", State: domain.AgentStatePullingImage, Message: "Pulling image: img"}},
+	})
+
+	stateManager.UpdateAgentPullProgress("writer", 3, 7)
+	model, _ := view.Update(domain.AgentStatusUpdateEvent{AgentName: "writer", State: domain.AgentStatePullingImage})
+	view = model.(*A2AAgentsViewImpl)
+
+	if got := view.list.Items()[0].(a2aAgentItem); got.detail != "Pulling image: img (3/7 layers)" {
+		t.Errorf("event should refresh pull progress in the detail, got %+v", got)
+	}
+
+	stateManager.UpdateAgentStatus("writer", domain.AgentStateReady, "", "", "")
+	model, _ = view.Update(domain.AgentStatusUpdateEvent{AgentName: "writer", State: domain.AgentStateReady})
+	view = model.(*A2AAgentsViewImpl)
+
+	if view.list.Title != "A2A Agents (1/1 ready)" {
+		t.Errorf("title = %q, want the refreshed readiness", view.list.Title)
+	}
+	if got := view.list.Items()[0].(a2aAgentItem); got.state != "ready" {
+		t.Errorf("event should re-read agent state, got %+v", got)
+	}
+}

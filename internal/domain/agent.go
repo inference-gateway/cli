@@ -132,4 +132,7 @@ type AgentManager interface {
 
 	// SetStatusCallback sets the callback function for agent status updates
 	SetStatusCallback(callback func(agentName string, state AgentState, message string, url string, image string))
+
+	// SetPullProgressCallback sets the callback function for image pull progress updates
+	SetPullProgressCallback(callback func(agentName string, done, total int))
 }

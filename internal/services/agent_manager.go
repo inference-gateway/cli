@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,17 +25,18 @@ const (
 
 // AgentManager manages the lifecycle of A2A agent containers (local and external)
 type AgentManager struct {
-	sessionID        domain.SessionID
-	config           *config.Config
-	agentsConfig     *config.AgentsConfig
-	containerRuntime domain.ContainerRuntime
-	containers       map[string]string
-	assignedPorts    map[string]int
-	externalAgents   map[string]string
-	isRunning        bool
-	statusCallback   func(agentName string, state domain.AgentState, message string, url string, image string)
-	containersMutex  sync.Mutex
-	a2aAgentService  domain.A2AAgentService
+	sessionID            domain.SessionID
+	config               *config.Config
+	agentsConfig         *config.AgentsConfig
+	containerRuntime     domain.ContainerRuntime
+	containers           map[string]string
+	assignedPorts        map[string]int
+	externalAgents       map[string]string
+	isRunning            bool
+	statusCallback       func(agentName string, state domain.AgentState, message string, url string, image string)
+	pullProgressCallback func(agentName string, done, total int)
+	containersMutex      sync.Mutex
+	a2aAgentService      domain.A2AAgentService
 }
 
 // NewAgentManager creates a new agent manager
@@ -62,6 +62,18 @@ func (am *AgentManager) SetStatusCallback(callback func(agentName string, state 
 func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, message string, url string, image string) {
 	if am.statusCallback != nil {
 		am.statusCallback(agentName, state, message, url, image)
+	}
+}
+
+// SetPullProgressCallback sets the callback function for image pull progress updates
+func (am *AgentManager) SetPullProgressCallback(callback func(agentName string, done, total int)) {
+	am.pullProgressCallback = callback
+}
+
+// notifyPullProgress calls the pull progress callback if set
+func (am *AgentManager) notifyPullProgress(agentName string, done, total int) {
+	if am.pullProgressCallback != nil {
+		am.pullProgressCallback(agentName, done, total)
 	}
 }
 
@@ -186,7 +198,7 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 	}
 
 	am.notifyStatus(agent.Name, domain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
-	if err := am.pullImage(ctx, agent.OCI); err != nil {
+	if err := am.pullImage(ctx, agent); err != nil {
 		logger.Warn("failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
 	}
 
@@ -253,16 +265,13 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 	return nil
 }
 
-// pullImage pulls the OCI image for an agent
-func (am *AgentManager) pullImage(ctx context.Context, image string) error {
-	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker pull failed: %w", err)
+// pullImage pulls the OCI image for an agent, streaming layer progress
+func (am *AgentManager) pullImage(ctx context.Context, agent config.AgentEntry) error {
+	progress := func(done, total int) { am.notifyPullProgress(agent.Name, done, total) }
+	if am.containerRuntime != nil {
+		return am.containerRuntime.PullImage(ctx, agent.OCI, progress)
 	}
-	return nil
+	return runPullCommand(ctx, "docker", agent.OCI, progress)
 }
 
 // startContainer starts the agent container

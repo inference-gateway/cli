@@ -264,6 +264,11 @@ func (c *ServiceContainer) initializeAgentManager() {
 		})
 	})
 
+	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
+		c.stateManager.UpdateAgentPullProgress(name, done, total)
+		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{AgentName: name, State: domain.AgentStatePullingImage})
+	})
+
 	ctx := context.Background()
 	if err := c.agentManager.StartAgents(ctx); err != nil {
 		logger.Warn("failed to start agents in background", "error", err)

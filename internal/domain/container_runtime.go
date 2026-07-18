@@ -15,8 +15,9 @@ type ContainerRuntime interface {
 	RunContainer(ctx context.Context, opts RunContainerOptions) (containerID string, err error)
 	StopContainer(ctx context.Context, containerIDOrName string) error
 
-	// Image operations
-	PullImage(ctx context.Context, image string) error
+	// Image operations. The optional progress callback receives layer counts
+	// as the pull advances.
+	PullImage(ctx context.Context, image string, progress func(done, total int)) error
 
 	// Container inspection
 	GetContainerHealth(ctx context.Context, containerIDOrName string) (HealthStatus, error)
