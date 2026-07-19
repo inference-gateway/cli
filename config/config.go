@@ -501,6 +501,7 @@ type AgentConfig struct {
 	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
+	ReasoningEffort          string             `yaml:"reasoning_effort,omitempty" mapstructure:"reasoning_effort"`
 	MaxConcurrentTools       int                `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
 }
 
@@ -1204,6 +1205,15 @@ func (c *Config) Validate() error {
 			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, or %q",
 			c.Tools.Safety.ApprovalBehaviour,
 			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock,
+		)
+	}
+
+	switch c.Agent.ReasoningEffort {
+	case "", "minimal", "low", "medium", "high":
+	default:
+		return fmt.Errorf(
+			"invalid agent.reasoning_effort %q: must be one of \"minimal\", \"low\", \"medium\", or \"high\"",
+			c.Agent.ReasoningEffort,
 		)
 	}
 
