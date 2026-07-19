@@ -1285,6 +1285,9 @@ and Docker Compose file:
 | [shortcuts](examples/shortcuts/) | Custom `/`-shortcuts wired through config |
 | [web-terminal](examples/web-terminal/) | Browser-based, multi-tab web terminal |
 | [telegram-channel](examples/telegram-channel/) | Driving the agent from a Telegram channel |
+| [working-offline](examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
+| [postgres-storage](examples/postgres-storage/) | Persisting conversations to PostgreSQL |
+| [a2a-traces](examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |
 
 ### Basic Workflow
 
