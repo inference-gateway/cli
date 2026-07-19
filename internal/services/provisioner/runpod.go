@@ -181,9 +181,10 @@ func price(t GPUType) float64 {
 	return t.SecurePrice
 }
 
-// WaitReady polls the pod, then the llama.cpp /v1/models endpoint through the
-// proxy until the model answers. report is called with progress lines.
-func (r *RunPod) WaitReady(ctx context.Context, id string, port int, apiKey string, report func(string)) (Pod, error) {
+// WaitReady polls the pod, then the llama.cpp /health endpoint through the
+// proxy until the model answers. /health is unauthenticated in llama.cpp, so
+// this needs no per-session token and works for `gpu status --wait` too.
+func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func(string)) (Pod, error) {
 	var pod Pod
 	for {
 		var err error
@@ -203,7 +204,7 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, apiKey stri
 	if r.ProxyBase != "" {
 		base = r.ProxyBase
 	}
-	url := base + "/v1/models"
+	url := base + "/health"
 	report("pod running; waiting for llama.cpp to download the model and answer...")
 	start := time.Now()
 	for {
@@ -212,7 +213,6 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, apiKey stri
 		// the probe status: 503 = server up + model downloading/loading.
 		phase := "starting llama.cpp server..."
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
 		resp, err := r.Client.Do(req)
 		if err == nil {
 			_, _ = io.Copy(io.Discard, resp.Body)

@@ -105,7 +105,7 @@ func TestWaitReadyReportsDownloadPhase(t *testing.T) {
 		switch req.URL.Path {
 		case "/pods/abc123":
 			_ = json.NewEncoder(w).Encode(Pod{ID: "abc123", DesiredStatus: "RUNNING"})
-		case "/v1/models":
+		case "/health":
 			probes++
 			if probes == 1 {
 				w.WriteHeader(http.StatusServiceUnavailable) // llama.cpp still loading the model
@@ -121,7 +121,7 @@ func TestWaitReadyReportsDownloadPhase(t *testing.T) {
 	r.pollInterval = time.Millisecond
 
 	var msgs []string
-	if _, err := r.WaitReady(context.Background(), "abc123", 8080, "tok", func(m string) { msgs = append(msgs, m) }); err != nil {
+	if _, err := r.WaitReady(context.Background(), "abc123", 8080, func(m string) { msgs = append(msgs, m) }); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	joined := strings.Join(msgs, "\n")

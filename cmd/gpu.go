@@ -66,6 +66,7 @@ func init() {
 	gpuProvisionCmd.Flags().String("model", "", "Hugging Face GGUF to serve, as <repo>:<quant>")
 	gpuProvisionCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt")
 	gpuDestroyCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt")
+	gpuStatusCmd.Flags().Bool("wait", false, "Block until llama.cpp answers, with a progress heartbeat")
 
 	gpuCmd.AddCommand(gpuProvisionCmd)
 	gpuCmd.AddCommand(gpuListCmd)
@@ -183,7 +184,7 @@ func gpuProvision(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Spec: %s (%s), %d GB disk, image %s, model %s\n", gpuType, cloudType, diskGB, image, model)
 	fmt.Println("Waiting until the model answers...")
 
-	pod, err = drv.WaitReady(ctx, pod.ID, gpuLlamaPort, token, func(msg string) { fmt.Printf("\r\033[K• %s", msg) })
+	pod, err = drv.WaitReady(ctx, pod.ID, gpuLlamaPort, gpuHeartbeat)
 	fmt.Println()
 	if err != nil {
 		return fmt.Errorf("pod %s did not become ready (destroy it with `infer gpu destroy %s`): %w", pod.ID, pod.ID, err)
@@ -272,6 +273,8 @@ func gpuList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func gpuHeartbeat(msg string) { fmt.Printf("\r\033[K• %s", msg) }
+
 func gpuStatus(cmd *cobra.Command, args []string) error {
 	drv, err := gpuDriver()
 	if err != nil {
@@ -280,6 +283,14 @@ func gpuStatus(cmd *cobra.Command, args []string) error {
 	pod, err := drv.Status(cmd.Context(), args[0])
 	if err != nil {
 		return err
+	}
+	if wait, _ := cmd.Flags().GetBool("wait"); wait {
+		pod, err = drv.WaitReady(cmd.Context(), pod.ID, gpuLlamaPort, gpuHeartbeat)
+		fmt.Println()
+		if err != nil {
+			return err
+		}
+		fmt.Println("Ready.")
 	}
 	fmt.Printf("ID:      %s\nName:    %s\nStatus:  %s\nImage:   %s\nCost:    $%.2f/hr\nUptime:  %s\nURL:     %s/v1\n",
 		pod.ID, pod.Name, pod.DesiredStatus, pod.Image, pod.CostPerHr, podUptime(pod), pod.ProxyURL(gpuLlamaPort))
