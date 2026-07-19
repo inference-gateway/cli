@@ -416,14 +416,20 @@ type CompactConfig struct {
 // The provider API key is management-plane only (provision/list/destroy); the
 // running pod is reached exclusively through the llamacpp provider env vars.
 type ProvisionerConfig struct {
-	Provider  string  `yaml:"provider,omitempty" mapstructure:"provider"`
-	APIKey    string  `yaml:"api_key,omitempty" mapstructure:"api_key"`
-	GPUType   string  `yaml:"gpu_type,omitempty" mapstructure:"gpu_type"`
-	Model     string  `yaml:"model,omitempty" mapstructure:"model"`
-	Image     string  `yaml:"image,omitempty" mapstructure:"image"`
-	CloudType string  `yaml:"cloud_type,omitempty" mapstructure:"cloud_type"`
-	DiskGB    int     `yaml:"disk_gb,omitempty" mapstructure:"disk_gb"`
-	MaxHourly float64 `yaml:"max_hourly,omitempty" mapstructure:"max_hourly"`
+	Provider  string                  `yaml:"provider,omitempty" mapstructure:"provider"`
+	RunPod    ProvisionerRunPodConfig `yaml:"runpod,omitempty" mapstructure:"runpod"`
+	GPUType   string                  `yaml:"gpu_type,omitempty" mapstructure:"gpu_type"`
+	Model     string                  `yaml:"model,omitempty" mapstructure:"model"`
+	Image     string                  `yaml:"image,omitempty" mapstructure:"image"`
+	CloudType string                  `yaml:"cloud_type,omitempty" mapstructure:"cloud_type"`
+	DiskGB    int                     `yaml:"disk_gb,omitempty" mapstructure:"disk_gb"`
+	MaxHourly float64                 `yaml:"max_hourly,omitempty" mapstructure:"max_hourly"`
+}
+
+// ProvisionerRunPodConfig holds RunPod-specific settings under
+// provisioner.runpod.* (env: INFER_PROVISIONER_RUNPOD_API_KEY).
+type ProvisionerRunPodConfig struct {
+	APIKey string `yaml:"api_key,omitempty" mapstructure:"api_key"`
 }
 
 // WebConfig contains web terminal settings

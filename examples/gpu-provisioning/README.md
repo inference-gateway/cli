@@ -18,7 +18,10 @@ HTTPS proxy URL instead of localhost.
 
 - A [RunPod](https://www.runpod.io) account and API key. The key is
   management-plane only (create/list/destroy calls); the provision form asks
-  for it once and stores it as `provisioner.api_key` in `~/.infer/config.yaml`.
+  for it once and stores it as `provisioner.runpod.api_key` in
+  `~/.infer/config.yaml`. Alternatively set `INFER_PROVISIONER_RUNPOD_API_KEY`
+  (useful in CI) - the form then skips the key question but still asks what
+  to provision.
 - `infer` installed on the host (the provisioning commands run locally).
 - Docker, for the compose path below.
 

@@ -31,7 +31,8 @@ standard llamacpp provider env vars (LLAMACPP_API_URL / LLAMACPP_API_KEY);
 connecting to it is indistinguishable from any other llamacpp backend.
 
 The RunPod API key is management-plane only (create/list/destroy calls). It is
-asked for on first provision and stored as provisioner.api_key in config.yaml.`,
+asked for on first provision and stored as provisioner.runpod.api_key in
+config.yaml, or supplied via INFER_PROVISIONER_RUNPOD_API_KEY.`,
 }
 
 var gpuProvisionCmd = &cobra.Command{
@@ -76,7 +77,7 @@ func init() {
 // gpuDriver builds the RunPod driver, prompting for (and persisting) the API
 // key on first use via the same write path as `infer config set`.
 func gpuDriver() (*provisioner.RunPod, error) {
-	key := Cfg.Provisioner.APIKey
+	key := Cfg.Provisioner.RunPod.APIKey
 	if key == "" {
 		var err error
 		if key, err = promptAndSaveAPIKey(); err != nil {
@@ -90,7 +91,7 @@ func promptAndSaveAPIKey() (string, error) {
 	var key string
 	if err := huh.NewInput().
 		Title("RunPod API key").
-		Description("Management-plane only (create/list/destroy). Stored as provisioner.api_key in ~/.infer/config.yaml.").
+		Description("Management-plane only (create/list/destroy). Stored as provisioner.runpod.api_key in ~/.infer/config.yaml.").
 		EchoMode(huh.EchoModePassword).
 		Value(&key).Run(); err != nil {
 		return "", err
@@ -102,7 +103,7 @@ func promptAndSaveAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	target.Set("provisioner.api_key", key)
+	target.Set("provisioner.runpod.api_key", key)
 	if err := utils.WriteViperConfigWithIndent(target, 2); err != nil {
 		return "", fmt.Errorf("failed to save API key: %w", err)
 	}
