@@ -181,7 +181,8 @@ func gpuProvision(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Pod %s created (~$%.2f/hr). Waiting until the model answers...\n", pod.ID, pod.CostPerHr)
 
-	pod, err = drv.WaitReady(ctx, pod.ID, gpuLlamaPort, token, func(msg string) { fmt.Println("• " + msg) })
+	pod, err = drv.WaitReady(ctx, pod.ID, gpuLlamaPort, token, func(msg string) { fmt.Printf("\r\033[K• %s", msg) })
+	fmt.Println()
 	if err != nil {
 		return fmt.Errorf("pod %s did not become ready (destroy it with `infer gpu destroy %s`): %w", pod.ID, pod.ID, err)
 	}
@@ -195,13 +196,16 @@ func gpuProvision(cmd *cobra.Command, args []string) error {
 
 func gpuAskChoices(types []provisioner.GPUType, model string, yes bool) (string, string, error) {
 	var gpuType string
-	if err := huh.NewSelect[string]().Title("GPU type (cheapest first)").Options(gpuTypeOptions(types)...).Value(&gpuType).Run(); err != nil {
-		return "", "", err
+	fields := []huh.Field{
+		// Height caps the list so the title/filter line stays on screen ("/" to filter).
+		huh.NewSelect[string]().Title("GPU type (cheapest first)").Options(gpuTypeOptions(types)...).Height(15).Value(&gpuType),
 	}
 	if !yes {
-		if err := huh.NewInput().Title("Model (Hugging Face GGUF, <repo>:<quant>)").Value(&model).Run(); err != nil {
-			return "", "", err
-		}
+		fields = append(fields, huh.NewInput().Title("Model (Hugging Face GGUF, <repo>:<quant>)").Value(&model))
+	}
+	// One group so shift+tab navigates back to change an earlier answer.
+	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
+		return "", "", err
 	}
 	return gpuType, model, nil
 }

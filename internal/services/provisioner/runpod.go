@@ -59,7 +59,10 @@ type RunPod struct {
 	APIKey     string
 	RestURL    string // default https://rest.runpod.io/v1
 	GraphQLURL string // default https://api.runpod.io/graphql
+	ProxyBase  string // overrides Pod.ProxyURL in WaitReady; tests only
 	Client     *http.Client
+
+	pollInterval time.Duration // WaitReady probe interval; 0 means 10s (short in tests)
 }
 
 func NewRunPod(apiKey string) *RunPod {
@@ -196,9 +199,18 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, apiKey stri
 			return pod, err
 		}
 	}
-	url := pod.ProxyURL(port) + "/v1/models"
+	base := pod.ProxyURL(port)
+	if r.ProxyBase != "" {
+		base = r.ProxyBase
+	}
+	url := base + "/v1/models"
 	report("pod running; waiting for llama.cpp to download the model and answer...")
+	start := time.Now()
 	for {
+		// No download % available: RunPod exposes no log/telemetry API and
+		// llama.cpp doesn't report progress over HTTP. Phase is inferred from
+		// the probe status: 503 = server up + model downloading/loading.
+		phase := "starting llama.cpp server..."
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		resp, err := r.Client.Do(req)
@@ -208,8 +220,16 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, apiKey stri
 			if resp.StatusCode == http.StatusOK {
 				return pod, nil
 			}
+			if resp.StatusCode == http.StatusServiceUnavailable {
+				phase = "downloading/loading model..."
+			}
 		}
-		if err := sleep(ctx, 10*time.Second); err != nil {
+		report(phase + " (" + time.Since(start).Round(time.Second).String() + " elapsed)")
+		interval := r.pollInterval
+		if interval == 0 {
+			interval = 10 * time.Second
+		}
+		if err := sleep(ctx, interval); err != nil {
 			return pod, err
 		}
 	}

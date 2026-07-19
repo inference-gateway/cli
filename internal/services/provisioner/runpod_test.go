@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 func testDriver(t *testing.T, handler http.Handler) *RunPod {
@@ -94,6 +96,37 @@ func TestGPUTypes(t *testing.T) {
 	}
 	if types[0].ID != "A6000" {
 		t.Fatalf("GPUTypes should sort cheapest first, got %+v", types)
+	}
+}
+
+func TestWaitReadyReportsDownloadPhase(t *testing.T) {
+	probes := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch req.URL.Path {
+		case "/pods/abc123":
+			_ = json.NewEncoder(w).Encode(Pod{ID: "abc123", DesiredStatus: "RUNNING"})
+		case "/v1/models":
+			probes++
+			if probes == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable) // llama.cpp still loading the model
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	r := testDriver(t, handler)
+	r.ProxyBase = r.RestURL
+	r.pollInterval = time.Millisecond
+
+	var msgs []string
+	if _, err := r.WaitReady(context.Background(), "abc123", 8080, "tok", func(m string) { msgs = append(msgs, m) }); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+	joined := strings.Join(msgs, "\n")
+	if !strings.Contains(joined, "downloading/loading model") || !strings.Contains(joined, "elapsed") {
+		t.Fatalf("expected download-phase heartbeat, got %q", joined)
 	}
 }
 
