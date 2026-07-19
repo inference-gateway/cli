@@ -1286,6 +1286,7 @@ and Docker Compose file:
 | [web-terminal](examples/web-terminal/) | Browser-based, multi-tab web terminal |
 | [telegram-channel](examples/telegram-channel/) | Driving the agent from a Telegram channel |
 | [working-offline](examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
+| [gpu-provisioning](examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer gpu` (RunPod) |
 | [postgres-storage](examples/postgres-storage/) | Persisting conversations to PostgreSQL |
 | [a2a-traces](examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |
 

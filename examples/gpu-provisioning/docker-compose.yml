@@ -1,0 +1,33 @@
+---
+# Gateway + CLI in containers; the model server is a rented RunPod GPU pod
+# created by `infer gpu provision` (see README). The pod endpoint reaches the
+# gateway through the standard llamacpp provider env vars in .env.
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env # LLAMACPP_API_URL + LLAMACPP_API_KEY from `infer gpu provision`
+    restart: unless-stopped
+
+  # One-off interactive CLI: docker compose run --rm cli chat
+  # (the profile keeps `up -d` from starting it; `run` activates it anyway)
+  cli:
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
+    depends_on:
+      - inference-gateway
+    env_file:
+      - .env # INFER_PROVISIONER_RUNPOD_API_KEY for `run --rm cli gpu ...`
+    environment:
+      INFER_GATEWAY_URL: http://inference-gateway:8080 # compose service DNS
+      INFER_GATEWAY_RUN: "false" # compose runs the gateway; don't auto-start one
+    volumes:
+      - cli_data:/home/infer/.infer # persists conversations across runs
+    profiles:
+      - cli
+
+volumes:
+  cli_data:
