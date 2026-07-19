@@ -52,7 +52,8 @@ func (a *EventDrivenAgent) startStreaming() {
 
 	client := a.service.client.
 		WithOptions(&sdk.CreateChatCompletionRequest{
-			MaxTokens: &a.service.maxTokens,
+			MaxTokens:       &a.service.maxTokens,
+			ReasoningEffort: a.service.reasoningEffort,
 			StreamOptions: &sdk.ChatCompletionStreamOptions{
 				IncludeUsage: true,
 			},

@@ -32,6 +32,7 @@ type AgentServiceImpl struct {
 	stateManager     stateManager
 	timeoutSeconds   int
 	maxTokens        int
+	reasoningEffort  *sdk.CreateChatCompletionRequestReasoningEffort
 	optimizer        domain.ConversationOptimizer
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
@@ -374,6 +375,7 @@ func NewAgent(
 		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        cfg.GetAgentConfig().MaxTokens,
+		reasoningEffort:  reasoningEffortOption(cfg.GetAgentConfig().ReasoningEffort),
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
@@ -385,6 +387,16 @@ func NewAgent(
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
+}
+
+// reasoningEffortOption maps agent.reasoning_effort ("" = unset, validated in
+// Config.Validate) to the SDK's optional request field.
+func reasoningEffortOption(effort string) *sdk.CreateChatCompletionRequestReasoningEffort {
+	if effort == "" {
+		return nil
+	}
+	e := sdk.CreateChatCompletionRequestReasoningEffort(effort)
+	return &e
 }
 
 // SetTelemetryRecorder wires the telemetry recorder so per-request token usage
@@ -433,7 +445,8 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		providerType := sdk.Provider(provider)
 
 		client := s.client.WithOptions(&sdk.CreateChatCompletionRequest{
-			MaxTokens: &s.maxTokens,
+			MaxTokens:       &s.maxTokens,
+			ReasoningEffort: s.reasoningEffort,
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
 				SkipMCP: true,
