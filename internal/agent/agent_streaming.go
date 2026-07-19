@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -134,9 +135,11 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 // a dead network for the ~75s OS timeout) is cancelled and reported as
 // errConnectStalled so the reconnect loop counts it like any other stall.
 func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context.CancelFunc, client sdk.Client) (<-chan sdk.SSEvent, error) {
+	conversation := a.outboundConversation()
+
 	stallAfter := time.Duration(a.service.config.Client.StallThresholdSec) * time.Second
 	if stallAfter <= 0 {
-		return client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
+		return client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, conversation)
 	}
 
 	type opened struct {
@@ -145,7 +148,7 @@ func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context
 	}
 	done := make(chan opened, 1)
 	go func() {
-		events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, *a.agentCtx.Conversation)
+		events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, conversation)
 		done <- opened{events, err}
 	}()
 
@@ -159,6 +162,17 @@ func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context
 		<-done
 		return nil, errConnectStalled
 	}
+}
+
+// outboundConversation returns the request payload: the shared conversation
+// plus the ephemeral volatile-context tail. The shared slice is cloned before
+// appending so the tail never leaks into persistence, the TUI, or later turns.
+func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
+	conversation := *a.agentCtx.Conversation
+	if len(a.volatileTail) > 0 {
+		conversation = append(slices.Clone(conversation), a.volatileTail...)
+	}
+	return conversation
 }
 
 // failStream publishes a terminal stream error and moves the state machine to

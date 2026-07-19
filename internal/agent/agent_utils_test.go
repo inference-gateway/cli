@@ -705,7 +705,7 @@ func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
 	cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: true, MaxChars: config.DefaultInstructionsMaxChars}
 	s := &AgentServiceImpl{config: cfg}
 
-	got := s.buildSystemPromptText(nil)
+	got := s.buildSystemPromptText()
 	base := strings.Index(got, "base prompt")
 	custom := strings.Index(got, "custom instructions here")
 	agentsMD := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules here")
@@ -730,9 +730,92 @@ func TestBuildSystemPromptText_PluginInstructionsAfterAgentsMD(t *testing.T) {
 	cfg.Plugins.Plugins = []config.PluginEntry{{Name: "ponytail", Enabled: true}}
 	s := &AgentServiceImpl{config: cfg}
 
-	got := s.buildSystemPromptText(nil)
+	got := s.buildSystemPromptText()
 	project := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules")
 	plugin := strings.Index(got, "PLUGIN INSTRUCTIONS (ponytail):\nbe lazy")
 	require.GreaterOrEqual(t, project, 0)
 	require.Greater(t, plugin, project)
+}
+
+func TestBuildSystemPromptText_ExcludesVolatileSections(t *testing.T) {
+	t.Chdir(t.TempDir())
+	memDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(memDir, config.MemoryIndexFileName), []byte("- [fact](fact.md) - a fact\n"), 0o600))
+
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = "base prompt"
+	cfg.Agent.SystemPromptWithDefaults = true
+	cfg.Agent.Context = config.AgentContextConfig{GitContextEnabled: true, TreeEnabled: true, GitContextRefreshTurns: 10}
+	cfg.Memory = config.MemoryConfig{Enabled: true, Dir: memDir}
+	cfg.Tools.Enabled = true
+	s := &AgentServiceImpl{config: cfg}
+
+	got := s.buildSystemPromptText()
+
+	require.NotContains(t, got, "Current date:")
+	require.NotContains(t, got, "GIT REPOSITORY CONTEXT")
+	require.NotContains(t, got, "PROJECT STRUCTURE")
+	require.NotContains(t, got, "PERSISTENT MEMORY INDEX")
+	require.Equal(t, got, s.buildSystemPromptText(), "system prompt must be byte-identical across calls")
+}
+
+func TestVolatileTailMessage(t *testing.T) {
+	newSvc := func(memoryEnabled bool, withDefaults bool) *AgentServiceImpl {
+		memDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(memDir, config.MemoryIndexFileName), []byte("- [fact](fact.md) - a fact\n"), 0o600))
+		cfg := &config.Config{}
+		cfg.Prompts.Agent.SystemPrompt = "base prompt"
+		cfg.Agent.SystemPromptWithDefaults = withDefaults
+		cfg.Memory = config.MemoryConfig{Enabled: memoryEnabled, Dir: memDir}
+		return &AgentServiceImpl{config: cfg}
+	}
+
+	tailContent := func(t *testing.T, msg sdk.Message) string {
+		t.Helper()
+		content, err := msg.Content.AsMessageContent0()
+		require.NoError(t, err)
+		return content
+	}
+
+	t.Run("carries volatile sections and date", func(t *testing.T) {
+		msg, ok := newSvc(true, true).volatileTailMessage(nil)
+		require.True(t, ok)
+		require.Equal(t, sdk.User, msg.Role)
+		content := tailContent(t, msg)
+		require.True(t, strings.HasPrefix(content, "<system-reminder>\n"))
+		require.True(t, strings.HasSuffix(content, "\n</system-reminder>"))
+		require.Contains(t, content, "PERSISTENT MEMORY INDEX")
+		require.Contains(t, content, "Current date:")
+	})
+
+	t.Run("disabled section is absent", func(t *testing.T) {
+		msg, ok := newSvc(false, true).volatileTailMessage(nil)
+		require.True(t, ok)
+		require.NotContains(t, tailContent(t, msg), "PERSISTENT MEMORY INDEX")
+	})
+
+	t.Run("defaults off keeps only the date", func(t *testing.T) {
+		msg, ok := newSvc(true, false).volatileTailMessage(nil)
+		require.True(t, ok)
+		content := tailContent(t, msg)
+		require.NotContains(t, content, "PERSISTENT MEMORY INDEX")
+		require.Contains(t, content, "Current date:")
+	})
+
+	t.Run("no system prompt yields no tail", func(t *testing.T) {
+		s := newSvc(true, true)
+		s.config.Prompts.Agent.SystemPrompt = ""
+		_, ok := s.volatileTailMessage(nil)
+		require.False(t, ok)
+	})
+
+	t.Run("open tool calls yield no tail", func(t *testing.T) {
+		toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
+		messages := []sdk.Message{
+			{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+			{Role: sdk.Assistant, ToolCalls: &toolCalls},
+		}
+		_, ok := newSvc(true, true).volatileTailMessage(messages)
+		require.False(t, ok)
+	})
 }

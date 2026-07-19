@@ -51,6 +51,12 @@ type EventDrivenAgent struct {
 
 	// Testability - can be overridden in tests
 	toolExecutor func()
+
+	// volatileTail holds zero or one <system-reminder> message with the
+	// volatile context (git, tree, memory, active skill, date). It is appended
+	// to every outbound request payload but never to *agentCtx.Conversation,
+	// so it is neither persisted nor rendered (see volatileTailMessage).
+	volatileTail []sdk.Message
 }
 
 // NewEventDrivenAgent creates a new event-driven agent

@@ -425,6 +425,9 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
+	if tail, ok := s.volatileTailMessage(optimizedMessages); ok {
+		messages = append(messages, tail)
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 	defer cancel()
@@ -667,6 +670,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	context.AfterFunc(sessionCtx, sc.Cancel)
 
 	conversation := s.addSystemPrompt(req.Messages)
+	volatileTail, hasTail := s.volatileTailMessage(req.Messages)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
@@ -696,6 +700,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			model,
 			s.bgRegistry,
 		)
+		if hasTail {
+			agent.volatileTail = []sdk.Message{volatileTail}
+		}
 
 		agent.Start()
 		agent.Wait()

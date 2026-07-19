@@ -36,7 +36,7 @@ type env struct {
 // newEnv builds a real service container pointed at an in-process mock
 // gateway, with the working directory moved to a fresh temp dir so tool
 // executions (Read, Grep, ...) stay sandboxed to fixtures.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, mutate ...func(*config.Config)) *env {
 	t.Helper()
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
@@ -55,6 +55,9 @@ func newEnv(t *testing.T) *env {
 	cfg.Client.Retry.InitialBackoffSec = 0
 	cfg.Client.Retry.MaxAttempts = 3
 	cfg.Client.StallThresholdSec = 1
+	for _, m := range mutate {
+		m(cfg)
+	}
 
 	c := container.NewServiceContainer(cfg)
 	t.Cleanup(func() {
@@ -399,4 +402,71 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 
 	streamStats := streamEnv.container.GetConversationRepository().GetSessionTokens()
 	require.Equal(t, streamStats, syncStats, "headless totals must equal chat totals for the same scenario")
+}
+
+// TestStreamSystemPromptStableWithVolatileTail is the acceptance check for
+// issue #938: message[0] must be byte-identical across every request of a
+// session (KV-cache prefix stability) while the volatile context (date, git,
+// tree, memory) rides in a <system-reminder> user message at the tail of each
+// outbound payload — never persisted, never in the shared conversation.
+func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+	e.writeFixtures(t, "a.txt")
+
+	res := e.runStream(context.Background(), t, "explore the project structure")
+	require.Empty(t, res.errs)
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 3)
+
+	firstSystem, err := bodies[0].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.NotContains(t, firstSystem, "Current date:")
+
+	for i, body := range bodies {
+		require.Equal(t, sdk.System, body.Messages[0].Role)
+		system, err := body.Messages[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.Equal(t, firstSystem, system, "system prompt must be byte-identical across turns (request %d)", i)
+
+		last := body.Messages[len(body.Messages)-1]
+		require.Equal(t, sdk.User, last.Role, "request %d must end with the volatile tail", i)
+		content, err := last.Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(content, "<system-reminder>"), "request %d tail must be a system reminder", i)
+		require.Contains(t, content, "Current date:")
+	}
+}
+
+// TestSyncRunAppendsVolatileTail covers the non-streaming path of issue #938.
+func TestSyncRunAppendsVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+
+	_, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+		RequestID: "req-sync-tail",
+		Model:     mockgateway.DefaultModel,
+		Messages:  []sdk.Message{userMessage(t, "say hello")},
+	})
+	require.NoError(t, err)
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 1)
+
+	system, err := bodies[0].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.NotContains(t, system, "Current date:")
+
+	last := bodies[0].Messages[len(bodies[0].Messages)-1]
+	require.Equal(t, sdk.User, last.Role)
+	content, err := last.Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(content, "<system-reminder>"))
+	require.Contains(t, content, "Current date:")
 }
