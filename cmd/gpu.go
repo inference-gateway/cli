@@ -179,7 +179,9 @@ func gpuProvision(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to provision pod: %w", err)
 	}
-	fmt.Printf("Pod %s created (~$%.2f/hr). Waiting until the model answers...\n", pod.ID, pod.CostPerHr)
+	fmt.Printf("Pod %s created (~$%.2f/hr)\n", pod.ID, pod.CostPerHr)
+	fmt.Printf("Spec: %s (%s), %d GB disk, image %s, model %s\n", gpuType, cloudType, diskGB, image, model)
+	fmt.Println("Waiting until the model answers...")
 
 	pod, err = drv.WaitReady(ctx, pod.ID, gpuLlamaPort, token, func(msg string) { fmt.Printf("\r\033[K• %s", msg) })
 	fmt.Println()
