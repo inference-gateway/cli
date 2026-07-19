@@ -5,6 +5,7 @@
 services:
   inference-gateway:
     image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
     ports:
       - "8080:8080"
     env_file:
@@ -14,8 +15,8 @@ services:
   # One-off interactive CLI: docker compose run --rm cli chat
   # (the profile keeps `up -d` from starting it; `run` activates it anyway)
   cli:
-    image: ghcr.io/inference-gateway/cli:local
-    pull_policy: never
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
     depends_on:
       - inference-gateway
     env_file:
