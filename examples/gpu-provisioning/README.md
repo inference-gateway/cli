@@ -16,20 +16,26 @@ HTTPS proxy URL instead of localhost.
 
 ## Prerequisites
 
-- A [RunPod](https://www.runpod.io) account and API key. The key is
-  management-plane only (create/list/destroy calls); the provision form asks
-  for it once and stores it as `provisioner.runpod.api_key` in
-  `~/.infer/config.yaml`. Alternatively set `INFER_PROVISIONER_RUNPOD_API_KEY`
-  (useful in CI) - the form then skips the key question but still asks what
-  to provision.
-- `infer` installed on the host (the provisioning commands run locally).
-- Docker, for the compose path below.
+- A [RunPod](https://www.runpod.io) account and API key (create one at
+  runpod.io/console/user/settings with **graphql Read/Write** - it's
+  management-plane only: create/list/destroy calls).
+- Docker. A host-installed `infer` works too but isn't required.
+
+```bash
+cp .env.example .env   # paste your RunPod API key
+```
 
 ## Provision
 
 ```bash
-infer gpu provision
+docker compose run --rm cli gpu provision
 ```
+
+(Host-installed `infer` instead? `infer gpu provision` - the form asks for the
+API key on first run and stores it as `provisioner.runpod.api_key` in
+`~/.infer/config.yaml`; with `INFER_PROVISIONER_RUNPOD_API_KEY` set, as the
+compose service does, the key question is skipped and the form only asks what
+to provision.)
 
 An interactive form asks what to provision: GPU type (live $/hr pricing,
 cheapest first), model as `<hf-repo>:<quant>` (default
@@ -37,7 +43,7 @@ cheapest first), model as `<hf-repo>:<quant>` (default
 price before anything is created. Non-interactive:
 
 ```bash
-infer gpu provision --gpu-type "NVIDIA GeForce RTX 5090" \
+docker compose run --rm cli gpu provision --gpu-type "NVIDIA GeForce RTX 5090" \
   --model "ggml-org/gemma-4-E4B-it-GGUF:Q4_0" --yes
 ```
 
@@ -52,12 +58,15 @@ Ready. Point the gateway at it:
 When done: infer gpu destroy <pod-id>
 ```
 
+(Provisioned from the container? The key is saved nowhere - it came from
+`.env`; the printed handoff values are all you need to keep.)
+
 ## Connect
 
 **Compose gateway (this directory):**
 
 ```bash
-cp .env.example .env   # paste the two printed values
+# paste the two printed values into .env, then
 docker compose up -d
 
 # Confirm the gateway sees the pod's model
@@ -81,9 +90,9 @@ infer chat
 ## Cost control
 
 ```bash
-infer gpu list           # every infer-provisioned pod, from any session
-infer gpu status <id>    # state, uptime, $/hr, estimated total so far
-infer gpu destroy <id>   # billing stops
+docker compose run --rm cli gpu list           # every infer-provisioned pod, any session
+docker compose run --rm cli gpu status <id>    # state, uptime, $/hr, estimated total
+docker compose run --rm cli gpu destroy <id>   # billing stops
 ```
 
 `list` queries RunPod for pods created by infer (name-prefixed), so a pod
