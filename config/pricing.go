@@ -648,6 +648,13 @@ var DefaultModelPricing = map[string]ModelPricing{
 		OutputPricePerMToken: 0.00,
 		Currency:             "USD",
 	},
+	"moonshot/kimi-k3": {
+		Provider:             "moonshot",
+		Model:                "kimi-k3",
+		InputPricePerMToken:  3.00,
+		OutputPricePerMToken: 15.00,
+		Currency:             "USD",
+	},
 	"moonshot/kimi-k2.5": {
 		Provider:             "moonshot",
 		Model:                "kimi-k2.5",
