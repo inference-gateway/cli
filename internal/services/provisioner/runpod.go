@@ -208,9 +208,6 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func
 	report("pod running; waiting for llama.cpp to download the model and answer...")
 	start := time.Now()
 	for {
-		// No download % available: RunPod exposes no log/telemetry API and
-		// llama.cpp doesn't report progress over HTTP. Phase is inferred from
-		// the probe status: 503 = server up + model downloading/loading.
 		phase := "starting llama.cpp server..."
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		resp, err := r.Client.Do(req)
