@@ -137,13 +137,13 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
 }
 
-// buildSystemPromptText assembles the static system prompt text (base prompt +
-// custom instructions + AGENTS.md + plugins + static context). It is
-// deliberately byte-identical across turns within a session so local LLM
+// BuildSystemPrompt assembles the static system prompt sent as message[0]
+// (base prompt + custom instructions + AGENTS.md + plugins + static context).
+// It is deliberately byte-identical across turns within a session so local LLM
 // servers get KV-cache prefix hits; volatile context (git, tree, memory,
 // active skill, date) rides in volatileTailMessage instead. Returns "" when no
 // base prompt is configured for the current mode.
-func (s *AgentServiceImpl) buildSystemPromptText() string {
+func (s *AgentServiceImpl) BuildSystemPrompt() string {
 	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt == "" {
 		return ""
@@ -174,26 +174,25 @@ func (s *AgentServiceImpl) buildSystemPromptText() string {
 	return strings.Join(parts, "\n\n")
 }
 
-// BuildSystemPrompt returns the full prompt context a fresh session (turn 0)
-// would send to the LLM: the static system prompt plus the volatile-context
-// tail (git, tree, memory, active skill, date) that rides as a separate
-// message. Exposed for the `infer debug agent system_prompt` command.
-func (s *AgentServiceImpl) BuildSystemPrompt() string {
-	prompt := s.buildSystemPromptText()
-	if prompt == "" {
-		return ""
+// VolatileTailText renders the volatile-context tail a fresh session (turn 0)
+// would send as a hidden per-request <system-reminder> user message; ok=false
+// means no tail is sent. Exposed for the `infer debug agent system_prompt`
+// command via type assertion, alongside SystemPromptSections.
+func (s *AgentServiceImpl) VolatileTailText() (string, bool) {
+	tail, ok := s.volatileTailMessage(nil)
+	if !ok {
+		return "", false
 	}
-	if tail, ok := s.volatileTailMessage(nil); ok {
-		if content, err := tail.Content.AsMessageContent0(); err == nil {
-			prompt += "\n\n" + content
-		}
+	content, err := tail.Content.AsMessageContent0()
+	if err != nil {
+		return "", false
 	}
-	return prompt
+	return content, true
 }
 
 // addSystemPrompt prepends the assembled system prompt to messages.
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
-	prompt := s.buildSystemPromptText()
+	prompt := s.BuildSystemPrompt()
 	if prompt == "" {
 		return messages
 	}
@@ -234,12 +233,15 @@ func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message) (sdk.Mess
 	}, true
 }
 
-// PromptSection is one labeled part of the assembled system prompt, exposed
+// PromptSection is one labeled part of the assembled prompt context, exposed
 // for diagnostics (e.g. per-section token estimates in `infer debug`). Text is
 // the raw part as it appears in the prompt, including any separator prefix.
+// Volatile marks sections delivered via the per-request tail message rather
+// than the static system prompt.
 type PromptSection struct {
-	Name string
-	Text string
+	Name     string
+	Text     string
+	Volatile bool
 }
 
 // contextSections lists the static context builders in prompt order; it is
@@ -264,10 +266,10 @@ func (s *AgentServiceImpl) contextSections() []PromptSection {
 // volatileTailMessage rather than in the system prompt.
 func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message) []PromptSection {
 	return []PromptSection{
-		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn)},
-		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn)},
-		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages)},
-		{Name: "memory", Text: s.buildMemoryInfo(currentTurn)},
+		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
+		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
+		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages), Volatile: true},
+		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
 	}
 }
 
@@ -280,9 +282,10 @@ func (s *AgentServiceImpl) buildContextInfo() string {
 	return b.String()
 }
 
-// SystemPromptSections returns the labeled parts of the system prompt a fresh
-// session (turn 0) would send, in prompt order and with empty parts omitted.
-// Exposed for the `infer debug agent system_prompt --tokens` breakdown.
+// SystemPromptSections returns the labeled parts of the prompt context a fresh
+// session (turn 0) would send — the static system prompt sections followed by
+// the Volatile-marked tail sections — with empty parts omitted. Exposed for
+// the `infer debug agent system_prompt --tokens` breakdown.
 func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 	agentConfig := s.config.GetAgentConfig()
 	sections := []PromptSection{

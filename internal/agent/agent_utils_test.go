@@ -695,7 +695,7 @@ func TestBuildProjectTreeInfo(t *testing.T) {
 	})
 }
 
-func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
+func TestBuildSystemPrompt_AgentsMDAfterCustomInstructions(t *testing.T) {
 	t.Chdir(t.TempDir())
 	require.NoError(t, os.WriteFile("AGENTS.md", []byte("project rules here"), 0o644))
 
@@ -705,7 +705,7 @@ func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
 	cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: true, MaxChars: config.DefaultInstructionsMaxChars}
 	s := &AgentServiceImpl{config: cfg}
 
-	got := s.buildSystemPromptText()
+	got := s.BuildSystemPrompt()
 	base := strings.Index(got, "base prompt")
 	custom := strings.Index(got, "custom instructions here")
 	agentsMD := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules here")
@@ -714,7 +714,7 @@ func TestBuildSystemPromptText_AgentsMDAfterCustomInstructions(t *testing.T) {
 	require.Greater(t, agentsMD, custom)
 }
 
-func TestBuildSystemPromptText_PluginInstructionsAfterAgentsMD(t *testing.T) {
+func TestBuildSystemPrompt_PluginInstructionsAfterAgentsMD(t *testing.T) {
 	t.Chdir(t.TempDir())
 	require.NoError(t, os.WriteFile("AGENTS.md", []byte("project rules"), 0o644))
 
@@ -730,14 +730,14 @@ func TestBuildSystemPromptText_PluginInstructionsAfterAgentsMD(t *testing.T) {
 	cfg.Plugins.Plugins = []config.PluginEntry{{Name: "ponytail", Enabled: true}}
 	s := &AgentServiceImpl{config: cfg}
 
-	got := s.buildSystemPromptText()
+	got := s.BuildSystemPrompt()
 	project := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules")
 	plugin := strings.Index(got, "PLUGIN INSTRUCTIONS (ponytail):\nbe lazy")
 	require.GreaterOrEqual(t, project, 0)
 	require.Greater(t, plugin, project)
 }
 
-func TestBuildSystemPromptText_ExcludesVolatileSections(t *testing.T) {
+func TestBuildSystemPrompt_ExcludesVolatileSections(t *testing.T) {
 	t.Chdir(t.TempDir())
 	memDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(memDir, config.MemoryIndexFileName), []byte("- [fact](fact.md) - a fact\n"), 0o600))
@@ -750,13 +750,13 @@ func TestBuildSystemPromptText_ExcludesVolatileSections(t *testing.T) {
 	cfg.Tools.Enabled = true
 	s := &AgentServiceImpl{config: cfg}
 
-	got := s.buildSystemPromptText()
+	got := s.BuildSystemPrompt()
 
 	require.NotContains(t, got, "Current date:")
 	require.NotContains(t, got, "GIT REPOSITORY CONTEXT")
 	require.NotContains(t, got, "PROJECT STRUCTURE")
 	require.NotContains(t, got, "PERSISTENT MEMORY INDEX")
-	require.Equal(t, got, s.buildSystemPromptText(), "system prompt must be byte-identical across calls")
+	require.Equal(t, got, s.BuildSystemPrompt(), "system prompt must be byte-identical across calls")
 }
 
 func TestVolatileTailMessage(t *testing.T) {

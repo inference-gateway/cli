@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
@@ -61,4 +62,7 @@ func TestRenderAgentSystemPrompt_SyncsGitMemoryIn(t *testing.T) {
 
 	require.Contains(t, got, "PERSISTENT MEMORY INDEX")
 	require.Contains(t, got, "ci-fact")
+	require.Contains(t, got, volatileTailDivider)
+	require.Less(t, strings.Index(got, volatileTailDivider), strings.Index(got, "PERSISTENT MEMORY INDEX"),
+		"memory index renders in the volatile tail, below the divider")
 }
