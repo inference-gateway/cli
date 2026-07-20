@@ -445,6 +445,21 @@ func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
 		require.True(t, strings.HasPrefix(content, "<system-reminder>"), "request %d tail must be a system reminder", i)
 		require.Contains(t, content, "Current date:")
 	}
+
+	res2 := e.runStream(context.Background(), t, "say hello")
+	require.Empty(t, res2.errs)
+
+	bodies = e.completionBodies()
+	require.Len(t, bodies, 4)
+
+	require.NotNil(t, bodies[0].Tools)
+	require.NotEmpty(t, *bodies[0].Tools)
+	for i, body := range bodies {
+		system, err := body.Messages[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.Equal(t, firstSystem, system, "system prompt must be byte-identical across user turns (request %d)", i)
+		require.Equal(t, bodies[0].Tools, body.Tools, "tools array must be identically ordered across requests (request %d)", i)
+	}
 }
 
 // TestSyncRunAppendsVolatileTail covers the non-streaming path.

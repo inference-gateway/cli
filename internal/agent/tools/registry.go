@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -262,7 +264,11 @@ func (r *Registry) ListAvailableTools() []string {
 	return tools
 }
 
-// GetToolDefinitions returns definitions for all enabled tools
+// GetToolDefinitions returns definitions for all enabled tools, sorted by
+// name. The order must be deterministic: it feeds both the outbound tools
+// array and the system-prompt roster, and providers serialize tools into the
+// cached prompt prefix — a map-order shuffle would invalidate the KV cache
+// on every turn despite the byte-stable system prompt.
 func (r *Registry) GetToolDefinitions() []sdk.ChatCompletionTool {
 	r.toolsMu.RLock()
 	defer r.toolsMu.RUnlock()
@@ -272,6 +278,9 @@ func (r *Registry) GetToolDefinitions() []sdk.ChatCompletionTool {
 			definitions = append(definitions, tool.Definition())
 		}
 	}
+	slices.SortFunc(definitions, func(a, b sdk.ChatCompletionTool) int {
+		return cmp.Compare(a.Function.Name, b.Function.Name)
+	})
 	return definitions
 }
 
