@@ -425,7 +425,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
-	if tail, ok := s.volatileTailMessage(optimizedMessages); ok {
+	if tail, ok := s.volatileTailMessage(optimizedMessages); ok && !conversationAwaitsToolResults(optimizedMessages) {
 		messages = append(messages, tail)
 	}
 

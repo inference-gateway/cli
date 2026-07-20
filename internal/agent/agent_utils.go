@@ -208,16 +208,15 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 // volatileTailMessage builds the per-request <system-reminder> user message
 // carrying the volatile context (git, tree, active skill, memory, current
-// date). It is appended to the outbound payload only — never persisted to the
-// conversation store and never added to the shared conversation slice — so the
+// date), appended to the outbound payload only — never persisted — so the
 // system prompt at message[0] stays byte-stable for KV-cache prefix reuse.
 // messages is the pre-system-prompt conversation (turn = len/2, matching the
-// old in-prompt refresh cadence). ok=false means append nothing.
+// old in-prompt refresh cadence); ok=false means append nothing. Callers gate
+// the append on conversationAwaitsToolResults at payload-finalization time
+// (outboundConversation for streaming, Run for sync), after conversation
+// repair — not here, where the input may still carry orphaned tool_calls.
 func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message) (sdk.Message, bool) {
 	if s.getSystemPromptForMode() == "" {
-		return sdk.Message{}, false
-	}
-	if conversationAwaitsToolResults(messages) {
 		return sdk.Message{}, false
 	}
 
@@ -229,14 +228,9 @@ func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message) (sdk.Mess
 	}
 	fmt.Fprintf(&b, "\n\nCurrent date: %s", time.Now().Format("Monday, January 2, 2006"))
 
-	text := strings.TrimSpace(b.String())
-	if text == "" {
-		return sdk.Message{}, false
-	}
-
 	return sdk.Message{
 		Role:    sdk.User,
-		Content: sdk.NewMessageContent("<system-reminder>\n" + text + "\n</system-reminder>"),
+		Content: sdk.NewMessageContent("<system-reminder>\n" + strings.TrimSpace(b.String()) + "\n</system-reminder>"),
 	}, true
 }
 

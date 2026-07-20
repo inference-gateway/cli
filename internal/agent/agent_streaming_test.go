@@ -172,3 +172,18 @@ func TestOutboundConversation_NoTailReturnsSharedAsIs(t *testing.T) {
 
 	assert.Equal(t, conv, a.outboundConversation())
 }
+
+func TestOutboundConversation_SkipsTailWhileAwaitingToolResults(t *testing.T) {
+	toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
+	conv := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		{Role: sdk.Assistant, ToolCalls: &toolCalls},
+	}
+	tail := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("<system-reminder>\nCurrent date: today\n</system-reminder>")}
+	a := &EventDrivenAgent{
+		agentCtx:     &domain.AgentContext{Conversation: &conv},
+		volatileTail: []sdk.Message{tail},
+	}
+
+	assert.Equal(t, conv, a.outboundConversation(), "a trailing user tail would orphan the open tool_calls")
+}

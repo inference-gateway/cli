@@ -809,13 +809,14 @@ func TestVolatileTailMessage(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("open tool calls yield no tail", func(t *testing.T) {
+	t.Run("open tool calls still yield a tail", func(t *testing.T) {
 		toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
 		messages := []sdk.Message{
 			{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 			{Role: sdk.Assistant, ToolCalls: &toolCalls},
 		}
+
 		_, ok := newSvc(true, true).volatileTailMessage(messages)
-		require.False(t, ok)
+		require.True(t, ok)
 	})
 }

@@ -38,12 +38,19 @@ type env struct {
 // executions (Read, Grep, ...) stay sandboxed to fixtures.
 func newEnv(t *testing.T, mutate ...func(*config.Config)) *env {
 	t.Helper()
+	return newEnvWithScenarios(t, mockgateway.Default(), mutate...)
+}
+
+// newEnvWithScenarios is newEnv with a custom scenario file (e.g. zero-usage
+// turns to force the token polyfill).
+func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ...func(*config.Config)) *env {
+	t.Helper()
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)
 	t.Cleanup(func() { restore() })
 
-	gw := mockgateway.New(mockgateway.Default())
+	gw := mockgateway.New(defs)
 	ts := httptest.NewServer(gw)
 	t.Cleanup(ts.Close)
 
@@ -404,11 +411,11 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	require.Equal(t, streamStats, syncStats, "headless totals must equal chat totals for the same scenario")
 }
 
-// TestStreamSystemPromptStableWithVolatileTail is the acceptance check for
-// issue #938: message[0] must be byte-identical across every request of a
-// session (KV-cache prefix stability) while the volatile context (date, git,
-// tree, memory) rides in a <system-reminder> user message at the tail of each
-// outbound payload — never persisted, never in the shared conversation.
+// TestStreamSystemPromptStableWithVolatileTail asserts message[0] is
+// byte-identical across every request of a session (KV-cache prefix
+// stability). The volatile context (date, git, tree, memory) rides in a
+// <system-reminder> user message at the tail of each outbound payload —
+// never persisted, never in the shared conversation.
 func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
 	e := newEnv(t, func(cfg *config.Config) {
 		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
@@ -440,7 +447,7 @@ func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
 	}
 }
 
-// TestSyncRunAppendsVolatileTail covers the non-streaming path of issue #938.
+// TestSyncRunAppendsVolatileTail covers the non-streaming path.
 func TestSyncRunAppendsVolatileTail(t *testing.T) {
 	e := newEnv(t, func(cfg *config.Config) {
 		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
@@ -469,4 +476,80 @@ func TestSyncRunAppendsVolatileTail(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(content, "<system-reminder>"))
 	require.Contains(t, content, "Current date:")
+}
+
+// TestStreamResumedMidToolCallStillGetsVolatileTail: a session resumed from a
+// mid-tool-call interruption gets its orphaned tool_calls closed by
+// conversation repair before streaming, so the volatile tail must still ride
+// the outbound payload — the append decision is made post-repair, in
+// outboundConversation, not against the unrepaired input.
+func TestStreamResumedMidToolCallStillGetsVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	toolCalls := []sdk.ChatCompletionMessageToolCall{
+		{ID: "call_orphan", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file_path":"a.txt"}`}},
+	}
+	req := &domain.AgentRequest{
+		RequestID: "req-resume-tail",
+		Model:     mockgateway.DefaultModel,
+		Messages: []sdk.Message{
+			userMessage(t, "resume after interruption"),
+			{Role: sdk.Assistant, Content: sdk.NewMessageContent("Reading."), ToolCalls: &toolCalls},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+	events, err := e.container.GetAgentService().RunWithStream(ctx, req)
+	require.NoError(t, err)
+	res := drain(t, events)
+	require.Empty(t, res.errs)
+
+	bodies := e.completionBodies()
+	require.NotEmpty(t, bodies)
+	messages := bodies[0].Messages
+
+	require.Equal(t, sdk.Tool, messages[len(messages)-2].Role, "repair must close the orphaned tool_call before the tail")
+	last := messages[len(messages)-1]
+	require.Equal(t, sdk.User, last.Role)
+	content, err := last.Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(content, "<system-reminder>"), "resumed session must still get the volatile tail")
+	require.Contains(t, content, "Current date:")
+}
+
+// TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail forces the token
+// polyfill (the mock reports zero usage) with a volatile tail present: the
+// streaming estimate must count the same inputs the sync path counts,
+// including the tail. Both runs share one env so the estimated payloads are
+// byte-identical.
+func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
+	defs, err := mockgateway.Load([]byte("fallback:\n  content: Done.\n  usage:\n    prompt_tokens: 0\n    completion_tokens: 0\n"))
+	require.NoError(t, err)
+	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+
+	_, err = e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+		RequestID: "req-polyfill-sync",
+		Model:     mockgateway.DefaultModel,
+		Messages:  []sdk.Message{userMessage(t, "estimate me")},
+	})
+	require.NoError(t, err)
+
+	syncStats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Positive(t, syncStats.TotalInputTokens, "zero server usage must engage the polyfill")
+
+	res := e.runStream(ctx, t, "estimate me")
+	require.Empty(t, res.errs)
+
+	finalStats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Equal(t, syncStats.TotalInputTokens, finalStats.TotalInputTokens-syncStats.TotalInputTokens,
+		"stream polyfill must count the same inputs (incl. the volatile tail) as sync")
+	require.Equal(t, syncStats.TotalOutputTokens, finalStats.TotalOutputTokens-syncStats.TotalOutputTokens)
 }

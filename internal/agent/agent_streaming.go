@@ -167,9 +167,12 @@ func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context
 // outboundConversation returns the request payload: the shared conversation
 // plus the ephemeral volatile-context tail. The shared slice is cloned before
 // appending so the tail never leaks into persistence, the TUI, or later turns.
+// The tail decision lives here — per request, after ensureConversationIntegrity
+// has repaired the conversation — and is skipped while an assistant tool_call
+// is still unanswered, where a trailing user message would orphan it.
 func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
 	conversation := *a.agentCtx.Conversation
-	if len(a.volatileTail) > 0 {
+	if len(a.volatileTail) > 0 && !conversationAwaitsToolResults(conversation) {
 		conversation = append(slices.Clone(conversation), a.volatileTail...)
 	}
 	return conversation
@@ -500,6 +503,7 @@ func (a *EventDrivenAgent) finalizeStream(
 
 	assistantMessage := buildAssistantMessage(assistantContent, reasoning, toolCalls)
 
+	inputMessages := a.outboundConversation()
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 
 	assistantEntry := domain.ConversationEntry{
@@ -523,7 +527,7 @@ func (a *EventDrivenAgent) finalizeStream(
 
 	outputContent, _ := assistantContent.AsMessageContent0()
 	polyfillInput := &storeIterationMetricsInput{
-		inputMessages:   (*a.agentCtx.Conversation)[:len(*a.agentCtx.Conversation)-1],
+		inputMessages:   inputMessages,
 		outputContent:   outputContent,
 		outputToolCalls: completeToolCalls,
 		availableTools:  a.availableTools,
