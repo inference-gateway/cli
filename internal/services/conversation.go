@@ -425,7 +425,7 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 		return nil
 	}
 
-	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens)
+	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, 0)
 
 	if r.costStats.PerModelStats == nil {
 		r.costStats.PerModelStats = make(map[string]*domain.ModelCostStats)

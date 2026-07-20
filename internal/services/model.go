@@ -8,6 +8,8 @@ import (
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 // visionModelPatterns contains known vision-capable model name patterns
@@ -71,7 +73,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("SDK client is not initialized")
 	}
 
-	resp, err := s.client.ListModels(ctx)
+	resp, err := s.client.ListModels(ctx, sdk.ListModelsParamsIncludeContextWindow, sdk.ListModelsParamsIncludePricing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 	}
@@ -80,18 +82,33 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("empty response from models API")
 	}
 
-	models := make([]string, len(resp.Data))
+	ids := make([]string, len(resp.Data))
+	windows := make(map[string]int, len(resp.Data))
+	prices := make(map[string]gatewayPrice, len(resp.Data))
 	for i, model := range resp.Data {
-		models[i] = model.ID
+		ids[i] = model.ID
+		if cw := model.ContextWindow; cw != nil && cw.Tokens > 0 {
+			windows[model.ID] = cw.Tokens
+		}
+		if price, ok := parseGatewayPricing(model.Pricing); ok {
+			prices[model.ID] = price
+		}
 	}
 
 	s.modelsMux.Lock()
-	s.models = models
+	s.models = ids
 	s.lastFetch = time.Now()
 	s.modelsMux.Unlock()
 
-	result := make([]string, len(models))
-	copy(result, models)
+	if len(windows) > 0 {
+		models.SetGatewayContextWindows(windows)
+	}
+	if len(prices) > 0 {
+		setGatewayPricing(prices)
+	}
+
+	result := make([]string, len(ids))
+	copy(result, ids)
 	return result, nil
 }
 

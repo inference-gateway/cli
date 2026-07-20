@@ -334,6 +334,34 @@ func TestUserContextWindowOverride(t *testing.T) {
 	}
 }
 
+// TestGatewayContextWindows covers the /v1/models?include=context_window
+// registry: gateway data beats the built-in matchers and turns unknown models
+// known, user config overrides still win, and keying is exact on the
+// lowercased full "provider/model" id (never the stripped model name).
+func TestGatewayContextWindows(t *testing.T) {
+	SetGatewayContextWindows(map[string]int{"OpenAI/GPT-4": 400000})
+	defer SetGatewayContextWindows(nil)
+
+	if size, known := LookupContextWindow("openai/gpt-4"); size != 400000 || !known {
+		t.Errorf("gateway window: got (%d, %v), expected (400000, true)", size, known)
+	}
+
+	if size, known := LookupContextWindow("gpt-4"); size != 8192 || known {
+		t.Errorf("bare name must miss gateway entry: got (%d, %v), expected (8192, false)", size, known)
+	}
+
+	config.UserContextWindows = map[string]int{"gpt-4": 12345}
+	defer func() { config.UserContextWindows = nil }()
+	if size, known := LookupContextWindow("openai/gpt-4"); size != 12345 || !known {
+		t.Errorf("user override must win over gateway: got (%d, %v), expected (12345, true)", size, known)
+	}
+	config.UserContextWindows = nil
+
+	if size, known := LookupContextWindow("anthropic/claude-opus-4-8"); size != 1000000 || !known {
+		t.Errorf("matcher fallback broken: got (%d, %v), expected (1000000, true)", size, known)
+	}
+}
+
 // TestLookupContextWindow_MatchedFlag covers the matched bool that the session
 // rollover and auto-compaction gates rely on: known models report true, while
 // models with no matcher report false (returning the default fallback as the

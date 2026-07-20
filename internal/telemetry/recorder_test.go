@@ -14,7 +14,7 @@ import (
 // format + stats parsing in one path.
 func TestRecordExportAndAggregate(t *testing.T) {
 	dir := t.TempDir()
-	cost := func(_ string, _, _ int) (float64, float64, float64) { return 0.01, 0.02, 0.03 }
+	cost := func(_ string, _, _, _ int) (float64, float64, float64) { return 0.01, 0.02, 0.03 }
 	rec := New(Options{Enabled: true, Dir: dir, SessionID: "sess-1", Cost: cost})
 	if rec == nil {
 		t.Fatal("expected a recorder when enabled")
@@ -23,7 +23,7 @@ func TestRecordExportAndAggregate(t *testing.T) {
 	rec.RecordTool("Read", ToolError, ErrTypeTool, 12*time.Millisecond)
 	rec.RecordTool("Read", ToolSuccess, "", 8*time.Millisecond)
 	rec.RecordTool("Bash", ToolRejected, "", 3*time.Millisecond)
-	rec.RecordUsage("deepseek/deepseek-chat", 100, 42)
+	rec.RecordUsage("deepseek/deepseek-chat", 100, 42, 30)
 	rec.RecordSession("standard", RunSuccess, time.Second)
 
 	rec.Shutdown(context.Background())
@@ -47,7 +47,7 @@ func TestRecordExportAndAggregate(t *testing.T) {
 	if len(stats.Models) != 1 {
 		t.Fatalf("models=%d, want 1", len(stats.Models))
 	}
-	if m := stats.Models[0]; m.Total != 142 || m.Prompt != 100 || m.Completion != 42 {
+	if m := stats.Models[0]; m.Total != 142 || m.Prompt != 100 || m.Completion != 42 || m.Cached != 30 {
 		t.Fatalf("token totals wrong: %+v", m)
 	}
 	if stats.Models[0].Cost <= 0 {
@@ -71,7 +71,7 @@ func TestAggregateFiltersByConversation(t *testing.T) {
 	recA := New(Options{Enabled: true, Dir: dir, SessionID: "sess-a"})
 	recA.SetConversationID("conv-a")
 	recA.RecordTool("Read", ToolSuccess, "", 5*time.Millisecond)
-	recA.RecordUsage("model-x", 100, 20)
+	recA.RecordUsage("model-x", 100, 20, 0)
 	recA.Shutdown(context.Background())
 
 	recB := New(Options{Enabled: true, Dir: dir, SessionID: "sess-b"})
@@ -145,7 +145,7 @@ func TestNewDisabledReturnsNil(t *testing.T) {
 	}
 	var r *Recorder // nil methods must not panic
 	r.RecordTool("X", ToolSuccess, "", 0)
-	r.RecordUsage("m", 1, 2)
+	r.RecordUsage("m", 1, 2, 0)
 	r.RecordSession("standard", RunSuccess, 0)
 	r.Shutdown(context.Background())
 }

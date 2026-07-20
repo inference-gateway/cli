@@ -3,9 +3,35 @@ package models
 
 import (
 	"strings"
+	"sync"
 
 	config "github.com/inference-gateway/cli/config"
 )
+
+var (
+	gatewayMu      sync.RWMutex
+	gatewayWindows map[string]int
+)
+
+// SetGatewayContextWindows replaces the gateway-reported context windows
+// (from /v1/models?include=context_window). Keys are full "provider/model"
+// ids; matching is exact on the lowercased id.
+func SetGatewayContextWindows(windows map[string]int) {
+	normalized := make(map[string]int, len(windows))
+	for id, tokens := range windows {
+		normalized[strings.ToLower(id)] = tokens
+	}
+	gatewayMu.Lock()
+	gatewayWindows = normalized
+	gatewayMu.Unlock()
+}
+
+func gatewayContextWindow(fullID string) (int, bool) {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	window, ok := gatewayWindows[fullID]
+	return window, ok
+}
 
 // EstimateContextWindow returns an estimated context window size based on model name.
 // Falls back to config.DefaultContextWindow when no matcher pattern hits.
@@ -20,6 +46,7 @@ func EstimateContextWindow(model string) int {
 // unknown models) should use this instead of EstimateContextWindow.
 func LookupContextWindow(model string) (int, bool) {
 	model = strings.ToLower(model)
+	fullID := model
 
 	if idx := strings.Index(model, "/"); idx != -1 {
 		model = model[idx+1:]
@@ -36,6 +63,10 @@ func LookupContextWindow(model string) (int, bool) {
 	}
 	if bestLen >= 0 {
 		return bestWindow, true
+	}
+
+	if window, ok := gatewayContextWindow(fullID); ok && window > 0 {
+		return window, true
 	}
 
 	for _, matcher := range config.ContextMatchers {

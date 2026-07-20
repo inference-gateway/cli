@@ -28,10 +28,13 @@ type ToolStat struct {
 	AvgMs    int64  `json:"avg_ms"`
 }
 
-// ModelStat aggregates token usage and cost for one model.
+// ModelStat aggregates token usage and cost for one model. Cached is the
+// cached-prompt subset of Prompt (not added to Total); it stays 0 for
+// telemetry files written before cache_read datapoints existed.
 type ModelStat struct {
 	Model      string  `json:"model"`
 	Prompt     int     `json:"prompt"`
+	Cached     int     `json:"cached"`
 	Completion int     `json:"completion"`
 	Total      int     `json:"total"`
 	Cost       float64 `json:"cost"`
@@ -190,10 +193,13 @@ func foldPoint(name, execMode string, dp dataPoint, tools map[string]*toolAgg, m
 	case "gen_ai.client.token.usage":
 		*seen = true
 		m := getModel(models, attrOf(dp.Attributes, "gen_ai.request.model"))
-		if attrOf(dp.Attributes, "gen_ai.token.type") == "input" {
+		switch attrOf(dp.Attributes, "gen_ai.token.type") {
+		case "input":
 			m.Prompt += int(dp.Sum)
-		} else {
+		case "output":
 			m.Completion += int(dp.Sum)
+		case "cache_read":
+			m.Cached += int(dp.Sum)
 		}
 	case "infer.client.cost":
 		*seen = true

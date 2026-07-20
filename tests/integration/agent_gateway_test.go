@@ -23,6 +23,8 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	models "github.com/inference-gateway/cli/internal/models"
+	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -574,4 +576,26 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 	require.Equal(t, syncStats.TotalInputTokens, finalStats.TotalInputTokens-syncStats.TotalInputTokens,
 		"stream polyfill must count the same inputs (incl. the volatile tail) as sync")
 	require.Equal(t, syncStats.TotalOutputTokens, finalStats.TotalOutputTokens-syncStats.TotalOutputTokens)
+}
+
+// TestModelMetadataFromGateway verifies /v1/models metadata (context window +
+// pricing) flows from the gateway into the shared CLI registries during the
+// model fetch: the status bar and model picker resolve the gateway-reported
+// window, and the pricing service resolves gateway prices including the
+// cache-read discount.
+func TestModelMetadataFromGateway(t *testing.T) {
+	newEnv(t)
+
+	window, known := models.LookupContextWindow(mockgateway.DefaultModel)
+	require.True(t, known, "gateway-reported model must be known")
+	require.Equal(t, mockgateway.DefaultContextWindow, window)
+
+	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	in, out, total := pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 1_000_000, 0)
+	require.InDelta(t, 2.5, in, 1e-9)
+	require.InDelta(t, 10.0, out, 1e-9)
+	require.InDelta(t, 12.5, total, 1e-9)
+
+	in, _, _ = pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 0, 1_000_000)
+	require.InDelta(t, 0.25, in, 1e-9, "cached tokens must bill at the cache-read rate")
 }

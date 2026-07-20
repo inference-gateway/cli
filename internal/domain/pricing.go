@@ -39,8 +39,10 @@ type PricingService interface {
 	// Returns 0.0 for unknown models (e.g., Ollama, custom models).
 	GetOutputPrice(model string) float64
 
-	// CalculateCost computes the total cost for a given number of input and output tokens.
-	CalculateCost(model string, inputTokens, outputTokens int) (inputCost, outputCost, totalCost float64)
+	// CalculateCost computes the total cost for a given number of input and
+	// output tokens. cachedTokens is the cached subset of inputTokens, billed
+	// at the gateway's cache-read rate when known (full input rate otherwise).
+	CalculateCost(model string, inputTokens, outputTokens, cachedTokens int) (inputCost, outputCost, totalCost float64)
 
 	// RequiresPro reports whether the model is gated behind a paid Pro
 	// subscription (e.g. some Ollama Cloud models). Resolves custom prices

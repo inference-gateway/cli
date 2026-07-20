@@ -115,11 +115,12 @@ func renderModelStats(models []telemetry.ModelStat) {
 	}
 	fmt.Println(listTitle("Token Usage"))
 	fmt.Println()
-	t := newListTable("Model", "Prompt", "Completion", "Total", "Cost")
+	t := newListTable("Model", "Prompt", "Cached", "Completion", "Total", "Cost")
 	for _, m := range models {
 		t.Row(
 			m.Model,
 			strconv.Itoa(m.Prompt),
+			strconv.Itoa(m.Cached),
 			strconv.Itoa(m.Completion),
 			strconv.Itoa(m.Total),
 			formatting.FormatCost(m.Cost),

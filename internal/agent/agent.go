@@ -801,8 +801,10 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	s.metrics[requestID] = metrics
 	s.metricsMux.Unlock()
 
+	cached := 0
 	if details := effectiveUsage.PromptTokensDetails; details != nil && details.CachedTokens != nil && *details.CachedTokens > 0 {
-		s.conversationRepo.AddCachedTokens(int(*details.CachedTokens))
+		cached = int(*details.CachedTokens)
+		s.conversationRepo.AddCachedTokens(cached)
 	}
 
 	if err := s.conversationRepo.AddTokenUsage(
@@ -815,7 +817,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	}
 
 	if s.recorder != nil {
-		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
+		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached)
 	}
 	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 

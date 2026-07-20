@@ -5,6 +5,8 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -367,7 +369,7 @@ func TestPricingService_FreeLocalProviders(t *testing.T) {
 	} {
 		t.Run(model, func(t *testing.T) {
 			assert.Equal(t, "free", service.FormatModelPricing(model))
-			_, _, total := service.CalculateCost(model, 100000, 50000)
+			_, _, total := service.CalculateCost(model, 100000, 50000, 0)
 			assert.Zero(t, total)
 			assert.False(t, service.RequiresPro(model))
 		})
@@ -387,6 +389,94 @@ func TestPricingService_FreeLocalProviders(t *testing.T) {
 		"custom prices must win over the free-provider fallback")
 }
 
+// TestPricingService_GatewayPricing covers the /v1/models?include=pricing
+// tier: gateway prices beat the static default table, config custom prices
+// still win over gateway data.
+func TestPricingService_GatewayPricing(t *testing.T) {
+	cacheRead := 0.25
+	setGatewayPricing(map[string]gatewayPrice{
+		"moonshot/kimi-k3": {inputPerMTok: 2.0, outputPerMTok: 8.0},
+		"openai/gpt-4o":    {inputPerMTok: 2.5, outputPerMTok: 10.0, cacheReadPerMTok: &cacheRead},
+	})
+	defer setGatewayPricing(nil)
+
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	assert.Equal(t, 2.0, service.GetInputPrice("moonshot/kimi-k3"),
+		"gateway price must beat the static default table")
+	assert.Equal(t, 8.0, service.GetOutputPrice("moonshot/kimi-k3"))
+	assert.Equal(t, "$2.50/$10.00 per MTok", service.FormatModelPricing("openai/gpt-4o"))
+
+	custom := NewPricingService(&config.PricingConfig{
+		Enabled: true,
+		CustomPrices: map[string]config.CustomPricing{
+			"openai/gpt-4o": {InputPricePerMToken: 1.0, OutputPricePerMToken: 2.0},
+		},
+	})
+	assert.Equal(t, 1.0, custom.GetInputPrice("openai/gpt-4o"),
+		"config custom prices must win over gateway data")
+}
+
+// TestPricingService_CalculateCost_CachedTokens covers the cache-read
+// discount: cached tokens bill at the gateway cache-read rate when known,
+// at the full input rate otherwise, and the cached count is clamped to
+// [0, inputTokens].
+func TestPricingService_CalculateCost_CachedTokens(t *testing.T) {
+	cacheRead := 0.25
+	setGatewayPricing(map[string]gatewayPrice{
+		"g/discounted": {inputPerMTok: 2.5, outputPerMTok: 10.0, cacheReadPerMTok: &cacheRead},
+		"g/no-rate":    {inputPerMTok: 2.5, outputPerMTok: 10.0},
+	})
+	defer setGatewayPricing(nil)
+
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	tests := []struct {
+		name                  string
+		model                 string
+		input, output, cached int
+		wantInput, wantTotal  float64
+	}{
+		{"no cached tokens", "g/discounted", 1_000_000, 100_000, 0, 2.5, 3.5},
+		{"cached at cache-read rate", "g/discounted", 1_000_000, 100_000, 400_000, 1.6, 2.6},
+		{"nil cache rate bills full price", "g/no-rate", 1_000_000, 0, 400_000, 2.5, 2.5},
+		{"cached clamped to input", "g/discounted", 100_000, 0, 1_000_000, 0.025, 0.025},
+		{"negative cached clamped to zero", "g/discounted", 100_000, 0, -50, 0.25, 0.25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in, _, total := service.CalculateCost(tt.model, tt.input, tt.output, tt.cached)
+			assert.InDelta(t, tt.wantInput, in, 1e-9)
+			assert.InDelta(t, tt.wantTotal, total, 1e-9)
+		})
+	}
+}
+
+// TestParseGatewayPricing covers the per-token decimal string → per-MTok
+// float conversion at ingest.
+func TestParseGatewayPricing(t *testing.T) {
+	cache := "0.00000025"
+	price, ok := parseGatewayPricing(&sdk.Pricing{
+		InputPerToken: "0.0000025", OutputPerToken: "0.00001", CacheReadPerToken: &cache,
+	})
+	assert.True(t, ok)
+	assert.InDelta(t, 2.5, price.inputPerMTok, 1e-9)
+	assert.InDelta(t, 10.0, price.outputPerMTok, 1e-9)
+	if assert.NotNil(t, price.cacheReadPerMTok) {
+		assert.InDelta(t, 0.25, *price.cacheReadPerMTok, 1e-9)
+	}
+
+	price, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "0.0000025", OutputPerToken: "0.00001"})
+	assert.True(t, ok)
+	assert.Nil(t, price.cacheReadPerMTok)
+
+	_, ok = parseGatewayPricing(nil)
+	assert.False(t, ok)
+
+	_, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "not-a-number", OutputPerToken: "0.00001"})
+	assert.False(t, ok)
+}
+
 func TestPricingService_CalculateCost(t *testing.T) {
 	cfg := &config.PricingConfig{
 		Enabled: true,
@@ -400,7 +490,7 @@ func TestPricingService_CalculateCost(t *testing.T) {
 
 	service := NewPricingService(cfg)
 
-	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000)
+	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000, 0)
 
 	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00       // $1.00
 	expectedOutputCost := (50000.0 / 1_000_000.0) * 20.00       // $1.00

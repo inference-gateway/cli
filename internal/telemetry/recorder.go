@@ -75,8 +75,9 @@ const (
 )
 
 // CostFunc returns the input, output, and total cost for a model's token counts
-// (wraps domain.PricingService.CalculateCost). Pass nil to skip cost.
-type CostFunc func(model string, prompt, completion int) (input, output, total float64)
+// (wraps domain.PricingService.CalculateCost). cached is the cached-prompt
+// subset of prompt tokens. Pass nil to skip cost.
+type CostFunc func(model string, prompt, completion, cached int) (input, output, total float64)
 
 // Options configures a Recorder. Dir + SessionID locate the per-process local
 // file; OTLP* enable the optional remote export.
@@ -354,8 +355,10 @@ func (r *Recorder) initInstruments(meter metric.Meter) error {
 }
 
 // RecordUsage records one request's token usage (gen_ai.client.token.usage, one
-// datapoint per token type) and the derived infer.client.cost split.
-func (r *Recorder) RecordUsage(model string, prompt, completion int) {
+// datapoint per token type) and the derived infer.client.cost split. cached is
+// the cached-prompt subset of prompt tokens; its datapoint is only emitted when
+// non-zero.
+func (r *Recorder) RecordUsage(model string, prompt, completion, cached int) {
 	if r == nil {
 		return
 	}
@@ -367,9 +370,12 @@ func (r *Recorder) RecordUsage(model string, prompt, completion int) {
 	}
 	r.tokenUsage.Record(ctx, int64(prompt), metric.WithAttributes(r.withConv(append(base, attribute.String("gen_ai.token.type", "input")))...))
 	r.tokenUsage.Record(ctx, int64(completion), metric.WithAttributes(r.withConv(append(base, attribute.String("gen_ai.token.type", "output")))...))
+	if cached > 0 {
+		r.tokenUsage.Record(ctx, int64(cached), metric.WithAttributes(r.withConv(append(base, attribute.String("gen_ai.token.type", "cache_read")))...))
+	}
 
 	if r.cost != nil {
-		in, out, _ := r.cost(model, prompt, completion)
+		in, out, _ := r.cost(model, prompt, completion, cached)
 		m := attribute.String("gen_ai.request.model", model)
 		r.costCounter.Add(ctx, in, metric.WithAttributes(r.withConv([]attribute.KeyValue{m, attribute.String("infer.cost.type", "input")})...))
 		r.costCounter.Add(ctx, out, metric.WithAttributes(r.withConv([]attribute.KeyValue{m, attribute.String("infer.cost.type", "output")})...))

@@ -27,6 +27,16 @@ import (
 // ids carry the provider prefix; request bodies arrive with it stripped.
 const DefaultModel = "openai/gpt-4o"
 
+// Metadata advertised for DefaultModel on /v1/models. The real gateway only
+// includes these fields when ?include=context_window,pricing is set; the mock
+// always serves them (the CLI always asks).
+const (
+	DefaultContextWindow = 128000
+	DefaultInputPrice    = "0.0000025"  // per token → $2.50 per MTok
+	DefaultOutputPrice   = "0.00001"    // per token → $10.00 per MTok
+	DefaultCachePrice    = "0.00000025" // per token → $0.25 per MTok
+)
+
 const defaultChunkSize = 16
 
 // Recorded captures one /v1/chat/completions request for test assertions.
@@ -72,9 +82,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/chat/completions":
 		s.handleCompletions(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/models":
+		cachePrice := DefaultCachePrice
 		writeJSON(w, sdk.ListModelsResponse{
 			Object: "list",
-			Data:   []sdk.Model{{ID: DefaultModel, Object: "model", OwnedBy: "openai", ServedBy: "openai"}},
+			Data: []sdk.Model{{
+				ID: DefaultModel, Object: "model", OwnedBy: "openai", ServedBy: "openai",
+				ContextWindow: &sdk.ContextWindow{Tokens: DefaultContextWindow, Source: sdk.ContextWindowSourceProvider},
+				Pricing: &sdk.Pricing{
+					InputPerToken:     DefaultInputPrice,
+					OutputPerToken:    DefaultOutputPrice,
+					CacheReadPerToken: &cachePrice,
+					Currency:          "USD",
+					Source:            sdk.PricingSourceProvider,
+				},
+			}},
 		})
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
 		writeJSON(w, map[string]string{"status": "ok"})
