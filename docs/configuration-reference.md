@@ -448,7 +448,7 @@ correctly against the merged list.
     - **background_shells**: Running background shell count (default: `true`)
     - **mcp**: MCP server status and tool count (default: `true`)
     - **context_usage**: Token consumption percentage (default: `true`)
-    - **session_tokens**: Session token usage statistics (default: `true`)
+    - **session_tokens**: Session token usage statistics, plus the `C.` cached-tokens segment when the provider reports cache hits (default: `true`)
     - **git_branch**: Current Git branch name (default: `true`)
       - Only displays when in a Git repository
       - Uses 5-second cache for performance

@@ -281,11 +281,18 @@ func (t Turn) usage() *sdk.CompletionUsage {
 	if t.Usage != nil {
 		u = *t.Usage
 	}
-	return &sdk.CompletionUsage{
+	usage := &sdk.CompletionUsage{
 		PromptTokens:     u.PromptTokens,
 		CompletionTokens: u.CompletionTokens,
 		TotalTokens:      u.PromptTokens + u.CompletionTokens,
 	}
+	if u.CachedTokens > 0 {
+		usage.PromptTokensDetails = &struct {
+			AudioTokens  *int64 `json:"audio_tokens,omitempty"`
+			CachedTokens *int64 `json:"cached_tokens,omitempty"`
+		}{CachedTokens: &u.CachedTokens}
+	}
+	return usage
 }
 
 func (t Turn) sdkToolCalls(step int) []sdk.ChatCompletionMessageToolCall {

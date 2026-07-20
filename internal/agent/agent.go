@@ -801,6 +801,10 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	s.metrics[requestID] = metrics
 	s.metricsMux.Unlock()
 
+	if details := effectiveUsage.PromptTokensDetails; details != nil && details.CachedTokens != nil && *details.CachedTokens > 0 {
+		s.conversationRepo.AddCachedTokens(int(*details.CachedTokens))
+	}
+
 	if err := s.conversationRepo.AddTokenUsage(
 		model,
 		int(effectiveUsage.PromptTokens),

@@ -433,6 +433,21 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 	if strings.Contains(result, "Session Output") {
 		t.Errorf("Session Output tokens should not be in status bar, got: %s", result)
 	}
+
+	if strings.Contains(result, "Cached:") {
+		t.Errorf("Cached tokens should be hidden without prompt token details, got: %s", result)
+	}
+
+	cached := int64(20)
+	metrics.Usage.PromptTokensDetails = &struct {
+		AudioTokens  *int64 `json:"audio_tokens,omitempty"`
+		CachedTokens *int64 `json:"cached_tokens,omitempty"`
+	}{CachedTokens: &cached}
+
+	result = handler.FormatMetrics(metrics)
+	if !strings.Contains(result, "Cached: 20 tokens") {
+		t.Errorf("Expected cached tokens in result, got: %s", result)
+	}
 }
 
 func TestChatHandler_Handle(t *testing.T) {

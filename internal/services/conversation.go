@@ -452,6 +452,15 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 	return nil
 }
 
+// AddCachedTokens accumulates provider-reported cached prompt tokens
+// (usage.prompt_tokens_details.cached_tokens) into the session totals.
+func (r *InMemoryConversationRepository) AddCachedTokens(tokens int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats.TotalCachedTokens += tokens
+}
+
 // GetSessionTokens returns the accumulated token statistics for the session
 func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenStats {
 	r.mutex.RLock()

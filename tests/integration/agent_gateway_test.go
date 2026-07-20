@@ -287,6 +287,12 @@ func TestStreamUsageIsCaptured(t *testing.T) {
 	require.NotNil(t, final.Metrics)
 	require.NotNil(t, final.Metrics.Usage)
 	require.EqualValues(t, 142, final.Metrics.Usage.TotalTokens)
+
+	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails, "cached tokens must survive SSE unmarshaling")
+	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails.CachedTokens)
+	require.EqualValues(t, 64, *final.Metrics.Usage.PromptTokensDetails.CachedTokens)
+	require.Equal(t, 64, e.container.GetConversationRepository().GetSessionTokens().TotalCachedTokens,
+		"cached tokens must accumulate into the session stats")
 }
 
 func TestStreamRetriesOn429ThenRecovers(t *testing.T) {
@@ -402,6 +408,7 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	require.Equal(t, 100, syncStats.TotalInputTokens)
 	require.Equal(t, 42, syncStats.TotalOutputTokens)
 	require.Equal(t, 1, syncStats.RequestCount)
+	require.Equal(t, 64, syncStats.TotalCachedTokens, "sync path must accumulate cached tokens too")
 
 	streamEnv := newEnv(t)
 	res := streamEnv.runStream(ctx, t, "report your usage")

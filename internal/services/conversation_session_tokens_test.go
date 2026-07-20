@@ -65,6 +65,29 @@ func TestSessionTokenTracking(t *testing.T) {
 	}
 }
 
+func TestAddCachedTokens(t *testing.T) {
+	repo := NewInMemoryConversationRepository(nil, nil)
+
+	repo.AddCachedTokens(64)
+	repo.AddCachedTokens(1920)
+
+	if got := repo.GetSessionTokens().TotalCachedTokens; got != 1984 {
+		t.Errorf("Expected 1984 cached tokens, got %d", got)
+	}
+
+	if err := repo.Clear(); err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if got := repo.GetSessionTokens().TotalCachedTokens; got != 0 {
+		t.Errorf("After clear, expected 0 cached tokens, got %d", got)
+	}
+
+	repo.SetSessionStats(domain.SessionTokenStats{TotalCachedTokens: 42}, domain.SessionCostStats{})
+	if got := repo.GetSessionTokens().TotalCachedTokens; got != 42 {
+		t.Errorf("SetSessionStats must restore cached tokens, got %d", got)
+	}
+}
+
 func TestSessionTokensWithZeroValues(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil, nil)
 

@@ -468,6 +468,48 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 	}
 }
 
+func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
+	tests := []struct {
+		name         string
+		stats        domain.SessionTokenStats
+		expectedText string
+		nilRepo      bool
+	}{
+		{
+			name:         "renders cumulative cached tokens when present",
+			stats:        domain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
+			expectedText: "C.17500",
+		},
+		{
+			name:  "hidden while zero",
+			stats: domain.SessionTokenStats{TotalInputTokens: 20_000},
+		},
+		{
+			name:    "hidden when repo is nil",
+			nilRepo: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var conversationRepo domain.ConversationRepository
+			if !tt.nilRepo {
+				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(tt.stats)
+				conversationRepo = mockRepo
+			}
+
+			statusBar := &InputStatusBar{
+				conversationRepo: conversationRepo,
+			}
+
+			if result := statusBar.buildCachedTokensIndicator(); result != tt.expectedText {
+				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
+			}
+		})
+	}
+}
+
 func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
