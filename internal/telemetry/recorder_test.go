@@ -143,7 +143,7 @@ func TestNewDisabledReturnsNil(t *testing.T) {
 	if New(Options{Enabled: false, Dir: t.TempDir()}) != nil {
 		t.Fatal("a disabled recorder must be nil")
 	}
-	var r *Recorder // nil methods must not panic
+	var r *Recorder
 	r.RecordTool("X", ToolSuccess, "", 0)
 	r.RecordUsage("m", 1, 2, 0)
 	r.RecordSession("standard", RunSuccess, 0)
