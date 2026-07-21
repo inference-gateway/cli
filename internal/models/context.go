@@ -41,9 +41,10 @@ func EstimateContextWindow(model string) int {
 }
 
 // LookupContextWindow returns the matched context window size and whether a
-// matcher pattern actually hit. Callers that need to distinguish a real match
-// from the default fallback (e.g. the model picker, which renders "?" for
-// unknown models) should use this instead of EstimateContextWindow.
+// real match was found (from user config override or gateway data). Callers
+// that need to distinguish a real match from the default fallback (e.g. the
+// model picker, which renders "?" for unknown models) should use this instead
+// of EstimateContextWindow.
 func LookupContextWindow(model string) (int, bool) {
 	model = strings.ToLower(model)
 	fullID := model
@@ -67,14 +68,6 @@ func LookupContextWindow(model string) (int, bool) {
 
 	if window, ok := gatewayContextWindow(fullID); ok && window > 0 {
 		return window, true
-	}
-
-	for _, matcher := range config.ContextMatchers {
-		for _, pattern := range matcher.Patterns {
-			if strings.Contains(model, pattern) {
-				return matcher.ContextWindow, true
-			}
-		}
 	}
 
 	return config.DefaultContextWindow, false

@@ -71,17 +71,26 @@ var freeLocalProviders = map[string]bool{
 	"ollama":   true,
 }
 
+// knownProModels is the curated set of model IDs that require a Pro subscription.
+// These models have no per-token price ($0/$0) but are not freely available —
+// they are gated server-side. The gateway does not report RequiresPro in its
+// pricing metadata, so this small set is kept here instead.
+// ponytail: add entries here as new Pro-gated models appear. This map is ~4
+// lines, not the 910-line DefaultModelPricing table we deleted.
+var knownProModels = map[string]bool{
+	"ollama_cloud/deepseek-v4-pro":   true,
+	"ollama_cloud/deepseek-v4-flash": true,
+}
+
 // PricingServiceImpl implements the PricingService interface.
 type PricingServiceImpl struct {
-	config        *config.PricingConfig
-	defaultPrices map[string]config.ModelPricing
+	config *config.PricingConfig
 }
 
 // NewPricingService creates a new pricing service instance.
 func NewPricingService(cfg *config.PricingConfig) domain.PricingService {
 	return &PricingServiceImpl{
-		config:        cfg,
-		defaultPrices: config.DefaultModelPricing,
+		config: cfg,
 	}
 }
 
@@ -91,18 +100,14 @@ func (p *PricingServiceImpl) IsEnabled() bool {
 }
 
 // resolvePricing returns the input/output price for a model and whether it's known.
-// Custom prices win, then gateway-reported prices (fresher than the compiled-in
-// table), then the static defaults. cacheRead is per-MTok when the gateway
-// reports a cache-read rate, nil otherwise.
+// Custom prices win, then gateway-reported prices, then free local provider checks.
+// cacheRead is per-MTok when the gateway reports a cache-read rate, nil otherwise.
 func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, nil, true
 	}
 	if price, exists := gatewayPriceFor(model); exists {
 		return price.inputPerMTok, price.outputPerMTok, price.cacheReadPerMTok, true
-	}
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.InputPricePerMToken, defaultPrice.OutputPricePerMToken, nil, true
 	}
 	if provider, _, found := strings.Cut(model, "/"); found && freeLocalProviders[provider] {
 		return 0.0, 0.0, nil, true
@@ -111,13 +116,14 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 }
 
 // resolveRequiresPro returns whether a model is gated behind a Pro subscription.
-// Custom prices take precedence over defaults, matching resolvePricing.
+// Custom prices take precedence, then the known-Pro set (curated, not exhaustive),
+// matching the precedent of resolvePricing.
 func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.RequiresPro
 	}
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.RequiresPro
+	if knownProModels[model] {
+		return true
 	}
 	return false
 }
