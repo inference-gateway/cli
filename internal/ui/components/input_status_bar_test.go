@@ -13,6 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -511,6 +512,9 @@ func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
+	defer models.SetGatewayContextWindows(nil)
+
 	tests := []struct {
 		name         string
 		stats        domain.SessionTokenStats
@@ -600,6 +604,9 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_FallsBackToEstimator(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
+	defer models.SetGatewayContextWindows(nil)
+
 	tests := []struct {
 		name string
 		call func(*InputStatusBar) string

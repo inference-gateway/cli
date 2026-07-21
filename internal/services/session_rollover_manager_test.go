@@ -240,12 +240,12 @@ func TestShouldRollover(t *testing.T) {
 			model: "moonshot/moonshot-v1-8k", want: true,
 		},
 		{
-			name: "token trigger skipped for model with no configured context window", autoAt: 80, idleMin: 0,
+			name: "token trigger fires with default context window for unlisted model", autoAt: 80, idleMin: 0,
 			seed: func(t *testing.T, repo *PersistentConversationRepository) {
 				addBigMessages(t, repo, 10)
 				addTokenUsage(t, repo, "ollama_cloud/some-unlisted-model", 500000, 100, 500100)
 			},
-			model: "ollama_cloud/some-unlisted-model", want: false,
+			model: "ollama_cloud/some-unlisted-model", want: true,
 		},
 		{
 			name: "compact disabled turns off all triggers", autoAt: 80, idleMin: 30, compactOff: true,

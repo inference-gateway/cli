@@ -197,10 +197,7 @@ func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.Conversation
 		autoAt = 80
 	}
 
-	contextWindow, known := models.LookupContextWindow(model)
-	if !known {
-		return false
-	}
+	contextWindow, _ := models.LookupContextWindow(model)
 	threshold := (contextWindow * autoAt) / 100
 
 	msgs := make([]sdk.Message, 0, len(entries))

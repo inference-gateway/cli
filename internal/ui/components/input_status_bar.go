@@ -819,8 +819,8 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 		return ""
 	}
 
-	contextWindow, known := models.LookupContextWindow(model)
-	if !known || contextWindow == 0 {
+	contextWindow, _ := models.LookupContextWindow(model)
+	if contextWindow == 0 {
 		return ""
 	}
 

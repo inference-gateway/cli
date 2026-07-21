@@ -10,6 +10,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 type stubTokenEstimator struct {
@@ -32,6 +33,9 @@ func (s *stubTokenEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk
 }
 
 func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
+	defer models.SetGatewayContextWindows(nil)
+
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetSessionTokensReturns(domain.SessionTokenStats{
 		LastInputTokens:   7_250,
@@ -66,6 +70,9 @@ func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 }
 
 func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
+	defer models.SetGatewayContextWindows(nil)
+
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.GetSessionTokensReturns(domain.SessionTokenStats{
 		TotalInputTokens: 0,

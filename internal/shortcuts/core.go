@@ -132,12 +132,10 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	fmt.Fprintf(&output, "**API Requests:** %d\n", stats.RequestCount)
 	fmt.Fprintf(&output, "**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens)
 
-	switch {
-	case windowKnown && contextWindowSize > 0 && contextTokens > 0:
+	if windowKnown && contextWindowSize > 0 && contextTokens > 0 {
 		output.WriteString(c.formatContextUsage(contextTokens, contextWindowSize))
-	case !windowKnown:
-		output.WriteString("\n**Context Window:** unknown for this model - " +
-			"automatic compaction is disabled. Use `/compact` to compact manually.\n")
+	} else if contextWindowSize > 0 && contextTokens > 0 {
+		output.WriteString(c.formatContextUsage(contextTokens, contextWindowSize))
 	}
 
 	return ShortcutResult{

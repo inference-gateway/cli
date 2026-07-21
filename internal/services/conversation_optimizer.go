@@ -104,10 +104,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 		return messages
 	}
 
-	contextWindow, known := models.LookupContextWindow(model)
-	if !force && !known {
-		return messages
-	}
+	contextWindow, _ := models.LookupContextWindow(model)
 
 	threshold := (contextWindow * co.autoAt) / 100
 	currentTokens := co.estimateTriggerTokens(messages)
