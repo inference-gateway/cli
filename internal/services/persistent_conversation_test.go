@@ -303,6 +303,11 @@ func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
 		assert.Equal(t, 200, stats.TotalTokens)
 		assert.Equal(t, 2, stats.RequestCount)
 
+		repo.AddCachedTokens(60)
+
+		stats = repo.GetSessionTokens()
+		assert.Equal(t, 60, stats.TotalCachedTokens)
+
 		metadata := repo.GetCurrentConversationMetadata()
 		assert.Equal(t, stats, metadata.TokenStats)
 	})

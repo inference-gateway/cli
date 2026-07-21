@@ -161,6 +161,7 @@ type SessionTokenStats struct {
 	TotalTokens       int `json:"total_tokens"`
 	RequestCount      int `json:"request_count"`
 	LastInputTokens   int `json:"last_input_tokens"`
+	TotalCachedTokens int `json:"total_cached_tokens"`
 }
 
 // MessageRepository handles CRUD operations for conversation messages
@@ -178,6 +179,7 @@ type MessageRepository interface {
 // TokenUsageRepository handles token usage tracking
 type TokenUsageRepository interface {
 	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error
+	AddCachedTokens(tokens int)
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats
 }
@@ -230,7 +232,6 @@ type ModelService interface {
 	GetCurrentModel() string
 	IsModelAvailable(modelID string) bool
 	ValidateModel(modelID string) error
-	IsVisionModel(modelID string) bool
 }
 
 // ChatEvent represents events during chat operations

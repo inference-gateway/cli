@@ -2,33 +2,84 @@ package services
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
+	"sync"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// freeLocalProviders are providers that serve locally-hosted open-weight
-// models. Their model names are arbitrary (whatever the user loaded), so
-// instead of enumerating per-model zero-price entries, any model under these
-// prefixes resolves to free. ollama_cloud is NOT here - it has paid
-// RequiresPro entries.
-var freeLocalProviders = map[string]bool{
-	"llamacpp": true,
-	"ollama":   true,
+// gatewayPrice is a per-model price from /v1/models?include=pricing,
+// converted from per-token decimal strings to per-MTok floats at ingest.
+type gatewayPrice struct {
+	inputPerMTok     float64
+	outputPerMTok    float64
+	cacheReadPerMTok *float64
+}
+
+var (
+	gatewayPricesMu sync.RWMutex
+	gatewayPrices   map[string]gatewayPrice
+)
+
+// setGatewayPricing replaces the gateway-reported model prices. Keys are
+// full "provider/model" ids, matched exactly like CustomPrices/defaults.
+func setGatewayPricing(prices map[string]gatewayPrice) {
+	gatewayPricesMu.Lock()
+	gatewayPrices = prices
+	gatewayPricesMu.Unlock()
+}
+
+func gatewayPriceFor(model string) (gatewayPrice, bool) {
+	gatewayPricesMu.RLock()
+	defer gatewayPricesMu.RUnlock()
+	price, ok := gatewayPrices[model]
+	return price, ok
+}
+
+// parseGatewayPricing converts an sdk.Pricing (per-token decimal strings)
+// into a gatewayPrice. Returns false on missing or unparseable prices.
+func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
+	if p == nil {
+		return gatewayPrice{}, false
+	}
+	input, errIn := strconv.ParseFloat(p.InputPerToken, 64)
+	output, errOut := strconv.ParseFloat(p.OutputPerToken, 64)
+	if errIn != nil || errOut != nil {
+		return gatewayPrice{}, false
+	}
+	price := gatewayPrice{inputPerMTok: input * 1e6, outputPerMTok: output * 1e6}
+	if p.CacheReadPerToken != nil {
+		if cacheRead, err := strconv.ParseFloat(*p.CacheReadPerToken, 64); err == nil {
+			perMTok := cacheRead * 1e6
+			price.cacheReadPerMTok = &perMTok
+		}
+	}
+	return price, true
+}
+
+// knownProModels is the curated set of model IDs that require a Pro subscription.
+// These models have no per-token price ($0/$0) but are not freely available —
+// they are gated server-side. The gateway does not report RequiresPro in its
+// pricing metadata, so this small set is kept here instead.
+// ponytail: add entries here as new Pro-gated models appear. This map is ~4
+// lines, not the 910-line DefaultModelPricing table we deleted.
+var knownProModels = map[string]bool{
+	"ollama_cloud/deepseek-v4-pro":   true,
+	"ollama_cloud/deepseek-v4-flash": true,
 }
 
 // PricingServiceImpl implements the PricingService interface.
 type PricingServiceImpl struct {
-	config        *config.PricingConfig
-	defaultPrices map[string]config.ModelPricing
+	config *config.PricingConfig
 }
 
 // NewPricingService creates a new pricing service instance.
 func NewPricingService(cfg *config.PricingConfig) domain.PricingService {
 	return &PricingServiceImpl{
-		config:        cfg,
-		defaultPrices: config.DefaultModelPricing,
+		config: cfg,
 	}
 }
 
@@ -38,28 +89,27 @@ func (p *PricingServiceImpl) IsEnabled() bool {
 }
 
 // resolvePricing returns the input/output price for a model and whether it's known.
-// Custom prices take precedence over defaults.
-func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, ok bool) {
+// Custom prices win, then gateway-reported prices; anything else is unknown.
+// cacheRead is per-MTok when the gateway reports a cache-read rate, nil otherwise.
+func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
-		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, true
+		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, nil, true
 	}
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.InputPricePerMToken, defaultPrice.OutputPricePerMToken, true
+	if price, exists := gatewayPriceFor(model); exists {
+		return price.inputPerMTok, price.outputPerMTok, price.cacheReadPerMTok, true
 	}
-	if provider, _, found := strings.Cut(model, "/"); found && freeLocalProviders[provider] {
-		return 0.0, 0.0, true
-	}
-	return 0.0, 0.0, false
+	return 0.0, 0.0, nil, false
 }
 
 // resolveRequiresPro returns whether a model is gated behind a Pro subscription.
-// Custom prices take precedence over defaults, matching resolvePricing.
+// Custom prices take precedence, then the known-Pro set (curated, not exhaustive),
+// matching the precedent of resolvePricing.
 func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.RequiresPro
 	}
-	if defaultPrice, exists := p.defaultPrices[model]; exists {
-		return defaultPrice.RequiresPro
+	if knownProModels[model] {
+		return true
 	}
 	return false
 }
@@ -79,7 +129,7 @@ func (p *PricingServiceImpl) GetInputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-	input, _, _ := p.resolvePricing(model)
+	input, _, _, _ := p.resolvePricing(model)
 	return input
 }
 
@@ -89,21 +139,29 @@ func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-	_, output, _ := p.resolvePricing(model)
+	_, output, _, _ := p.resolvePricing(model)
 	return output
 }
 
-// CalculateCost computes the total cost for a given number of input and output tokens.
-// Returns inputCost, outputCost, and totalCost in USD (or configured currency).
-func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens int) (inputCost, outputCost, totalCost float64) {
+// CalculateCost computes the total cost for a given number of input, output
+// and cached-prompt tokens. cachedTokens is the cached subset of inputTokens;
+// it is billed at the gateway's cache-read rate when known, otherwise at the
+// full input rate. Returns inputCost, outputCost, and totalCost in USD (or
+// configured currency).
+func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens, cachedTokens int) (inputCost, outputCost, totalCost float64) {
 	if !p.config.Enabled {
 		return 0.0, 0.0, 0.0
 	}
 
-	inputPrice := p.GetInputPrice(model)
-	outputPrice := p.GetOutputPrice(model)
+	inputPrice, outputPrice, cacheReadPrice, _ := p.resolvePricing(model)
 
-	inputCost = (float64(inputTokens) / 1_000_000.0) * inputPrice
+	cached := min(max(cachedTokens, 0), inputTokens)
+	cacheRate := inputPrice
+	if cacheReadPrice != nil {
+		cacheRate = *cacheReadPrice
+	}
+
+	inputCost = (float64(inputTokens-cached)*inputPrice + float64(cached)*cacheRate) / 1_000_000.0
 	outputCost = (float64(outputTokens) / 1_000_000.0) * outputPrice
 	totalCost = inputCost + outputCost
 
@@ -120,7 +178,7 @@ func (p *PricingServiceImpl) FormatModelPricing(model string) string {
 		return ""
 	}
 
-	inputPrice, outputPrice, ok := p.resolvePricing(model)
+	inputPrice, outputPrice, _, ok := p.resolvePricing(model)
 	if !ok {
 		return ""
 	}

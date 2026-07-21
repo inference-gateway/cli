@@ -69,25 +69,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 
 	allImages := append(msg.Images, result.images...)
 
-	var warningCmd tea.Cmd
-	if len(allImages) > 0 {
-		currentModel := p.handler.modelService.GetCurrentModel()
-		if !p.handler.modelService.IsVisionModel(currentModel) {
-			warningCmd = func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("Warning: Model '%s' may not support vision. Images may be ignored.", currentModel),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			}
-		}
-	}
-
 	chatCmd := p.processChatMessage(result.content, allImages)
-
-	if warningCmd != nil {
-		return tea.Batch(warningCmd, chatCmd)
-	}
 	return chatCmd
 }
 

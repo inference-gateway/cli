@@ -8,12 +8,13 @@ import (
 )
 
 type FakePricingService struct {
-	CalculateCostStub        func(string, int, int) (float64, float64, float64)
+	CalculateCostStub        func(string, int, int, int) (float64, float64, float64)
 	calculateCostMutex       sync.RWMutex
 	calculateCostArgsForCall []struct {
 		arg1 string
 		arg2 int
 		arg3 int
+		arg4 int
 	}
 	calculateCostReturns struct {
 		result1 float64
@@ -83,20 +84,21 @@ type FakePricingService struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakePricingService) CalculateCost(arg1 string, arg2 int, arg3 int) (float64, float64, float64) {
+func (fake *FakePricingService) CalculateCost(arg1 string, arg2 int, arg3 int, arg4 int) (float64, float64, float64) {
 	fake.calculateCostMutex.Lock()
 	ret, specificReturn := fake.calculateCostReturnsOnCall[len(fake.calculateCostArgsForCall)]
 	fake.calculateCostArgsForCall = append(fake.calculateCostArgsForCall, struct {
 		arg1 string
 		arg2 int
 		arg3 int
-	}{arg1, arg2, arg3})
+		arg4 int
+	}{arg1, arg2, arg3, arg4})
 	stub := fake.CalculateCostStub
 	fakeReturns := fake.calculateCostReturns
-	fake.recordInvocation("CalculateCost", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("CalculateCost", []interface{}{arg1, arg2, arg3, arg4})
 	fake.calculateCostMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3)
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -110,17 +112,17 @@ func (fake *FakePricingService) CalculateCostCallCount() int {
 	return len(fake.calculateCostArgsForCall)
 }
 
-func (fake *FakePricingService) CalculateCostCalls(stub func(string, int, int) (float64, float64, float64)) {
+func (fake *FakePricingService) CalculateCostCalls(stub func(string, int, int, int) (float64, float64, float64)) {
 	fake.calculateCostMutex.Lock()
 	defer fake.calculateCostMutex.Unlock()
 	fake.CalculateCostStub = stub
 }
 
-func (fake *FakePricingService) CalculateCostArgsForCall(i int) (string, int, int) {
+func (fake *FakePricingService) CalculateCostArgsForCall(i int) (string, int, int, int) {
 	fake.calculateCostMutex.RLock()
 	defer fake.calculateCostMutex.RUnlock()
 	argsForCall := fake.calculateCostArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
 func (fake *FakePricingService) CalculateCostReturns(result1 float64, result2 float64, result3 float64) {

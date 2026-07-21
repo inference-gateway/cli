@@ -8,36 +8,9 @@ import (
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
-)
 
-// visionModelPatterns contains known vision-capable model name patterns
-// These patterns are matched as substrings against the model ID (case-insensitive)
-var visionModelPatterns = []string{
-	"gpt-4o",
-	"gpt-4-turbo",
-	"gpt-4-vision",
-	"gpt-4v",
-	"claude-3",
-	"claude-3.5",
-	"claude-4",
-	"claude-sonnet",
-	"claude-opus",
-	"claude-haiku",
-	"gemini-pro-vision",
-	"gemini-1.5",
-	"gemini-2",
-	"gemini-flash",
-	"gemini-ultra",
-	"llava",
-	"bakllava",
-	"moondream",
-	"cogvlm",
-	"qwen-vl",
-	"internvl",
-	"minicpm-v",
-	"phi-3-vision",
-	"llama-3.2-vision",
-}
+	models "github.com/inference-gateway/cli/internal/models"
+)
 
 // HTTPModelService implements ModelService using SDK client
 type HTTPModelService struct {
@@ -71,7 +44,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("SDK client is not initialized")
 	}
 
-	resp, err := s.client.ListModels(ctx)
+	resp, err := s.client.ListModels(ctx, sdk.ListModelsParamsIncludeContextWindow, sdk.ListModelsParamsIncludePricing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 	}
@@ -80,18 +53,33 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("empty response from models API")
 	}
 
-	models := make([]string, len(resp.Data))
+	ids := make([]string, len(resp.Data))
+	windows := make(map[string]int, len(resp.Data))
+	prices := make(map[string]gatewayPrice, len(resp.Data))
 	for i, model := range resp.Data {
-		models[i] = model.ID
+		ids[i] = model.ID
+		if cw := model.ContextWindow; cw != nil && cw.Tokens > 0 {
+			windows[model.ID] = cw.Tokens
+		}
+		if price, ok := parseGatewayPricing(model.Pricing); ok {
+			prices[model.ID] = price
+		}
 	}
 
 	s.modelsMux.Lock()
-	s.models = models
+	s.models = ids
 	s.lastFetch = time.Now()
 	s.modelsMux.Unlock()
 
-	result := make([]string, len(models))
-	copy(result, models)
+	if len(windows) > 0 {
+		models.SetGatewayContextWindows(windows)
+	}
+	if len(prices) > 0 {
+		setGatewayPricing(prices)
+	}
+
+	result := make([]string, len(ids))
+	copy(result, ids)
 	return result, nil
 }
 
@@ -173,16 +161,4 @@ func (s *HTTPModelService) handleListModelsError(modelID string, _ /* err */ err
 // isValidModelFormat performs basic format validation on model IDs
 func isValidModelFormat(modelID string) bool {
 	return strings.Contains(modelID, "/") && len(modelID) > 3
-}
-
-// IsVisionModel checks if a model supports vision/image input capabilities
-// It uses a hardcoded list of known vision-capable model patterns
-func (s *HTTPModelService) IsVisionModel(modelID string) bool {
-	lowerModelID := strings.ToLower(modelID)
-	for _, pattern := range visionModelPatterns {
-		if strings.Contains(lowerModelID, strings.ToLower(pattern)) {
-			return true
-		}
-	}
-	return false
 }

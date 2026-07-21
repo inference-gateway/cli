@@ -28,25 +28,30 @@ var debugAgentCmd = &cobra.Command{
 
 var debugAgentSystemPromptCmd = &cobra.Command{
 	Use:   "system_prompt",
-	Short: "Print the system prompt a chat session would send to the LLM",
-	Long: "Builds and prints the exact system prompt (base prompt + custom " +
-		"instructions + dynamic context + date) that a fresh `infer chat` " +
-		"session would send to the model. With --tokens, prints size stats " +
-		"(characters, lines, estimated tokens) instead of the prompt itself.",
+	Short: "Print the prompt context a chat session would send to the LLM",
+	Long: "Prints the static system prompt (message[0], byte-stable across turns " +
+		"for KV-cache prefix reuse), then the volatile context (git, tree, memory, " +
+		"date) that is sent each request as a separate hidden <system-reminder> " +
+		"user message. With --tokens, prints per-section size stats instead.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		agentService := syncedAgentService(cmd.Context(), Cfg)
-		prompt := agentService.BuildSystemPrompt()
+		full := renderPromptContext(agentService)
 
 		showTokens, _ := cmd.Flags().GetBool("tokens")
 		if !showTokens {
-			_, err := fmt.Fprintln(cmd.OutOrStdout(), prompt)
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), full)
 			return err
 		}
 
 		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		out := cmd.OutOrStdout()
 		if sectioned, ok := agentService.(interface{ SystemPromptSections() []agent.PromptSection }); ok {
+			inTail := false
 			for _, section := range sectioned.SystemPromptSections() {
+				if section.Volatile && !inTail {
+					inTail = true
+					_, _ = fmt.Fprintln(out, "\nvolatile tail (per-request hidden message):")
+				}
 				text := strings.TrimSpace(section.Text)
 				_, _ = fmt.Fprintf(out, "%-22s %7d tokens  (%d chars)\n",
 					section.Name, tokenizer.EstimateTokenCount(text), utf8.RuneCountInString(text))
@@ -55,13 +60,18 @@ var debugAgentSystemPromptCmd = &cobra.Command{
 		}
 		_, err := fmt.Fprintf(out,
 			"Characters: %d\nLines: %d\nEstimated tokens: %d\n",
-			utf8.RuneCountInString(prompt),
-			strings.Count(prompt, "\n")+1,
-			tokenizer.EstimateTokenCount(prompt),
+			utf8.RuneCountInString(full),
+			strings.Count(full, "\n")+1,
+			tokenizer.EstimateTokenCount(full),
 		)
 		return err
 	},
 }
+
+// volatileTailDivider separates the static system prompt from the volatile
+// tail in debug output, naming what the tail actually is on the wire.
+const volatileTailDivider = "--- volatile context: sent each request as a separate hidden " +
+	"<system-reminder> user message; NOT part of the system prompt ---"
 
 // syncedAgentService builds the service container and syncs memory in before
 // returning the agent service. The sync mirrors the headless agent's
@@ -76,9 +86,26 @@ func syncedAgentService(ctx context.Context, cfg *config.Config) domain.AgentSer
 	return services.GetAgentService()
 }
 
-// renderAgentSystemPrompt renders the system prompt a fresh session would send.
+// renderAgentSystemPrompt renders the full prompt context a fresh session
+// would send: the static system prompt, then the volatile tail below a
+// divider marking it as a separate hidden per-request message.
 func renderAgentSystemPrompt(ctx context.Context, cfg *config.Config) string {
-	return syncedAgentService(ctx, cfg).BuildSystemPrompt()
+	return renderPromptContext(syncedAgentService(ctx, cfg))
+}
+
+// renderPromptContext assembles the debug view from the exact runtime
+// builders, so what this prints is byte-for-byte what goes on the wire.
+func renderPromptContext(agentService domain.AgentService) string {
+	prompt := agentService.BuildSystemPrompt()
+	tailer, ok := agentService.(interface{ VolatileTailText() (string, bool) })
+	if !ok {
+		return prompt
+	}
+	tail, ok := tailer.VolatileTailText()
+	if !ok {
+		return prompt
+	}
+	return prompt + "\n\n" + volatileTailDivider + "\n\n" + tail
 }
 
 func init() {

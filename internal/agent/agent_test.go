@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1303,13 +1302,17 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 
 	assert.Contains(t, prompt, "You are a helpful assistant.")
 	assert.Contains(t, prompt, "SANDBOX RESTRICTIONS:")
-	assert.Contains(t, prompt, "Current date:")
+	assert.NotContains(t, prompt, "Current date:", "the wire system message stays byte-stable")
 
 	systemMsg := agentService.addSystemPrompt(nil)[0]
 	content, err := systemMsg.Content.AsMessageContent0()
 	assert.NoError(t, err)
-	const tsMarker = "Current date:"
-	assert.Equal(t, strings.SplitN(content, tsMarker, 2)[0], strings.SplitN(prompt, tsMarker, 2)[0])
+	assert.Equal(t, prompt, content, "debug view and wire message[0] come from the same builder")
+
+	tail, ok := agentService.VolatileTailText()
+	assert.True(t, ok)
+	assert.Contains(t, tail, "<system-reminder>")
+	assert.Contains(t, tail, "Current date:")
 }
 
 func TestAgentServiceImpl_BuildSystemPrompt_EmptyPrompt(t *testing.T) {

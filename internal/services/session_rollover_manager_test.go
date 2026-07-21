@@ -13,7 +13,16 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	models "github.com/inference-gateway/cli/internal/models"
 )
+
+// seedContextWindow registers a gateway-reported context window for the test's
+// lifetime; without it token triggers gate off (unknown window).
+func seedContextWindow(t *testing.T, model string, tokens int) {
+	t.Helper()
+	models.SetGatewayContextWindows(map[string]int{model: tokens})
+	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
+}
 
 // fakeOptimizer is a minimal in-test stand-in for ConversationOptimizer that
 // reports a configurable summary count and records every call.
@@ -182,6 +191,7 @@ func addTokenUsage(t *testing.T, repo *PersistentConversationRepository, model s
 }
 
 func TestShouldRollover(t *testing.T) {
+	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
 	tests := []struct {
 		name       string
 		autoAt     int
@@ -240,7 +250,7 @@ func TestShouldRollover(t *testing.T) {
 			model: "moonshot/moonshot-v1-8k", want: true,
 		},
 		{
-			name: "token trigger skipped for model with no configured context window", autoAt: 80, idleMin: 0,
+			name: "token trigger skipped for model with unknown context window", autoAt: 80, idleMin: 0,
 			seed: func(t *testing.T, repo *PersistentConversationRepository) {
 				addBigMessages(t, repo, 10)
 				addTokenUsage(t, repo, "ollama_cloud/some-unlisted-model", 500000, 100, 500100)
@@ -422,6 +432,7 @@ func TestMaybeRollover_GateClosedReturnsFalse(t *testing.T) {
 }
 
 func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
+	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
 	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 
@@ -464,6 +475,7 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 }
 
 func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
+	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
 	mgr, repo, _, _, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
 

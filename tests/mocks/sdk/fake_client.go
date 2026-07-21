@@ -52,10 +52,11 @@ type FakeClient struct {
 	healthCheckReturnsOnCall map[int]struct {
 		result1 error
 	}
-	ListModelsStub        func(context.Context) (*sdk.ListModelsResponse, error)
+	ListModelsStub        func(context.Context, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)
 	listModelsMutex       sync.RWMutex
 	listModelsArgsForCall []struct {
 		arg1 context.Context
+		arg2 []sdk.ListModelsParamsInclude
 	}
 	listModelsReturns struct {
 		result1 *sdk.ListModelsResponse
@@ -65,11 +66,12 @@ type FakeClient struct {
 		result1 *sdk.ListModelsResponse
 		result2 error
 	}
-	ListProviderModelsStub        func(context.Context, sdk.Provider) (*sdk.ListModelsResponse, error)
+	ListProviderModelsStub        func(context.Context, sdk.Provider, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)
 	listProviderModelsMutex       sync.RWMutex
 	listProviderModelsArgsForCall []struct {
 		arg1 context.Context
 		arg2 sdk.Provider
+		arg3 []sdk.ListModelsParamsInclude
 	}
 	listProviderModelsReturns struct {
 		result1 *sdk.ListModelsResponse
@@ -368,18 +370,19 @@ func (fake *FakeClient) HealthCheckReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeClient) ListModels(arg1 context.Context) (*sdk.ListModelsResponse, error) {
+func (fake *FakeClient) ListModels(arg1 context.Context, arg2 ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error) {
 	fake.listModelsMutex.Lock()
 	ret, specificReturn := fake.listModelsReturnsOnCall[len(fake.listModelsArgsForCall)]
 	fake.listModelsArgsForCall = append(fake.listModelsArgsForCall, struct {
 		arg1 context.Context
-	}{arg1})
+		arg2 []sdk.ListModelsParamsInclude
+	}{arg1, arg2})
 	stub := fake.ListModelsStub
 	fakeReturns := fake.listModelsReturns
-	fake.recordInvocation("ListModels", []interface{}{arg1})
+	fake.recordInvocation("ListModels", []interface{}{arg1, arg2})
 	fake.listModelsMutex.Unlock()
 	if stub != nil {
-		return stub(arg1)
+		return stub(arg1, arg2...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -393,17 +396,17 @@ func (fake *FakeClient) ListModelsCallCount() int {
 	return len(fake.listModelsArgsForCall)
 }
 
-func (fake *FakeClient) ListModelsCalls(stub func(context.Context) (*sdk.ListModelsResponse, error)) {
+func (fake *FakeClient) ListModelsCalls(stub func(context.Context, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)) {
 	fake.listModelsMutex.Lock()
 	defer fake.listModelsMutex.Unlock()
 	fake.ListModelsStub = stub
 }
 
-func (fake *FakeClient) ListModelsArgsForCall(i int) context.Context {
+func (fake *FakeClient) ListModelsArgsForCall(i int) (context.Context, []sdk.ListModelsParamsInclude) {
 	fake.listModelsMutex.RLock()
 	defer fake.listModelsMutex.RUnlock()
 	argsForCall := fake.listModelsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeClient) ListModelsReturns(result1 *sdk.ListModelsResponse, result2 error) {
@@ -432,19 +435,20 @@ func (fake *FakeClient) ListModelsReturnsOnCall(i int, result1 *sdk.ListModelsRe
 	}{result1, result2}
 }
 
-func (fake *FakeClient) ListProviderModels(arg1 context.Context, arg2 sdk.Provider) (*sdk.ListModelsResponse, error) {
+func (fake *FakeClient) ListProviderModels(arg1 context.Context, arg2 sdk.Provider, arg3 ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error) {
 	fake.listProviderModelsMutex.Lock()
 	ret, specificReturn := fake.listProviderModelsReturnsOnCall[len(fake.listProviderModelsArgsForCall)]
 	fake.listProviderModelsArgsForCall = append(fake.listProviderModelsArgsForCall, struct {
 		arg1 context.Context
 		arg2 sdk.Provider
-	}{arg1, arg2})
+		arg3 []sdk.ListModelsParamsInclude
+	}{arg1, arg2, arg3})
 	stub := fake.ListProviderModelsStub
 	fakeReturns := fake.listProviderModelsReturns
-	fake.recordInvocation("ListProviderModels", []interface{}{arg1, arg2})
+	fake.recordInvocation("ListProviderModels", []interface{}{arg1, arg2, arg3})
 	fake.listProviderModelsMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2)
+		return stub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -458,17 +462,17 @@ func (fake *FakeClient) ListProviderModelsCallCount() int {
 	return len(fake.listProviderModelsArgsForCall)
 }
 
-func (fake *FakeClient) ListProviderModelsCalls(stub func(context.Context, sdk.Provider) (*sdk.ListModelsResponse, error)) {
+func (fake *FakeClient) ListProviderModelsCalls(stub func(context.Context, sdk.Provider, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)) {
 	fake.listProviderModelsMutex.Lock()
 	defer fake.listProviderModelsMutex.Unlock()
 	fake.ListProviderModelsStub = stub
 }
 
-func (fake *FakeClient) ListProviderModelsArgsForCall(i int) (context.Context, sdk.Provider) {
+func (fake *FakeClient) ListProviderModelsArgsForCall(i int) (context.Context, sdk.Provider, []sdk.ListModelsParamsInclude) {
 	fake.listProviderModelsMutex.RLock()
 	defer fake.listProviderModelsMutex.RUnlock()
 	argsForCall := fake.listProviderModelsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeClient) ListProviderModelsReturns(result1 *sdk.ListModelsResponse, result2 error) {

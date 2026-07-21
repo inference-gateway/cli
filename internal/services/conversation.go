@@ -425,7 +425,7 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 		return nil
 	}
 
-	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens)
+	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, 0)
 
 	if r.costStats.PerModelStats == nil {
 		r.costStats.PerModelStats = make(map[string]*domain.ModelCostStats)
@@ -450,6 +450,15 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 	r.costStats.TotalCost += totalCost
 
 	return nil
+}
+
+// AddCachedTokens accumulates provider-reported cached prompt tokens
+// (usage.prompt_tokens_details.cached_tokens) into the session totals.
+func (r *InMemoryConversationRepository) AddCachedTokens(tokens int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats.TotalCachedTokens += tokens
 }
 
 // GetSessionTokens returns the accumulated token statistics for the session

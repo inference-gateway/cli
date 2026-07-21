@@ -28,7 +28,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/inference-gateway/adk v0.23.0
-	github.com/inference-gateway/sdk v1.22.0
+	github.com/inference-gateway/sdk v1.25.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
 	github.com/metoro-io/mcp-golang v0.16.1

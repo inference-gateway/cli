@@ -387,6 +387,9 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		if sessionTokensPart := isb.buildSessionTokensIndicator(); sessionTokensPart != "" {
 			parts = append(parts, indicatorPart{text: sessionTokensPart})
 		}
+		if cachedTokensPart := isb.buildCachedTokensIndicator(); cachedTokensPart != "" {
+			parts = append(parts, indicatorPart{text: cachedTokensPart})
+		}
 	}
 
 	if isb.shouldShowIndicator("cost") {
@@ -658,6 +661,23 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	return fmt.Sprintf("T.%d", totalTokens)
 }
 
+// buildCachedTokensIndicator builds the cumulative cached-prompt-tokens
+// indicator (provider-reported prompt cache hits). Hidden while zero -
+// providers without prompt caching, or usage polyfilled by the tokenizer,
+// never report cached tokens.
+func (isb *InputStatusBar) buildCachedTokensIndicator() string {
+	if isb.conversationRepo == nil {
+		return ""
+	}
+
+	cached := isb.conversationRepo.GetSessionTokens().TotalCachedTokens
+	if cached == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("C.%d", cached)
+}
+
 // totalInputTokensOrEstimate returns the cumulative TotalInputTokens reported
 // by the gateway, or - when the provider did not return usage - falls back
 // to estimating tokens from the current message buffer. Drives the cumulative
@@ -799,8 +819,8 @@ func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 		return ""
 	}
 
-	contextWindow, known := models.LookupContextWindow(model)
-	if !known || contextWindow == 0 {
+	contextWindow, _ := models.LookupContextWindow(model)
+	if contextWindow == 0 {
 		return ""
 	}
 

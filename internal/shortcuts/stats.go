@@ -133,12 +133,13 @@ func renderModelStats(w *strings.Builder, models []telemetry.ModelStat) {
 		return
 	}
 	w.WriteString("### Token Usage\n\n")
-	w.WriteString("| Model | Prompt | Completion | Total | Cost |\n")
-	w.WriteString("|-------|--------|------------|-------|------|\n")
+	w.WriteString("| Model | Prompt | Cached | Completion | Total | Cost |\n")
+	w.WriteString("|-------|--------|--------|------------|-------|------|\n")
 	for _, m := range models {
-		fmt.Fprintf(w, "| %s | %s | %s | %s | %s |\n",
+		fmt.Fprintf(w, "| %s | %s | %s | %s | %s | %s |\n",
 			m.Model,
 			strconv.Itoa(m.Prompt),
+			strconv.Itoa(m.Cached),
 			strconv.Itoa(m.Completion),
 			strconv.Itoa(m.Total),
 			formatting.FormatCost(m.Cost))
@@ -204,6 +205,7 @@ func renderModelStatsVertical(w *strings.Builder, models []telemetry.ModelStat) 
 		renderVerticalEntry(w, [][2]string{
 			{"Model", m.Model},
 			{"Prompt", strconv.Itoa(m.Prompt)},
+			{"Cached", strconv.Itoa(m.Cached)},
 			{"Completion", strconv.Itoa(m.Completion)},
 			{"Total", strconv.Itoa(m.Total)},
 			{"Cost", formatting.FormatCost(m.Cost)},

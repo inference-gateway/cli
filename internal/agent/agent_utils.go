@@ -137,10 +137,13 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
 }
 
-// buildSystemPromptText assembles the full system prompt text for the given
-// turn (base prompt + custom instructions + dynamic context + date). Returns ""
-// when no base prompt is configured for the current mode.
-func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string {
+// BuildSystemPrompt assembles the static system prompt sent as message[0]
+// (base prompt + custom instructions + AGENTS.md + plugins + static context).
+// It is deliberately byte-identical across turns within a session so local LLM
+// servers get KV-cache prefix hits; volatile context (git, tree, memory,
+// active skill, date) rides in volatileTailMessage instead. Returns "" when no
+// base prompt is configured for the current mode.
+func (s *AgentServiceImpl) BuildSystemPrompt() string {
 	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt == "" {
 		return ""
@@ -162,28 +165,34 @@ func (s *AgentServiceImpl) buildSystemPromptText(messages []sdk.Message) string 
 	}
 
 	if agentConfig.SystemPromptWithDefaults {
-		contextInfo := s.buildContextInfo(len(messages)/2, messages)
+		contextInfo := s.buildContextInfo()
 		if contextInfo != "" {
 			parts = append(parts, contextInfo)
 		}
 	}
 
-	currentDate := time.Now().Format("Monday, January 2, 2006")
-	parts = append(parts, fmt.Sprintf("Current date: %s", currentDate))
-
 	return strings.Join(parts, "\n\n")
 }
 
-// BuildSystemPrompt returns the system prompt a fresh session (turn 0) would
-// send to the LLM. Exposed for the `infer debug agent system_prompt` command.
-func (s *AgentServiceImpl) BuildSystemPrompt() string {
-	return s.buildSystemPromptText(nil)
+// VolatileTailText renders the volatile-context tail a fresh session (turn 0)
+// would send as a hidden per-request <system-reminder> user message; ok=false
+// means no tail is sent. Exposed for the `infer debug agent system_prompt`
+// command via type assertion, alongside SystemPromptSections.
+func (s *AgentServiceImpl) VolatileTailText() (string, bool) {
+	tail, ok := s.volatileTailMessage(nil)
+	if !ok {
+		return "", false
+	}
+	content, err := tail.Content.AsMessageContent0()
+	if err != nil {
+		return "", false
+	}
+	return content, true
 }
 
-// addSystemPrompt prepends the assembled system prompt (with dynamic sandbox
-// info) to messages.
+// addSystemPrompt prepends the assembled system prompt to messages.
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
-	prompt := s.buildSystemPromptText(messages)
+	prompt := s.BuildSystemPrompt()
 	if prompt == "" {
 		return messages
 	}
@@ -196,45 +205,87 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return append([]sdk.Message{systemMessage}, messages...)
 }
 
-// PromptSection is one labeled part of the assembled system prompt, exposed
-// for diagnostics (e.g. per-section token estimates in `infer debug`). Text is
-// the raw part as it appears in the prompt, including any separator prefix.
-type PromptSection struct {
-	Name string
-	Text string
+// volatileTailMessage builds the per-request <system-reminder> user message
+// carrying the volatile context (git, tree, active skill, memory, current
+// date), appended to the outbound payload only — never persisted — so the
+// system prompt at message[0] stays byte-stable for KV-cache prefix reuse.
+// messages is the pre-system-prompt conversation (turn = len/2, matching the
+// old in-prompt refresh cadence); ok=false means append nothing. Callers gate
+// the append on conversationAwaitsToolResults at payload-finalization time
+// (outboundConversation for streaming, Run for sync), after conversation
+// repair — not here, where the input may still carry orphaned tool_calls.
+func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message) (sdk.Message, bool) {
+	if s.getSystemPromptForMode() == "" {
+		return sdk.Message{}, false
+	}
+
+	var b strings.Builder
+	if s.config.GetAgentConfig().SystemPromptWithDefaults {
+		for _, section := range s.volatileContextSections(len(messages)/2, messages) {
+			b.WriteString(section.Text)
+		}
+	}
+	fmt.Fprintf(&b, "\n\nCurrent date: %s", time.Now().Format("Monday, January 2, 2006"))
+
+	return sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent("<system-reminder>\n" + strings.TrimSpace(b.String()) + "\n</system-reminder>"),
+	}, true
 }
 
-// contextSections lists the dynamic context builders in prompt order; it is
-// the single source for both prompt assembly and diagnostics.
-func (s *AgentServiceImpl) contextSections(currentTurn int, messages []sdk.Message) []PromptSection {
+// PromptSection is one labeled part of the assembled prompt context, exposed
+// for diagnostics (e.g. per-section token estimates in `infer debug`). Text is
+// the raw part as it appears in the prompt, including any separator prefix.
+// Volatile marks sections delivered via the per-request tail message rather
+// than the static system prompt.
+type PromptSection struct {
+	Name     string
+	Text     string
+	Volatile bool
+}
+
+// contextSections lists the static context builders in prompt order; it is
+// the single source for both prompt assembly and diagnostics. Only sections
+// that are stable across turns belong here — anything that changes as the
+// agent works goes in volatileContextSections so message[0] stays byte-stable.
+func (s *AgentServiceImpl) contextSections() []PromptSection {
 	return []PromptSection{
 		{Name: "sandbox", Text: s.buildSandboxInfo()},
 		{Name: "a2a_agents", Text: s.buildA2AAgentInfo()},
 		{Name: "os", Text: s.buildOSInfo()},
 		{Name: "working_directory", Text: s.buildWorkingDirectoryInfo()},
-		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn)},
-		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn)},
 		{Name: "github_guidance", Text: s.buildGitHubGuidanceInfo()},
 		{Name: "bash_allow_list", Text: s.buildBashAllowInfo()},
 		{Name: "tools", Text: s.buildToolsInfo()},
 		{Name: "skills", Text: s.buildSkillsInfo()},
-		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages)},
-		{Name: "memory", Text: s.buildMemoryInfo(currentTurn)},
 	}
 }
 
-// buildContextInfo assembles dynamic context (sandbox, A2A, OS, working dir, git, GitHub, tools, skills) for the system prompt
-func (s *AgentServiceImpl) buildContextInfo(currentTurn int, messages []sdk.Message) string {
+// volatileContextSections lists the context builders whose output changes as
+// the session progresses; they are delivered per request via
+// volatileTailMessage rather than in the system prompt.
+func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message) []PromptSection {
+	return []PromptSection{
+		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
+		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
+		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages), Volatile: true},
+		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
+	}
+}
+
+// buildContextInfo assembles the static context (sandbox, A2A, OS, working dir, GitHub, tools, skills) for the system prompt
+func (s *AgentServiceImpl) buildContextInfo() string {
 	var b strings.Builder
-	for _, section := range s.contextSections(currentTurn, messages) {
+	for _, section := range s.contextSections() {
 		b.WriteString(section.Text)
 	}
 	return b.String()
 }
 
-// SystemPromptSections returns the labeled parts of the system prompt a fresh
-// session (turn 0) would send, in prompt order and with empty parts omitted.
-// Exposed for the `infer debug agent system_prompt --tokens` breakdown.
+// SystemPromptSections returns the labeled parts of the prompt context a fresh
+// session (turn 0) would send — the static system prompt sections followed by
+// the Volatile-marked tail sections — with empty parts omitted. Exposed for
+// the `infer debug agent system_prompt --tokens` breakdown.
 func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 	agentConfig := s.config.GetAgentConfig()
 	sections := []PromptSection{
@@ -244,7 +295,8 @@ func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 		{Name: "plugins", Text: plugins.InstructionsBlock(s.config)},
 	}
 	if agentConfig.SystemPromptWithDefaults {
-		sections = append(sections, s.contextSections(0, nil)...)
+		sections = append(sections, s.contextSections()...)
+		sections = append(sections, s.volatileContextSections(0, nil)...)
 	}
 
 	nonEmpty := sections[:0]

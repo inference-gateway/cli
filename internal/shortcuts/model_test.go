@@ -46,10 +46,6 @@ func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
 }
 
-func (m *mockModelService) IsVisionModel(modelID string) bool {
-	return false
-}
-
 func TestSwitchShortcut_GetName(t *testing.T) {
 	modelService := &mockModelService{}
 	shortcut := NewSwitchShortcut(modelService)

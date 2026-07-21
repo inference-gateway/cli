@@ -86,6 +86,7 @@ type ToolCall struct {
 type Usage struct {
 	PromptTokens     int64 `yaml:"prompt_tokens"`
 	CompletionTokens int64 `yaml:"completion_tokens"`
+	CachedTokens     int64 `yaml:"cached_tokens"`
 }
 
 // ErrorInject makes a turn answer with HTTP Status for the first Times

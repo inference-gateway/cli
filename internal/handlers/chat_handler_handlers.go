@@ -33,16 +33,21 @@ func (h *ChatHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
-	if metrics.Usage != nil {
-		if metrics.Usage.PromptTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Input: %d tokens", metrics.Usage.PromptTokens))
-		}
-		if metrics.Usage.CompletionTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Output: %d tokens", metrics.Usage.CompletionTokens))
-		}
-		if metrics.Usage.TotalTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Total: %d tokens", metrics.Usage.TotalTokens))
-		}
+	if metrics.Usage == nil {
+		return strings.Join(parts, " | ")
+	}
+
+	if metrics.Usage.PromptTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Input: %d tokens", metrics.Usage.PromptTokens))
+	}
+	if details := metrics.Usage.PromptTokensDetails; details != nil && details.CachedTokens != nil && *details.CachedTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Cached: %d tokens", *details.CachedTokens))
+	}
+	if metrics.Usage.CompletionTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Output: %d tokens", metrics.Usage.CompletionTokens))
+	}
+	if metrics.Usage.TotalTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Total: %d tokens", metrics.Usage.TotalTokens))
 	}
 
 	return strings.Join(parts, " | ")

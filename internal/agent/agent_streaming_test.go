@@ -146,3 +146,44 @@ func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
 	assert.Empty(t, conversation, "empty partial should not be appended")
 	assert.Equal(t, 0, repo.AddMessageCallCount())
 }
+
+func TestOutboundConversation_AppendsTailWithoutMutatingShared(t *testing.T) {
+	conv := []sdk.Message{
+		{Role: sdk.System, Content: sdk.NewMessageContent("system")},
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+	}
+	tail := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("<system-reminder>\nCurrent date: today\n</system-reminder>")}
+
+	a := &EventDrivenAgent{
+		agentCtx:     &domain.AgentContext{Conversation: &conv},
+		volatileTail: []sdk.Message{tail},
+	}
+
+	out := a.outboundConversation()
+
+	assert.Len(t, out, 3)
+	assert.Equal(t, tail, out[2])
+	assert.Len(t, conv, 2, "shared conversation must not grow the ephemeral tail")
+}
+
+func TestOutboundConversation_NoTailReturnsSharedAsIs(t *testing.T) {
+	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
+	a := &EventDrivenAgent{agentCtx: &domain.AgentContext{Conversation: &conv}}
+
+	assert.Equal(t, conv, a.outboundConversation())
+}
+
+func TestOutboundConversation_SkipsTailWhileAwaitingToolResults(t *testing.T) {
+	toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
+	conv := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		{Role: sdk.Assistant, ToolCalls: &toolCalls},
+	}
+	tail := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("<system-reminder>\nCurrent date: today\n</system-reminder>")}
+	a := &EventDrivenAgent{
+		agentCtx:     &domain.AgentContext{Conversation: &conv},
+		volatileTail: []sdk.Message{tail},
+	}
+
+	assert.Equal(t, conv, a.outboundConversation(), "a trailing user tail would orphan the open tool_calls")
+}

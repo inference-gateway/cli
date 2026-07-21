@@ -98,8 +98,9 @@ type AgentService interface {
 	// GetMetrics returns metrics for a completed request
 	GetMetrics(requestID string) *ChatMetrics
 
-	// BuildSystemPrompt returns the system prompt a fresh session would send to
-	// the LLM, for diagnostics (see `infer debug agent system_prompt`).
+	// BuildSystemPrompt returns the static system prompt sent as message[0],
+	// byte-stable across turns; volatile context travels separately as a hidden
+	// per-request message (see `infer debug agent system_prompt`).
 	BuildSystemPrompt() string
 }
 

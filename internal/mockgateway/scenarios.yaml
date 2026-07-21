@@ -103,7 +103,7 @@ scenarios:
     match: '(?i)report your usage'
     turns:
       - content: "Usage reported."
-        usage: { prompt_tokens: 100, completion_tokens: 42 }
+        usage: { prompt_tokens: 100, completion_tokens: 42, cached_tokens: 64 }
 
   - name: read-missing
     match: '(?i)read the missing file'

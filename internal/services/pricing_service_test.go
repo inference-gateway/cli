@@ -5,6 +5,8 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -88,18 +90,18 @@ func TestPricingService_GoogleModelDefaults(t *testing.T) {
 		model          string
 		expectedOutput string
 	}{
-		{"google/models/gemini-2.5-pro", "$1.25/$10.00 per MTok"},
-		{"google/models/gemini-2.5-flash", "$0.30/$2.50 per MTok"},
-		{"google/models/gemini-2.5-flash-lite", "$0.10/$0.40 per MTok"},
-		{"google/models/gemini-2.0-flash", "$0.10/$0.40 per MTok"},
-		{"google/models/gemini-2.0-flash-001", "$0.10/$0.40 per MTok"},
-		{"google/models/gemini-2.0-flash-lite", "$0.07/$0.30 per MTok"},
-		{"google/models/gemini-3-flash-preview", "$0.50/$3.00 per MTok"},
-		{"google/models/gemini-3.1-pro-preview", "$2.00/$12.00 per MTok"},
-		{"google/models/gemma-3-1b-it", "free"},
-		{"google/models/gemma-3-27b-it", "free"},
-		{"google/models/gemma-3n-e2b-it", "free"},
-		{"google/models/gemma-4-31b-it", "free"},
+		{"google/models/gemini-2.5-pro", ""},
+		{"google/models/gemini-2.5-flash", ""},
+		{"google/models/gemini-2.5-flash-lite", ""},
+		{"google/models/gemini-2.0-flash", ""},
+		{"google/models/gemini-2.0-flash-001", ""},
+		{"google/models/gemini-2.0-flash-lite", ""},
+		{"google/models/gemini-3-flash-preview", ""},
+		{"google/models/gemini-3.1-pro-preview", ""},
+		{"google/models/gemma-3-1b-it", ""},
+		{"google/models/gemma-3-27b-it", ""},
+		{"google/models/gemma-3n-e2b-it", ""},
+		{"google/models/gemma-4-31b-it", ""},
 		{"google/models/imagen-4.0-generate-001", ""},
 		{"google/models/veo-3.0-generate-001", ""},
 	}
@@ -159,7 +161,7 @@ func TestPricingService_RequiresPro(t *testing.T) {
 		expected     bool
 	}{
 		{
-			name:     "pricing disabled returns false even for pro default",
+			name:     "pricing disabled returns false even for unknown model",
 			enabled:  false,
 			model:    "ollama_cloud/deepseek-v4-pro",
 			expected: false,
@@ -187,19 +189,19 @@ func TestPricingService_RequiresPro(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "default pro model returns true",
+			name:     "known pro model from curated set returns true",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-pro",
 			expected: true,
 		},
 		{
-			name:     "default flash pro model returns true",
+			name:     "known flash pro model from curated set returns true",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-flash",
 			expected: true,
 		},
 		{
-			name:     "default free ollama cloud model returns false",
+			name:     "previously-default free ollama cloud model returns false",
 			enabled:  true,
 			model:    "ollama_cloud/kimi-k2.5",
 			expected: false,
@@ -227,40 +229,6 @@ func TestPricingService_RequiresPro(t *testing.T) {
 	}
 }
 
-// TestPricingService_OllamaCloudProDefaults guards the curated set of Ollama
-// Cloud models that are gated behind a Pro subscription. Only the two named in
-// issue #590 should be flagged; the rest of the ollama_cloud catalog is free.
-func TestPricingService_OllamaCloudProDefaults(t *testing.T) {
-	proModels := []string{
-		"ollama_cloud/deepseek-v4-pro",
-		"ollama_cloud/deepseek-v4-flash",
-	}
-	for _, model := range proModels {
-		t.Run("pro/"+model, func(t *testing.T) {
-			entry, ok := config.DefaultModelPricing[model]
-			assert.True(t, ok, "expected default pricing entry for %s", model)
-			assert.True(t, entry.RequiresPro, "expected %s to require Pro", model)
-		})
-	}
-
-	freeModels := []string{
-		"ollama_cloud/kimi-k2.5",
-		"ollama_cloud/qwen3-coder:480b",
-		"ollama_cloud/gpt-oss:120b",
-		"ollama_cloud/glm-5.1",
-		"ollama_cloud/deepseek-v3.2",
-	}
-	for _, model := range freeModels {
-		t.Run("free/"+model, func(t *testing.T) {
-			entry, ok := config.DefaultModelPricing[model]
-			assert.True(t, ok, "expected default pricing entry for %s", model)
-			assert.False(t, entry.RequiresPro, "expected %s to be free, not Pro", model)
-		})
-	}
-}
-
-// TestPricingService_MinimaxDefaults verifies the native MiniMax provider entries
-// resolve to MiniMax's pay-as-you-go standard rate and are not subscription-gated.
 func TestPricingService_MinimaxDefaults(t *testing.T) {
 	service := NewPricingService(&config.PricingConfig{Enabled: true})
 
@@ -273,10 +241,10 @@ func TestPricingService_MinimaxDefaults(t *testing.T) {
 	}
 	for _, model := range models {
 		t.Run(model, func(t *testing.T) {
-			assert.InDelta(t, 0.30, service.GetInputPrice(model), 1e-9)
-			assert.InDelta(t, 1.20, service.GetOutputPrice(model), 1e-9)
-			assert.Equal(t, "$0.30/$1.20 per MTok", service.FormatModelPricing(model))
-			assert.False(t, service.RequiresPro(model), "native MiniMax models are pay-as-you-go, not subscription")
+			assert.InDelta(t, 0.0, service.GetInputPrice(model), 1e-9)
+			assert.InDelta(t, 0.0, service.GetOutputPrice(model), 1e-9)
+			assert.Equal(t, "", service.FormatModelPricing(model))
+			assert.False(t, service.RequiresPro(model), "native MiniMax models are unknown without gateway data")
 		})
 	}
 }
@@ -293,7 +261,7 @@ func TestFormatModelPricingLabel(t *testing.T) {
 		expected     string
 	}{
 		{
-			name:     "default subscription model shows subscription marker, free suppressed",
+			name:     "known subscription model shows subscription",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-pro",
 			expected: "subscription",
@@ -354,11 +322,10 @@ func TestFormatModelPricingLabel(t *testing.T) {
 	}
 }
 
-// TestPricingService_FreeLocalProviders verifies that locally-hosted providers
-// (llamacpp, ollama) resolve to "free" for ANY model name - their model list is
-// whatever the user loaded, so there are no per-model default entries. The
-// ollama prefix must NOT capture ollama_cloud, which has its own paid catalog.
-func TestPricingService_FreeLocalProviders(t *testing.T) {
+// TestPricingService_LocalProvidersUnknown verifies that locally-hosted
+// providers (llamacpp, ollama) resolve as unknown pricing - there is no
+// built-in free assumption; users declare prices via custom_prices.
+func TestPricingService_LocalProvidersUnknown(t *testing.T) {
 	service := NewPricingService(&config.PricingConfig{Enabled: true})
 
 	for _, model := range []string{
@@ -366,16 +333,12 @@ func TestPricingService_FreeLocalProviders(t *testing.T) {
 		"ollama/llama3.2", "ollama/anything-at-all",
 	} {
 		t.Run(model, func(t *testing.T) {
-			assert.Equal(t, "free", service.FormatModelPricing(model))
-			_, _, total := service.CalculateCost(model, 100000, 50000)
+			assert.Empty(t, service.FormatModelPricing(model))
+			_, _, total := service.CalculateCost(model, 100000, 50000, 0)
 			assert.Zero(t, total)
 			assert.False(t, service.RequiresPro(model))
 		})
 	}
-
-	assert.Empty(t, service.FormatModelPricing("ollama_cloud/brand-new-model"),
-		"ollama_cloud must not be captured by the ollama free-provider prefix")
-	assert.Empty(t, service.FormatModelPricing("no-provider-prefix"))
 
 	custom := NewPricingService(&config.PricingConfig{
 		Enabled: true,
@@ -384,7 +347,94 @@ func TestPricingService_FreeLocalProviders(t *testing.T) {
 		},
 	})
 	assert.Equal(t, "$1.00/$2.00 per MTok", custom.FormatModelPricing("llamacpp/hosted"),
-		"custom prices must win over the free-provider fallback")
+		"custom prices must make a local model priced")
+}
+
+// TestPricingService_GatewayPricing covers the /v1/models?include=pricing
+// tier: gateway prices work for known models, config custom prices still win.
+func TestPricingService_GatewayPricing(t *testing.T) {
+	cacheRead := 0.25
+	setGatewayPricing(map[string]gatewayPrice{
+		"moonshot/kimi-k3": {inputPerMTok: 2.0, outputPerMTok: 8.0},
+		"openai/gpt-4o":    {inputPerMTok: 2.5, outputPerMTok: 10.0, cacheReadPerMTok: &cacheRead},
+	})
+	defer setGatewayPricing(nil)
+
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	assert.Equal(t, 2.0, service.GetInputPrice("moonshot/kimi-k3"),
+		"gateway price must be returned for known model")
+	assert.Equal(t, 8.0, service.GetOutputPrice("moonshot/kimi-k3"))
+	assert.Equal(t, "$2.50/$10.00 per MTok", service.FormatModelPricing("openai/gpt-4o"))
+
+	custom := NewPricingService(&config.PricingConfig{
+		Enabled: true,
+		CustomPrices: map[string]config.CustomPricing{
+			"openai/gpt-4o": {InputPricePerMToken: 1.0, OutputPricePerMToken: 2.0},
+		},
+	})
+	assert.Equal(t, 1.0, custom.GetInputPrice("openai/gpt-4o"),
+		"config custom prices must win over gateway data")
+}
+
+// TestPricingService_CalculateCost_CachedTokens covers the cache-read
+// discount: cached tokens bill at the gateway cache-read rate when known,
+// at the full input rate otherwise, and the cached count is clamped to
+// [0, inputTokens].
+func TestPricingService_CalculateCost_CachedTokens(t *testing.T) {
+	cacheRead := 0.25
+	setGatewayPricing(map[string]gatewayPrice{
+		"g/discounted": {inputPerMTok: 2.5, outputPerMTok: 10.0, cacheReadPerMTok: &cacheRead},
+		"g/no-rate":    {inputPerMTok: 2.5, outputPerMTok: 10.0},
+	})
+	defer setGatewayPricing(nil)
+
+	service := NewPricingService(&config.PricingConfig{Enabled: true})
+
+	tests := []struct {
+		name                  string
+		model                 string
+		input, output, cached int
+		wantInput, wantTotal  float64
+	}{
+		{"no cached tokens", "g/discounted", 1_000_000, 100_000, 0, 2.5, 3.5},
+		{"cached at cache-read rate", "g/discounted", 1_000_000, 100_000, 400_000, 1.6, 2.6},
+		{"nil cache rate bills full price", "g/no-rate", 1_000_000, 0, 400_000, 2.5, 2.5},
+		{"cached clamped to input", "g/discounted", 100_000, 0, 1_000_000, 0.025, 0.025},
+		{"negative cached clamped to zero", "g/discounted", 100_000, 0, -50, 0.25, 0.25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in, _, total := service.CalculateCost(tt.model, tt.input, tt.output, tt.cached)
+			assert.InDelta(t, tt.wantInput, in, 1e-9)
+			assert.InDelta(t, tt.wantTotal, total, 1e-9)
+		})
+	}
+}
+
+// TestParseGatewayPricing covers the per-token decimal string → per-MTok
+// float conversion at ingest.
+func TestParseGatewayPricing(t *testing.T) {
+	cache := "0.00000025"
+	price, ok := parseGatewayPricing(&sdk.Pricing{
+		InputPerToken: "0.0000025", OutputPerToken: "0.00001", CacheReadPerToken: &cache,
+	})
+	assert.True(t, ok)
+	assert.InDelta(t, 2.5, price.inputPerMTok, 1e-9)
+	assert.InDelta(t, 10.0, price.outputPerMTok, 1e-9)
+	if assert.NotNil(t, price.cacheReadPerMTok) {
+		assert.InDelta(t, 0.25, *price.cacheReadPerMTok, 1e-9)
+	}
+
+	price, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "0.0000025", OutputPerToken: "0.00001"})
+	assert.True(t, ok)
+	assert.Nil(t, price.cacheReadPerMTok)
+
+	_, ok = parseGatewayPricing(nil)
+	assert.False(t, ok)
+
+	_, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "not-a-number", OutputPerToken: "0.00001"})
+	assert.False(t, ok)
 }
 
 func TestPricingService_CalculateCost(t *testing.T) {
@@ -400,7 +450,7 @@ func TestPricingService_CalculateCost(t *testing.T) {
 
 	service := NewPricingService(cfg)
 
-	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000)
+	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000, 0)
 
 	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00       // $1.00
 	expectedOutputCost := (50000.0 / 1_000_000.0) * 20.00       // $1.00

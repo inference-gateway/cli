@@ -23,6 +23,8 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	models "github.com/inference-gateway/cli/internal/models"
+	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
@@ -36,14 +38,21 @@ type env struct {
 // newEnv builds a real service container pointed at an in-process mock
 // gateway, with the working directory moved to a fresh temp dir so tool
 // executions (Read, Grep, ...) stay sandboxed to fixtures.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, mutate ...func(*config.Config)) *env {
+	t.Helper()
+	return newEnvWithScenarios(t, mockgateway.Default(), mutate...)
+}
+
+// newEnvWithScenarios is newEnv with a custom scenario file (e.g. zero-usage
+// turns to force the token polyfill).
+func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ...func(*config.Config)) *env {
 	t.Helper()
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)
 	t.Cleanup(func() { restore() })
 
-	gw := mockgateway.New(mockgateway.Default())
+	gw := mockgateway.New(defs)
 	ts := httptest.NewServer(gw)
 	t.Cleanup(ts.Close)
 
@@ -55,6 +64,9 @@ func newEnv(t *testing.T) *env {
 	cfg.Client.Retry.InitialBackoffSec = 0
 	cfg.Client.Retry.MaxAttempts = 3
 	cfg.Client.StallThresholdSec = 1
+	for _, m := range mutate {
+		m(cfg)
+	}
 
 	c := container.NewServiceContainer(cfg)
 	t.Cleanup(func() {
@@ -277,6 +289,12 @@ func TestStreamUsageIsCaptured(t *testing.T) {
 	require.NotNil(t, final.Metrics)
 	require.NotNil(t, final.Metrics.Usage)
 	require.EqualValues(t, 142, final.Metrics.Usage.TotalTokens)
+
+	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails, "cached tokens must survive SSE unmarshaling")
+	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails.CachedTokens)
+	require.EqualValues(t, 64, *final.Metrics.Usage.PromptTokensDetails.CachedTokens)
+	require.Equal(t, 64, e.container.GetConversationRepository().GetSessionTokens().TotalCachedTokens,
+		"cached tokens must accumulate into the session stats")
 }
 
 func TestStreamRetriesOn429ThenRecovers(t *testing.T) {
@@ -392,6 +410,7 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	require.Equal(t, 100, syncStats.TotalInputTokens)
 	require.Equal(t, 42, syncStats.TotalOutputTokens)
 	require.Equal(t, 1, syncStats.RequestCount)
+	require.Equal(t, 64, syncStats.TotalCachedTokens, "sync path must accumulate cached tokens too")
 
 	streamEnv := newEnv(t)
 	res := streamEnv.runStream(ctx, t, "report your usage")
@@ -399,4 +418,184 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 
 	streamStats := streamEnv.container.GetConversationRepository().GetSessionTokens()
 	require.Equal(t, streamStats, syncStats, "headless totals must equal chat totals for the same scenario")
+}
+
+// TestStreamSystemPromptStableWithVolatileTail asserts message[0] is
+// byte-identical across every request of a session (KV-cache prefix
+// stability). The volatile context (date, git, tree, memory) rides in a
+// <system-reminder> user message at the tail of each outbound payload —
+// never persisted, never in the shared conversation.
+func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+	e.writeFixtures(t, "a.txt")
+
+	res := e.runStream(context.Background(), t, "explore the project structure")
+	require.Empty(t, res.errs)
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 3)
+
+	firstSystem, err := bodies[0].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.NotContains(t, firstSystem, "Current date:")
+
+	for i, body := range bodies {
+		require.Equal(t, sdk.System, body.Messages[0].Role)
+		system, err := body.Messages[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.Equal(t, firstSystem, system, "system prompt must be byte-identical across turns (request %d)", i)
+
+		last := body.Messages[len(body.Messages)-1]
+		require.Equal(t, sdk.User, last.Role, "request %d must end with the volatile tail", i)
+		content, err := last.Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(content, "<system-reminder>"), "request %d tail must be a system reminder", i)
+		require.Contains(t, content, "Current date:")
+	}
+
+	res2 := e.runStream(context.Background(), t, "say hello")
+	require.Empty(t, res2.errs)
+
+	bodies = e.completionBodies()
+	require.Len(t, bodies, 4)
+
+	require.NotNil(t, bodies[0].Tools)
+	require.NotEmpty(t, *bodies[0].Tools)
+	for i, body := range bodies {
+		system, err := body.Messages[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.Equal(t, firstSystem, system, "system prompt must be byte-identical across user turns (request %d)", i)
+		require.Equal(t, bodies[0].Tools, body.Tools, "tools array must be identically ordered across requests (request %d)", i)
+	}
+}
+
+// TestSyncRunAppendsVolatileTail covers the non-streaming path.
+func TestSyncRunAppendsVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+
+	_, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+		RequestID: "req-sync-tail",
+		Model:     mockgateway.DefaultModel,
+		Messages:  []sdk.Message{userMessage(t, "say hello")},
+	})
+	require.NoError(t, err)
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 1)
+
+	system, err := bodies[0].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.NotContains(t, system, "Current date:")
+
+	last := bodies[0].Messages[len(bodies[0].Messages)-1]
+	require.Equal(t, sdk.User, last.Role)
+	content, err := last.Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(content, "<system-reminder>"))
+	require.Contains(t, content, "Current date:")
+}
+
+// TestStreamResumedMidToolCallStillGetsVolatileTail: a session resumed from a
+// mid-tool-call interruption gets its orphaned tool_calls closed by
+// conversation repair before streaming, so the volatile tail must still ride
+// the outbound payload — the append decision is made post-repair, in
+// outboundConversation, not against the unrepaired input.
+func TestStreamResumedMidToolCallStillGetsVolatileTail(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	toolCalls := []sdk.ChatCompletionMessageToolCall{
+		{ID: "call_orphan", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file_path":"a.txt"}`}},
+	}
+	req := &domain.AgentRequest{
+		RequestID: "req-resume-tail",
+		Model:     mockgateway.DefaultModel,
+		Messages: []sdk.Message{
+			userMessage(t, "resume after interruption"),
+			{Role: sdk.Assistant, Content: sdk.NewMessageContent("Reading."), ToolCalls: &toolCalls},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+	events, err := e.container.GetAgentService().RunWithStream(ctx, req)
+	require.NoError(t, err)
+	res := drain(t, events)
+	require.Empty(t, res.errs)
+
+	bodies := e.completionBodies()
+	require.NotEmpty(t, bodies)
+	messages := bodies[0].Messages
+
+	require.Equal(t, sdk.Tool, messages[len(messages)-2].Role, "repair must close the orphaned tool_call before the tail")
+	last := messages[len(messages)-1]
+	require.Equal(t, sdk.User, last.Role)
+	content, err := last.Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(content, "<system-reminder>"), "resumed session must still get the volatile tail")
+	require.Contains(t, content, "Current date:")
+}
+
+// TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail forces the token
+// polyfill (the mock reports zero usage) with a volatile tail present: the
+// streaming estimate must count the same inputs the sync path counts,
+// including the tail. Both runs share one env so the estimated payloads are
+// byte-identical.
+func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
+	defs, err := mockgateway.Load([]byte("fallback:\n  content: Done.\n  usage:\n    prompt_tokens: 0\n    completion_tokens: 0\n"))
+	require.NoError(t, err)
+	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	defer cancel()
+
+	_, err = e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+		RequestID: "req-polyfill-sync",
+		Model:     mockgateway.DefaultModel,
+		Messages:  []sdk.Message{userMessage(t, "estimate me")},
+	})
+	require.NoError(t, err)
+
+	syncStats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Positive(t, syncStats.TotalInputTokens, "zero server usage must engage the polyfill")
+
+	res := e.runStream(ctx, t, "estimate me")
+	require.Empty(t, res.errs)
+
+	finalStats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Equal(t, syncStats.TotalInputTokens, finalStats.TotalInputTokens-syncStats.TotalInputTokens,
+		"stream polyfill must count the same inputs (incl. the volatile tail) as sync")
+	require.Equal(t, syncStats.TotalOutputTokens, finalStats.TotalOutputTokens-syncStats.TotalOutputTokens)
+}
+
+// TestModelMetadataFromGateway verifies /v1/models metadata (context window +
+// pricing) flows from the gateway into the shared CLI registries during the
+// model fetch: the status bar and model picker resolve the gateway-reported
+// window, and the pricing service resolves gateway prices including the
+// cache-read discount.
+func TestModelMetadataFromGateway(t *testing.T) {
+	newEnv(t)
+
+	window, known := models.LookupContextWindow(mockgateway.DefaultModel)
+	require.True(t, known, "gateway-reported model must be known")
+	require.Equal(t, mockgateway.DefaultContextWindow, window)
+
+	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	in, out, total := pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 1_000_000, 0)
+	require.InDelta(t, 2.5, in, 1e-9)
+	require.InDelta(t, 10.0, out, 1e-9)
+	require.InDelta(t, 12.5, total, 1e-9)
+
+	in, _, _ = pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 0, 1_000_000)
+	require.InDelta(t, 0.25, in, 1e-9, "cached tokens must bill at the cache-read rate")
 }

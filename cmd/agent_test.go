@@ -19,6 +19,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -1337,6 +1338,9 @@ func newAgentRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *s
 }
 
 func TestMaybeRolloverInLoop(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"moonshot/moonshot-v1-8k": 8192})
+	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
+
 	t.Run("no-op when rolloverManager is nil", func(t *testing.T) {
 		s := &AgentSession{
 			sessionID: "orig-id",

@@ -208,7 +208,7 @@ func TestStatsShortcut_Vertical(t *testing.T) {
 	if strings.Contains(res.Output, "|") {
 		t.Errorf("vertical view should contain no markdown tables, got: %q", res.Output)
 	}
-	for _, want := range []string{"Tool Calls", "Calls:", "Token Usage", "bash"} {
+	for _, want := range []string{"Tool Calls", "Calls:", "Token Usage", "bash", "Cached: 40"} {
 		if !strings.Contains(res.Output, want) {
 			t.Errorf("expected %q in vertical output, got: %q", want, res.Output)
 		}
@@ -222,7 +222,8 @@ func writeTestTelemetry(t *testing.T, dir string, ts time.Time) {
 	line := `{"Resource":[{"Key":"infer.execution.mode","Value":{"Value":"interactive"}}],"ScopeMetrics":[{"Metrics":[{"Name":"infer.agent.tool.calls","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.tool.name","Value":{"Value":"bash"}},{"Key":"infer.tool.outcome","Value":{"Value":"success"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Value":1}]}},{"Name":"gen_ai.execute_tool.duration","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.tool.name","Value":{"Value":"bash"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Sum":1.5,"Count":1}]}},{"Name":"gen_ai.client.token.usage","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.request.model","Value":{"Value":"openai/gpt-4o"}},{"Key":"gen_ai.token.type","Value":{"Value":"input"}}],"Time":"` +
-		ts.Format(time.RFC3339Nano) + `","Sum":100,"Count":1}]}},{"Name":"infer.client.cost","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.request.model","Value":{"Value":"openai/gpt-4o"}}],"Time":"` +
+		ts.Format(time.RFC3339Nano) + `","Sum":100,"Count":1},{"Attributes":[{"Key":"gen_ai.request.model","Value":{"Value":"openai/gpt-4o"}},{"Key":"gen_ai.token.type","Value":{"Value":"cache_read"}}],"Time":"` +
+		ts.Format(time.RFC3339Nano) + `","Sum":40,"Count":1}]}},{"Name":"infer.client.cost","Data":{"DataPoints":[{"Attributes":[{"Key":"gen_ai.request.model","Value":{"Value":"openai/gpt-4o"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Value":0.002}]}},{"Name":"infer.agent.runs","Data":{"DataPoints":[{"Attributes":[{"Key":"infer.agent.mode","Value":{"Value":"auto"}}],"Time":"` +
 		ts.Format(time.RFC3339Nano) + `","Value":1}]}}]}]}` + "\n"
 

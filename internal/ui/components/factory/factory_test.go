@@ -26,8 +26,6 @@ func TestCreateInputView(t *testing.T) {
 	mockModelService.GetCurrentModelReturns("test-model")
 	mockModelService.IsModelAvailableReturns(true)
 	mockModelService.ValidateModelReturns(nil)
-	mockModelService.IsVisionModelReturns(false)
-
 	iv := CreateInputView(mockModelService)
 
 	if iv == nil {

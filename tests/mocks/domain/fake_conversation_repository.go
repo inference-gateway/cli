@@ -10,6 +10,11 @@ import (
 )
 
 type FakeConversationRepository struct {
+	AddCachedTokensStub        func(int)
+	addCachedTokensMutex       sync.RWMutex
+	addCachedTokensArgsForCall []struct {
+		arg1 int
+	}
 	AddMessageStub        func(domain.ConversationEntry) error
 	addMessageMutex       sync.RWMutex
 	addMessageArgsForCall []struct {
@@ -226,6 +231,38 @@ type FakeConversationRepository struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeConversationRepository) AddCachedTokens(arg1 int) {
+	fake.addCachedTokensMutex.Lock()
+	fake.addCachedTokensArgsForCall = append(fake.addCachedTokensArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.AddCachedTokensStub
+	fake.recordInvocation("AddCachedTokens", []interface{}{arg1})
+	fake.addCachedTokensMutex.Unlock()
+	if stub != nil {
+		fake.AddCachedTokensStub(arg1)
+	}
+}
+
+func (fake *FakeConversationRepository) AddCachedTokensCallCount() int {
+	fake.addCachedTokensMutex.RLock()
+	defer fake.addCachedTokensMutex.RUnlock()
+	return len(fake.addCachedTokensArgsForCall)
+}
+
+func (fake *FakeConversationRepository) AddCachedTokensCalls(stub func(int)) {
+	fake.addCachedTokensMutex.Lock()
+	defer fake.addCachedTokensMutex.Unlock()
+	fake.AddCachedTokensStub = stub
+}
+
+func (fake *FakeConversationRepository) AddCachedTokensArgsForCall(i int) int {
+	fake.addCachedTokensMutex.RLock()
+	defer fake.addCachedTokensMutex.RUnlock()
+	argsForCall := fake.addCachedTokensArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeConversationRepository) AddMessage(arg1 domain.ConversationEntry) error {
