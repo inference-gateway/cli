@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	sdk "github.com/inference-gateway/sdk"
@@ -384,6 +385,9 @@ func TestOptimizeMessages_EdgeCases(t *testing.T) {
 // estimate is far below it.
 func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 	model := "moonshot/moonshot-v1-8k"
+
+	models.SetGatewayContextWindows(map[string]int{model: 8192})
+	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 
 	t.Run("fires when LastInputTokens above threshold", func(t *testing.T) {
 		repo := services.NewInMemoryConversationRepository(nil, nil)

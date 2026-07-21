@@ -6,27 +6,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func TestProviderPrefixStripping(t *testing.T) {
-	testModels := []struct {
-		model    string
-		expected int
-	}{
-		{"ollama_cloud/qwen3-coder:480b", 8192},
-		{"openai/gpt-4", 8192},
-		{"anthropic/claude-3", 8192},
-	}
-
-	for _, tc := range testModels {
-		result := EstimateContextWindow(tc.model)
-		if result != tc.expected {
-			t.Errorf("Model %s: got %d, expected %d", tc.model, result, tc.expected)
-		}
-	}
-}
-
 // TestUserContextWindowOverride covers the config.yaml `context_windows:`
-// override map: it wins over built-in matchers, the longest matching pattern
-// is picked deterministically, and an empty map falls through unchanged. Local
+// override map: it wins over gateway data, the longest matching pattern is
+// picked deterministically, and unknown models return (0, false). Local
 // servers (llama.cpp -c flag) can run any context size, so users need to be
 // able to declare the truth per deployment.
 func TestUserContextWindowOverride(t *testing.T) {
@@ -42,11 +24,11 @@ func TestUserContextWindowOverride(t *testing.T) {
 		expectedSize  int
 		expectedKnown bool
 	}{
-		{"llamacpp/qwen2", 32768, true},               // override catches qwen2
-		{"llamacpp/qwen3-coder", 65536, true},         // longest pattern wins over "qwen"
-		{"llamacpp/my-model-q4.gguf", 4096, true},     // case-insensitive, unknown model becomes known
-		{"anthropic/claude-opus-4-8", 8192, false},    // no override, no matcher -> default
-		{"ollama_cloud/brand-new-model", 8192, false}, // no override, no matcher -> default
+		{"llamacpp/qwen2", 32768, true},           // override catches qwen2
+		{"llamacpp/qwen3-coder", 65536, true},     // longest pattern wins over "qwen"
+		{"llamacpp/my-model-q4.gguf", 4096, true}, // case-insensitive, unknown model becomes known
+		{"anthropic/claude-opus-4-8", 0, false},   // no override, no gateway data -> unknown
+		{"ollama_cloud/brand-new-model", 0, false},
 	}
 
 	for _, tc := range testCases {
@@ -69,8 +51,8 @@ func TestGatewayContextWindows(t *testing.T) {
 		t.Errorf("gateway window: got (%d, %v), expected (400000, true)", size, known)
 	}
 
-	if size, known := LookupContextWindow("gpt-4"); size != 8192 || known {
-		t.Errorf("bare name must miss gateway entry: got (%d, %v), expected (8192, false)", size, known)
+	if size, known := LookupContextWindow("gpt-4"); size != 0 || known {
+		t.Errorf("bare name must miss gateway entry: got (%d, %v), expected (0, false)", size, known)
 	}
 
 	config.UserContextWindows = map[string]int{"gpt-4": 12345}
@@ -80,34 +62,24 @@ func TestGatewayContextWindows(t *testing.T) {
 	}
 	config.UserContextWindows = nil
 
-	if size, known := LookupContextWindow("anthropic/claude-opus-4-8"); size != 8192 || known {
-		t.Errorf("unknown model must fall through to default: got (%d, %v), expected (8192, false)", size, known)
+	if size, known := LookupContextWindow("anthropic/claude-opus-4-8"); size != 0 || known {
+		t.Errorf("unknown model must report (0, false): got (%d, %v)", size, known)
 	}
 }
 
 // TestLookupContextWindow_MatchedFlag covers the matched bool that the session
-// rollover and auto-compaction gates rely on: known models report true, while
-// models with no matcher report false (returning the default fallback as the
-// size) so callers can disable context-based behavior instead of measuring
-// fullness against a wrong window.
+// rollover and auto-compaction gates rely on: models with no user override and
+// no gateway entry report (0, false) so callers disable context-based behavior
+// instead of measuring fullness against a wrong window.
 func TestLookupContextWindow_MatchedFlag(t *testing.T) {
-	testCases := []struct {
-		model         string
-		expectedKnown bool
-		expectedSize  int
-	}{
-		{"ollama_cloud/brand-new-model", false, 8192},
-		{"openai/gpt-4", false, 8192},
-		{"anthropic/claude-opus-4-7", false, 8192},
-	}
-
-	for _, tc := range testCases {
-		size, known := LookupContextWindow(tc.model)
-		if known != tc.expectedKnown {
-			t.Errorf("Model %s: known=%v, expected %v", tc.model, known, tc.expectedKnown)
-		}
-		if size != tc.expectedSize {
-			t.Errorf("Model %s: size=%d, expected %d", tc.model, size, tc.expectedSize)
+	for _, model := range []string{
+		"ollama_cloud/brand-new-model",
+		"openai/gpt-4",
+		"anthropic/claude-opus-4-7",
+	} {
+		size, known := LookupContextWindow(model)
+		if known || size != 0 {
+			t.Errorf("Model %s: got (%d, %v), expected (0, false)", model, size, known)
 		}
 	}
 }

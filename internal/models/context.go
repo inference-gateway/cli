@@ -33,18 +33,10 @@ func gatewayContextWindow(fullID string) (int, bool) {
 	return window, ok
 }
 
-// EstimateContextWindow returns an estimated context window size based on model name.
-// Falls back to config.DefaultContextWindow when no matcher pattern hits.
-func EstimateContextWindow(model string) int {
-	window, _ := LookupContextWindow(model)
-	return window
-}
-
 // LookupContextWindow returns the matched context window size and whether a
-// real match was found (from user config override or gateway data). Callers
-// that need to distinguish a real match from the default fallback (e.g. the
-// model picker, which renders "?" for unknown models) should use this instead
-// of EstimateContextWindow.
+// real match was found (from user config override or gateway data). Unknown
+// models return (0, false) - there is no built-in fallback, so callers must
+// gate window-dependent features on the second return.
 func LookupContextWindow(model string) (int, bool) {
 	model = strings.ToLower(model)
 	fullID := model
@@ -70,5 +62,5 @@ func LookupContextWindow(model string) (int, bool) {
 		return window, true
 	}
 
-	return config.DefaultContextWindow, false
+	return 0, false
 }

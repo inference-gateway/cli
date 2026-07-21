@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -61,16 +60,6 @@ func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
 	return price, true
 }
 
-// freeLocalProviders are providers that serve locally-hosted open-weight
-// models. Their model names are arbitrary (whatever the user loaded), so
-// instead of enumerating per-model zero-price entries, any model under these
-// prefixes resolves to free. ollama_cloud is NOT here - it has paid
-// RequiresPro entries.
-var freeLocalProviders = map[string]bool{
-	"llamacpp": true,
-	"ollama":   true,
-}
-
 // knownProModels is the curated set of model IDs that require a Pro subscription.
 // These models have no per-token price ($0/$0) but are not freely available —
 // they are gated server-side. The gateway does not report RequiresPro in its
@@ -100,7 +89,7 @@ func (p *PricingServiceImpl) IsEnabled() bool {
 }
 
 // resolvePricing returns the input/output price for a model and whether it's known.
-// Custom prices win, then gateway-reported prices, then free local provider checks.
+// Custom prices win, then gateway-reported prices; anything else is unknown.
 // cacheRead is per-MTok when the gateway reports a cache-read rate, nil otherwise.
 func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
@@ -108,9 +97,6 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 	}
 	if price, exists := gatewayPriceFor(model); exists {
 		return price.inputPerMTok, price.outputPerMTok, price.cacheReadPerMTok, true
-	}
-	if provider, _, found := strings.Cut(model, "/"); found && freeLocalProviders[provider] {
-		return 0.0, 0.0, nil, true
 	}
 	return 0.0, 0.0, nil, false
 }

@@ -12,6 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -55,6 +56,8 @@ func withDebugStreamWriter(t *testing.T) *bytes.Buffer {
 }
 
 func TestOptimizeMessages_EmitsStartedAndCompletedEvents_OnForce(t *testing.T) {
+	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-pro": 128000})
+	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 	mockClient := createMockSDKClient(t, "compact summary")
 	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
 		Enabled:           true,
