@@ -44,6 +44,8 @@ whisper-cpp.pkg-path = "whisper-cpp"
 whisper-cpp.version = "^1.8.7"
 ffmpeg.pkg-path = "ffmpeg"
 ffmpeg.version = "^8.1.1"
+k3d.pkg-path = "k3d"
+k3d.version = "5.9.0"
 
 [hook]
 on-activate = '''
