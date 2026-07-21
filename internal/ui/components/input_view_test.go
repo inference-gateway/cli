@@ -27,7 +27,6 @@ func createMockModelService() *domainmocks.FakeModelService {
 	fake.GetCurrentModelReturns("test-model")
 	fake.IsModelAvailableReturns(true)
 	fake.ValidateModelReturns(nil)
-	fake.IsVisionModelReturns(false)
 	return fake
 }
 

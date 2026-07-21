@@ -12,35 +12,6 @@ import (
 	models "github.com/inference-gateway/cli/internal/models"
 )
 
-// visionModelPatterns contains known vision-capable model name patterns
-// These patterns are matched as substrings against the model ID (case-insensitive)
-var visionModelPatterns = []string{
-	"gpt-4o",
-	"gpt-4-turbo",
-	"gpt-4-vision",
-	"gpt-4v",
-	"claude-3",
-	"claude-3.5",
-	"claude-4",
-	"claude-sonnet",
-	"claude-opus",
-	"claude-haiku",
-	"gemini-pro-vision",
-	"gemini-1.5",
-	"gemini-2",
-	"gemini-flash",
-	"gemini-ultra",
-	"llava",
-	"bakllava",
-	"moondream",
-	"cogvlm",
-	"qwen-vl",
-	"internvl",
-	"minicpm-v",
-	"phi-3-vision",
-	"llama-3.2-vision",
-}
-
 // HTTPModelService implements ModelService using SDK client
 type HTTPModelService struct {
 	client    sdk.Client
@@ -190,16 +161,4 @@ func (s *HTTPModelService) handleListModelsError(modelID string, _ /* err */ err
 // isValidModelFormat performs basic format validation on model IDs
 func isValidModelFormat(modelID string) bool {
 	return strings.Contains(modelID, "/") && len(modelID) > 3
-}
-
-// IsVisionModel checks if a model supports vision/image input capabilities
-// It uses a hardcoded list of known vision-capable model patterns
-func (s *HTTPModelService) IsVisionModel(modelID string) bool {
-	lowerModelID := strings.ToLower(modelID)
-	for _, pattern := range visionModelPatterns {
-		if strings.Contains(lowerModelID, strings.ToLower(pattern)) {
-			return true
-		}
-	}
-	return false
 }

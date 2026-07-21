@@ -230,8 +230,6 @@ func TestPricingService_RequiresPro(t *testing.T) {
 }
 
 func TestPricingService_MinimaxDefaults(t *testing.T) {
-	// With the static DefaultModelPricing table removed, native MiniMax
-	// providers resolve as unknown without gateway-reported pricing.
 	service := NewPricingService(&config.PricingConfig{Enabled: true})
 
 	models := []string{

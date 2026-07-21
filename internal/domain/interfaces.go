@@ -232,7 +232,6 @@ type ModelService interface {
 	GetCurrentModel() string
 	IsModelAvailable(modelID string) bool
 	ValidateModel(modelID string) error
-	IsVisionModel(modelID string) bool
 }
 
 // ChatEvent represents events during chat operations
