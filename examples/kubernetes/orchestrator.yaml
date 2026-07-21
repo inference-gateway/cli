@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: infer-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: ghcr.io/inference-gateway/orchestrator:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MODE
+              value: channel-manager
+            - name: REDIS_URL
+              value: redis://redis:6379
+            - name: GATEWAY_URL
+              value: http://inference-gateway.infer-system:8080
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.infer-system:4318
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 1
+            requests:
+              memory: 256Mi
+              cpu: 500m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: infer-orchestrator
+spec:
+  selector:
+    app: orchestrator
+  ports:
+    - port: 8080
+      targetPort: 8080

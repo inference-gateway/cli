@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infer-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infer-orchestrator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infer-agents
