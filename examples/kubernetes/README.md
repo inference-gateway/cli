@@ -128,7 +128,7 @@ for the full collector setup.
 All manifests are self-contained in this directory:
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | `namespace.yaml` | Namespaces for system, orchestrator, and agents |
 | `redis.yaml` | Redis deployment for channel-manager pub/sub |
 | `gateway.yaml` | Inference Gateway deployment and service |
