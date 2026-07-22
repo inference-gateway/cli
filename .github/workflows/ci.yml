@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -54,10 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -74,10 +74,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -92,10 +92,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -114,10 +114,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -131,10 +131,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true
@@ -161,10 +161,10 @@ jobs:
           --health-retries 5
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7.0.0
+      uses: actions/checkout@v7.0.1
 
     - name: Setup Go
-      uses: actions/setup-go@v6.5.0
+      uses: actions/setup-go@v7.0.0
       with:
         go-version-file: 'go.mod'
         cache: true

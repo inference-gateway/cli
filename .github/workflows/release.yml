@@ -31,7 +31,7 @@ jobs:
             ${{ github.event.repository.name }}
 
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           token: ${{ steps.app_token.outputs.token }}
@@ -135,13 +135,13 @@ jobs:
             cgo: "0"
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -210,7 +210,7 @@ jobs:
             ${{ github.event.repository.name }}
 
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           token: ${{ steps.app_token.outputs.token }}
@@ -336,13 +336,13 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
           cache: true
