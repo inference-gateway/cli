@@ -1,0 +1,22 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: infer
+spec:
+  environment: development
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf

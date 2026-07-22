@@ -1,0 +1,27 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
+metadata:
+  name: mock-agent
+  namespace: infer
+spec:
+  image: ghcr.io/inference-gateway/mock-agent:0.3.2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf
+    metrics:
+      enabled: true
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf

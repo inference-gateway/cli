@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: telegram-bot-credentials
+  namespace: infer
+stringData:
+  token: "dummy"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: orchestrator
+  namespace: infer
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  gateway:
+    url: http://inference-gateway:8080
+  agent:
+    model: openai/gpt-4o
+    systemPrompt: "You are a helpful assistant"
+  channels:
+    maxWorkers: 5
+    requireApproval: true
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+  tools:
+    enabled: true
+    schedule: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf

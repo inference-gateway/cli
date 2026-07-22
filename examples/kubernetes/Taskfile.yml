@@ -1,0 +1,30 @@
+version: '3'
+
+vars:
+  OPERATOR_VERSION: v0.19.1
+
+tasks:
+  cluster:create:
+    desc: Create a local k3d cluster
+    cmds:
+      - k3d cluster create infer-demo --agents 1
+
+  operator:install:
+    desc: Install the Inference Gateway Operator (CRDs + controller)
+    cmds:
+      - kubectl apply -f https://github.com/inference-gateway/operator/releases/download/{{.OPERATOR_VERSION}}/install.yaml
+      - kubectl wait --for=condition=Available deployment --all -n inference-gateway-system --timeout=120s
+
+  deploy:
+    desc: Deploy the Gateway, Orchestrator, Agent, and otel-collector CRs
+    cmds:
+      - kubectl apply -f namespace.yaml
+      - kubectl apply -f otel-collector.yaml
+      - kubectl apply -f gateway.yaml
+      - kubectl apply -f agents.yaml
+      - kubectl apply -f orchestrator.yaml
+
+  cleanup:
+    desc: Delete the k3d cluster and all resources
+    cmds:
+      - k3d cluster delete infer-demo
