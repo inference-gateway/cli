@@ -285,7 +285,7 @@ func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Token Usage Tracking", func(t *testing.T) {
-		err := repo.AddTokenUsage("test-model", 50, 75, 125)
+		err := repo.AddTokenUsage("test-model", 50, 75, 125, 0)
 		assert.NoError(t, err)
 
 		stats := repo.GetSessionTokens()
@@ -294,7 +294,7 @@ func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
 		assert.Equal(t, 125, stats.TotalTokens)
 		assert.Equal(t, 1, stats.RequestCount)
 
-		err = repo.AddTokenUsage("test-model", 30, 45, 75)
+		err = repo.AddTokenUsage("test-model", 30, 45, 75, 0)
 		assert.NoError(t, err)
 
 		stats = repo.GetSessionTokens()

@@ -398,7 +398,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // toolCoordinator
 	)
 
-	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150)
+	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150, 0)
 	if err != nil {
 		t.Fatalf("Failed to add token usage: %v", err)
 	}

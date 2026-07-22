@@ -674,7 +674,7 @@ func seededRepo(t *testing.T, pricing domain.PricingService, model string, n, pr
 	t.Helper()
 	repo := services.NewInMemoryConversationRepository(nil, pricing)
 	for range n {
-		if err := repo.AddTokenUsage(model, prompt, completion, total); err != nil {
+		if err := repo.AddTokenUsage(model, prompt, completion, total, 0); err != nil {
 			t.Fatalf("AddTokenUsage: %v", err)
 		}
 	}
@@ -1401,7 +1401,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("AddMessage: %v", err)
 		}
-		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
+		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0); err != nil {
 			t.Fatalf("AddTokenUsage: %v", err)
 		}
 
@@ -1458,7 +1458,7 @@ func TestMaybeRolloverInLoop(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("AddMessage: %v", err)
 		}
-		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
+		if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0); err != nil {
 			t.Fatalf("AddTokenUsage: %v", err)
 		}
 

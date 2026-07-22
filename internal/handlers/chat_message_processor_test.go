@@ -465,7 +465,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 		Time:    time.Now(),
 	}))
 
-	require.NoError(t, repo.AddTokenUsage("moonshot/moonshot-v1-8k", 25000, 100, 25100))
+	require.NoError(t, repo.AddTokenUsage("moonshot/moonshot-v1-8k", 25000, 100, 25100, 0))
 
 	mockModel := &mocks.FakeModelService{}
 	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")

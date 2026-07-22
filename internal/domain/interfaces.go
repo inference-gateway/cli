@@ -178,7 +178,7 @@ type MessageRepository interface {
 
 // TokenUsageRepository handles token usage tracking
 type TokenUsageRepository interface {
-	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error
+	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens int) error
 	AddCachedTokens(tokens int)
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats

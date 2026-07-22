@@ -411,7 +411,7 @@ func (r *InMemoryConversationRepository) filterHiddenMessages() []domain.Convers
 
 // AddTokenUsage adds token usage from a single API call to session totals with model tracking.
 // The model parameter is required for cost tracking. Use empty string for unknown models.
-func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
+func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens int) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -425,7 +425,7 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 		return nil
 	}
 
-	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, 0)
+	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, cachedTokens)
 
 	if r.costStats.PerModelStats == nil {
 		r.costStats.PerModelStats = make(map[string]*domain.ModelCostStats)

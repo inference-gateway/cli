@@ -372,7 +372,7 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 }
 
 // AddTokenUsage wraps the in-memory implementation with persistence and auto-save
-func (r *PersistentConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
+func (r *PersistentConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens int) error {
 	r.metadataMutex.RLock()
 	needsInit := r.autoSave && r.conversationID == ""
 	r.metadataMutex.RUnlock()
@@ -411,7 +411,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 		r.metadataMutex.Unlock()
 	}
 
-	if err := r.InMemoryConversationRepository.AddTokenUsage(model, inputTokens, outputTokens, totalTokens); err != nil {
+	if err := r.InMemoryConversationRepository.AddTokenUsage(model, inputTokens, outputTokens, totalTokens, cachedTokens); err != nil {
 		return err
 	}
 
