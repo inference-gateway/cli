@@ -958,16 +958,17 @@ type ToolFormatter interface {
 
 // ToolExecutionResult represents the complete result of a tool execution
 type ToolExecutionResult struct {
-	ToolName  string            `json:"tool_name"`
-	Arguments map[string]any    `json:"arguments"`
-	Success   bool              `json:"success"`
-	Duration  time.Duration     `json:"duration"`
-	Error     string            `json:"error,omitempty"`
-	Data      any               `json:"data,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-	Diff      string            `json:"diff,omitempty"`
-	Rejected  bool              `json:"rejected,omitempty"`
-	Images    []ImageAttachment `json:"images,omitempty"`
+	ToolName   string            `json:"tool_name"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
+	Arguments  map[string]any    `json:"arguments"`
+	Success    bool              `json:"success"`
+	Duration   time.Duration     `json:"duration"`
+	Error      string            `json:"error,omitempty"`
+	Data       any               `json:"data,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	Diff       string            `json:"diff,omitempty"`
+	Rejected   bool              `json:"rejected,omitempty"`
+	Images     []ImageAttachment `json:"images,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution
