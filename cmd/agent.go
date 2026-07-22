@@ -817,7 +817,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 
 			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, false)
 			if err != nil {
-				logger.Error("tool execution failed", "tool", tc.Function.Name, "error", err)
+				logger.Error("tool execution failed", "tool", tc.Function.Name, "tool_call_id", tc.ID, "error", err)
 				errorResult := &domain.ToolExecutionResult{
 					ToolName: tc.Function.Name,
 					Success:  false,
@@ -1055,22 +1055,21 @@ func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) stri
 		return "Tool execution result unavailable"
 	}
 
-	if !result.Success {
-		detail := result.Error
-		if detail == "" && result.Data != nil {
-			if b, err := json.Marshal(result.Data); err == nil {
-				detail = string(b)
-			}
+	if result.Success {
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Result of tool call: %v", result.Data)
 		}
-		return fmt.Sprintf("Tool execution failed: %s", detail)
+		return fmt.Sprintf("Result of tool call: %s", string(resultBytes))
 	}
 
-	resultBytes, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Sprintf("Result of tool call: %v", result.Data)
+	detail := result.Error
+	if detail == "" && result.Data != nil {
+		if b, err := json.Marshal(result.Data); err == nil {
+			detail = string(b)
+		}
 	}
-
-	return fmt.Sprintf("Result of tool call: %s", string(resultBytes))
+	return fmt.Sprintf("Tool execution failed: %s", detail)
 }
 
 // convertToConversationEntry converts a ConversationMessage to domain.ConversationEntry
