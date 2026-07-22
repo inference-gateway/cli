@@ -27,9 +27,11 @@ func isolatedGitEnv(t *testing.T) {
 	t.Setenv("GIT_COMMITTER_NAME", "infer-test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "infer-test@example.com")
 	t.Setenv("GIT_TERMINAL_PROMPT", "0")
-	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_COUNT", "2")
 	t.Setenv("GIT_CONFIG_KEY_0", "gc.auto")
 	t.Setenv("GIT_CONFIG_VALUE_0", "0")
+	t.Setenv("GIT_CONFIG_KEY_1", "maintenance.auto")
+	t.Setenv("GIT_CONFIG_VALUE_1", "false")
 }
 
 func mustGit(t *testing.T, dir string, args ...string) string {
