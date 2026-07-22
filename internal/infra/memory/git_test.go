@@ -27,9 +27,16 @@ func isolatedGitEnv(t *testing.T) {
 	t.Setenv("GIT_COMMITTER_NAME", "infer-test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "infer-test@example.com")
 	t.Setenv("GIT_TERMINAL_PROMPT", "0")
-	t.Setenv("GIT_CONFIG_COUNT", "1")
+	// Disable git's auto-maintenance: git 2.30+ fetch spawns a detached
+	// `git maintenance run --auto --detach` that keeps writing to .git/objects
+	// after pull returns, racing t.TempDir() cleanup ("unlinkat .git/objects:
+	// directory not empty", #950). gc.auto=0 alone doesn't stop it - the detached
+	// maintenance run is separate - so disable maintenance.auto too.
+	t.Setenv("GIT_CONFIG_COUNT", "2")
 	t.Setenv("GIT_CONFIG_KEY_0", "gc.auto")
 	t.Setenv("GIT_CONFIG_VALUE_0", "0")
+	t.Setenv("GIT_CONFIG_KEY_1", "maintenance.auto")
+	t.Setenv("GIT_CONFIG_VALUE_1", "false")
 }
 
 func mustGit(t *testing.T, dir string, args ...string) string {
