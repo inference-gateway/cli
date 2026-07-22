@@ -1,34 +1,28 @@
 version: '3'
 
+vars:
+  OPERATOR_VERSION: v0.19.1
+
 tasks:
   cluster:create:
-    desc: Create a k3d cluster with cert-manager
+    desc: Create a local k3d cluster
     cmds:
-      - k3d cluster create infer-demo --agents 1 --k3s-arg '--disable=traefik@server:0'
-      - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-      - helm repo add jetstack https://charts.jetstack.io
-      - helm repo update
-      - helm install cert-manager jetstack/cert-manager --namespace cert-manager --set installCRDs=true
-      - kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=120s
+      - k3d cluster create infer-demo --agents 1
 
   operator:install:
-    desc: Install the Inference Gateway Operator via Helm
+    desc: Install the Inference Gateway Operator (CRDs + controller)
     cmds:
-      - helm repo add inference-gateway https://inference-gateway.github.io/operator
-      - helm repo update
-      - helm install inference-gateway-operator inference-gateway/operator --namespace infer-system --create-namespace
-      - kubectl wait --for=condition=Available deployment/inference-gateway-operator -n infer-system --timeout=120s
+      - kubectl apply -f https://github.com/inference-gateway/operator/releases/download/{{.OPERATOR_VERSION}}/install.yaml
+      - kubectl wait --for=condition=Available deployment --all -n inference-gateway-system --timeout=120s
 
   deploy:
-    desc: Deploy Gateway, Orchestrator, Agents, Redis, and otel-collector
+    desc: Deploy the Gateway, Orchestrator, Agent, and otel-collector CRs
     cmds:
       - kubectl apply -f namespace.yaml
-      - kubectl apply -f redis.yaml
-      - kubectl apply -f gateway.yaml
       - kubectl apply -f otel-collector.yaml
-      - kubectl apply -f orchestrator.yaml
+      - kubectl apply -f gateway.yaml
       - kubectl apply -f agents.yaml
-      - kubectl apply -f ingress.yaml
+      - kubectl apply -f orchestrator.yaml
 
   cleanup:
     desc: Delete the k3d cluster and all resources

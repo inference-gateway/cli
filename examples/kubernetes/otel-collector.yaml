@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: otel-collector
-  namespace: infer-system
+  namespace: infer
 spec:
   replicas: 1
   selector:
@@ -34,7 +34,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: otel-collector-config
-  namespace: infer-system
+  namespace: infer
 data:
   config.yaml: |
     receivers:
@@ -44,20 +44,8 @@ data:
             endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
-      prometheus:
-        config:
-          scrape_configs:
-            - job_name: mock-agent
-              scrape_interval: 10s
-              static_configs:
-                - targets:
-                    - mock-agent.infer-agents:9090
     exporters:
       debug: {}
-      otlphttp:
-        endpoint: http://inference-gateway.infer-system:4318
-        retry_on_failure:
-          enabled: true
     service:
       pipelines:
         traces:
@@ -65,11 +53,9 @@ data:
             - otlp
           exporters:
             - debug
-            - otlphttp
         metrics:
           receivers:
             - otlp
-            - prometheus
           exporters:
             - debug
 ---
@@ -77,7 +63,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: otel-collector
-  namespace: infer-system
+  namespace: infer
 spec:
   selector:
     app: otel-collector

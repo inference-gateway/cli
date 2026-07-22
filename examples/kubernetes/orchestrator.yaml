@@ -1,48 +1,45 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: orchestrator
-  namespace: infer-orchestrator
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: orchestrator
-  template:
-    metadata:
-      labels:
-        app: orchestrator
-    spec:
-      containers:
-        - name: orchestrator
-          image: ghcr.io/inference-gateway/orchestrator:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: MODE
-              value: channel-manager
-            - name: REDIS_URL
-              value: redis://redis:6379
-            - name: GATEWAY_URL
-              value: http://inference-gateway.infer-system:8080
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: http://otel-collector.infer-system:4318
-          resources:
-            limits:
-              memory: 512Mi
-              cpu: 1
-            requests:
-              memory: 256Mi
-              cpu: 500m
----
 apiVersion: v1
-kind: Service
+kind: Secret
+metadata:
+  name: telegram-bot-credentials
+  namespace: infer
+stringData:
+  token: "dummy"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
 metadata:
   name: orchestrator
-  namespace: infer-orchestrator
+  namespace: infer
 spec:
-  selector:
-    app: orchestrator
-  ports:
-    - port: 8080
-      targetPort: 8080
+  image: ghcr.io/inference-gateway/cli:latest
+  gateway:
+    url: http://inference-gateway:8080
+  agent:
+    model: openai/gpt-4o
+    systemPrompt: "You are a helpful assistant"
+  channels:
+    maxWorkers: 5
+    requireApproval: true
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+  tools:
+    enabled: true
+    schedule: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf

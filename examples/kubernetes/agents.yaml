@@ -1,88 +1,27 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
 metadata:
   name: mock-agent
-  namespace: infer-agents
+  namespace: infer
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mock-agent
-  template:
-    metadata:
-      labels:
-        app: mock-agent
-    spec:
-      containers:
-        - name: agent
-          image: ghcr.io/inference-gateway/mock-agent:0.3.2
-          ports:
-            - containerPort: 8080
-          env:
-            - name: A2A_AGENT_URL
-              value: http://mock-agent:8080
-            - name: A2A_AGENT_CLIENT_PROVIDER
-              value: ""
-            - name: A2A_AGENT_CLIENT_MODEL
-              value: ""
-            - name: A2A_AGENT_CLIENT_BASE_URL
-              value: ""
-            - name: A2A_AGENT_CLIENT_TIMEOUT
-              value: 120s
-            - name: A2A_SERVER_READ_TIMEOUT
-              value: 120s
-            - name: A2A_SERVER_WRITE_TIMEOUT
-              value: 120s
-            - name: A2A_SERVER_IDLE_TIMEOUT
-              value: 120s
-            - name: A2A_QUEUE_CLEANUP_INTERVAL
-              value: 500s
-            - name: A2A_ARTIFACTS_ENABLE
-              value: "true"
-            - name: A2A_ARTIFACTS_SERVER_HOST
-              value: localhost
-            - name: A2A_ARTIFACTS_SERVER_PORT
-              value: "8081"
-            - name: A2A_ARTIFACTS_STORAGE_PROVIDER
-              value: filesystem
-            - name: A2A_ARTIFACTS_STORAGE_BASE_PATH
-              value: /tmp/artifacts
-            - name: A2A_ARTIFACTS_STORAGE_BASE_URL
-              value: http://mock-agent:8081
-            - name: A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS
-              value: "10"
-            - name: A2A_ARTIFACTS_RETENTION_MAX_AGE
-              value: 24h
-            - name: A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL
-              value: 24h
-            - name: A2A_TELEMETRY_ENABLE
-              value: "true"
-            - name: A2A_OTEL_TRACES_EXPORTER
-              value: otlp
-            - name: A2A_OTEL_EXPORTER_OTLP_ENDPOINT
-              value: http://otel-collector.infer-system:4318
-            - name: A2A_OTEL_EXPORTER_OTLP_PROTOCOL
-              value: http/protobuf
-            - name: A2A_OTEL_METRICS_EXPORTER
-              value: prometheus
-            - name: A2A_OTEL_EXPORTER_PROMETHEUS_PORT
-              value: "9090"
-          resources:
-            limits:
-              memory: 512Mi
-              cpu: 1
-            requests:
-              memory: 256Mi
-              cpu: 500m
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mock-agent
-  namespace: infer-agents
-spec:
-  selector:
-    app: mock-agent
-  ports:
-    - port: 8080
-      targetPort: 8080
+  image: ghcr.io/inference-gateway/mock-agent:0.3.2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf
+    metrics:
+      enabled: true
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318
+          protocol: http/protobuf
