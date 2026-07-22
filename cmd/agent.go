@@ -793,11 +793,7 @@ func (s *AgentSession) executeToolCall(toolName, args, callID string, approved b
 		Name:      toolName,
 		Arguments: args,
 	}
-	res, err := s.toolService.ExecuteTool(ctx, toolCall)
-	if res != nil {
-		res.ToolCallID = callID
-	}
-	return res, err
+	return s.toolService.ExecuteTool(ctx, toolCall)
 }
 
 func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMessageToolCall) []ConversationMessage {
@@ -823,14 +819,13 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			if err != nil {
 				logger.Error("tool execution failed", "tool", tc.Function.Name, "tool_call_id", tc.ID, "error", err)
 				errorResult := &domain.ToolExecutionResult{
-					ToolName:   tc.Function.Name,
-					ToolCallID: tc.ID,
-					Success:    false,
-					Error:      err.Error(),
+					ToolName: tc.Function.Name,
+					Success:  false,
+					Error:    err.Error(),
 				}
 				results[index] = ConversationMessage{
 					Role:          "tool",
-					Content:       fmt.Sprintf("Tool execution failed (%s): %s", tc.ID, err.Error()),
+					Content:       fmt.Sprintf("Tool execution failed: %s", err.Error()),
 					ToolCallID:    tc.ID,
 					ToolExecution: errorResult,
 					Timestamp:     time.Now(),
@@ -885,13 +880,12 @@ func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, r
 	if err != nil {
 		return ConversationMessage{
 			Role:       "tool",
-			Content:    fmt.Sprintf("Tool execution failed (%s): %s", tc.ID, err.Error()),
+			Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
 			ToolCallID: tc.ID,
 			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:   tc.Function.Name,
-				ToolCallID: tc.ID,
-				Success:    false,
-				Error:      err.Error(),
+				ToolName: tc.Function.Name,
+				Success:  false,
+				Error:    err.Error(),
 			},
 			Timestamp: time.Now(),
 		}
@@ -913,11 +907,10 @@ func (s *AgentSession) toolRejectedMessage(tc sdk.ChatCompletionMessageToolCall,
 		Content:    content,
 		ToolCallID: tc.ID,
 		ToolExecution: &domain.ToolExecutionResult{
-			ToolName:   tc.Function.Name,
-			ToolCallID: tc.ID,
-			Success:    false,
-			Error:      errStr,
-			Rejected:   true,
+			ToolName: tc.Function.Name,
+			Success:  false,
+			Error:    errStr,
+			Rejected: true,
 		},
 		Timestamp: time.Now(),
 	}
@@ -1075,9 +1068,6 @@ func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) stri
 		if b, err := json.Marshal(result.Data); err == nil {
 			detail = string(b)
 		}
-	}
-	if result.ToolCallID != "" {
-		return fmt.Sprintf("Tool execution failed (%s): %s", result.ToolCallID, detail)
 	}
 	return fmt.Sprintf("Tool execution failed: %s", detail)
 }
