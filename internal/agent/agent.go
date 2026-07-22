@@ -812,6 +812,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 		int(effectiveUsage.PromptTokens),
 		int(effectiveUsage.CompletionTokens),
 		int(effectiveUsage.TotalTokens),
+		cached,
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}

@@ -185,7 +185,7 @@ func addBigMessages(t *testing.T, repo *PersistentConversationRepository, n int)
 
 func addTokenUsage(t *testing.T, repo *PersistentConversationRepository, model string, input, output, total int) {
 	t.Helper()
-	if err := repo.AddTokenUsage(model, input, output, total); err != nil {
+	if err := repo.AddTokenUsage(model, input, output, total, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 }
@@ -445,7 +445,7 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 	originalID := repo.GetCurrentConversationID()
 
 	addUserMessage(t, repo, "hi", time.Now())
-	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
@@ -492,7 +492,7 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	if err := repo.AddMessage(hidden); err != nil {
 		t.Fatalf("AddMessage: %v", err)
 	}
-	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100); err != nil {
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 

@@ -391,7 +391,7 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 
 	t.Run("fires when LastInputTokens above threshold", func(t *testing.T) {
 		repo := services.NewInMemoryConversationRepository(nil, nil)
-		require.NoError(t, repo.AddTokenUsage(model, 7000, 100, 7100))
+		require.NoError(t, repo.AddTokenUsage(model, 7000, 100, 7100, 0))
 
 		mockClient := createMockSDKClient(t, "Summary text")
 		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
@@ -423,7 +423,7 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 
 	t.Run("does not fire when LastInputTokens below threshold", func(t *testing.T) {
 		repo := services.NewInMemoryConversationRepository(nil, nil)
-		require.NoError(t, repo.AddTokenUsage(model, 1000, 100, 1100))
+		require.NoError(t, repo.AddTokenUsage(model, 1000, 100, 1100, 0))
 
 		mockClient := createMockSDKClient(t, "Summary text")
 		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
@@ -464,7 +464,7 @@ func TestOptimizeMessages_NoAutoCompactForUnknownModel(t *testing.T) {
 	model := "ollama_cloud/some-unlisted-model"
 
 	repo := services.NewInMemoryConversationRepository(nil, nil)
-	require.NoError(t, repo.AddTokenUsage(model, 500000, 100, 500100))
+	require.NoError(t, repo.AddTokenUsage(model, 500000, 100, 500100, 0))
 
 	mockClient := createMockSDKClient(t, "Summary text")
 	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
