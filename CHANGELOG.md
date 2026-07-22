@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.152.0](https://github.com/inference-gateway/cli/compare/v0.151.0...v0.152.0) (2026-07-22)
+
+### 🚀 Features
+
+* **telemetry:** include tool call ID in failed-tool log records ([#953](https://github.com/inference-gateway/cli/issues/953)) ([07ce6fa](https://github.com/inference-gateway/cli/commit/07ce6fa58dc9d1f9c78e00a943250a33d3031f18)), closes [#947](https://github.com/inference-gateway/cli/issues/947)
+* **examples:** k3d Kubernetes example with operator CRDs, channels-manager, A2A agent, and telemetry ([#944](https://github.com/inference-gateway/cli/issues/944)) ([e12bff6](https://github.com/inference-gateway/cli/commit/e12bff6ce0a2104d08b9a0179b052998723bfe63)), closes [#943](https://github.com/inference-gateway/cli/issues/943)
+
+### 🐛 Bug Fixes
+
+* **agent:** discount cached prompt tokens in session cost accumulator ([#951](https://github.com/inference-gateway/cli/issues/951)) ([59e5496](https://github.com/inference-gateway/cli/commit/59e5496de719222e607eca6bbdee31574234b309))
+
+### ✅ Tests
+
+* **memory:** fix flaky TestGitBackend TempDir cleanup ([#952](https://github.com/inference-gateway/cli/issues/952)) ([94d23fa](https://github.com/inference-gateway/cli/commit/94d23fa5dcd6c6b2ab0239dbfa57b9fc851b5480)), closes [#950](https://github.com/inference-gateway/cli/issues/950)
+
+### 🔧 Build System
+
+* **deps:** bump google.golang.org/grpc from 1.81.1 to 1.82.1 ([#945](https://github.com/inference-gateway/cli/issues/945)) ([d08f94a](https://github.com/inference-gateway/cli/commit/d08f94abea9a5e68297f70a32851d264fa0cee53))
+* **deps:** bump the github-actions group with 2 updates ([#949](https://github.com/inference-gateway/cli/issues/949)) ([6ee94e0](https://github.com/inference-gateway/cli/commit/6ee94e0cd0ba1411d2a66f55bd32d8ae0307f32b))
+* **deps:** bump the gomod group with 3 updates ([#948](https://github.com/inference-gateway/cli/issues/948)) ([a6538a6](https://github.com/inference-gateway/cli/commit/a6538a6bbf7aa1c63012730ef7fcb749753564f4))
+
+### 👷 CI/CD
+
+* **deps:** enable k3d in GitHub Actions workflow ([3d9475b](https://github.com/inference-gateway/cli/commit/3d9475b14941e57393acf3ea6ecd67b95987febb))
+
+### 🧹 Maintenance
+
+* **deps:** add k3d package to environment ([5f9c44d](https://github.com/inference-gateway/cli/commit/5f9c44db8adecb58cfa996366dd9bb54984d2cfb))
+* **flox:** update infer to v0.151.0 ([4acb4ee](https://github.com/inference-gateway/cli/commit/4acb4ee79a93067cf732bec98f176a1311582a44))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.152.0 --help
+npx @inference-gateway/cli@0.152.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.152.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.152.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.152.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.152.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.152.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.151.0](https://github.com/inference-gateway/cli/compare/v0.150.0...v0.151.0) (2026-07-21)
 
 ### 🚀 Features
