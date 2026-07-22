@@ -9,6 +9,36 @@ import (
 )
 
 type FakeClient struct {
+	CreateMessageStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error)
+	createMessageMutex       sync.RWMutex
+	createMessageArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMessagesRequest
+	}
+	createMessageReturns struct {
+		result1 *sdk.MessagesResponse
+		result2 error
+	}
+	createMessageReturnsOnCall map[int]struct {
+		result1 *sdk.MessagesResponse
+		result2 error
+	}
+	CreateMessageStreamStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (<-chan sdk.SSEvent, error)
+	createMessageStreamMutex       sync.RWMutex
+	createMessageStreamArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMessagesRequest
+	}
+	createMessageStreamReturns struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}
+	createMessageStreamReturnsOnCall map[int]struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}
 	GenerateContentStub        func(context.Context, sdk.Provider, string, []sdk.Message) (*sdk.CreateChatCompletionResponse, error)
 	generateContentMutex       sync.RWMutex
 	generateContentArgsForCall []struct {
@@ -163,6 +193,138 @@ type FakeClient struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeClient) CreateMessage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error) {
+	fake.createMessageMutex.Lock()
+	ret, specificReturn := fake.createMessageReturnsOnCall[len(fake.createMessageArgsForCall)]
+	fake.createMessageArgsForCall = append(fake.createMessageArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMessagesRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateMessageStub
+	fakeReturns := fake.createMessageReturns
+	fake.recordInvocation("CreateMessage", []interface{}{arg1, arg2, arg3})
+	fake.createMessageMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateMessageCallCount() int {
+	fake.createMessageMutex.RLock()
+	defer fake.createMessageMutex.RUnlock()
+	return len(fake.createMessageArgsForCall)
+}
+
+func (fake *FakeClient) CreateMessageCalls(stub func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error)) {
+	fake.createMessageMutex.Lock()
+	defer fake.createMessageMutex.Unlock()
+	fake.CreateMessageStub = stub
+}
+
+func (fake *FakeClient) CreateMessageArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateMessagesRequest) {
+	fake.createMessageMutex.RLock()
+	defer fake.createMessageMutex.RUnlock()
+	argsForCall := fake.createMessageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateMessageReturns(result1 *sdk.MessagesResponse, result2 error) {
+	fake.createMessageMutex.Lock()
+	defer fake.createMessageMutex.Unlock()
+	fake.CreateMessageStub = nil
+	fake.createMessageReturns = struct {
+		result1 *sdk.MessagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateMessageReturnsOnCall(i int, result1 *sdk.MessagesResponse, result2 error) {
+	fake.createMessageMutex.Lock()
+	defer fake.createMessageMutex.Unlock()
+	fake.CreateMessageStub = nil
+	if fake.createMessageReturnsOnCall == nil {
+		fake.createMessageReturnsOnCall = make(map[int]struct {
+			result1 *sdk.MessagesResponse
+			result2 error
+		})
+	}
+	fake.createMessageReturnsOnCall[i] = struct {
+		result1 *sdk.MessagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateMessageStream(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMessagesRequest) (<-chan sdk.SSEvent, error) {
+	fake.createMessageStreamMutex.Lock()
+	ret, specificReturn := fake.createMessageStreamReturnsOnCall[len(fake.createMessageStreamArgsForCall)]
+	fake.createMessageStreamArgsForCall = append(fake.createMessageStreamArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMessagesRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateMessageStreamStub
+	fakeReturns := fake.createMessageStreamReturns
+	fake.recordInvocation("CreateMessageStream", []interface{}{arg1, arg2, arg3})
+	fake.createMessageStreamMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateMessageStreamCallCount() int {
+	fake.createMessageStreamMutex.RLock()
+	defer fake.createMessageStreamMutex.RUnlock()
+	return len(fake.createMessageStreamArgsForCall)
+}
+
+func (fake *FakeClient) CreateMessageStreamCalls(stub func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (<-chan sdk.SSEvent, error)) {
+	fake.createMessageStreamMutex.Lock()
+	defer fake.createMessageStreamMutex.Unlock()
+	fake.CreateMessageStreamStub = stub
+}
+
+func (fake *FakeClient) CreateMessageStreamArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateMessagesRequest) {
+	fake.createMessageStreamMutex.RLock()
+	defer fake.createMessageStreamMutex.RUnlock()
+	argsForCall := fake.createMessageStreamArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateMessageStreamReturns(result1 <-chan sdk.SSEvent, result2 error) {
+	fake.createMessageStreamMutex.Lock()
+	defer fake.createMessageStreamMutex.Unlock()
+	fake.CreateMessageStreamStub = nil
+	fake.createMessageStreamReturns = struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateMessageStreamReturnsOnCall(i int, result1 <-chan sdk.SSEvent, result2 error) {
+	fake.createMessageStreamMutex.Lock()
+	defer fake.createMessageStreamMutex.Unlock()
+	fake.CreateMessageStreamStub = nil
+	if fake.createMessageStreamReturnsOnCall == nil {
+		fake.createMessageStreamReturnsOnCall = make(map[int]struct {
+			result1 <-chan sdk.SSEvent
+			result2 error
+		})
+	}
+	fake.createMessageStreamReturnsOnCall[i] = struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeClient) GenerateContent(arg1 context.Context, arg2 sdk.Provider, arg3 string, arg4 []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
