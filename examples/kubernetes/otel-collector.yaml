@@ -46,6 +46,10 @@ data:
             endpoint: 0.0.0.0:4318
     exporters:
       debug: {}
+      otlp/jaeger:
+        endpoint: jaeger:14317
+        tls:
+          insecure: true
     service:
       pipelines:
         traces:
@@ -53,6 +57,7 @@ data:
             - otlp
           exporters:
             - debug
+            - otlp/jaeger
         metrics:
           receivers:
             - otlp

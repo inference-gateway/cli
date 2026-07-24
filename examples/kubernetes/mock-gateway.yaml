@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-scenarios
+  namespace: infer
+data:
+  scenarios.yaml: |
+    fallback:
+      content: "Done."
+    scenarios:
+      - name: a2a
+        match: '(?i)ask the (mock )?agent'
+        turns:
+          - tool_calls:
+              - name: A2A_SubmitTask
+                args:
+                  agent_url: "http://mock-agent:8080"
+                  task_description: "simulate 3 tool calls"
+          - content: "The mock agent replied."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-gateway
+  namespace: infer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-gateway
+  template:
+    metadata:
+      labels:
+        app: mock-gateway
+    spec:
+      containers:
+        - name: mock-gateway
+          image: mock-gateway:local
+          imagePullPolicy: IfNotPresent
+          args:
+            - -host
+            - 0.0.0.0
+            - -port
+            - "8080"
+            - -scenarios
+            - /etc/mock/scenarios.yaml
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: scenarios
+              mountPath: /etc/mock
+      volumes:
+        - name: scenarios
+          configMap:
+            name: mock-scenarios
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-gateway
+  namespace: infer
+spec:
+  selector:
+    app: mock-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080

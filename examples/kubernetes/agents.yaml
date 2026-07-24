@@ -5,6 +5,8 @@ metadata:
   namespace: infer
 spec:
   image: ghcr.io/inference-gateway/mock-agent:0.3.2
+  agent:
+    maxChatCompletionIterations: 10
   resources:
     requests:
       cpu: 100m

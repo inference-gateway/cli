@@ -15,14 +15,39 @@ tasks:
       - kubectl apply -f https://github.com/inference-gateway/operator/releases/download/{{.OPERATOR_VERSION}}/install.yaml
       - kubectl wait --for=condition=Available deployment --all -n inference-gateway-system --timeout=120s
 
+  mockgateway:image:
+    desc: Build the mock-gateway image and import it into the k3d cluster
+    dir: ../..
+    cmds:
+      - docker build -f tests/mockgateway/Dockerfile -t mock-gateway:local .
+      - k3d image import mock-gateway:local -c infer-demo
+
   deploy:
-    desc: Deploy the Gateway, Orchestrator, Agent, and otel-collector CRs
+    desc: Deploy the Gateway, Orchestrator, Agent, otel-collector, Jaeger, mock gateway, and chat
     cmds:
       - kubectl apply -f namespace.yaml
       - kubectl apply -f otel-collector.yaml
+      - kubectl apply -f jaeger.yaml
       - kubectl apply -f gateway.yaml
       - kubectl apply -f agents.yaml
       - kubectl apply -f orchestrator.yaml
+      - kubectl apply -f mock-gateway.yaml
+      - kubectl apply -f infer-chat.yaml
+
+  chat:
+    desc: Open an interactive infer chat inside the cluster (against the mock gateway)
+    cmds:
+      - kubectl exec -it -n infer deploy/infer-chat -- infer chat
+
+  traces:
+    desc: Render the latest session trace tree from inside the chat pod
+    cmds:
+      - kubectl exec -n infer deploy/infer-chat -- infer traces
+
+  jaeger:ui:
+    desc: Port-forward the Jaeger UI to http://localhost:16686
+    cmds:
+      - kubectl port-forward -n infer svc/jaeger 16686:16686
 
   cleanup:
     desc: Delete the k3d cluster and all resources

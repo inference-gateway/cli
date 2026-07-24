@@ -6,6 +6,11 @@ a Gateway, an Orchestrator (the `infer` CLI in channels-manager mode), an A2A
 mock agent, and an OpenTelemetry collector - all declared as operator CRDs
 (`core.inference-gateway.com/v1alpha1`).
 
+It also ships a **key-free chat + tracing demo**: a mock gateway (no LLM
+provider needed), an `infer chat` container you exec into, and a Jaeger UI - so
+you can watch a request flow `infer -> gateway` and `infer -> a2a` end to end.
+Jump to [Chat and traces without any API keys](#chat-and-traces-without-any-api-keys).
+
 ## Prerequisites
 
 - [k3d](https://k3d.io/) v5.x
@@ -49,7 +54,10 @@ k3d cluster
     ├── Gateway "inference-gateway"      (CRD → Deployment + Service :8080)
     ├── Orchestrator "orchestrator"      (CRD → infer CLI, channels-manager mode)
     ├── Agent "mock-agent"               (CRD → A2A mock agent)
-    └── otel-collector                   (plain Deployment, OTLP :4317/:4318)
+    ├── otel-collector                   (plain Deployment, OTLP :4317/:4318)
+    ├── jaeger                            (plain Deployment, UI :16686)
+    ├── mock-gateway                     (plain Deployment, Service :8080 - canned /v1/models + chat)
+    └── infer-chat                       (plain Deployment - infer CLI you exec into)
 ```
 
 The Gateway, Orchestrator, and Agent are custom resources; the operator owns
@@ -63,6 +71,40 @@ curl -s -X POST http://localhost:8081/a2a -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"hello"}],"messageId":"m1","kind":"message"}}}'
 kubectl logs -n infer deploy/otel-collector | grep Traces
 ```
+
+## Chat and traces without any API keys
+
+The `infer chat` container talks to the **mock gateway** (canned OpenAI-compatible
+responses), so no LLM provider credentials are needed. A scripted scenario makes
+the chat call the `mock-agent` over A2A, producing a trace that spans
+`infer -> gateway` and `infer -> a2a`.
+
+```bash
+# 1. Build the mock-gateway image and import it into the cluster
+task mockgateway:image
+
+# 2. Deploy everything (mock gateway, infer-chat, Jaeger included)
+task deploy
+kubectl wait --for=condition=Ready pods --all -n infer --timeout=300s
+
+# 3. Chat inside the cluster, then type:  ask the mock agent hello
+task chat
+
+# 4. See infer's own span tree (session → chat → A2A_SubmitTask)
+task traces
+
+# 5. See the full distributed trace, including the mock-agent's server spans
+task jaeger:ui   # then open http://localhost:16686 and pick service "infer-chat"
+```
+
+`infer traces` reads local per-session files inside the chat pod, so it shows
+**infer's** view: the `chat openai/gpt-4o` client span is the `infer -> gateway`
+hop and `execute_tool A2A_SubmitTask` is the `infer -> a2a` hop. The mock gateway
+is a canned server and **emits no span of its own** - the `chat` client span *is*
+the gateway hop here. Jaeger adds the a2a agent's server-side spans (it has
+telemetry enabled), joined to infer's client span via `traceparent` propagation.
+To also see a real gateway-side span, point `infer-chat`'s `INFER_GATEWAY_URL` at
+the operator Gateway (`http://inference-gateway:8080`) with a provider configured.
 
 ## Notes
 

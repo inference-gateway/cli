@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infer-chat
+  namespace: infer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infer-chat
+  template:
+    metadata:
+      labels:
+        app: infer-chat
+    spec:
+      containers:
+        - name: infer
+          image: ghcr.io/inference-gateway/cli:latest
+          command: ["sleep", "infinity"]
+          tty: true
+          stdin: true
+          env:
+            - name: INFER_GATEWAY_URL
+              value: http://mock-gateway:8080
+            - name: INFER_GATEWAY_RUN
+              value: "false"
+            - name: INFER_AGENT_MODEL
+              value: openai/gpt-4o
+            - name: INFER_A2A_ENABLED
+              value: "true"
+            - name: INFER_A2A_AGENTS
+              value: http://mock-agent:8080
+            - name: INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL
+              value: "false"
+            - name: INFER_TELEMETRY_ENABLED
+              value: "true"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318
+            - name: OTEL_SERVICE_NAME
+              value: infer-chat
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

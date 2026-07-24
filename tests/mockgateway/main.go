@@ -22,6 +22,7 @@ import (
 )
 
 func main() {
+	host := flag.String("host", "127.0.0.1", "host/interface to bind (use 0.0.0.0 in a container)")
 	port := flag.Int("port", 0, "port to listen on (0 picks a free port)")
 	scenarios := flag.String("scenarios", "", "path to a scenarios YAML file (default: built-in library)")
 	flag.Parse()
@@ -31,7 +32,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *host, *port))
 	if err != nil {
 		log.Fatalf("listening: %v", err)
 	}
