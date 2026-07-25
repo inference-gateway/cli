@@ -227,8 +227,6 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Non-destructive scaffolding (create dirs, create symlinks) is in the mode.all
-	// baseline - allowed even in read-only plan mode.
 	allowed := []string{
 		"mkdir .claude",
 		"mkdir -p .claude/skills",
