@@ -224,6 +224,26 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	}
 }
 
+func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Non-destructive scaffolding (create dirs, create symlinks) is in the mode.all
+	// baseline - allowed even in read-only plan mode.
+	allowed := []string{
+		"mkdir .claude",
+		"mkdir -p .claude/skills",
+		"ln -s AGENTS.md CLAUDE.md",
+		"ln -s ../.agents/skills .claude/skills",
+	}
+	for _, mode := range []string{"plan", "standard"} {
+		for _, cmd := range allowed {
+			if !cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected %q to be allowed in %s mode", cmd, mode)
+			}
+		}
+	}
+}
+
 func TestIsBashCommandAllowed_FindActions(t *testing.T) {
 	cfg := DefaultConfig()
 
