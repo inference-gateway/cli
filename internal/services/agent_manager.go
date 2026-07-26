@@ -453,6 +453,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		"--network", networkName,
 		"-p", fmt.Sprintf("%d:%s", assignedPort, containerPort),
 		"--rm",
+		"--add-host", "host.docker.internal:host-gateway",
 	}
 
 	if agent.ArtifactsURL != "" {
