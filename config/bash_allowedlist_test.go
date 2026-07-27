@@ -224,6 +224,24 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	}
 }
 
+func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
+	cfg := DefaultConfig()
+
+	allowed := []string{
+		"mkdir .claude",
+		"mkdir -p .claude/skills",
+		"ln -s AGENTS.md CLAUDE.md",
+		"ln -s ../.agents/skills .claude/skills",
+	}
+	for _, mode := range []string{"plan", "standard"} {
+		for _, cmd := range allowed {
+			if !cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected %q to be allowed in %s mode", cmd, mode)
+			}
+		}
+	}
+}
+
 func TestIsBashCommandAllowed_FindActions(t *testing.T) {
 	cfg := DefaultConfig()
 
