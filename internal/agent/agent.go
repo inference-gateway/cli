@@ -60,9 +60,6 @@ type AgentServiceImpl struct {
 	// multiple Esc presses are safe.
 	activeSessions map[string]*sessionCancel
 	sessionMux     sync.RWMutex
-
-	// Runtime reasoning effort, seeded from agent.reasoning_effort and
-	// switchable mid-session via /effort; each request re-reads it.
 	reasoningEffort    string
 	reasoningEffortMux sync.RWMutex
 
