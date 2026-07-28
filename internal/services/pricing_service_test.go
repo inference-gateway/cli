@@ -334,7 +334,7 @@ func TestPricingService_LocalProvidersUnknown(t *testing.T) {
 	} {
 		t.Run(model, func(t *testing.T) {
 			assert.Empty(t, service.FormatModelPricing(model))
-			_, _, total := service.CalculateCost(model, 100000, 50000, 0)
+			_, _, total := service.CalculateCost(model, 100000, 50000, 0, 0)
 			assert.Zero(t, total)
 			assert.False(t, service.RequiresPro(model))
 		})
@@ -405,7 +405,7 @@ func TestPricingService_CalculateCost_CachedTokens(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in, _, total := service.CalculateCost(tt.model, tt.input, tt.output, tt.cached)
+			in, _, total := service.CalculateCost(tt.model, tt.input, tt.output, tt.cached, 0)
 			assert.InDelta(t, tt.wantInput, in, 1e-9)
 			assert.InDelta(t, tt.wantTotal, total, 1e-9)
 		})
@@ -450,7 +450,7 @@ func TestPricingService_CalculateCost(t *testing.T) {
 
 	service := NewPricingService(cfg)
 
-	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000, 0)
+	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000, 0, 0)
 
 	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00       // $1.00
 	expectedOutputCost := (50000.0 / 1_000_000.0) * 20.00       // $1.00

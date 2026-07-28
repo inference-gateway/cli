@@ -19,6 +19,7 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -401,7 +402,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.githubIssueService = githubissues.New()
 
-	agentClient := c.createRawSDKClient()
+	// The adapter reroutes Anthropic models through the gateway's native
+	// /v1/messages endpoint for prompt caching; unwrap it to fall back to
+	// /v1/chat/completions for every provider.
+	agentClient := adapters.NewAnthropicMessages(c.createRawSDKClient())
 	agentImpl := agent.NewAgent(
 		agentClient,
 		c.toolService,

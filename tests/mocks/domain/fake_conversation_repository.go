@@ -26,7 +26,7 @@ type FakeConversationRepository struct {
 	addMessageReturnsOnCall map[int]struct {
 		result1 error
 	}
-	AddTokenUsageStub        func(string, int, int, int, int) error
+	AddTokenUsageStub        func(string, int, int, int, int, int) error
 	addTokenUsageMutex       sync.RWMutex
 	addTokenUsageArgsForCall []struct {
 		arg1 string
@@ -34,6 +34,7 @@ type FakeConversationRepository struct {
 		arg3 int
 		arg4 int
 		arg5 int
+		arg6 int
 	}
 	addTokenUsageReturns struct {
 		result1 error
@@ -327,7 +328,7 @@ func (fake *FakeConversationRepository) AddMessageReturnsOnCall(i int, result1 e
 	}{result1}
 }
 
-func (fake *FakeConversationRepository) AddTokenUsage(arg1 string, arg2 int, arg3 int, arg4 int, arg5 int) error {
+func (fake *FakeConversationRepository) AddTokenUsage(arg1 string, arg2 int, arg3 int, arg4 int, arg5 int, arg6 int) error {
 	fake.addTokenUsageMutex.Lock()
 	ret, specificReturn := fake.addTokenUsageReturnsOnCall[len(fake.addTokenUsageArgsForCall)]
 	fake.addTokenUsageArgsForCall = append(fake.addTokenUsageArgsForCall, struct {
@@ -336,13 +337,14 @@ func (fake *FakeConversationRepository) AddTokenUsage(arg1 string, arg2 int, arg
 		arg3 int
 		arg4 int
 		arg5 int
-	}{arg1, arg2, arg3, arg4, arg5})
+		arg6 int
+	}{arg1, arg2, arg3, arg4, arg5, arg6})
 	stub := fake.AddTokenUsageStub
 	fakeReturns := fake.addTokenUsageReturns
-	fake.recordInvocation("AddTokenUsage", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	fake.recordInvocation("AddTokenUsage", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6})
 	fake.addTokenUsageMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3, arg4, arg5)
+		return stub(arg1, arg2, arg3, arg4, arg5, arg6)
 	}
 	if specificReturn {
 		return ret.result1
@@ -356,17 +358,17 @@ func (fake *FakeConversationRepository) AddTokenUsageCallCount() int {
 	return len(fake.addTokenUsageArgsForCall)
 }
 
-func (fake *FakeConversationRepository) AddTokenUsageCalls(stub func(string, int, int, int, int) error) {
+func (fake *FakeConversationRepository) AddTokenUsageCalls(stub func(string, int, int, int, int, int) error) {
 	fake.addTokenUsageMutex.Lock()
 	defer fake.addTokenUsageMutex.Unlock()
 	fake.AddTokenUsageStub = stub
 }
 
-func (fake *FakeConversationRepository) AddTokenUsageArgsForCall(i int) (string, int, int, int, int) {
+func (fake *FakeConversationRepository) AddTokenUsageArgsForCall(i int) (string, int, int, int, int, int) {
 	fake.addTokenUsageMutex.RLock()
 	defer fake.addTokenUsageMutex.RUnlock()
 	argsForCall := fake.addTokenUsageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6
 }
 
 func (fake *FakeConversationRepository) AddTokenUsageReturns(result1 error) {

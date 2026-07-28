@@ -73,7 +73,7 @@ func readFrames(t *testing.T, body io.Reader) ([]sdk.CreateChatCompletionStreamR
 
 func TestDefaultScenariosAreValid(t *testing.T) {
 	defs := Default()
-	require.Len(t, defs.Scenarios, 19)
+	require.Len(t, defs.Scenarios, 20)
 	require.Equal(t, "Done.", defs.Fallback.Content)
 }
 
@@ -187,8 +187,9 @@ func TestModelsAndHealthEndpoints(t *testing.T) {
 
 	var models sdk.ListModelsResponse
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&models))
-	require.Len(t, models.Data, 1)
+	require.Len(t, models.Data, 2)
 	require.Equal(t, DefaultModel, models.Data[0].ID)
+	require.Equal(t, AnthropicModel, models.Data[1].ID)
 
 	health, err := http.Get(ts.URL + "/v1/health")
 	require.NoError(t, err)

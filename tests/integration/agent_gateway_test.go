@@ -77,7 +77,7 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 
 	models, err := c.GetModelService().ListModels(context.Background())
 	require.NoError(t, err, "mock /v1/models must serve the real ModelService")
-	require.Equal(t, []string{mockgateway.DefaultModel}, models)
+	require.Equal(t, []string{mockgateway.DefaultModel, mockgateway.AnthropicModel}, models)
 	require.NoError(t, c.GetModelService().SelectModel(mockgateway.DefaultModel))
 
 	return &env{container: c, gateway: gw}
@@ -591,11 +591,11 @@ func TestModelMetadataFromGateway(t *testing.T) {
 	require.Equal(t, mockgateway.DefaultContextWindow, window)
 
 	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
-	in, out, total := pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 1_000_000, 0)
+	in, out, total := pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 1_000_000, 0, 0)
 	require.InDelta(t, 2.5, in, 1e-9)
 	require.InDelta(t, 10.0, out, 1e-9)
 	require.InDelta(t, 12.5, total, 1e-9)
 
-	in, _, _ = pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 0, 1_000_000)
+	in, _, _ = pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 0, 1_000_000, 0)
 	require.InDelta(t, 0.25, in, 1e-9, "cached tokens must bill at the cache-read rate")
 }
