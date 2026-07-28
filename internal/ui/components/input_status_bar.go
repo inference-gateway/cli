@@ -19,6 +19,7 @@ import (
 type InputStatusBar struct {
 	width                  int
 	modelService           domain.ModelService
+	effortSource           effortSource
 	themeService           domain.ThemeService
 	stateManager           statusBarState
 	config                 *config.Config
@@ -58,6 +59,17 @@ func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 // SetModelService sets the model service
 func (isb *InputStatusBar) SetModelService(modelService domain.ModelService) {
 	isb.modelService = modelService
+}
+
+// effortSource is the narrow slice of AgentService the status bar reads for
+// the runtime reasoning effort level.
+type effortSource interface {
+	GetReasoningEffort() string
+}
+
+// SetEffortSource sets the source of the runtime reasoning effort level.
+func (isb *InputStatusBar) SetEffortSource(src effortSource) {
+	isb.effortSource = src
 }
 
 // SetThemeService sets the theme service
@@ -341,6 +353,12 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		parts = append(parts, indicatorPart{text: currentModel, action: ui.StatusIndicatorActionModelSelection})
 	}
 
+	if isb.shouldShowIndicator("effort") {
+		if effortPart := isb.buildEffortIndicator(); effortPart != "" {
+			parts = append(parts, indicatorPart{text: effortPart})
+		}
+	}
+
 	if isb.shouldShowIndicator("theme") {
 		if themePart := isb.buildThemeIndicator(); themePart != "" {
 			parts = append(parts, indicatorPart{text: themePart, action: ui.StatusIndicatorActionThemeSelection})
@@ -488,6 +506,12 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		parts = append(parts, currentModel)
 	}
 
+	if isb.shouldShowIndicator("effort") {
+		if effortPart := isb.buildEffortIndicator(); effortPart != "" {
+			parts = append(parts, effortPart)
+		}
+	}
+
 	if isb.shouldShowIndicator("theme") {
 		if themePart := isb.buildThemeIndicator(); themePart != "" {
 			parts = append(parts, themePart)
@@ -549,6 +573,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 	switch indicator {
 	case "model":
 		return indicators.Model
+	case "effort":
+		return indicators.Effort
 	case "theme":
 		return indicators.Theme
 	case "max_output":
@@ -576,6 +602,22 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 	default:
 		return true
 	}
+}
+
+// buildEffortIndicator shows the runtime reasoning effort level when one is
+// set ("" = provider default, no indicator). Anthropic models only - other
+// providers don't support the effort switch.
+func (isb *InputStatusBar) buildEffortIndicator() string {
+	if isb.effortSource == nil || isb.modelService == nil {
+		return ""
+	}
+	if !strings.HasPrefix(isb.modelService.GetCurrentModel(), string(sdk.Anthropic)+"/") {
+		return ""
+	}
+	if effort := isb.effortSource.GetReasoningEffort(); effort != "" {
+		return fmt.Sprintf("Effort: %s", effort)
+	}
+	return ""
 }
 
 // buildThemeIndicator builds the theme indicator text

@@ -247,6 +247,36 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 	}
 }
 
+func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
+	agent := &domainmocks.FakeAgentService{}
+	agent.GetReasoningEffortReturns("xhigh")
+	anthropicModels := &domainmocks.FakeModelService{}
+	anthropicModels.GetCurrentModelReturns("anthropic/claude-opus-4-8")
+
+	statusBar := &InputStatusBar{effortSource: agent, modelService: anthropicModels}
+	if got := statusBar.buildEffortIndicator(); got != "Effort: xhigh" {
+		t.Errorf("Expected 'Effort: xhigh' but got '%s'", got)
+	}
+
+	openaiModels := &domainmocks.FakeModelService{}
+	openaiModels.GetCurrentModelReturns("openai/gpt-5")
+	statusBar.modelService = openaiModels
+	if got := statusBar.buildEffortIndicator(); got != "" {
+		t.Errorf("Expected empty indicator on non-Anthropic model, got '%s'", got)
+	}
+
+	statusBar.modelService = anthropicModels
+	agent.GetReasoningEffortReturns("")
+	if got := statusBar.buildEffortIndicator(); got != "" {
+		t.Errorf("Expected empty indicator when no effort is set, got '%s'", got)
+	}
+
+	unwired := &InputStatusBar{}
+	if got := unwired.buildEffortIndicator(); got != "" {
+		t.Errorf("Expected empty indicator without an effort source, got '%s'", got)
+	}
+}
+
 func TestInputStatusBar_BuildMaxOutputIndicator(t *testing.T) {
 	tests := []struct {
 		name         string

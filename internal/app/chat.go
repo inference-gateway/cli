@@ -257,6 +257,7 @@ func NewChatApplication(
 	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
 		isb.SetModelService(app.modelService)
+		isb.SetEffortSource(app.agentService)
 		isb.SetThemeService(app.themeService)
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfig(app.config)

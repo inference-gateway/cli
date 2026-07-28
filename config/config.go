@@ -582,6 +582,7 @@ type StatusBarConfig struct {
 // All indicators are enabled by default to maintain current behavior
 type StatusBarIndicators struct {
 	Model            bool `yaml:"model" mapstructure:"model"`
+	Effort           bool `yaml:"effort" mapstructure:"effort"`
 	Theme            bool `yaml:"theme" mapstructure:"theme"`
 	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`
 	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
@@ -742,6 +743,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 		Enabled: true,
 		Indicators: StatusBarIndicators{
 			Model:            true,
+			Effort:           true,
 			Theme:            true,
 			MaxOutput:        false,
 			A2AAgents:        true,
