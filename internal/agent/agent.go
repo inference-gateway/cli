@@ -58,8 +58,8 @@ type AgentServiceImpl struct {
 	// Cancelling a session aborts streaming, tool execution, approval waits,
 	// and the main event loop in one shot. Idempotent via sync.Once so
 	// multiple Esc presses are safe.
-	activeSessions map[string]*sessionCancel
-	sessionMux     sync.RWMutex
+	activeSessions     map[string]*sessionCancel
+	sessionMux         sync.RWMutex
 	reasoningEffort    string
 	reasoningEffortMux sync.RWMutex
 
