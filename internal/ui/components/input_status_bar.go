@@ -604,9 +604,10 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 	}
 }
 
-// buildEffortIndicator shows the runtime reasoning effort level when one is
-// set ("" = provider default, no indicator). Anthropic models only - other
-// providers don't support the effort switch.
+// buildEffortIndicator shows the reasoning effort level in effect. Anthropic
+// models only - other providers don't support the effort switch. When nothing
+// is set, the CLI's hardcoded Anthropic default is what goes on the wire, so
+// that's what shows.
 func (isb *InputStatusBar) buildEffortIndicator() string {
 	if isb.effortSource == nil || isb.modelService == nil {
 		return ""
@@ -614,10 +615,11 @@ func (isb *InputStatusBar) buildEffortIndicator() string {
 	if !strings.HasPrefix(isb.modelService.GetCurrentModel(), string(sdk.Anthropic)+"/") {
 		return ""
 	}
-	if effort := isb.effortSource.GetReasoningEffort(); effort != "" {
-		return fmt.Sprintf("Effort: %s", effort)
+	effort := isb.effortSource.GetReasoningEffort()
+	if effort == "" {
+		effort = config.DefaultAnthropicEffort
 	}
-	return ""
+	return fmt.Sprintf("Effort: %s", effort)
 }
 
 // buildThemeIndicator builds the theme indicator text

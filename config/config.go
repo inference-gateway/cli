@@ -518,6 +518,11 @@ type AgentConfig struct {
 // /v1/messages path (other providers clamp them to high).
 var ReasoningEffortLevels = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
 
+// DefaultAnthropicEffort is the effort level applied to Anthropic models when
+// none is set via agent.reasoning_effort or /effort. Deliberately below the
+// API default (high) - fast, cheap turns until the user raises it.
+const DefaultAnthropicEffort = "low"
+
 // GitConfig contains git shortcut-specific settings
 type GitConfig struct {
 	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`

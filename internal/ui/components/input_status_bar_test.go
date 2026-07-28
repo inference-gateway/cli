@@ -267,8 +267,8 @@ func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
 
 	statusBar.modelService = anthropicModels
 	agent.GetReasoningEffortReturns("")
-	if got := statusBar.buildEffortIndicator(); got != "" {
-		t.Errorf("Expected empty indicator when no effort is set, got '%s'", got)
+	if got := statusBar.buildEffortIndicator(); got != "Effort: low" {
+		t.Errorf("Expected the hardcoded low default when no effort is set, got '%s'", got)
 	}
 
 	unwired := &InputStatusBar{}

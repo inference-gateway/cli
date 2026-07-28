@@ -11,6 +11,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -195,9 +196,7 @@ func (a *AnthropicMessages) buildMessagesRequest(model string, messages []sdk.Me
 		req.Tools = &tools
 	}
 
-	if effort := a.effortOption(); effort != nil {
-		req.OutputConfig = &sdk.MessagesOutputConfig{Effort: effort}
-	}
+	req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
 
 	return req
 }
@@ -211,18 +210,14 @@ func (a *AnthropicMessages) maxTokens() int {
 
 // effortOption maps the reasoning_effort captured via WithOptions onto the
 // Messages API output_config.effort. minimal is an OpenAI-only level -
-// Anthropic's scale starts at low. Unknown values are dropped rather than
-// sent upstream.
+// Anthropic's scale starts at low. Unset and unknown values fall back to the
+// CLI's hardcoded Anthropic default.
 func (a *AnthropicMessages) effortOption() *sdk.MessagesOutputConfigEffort {
-	if a.opts == nil || a.opts.ReasoningEffort == nil {
-		return nil
-	}
-	effort := sdk.MessagesOutputConfigEffort(*a.opts.ReasoningEffort)
-	if *a.opts.ReasoningEffort == sdk.Minimal {
-		effort = sdk.MessagesOutputConfigEffortLow
-	}
-	if !effort.Valid() {
-		return nil
+	effort := sdk.MessagesOutputConfigEffort(config.DefaultAnthropicEffort)
+	if a.opts != nil && a.opts.ReasoningEffort != nil && *a.opts.ReasoningEffort != sdk.Minimal {
+		if e := sdk.MessagesOutputConfigEffort(*a.opts.ReasoningEffort); e.Valid() {
+			effort = e
+		}
 	}
 	return &effort
 }

@@ -573,7 +573,7 @@ func (c *EffortShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	if len(args) == 0 {
 		current := c.agent.GetReasoningEffort()
 		if current == "" {
-			current = "default (provider decides)"
+			current = config.DefaultAnthropicEffort + " (default)"
 		}
 		return ShortcutResult{
 			Output: fmt.Sprintf("Reasoning effort: %s\nAvailable levels: %s",

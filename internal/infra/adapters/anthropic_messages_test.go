@@ -143,7 +143,8 @@ func TestBuildMessagesRequestDefaults(t *testing.T) {
 	assert.Equal(t, defaultMaxTokens, shape.MaxTokens)
 	assert.Empty(t, shape.System)
 	assert.Empty(t, shape.Tools)
-	assert.Nil(t, shape.OutputConfig, "no effort configured means no output_config on the wire")
+	require.NotNil(t, shape.OutputConfig, "the default effort always rides output_config")
+	assert.Equal(t, "low", shape.OutputConfig.Effort, "unset effort falls back to the hardcoded low default")
 	require.Len(t, shape.Messages, 1)
 	assert.NotNil(t, shape.Messages[0].Content[0]["cache_control"], "sole user message takes the rolling breakpoint")
 }
@@ -159,7 +160,7 @@ func TestBuildMessagesRequestEffort(t *testing.T) {
 		{"high passes through", "high", "high"},
 		{"xhigh passes through", "xhigh", "xhigh"},
 		{"max passes through", "max", "max"},
-		{"unknown value is dropped", "bogus", ""},
+		{"unknown value falls back to the default", "bogus", "low"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -171,10 +172,6 @@ func TestBuildMessagesRequestEffort(t *testing.T) {
 				textMessage(sdk.User, "hi"),
 			}))
 
-			if tt.want == "" {
-				assert.Nil(t, shape.OutputConfig)
-				return
-			}
 			require.NotNil(t, shape.OutputConfig)
 			assert.Equal(t, tt.want, shape.OutputConfig.Effort)
 		})

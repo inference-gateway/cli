@@ -31,7 +31,7 @@ func TestEffortShortcut_ShowDefault(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, result.Success)
-	assert.Contains(t, result.Output, "default")
+	assert.Contains(t, result.Output, "low (default)")
 }
 
 func TestEffortShortcut_SetOnAnthropicModel(t *testing.T) {
