@@ -195,6 +195,10 @@ func (a *AnthropicMessages) buildMessagesRequest(model string, messages []sdk.Me
 		req.Tools = &tools
 	}
 
+	if effort := a.effortOption(); effort != nil {
+		req.OutputConfig = &sdk.MessagesOutputConfig{Effort: effort}
+	}
+
 	return req
 }
 
@@ -203,6 +207,24 @@ func (a *AnthropicMessages) maxTokens() int {
 		return *a.opts.MaxTokens
 	}
 	return defaultMaxTokens
+}
+
+// effortOption maps the reasoning_effort captured via WithOptions onto the
+// Messages API output_config.effort. minimal is an OpenAI-only level -
+// Anthropic's scale starts at low. Unknown values are dropped rather than
+// sent upstream.
+func (a *AnthropicMessages) effortOption() *sdk.MessagesOutputConfigEffort {
+	if a.opts == nil || a.opts.ReasoningEffort == nil {
+		return nil
+	}
+	effort := sdk.MessagesOutputConfigEffort(*a.opts.ReasoningEffort)
+	if *a.opts.ReasoningEffort == sdk.Minimal {
+		effort = sdk.MessagesOutputConfigEffortLow
+	}
+	if !effort.Valid() {
+		return nil
+	}
+	return &effort
 }
 
 // buildTools converts the OpenAI tool definitions to Anthropic tools. The

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,7 +34,6 @@ type AgentServiceImpl struct {
 	stateManager     stateManager
 	timeoutSeconds   int
 	maxTokens        int
-	reasoningEffort  *sdk.CreateChatCompletionRequestReasoningEffort
 	optimizer        domain.ConversationOptimizer
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
@@ -59,6 +60,11 @@ type AgentServiceImpl struct {
 	// multiple Esc presses are safe.
 	activeSessions map[string]*sessionCancel
 	sessionMux     sync.RWMutex
+
+	// Runtime reasoning effort, seeded from agent.reasoning_effort and
+	// switchable mid-session via /effort; each request re-reads it.
+	reasoningEffort    string
+	reasoningEffortMux sync.RWMutex
 
 	// Metrics tracking
 	metrics    map[string]*domain.ChatMetrics
@@ -375,7 +381,7 @@ func NewAgent(
 		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        cfg.GetAgentConfig().MaxTokens,
-		reasoningEffort:  reasoningEffortOption(cfg.GetAgentConfig().ReasoningEffort),
+		reasoningEffort:  cfg.GetAgentConfig().ReasoningEffort,
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
@@ -389,11 +395,45 @@ func NewAgent(
 	}
 }
 
-// reasoningEffortOption maps agent.reasoning_effort ("" = unset, validated in
-// Config.Validate) to the SDK's optional request field.
-func reasoningEffortOption(effort string) *sdk.CreateChatCompletionRequestReasoningEffort {
+// SetReasoningEffort updates the reasoning effort applied to subsequent
+// requests. An empty string resets to the provider default.
+func (s *AgentServiceImpl) SetReasoningEffort(effort string) error {
+	if effort != "" && !slices.Contains(config.ReasoningEffortLevels, effort) {
+		return fmt.Errorf(
+			"invalid reasoning effort %q: must be one of %s",
+			effort, strings.Join(config.ReasoningEffortLevels, ", "),
+		)
+	}
+	s.reasoningEffortMux.Lock()
+	s.reasoningEffort = effort
+	s.reasoningEffortMux.Unlock()
+	return nil
+}
+
+// GetReasoningEffort returns the effort level currently applied to requests
+// ("" = provider default).
+func (s *AgentServiceImpl) GetReasoningEffort() string {
+	s.reasoningEffortMux.RLock()
+	defer s.reasoningEffortMux.RUnlock()
+	return s.reasoningEffort
+}
+
+// reasoningEffortOptionFor maps the current effort level onto the optional
+// chat-completions request field. Anthropic models get the raw value - the
+// AnthropicMessages adapter reads it back from the options and translates it
+// to output_config.effort (including minimal -> low). Every other provider
+// clamps the Anthropic-only xhigh/max levels to high, the chat-completions
+// ceiling.
+func (s *AgentServiceImpl) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
+	effort := s.GetReasoningEffort()
 	if effort == "" {
 		return nil
+	}
+	if provider, _, err := s.parseProvider(model); err != nil || sdk.Provider(provider) != sdk.Anthropic {
+		switch effort {
+		case "xhigh", "max":
+			effort = "high"
+		}
 	}
 	e := sdk.CreateChatCompletionRequestReasoningEffort(effort)
 	return &e
@@ -449,7 +489,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 		client := s.client.WithOptions(&sdk.CreateChatCompletionRequest{
 			MaxTokens:       &s.maxTokens,
-			ReasoningEffort: s.reasoningEffort,
+			ReasoningEffort: s.reasoningEffortOptionFor(model),
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
 				SkipMCP: true,
@@ -461,7 +501,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			}
 			availableTools = s.toolService.ListToolsForMode(mode)
 			if len(availableTools) > 0 {
-				client = s.client.WithTools(&availableTools)
+				client = client.WithTools(&availableTools)
 			}
 		}
 

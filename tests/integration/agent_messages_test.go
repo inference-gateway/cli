@@ -142,6 +142,26 @@ func TestMessagesCacheWritePricing(t *testing.T) {
 	require.InDelta(t, 0.4*0.25+0.6*3.125, in, 1e-9, "mixed read/write must bill each bucket at its rate")
 }
 
+// TestMessagesReasoningEffort verifies a runtime effort switch reaches the
+// wire as output_config.effort on every subsequent /v1/messages request.
+func TestMessagesReasoningEffort(t *testing.T) {
+	e := newAnthropicEnv(t)
+	e.writeFixtures(t, "a.txt")
+
+	require.NoError(t, e.container.GetAgentService().SetReasoningEffort("xhigh"))
+
+	res := e.runAnthropicStream(context.Background(), t, "exercise the anthropic cache")
+	require.Empty(t, res.errs)
+
+	bodies := e.messagesBodies(t)
+	require.Len(t, bodies, 2)
+	for i, body := range bodies {
+		require.NotNil(t, body.OutputConfig, "output_config must be present (request %d)", i)
+		require.NotNil(t, body.OutputConfig.Effort, "effort must be present (request %d)", i)
+		require.Equal(t, sdk.MessagesOutputConfigEffortXhigh, *body.OutputConfig.Effort, "request %d", i)
+	}
+}
+
 // TestMessagesSyncRun covers the non-streaming (headless) path over
 // /v1/messages.
 func TestMessagesSyncRun(t *testing.T) {

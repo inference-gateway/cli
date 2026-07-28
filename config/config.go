@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -510,6 +511,12 @@ type AgentConfig struct {
 	ReasoningEffort          string             `yaml:"reasoning_effort,omitempty" mapstructure:"reasoning_effort"`
 	MaxConcurrentTools       int                `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
 }
+
+// ReasoningEffortLevels enumerates the accepted agent.reasoning_effort values,
+// lowest to highest. minimal exists only on the OpenAI-compatible path (the
+// Anthropic adapter maps it to low); xhigh and max exist only on the Anthropic
+// /v1/messages path (other providers clamp them to high).
+var ReasoningEffortLevels = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
 
 // GitConfig contains git shortcut-specific settings
 type GitConfig struct {
@@ -1215,12 +1222,11 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	switch c.Agent.ReasoningEffort {
-	case "", "minimal", "low", "medium", "high":
-	default:
+	if c.Agent.ReasoningEffort != "" && !slices.Contains(ReasoningEffortLevels, c.Agent.ReasoningEffort) {
 		return fmt.Errorf(
-			"invalid agent.reasoning_effort %q: must be one of \"minimal\", \"low\", \"medium\", or \"high\"",
+			"invalid agent.reasoning_effort %q: must be one of %s",
 			c.Agent.ReasoningEffort,
+			strings.Join(ReasoningEffortLevels, ", "),
 		)
 	}
 

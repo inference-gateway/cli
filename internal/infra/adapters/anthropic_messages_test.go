@@ -30,6 +30,9 @@ type requestShape struct {
 		Role    string           `json:"role"`
 		Content []map[string]any `json:"content"`
 	} `json:"messages"`
+	OutputConfig *struct {
+		Effort string `json:"effort"`
+	} `json:"output_config"`
 }
 
 func decodeRequest(t *testing.T, req sdk.CreateMessagesRequest) requestShape {
@@ -140,8 +143,42 @@ func TestBuildMessagesRequestDefaults(t *testing.T) {
 	assert.Equal(t, defaultMaxTokens, shape.MaxTokens)
 	assert.Empty(t, shape.System)
 	assert.Empty(t, shape.Tools)
+	assert.Nil(t, shape.OutputConfig, "no effort configured means no output_config on the wire")
 	require.Len(t, shape.Messages, 1)
 	assert.NotNil(t, shape.Messages[0].Content[0]["cache_control"], "sole user message takes the rolling breakpoint")
+}
+
+func TestBuildMessagesRequestEffort(t *testing.T) {
+	tests := []struct {
+		name   string
+		effort string
+		want   string
+	}{
+		{"minimal maps to low", "minimal", "low"},
+		{"low passes through", "low", "low"},
+		{"high passes through", "high", "high"},
+		{"xhigh passes through", "xhigh", "xhigh"},
+		{"max passes through", "max", "max"},
+		{"unknown value is dropped", "bogus", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			effort := sdk.CreateChatCompletionRequestReasoningEffort(tt.effort)
+			adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+			adapter.WithOptions(&sdk.CreateChatCompletionRequest{ReasoningEffort: &effort})
+
+			shape := decodeRequest(t, adapter.buildMessagesRequest("claude-sonnet-4-5", []sdk.Message{
+				textMessage(sdk.User, "hi"),
+			}))
+
+			if tt.want == "" {
+				assert.Nil(t, shape.OutputConfig)
+				return
+			}
+			require.NotNil(t, shape.OutputConfig)
+			assert.Equal(t, tt.want, shape.OutputConfig.Effort)
+		})
+	}
 }
 
 func anthropicEvent(payload string) sdk.SSEvent {
