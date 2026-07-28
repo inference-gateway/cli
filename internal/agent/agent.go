@@ -757,6 +757,15 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 }
 
 // storeIterationMetricsInput holds the data needed for token usage polyfill calculation
+// cacheCreationTokenSource is implemented by clients that report Anthropic
+// cache-creation (cache-write) tokens out of band, since the OpenAI-shaped
+// usage struct has no field for them. The /v1/messages adapter
+// (internal/infra/adapters.AnthropicMessages) is the one implementation;
+// the interface lives here because this package is its consumer.
+type cacheCreationTokenSource interface {
+	TakeCacheCreationTokens() int
+}
+
 type storeIterationMetricsInput struct {
 	inputMessages   []sdk.Message
 	outputContent   string
@@ -807,18 +816,24 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 		s.conversationRepo.AddCachedTokens(cached)
 	}
 
+	cacheWrite := 0
+	if src, ok := s.client.(cacheCreationTokenSource); ok {
+		cacheWrite = src.TakeCacheCreationTokens()
+	}
+
 	if err := s.conversationRepo.AddTokenUsage(
 		model,
 		int(effectiveUsage.PromptTokens),
 		int(effectiveUsage.CompletionTokens),
 		int(effectiveUsage.TotalTokens),
 		cached,
+		cacheWrite,
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}
 
 	if s.recorder != nil {
-		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached)
+		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached, cacheWrite)
 	}
 	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 

@@ -82,11 +82,14 @@ type ToolCall struct {
 	argsJSON string
 }
 
-// Usage overrides the token usage reported for a turn.
+// Usage overrides the token usage reported for a turn. CacheWriteTokens is
+// only surfaced on the /v1/messages endpoint (cache_creation_input_tokens);
+// the OpenAI-shaped usage has no field for it.
 type Usage struct {
 	PromptTokens     int64 `yaml:"prompt_tokens"`
 	CompletionTokens int64 `yaml:"completion_tokens"`
 	CachedTokens     int64 `yaml:"cached_tokens"`
+	CacheWriteTokens int64 `yaml:"cache_write_tokens"`
 }
 
 // ErrorInject makes a turn answer with HTTP Status for the first Times
@@ -231,6 +234,53 @@ func (f *ScenarioFile) resolve(req *sdk.CreateChatCompletionRequest) (string, in
 		return sc.Name, step, f.Fallback
 	}
 	return "", step, f.Fallback
+}
+
+// resolveMessages resolves a /v1/messages request against the same scenario
+// library by projecting the Anthropic messages onto the chat-completions
+// shape resolve understands: text is extracted from string content or text
+// blocks, and tool_result-only user messages are dropped so they can't
+// anchor a scenario.
+func (f *ScenarioFile) resolveMessages(req *sdk.CreateMessagesRequest) (string, int, Turn) {
+	projected := make([]sdk.Message, 0, len(req.Messages))
+	for _, m := range req.Messages {
+		text := messagesText(m.Content)
+		if m.Role == sdk.MessagesMessageRoleUser && text == "" {
+			continue
+		}
+		role := sdk.User
+		if m.Role == sdk.MessagesMessageRoleAssistant {
+			role = sdk.Assistant
+		}
+		projected = append(projected, sdk.Message{Role: role, Content: sdk.NewMessageContent(text)})
+	}
+	return f.resolve(&sdk.CreateChatCompletionRequest{Messages: projected})
+}
+
+// messagesText extracts the concatenated text of an Anthropic message
+// content union: a bare string or the text blocks of a block array.
+// <system-reminder> blocks are skipped: the adapter merges the volatile tail
+// into the same user message as the prompt, and including it would make
+// anchorUserMessage reject the whole message.
+func messagesText(c sdk.MessagesMessage_Content) string {
+	if s, err := c.AsMessagesMessageContent0(); err == nil {
+		return s
+	}
+
+	blocks, err := c.AsMessagesMessageContent1()
+	if err != nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, block := range blocks {
+		tb, err := block.AsMessagesTextBlock()
+		if err != nil || tb.Type != sdk.MessagesTextBlockTypeText || strings.Contains(tb.Text, "<system-reminder>") {
+			continue
+		}
+		b.WriteString(tb.Text)
+	}
+	return b.String()
 }
 
 // jobNoticeRe matches the background-job completion notices the supervisor

@@ -156,12 +156,13 @@ const (
 
 // SessionTokenStats tracks accumulated token usage across a session
 type SessionTokenStats struct {
-	TotalInputTokens  int `json:"total_input_tokens"`
-	TotalOutputTokens int `json:"total_output_tokens"`
-	TotalTokens       int `json:"total_tokens"`
-	RequestCount      int `json:"request_count"`
-	LastInputTokens   int `json:"last_input_tokens"`
-	TotalCachedTokens int `json:"total_cached_tokens"`
+	TotalInputTokens      int `json:"total_input_tokens"`
+	TotalOutputTokens     int `json:"total_output_tokens"`
+	TotalTokens           int `json:"total_tokens"`
+	RequestCount          int `json:"request_count"`
+	LastInputTokens       int `json:"last_input_tokens"`
+	TotalCachedTokens     int `json:"total_cached_tokens"`
+	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
 // MessageRepository handles CRUD operations for conversation messages
@@ -178,7 +179,7 @@ type MessageRepository interface {
 
 // TokenUsageRepository handles token usage tracking
 type TokenUsageRepository interface {
-	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens int) error
+	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens, cacheWriteTokens int) error
 	AddCachedTokens(tokens int)
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats

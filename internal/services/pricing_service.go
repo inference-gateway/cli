@@ -14,9 +14,10 @@ import (
 // gatewayPrice is a per-model price from /v1/models?include=pricing,
 // converted from per-token decimal strings to per-MTok floats at ingest.
 type gatewayPrice struct {
-	inputPerMTok     float64
-	outputPerMTok    float64
-	cacheReadPerMTok *float64
+	inputPerMTok      float64
+	outputPerMTok     float64
+	cacheReadPerMTok  *float64
+	cacheWritePerMTok *float64
 }
 
 var (
@@ -57,6 +58,12 @@ func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
 			price.cacheReadPerMTok = &perMTok
 		}
 	}
+	if p.CacheWritePerToken != nil {
+		if cacheWrite, err := strconv.ParseFloat(*p.CacheWritePerToken, 64); err == nil {
+			perMTok := cacheWrite * 1e6
+			price.cacheWritePerMTok = &perMTok
+		}
+	}
 	return price, true
 }
 
@@ -90,15 +97,15 @@ func (p *PricingServiceImpl) IsEnabled() bool {
 
 // resolvePricing returns the input/output price for a model and whether it's known.
 // Custom prices win, then gateway-reported prices; anything else is unknown.
-// cacheRead is per-MTok when the gateway reports a cache-read rate, nil otherwise.
-func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead *float64, ok bool) {
+// cacheRead/cacheWrite are per-MTok when the gateway reports the rate, nil otherwise.
+func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead, cacheWrite *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
-		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, nil, true
+		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, nil, nil, true
 	}
 	if price, exists := gatewayPriceFor(model); exists {
-		return price.inputPerMTok, price.outputPerMTok, price.cacheReadPerMTok, true
+		return price.inputPerMTok, price.outputPerMTok, price.cacheReadPerMTok, price.cacheWritePerMTok, true
 	}
-	return 0.0, 0.0, nil, false
+	return 0.0, 0.0, nil, nil, false
 }
 
 // resolveRequiresPro returns whether a model is gated behind a Pro subscription.
@@ -129,7 +136,7 @@ func (p *PricingServiceImpl) GetInputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-	input, _, _, _ := p.resolvePricing(model)
+	input, _, _, _, _ := p.resolvePricing(model)
 	return input
 }
 
@@ -139,29 +146,38 @@ func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
-	_, output, _, _ := p.resolvePricing(model)
+	_, output, _, _, _ := p.resolvePricing(model)
 	return output
 }
 
 // CalculateCost computes the total cost for a given number of input, output
-// and cached-prompt tokens. cachedTokens is the cached subset of inputTokens;
-// it is billed at the gateway's cache-read rate when known, otherwise at the
+// and cached-prompt tokens. cachedTokens and cacheWriteTokens are the
+// cache-read and cache-creation subsets of inputTokens; they are billed at
+// the gateway's cache-read/cache-write rates when known, otherwise at the
 // full input rate. Returns inputCost, outputCost, and totalCost in USD (or
 // configured currency).
-func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens, cachedTokens int) (inputCost, outputCost, totalCost float64) {
+func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int) (inputCost, outputCost, totalCost float64) {
 	if !p.config.Enabled {
 		return 0.0, 0.0, 0.0
 	}
 
-	inputPrice, outputPrice, cacheReadPrice, _ := p.resolvePricing(model)
+	inputPrice, outputPrice, cacheReadPrice, cacheWritePrice, _ := p.resolvePricing(model)
 
 	cached := min(max(cachedTokens, 0), inputTokens)
-	cacheRate := inputPrice
+	written := min(max(cacheWriteTokens, 0), inputTokens-cached)
+
+	cacheReadRate := inputPrice
 	if cacheReadPrice != nil {
-		cacheRate = *cacheReadPrice
+		cacheReadRate = *cacheReadPrice
+	}
+	cacheWriteRate := inputPrice
+	if cacheWritePrice != nil {
+		cacheWriteRate = *cacheWritePrice
 	}
 
-	inputCost = (float64(inputTokens-cached)*inputPrice + float64(cached)*cacheRate) / 1_000_000.0
+	inputCost = (float64(inputTokens-cached-written)*inputPrice +
+		float64(cached)*cacheReadRate +
+		float64(written)*cacheWriteRate) / 1_000_000.0
 	outputCost = (float64(outputTokens) / 1_000_000.0) * outputPrice
 	totalCost = inputCost + outputCost
 
@@ -178,7 +194,7 @@ func (p *PricingServiceImpl) FormatModelPricing(model string) string {
 		return ""
 	}
 
-	inputPrice, outputPrice, _, ok := p.resolvePricing(model)
+	inputPrice, outputPrice, _, _, ok := p.resolvePricing(model)
 	if !ok {
 		return ""
 	}

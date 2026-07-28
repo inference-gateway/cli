@@ -23,24 +23,32 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// DefaultModel is the single model the mock advertises on /v1/models. Model
+// DefaultModel is the primary model the mock advertises on /v1/models. Model
 // ids carry the provider prefix; request bodies arrive with it stripped.
 const DefaultModel = "openai/gpt-4o"
+
+// AnthropicModel is the Anthropic model the mock advertises; the CLI routes
+// it through POST /v1/messages (native Anthropic SSE) instead of
+// /v1/chat/completions.
+const AnthropicModel = "anthropic/claude-sonnet-4-5"
 
 // Metadata advertised for DefaultModel on /v1/models. The real gateway only
 // includes these fields when ?include=context_window,pricing is set; the mock
 // always serves them (the CLI always asks).
 const (
-	DefaultContextWindow = 128000
-	DefaultInputPrice    = "0.0000025"  // per token → $2.50 per MTok
-	DefaultOutputPrice   = "0.00001"    // per token → $10.00 per MTok
-	DefaultCachePrice    = "0.00000025" // per token → $0.25 per MTok
+	DefaultContextWindow   = 128000
+	DefaultInputPrice      = "0.0000025"   // per token → $2.50 per MTok
+	DefaultOutputPrice     = "0.00001"     // per token → $10.00 per MTok
+	DefaultCachePrice      = "0.00000025"  // per token → $0.25 per MTok
+	DefaultCacheWritePrice = "0.000003125" // per token → $3.125 per MTok (1.25x input)
 )
 
 const defaultChunkSize = 16
 
-// Recorded captures one /v1/chat/completions request for test assertions.
+// Recorded captures one LLM request for test assertions.
 type Recorded struct {
+	// Endpoint is the request path (/v1/chat/completions or /v1/messages).
+	Endpoint string
 	// Provider is the ?provider= query parameter sent by the SDK.
 	Provider string
 	// Model is the request-body model (provider prefix already stripped).
@@ -51,8 +59,10 @@ type Recorded struct {
 	Step int
 	// Stream reports whether the request asked for SSE.
 	Stream bool
-	// Body is the full decoded request.
+	// Body is the full decoded request for /v1/chat/completions.
 	Body sdk.CreateChatCompletionRequest
+	// MessagesBody is the full decoded request for /v1/messages.
+	MessagesBody *sdk.CreateMessagesRequest
 }
 
 // Server is an http.Handler implementing the inference-gateway API surface
@@ -81,21 +91,32 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/chat/completions":
 		s.handleCompletions(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/messages":
+		s.handleMessages(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/models":
 		cachePrice := DefaultCachePrice
+		cacheWritePrice := DefaultCacheWritePrice
+		pricing := sdk.Pricing{
+			InputPerToken:      DefaultInputPrice,
+			OutputPerToken:     DefaultOutputPrice,
+			CacheReadPerToken:  &cachePrice,
+			CacheWritePerToken: &cacheWritePrice,
+			Currency:           "USD",
+			Source:             sdk.PricingSourceProvider,
+		}
+		contextWindow := sdk.ContextWindow{Tokens: DefaultContextWindow, Source: sdk.ContextWindowSourceProvider}
 		writeJSON(w, sdk.ListModelsResponse{
 			Object: "list",
-			Data: []sdk.Model{{
-				ID: DefaultModel, Object: "model", OwnedBy: "openai", ServedBy: "openai",
-				ContextWindow: &sdk.ContextWindow{Tokens: DefaultContextWindow, Source: sdk.ContextWindowSourceProvider},
-				Pricing: &sdk.Pricing{
-					InputPerToken:     DefaultInputPrice,
-					OutputPerToken:    DefaultOutputPrice,
-					CacheReadPerToken: &cachePrice,
-					Currency:          "USD",
-					Source:            sdk.PricingSourceProvider,
+			Data: []sdk.Model{
+				{
+					ID: DefaultModel, Object: "model", OwnedBy: "openai", ServedBy: "openai",
+					ContextWindow: &contextWindow, Pricing: &pricing,
 				},
-			}},
+				{
+					ID: AnthropicModel, Object: "model", OwnedBy: "anthropic", ServedBy: "anthropic",
+					ContextWindow: &contextWindow, Pricing: &pricing,
+				},
+			},
 		})
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
 		writeJSON(w, map[string]string{"status": "ok"})
@@ -116,6 +137,7 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Mockgateway-Scenario", name)
 	w.Header().Set("X-Mockgateway-Step", fmt.Sprintf("%d", step))
 	s.record(Recorded{
+		Endpoint: r.URL.Path,
 		Provider: r.URL.Query().Get("provider"),
 		Model:    req.Model,
 		Scenario: name,
