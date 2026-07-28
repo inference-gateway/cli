@@ -97,7 +97,6 @@ func TestAddTokenUsageForwardsCachedTokensToPricing(t *testing.T) {
 	pricing := &domainmocks.FakePricingService{}
 	repo := NewInMemoryConversationRepository(nil, pricing)
 
-	// 3000 prompt tokens, 2400 of them served from cache.
 	if err := repo.AddTokenUsage("test-model", 3000, 100, 3100, 2400, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}

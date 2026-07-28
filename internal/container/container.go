@@ -13,6 +13,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -23,7 +25,6 @@ import (
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
@@ -402,9 +403,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.githubIssueService = githubissues.New()
 
-	// The adapter reroutes Anthropic models through the gateway's native
-	// /v1/messages endpoint for prompt caching; unwrap it to fall back to
-	// /v1/chat/completions for every provider.
 	agentClient := adapters.NewAnthropicMessages(c.createRawSDKClient())
 	agentImpl := agent.NewAgent(
 		agentClient,

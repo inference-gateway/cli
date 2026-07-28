@@ -11,9 +11,10 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
