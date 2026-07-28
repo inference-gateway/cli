@@ -30,16 +30,9 @@ const defaultMaxTokens = 4096
 // client in the container, and drop the TakeCacheCreationTokens read in
 // storeIterationMetrics.
 type AnthropicMessages struct {
-	inner sdk.Client
-	opts  *sdk.CreateChatCompletionRequest
-	tools *[]sdk.ChatCompletionTool
-
-	// cacheCreation carries cache-write tokens from the last Anthropic
-	// response to storeIterationMetrics, which cannot read them from the
-	// OpenAI-shaped usage (it has no cache-creation field).
-	// ponytail: one slot per adapter - fine while the agent runs one request
-	// at a time (the same assumption the shared WithOptions mutation makes);
-	// move to per-request plumbing if that ever changes.
+	inner         sdk.Client
+	opts          *sdk.CreateChatCompletionRequest
+	tools         *[]sdk.ChatCompletionTool
 	cacheCreation atomic.Int64
 }
 
@@ -259,10 +252,8 @@ func systemPrompt(messages []sdk.Message) string {
 // stagedMessage is the intermediate representation used while grouping and
 // merging messages, before sealing the content blocks into their unions.
 type stagedMessage struct {
-	role   sdk.MessagesMessageRole
-	blocks []sdk.MessagesRequestContentBlock
-	// volatile marks, per block, content the rolling cache breakpoint must
-	// skip (the <system-reminder> tail changes every turn).
+	role     sdk.MessagesMessageRole
+	blocks   []sdk.MessagesRequestContentBlock
 	volatile []bool
 }
 
@@ -556,8 +547,8 @@ func (t *streamTranslator) translate(event sdk.SSEvent) []sdk.SSEvent {
 	case sdk.MessagesStreamEventTypeMessageStop:
 		return t.finishEvents()
 	case sdk.MessagesStreamEventTypeError:
-		return []sdk.SSEvent{{Data: event.Data}} // nil Event: the agent treats it as broken transport and reconnects
-	default: // ping, content_block_stop
+		return []sdk.SSEvent{{Data: event.Data}}
+	default:
 		return nil
 	}
 }
@@ -672,7 +663,7 @@ func mapStopReason(reason string) sdk.FinishReason {
 		return sdk.ToolCalls
 	case string(sdk.MessagesResponseStopReasonMaxTokens):
 		return sdk.Length
-	default: // end_turn, stop_sequence, refusal, or absent
+	default:
 		return sdk.Stop
 	}
 }
