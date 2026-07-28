@@ -582,6 +582,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewEffortShortcut(c.agent, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewToolsShortcut())

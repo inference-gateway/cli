@@ -41,6 +41,16 @@ type FakeAgentService struct {
 	getMetricsReturnsOnCall map[int]struct {
 		result1 *domain.ChatMetrics
 	}
+	GetReasoningEffortStub        func() string
+	getReasoningEffortMutex       sync.RWMutex
+	getReasoningEffortArgsForCall []struct {
+	}
+	getReasoningEffortReturns struct {
+		result1 string
+	}
+	getReasoningEffortReturnsOnCall map[int]struct {
+		result1 string
+	}
 	RunStub        func(context.Context, *domain.AgentRequest) (*domain.ChatSyncResponse, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
@@ -68,6 +78,17 @@ type FakeAgentService struct {
 	runWithStreamReturnsOnCall map[int]struct {
 		result1 <-chan domain.ChatEvent
 		result2 error
+	}
+	SetReasoningEffortStub        func(string) error
+	setReasoningEffortMutex       sync.RWMutex
+	setReasoningEffortArgsForCall []struct {
+		arg1 string
+	}
+	setReasoningEffortReturns struct {
+		result1 error
+	}
+	setReasoningEffortReturnsOnCall map[int]struct {
+		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -248,6 +269,59 @@ func (fake *FakeAgentService) GetMetricsReturnsOnCall(i int, result1 *domain.Cha
 	}{result1}
 }
 
+func (fake *FakeAgentService) GetReasoningEffort() string {
+	fake.getReasoningEffortMutex.Lock()
+	ret, specificReturn := fake.getReasoningEffortReturnsOnCall[len(fake.getReasoningEffortArgsForCall)]
+	fake.getReasoningEffortArgsForCall = append(fake.getReasoningEffortArgsForCall, struct {
+	}{})
+	stub := fake.GetReasoningEffortStub
+	fakeReturns := fake.getReasoningEffortReturns
+	fake.recordInvocation("GetReasoningEffort", []interface{}{})
+	fake.getReasoningEffortMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAgentService) GetReasoningEffortCallCount() int {
+	fake.getReasoningEffortMutex.RLock()
+	defer fake.getReasoningEffortMutex.RUnlock()
+	return len(fake.getReasoningEffortArgsForCall)
+}
+
+func (fake *FakeAgentService) GetReasoningEffortCalls(stub func() string) {
+	fake.getReasoningEffortMutex.Lock()
+	defer fake.getReasoningEffortMutex.Unlock()
+	fake.GetReasoningEffortStub = stub
+}
+
+func (fake *FakeAgentService) GetReasoningEffortReturns(result1 string) {
+	fake.getReasoningEffortMutex.Lock()
+	defer fake.getReasoningEffortMutex.Unlock()
+	fake.GetReasoningEffortStub = nil
+	fake.getReasoningEffortReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAgentService) GetReasoningEffortReturnsOnCall(i int, result1 string) {
+	fake.getReasoningEffortMutex.Lock()
+	defer fake.getReasoningEffortMutex.Unlock()
+	fake.GetReasoningEffortStub = nil
+	if fake.getReasoningEffortReturnsOnCall == nil {
+		fake.getReasoningEffortReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getReasoningEffortReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeAgentService) Run(arg1 context.Context, arg2 *domain.AgentRequest) (*domain.ChatSyncResponse, error) {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
@@ -376,6 +450,67 @@ func (fake *FakeAgentService) RunWithStreamReturnsOnCall(i int, result1 <-chan d
 		result1 <-chan domain.ChatEvent
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeAgentService) SetReasoningEffort(arg1 string) error {
+	fake.setReasoningEffortMutex.Lock()
+	ret, specificReturn := fake.setReasoningEffortReturnsOnCall[len(fake.setReasoningEffortArgsForCall)]
+	fake.setReasoningEffortArgsForCall = append(fake.setReasoningEffortArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.SetReasoningEffortStub
+	fakeReturns := fake.setReasoningEffortReturns
+	fake.recordInvocation("SetReasoningEffort", []interface{}{arg1})
+	fake.setReasoningEffortMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAgentService) SetReasoningEffortCallCount() int {
+	fake.setReasoningEffortMutex.RLock()
+	defer fake.setReasoningEffortMutex.RUnlock()
+	return len(fake.setReasoningEffortArgsForCall)
+}
+
+func (fake *FakeAgentService) SetReasoningEffortCalls(stub func(string) error) {
+	fake.setReasoningEffortMutex.Lock()
+	defer fake.setReasoningEffortMutex.Unlock()
+	fake.SetReasoningEffortStub = stub
+}
+
+func (fake *FakeAgentService) SetReasoningEffortArgsForCall(i int) string {
+	fake.setReasoningEffortMutex.RLock()
+	defer fake.setReasoningEffortMutex.RUnlock()
+	argsForCall := fake.setReasoningEffortArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeAgentService) SetReasoningEffortReturns(result1 error) {
+	fake.setReasoningEffortMutex.Lock()
+	defer fake.setReasoningEffortMutex.Unlock()
+	fake.SetReasoningEffortStub = nil
+	fake.setReasoningEffortReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeAgentService) SetReasoningEffortReturnsOnCall(i int, result1 error) {
+	fake.setReasoningEffortMutex.Lock()
+	defer fake.setReasoningEffortMutex.Unlock()
+	fake.SetReasoningEffortStub = nil
+	if fake.setReasoningEffortReturnsOnCall == nil {
+		fake.setReasoningEffortReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.setReasoningEffortReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeAgentService) Invocations() map[string][][]interface{} {

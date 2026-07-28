@@ -11,6 +11,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -195,6 +196,8 @@ func (a *AnthropicMessages) buildMessagesRequest(model string, messages []sdk.Me
 		req.Tools = &tools
 	}
 
+	req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
+
 	return req
 }
 
@@ -203,6 +206,20 @@ func (a *AnthropicMessages) maxTokens() int {
 		return *a.opts.MaxTokens
 	}
 	return defaultMaxTokens
+}
+
+// effortOption maps the reasoning_effort captured via WithOptions onto the
+// Messages API output_config.effort. minimal is an OpenAI-only level -
+// Anthropic's scale starts at low. Unset and unknown values fall back to the
+// CLI's hardcoded Anthropic default.
+func (a *AnthropicMessages) effortOption() *sdk.MessagesOutputConfigEffort {
+	effort := sdk.MessagesOutputConfigEffort(config.DefaultAnthropicEffort)
+	if a.opts != nil && a.opts.ReasoningEffort != nil && *a.opts.ReasoningEffort != sdk.Minimal {
+		if e := sdk.MessagesOutputConfigEffort(*a.opts.ReasoningEffort); e.Valid() {
+			effort = e
+		}
+	}
+	return &effort
 }
 
 // buildTools converts the OpenAI tool definitions to Anthropic tools. The

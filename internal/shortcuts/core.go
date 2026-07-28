@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	sdk "github.com/inference-gateway/sdk"
@@ -546,4 +547,66 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 		Success:    true,
 		SideEffect: SideEffectShowA2AAgents,
 	}, nil
+}
+
+// EffortShortcut shows or sets the reasoning effort level applied to
+// subsequent requests. Anthropic models only - other providers reject the
+// switch. Runtime-only, like /model - agent.reasoning_effort in config
+// remains the startup seed.
+type EffortShortcut struct {
+	agent  domain.AgentService
+	models domain.ModelService
+}
+
+func NewEffortShortcut(agent domain.AgentService, models domain.ModelService) *EffortShortcut {
+	return &EffortShortcut{agent: agent, models: models}
+}
+
+func (c *EffortShortcut) GetName() string { return "effort" }
+func (c *EffortShortcut) GetDescription() string {
+	return "Show or set the reasoning effort level"
+}
+func (c *EffortShortcut) GetUsage() string              { return "/effort [level]" }
+func (c *EffortShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
+
+func (c *EffortShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	if len(args) == 0 {
+		current := c.agent.GetReasoningEffort()
+		if current == "" {
+			current = config.DefaultAnthropicEffort + " (default)"
+		}
+		return ShortcutResult{
+			Output: fmt.Sprintf("Reasoning effort: %s\nAvailable levels: %s",
+				current, strings.Join(config.ReasoningEffortLevels, ", ")),
+			Success: true,
+		}, nil
+	}
+
+	current := c.models.GetCurrentModel()
+	if !strings.HasPrefix(current, string(sdk.Anthropic)+"/") {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("not supported: /effort requires an Anthropic model (current: %s)", cmp.Or(current, "none")),
+			Success: false,
+		}, nil
+	}
+
+	level := strings.ToLower(strings.TrimSpace(args[0]))
+	if err := c.agent.SetReasoningEffort(level); err != nil {
+		return ShortcutResult{Output: err.Error(), Success: false}, nil
+	}
+	return ShortcutResult{
+		Output:  fmt.Sprintf("Reasoning effort set to %s", level),
+		Success: true,
+	}, nil
+}
+
+// GetSubcommands feeds the Anthropic effort levels into shortcut autocomplete.
+func (c *EffortShortcut) GetSubcommands() []Subcommand {
+	return []Subcommand{
+		{Name: "low", Description: "Light reasoning, fastest responses"},
+		{Name: "medium", Description: "Balanced reasoning"},
+		{Name: "high", Description: "Thorough reasoning"},
+		{Name: "xhigh", Description: "Extra-thorough reasoning"},
+		{Name: "max", Description: "Maximum reasoning"},
+	}
 }
