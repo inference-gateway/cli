@@ -2,12 +2,13 @@ version: '3'
 
 vars:
   OPERATOR_VERSION: v0.23.0
+  K3S_VERSION: v1.36.2-k3s1
 
 tasks:
   cluster:create:
     desc: Create a local k3d cluster
     cmds:
-      - k3d cluster create infer-demo --agents 1
+      - k3d cluster create infer-demo --agents 1 --image rancher/k3s:{{.K3S_VERSION}}
 
   operator:install:
     desc: Install the Inference Gateway Operator (CRDs + controller)

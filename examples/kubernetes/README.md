@@ -13,7 +13,7 @@ Jump to [Chat and traces without any API keys](#chat-and-traces-without-any-api-
 
 ## Prerequisites
 
-- [k3d](https://k3d.io/) v5.x
+- [k3d](https://k3d.io/) v5.x (the cluster pins `rancher/k3s:v1.36.2-k3s1`, bump `K3S_VERSION` in `Taskfile.yml` to change it)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [task](https://taskfile.dev/) (or `go-task`)
 - [docker](https://docs.docker.com/get-docker/) (k3d needs it; `task mockgateway:image` builds with it)
