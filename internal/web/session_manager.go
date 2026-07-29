@@ -86,6 +86,10 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 	defer sm.mu.Unlock()
 
 	inactiveThreshold := time.Duration(sm.cfg.Web.SessionInactivityMins) * time.Minute
+	if inactiveThreshold <= 0 {
+		return
+	}
+
 	now := time.Now()
 	var toRemove []string
 
