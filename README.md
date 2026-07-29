@@ -667,7 +667,9 @@ infer chat --model "anthropic/claude-4"
 - **web.enabled** - Enable web terminal mode (default: `false`)
 - **web.port** - Web server port (default: `3000`)
 - **web.host** - Web server host (default: `localhost`)
-- **web.session_inactivity_mins** - Session timeout in minutes (default: `5`)
+- **web.session_inactivity_mins** - Minutes a session may go without activity before it is reaped (default: `5`).
+  A connected browser tab refreshes its session every 10s, so in practice this only reaps sessions whose
+  connection is gone or stalled. `0` or negative disables cleanup entirely.
 
 ### Environment Variables
 
@@ -1360,7 +1362,7 @@ web:
   enabled: true
   port: 3000
   host: "localhost"
-  session_inactivity_mins: 10  # Auto-cleanup after 10 minutes
+  session_inactivity_mins: 10  # Reap sessions with no activity for 10 minutes
 EOF
 
 infer chat --web  # Uses config file settings

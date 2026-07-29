@@ -38,23 +38,6 @@ func NewSessionManager(cfg *config.Config) *SessionManager {
 	return sm
 }
 
-// CreateSession creates a new session and registers it
-func (sm *SessionManager) CreateSession(sessionID string) Session {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	session := NewLocalPTYSession(sm.cfg)
-	entry := &SessionEntry{
-		session:    session,
-		lastActive: time.Now(),
-	}
-
-	sm.sessions[sessionID] = entry
-	logger.Info("session created", "id", sessionID, "total", len(sm.sessions))
-
-	return session
-}
-
 // UpdateActivity updates the last activity time for a session
 func (sm *SessionManager) UpdateActivity(sessionID string) {
 	sm.mu.RLock()
@@ -103,6 +86,10 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 	defer sm.mu.Unlock()
 
 	inactiveThreshold := time.Duration(sm.cfg.Web.SessionInactivityMins) * time.Minute
+	if inactiveThreshold <= 0 {
+		return
+	}
+
 	now := time.Now()
 	var toRemove []string
 

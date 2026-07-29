@@ -9,8 +9,6 @@ import (
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -101,11 +99,6 @@ type ToolRenderState struct {
 	TotalOutputLines int
 	IsComplete       bool
 	IsExpanded       bool
-}
-
-type ToolInfo struct {
-	Name   string
-	Prefix string
 }
 
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
@@ -309,19 +302,6 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 	return strings.Join(allPreviews, "\n")
 }
 
-func (r *ToolCallRenderer) RenderToolCalls(toolCalls []sdk.ChatCompletionMessageToolCall, status string) string {
-	if len(toolCalls) == 0 {
-		return ""
-	}
-
-	var rendered []string
-	for _, toolCall := range toolCalls {
-		rendered = append(rendered, r.renderCompletedToolCall(toolCall, status))
-	}
-
-	return strings.Join(rendered, "\n")
-}
-
 // renderTool renders a unified tool execution state
 func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 	var statusIcon string
@@ -389,41 +369,6 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 	default:
 		return r.liveCard(tool.ToolName, header)
 	}
-}
-
-func (r *ToolCallRenderer) renderCompletedToolCall(toolCall sdk.ChatCompletionMessageToolCall, status string) string {
-	toolInfo := ToolInfo{Name: toolCall.Function.Name, Prefix: "TOOL"}
-	return r.renderToolCallContent(toolInfo, toolCall.Function.Arguments, status)
-}
-
-func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, status string) string {
-	var statusIcon string
-	var statusText string
-
-	switch status {
-	case "queued":
-		statusIcon = icons.QueuedIcon
-		statusText = "queued"
-	case "executing", "running", "starting", "saving":
-		statusIcon = r.spinner.View()
-		statusText = status
-	case "executed", "completed":
-		statusIcon = icons.CheckMark
-		statusText = status
-	case "error", "failed":
-		statusIcon = icons.CrossMark
-		statusText = status
-	default:
-		statusIcon = icons.BulletIcon
-		statusText = status
-	}
-
-	singleLine := r.summaryLine(statusIcon, toolInfo.Name, arguments, statusText)
-
-	toolNameColor := r.styleProvider.GetThemeColor("accent")
-	styledLine := r.styleProvider.RenderWithColor(singleLine, toolNameColor)
-
-	return styledLine
 }
 
 func (r *ToolCallRenderer) ClearPreviews() {
