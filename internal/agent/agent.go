@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,7 +34,6 @@ type AgentServiceImpl struct {
 	stateManager     stateManager
 	timeoutSeconds   int
 	maxTokens        int
-	reasoningEffort  *sdk.CreateChatCompletionRequestReasoningEffort
 	optimizer        domain.ConversationOptimizer
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
@@ -57,8 +58,10 @@ type AgentServiceImpl struct {
 	// Cancelling a session aborts streaming, tool execution, approval waits,
 	// and the main event loop in one shot. Idempotent via sync.Once so
 	// multiple Esc presses are safe.
-	activeSessions map[string]*sessionCancel
-	sessionMux     sync.RWMutex
+	activeSessions     map[string]*sessionCancel
+	sessionMux         sync.RWMutex
+	reasoningEffort    string
+	reasoningEffortMux sync.RWMutex
 
 	// Metrics tracking
 	metrics    map[string]*domain.ChatMetrics
@@ -375,7 +378,7 @@ func NewAgent(
 		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        cfg.GetAgentConfig().MaxTokens,
-		reasoningEffort:  reasoningEffortOption(cfg.GetAgentConfig().ReasoningEffort),
+		reasoningEffort:  cfg.GetAgentConfig().ReasoningEffort,
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
@@ -389,11 +392,45 @@ func NewAgent(
 	}
 }
 
-// reasoningEffortOption maps agent.reasoning_effort ("" = unset, validated in
-// Config.Validate) to the SDK's optional request field.
-func reasoningEffortOption(effort string) *sdk.CreateChatCompletionRequestReasoningEffort {
+// SetReasoningEffort updates the reasoning effort applied to subsequent
+// requests. An empty string resets to the provider default.
+func (s *AgentServiceImpl) SetReasoningEffort(effort string) error {
+	if effort != "" && !slices.Contains(config.ReasoningEffortLevels, effort) {
+		return fmt.Errorf(
+			"invalid reasoning effort %q: must be one of %s",
+			effort, strings.Join(config.ReasoningEffortLevels, ", "),
+		)
+	}
+	s.reasoningEffortMux.Lock()
+	s.reasoningEffort = effort
+	s.reasoningEffortMux.Unlock()
+	return nil
+}
+
+// GetReasoningEffort returns the effort level currently applied to requests
+// ("" = provider default).
+func (s *AgentServiceImpl) GetReasoningEffort() string {
+	s.reasoningEffortMux.RLock()
+	defer s.reasoningEffortMux.RUnlock()
+	return s.reasoningEffort
+}
+
+// reasoningEffortOptionFor maps the current effort level onto the optional
+// chat-completions request field. Anthropic models get the raw value - the
+// AnthropicMessages adapter reads it back from the options and translates it
+// to output_config.effort (including minimal -> low). Every other provider
+// clamps the Anthropic-only xhigh/max levels to high, the chat-completions
+// ceiling.
+func (s *AgentServiceImpl) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
+	effort := s.GetReasoningEffort()
 	if effort == "" {
 		return nil
+	}
+	if provider, _, err := s.parseProvider(model); err != nil || sdk.Provider(provider) != sdk.Anthropic {
+		switch effort {
+		case "xhigh", "max":
+			effort = "high"
+		}
 	}
 	e := sdk.CreateChatCompletionRequestReasoningEffort(effort)
 	return &e
@@ -449,7 +486,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 		client := s.client.WithOptions(&sdk.CreateChatCompletionRequest{
 			MaxTokens:       &s.maxTokens,
-			ReasoningEffort: s.reasoningEffort,
+			ReasoningEffort: s.reasoningEffortOptionFor(model),
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
 				SkipMCP: true,
@@ -461,7 +498,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			}
 			availableTools = s.toolService.ListToolsForMode(mode)
 			if len(availableTools) > 0 {
-				client = s.client.WithTools(&availableTools)
+				client = client.WithTools(&availableTools)
 			}
 		}
 
@@ -757,6 +794,15 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 }
 
 // storeIterationMetricsInput holds the data needed for token usage polyfill calculation
+// cacheCreationTokenSource is implemented by clients that report Anthropic
+// cache-creation (cache-write) tokens out of band, since the OpenAI-shaped
+// usage struct has no field for them. The /v1/messages adapter
+// (internal/infra/adapters.AnthropicMessages) is the one implementation;
+// the interface lives here because this package is its consumer.
+type cacheCreationTokenSource interface {
+	TakeCacheCreationTokens() int
+}
+
 type storeIterationMetricsInput struct {
 	inputMessages   []sdk.Message
 	outputContent   string
@@ -807,18 +853,24 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 		s.conversationRepo.AddCachedTokens(cached)
 	}
 
+	cacheWrite := 0
+	if src, ok := s.client.(cacheCreationTokenSource); ok {
+		cacheWrite = src.TakeCacheCreationTokens()
+	}
+
 	if err := s.conversationRepo.AddTokenUsage(
 		model,
 		int(effectiveUsage.PromptTokens),
 		int(effectiveUsage.CompletionTokens),
 		int(effectiveUsage.TotalTokens),
 		cached,
+		cacheWrite,
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}
 
 	if s.recorder != nil {
-		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached)
+		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached, cacheWrite)
 	}
 	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
 

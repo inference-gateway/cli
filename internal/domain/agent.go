@@ -102,6 +102,14 @@ type AgentService interface {
 	// byte-stable across turns; volatile context travels separately as a hidden
 	// per-request message (see `infer debug agent system_prompt`).
 	BuildSystemPrompt() string
+
+	// SetReasoningEffort updates the reasoning effort applied to subsequent
+	// requests. An empty string resets to the provider default.
+	SetReasoningEffort(effort string) error
+
+	// GetReasoningEffort returns the effort level currently applied to
+	// requests ("" = provider default).
+	GetReasoningEffort() string
 }
 
 // CachedAgentCard represents a cached agent card with metadata

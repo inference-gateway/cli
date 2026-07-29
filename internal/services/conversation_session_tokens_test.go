@@ -15,7 +15,7 @@ func TestSessionTokenTracking(t *testing.T) {
 		t.Errorf("Expected zero stats initially, got %+v", stats)
 	}
 
-	err := repo.AddTokenUsage("test-model", 100, 50, 150, 0)
+	err := repo.AddTokenUsage("test-model", 100, 50, 150, 0, 0)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -32,7 +32,7 @@ func TestSessionTokenTracking(t *testing.T) {
 		t.Errorf("Expected %+v, got %+v", expected, stats)
 	}
 
-	err = repo.AddTokenUsage("test-model", 200, 75, 275, 0)
+	err = repo.AddTokenUsage("test-model", 200, 75, 275, 0, 0)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -97,15 +97,14 @@ func TestAddTokenUsageForwardsCachedTokensToPricing(t *testing.T) {
 	pricing := &domainmocks.FakePricingService{}
 	repo := NewInMemoryConversationRepository(nil, pricing)
 
-	// 3000 prompt tokens, 2400 of them served from cache.
-	if err := repo.AddTokenUsage("test-model", 3000, 100, 3100, 2400); err != nil {
+	if err := repo.AddTokenUsage("test-model", 3000, 100, 3100, 2400, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
 
 	if got := pricing.CalculateCostCallCount(); got != 1 {
 		t.Fatalf("CalculateCost called %d times, want 1", got)
 	}
-	_, in, out, cached := pricing.CalculateCostArgsForCall(0)
+	_, in, out, cached, _ := pricing.CalculateCostArgsForCall(0)
 	if in != 3000 || out != 100 || cached != 2400 {
 		t.Errorf("CalculateCost args = in %d, out %d, cached %d; want 3000/100/2400 (cached must not be dropped to 0)", in, out, cached)
 	}
@@ -114,7 +113,7 @@ func TestAddTokenUsageForwardsCachedTokensToPricing(t *testing.T) {
 func TestSessionTokensWithZeroValues(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil, nil)
 
-	err := repo.AddTokenUsage("test-model", 0, 0, 0, 0)
+	err := repo.AddTokenUsage("test-model", 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

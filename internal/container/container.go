@@ -13,16 +13,18 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
@@ -401,7 +403,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.githubIssueService = githubissues.New()
 
-	agentClient := c.createRawSDKClient()
+	agentClient := adapters.NewAnthropicMessages(c.createRawSDKClient())
 	agentImpl := agent.NewAgent(
 		agentClient,
 		c.toolService,
@@ -580,6 +582,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewEffortShortcut(c.agent, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewToolsShortcut())
