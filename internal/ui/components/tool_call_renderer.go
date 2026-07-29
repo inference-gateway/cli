@@ -101,11 +101,6 @@ type ToolRenderState struct {
 	IsExpanded       bool
 }
 
-type ToolInfo struct {
-	Name   string
-	Prefix string
-}
-
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
 	return &ToolCallRenderer{
 		spinner:       newModernSpinner(),
