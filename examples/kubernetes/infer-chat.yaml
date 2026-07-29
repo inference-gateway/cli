@@ -22,8 +22,6 @@ spec:
           env:
             - name: INFER_GATEWAY_URL
               value: http://mock-gateway:8080
-            - name: INFER_GATEWAY_RUN
-              value: "false"
             - name: INFER_AGENT_MODEL
               value: openai/gpt-4o
             - name: INFER_A2A_ENABLED
@@ -34,8 +32,10 @@ spec:
               value: "false"
             - name: INFER_TELEMETRY_ENABLED
               value: "true"
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: INFER_TELEMETRY_OTLP_ENDPOINT
               value: http://otel-collector:4318
+            - name: INFER_TELEMETRY_OTLP_INTERVAL
+              value: "10"
             - name: OTEL_SERVICE_NAME
               value: infer-chat
           resources:

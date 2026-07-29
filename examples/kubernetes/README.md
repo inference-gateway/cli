@@ -16,7 +16,9 @@ Jump to [Chat and traces without any API keys](#chat-and-traces-without-any-api-
 - [k3d](https://k3d.io/) v5.x
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [task](https://taskfile.dev/) (or `go-task`)
-- [infer](https://github.com/inference-gateway/cli) binary in PATH
+- [docker](https://docs.docker.com/get-docker/) (k3d needs it; `task mockgateway:image` builds with it)
+- [infer](https://github.com/inference-gateway/cli) binary in PATH (only for step 6 -
+  the chat demo uses the in-cluster binary)
 
 ## Quick start
 
@@ -27,7 +29,8 @@ task cluster:create
 # 2. Install the Inference Gateway Operator (CRDs + controller)
 task operator:install
 
-# 3. Deploy the Gateway, Orchestrator, Agent, and otel-collector
+# 3. Deploy everything (Gateway, Orchestrator, Agent, otel-collector, Jaeger,
+#    mock gateway, and the infer-chat pod)
 task deploy
 
 # 4. Wait for the operator to reconcile everything
@@ -55,7 +58,7 @@ k3d cluster
     ├── Orchestrator "orchestrator"      (CRD → infer CLI, channels-manager mode)
     ├── Agent "mock-agent"               (CRD → A2A mock agent)
     ├── otel-collector                   (plain Deployment, OTLP :4317/:4318)
-    ├── jaeger                            (plain Deployment, UI :16686)
+    ├── jaeger                           (plain Deployment, UI :16686)
     ├── mock-gateway                     (plain Deployment, Service :8080 - canned /v1/models + chat)
     └── infer-chat                       (plain Deployment - infer CLI you exec into)
 ```
@@ -78,6 +81,15 @@ The `infer chat` container talks to the **mock gateway** (canned OpenAI-compatib
 responses), so no LLM provider credentials are needed. A scripted scenario makes
 the chat call the `mock-agent` over A2A, producing a trace that spans
 `infer -> gateway` and `infer -> a2a`.
+
+This assumes the cluster from [Quick start](#quick-start) steps 1-2 is already
+up - `task mockgateway:image` imports into the `infer-demo` cluster and fails if
+it does not exist:
+
+```bash
+task cluster:create
+task operator:install
+```
 
 ```bash
 # 1. Build the mock-gateway image and import it into the cluster
