@@ -20,9 +20,13 @@ import (
 // are populated exactly once by initConfig() at startup. Commands read
 // Cfg directly instead of re-unmarshalling viper.
 var (
-	V   *viper.Viper
-	Cfg *config.Config
+	V         *viper.Viper
+	Cfg       *config.Config
+	loggerCfg logger.Config
 )
+
+// tuiCommandAnnotation marks a command whose TUI owns stdout.
+const tuiCommandAnnotation = "infer.tui"
 
 var rootCmd = &cobra.Command{
 	Use:   "infer",
@@ -31,6 +35,9 @@ var rootCmd = &cobra.Command{
 the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if ownsStdout(cmd) {
+			disableStdoutLogging()
+		}
 		noColors, _ := cmd.Flags().GetBool("no-colors")
 		if noColors || colorprofile.Detect(os.Stdout, os.Environ()) < colorprofile.ANSI {
 			disableOutputColors()
@@ -171,6 +178,27 @@ func resolveProjectConfigPath() string {
 	return ""
 }
 
+// ownsStdout reports whether cmd renders a TUI that owns stdout, in which case
+// log lines interleaved into the frame corrupt it. Commands opt in with the
+// tuiCommandAnnotation.
+func ownsStdout(cmd *cobra.Command) bool {
+	return cmd.Annotations[tuiCommandAnnotation] == "true"
+}
+
+// disableStdoutLogging re-initializes the logger without the stdout sink. Log
+// files are written either way, so honouring logging.stdout under a TUI would
+// only break the display - e.g. `infer chat` inside a container whose
+// Deployment sets INFER_LOGGING_STDOUT=true for its daemon. Archiving already
+// ran during initConfig, so it is switched off here.
+func disableStdoutLogging() {
+	if !loggerCfg.Stdout {
+		return
+	}
+	loggerCfg.Stdout = false
+	loggerCfg.ArchiveEnabled = false
+	logger.Init(loggerCfg)
+}
+
 func initConfig() {
 	V = viper.New()
 	v := V
@@ -217,12 +245,13 @@ func initConfig() {
 		logDir = config.DefaultLogsPath
 	}
 
-	logger.Init(logger.Config{
+	loggerCfg = logger.Config{
 		Verbose:          verbose,
 		Debug:            debug,
 		LogDir:           logDir,
 		Stdout:           stdout,
 		ArchiveEnabled:   archiveEnabled,
 		ArchiveMaxSizeMB: archiveMaxSizeMB,
-	})
+	}
+	logger.Init(loggerCfg)
 }

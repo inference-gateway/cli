@@ -68,6 +68,8 @@ type Recorded struct {
 // Server is an http.Handler implementing the inference-gateway API surface
 // the CLI consumes.
 type Server struct {
+	Model string
+
 	defs *ScenarioFile
 
 	mu    sync.Mutex
@@ -105,11 +107,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Source:             sdk.PricingSourceProvider,
 		}
 		contextWindow := sdk.ContextWindow{Tokens: DefaultContextWindow, Source: sdk.ContextWindowSourceProvider}
+		model := s.Model
+		if model == "" {
+			model = DefaultModel
+		}
 		writeJSON(w, sdk.ListModelsResponse{
 			Object: "list",
 			Data: []sdk.Model{
 				{
-					ID: DefaultModel, Object: "model", OwnedBy: "openai", ServedBy: "openai",
+					ID: model, Object: "model", OwnedBy: "openai", ServedBy: "openai",
 					ContextWindow: &contextWindow, Pricing: &pricing,
 				},
 				{

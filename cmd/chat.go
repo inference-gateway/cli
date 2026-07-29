@@ -37,6 +37,7 @@ var chatCmd = &cobra.Command{
 	Short: "Start an interactive chat session with model selection",
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
+	Annotations: map[string]string{tuiCommandAnnotation: "true"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := Cfg
 

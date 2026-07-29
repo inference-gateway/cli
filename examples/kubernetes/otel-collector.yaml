@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: collector
-          image: otel/opentelemetry-collector-contrib:0.130.0
+          image: otel/opentelemetry-collector-contrib:0.157.0
           args:
             - --config
             - /etc/otelcol-contrib/config.yaml
@@ -46,6 +46,12 @@ data:
             endpoint: 0.0.0.0:4318
     exporters:
       debug: {}
+      otlp_grpc/jaeger:
+        endpoint: jaeger:14317
+        tls:
+          insecure: true
+      otlphttp/infer:
+        endpoint: http://orchestrator:4318
     service:
       pipelines:
         traces:
@@ -53,6 +59,8 @@ data:
             - otlp
           exporters:
             - debug
+            - otlp_grpc/jaeger
+            - otlphttp/infer
         metrics:
           receivers:
             - otlp

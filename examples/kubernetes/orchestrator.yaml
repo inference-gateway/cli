@@ -18,6 +18,15 @@ spec:
   agent:
     model: openai/gpt-4o
     systemPrompt: "You are a helpful assistant"
+  a2a:
+    enabled: true
+    serviceDiscovery:
+      enabled: true
+  env:
+    - name: INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL
+      value: "false"
+    - name: INFER_TELEMETRY_RECEIVER_ADDRESS
+      value: 0.0.0.0:4318
   channels:
     maxWorkers: 5
     requireApproval: true
@@ -43,3 +52,15 @@ spec:
         otlp:
           endpoint: http://otel-collector:4318
           protocol: http/protobuf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: infer
+spec:
+  selector:
+    app: orchestrator
+  ports:
+    - port: 4318
+      targetPort: 4318

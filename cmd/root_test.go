@@ -9,6 +9,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // TestMain redirects the logger to a throwaway directory for the whole package.
@@ -167,4 +168,19 @@ func TestBashAllowAppendReachesMatcher(t *testing.T) {
 	}
 	assert.False(t, Cfg.IsBashCommandAllowed("docker rm -f box", "standard"),
 		"an off-list command must stay denied")
+}
+
+func TestOwnsStdout(t *testing.T) {
+	assert.True(t, ownsStdout(chatCmd), "chat renders a TUI that owns stdout")
+	assert.False(t, ownsStdout(agentCmd), "headless agent may log to stdout")
+}
+
+func TestDisableStdoutLogging(t *testing.T) {
+	orig := loggerCfg
+	defer func() { loggerCfg = orig }()
+
+	loggerCfg = logger.Config{LogDir: t.TempDir(), Stdout: true, ArchiveEnabled: true}
+	disableStdoutLogging()
+	assert.False(t, loggerCfg.Stdout)
+	assert.False(t, loggerCfg.ArchiveEnabled, "archiving already ran during initConfig")
 }
