@@ -44,6 +44,8 @@ spec:
             - "8080"
             - -scenarios
             - /etc/mock/scenarios.yaml
+            - -model
+            - gpt-4o
           ports:
             - containerPort: 8080
           resources:

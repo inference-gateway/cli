@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  OPERATOR_VERSION: v0.19.1
+  OPERATOR_VERSION: v0.23.0
 
 tasks:
   cluster:create:
@@ -23,7 +23,9 @@ tasks:
       - k3d image import mock-gateway:local -c infer-demo
 
   deploy:
-    desc: Deploy the Gateway, Orchestrator, Agent, otel-collector, Jaeger, mock gateway, and chat
+    desc: Deploy the Gateway, Orchestrator, Agent, otel-collector, Jaeger, and mock gateway
+    deps:
+      - mockgateway:image
     cmds:
       - kubectl apply -f namespace.yaml
       - kubectl apply -f otel-collector.yaml
@@ -32,17 +34,16 @@ tasks:
       - kubectl apply -f agents.yaml
       - kubectl apply -f orchestrator.yaml
       - kubectl apply -f mock-gateway.yaml
-      - kubectl apply -f infer-chat.yaml
 
   chat:
-    desc: Open an interactive infer chat inside the cluster (against the mock gateway)
+    desc: Open an interactive infer chat inside the Orchestrator pod
     cmds:
-      - kubectl exec -it -n infer deploy/infer-chat -- infer chat
+      - kubectl exec -it -n infer deploy/orchestrator -- infer chat
 
   traces:
-    desc: Render the latest session trace tree from inside the chat pod
+    desc: Render the latest session trace tree from inside the Orchestrator pod
     cmds:
-      - kubectl exec -n infer deploy/infer-chat -- infer traces
+      - kubectl exec -n infer deploy/orchestrator -- infer traces
 
   jaeger:ui:
     desc: Port-forward the Jaeger UI to http://localhost:16686

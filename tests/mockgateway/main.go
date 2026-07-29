@@ -25,6 +25,7 @@ func main() {
 	host := flag.String("host", "127.0.0.1", "host/interface to bind (use 0.0.0.0 in a container)")
 	port := flag.Int("port", 0, "port to listen on (0 picks a free port)")
 	scenarios := flag.String("scenarios", "", "path to a scenarios YAML file (default: built-in library)")
+	model := flag.String("model", "", "override the OpenAI model id on /v1/models (use a bare id like gpt-4o when sitting behind a real gateway)")
 	flag.Parse()
 
 	defs, err := loadScenarios(*scenarios)
@@ -38,7 +39,9 @@ func main() {
 	}
 
 	fmt.Printf("mock-gateway listening on http://%s\n", ln.Addr())
-	if err := http.Serve(ln, logRequests(mockgateway.New(defs))); err != nil {
+	srv := mockgateway.New(defs)
+	srv.Model = *model
+	if err := http.Serve(ln, logRequests(srv)); err != nil {
 		log.Fatalf("serving: %v", err)
 	}
 }

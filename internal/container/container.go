@@ -836,6 +836,7 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 		APIKey:      c.config.Gateway.APIKey,
 		Timeout:     time.Duration(timeout) * time.Second,
 		RetryConfig: c.createRetryConfig(),
+		Transport:   telemetry.PropagationTransport(nil),
 	})
 }
 

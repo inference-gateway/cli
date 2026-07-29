@@ -13,6 +13,13 @@ spec:
     limits:
       cpu: 500m
       memory: 512Mi
+  providers:
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_KEY
+          value: mock
+        - name: OPENAI_API_URL
+          value: http://mock-gateway:8080/v1
   telemetry:
     enabled: true
     traces:
