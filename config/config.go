@@ -1279,24 +1279,12 @@ func (c *Config) GetAgentConfig() *AgentConfig {
 	return &c.Agent
 }
 
-func (c *Config) GetOutputDirectory() string {
-	return c.Export.OutputDir
-}
-
 func (c *Config) GetGatewayURL() string {
 	return c.Gateway.URL
 }
 
-func (c *Config) GetAPIKey() string {
-	return c.Gateway.APIKey
-}
-
 func (c *Config) GetTimeout() int {
 	return c.Gateway.Timeout
-}
-
-func (c *Config) GetDefaultModel() string {
-	return c.Agent.Model
 }
 
 func (c *Config) GetSandboxDirectories() []string {
@@ -1325,14 +1313,6 @@ func (c *Config) GetProtectedPaths() []string {
 
 func (c *Config) GetTheme() string {
 	return c.Chat.Theme
-}
-
-func (c *Config) GetIncludeModels() []string {
-	return c.Gateway.IncludeModels
-}
-
-func (c *Config) GetExcludeModels() []string {
-	return c.Gateway.ExcludeModels
 }
 
 // SetConfigDir sets the configuration directory path
