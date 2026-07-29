@@ -151,7 +151,7 @@ web:
   enabled: true                # Enable web terminal
   port: 3000                   # Server port
   host: "localhost"            # Host binding
-  session_inactivity_mins: 5   # Session timeout in minutes
+  session_inactivity_mins: 5   # Reap sessions with no activity for 5 minutes
 ```
 
 ### Environment Variables
@@ -550,6 +550,9 @@ Current padding:
 ## Advanced Configuration
 
 ### Custom Session Timeout
+
+An open browser tab refreshes its session every 10 seconds, so this timeout does not close a session you are
+still connected to - it reaps sessions whose connection dropped or stalled.
 
 For long-running tasks:
 

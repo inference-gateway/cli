@@ -356,7 +356,8 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 
 	logger.Info("session started", "session_id", sessionID, "server_id", serverID)
 
-	if err := handler.HandleConnection(conn); err != nil {
+	wrapped := s.sessionManager.WrapSession(sessionID, handler)
+	if err := wrapped.HandleConnection(conn); err != nil {
 		logger.Error("connection error", "session_id", sessionID, "error", err)
 	}
 
