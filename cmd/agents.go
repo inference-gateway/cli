@@ -35,6 +35,9 @@ Examples:
   # Add a known agent and override the model
   infer agents add browser-agent --model anthropic/claude-4-5-sonnet
 
+  # Pin the image tag of a known agent (browser-agent ships one tag per browser engine)
+  infer agents add browser-agent --tag lightpanda
+
   # Add a remote agent
   infer agents add code-reviewer https://agent.example.com
 
@@ -66,6 +69,14 @@ Examples:
 		model, _ := cmd.Flags().GetString("model")
 		envVars, _ := cmd.Flags().GetStringSlice("environment")
 
+		taggedOCI, err := resolveTagFlag(cmd, name)
+		if err != nil {
+			return err
+		}
+		if taggedOCI != "" {
+			oci = taggedOCI
+		}
+
 		var environment map[string]string
 		if len(envVars) > 0 {
 			environment = make(map[string]string)
@@ -85,7 +96,7 @@ Examples:
 			if !cmd.Flags().Changed("artifacts-url") && defaults.ArtifactsURL != "" {
 				artifactsURL = defaults.ArtifactsURL
 			}
-			if !cmd.Flags().Changed("oci") && defaults.OCI != "" {
+			if oci == "" && defaults.OCI != "" {
 				oci = defaults.OCI
 			}
 			if !cmd.Flags().Changed("run") {
@@ -128,6 +139,9 @@ Examples:
   # Update multiple properties
   infer agents update test-runner --oci ghcr.io/org/test-runner:v2 --model anthropic/claude-4-5-sonnet
 
+  # Switch to another image tag (browser-agent ships one tag per browser engine)
+  infer agents update browser-agent --tag lightpanda
+
   # Add environment variables (replaces existing ones)
   infer agents update analyzer --environment CUSTOM_ENV=value --environment DEBUG=true`,
 	Args: cobra.ExactArgs(1),
@@ -135,8 +149,9 @@ Examples:
 		name := args[0]
 
 		if !cmd.Flags().Changed("url") && !cmd.Flags().Changed("artifacts-url") &&
-			!cmd.Flags().Changed("oci") && !cmd.Flags().Changed("run") &&
-			!cmd.Flags().Changed("model") && !cmd.Flags().Changed("environment") {
+			!cmd.Flags().Changed("oci") && !cmd.Flags().Changed("tag") &&
+			!cmd.Flags().Changed("run") && !cmd.Flags().Changed("model") &&
+			!cmd.Flags().Changed("environment") {
 			return fmt.Errorf("at least one flag must be provided to update the agent")
 		}
 
@@ -146,6 +161,14 @@ Examples:
 		run, _ := cmd.Flags().GetBool("run")
 		model, _ := cmd.Flags().GetString("model")
 		envVars, _ := cmd.Flags().GetStringSlice("environment")
+
+		taggedOCI, err := resolveTagFlag(cmd, name)
+		if err != nil {
+			return err
+		}
+		if taggedOCI != "" {
+			oci = taggedOCI
+		}
 
 		var environment map[string]string
 		if cmd.Flags().Changed("environment") {
@@ -195,26 +218,6 @@ var agentsInitCmd = &cobra.Command{
 	Short: "Initialize the agents.yaml configuration file",
 	Long:  `Initialize a new agents.yaml configuration file with default settings.`,
 	RunE:  initAgents,
-}
-
-var agentsEnableCmd = &cobra.Command{
-	Use:   "enable <name>",
-	Short: "Enable an A2A agent",
-	Long:  `Enable a specific Agent-to-Agent (A2A) agent. Note: You may need to restart your chat session for changes to take effect.`,
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return enableAgent(cmd, args[0])
-	},
-}
-
-var agentsDisableCmd = &cobra.Command{
-	Use:   "disable <name>",
-	Short: "Disable an A2A agent",
-	Long:  `Disable a specific Agent-to-Agent (A2A) agent. Note: You may need to restart your chat session for changes to take effect.`,
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return disableAgent(cmd, args[0])
-	},
 }
 
 // agentsConfigPath returns the agents.yaml path for the current command. Writes
@@ -274,6 +277,19 @@ func extractAgentNameFromURL(url string) string {
 // Known agents consult their metadata; unknown agents are presumed LLM-backed.
 func requiresModel(name string, run bool) bool {
 	return config.AgentRequiresModel(name, run)
+}
+
+// resolveTagFlag turns --tag into a full OCI reference against the agent's
+// default image, or returns an empty string when the flag was not used.
+func resolveTagFlag(cmd *cobra.Command, name string) (string, error) {
+	if !cmd.Flags().Changed("tag") {
+		return "", nil
+	}
+	if cmd.Flags().Changed("oci") {
+		return "", fmt.Errorf("cannot combine --tag with --oci: --tag only replaces the tag of the agent's default image")
+	}
+	tag, _ := cmd.Flags().GetString("tag")
+	return config.ResolveOCITag(name, tag)
 }
 
 func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
@@ -347,7 +363,7 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 	if cmd.Flags().Changed("artifacts-url") {
 		agent.ArtifactsURL = artifactsURL
 	}
-	if cmd.Flags().Changed("oci") {
+	if cmd.Flags().Changed("oci") || cmd.Flags().Changed("tag") {
 		agent.OCI = oci
 	}
 	if cmd.Flags().Changed("run") {
@@ -449,7 +465,7 @@ func listAgents(cmd *cobra.Command, args []string) error {
 	fmt.Println(listHint(fmt.Sprintf("%d local, %d external", len(localAgents), len(externalAgents))))
 	fmt.Println()
 
-	agentsTable := newListTable("Source", "Enabled", "Name", "URL", "OCI Image", "Local", "Model", "Env")
+	agentsTable := newListTable("Source", "Name", "URL", "OCI Image", "Local", "Model", "Env")
 	for _, agent := range localAgents {
 		oci := "-"
 		if agent.OCI != "" {
@@ -472,16 +488,15 @@ func listAgents(cmd *cobra.Command, args []string) error {
 			envStr = fmt.Sprintf("%d", len(agent.Environment))
 		}
 
-		agentsTable.Row("yaml", statusIcon(agent.Enabled), agent.Name, agent.URL, oci, runLocally, model, envStr)
+		agentsTable.Row("yaml", agent.Name, agent.URL, oci, runLocally, model, envStr)
 	}
 
 	for _, agent := range externalAgents {
-		agentsTable.Row("env", icons.CheckMark, agent.Name, agent.URL, "-", "-", "-", "-")
+		agentsTable.Row("env", agent.Name, agent.URL, "-", "-", "-", "-")
 	}
 	fmt.Println(agentsTable.Render())
 
 	fmt.Println()
-	fmt.Println(statusLegend())
 	return nil
 }
 
@@ -514,11 +529,6 @@ func showAgent(cmd *cobra.Command, name string) error {
 	fmt.Println(listTitle(fmt.Sprintf("Agent: %s", agent.Name)))
 	fmt.Println()
 
-	status := icons.CheckMark + " enabled"
-	if !agent.Enabled {
-		status = icons.CrossMark + " disabled"
-	}
-	fmt.Println(listField("Status", status))
 	fmt.Println(listField("URL", agent.URL))
 
 	if agent.ArtifactsURL != "" {
@@ -572,60 +582,6 @@ func initAgents(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func enableAgent(cmd *cobra.Command, name string) error {
-	path, err := agentsConfigPath(cmd)
-	if err != nil {
-		return err
-	}
-
-	cfg, err := config.LoadAgents(path)
-	if err != nil {
-		return fmt.Errorf("failed to load agents: %w", err)
-	}
-	agent, err := cfg.ReadEntry(name)
-	if err != nil {
-		return fmt.Errorf("failed to find agent: %w", err)
-	}
-
-	agent.Enabled = true
-	if err := cfg.UpdateEntry(*agent); err != nil {
-		return fmt.Errorf("failed to enable agent: %w", err)
-	}
-
-	fmt.Printf("%s Agent '%s' enabled successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
-	fmt.Println()
-	fmt.Println("Note: Restart your chat session for changes to take effect.")
-
-	return nil
-}
-
-func disableAgent(cmd *cobra.Command, name string) error {
-	path, err := agentsConfigPath(cmd)
-	if err != nil {
-		return err
-	}
-
-	cfg, err := config.LoadAgents(path)
-	if err != nil {
-		return fmt.Errorf("failed to load agents: %w", err)
-	}
-	agent, err := cfg.ReadEntry(name)
-	if err != nil {
-		return fmt.Errorf("failed to find agent: %w", err)
-	}
-
-	agent.Enabled = false
-	if err := cfg.UpdateEntry(*agent); err != nil {
-		return fmt.Errorf("failed to disable agent: %w", err)
-	}
-
-	fmt.Printf("%s Agent '%s' disabled successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
-	fmt.Println()
-	fmt.Println("Note: Restart your chat session for changes to take effect.")
-
-	return nil
-}
-
 func init() {
 	agentsCmd.AddCommand(agentsAddCmd)
 	agentsCmd.AddCommand(agentsUpdateCmd)
@@ -633,10 +589,9 @@ func init() {
 	agentsCmd.AddCommand(agentsRemoveCmd)
 	agentsCmd.AddCommand(agentsShowCmd)
 	agentsCmd.AddCommand(agentsInitCmd)
-	agentsCmd.AddCommand(agentsEnableCmd)
-	agentsCmd.AddCommand(agentsDisableCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
+	agentsAddCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
 	agentsAddCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
 	agentsAddCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsAddCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
@@ -645,6 +600,7 @@ func init() {
 	agentsUpdateCmd.Flags().String("url", "", "Agent URL")
 	agentsUpdateCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
 	agentsUpdateCmd.Flags().String("oci", "", "OCI image reference for local execution")
+	agentsUpdateCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
 	agentsUpdateCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsUpdateCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
 	agentsUpdateCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")

@@ -63,18 +63,6 @@ Options:
 /agents remove my-agent
 ```
 
-#### Enable an Agent
-
-```bash
-/agents enable my-agent
-```
-
-#### Disable an Agent
-
-```bash
-/agents disable my-agent
-```
-
 ### Using the A2A Tools
 
 The A2A functionality is exposed through multiple tools that can be used in conversations:
@@ -367,10 +355,6 @@ Enable verbose logging and check for:
 
 # List configured agents
 /agents list
-
-# Enable or disable an agent
-/agents enable code-reviewer
-/agents disable code-reviewer
 ```
 
 ### Code Review Task

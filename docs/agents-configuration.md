@@ -275,7 +275,7 @@ agents:
     artifacts_url: http://localhost:8084
     oci: ghcr.io/inference-gateway/browser-agent:latest
     run: true
-    model: deepseek/deepseek-v4-pro
+    model: deepseek/deepseek-v4-flash
     environment:
       A2A_DEBUG: true
 ```
@@ -283,6 +283,54 @@ agents:
 The artifacts server allows the agent to serve files like screenshots, PDFs, or other generated content.
 When running locally, the CLI will map port 8084 on the host to port 8081 in the container (the standard
 artifacts server port).
+
+### Choosing a browser engine for browser-agent
+
+The browser engine is baked into the browser-agent image at build time, so you pick it by picking the
+image tag. `--tag` swaps the tag on the agent's default image:
+
+```bash
+infer agents add browser-agent --tag lightpanda
+```
+
+**⚠️ Artifacts must be enabled.** The browser-agent returns results (screenshots, extracted
+data, generated files) as **artifacts** served by an internal HTTP server. Without the artifacts
+URL, the agent has no way to deliver them and data is silently lost.
+
+For **known agents** (like `browser-agent`), the CLI auto-computes the artifacts URL from the
+agent's base port + 1 and sets `A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT=true` in the environment.
+The `infer agents add browser-agent` command above already does this — no extra flags needed.
+
+For **custom/unknown agents** that create artifacts, you must pass both flags explicitly:
+
+```bash
+infer agents add my-custom-agent http://localhost:8081 \
+  --artifacts-url http://localhost:8082 \
+  --environment A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT=true
+```
+
+To verify the artifacts URL is set after adding:
+
+```bash
+infer agents show browser-agent
+# Look for "Artifacts URL: http://localhost:8084"
+```
+
+| Tag | Engine | Image size |
+| --- | --- | --- |
+| `latest`, `chromium` | Chromium (default) | 3.03GB |
+| `firefox` | Firefox | 1.74GB |
+| `webkit` | WebKit | 1.95GB |
+| `lightpanda` | Lightpanda | 871MB |
+
+Each tag is also published per release (`chromium-0.8.0`, `lightpanda-0.8.0`, ...), so `--tag` doubles
+as version pinning. Setting `BROWSER_ENGINE` at runtime does not work - the image ships exactly one
+engine and rejects any other value at startup.
+
+Lightpanda drives a bundled browser over CDP instead of launching one per session, which cuts cold-start
+time and image size. The tradeoff is coverage: it implements a subset of the web platform, and it has no
+rendering engine at all, so `take_screenshot` fails. Every skill shipped with browser-agent uses
+screenshots, so choose it only for text and DOM extraction where speed matters.
 
 ### Example 3: Multiple Agents
 
