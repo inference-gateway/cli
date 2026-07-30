@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
 // AgentDefaults contains default configuration for a known agent type
@@ -32,7 +33,7 @@ var agentBaseDefaults = map[string]struct {
 		ArtifactsPortOffset: 1,
 		OCI:                 "ghcr.io/inference-gateway/browser-agent:latest",
 		Run:                 true,
-		Model:               "deepseek/deepseek-v4-pro",
+		Model:               "deepseek/deepseek-v4-flash",
 		RequiresModel:       true,
 		Environment: map[string]string{
 			"A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT": "true",
@@ -47,23 +48,40 @@ var agentBaseDefaults = map[string]struct {
 		BasePort:      8082,
 		OCI:           "ghcr.io/inference-gateway/google-calendar-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-pro",
+		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
 	"documentation-agent": {
 		BasePort:      8085,
 		OCI:           "ghcr.io/inference-gateway/documentation-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-pro",
+		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
 	"n8n-agent": {
 		BasePort:      8086,
 		OCI:           "ghcr.io/inference-gateway/n8n-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-pro",
+		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
+}
+
+// ResolveOCITag rewrites the tag of a known agent's default OCI reference.
+// browser-agent uses this for its engine variants (chromium, firefox, webkit,
+// lightpanda), which are published as separate image tags; any agent can use it
+// to pin a version.
+func ResolveOCITag(name, tag string) (string, error) {
+	template, ok := agentBaseDefaults[name]
+	if !ok || template.OCI == "" {
+		return "", fmt.Errorf("no default image for '%s' to re-tag; use --oci instead of --tag", name)
+	}
+
+	ref := template.OCI
+	if i := strings.LastIndex(ref, ":"); i > strings.LastIndex(ref, "/") {
+		ref = ref[:i]
+	}
+	return ref + ":" + tag, nil
 }
 
 // isPortAvailable checks if a port is available on localhost

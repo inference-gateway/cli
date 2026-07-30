@@ -215,6 +215,7 @@ connections to specialized A2A agents for task delegation and distributed proces
 - `--url <url>`: Update agent URL
 - `--model <model>`: Update model for the agent
 - `--oci <image>`: Update OCI image reference
+- `--tag <tag>`: Replace the tag of the agent's default image (known agents only, mutually exclusive with `--oci`)
 - `--artifacts-url <url>`: Update artifacts server URL
 - `--environment <KEY=VALUE>`: Set environment variables
 - `--run`: Enable local execution with Docker
@@ -230,6 +231,12 @@ infer agents add browser-agent
 
 # Add a known agent with custom model
 infer agents add documentation-agent --model "anthropic/claude-4-5-sonnet"
+
+# Add a known agent on a specific image tag (browser-agent ships one tag per browser engine)
+infer agents add browser-agent --tag lightpanda
+
+# Pin a known agent to a released version
+infer agents add browser-agent --tag chromium-0.8.0
 
 # Add a custom remote agent
 infer agents add code-reviewer https://agent.example.com
@@ -248,6 +255,9 @@ infer agents update browser-agent --url http://browser-agent:9090
 
 # Update agent model
 infer agents update browser-agent --model "deepseek/deepseek-v4-pro"
+
+# Switch to another image tag
+infer agents update browser-agent --tag lightpanda
 
 # Update multiple settings
 infer agents update browser-agent --url http://browser-agent:9090 --model "openai/gpt-4"

@@ -902,8 +902,6 @@ func createA2AShortcutsFile(path string) error {
 # - /agents list - List all configured A2A agents
 # - /agents add - Add a new A2A agent
 # - /agents remove - Remove an A2A agent
-# - /agents enable - Enable an A2A agent
-# - /agents disable - Disable an A2A agent
 
 shortcuts:
   - name: agents
@@ -918,10 +916,6 @@ shortcuts:
         description: "Add a new A2A agent (usage: <name> [url] [options])"
       - name: remove
         description: "Remove an A2A agent (usage: <name>)"
-      - name: enable
-        description: "Enable an A2A agent (usage: <name>)"
-      - name: disable
-        description: "Disable an A2A agent (usage: <name>)"
 `
 
 	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
