@@ -404,6 +404,7 @@ See [Commands Reference](docs/commands-reference.md#configuration-management) fo
 ```bash
 infer agents init                    # Initialize agents configuration
 infer agents add browser-agent       # Add an agent from the registry with defaults
+infer agents add browser-agent --tag lightpanda  # Pick another image tag (engine/version)
 infer agents add custom https://...  # Add a custom agent
 infer agents list                    # List all agents
 ```
