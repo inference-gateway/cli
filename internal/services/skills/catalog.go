@@ -113,8 +113,6 @@ func (c *CatalogClient) Lookup(ctx context.Context, name string) (*catalogEntry,
 // are stored. It lives under the project's .infer/tmp/skills/ so it is
 // ephemeral and cleaned up after the session.
 func dynamicSkillsDir() (string, error) {
-	// Use the project tmp dir for dynamic skills so they are scoped to
-	// the current session and cleaned up automatically.
 	base := filepath.Join(config.ConfigDirName, "tmp", "skills")
 	abs, err := filepath.Abs(base)
 	if err != nil {
@@ -131,8 +129,6 @@ func (c *CatalogClient) DownloadSkill(ctx context.Context, name string) (string,
 		return "", err
 	}
 
-	// Reuse the existing Installer to download the skill from GitHub.
-	// The catalog skills live in inference-gateway/skills on the main branch.
 	installer := NewInstaller()
 	rawURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
 		defaultSkillsOrg, defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, name)

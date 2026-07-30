@@ -52,11 +52,7 @@ type Service struct {
 	mu     sync.RWMutex
 	skills []domain.Skill
 	errs   []domain.SkillLoadError
-	// catalog is the client for progressive discovery from the centralized
-	// skills registry. Created lazily when discovery is enabled.
 	catalog *CatalogClient
-	// dynamicNames tracks the names of skills that were dynamically
-	// downloaded from the catalog in this session, for cleanup.
 	dynamicNames []string
 }
 
@@ -173,28 +169,23 @@ func (s *Service) Errors() []domain.SkillLoadError {
 // Local skills always take precedence - if a skill with the same name
 // is already loaded, no catalog lookup is performed.
 func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool) {
-	// Discovery must be explicitly enabled.
 	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
 		return domain.Skill{}, false
 	}
 
-	// Local skills take precedence - no catalog lookup if already loaded.
 	if sk, ok := s.Get(name); ok {
 		return sk, true
 	}
 
-	// Lazily create the catalog client.
 	if s.catalog == nil {
 		s.catalog = NewCatalogClient(s.cfg)
 	}
 
-	// Only consult catalog metadata (name, description) up front.
 	entry, found := s.catalog.Lookup(ctx, name)
 	if !found {
 		return domain.Skill{}, false
 	}
 
-	// Download the full skill body on activation.
 	skillPath, err := s.catalog.DownloadSkill(ctx, name)
 	if err != nil {
 		logger.Warn("failed to download skill from catalog", "name", name, "error", err)
@@ -208,7 +199,6 @@ func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool
 		Scope:       domain.SkillScopeCatalog,
 	}
 
-	// Add to the in-memory list so subsequent lookups hit the cache.
 	s.mu.Lock()
 	s.skills = append(s.skills, skill)
 	s.dynamicNames = append(s.dynamicNames, name)

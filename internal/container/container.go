@@ -902,7 +902,6 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	// OTLP) happens before the rest of the teardown.
 	c.telemetryRecorder.Shutdown(ctx)
 
-	// Clean up dynamically downloaded skills after the session ends.
 	if c.skillsService != nil {
 		if err := c.skillsService.CleanupDynamic(ctx); err != nil {
 			logger.Warn("failed to clean up dynamic skills", "error", err)

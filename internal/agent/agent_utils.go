@@ -512,9 +512,6 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 			len(omitted), strings.Join(omitted, ", "))
 	}
 
-	// When skills discovery is enabled, add a section explaining how to
-	// fetch skills from the centralized registry. This is gated on the
-	// config toggle so it only costs tokens when the feature is on.
 	if s.config != nil && s.config.Agent.Skills.Discovery.Enabled {
 		b.WriteString("\nSKILLS DISCOVERY:\n")
 		b.WriteString("If a skill you need is not listed above, you can discover and fetch it ")
