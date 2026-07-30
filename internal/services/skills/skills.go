@@ -215,7 +215,6 @@ func (s *Service) CleanupDynamic(_ context.Context) error {
 	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
 		return nil
 	}
-	// Default to cleanup enabled.
 	if s.cfg.Agent.Skills.Discovery.Cleanup != nil && !*s.cfg.Agent.Skills.Discovery.Cleanup {
 		return nil
 	}
