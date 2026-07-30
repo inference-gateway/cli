@@ -47,12 +47,12 @@ type frontmatter struct {
 // is gated by config.AgentSkillsConfig - when disabled the scan is skipped
 // entirely so there is zero token / IO cost.
 type Service struct {
-	cfg    *config.Config
-	scopes []scopedDir
-	mu     sync.RWMutex
-	skills []domain.Skill
-	errs   []domain.SkillLoadError
-	catalog *CatalogClient
+	cfg          *config.Config
+	scopes       []scopedDir
+	mu           sync.RWMutex
+	skills       []domain.Skill
+	errs         []domain.SkillLoadError
+	catalog      *CatalogClient
 	dynamicNames []string
 }
 

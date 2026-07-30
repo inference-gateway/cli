@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,29 +18,8 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-// stubSkillsService implements domain.SkillsService for testing the
-// system-prompt injection without depending on the real package's filesystem
-// scan.
-type stubSkillsService struct {
-	skills []domain.Skill
-}
-
-func (s *stubSkillsService) Load(_ context.Context) error    { return nil }
-func (s *stubSkillsService) List() []domain.Skill            { return s.skills }
-func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
-func (s *stubSkillsService) Discover(context.Context, string) (domain.Skill, bool) {
-	return domain.Skill{}, false
-}
-func (s *stubSkillsService) CleanupDynamic(context.Context) error { return nil }
-
-func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
-	for _, sk := range s.skills {
-		if sk.Name == name {
-			return sk, true
-		}
-	}
-	return domain.Skill{}, false
-}
+// stubSkillsService is replaced by domainmocks.FakeSkillsService (counterfeiter).
+// See TestBuildSkillsInfo and activeSkillsAgent() for usage patterns.
 
 func TestIsCompleteJSON(t *testing.T) {
 	tests := []struct {
@@ -298,13 +276,17 @@ func TestBuildSkillsInfo(t *testing.T) {
 		},
 		{
 			name:       "empty list",
-			svc:        &AgentServiceImpl{skillsService: &stubSkillsService{}},
+			svc:        &AgentServiceImpl{skillsService: &domainmocks.FakeSkillsService{}},
 			wantEmpty:  true,
 			exactPaths: -1,
 		},
 		{
 			name: "formats skills",
-			svc:  &AgentServiceImpl{skillsService: &stubSkillsService{skills: twoStubSkills()}},
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(twoStubSkills())
+				return &AgentServiceImpl{skillsService: fake}
+			}(),
 			wantContains: []string{
 				"AVAILABLE SKILLS:",
 				"Read tool",
@@ -321,15 +303,23 @@ func TestBuildSkillsInfo(t *testing.T) {
 			exactPaths: -1,
 		},
 		{
-			name:         "caps rendered list at max chars",
-			svc:          &AgentServiceImpl{config: skillsCapConfig(700), skillsService: &stubSkillsService{skills: manyStubSkills()}},
+			name: "caps rendered list at max chars",
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(manyStubSkills())
+				return &AgentServiceImpl{config: skillsCapConfig(700), skillsService: fake}
+			}(),
 			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "delta"},
 			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md"},
 			exactPaths:   1,
 		},
 		{
-			name:       "no cap when max chars is zero",
-			svc:        &AgentServiceImpl{config: skillsCapConfig(0), skillsService: &stubSkillsService{skills: manyStubSkills()}},
+			name: "no cap when max chars is zero",
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(manyStubSkills())
+				return &AgentServiceImpl{config: skillsCapConfig(0), skillsService: fake}
+			}(),
 			wantAbsent: []string{"more skills not expanded"},
 			exactPaths: 4,
 		},
@@ -467,13 +457,21 @@ func assistantMsg(text string) sdk.Message {
 // activeSkillsAgent returns an agent whose skills service knows foo/bar, each
 // with distinctive metadata (description + path).
 func activeSkillsAgent() *AgentServiceImpl {
+	fake := &domainmocks.FakeSkillsService{}
+	skills := []domain.Skill{
+		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
+		{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
+	}
+	fake.GetStub = func(name string) (domain.Skill, bool) {
+		for _, sk := range skills {
+			if sk.Name == name {
+				return sk, true
+			}
+		}
+		return domain.Skill{}, false
+	}
 	return &AgentServiceImpl{
-		skillsService: &stubSkillsService{
-			skills: []domain.Skill{
-				{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
-				{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
-			},
-		},
+		skillsService: fake,
 	}
 }
 

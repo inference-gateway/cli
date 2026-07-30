@@ -483,10 +483,10 @@ type AgentContextConfig struct {
 // agent.skills.enabled=false in config. When off, no scan runs and
 // nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
-	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
-	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
-	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
-	Discovery SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
+	DisabledSkills []string              `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+	MaxChars       int                   `yaml:"max_chars" mapstructure:"max_chars"`
+	Discovery      SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
 }
 
 // SkillsDiscoveryConfig controls progressive skill discovery from the
