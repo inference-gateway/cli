@@ -486,10 +486,6 @@ type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
 	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
 	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
-	// Discovery controls progressive skill discovery from the centralized
-	// catalog (inference-gateway/skills). When enabled, the agent can discover
-	// and fetch skills at runtime from the registry when no local skill of
-	// that name exists. Disabled by default.
 	Discovery SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
 }
 
