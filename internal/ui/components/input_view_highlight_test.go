@@ -24,6 +24,10 @@ func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
 	return domain.Skill{}, false
 }
 func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
+func (s *stubSkillsService) Discover(context.Context, string) (domain.Skill, bool) {
+	return domain.Skill{}, false
+}
+func (s *stubSkillsService) CleanupDynamic(context.Context) error { return nil }
 
 func newInputViewWithHighlightDeps(t *testing.T) *InputView {
 	t.Helper()

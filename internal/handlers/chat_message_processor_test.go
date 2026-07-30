@@ -591,6 +591,10 @@ func (s stubSkillsService) Get(name string) (domain.Skill, bool) {
 	return domain.Skill{Name: name}, ok
 }
 func (s stubSkillsService) Errors() []domain.SkillLoadError { return nil }
+func (s stubSkillsService) Discover(context.Context, string) (domain.Skill, bool) {
+	return domain.Skill{}, false
+}
+func (s stubSkillsService) CleanupDynamic(context.Context) error { return nil }
 
 func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
 	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}, "ponytail": {}}}

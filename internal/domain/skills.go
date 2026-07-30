@@ -4,7 +4,8 @@ import "context"
 
 // SkillScope identifies where a skill came from: the project (.infer/skills/),
 // the open-standard location (.agents/skills/), the user-global location
-// (~/.infer/skills/), or an installed plugin (~/.infer/plugins/<name>/skills/).
+// (~/.infer/skills/), an installed plugin (~/.infer/plugins/<name>/skills/),
+// or the centralized catalog (dynamically discovered at runtime).
 type SkillScope string
 
 const (
@@ -12,6 +13,7 @@ const (
 	SkillScopeAgents  SkillScope = "agents"
 	SkillScopeUser    SkillScope = "user"
 	SkillScopePlugin  SkillScope = "plugin"
+	SkillScopeCatalog SkillScope = "catalog"
 )
 
 // Skill is the in-memory metadata for a discovered SKILL.md. The body of the
@@ -60,4 +62,17 @@ type SkillsService interface {
 	// Errors returns validation failures encountered during the most recent
 	// Load. Cleared on each Load call.
 	Errors() []SkillLoadError
+	// Discover looks up a skill by name in the centralized catalog when
+	// progressive discovery is enabled and no local skill of that name
+	// exists. Returns the skill metadata (name, description, path) and
+	// true on success, or a zero Skill and false when the skill is not
+	// found in the catalog or discovery is disabled. The skill body is
+	// fetched only when the skill is actually activated (progressive).
+	// Local skills always take precedence - if a skill with the same name
+	// is already loaded, no catalog lookup is performed.
+	Discover(ctx context.Context, name string) (Skill, bool)
+	// CleanupDynamic removes dynamically downloaded skills from disk.
+	// When cleanup is enabled in config, this is called after the session
+	// ends to remove any skills that were fetched from the catalog.
+	CleanupDynamic(ctx context.Context) error
 }

@@ -29,6 +29,10 @@ type stubSkillsService struct {
 func (s *stubSkillsService) Load(_ context.Context) error    { return nil }
 func (s *stubSkillsService) List() []domain.Skill            { return s.skills }
 func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
+func (s *stubSkillsService) Discover(context.Context, string) (domain.Skill, bool) {
+	return domain.Skill{}, false
+}
+func (s *stubSkillsService) CleanupDynamic(context.Context) error { return nil }
 
 func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
 	for _, sk := range s.skills {

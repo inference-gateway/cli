@@ -55,6 +55,43 @@ into `.infer/skills/`. A project's `.infer/skills/` still wins over both the
 open-standard and user-global locations - useful for overriding a personal or
 shared default with a per-project variant.
 
+### Progressive discovery from the catalog (optional)
+
+When `agent.skills.discovery.enabled` is `true`, the agent can also discover
+and fetch skills at runtime from the centralized skills catalog at
+<https://registry.inference-gateway.com/skills/>. The catalog is the **last
+fallback** in the precedence chain:
+
+1. Project-local: `.infer/skills/<name>/SKILL.md`
+2. Open standard: `.agents/skills/<name>/SKILL.md`
+3. User-global: `~/.infer/skills/<name>/SKILL.md`
+4. Plugin skills: `<plugins-dir>/<name>/skills/<name>/SKILL.md`
+5. **Catalog (progressive discovery)**: fetched from the registry on demand
+
+A local skill with the same name always short-circuits discovery - no catalog
+lookup or download is performed. Only catalog metadata (name, description) is
+consulted up front; the full skill body is fetched only when the skill is
+actually activated (progressive disclosure).
+
+Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
+**cleaned up after the session ends** by default. Set
+`agent.skills.discovery.cleanup: false` to retain them across sessions.
+
+When discovery is enabled, the agent's system prompt includes a `SKILLS
+DISCOVERY` section explaining how to fetch skills from the registry. When
+disabled, no registry mention is included (YAGNI - tokens saving).
+
+```yaml
+# .infer/config.yaml
+agent:
+  skills:
+    enabled: true
+    discovery:
+      enabled: true                          # enable progressive discovery
+      registry_url: "https://registry.inference-gateway.com/skills/"  # optional, this is the default
+      cleanup: true                          # remove dynamic skills after session (default)
+```
+
 ## Built-in skills
 
 The CLI ships a small set of **built-in skills** embedded in the binary. On

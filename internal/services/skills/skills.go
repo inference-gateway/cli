@@ -52,6 +52,12 @@ type Service struct {
 	mu     sync.RWMutex
 	skills []domain.Skill
 	errs   []domain.SkillLoadError
+	// catalog is the client for progressive discovery from the centralized
+	// skills registry. Created lazily when discovery is enabled.
+	catalog *CatalogClient
+	// dynamicNames tracks the names of skills that were dynamically
+	// downloaded from the catalog in this session, for cleanup.
+	dynamicNames []string
 }
 
 // New returns a Service bound to cfg. Call Load to populate the skill list.
@@ -158,6 +164,75 @@ func (s *Service) Errors() []domain.SkillLoadError {
 	out := make([]domain.SkillLoadError, len(s.errs))
 	copy(out, s.errs)
 	return out
+}
+
+// Discover looks up a skill by name in the centralized catalog when
+// progressive discovery is enabled and no local skill of that name
+// exists. Returns the skill metadata and true on success, or a zero
+// Skill and false when the skill is not found or discovery is disabled.
+// Local skills always take precedence - if a skill with the same name
+// is already loaded, no catalog lookup is performed.
+func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool) {
+	// Discovery must be explicitly enabled.
+	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
+		return domain.Skill{}, false
+	}
+
+	// Local skills take precedence - no catalog lookup if already loaded.
+	if sk, ok := s.Get(name); ok {
+		return sk, true
+	}
+
+	// Lazily create the catalog client.
+	if s.catalog == nil {
+		s.catalog = NewCatalogClient(s.cfg)
+	}
+
+	// Only consult catalog metadata (name, description) up front.
+	entry, found := s.catalog.Lookup(ctx, name)
+	if !found {
+		return domain.Skill{}, false
+	}
+
+	// Download the full skill body on activation.
+	skillPath, err := s.catalog.DownloadSkill(ctx, name)
+	if err != nil {
+		logger.Warn("failed to download skill from catalog", "name", name, "error", err)
+		return domain.Skill{}, false
+	}
+
+	skill := domain.Skill{
+		Name:        entry.Name,
+		Description: entry.Description,
+		Path:        skillPath,
+		Scope:       domain.SkillScopeCatalog,
+	}
+
+	// Add to the in-memory list so subsequent lookups hit the cache.
+	s.mu.Lock()
+	s.skills = append(s.skills, skill)
+	s.dynamicNames = append(s.dynamicNames, name)
+	s.mu.Unlock()
+
+	return skill, true
+}
+
+// CleanupDynamic removes dynamically downloaded skills from disk.
+// When cleanup is enabled in config, this removes all skills that were
+// fetched from the catalog during this session. No-op when discovery
+// is disabled or cleanup is explicitly turned off.
+func (s *Service) CleanupDynamic(_ context.Context) error {
+	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
+		return nil
+	}
+	// Default to cleanup enabled.
+	if s.cfg.Agent.Skills.Discovery.Cleanup != nil && !*s.cfg.Agent.Skills.Discovery.Cleanup {
+		return nil
+	}
+	if len(s.dynamicNames) == 0 {
+		return nil
+	}
+	return CleanupDynamic()
 }
 
 type scopedDir struct {

@@ -486,6 +486,28 @@ type AgentSkillsConfig struct {
 	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
 	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
 	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
+	// Discovery controls progressive skill discovery from the centralized
+	// catalog (inference-gateway/skills). When enabled, the agent can discover
+	// and fetch skills at runtime from the registry when no local skill of
+	// that name exists. Disabled by default.
+	Discovery SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+}
+
+// SkillsDiscoveryConfig controls progressive skill discovery from the
+// centralized catalog. When enabled, the agent looks up skills not found
+// locally in the catalog, downloads them on demand, and cleans them up
+// after the session. Local skills always take precedence.
+type SkillsDiscoveryConfig struct {
+	// Enabled toggles progressive discovery. When false (default), no
+	// catalog lookup or download is performed and the volatile section
+	// does not mention registry-based skill fetching.
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	// RegistryURL is the base URL of the centralized skills catalog.
+	// Defaults to https://registry.inference-gateway.com/skills/.
+	RegistryURL string `yaml:"registry_url,omitempty" mapstructure:"registry_url"`
+	// Cleanup controls whether dynamically downloaded skills are removed
+	// after the session ends. Defaults to true.
+	Cleanup *bool `yaml:"cleanup,omitempty" mapstructure:"cleanup"`
 }
 
 // AgentsMDConfig controls native injection of the project-root AGENTS.md

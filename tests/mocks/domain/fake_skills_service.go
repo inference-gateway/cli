@@ -9,6 +9,31 @@ import (
 )
 
 type FakeSkillsService struct {
+	CleanupDynamicStub        func(context.Context) error
+	cleanupDynamicMutex       sync.RWMutex
+	cleanupDynamicArgsForCall []struct {
+		arg1 context.Context
+	}
+	cleanupDynamicReturns struct {
+		result1 error
+	}
+	cleanupDynamicReturnsOnCall map[int]struct {
+		result1 error
+	}
+	DiscoverStub        func(context.Context, string) (domain.Skill, bool)
+	discoverMutex       sync.RWMutex
+	discoverArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	discoverReturns struct {
+		result1 domain.Skill
+		result2 bool
+	}
+	discoverReturnsOnCall map[int]struct {
+		result1 domain.Skill
+		result2 bool
+	}
 	ErrorsStub        func() []domain.SkillLoadError
 	errorsMutex       sync.RWMutex
 	errorsArgsForCall []struct {
@@ -55,6 +80,132 @@ type FakeSkillsService struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeSkillsService) CleanupDynamic(arg1 context.Context) error {
+	fake.cleanupDynamicMutex.Lock()
+	ret, specificReturn := fake.cleanupDynamicReturnsOnCall[len(fake.cleanupDynamicArgsForCall)]
+	fake.cleanupDynamicArgsForCall = append(fake.cleanupDynamicArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.CleanupDynamicStub
+	fakeReturns := fake.cleanupDynamicReturns
+	fake.recordInvocation("CleanupDynamic", []interface{}{arg1})
+	fake.cleanupDynamicMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeSkillsService) CleanupDynamicCallCount() int {
+	fake.cleanupDynamicMutex.RLock()
+	defer fake.cleanupDynamicMutex.RUnlock()
+	return len(fake.cleanupDynamicArgsForCall)
+}
+
+func (fake *FakeSkillsService) CleanupDynamicCalls(stub func(context.Context) error) {
+	fake.cleanupDynamicMutex.Lock()
+	defer fake.cleanupDynamicMutex.Unlock()
+	fake.CleanupDynamicStub = stub
+}
+
+func (fake *FakeSkillsService) CleanupDynamicArgsForCall(i int) context.Context {
+	fake.cleanupDynamicMutex.RLock()
+	defer fake.cleanupDynamicMutex.RUnlock()
+	argsForCall := fake.cleanupDynamicArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeSkillsService) CleanupDynamicReturns(result1 error) {
+	fake.cleanupDynamicMutex.Lock()
+	defer fake.cleanupDynamicMutex.Unlock()
+	fake.CleanupDynamicStub = nil
+	fake.cleanupDynamicReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeSkillsService) CleanupDynamicReturnsOnCall(i int, result1 error) {
+	fake.cleanupDynamicMutex.Lock()
+	defer fake.cleanupDynamicMutex.Unlock()
+	fake.CleanupDynamicStub = nil
+	if fake.cleanupDynamicReturnsOnCall == nil {
+		fake.cleanupDynamicReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.cleanupDynamicReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeSkillsService) Discover(arg1 context.Context, arg2 string) (domain.Skill, bool) {
+	fake.discoverMutex.Lock()
+	ret, specificReturn := fake.discoverReturnsOnCall[len(fake.discoverArgsForCall)]
+	fake.discoverArgsForCall = append(fake.discoverArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.DiscoverStub
+	fakeReturns := fake.discoverReturns
+	fake.recordInvocation("Discover", []interface{}{arg1, arg2})
+	fake.discoverMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeSkillsService) DiscoverCallCount() int {
+	fake.discoverMutex.RLock()
+	defer fake.discoverMutex.RUnlock()
+	return len(fake.discoverArgsForCall)
+}
+
+func (fake *FakeSkillsService) DiscoverCalls(stub func(context.Context, string) (domain.Skill, bool)) {
+	fake.discoverMutex.Lock()
+	defer fake.discoverMutex.Unlock()
+	fake.DiscoverStub = stub
+}
+
+func (fake *FakeSkillsService) DiscoverArgsForCall(i int) (context.Context, string) {
+	fake.discoverMutex.RLock()
+	defer fake.discoverMutex.RUnlock()
+	argsForCall := fake.discoverArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeSkillsService) DiscoverReturns(result1 domain.Skill, result2 bool) {
+	fake.discoverMutex.Lock()
+	defer fake.discoverMutex.Unlock()
+	fake.DiscoverStub = nil
+	fake.discoverReturns = struct {
+		result1 domain.Skill
+		result2 bool
+	}{result1, result2}
+}
+
+func (fake *FakeSkillsService) DiscoverReturnsOnCall(i int, result1 domain.Skill, result2 bool) {
+	fake.discoverMutex.Lock()
+	defer fake.discoverMutex.Unlock()
+	fake.DiscoverStub = nil
+	if fake.discoverReturnsOnCall == nil {
+		fake.discoverReturnsOnCall = make(map[int]struct {
+			result1 domain.Skill
+			result2 bool
+		})
+	}
+	fake.discoverReturnsOnCall[i] = struct {
+		result1 domain.Skill
+		result2 bool
+	}{result1, result2}
 }
 
 func (fake *FakeSkillsService) Errors() []domain.SkillLoadError {
