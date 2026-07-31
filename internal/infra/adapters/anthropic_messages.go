@@ -110,6 +110,10 @@ func (a *AnthropicMessages) CreateMessageStream(ctx context.Context, provider sd
 	return a.inner.CreateMessageStream(ctx, provider, request)
 }
 
+func (a *AnthropicMessages) CreateImage(ctx context.Context, provider sdk.Provider, request sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
+	return a.inner.CreateImage(ctx, provider, request)
+}
+
 // GenerateContent routes Anthropic requests through /v1/messages and
 // translates the response back into the chat-completions shape.
 func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
@@ -207,7 +211,7 @@ func (a *AnthropicMessages) maxTokens() int {
 // CLI's hardcoded Anthropic default.
 func (a *AnthropicMessages) effortOption() *sdk.MessagesOutputConfigEffort {
 	effort := sdk.MessagesOutputConfigEffort(config.DefaultAnthropicEffort)
-	if a.opts != nil && a.opts.ReasoningEffort != nil && *a.opts.ReasoningEffort != sdk.Minimal {
+	if a.opts != nil && a.opts.ReasoningEffort != nil && *a.opts.ReasoningEffort != sdk.CreateChatCompletionRequestReasoningEffortMinimal {
 		if e := sdk.MessagesOutputConfigEffort(*a.opts.ReasoningEffort); e.Valid() {
 			effort = e
 		}
