@@ -179,7 +179,7 @@ func (s *AgentServiceImpl) BuildSystemPrompt() string {
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
 // command via type assertion, alongside SystemPromptSections.
 func (s *AgentServiceImpl) VolatileTailText() (string, bool) {
-	tail, ok := s.volatileTailMessage(nil)
+	tail, ok := s.volatileTailMessage(nil, true)
 	if !ok {
 		return "", false
 	}
@@ -214,14 +214,14 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 // the append on conversationAwaitsToolResults at payload-finalization time
 // (outboundConversation for streaming, Run for sync), after conversation
 // repair — not here, where the input may still carry orphaned tool_calls.
-func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message) (sdk.Message, bool) {
+func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.getSystemPromptForMode() == "" {
 		return sdk.Message{}, false
 	}
 
 	var b strings.Builder
 	if s.config.GetAgentConfig().SystemPromptWithDefaults {
-		for _, section := range s.volatileContextSections(len(messages)/2, messages) {
+		for _, section := range s.volatileContextSections(len(messages)/2, messages, isChat) {
 			b.WriteString(section.Text)
 		}
 	}
@@ -264,11 +264,11 @@ func (s *AgentServiceImpl) contextSections() []PromptSection {
 // volatileContextSections lists the context builders whose output changes as
 // the session progresses; they are delivered per request via
 // volatileTailMessage rather than in the system prompt.
-func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message) []PromptSection {
+func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
-		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages), Volatile: true},
+		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages, isChat), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
 	}
 }
@@ -296,7 +296,7 @@ func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 	}
 	if agentConfig.SystemPromptWithDefaults {
 		sections = append(sections, s.contextSections()...)
-		sections = append(sections, s.volatileContextSections(0, nil)...)
+		sections = append(sections, s.volatileContextSections(0, nil, true)...)
 	}
 
 	nonEmpty := sections[:0]
@@ -474,9 +474,13 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 // buildSkillsInfo lists discovered Agent Skills with their absolute SKILL.md
 // paths so the model can read each one on demand via the Read tool.
 // Empty when skills are disabled or none were discovered.
-// When skills discovery is enabled, it also explains how to fetch skills
-// from the centralized registry. When disabled, no registry mention is
-// included (YAGNI - tokens saving).
+//
+// Catalog skills are listed WITHOUT a path, even after their body has been
+// downloaded. This section rides in the static system prompt, so rendering the
+// mutable Path here would rewrite message[0] the moment a skill is installed
+// and invalidate the whole conversation's KV-cache prefix. The concrete path is
+// delivered by buildActiveSkillInfo in the volatile tail instead, which is
+// per-request by design.
 func (s *AgentServiceImpl) buildSkillsInfo() string {
 	if s.skillsService == nil {
 		return ""
@@ -498,7 +502,11 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	}
 	var omitted []string
 	for i, sk := range skills {
-		entry := fmt.Sprintf("- %s (%s): %s\n  Path: %s\n", sk.DisplayName(), sk.Scope, sk.Description, sk.Path)
+		location := fmt.Sprintf("Path: %s", sk.Path)
+		if sk.Scope == domain.SkillScopeCatalog {
+			location = fmt.Sprintf("Installed from the catalog on demand - invoke /%s to activate it", sk.DisplayName())
+		}
+		entry := fmt.Sprintf("- %s (%s): %s\n  %s\n", sk.DisplayName(), sk.Scope, sk.Description, location)
 		if maxChars > 0 && b.Len()+len(entry) > maxChars {
 			for _, rest := range skills[i:] {
 				omitted = append(omitted, rest.DisplayName())
@@ -510,18 +518,6 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	if len(omitted) > 0 {
 		fmt.Fprintf(&b, "... (%d more skills not expanded: %s - read their SKILL.md under the skills directories)\n",
 			len(omitted), strings.Join(omitted, ", "))
-	}
-
-	if s.config != nil && s.config.Agent.Skills.Discovery.Enabled {
-		b.WriteString("\nSKILLS DISCOVERY:\n")
-		b.WriteString("If a skill you need is not listed above, you can discover and fetch it ")
-		b.WriteString("from the centralized skills catalog at runtime. ")
-		b.WriteString("Use the WebFetch tool to query the catalog index at ")
-		b.WriteString("<registry.inference-gateway.com/skills/index.json> ")
-		b.WriteString("for available skills, then invoke the skill by name with ")
-		b.WriteString("\"/<name>\" or \"use the <name> skill\". ")
-		b.WriteString("The skill will be downloaded and activated on demand. ")
-		b.WriteString("Local skills always take precedence over catalog skills.\n")
 	}
 
 	return b.String()
@@ -553,7 +549,13 @@ var (
 // disclosure, read on demand by the model via the Read tool (now reachable
 // thanks to the sandbox carve-out). Empty when no trigger matched a loaded
 // skill.
-func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
+//
+// A catalog skill that has not been downloaded yet (empty Path) is installed
+// on the spot when isChat is false - headless runs have nobody to ask. In chat
+// the install is user-approved at the input layer instead (see
+// ChatMessageProcessor.confirmCatalogInstall), so a not-yet-installed skill is
+// skipped here rather than fetched behind the user's back.
+func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string {
 	if s.skillsService == nil {
 		return ""
 	}
@@ -568,6 +570,14 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message) string {
 		sk, ok := s.skillsService.Get(name)
 		if !ok {
 			continue
+		}
+		if sk.Path == "" {
+			if isChat {
+				continue
+			}
+			if sk, ok = s.skillsService.Discover(context.Background(), name); !ok {
+				continue
+			}
 		}
 		entries = append(entries, fmt.Sprintf("- %s (%s): %s\n  Path: %s", sk.DisplayName(), sk.Scope, sk.Description, sk.Path))
 	}

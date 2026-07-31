@@ -52,6 +52,7 @@ func listSkills(cmd *cobra.Command, _ []string) error {
 	}
 	if Cfg != nil {
 		scanCfg.Plugins = Cfg.Plugins
+		scanCfg.Agent.Skills.Discovery = Cfg.Agent.Skills.Discovery
 	}
 
 	svc := skills.New(scanCfg)

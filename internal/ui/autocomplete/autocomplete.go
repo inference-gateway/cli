@@ -39,6 +39,9 @@ type ShortcutOption struct {
 	Shortcut    string
 	Description string
 	Usage       string
+	// Catalog marks a skill that lives in the remote catalog and is not
+	// installed locally yet, so the dropdown can render it distinctly.
+	Catalog bool
 }
 
 // ShortcutRegistry interface for dependency injection
@@ -214,6 +217,7 @@ func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
+			Catalog:     skill.Path == "",
 		})
 	}
 }
@@ -235,6 +239,7 @@ func (a *AutocompleteImpl) loadSkillsOnly() {
 			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
+			Catalog:     skill.Path == "",
 		})
 	}
 }
@@ -960,7 +965,7 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 		description := formatting.TruncateText(cmd.Description, descWidth)
 		paddedDescription := description + strings.Repeat(" ", descWidth-len(description))
 
-		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription)
+		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Catalog)
 
 		if i < end-1 {
 			b.WriteString("\n")
@@ -968,22 +973,30 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 	}
 }
 
-// renderItem renders a single autocomplete item
-func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string) {
+// renderItem renders a single autocomplete item. catalog entries (skills that
+// live in the remote catalog and are not installed yet) are painted in the
+// status color so they read as "available, but will be downloaded first".
+func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string, catalog bool) {
+	nameColor := ""
+	if catalog {
+		nameColor = a.theme.GetStatusColor()
+	}
 	if selected {
-		line := fmt.Sprintf("%s%s%s%s%s │ %s%s",
+		line := fmt.Sprintf("%s%s%s%s%s%s │ %s%s",
 			leftPadding,
 			a.theme.GetAccentColor(),
 			marker,
+			nameColor,
 			paddedShortcut,
 			a.theme.GetDimColor(),
 			paddedDescription,
 			colors.Reset)
 		b.WriteString(line)
 	} else {
-		line := fmt.Sprintf("%s%s%s │ %s%s%s",
+		line := fmt.Sprintf("%s%s%s%s │ %s%s%s",
 			leftPadding,
 			marker,
+			nameColor,
 			paddedShortcut,
 			a.theme.GetDimColor(),
 			paddedDescription,

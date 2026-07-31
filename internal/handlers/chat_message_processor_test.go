@@ -625,3 +625,59 @@ func TestChatMessageProcessor_isSkillInvocation_NilService(t *testing.T) {
 	p := NewChatMessageProcessor(&ChatHandler{})
 	require.False(t, p.isSkillInvocation("/maintainer"))
 }
+
+// catalogSkillsService reports rust as a not-yet-installed catalog skill and
+// maintainer as an installed local one.
+type catalogSkillsService struct{ stubSkillsService }
+
+func (c catalogSkillsService) Get(name string) (domain.Skill, bool) {
+	switch name {
+	case "rust":
+		return domain.Skill{Name: "rust", Scope: domain.SkillScopeCatalog}, true
+	case "maintainer":
+		return domain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"}, true
+	}
+	return domain.Skill{}, false
+}
+
+func TestChatMessageProcessor_pendingCatalogSkills(t *testing.T) {
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkillsService{}})
+
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{"catalog skill needs install", "/rust help me", []string{"rust"}},
+		{"installed skill needs nothing", "/maintainer help me", nil},
+		{"unknown token ignored", "/nope help me", nil},
+		{"plain message ignored", "just talking", nil},
+		{"deduped", "/rust and /rust again", []string{"rust"}},
+		{"mid-text token counts", "please /rust this", []string{"rust"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, p.pendingCatalogSkills(tt.content))
+		})
+	}
+}
+
+func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkillsService{}})
+
+	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/maintainer go"}),
+		"an installed skill must not prompt")
+	require.NotNil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}),
+		"a catalog skill must prompt before downloading")
+
+	// A declined skill is never re-prompted, so re-submitting the same input
+	// cannot loop.
+	p.declinedSkills["rust"] = true
+	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}))
+}
+
+func TestApprovedInstall(t *testing.T) {
+	require.True(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
+	require.False(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
+	require.False(t, approvedInstall(nil))
+}

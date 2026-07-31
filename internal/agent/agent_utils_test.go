@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -462,7 +463,7 @@ func activeSkillsAgent() *AgentServiceImpl {
 		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
 		{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
 	}
-	fake.GetStub = func(name string) (domain.Skill, bool) {
+	get := func(name string) (domain.Skill, bool) {
 		for _, sk := range skills {
 			if sk.Name == name {
 				return sk, true
@@ -470,6 +471,8 @@ func activeSkillsAgent() *AgentServiceImpl {
 		}
 		return domain.Skill{}, false
 	}
+	fake.GetStub = get
+	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
 	return &AgentServiceImpl{
 		skillsService: fake,
 	}
@@ -554,7 +557,7 @@ func TestBuildActiveSkillInfo(t *testing.T) {
 				s = &AgentServiceImpl{}
 			}
 
-			got := s.buildActiveSkillInfo(tt.messages)
+			got := s.buildActiveSkillInfo(tt.messages, false)
 
 			if tt.wantEmpty {
 				require.Empty(t, got)
@@ -780,7 +783,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	}
 
 	t.Run("carries volatile sections and date", func(t *testing.T) {
-		msg, ok := newSvc(true, true).volatileTailMessage(nil)
+		msg, ok := newSvc(true, true).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		require.Equal(t, sdk.User, msg.Role)
 		content := tailContent(t, msg)
@@ -791,13 +794,13 @@ func TestVolatileTailMessage(t *testing.T) {
 	})
 
 	t.Run("disabled section is absent", func(t *testing.T) {
-		msg, ok := newSvc(false, true).volatileTailMessage(nil)
+		msg, ok := newSvc(false, true).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		require.NotContains(t, tailContent(t, msg), "PERSISTENT MEMORY INDEX")
 	})
 
 	t.Run("defaults off keeps only the date", func(t *testing.T) {
-		msg, ok := newSvc(true, false).volatileTailMessage(nil)
+		msg, ok := newSvc(true, false).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		content := tailContent(t, msg)
 		require.NotContains(t, content, "PERSISTENT MEMORY INDEX")
@@ -807,7 +810,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	t.Run("no system prompt yields no tail", func(t *testing.T) {
 		s := newSvc(true, true)
 		s.config.Prompts.Agent.SystemPrompt = ""
-		_, ok := s.volatileTailMessage(nil)
+		_, ok := s.volatileTailMessage(nil, true)
 		require.False(t, ok)
 	})
 
@@ -818,7 +821,61 @@ func TestVolatileTailMessage(t *testing.T) {
 			{Role: sdk.Assistant, ToolCalls: &toolCalls},
 		}
 
-		_, ok := newSvc(true, true).volatileTailMessage(messages)
+		_, ok := newSvc(true, true).volatileTailMessage(messages, true)
 		require.True(t, ok)
 	})
+}
+
+// TestBuildSkillsInfo_CatalogEntryIsCacheStable locks in that installing a
+// catalog skill mid-session does not rewrite the static system prompt. The
+// AVAILABLE SKILLS section rides in message[0]; if the freshly-downloaded path
+// leaked into it, every conversation would lose its KV-cache prefix the moment
+// a skill was fetched.
+func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
+	notInstalled := domain.Skill{
+		Name:        "rust",
+		Description: "Idiomatic Rust.",
+		Scope:       domain.SkillScopeCatalog,
+	}
+	installed := notInstalled
+	installed.Path = "/abs/.infer/tmp/skills/rust/SKILL.md"
+
+	render := func(sk domain.Skill) string {
+		fake := &domainmocks.FakeSkillsService{}
+		fake.ListReturns([]domain.Skill{sk})
+		return (&AgentServiceImpl{skillsService: fake}).buildSkillsInfo()
+	}
+
+	before, after := render(notInstalled), render(installed)
+	require.Equal(t, before, after, "installing a catalog skill must not change the static system prompt")
+	require.Contains(t, before, "rust")
+	require.NotContains(t, after, installed.Path, "the concrete path belongs in the volatile tail, not the system prompt")
+}
+
+// TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly locks in the approval
+// split: a headless run installs a not-yet-downloaded skill itself, while chat
+// leaves it alone because the user approves the install at the input layer.
+func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
+	newAgent := func() (*AgentServiceImpl, *domainmocks.FakeSkillsService) {
+		fake := &domainmocks.FakeSkillsService{}
+		fake.GetReturns(domain.Skill{Name: "rust", Description: "RUST_DESC", Scope: domain.SkillScopeCatalog}, true)
+		fake.DiscoverReturns(domain.Skill{
+			Name:        "rust",
+			Description: "RUST_DESC",
+			Path:        "/abs/.infer/tmp/skills/rust/SKILL.md",
+			Scope:       domain.SkillScopeCatalog,
+		}, true)
+		return &AgentServiceImpl{skillsService: fake}, fake
+	}
+
+	messages := []sdk.Message{userMsg("/rust do a thing")}
+
+	chatAgent, chatFake := newAgent()
+	require.Empty(t, chatAgent.buildActiveSkillInfo(messages, true))
+	require.Zero(t, chatFake.DiscoverCallCount(), "chat must not download without approval")
+
+	headlessAgent, headlessFake := newAgent()
+	got := headlessAgent.buildActiveSkillInfo(messages, false)
+	require.Contains(t, got, "/abs/.infer/tmp/skills/rust/SKILL.md")
+	require.Equal(t, 1, headlessFake.DiscoverCallCount())
 }

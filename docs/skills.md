@@ -57,10 +57,10 @@ shared default with a per-project variant.
 
 ### Progressive discovery from the catalog (optional)
 
-When `agent.skills.discovery.enabled` is `true`, the agent can also discover
-and fetch skills at runtime from the centralized skills catalog at
-<https://registry.inference-gateway.com/skills/>. The catalog is the **last
-fallback** in the precedence chain:
+When `agent.skills.discovery.enabled` is `true`, the CLI also loads the
+centralized skills catalog published by
+[inference-gateway/skills](https://github.com/inference-gateway/skills) as
+`catalog.json`. The catalog is the **last fallback** in the precedence chain:
 
 1. Project-local: `.infer/skills/<name>/SKILL.md`
 2. Open standard: `.agents/skills/<name>/SKILL.md`
@@ -73,13 +73,16 @@ lookup or download is performed. Only catalog metadata (name, description) is
 consulted up front; the full skill body is fetched only when the skill is
 actually activated (progressive disclosure).
 
+Catalog skills therefore show up in the chat `/` dropdown and in the agent's
+`AVAILABLE SKILLS` list alongside local ones, marked as not-yet-downloaded.
+Invoking one (`/rust`, or "use the rust skill") downloads its `SKILL.md` on the
+spot. The index fetch and the download both use `GITHUB_TOKEN` / `GH_TOKEN`
+when set, which raises GitHub's 60-requests-per-hour anonymous rate limit; the
+token is only sent to GitHub hosts, never to a custom `registry_url`.
+
 Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
 **cleaned up after the session ends** by default. Set
 `agent.skills.discovery.cleanup: false` to retain them across sessions.
-
-When discovery is enabled, the agent's system prompt includes a `SKILLS
-DISCOVERY` section explaining how to fetch skills from the registry. When
-disabled, no registry mention is included (YAGNI - tokens saving).
 
 ```yaml
 # .infer/config.yaml
@@ -87,10 +90,14 @@ agent:
   skills:
     enabled: true
     discovery:
-      enabled: true                          # enable progressive discovery
-      registry_url: "https://registry.inference-gateway.com/skills/"  # optional, this is the default
-      cleanup: true                          # remove dynamic skills after session (default)
+      enabled: true
+      registry_url: "https://raw.githubusercontent.com/inference-gateway/skills/main/"
+      cleanup: true
 ```
+
+`registry_url` is optional - the value above is the default. It is the base a
+`catalog.json` is resolved against, so pointing it at your own host serves your
+own catalog.
 
 ## Built-in skills
 
