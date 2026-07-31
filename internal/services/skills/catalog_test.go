@@ -37,6 +37,25 @@ func discoveryCfg(registryURL string) *config.Config {
 
 const twoSkillIndex = `{"skills":[{"name":"rust","description":"Idiomatic Rust."},{"name":"local-one","description":"Catalog copy."}]}`
 
+func TestNewCatalogClient_BaseURLFollowsRepository(t *testing.T) {
+	cfg := discoveryCfg("")
+	cfg.Agent.Skills.Repository = "acme/internal-skills"
+	require.Equal(t,
+		"https://raw.githubusercontent.com/acme/internal-skills/main/",
+		NewCatalogClient(cfg).baseURL,
+		"an unset registry_url must derive the index base from agent.skills.repository")
+
+	require.Equal(t,
+		"https://raw.githubusercontent.com/inference-gateway/skills/main/",
+		NewCatalogClient(discoveryCfg("")).baseURL,
+		"an unset repository must keep the shipped default")
+
+	explicit := discoveryCfg("https://catalogs.example.com/skills")
+	explicit.Agent.Skills.Repository = "acme/internal-skills"
+	require.Equal(t, "https://catalogs.example.com/skills/", NewCatalogClient(explicit).baseURL,
+		"an explicit registry_url must win over the derived base")
+}
+
 func TestIndex_CachedAcrossLookups(t *testing.T) {
 	srv, hits := catalogServer(t, twoSkillIndex)
 

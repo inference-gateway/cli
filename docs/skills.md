@@ -89,15 +89,22 @@ Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
 agent:
   skills:
     enabled: true
+    repository: "inference-gateway/skills"
     discovery:
       enabled: true
-      registry_url: "https://raw.githubusercontent.com/inference-gateway/skills/main/"
       cleanup: true
 ```
 
-`registry_url` is optional - the value above is the default. It is the base a
-`catalog.json` is resolved against, so pointing it at your own host serves your
-own catalog.
+`repository` is the `<owner>/<repo>` GitHub repository skills come from - the
+value above is the default, and `INFER_AGENT_SKILLS_REPOSITORY` overrides it.
+It drives everything: the `infer skills install <name>` shorthand, on-demand
+catalog downloads, and the catalog index, which is read from
+`https://raw.githubusercontent.com/<repository>/main/catalog.json`. Point it at
+your own fork and all three follow.
+
+`registry_url` (under `discovery`) is optional and only needed when the
+`catalog.json` lives somewhere other than the repository - it overrides the
+derived index base while downloads still come from `repository`.
 
 ## Built-in skills
 

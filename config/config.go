@@ -24,6 +24,7 @@ const (
 	DefaultMemoryMaxChars       = 2000
 	DefaultMemoryMaxEntryChars  = 2000
 	DefaultSkillsMaxChars       = 4000
+	DefaultSkillsRepository     = "inference-gateway/skills"
 	DefaultInstructionsMaxChars = 8000
 	DefaultInstructionsMaxLines = 399
 )
@@ -483,10 +484,25 @@ type AgentContextConfig struct {
 // agent.skills.enabled=false in config. When off, no scan runs and
 // nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
-	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
-	DisabledSkills []string              `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
-	MaxChars       int                   `yaml:"max_chars" mapstructure:"max_chars"`
-	Discovery      SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
+	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
+	// Repository is the "<owner>/<repo>" GitHub repository skills come from -
+	// both the `infer skills install <name>` shorthand and on-demand catalog
+	// downloads, and the default base for the catalog index. Defaults to
+	// DefaultSkillsRepository. Override via agent.skills.repository or
+	// INFER_AGENT_SKILLS_REPOSITORY to serve skills from your own fork.
+	Repository string                `yaml:"repository,omitempty" mapstructure:"repository"`
+	Discovery  SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+}
+
+// SkillsRepository returns the configured skills repository, falling back to
+// DefaultSkillsRepository when unset.
+func (c AgentSkillsConfig) SkillsRepository() string {
+	if repo := strings.TrimSpace(c.Repository); repo != "" {
+		return repo
+	}
+	return DefaultSkillsRepository
 }
 
 // SkillsDiscoveryConfig controls progressive skill discovery from the
@@ -998,6 +1014,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:        true,
 				DisabledSkills: nil,
 				MaxChars:       DefaultSkillsMaxChars,
+				Repository:     DefaultSkillsRepository,
 			},
 			AgentsMD: AgentsMDConfig{
 				Enabled:  true,
@@ -1261,6 +1278,16 @@ func (c *Config) Validate() error {
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
 		)
+	}
+
+	if repo := strings.TrimSpace(c.Agent.Skills.Repository); repo != "" {
+		parts := strings.Split(repo, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf(
+				"invalid agent.skills.repository %q: must be of the form <owner>/<repo>, e.g. %q",
+				repo, DefaultSkillsRepository,
+			)
+		}
 	}
 
 	if err := c.Memory.Validate(); err != nil {

@@ -16,9 +16,10 @@ import (
 
 func TestExpandShorthand(t *testing.T) {
 	tests := []struct {
-		name  string
-		input string
-		want  string
+		name       string
+		input      string
+		repository string
+		want       string
 	}{
 		{
 			name:  "single segment uses default org and skills repo",
@@ -65,11 +66,29 @@ func TestExpandShorthand(t *testing.T) {
 			input: "/",
 			want:  "/",
 		},
+		{
+			name:       "configured repository replaces owner and repo",
+			input:      "skill-creator",
+			repository: "acme/internal-skills",
+			want:       "https://github.com/acme/internal-skills/tree/main/skills/skill-creator",
+		},
+		{
+			name:       "two segments keep the configured repo name",
+			input:      "other-org/foo",
+			repository: "acme/internal-skills",
+			want:       "https://github.com/other-org/internal-skills/tree/main/skills/foo",
+		},
+		{
+			name:       "malformed repository falls back to the default",
+			input:      "skill-creator",
+			repository: "not-a-repo",
+			want:       "https://github.com/inference-gateway/skills/tree/main/skills/skill-creator",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ExpandShorthand(tt.input))
+			require.Equal(t, tt.want, ExpandShorthand(tt.input, tt.repository))
 		})
 	}
 }

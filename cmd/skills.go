@@ -166,7 +166,13 @@ func installSkill(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
-	dest, err := skills.NewInstaller().InstallFromGitHub(cmd.Context(), rawURL, destBase, overwrite)
+	repository := config.DefaultSkillsRepository
+	if Cfg != nil {
+		repository = Cfg.Agent.Skills.SkillsRepository()
+	}
+
+	dest, err := skills.NewInstaller(repository).
+		InstallFromGitHub(cmd.Context(), rawURL, destBase, overwrite)
 	if err != nil {
 		return err
 	}

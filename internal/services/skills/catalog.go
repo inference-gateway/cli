@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	defaultRegistryURL  = "https://raw.githubusercontent.com/inference-gateway/skills/main/"
 	catalogFile         = "catalog.json"
 	catalogTimeout      = 15 * time.Second
 	catalogIndexTimeout = 3 * time.Second
@@ -42,8 +41,9 @@ type catalogResponse struct {
 // It implements progressive discovery: only the index (name + description)
 // is fetched up front; the full skill body is downloaded only on activation.
 type CatalogClient struct {
-	client  *http.Client
-	baseURL string
+	client     *http.Client
+	baseURL    string
+	repository string
 
 	mu     sync.Mutex
 	index  []catalogEntry
@@ -51,17 +51,23 @@ type CatalogClient struct {
 }
 
 // NewCatalogClient returns a CatalogClient pointed at the configured registry
-// URL, or the default when none is set.
+// URL. When registry_url is unset the index base is derived from the configured
+// skills repository, so agent.skills.repository alone redirects both the index
+// and the downloads; an explicit registry_url still wins (a catalog served from
+// somewhere other than the repo itself).
 func NewCatalogClient(cfg *config.Config) *CatalogClient {
+	repository := cfg.Agent.Skills.SkillsRepository()
+
 	baseURL := cfg.Agent.Skills.Discovery.RegistryURL
 	if baseURL == "" {
-		baseURL = defaultRegistryURL
+		baseURL = fmt.Sprintf("%s/%s/%s", githubRawBase, repository, defaultSkillsRef)
 	}
 	baseURL = strings.TrimRight(baseURL, "/") + "/"
 
 	return &CatalogClient{
-		client:  &http.Client{Timeout: catalogTimeout},
-		baseURL: baseURL,
+		client:     &http.Client{Timeout: catalogTimeout},
+		baseURL:    baseURL,
+		repository: repository,
 	}
 }
 
@@ -89,8 +95,6 @@ func (c *CatalogClient) Index(ctx context.Context) []catalogEntry {
 	}
 	req.Header.Set("User-Agent", catalogUA)
 	req.Header.Set("Accept", "application/json")
-	// Raise the 60/hour anonymous rate limit and reach private catalogs. Only
-	// sent to GitHub hosts so a custom registry_url never sees the token.
 	if token := githubToken(); token != "" && isGitHubHost(req.URL.Host) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -171,11 +175,8 @@ func (c *CatalogClient) DownloadSkill(ctx context.Context, name string) (string,
 		return "", err
 	}
 
-	installer := NewInstaller()
-	rawURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
-		defaultSkillsOrg, defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, name)
-
-	absPath, err := installer.InstallFromGitHub(ctx, rawURL, destBase, false)
+	installer := NewInstaller(c.repository)
+	absPath, err := installer.InstallFromGitHub(ctx, SkillTreeURL(c.repository, name), destBase, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to download skill %q from catalog: %w", name, err)
 	}
