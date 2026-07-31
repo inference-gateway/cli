@@ -24,6 +24,7 @@ const (
 	DefaultMemoryMaxChars       = 2000
 	DefaultMemoryMaxEntryChars  = 2000
 	DefaultSkillsMaxChars       = 4000
+	DefaultSkillsRepository     = "inference-gateway/skills"
 	DefaultInstructionsMaxChars = 8000
 	DefaultInstructionsMaxLines = 399
 )
@@ -483,9 +484,34 @@ type AgentContextConfig struct {
 // agent.skills.enabled=false in config. When off, no scan runs and
 // nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
-	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
-	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
-	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
+	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
+	DisabledSkills []string              `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+	MaxChars       int                   `yaml:"max_chars" mapstructure:"max_chars"`
+	Repository     string                `yaml:"repository,omitempty" mapstructure:"repository"`
+	Discovery      SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+}
+
+// SkillsRepository returns the configured skills repository, falling back to
+// DefaultSkillsRepository when unset.
+func (c AgentSkillsConfig) SkillsRepository() string {
+	if repo := strings.TrimSpace(c.Repository); repo != "" {
+		return repo
+	}
+	return DefaultSkillsRepository
+}
+
+// SkillsDiscoveryConfig controls progressive skill discovery from the
+// centralized catalog. When enabled, the agent looks up skills not found
+// locally in the catalog, downloads them on demand, and cleans them up
+// after the session. Local skills always take precedence.
+type SkillsDiscoveryConfig struct {
+	// Enabled toggles progressive discovery. When false (default), no
+	// catalog lookup or download is performed and the volatile section
+	// does not mention registry-based skill fetching.
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	// Cleanup controls whether dynamically downloaded skills are removed
+	// after the session ends. Defaults to true.
+	Cleanup *bool `yaml:"cleanup,omitempty" mapstructure:"cleanup"`
 }
 
 // AgentsMDConfig controls native injection of the project-root AGENTS.md
@@ -979,6 +1005,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:        true,
 				DisabledSkills: nil,
 				MaxChars:       DefaultSkillsMaxChars,
+				Repository:     DefaultSkillsRepository,
 			},
 			AgentsMD: AgentsMDConfig{
 				Enabled:  true,
@@ -1242,6 +1269,16 @@ func (c *Config) Validate() error {
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
 		)
+	}
+
+	if repo := strings.TrimSpace(c.Agent.Skills.Repository); repo != "" {
+		parts := strings.Split(repo, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf(
+				"invalid agent.skills.repository %q: must be of the form <owner>/<repo>, e.g. %q",
+				repo, DefaultSkillsRepository,
+			)
+		}
 	}
 
 	if err := c.Memory.Validate(); err != nil {

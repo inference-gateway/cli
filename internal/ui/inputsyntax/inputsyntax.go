@@ -25,6 +25,9 @@ type Kind int
 const (
 	// KindSkill is a "/<name>" token that routes to an installed agent skill.
 	KindSkill Kind = iota
+	// KindCatalogSkill is a "/<name>" token naming a catalog skill that is not
+	// installed locally yet - invoking it downloads the skill first.
+	KindCatalogSkill
 	// KindShortcut is a "/<name>" token that maps to a chat shortcut command.
 	KindShortcut
 	// KindFileRef is an "@<path>" token expanded into file content.

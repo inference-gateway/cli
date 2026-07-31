@@ -580,20 +580,26 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 		"HandleRolloverCompletedEvent must SetChatPending before returning")
 }
 
-type stubSkillsService struct {
-	names map[string]struct{}
+// fakeSkills returns a SkillsService whose Get resolves exactly the given
+// skills; every other name is unknown. Discover mirrors Get so a test that
+// activates a skill sees the same set.
+func fakeSkills(skills ...domain.Skill) *mocks.FakeSkillsService {
+	byName := make(map[string]domain.Skill, len(skills))
+	for _, sk := range skills {
+		byName[sk.Name] = sk
+	}
+	get := func(name string) (domain.Skill, bool) {
+		sk, ok := byName[name]
+		return sk, ok
+	}
+	fake := &mocks.FakeSkillsService{}
+	fake.GetStub = get
+	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
+	return fake
 }
-
-func (s stubSkillsService) Load(context.Context) error { return nil }
-func (s stubSkillsService) List() []domain.Skill       { return nil }
-func (s stubSkillsService) Get(name string) (domain.Skill, bool) {
-	_, ok := s.names[name]
-	return domain.Skill{Name: name}, ok
-}
-func (s stubSkillsService) Errors() []domain.SkillLoadError { return nil }
 
 func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
-	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}, "ponytail": {}}}
+	skills := fakeSkills(domain.Skill{Name: "maintainer"}, domain.Skill{Name: "ponytail"})
 	p := NewChatMessageProcessor(&ChatHandler{skillsService: skills})
 
 	tests := []struct {
@@ -620,4 +626,55 @@ func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
 func TestChatMessageProcessor_isSkillInvocation_NilService(t *testing.T) {
 	p := NewChatMessageProcessor(&ChatHandler{})
 	require.False(t, p.isSkillInvocation("/maintainer"))
+}
+
+// catalogSkills reports rust as a not-yet-installed catalog skill (empty Path)
+// and maintainer as an installed local one.
+func catalogSkills() *mocks.FakeSkillsService {
+	return fakeSkills(
+		domain.Skill{Name: "rust", Scope: domain.SkillScopeCatalog},
+		domain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"},
+	)
+}
+
+func TestChatMessageProcessor_pendingCatalogSkills(t *testing.T) {
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkills()})
+
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{"catalog skill needs install", "/rust help me", []string{"rust"}},
+		{"installed skill needs nothing", "/maintainer help me", nil},
+		{"unknown token ignored", "/nope help me", nil},
+		{"plain message ignored", "just talking", nil},
+		{"deduped", "/rust and /rust again", []string{"rust"}},
+		{"mid-text token counts", "please /rust this", []string{"rust"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, p.pendingCatalogSkills(tt.content))
+		})
+	}
+}
+
+func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkills()})
+
+	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/maintainer go"}),
+		"an installed skill must not prompt")
+	require.NotNil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}),
+		"a catalog skill must prompt before downloading")
+
+	// A declined skill is never re-prompted, so re-submitting the same input
+	// cannot loop.
+	p.declinedSkills["rust"] = true
+	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}))
+}
+
+func TestApprovedInstall(t *testing.T) {
+	require.True(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
+	require.False(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
+	require.False(t, approvedInstall(nil))
 }

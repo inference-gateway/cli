@@ -462,7 +462,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
-	if tail, ok := s.volatileTailMessage(optimizedMessages); ok && !conversationAwaitsToolResults(optimizedMessages) {
+	if tail, ok := s.volatileTailMessage(optimizedMessages, req.IsChatMode); ok && !conversationAwaitsToolResults(optimizedMessages) {
 		messages = append(messages, tail)
 	}
 
@@ -707,7 +707,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	context.AfterFunc(sessionCtx, sc.Cancel)
 
 	conversation := s.addSystemPrompt(req.Messages)
-	volatileTail, hasTail := s.volatileTailMessage(req.Messages)
+	volatileTail, hasTail := s.volatileTailMessage(req.Messages, req.IsChatMode)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {

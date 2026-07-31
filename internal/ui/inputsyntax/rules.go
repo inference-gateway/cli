@@ -25,6 +25,14 @@ func SkillRule(validate func(name string) bool) Rule {
 	return Rule{Kind: KindSkill, Re: slashRe, Sigil: '/', ColorKey: "accent", Validate: validate}
 }
 
+// CatalogSkillRule highlights "/<skill>" tokens naming a catalog skill that is
+// not installed yet, in a distinct color from an installed skill. validate must
+// be disjoint from SkillRule's (installed vs not), so rule order is irrelevant;
+// both still come before ShortcutRule.
+func CatalogSkillRule(validate func(name string) bool) Rule {
+	return Rule{Kind: KindCatalogSkill, Re: slashRe, Sigil: '/', ColorKey: "status", Validate: validate}
+}
+
 // ShortcutRule highlights "/<shortcut>" tokens. validate resolves a shortcut
 // name to a registered shortcut (typically registry.Get). Apply AFTER SkillRule.
 func ShortcutRule(validate func(name string) bool) Rule {

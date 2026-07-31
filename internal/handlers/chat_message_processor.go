@@ -21,15 +21,25 @@ import (
 // at the tail prevents partial-number false matches inside longer strings.
 var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
 
+// dynamicSkillsDirDisplay is the session-scoped directory catalog skills are
+// downloaded into; it is wiped when the session ends.
+const dynamicSkillsDirDisplay = ".infer/tmp/skills/"
+
 // ChatMessageProcessor handles message processing logic
 type ChatMessageProcessor struct {
 	handler *ChatHandler
+	// declinedSkills remembers catalog skills the user refused to install, so
+	// re-sending the same message does not re-open the prompt in a loop.
+	// ponytail: session-scoped and never cleared - `infer skills install`
+	// remains the way to change your mind.
+	declinedSkills map[string]bool
 }
 
 // NewChatMessageProcessor creates a new message processor
 func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 	return &ChatMessageProcessor{
-		handler: handler,
+		handler:        handler,
+		declinedSkills: make(map[string]bool),
 	}
 }
 
@@ -43,6 +53,10 @@ type fileExpansionResult struct {
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
 ) tea.Cmd {
+	if cmd := p.confirmCatalogInstall(msg); cmd != nil {
+		return cmd
+	}
+
 	if strings.HasPrefix(msg.Content, "/") && !p.isSkillInvocation(msg.Content) {
 		return p.handler.HandleCommand(msg.Content)
 	}
@@ -100,6 +114,105 @@ func (p *ChatMessageProcessor) isSkillInvocation(content string) bool {
 
 	_, found := p.handler.skillsService.Get(lower)
 	return found
+}
+
+// pendingCatalogSkills returns the names of "/<name>" tokens in content that
+// resolve to a catalog skill whose body has not been downloaded yet, skipping
+// ones the user already declined this session. Order is first-seen, duplicates
+// removed.
+func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
+	if p.handler.skillsService == nil {
+		return nil
+	}
+
+	var names []string
+	seen := make(map[string]bool)
+	for _, field := range strings.Fields(content) {
+		name, ok := strings.CutPrefix(field, "/")
+		if !ok {
+			continue
+		}
+		name = strings.ToLower(name)
+		if _, _, isPlugin := strings.Cut(name, ":"); isPlugin {
+			continue
+		}
+		if seen[name] || p.declinedSkills[name] {
+			continue
+		}
+		sk, found := p.handler.skillsService.Get(name)
+		if !found || sk.Path != "" {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names
+}
+
+// confirmCatalogInstall gates the download of catalog skills behind an explicit
+// user approval, and returns nil when there is nothing to install (the common
+// case) so normal input handling proceeds untouched.
+//
+// This lives in the chat input path on purpose: it is the only skill-activation
+// route a human is watching. Headless runs (`infer agent`, channels, heartbeat)
+// have no approver, so they install directly in buildActiveSkillInfo.
+//
+// The returned cmds run concurrently: the first renders the question form, the
+// second blocks on the answer, performs the install, and re-submits the
+// original input so the message is processed normally once the skill is on disk.
+func (p *ChatMessageProcessor) confirmCatalogInstall(msg domain.UserInputEvent) tea.Cmd {
+	names := p.pendingCatalogSkills(msg.Content)
+	if len(names) == 0 {
+		return nil
+	}
+
+	responseChan := make(chan []domain.UserQuestionAnswer, 1)
+	question := domain.UserQuestion{
+		Header:   "Install skill",
+		Question: fmt.Sprintf("%s is not installed locally. Download it from the skills catalog into %s for this session?", strings.Join(names, ", "), dynamicSkillsDirDisplay),
+		Options: []domain.UserQuestionOption{
+			{Label: "Install", Description: "Fetch the SKILL.md now and activate the skill"},
+			{Label: "Skip", Description: "Send the message without the skill; you will not be asked again this session"},
+		},
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UserQuestionRequestedEvent{
+				Timestamp:    time.Now(),
+				Questions:    []domain.UserQuestion{question},
+				ResponseChan: responseChan,
+			}
+		},
+		func() tea.Msg {
+			answers, open := <-responseChan
+			if !open || !approvedInstall(answers) {
+				for _, name := range names {
+					p.declinedSkills[name] = true
+				}
+				return msg
+			}
+			for _, name := range names {
+				if _, ok := p.handler.skillsService.Discover(context.Background(), name); !ok {
+					logger.Warn("failed to install skill from catalog", "name", name)
+					p.declinedSkills[name] = true
+				}
+			}
+			return msg
+		},
+	)
+}
+
+// approvedInstall reports whether the user picked the install option.
+func approvedInstall(answers []domain.UserQuestionAnswer) bool {
+	for _, answer := range answers {
+		for _, label := range answer.SelectedLabels {
+			if label == "Install" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)

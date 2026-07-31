@@ -1107,3 +1107,28 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 		})
 	}
 }
+
+func TestSkillsRepository(t *testing.T) {
+	cfg := DefaultConfig()
+	if got := cfg.Agent.Skills.SkillsRepository(); got != DefaultSkillsRepository {
+		t.Fatalf("default repository = %q, want %q", got, DefaultSkillsRepository)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("default config must validate: %v", err)
+	}
+
+	cfg.Agent.Skills.Repository = "acme/internal-skills"
+	if got := cfg.Agent.Skills.SkillsRepository(); got != "acme/internal-skills" {
+		t.Fatalf("configured repository = %q", got)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("owner/repo must validate: %v", err)
+	}
+
+	for _, bad := range []string{"not-a-repo", "acme/", "/skills", "a/b/c"} {
+		cfg.Agent.Skills.Repository = bad
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("agent.skills.repository %q should be rejected", bad)
+		}
+	}
+}

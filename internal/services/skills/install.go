@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -24,22 +25,44 @@ const (
 	installerUA       = "inference-gateway-cli"
 	treePartsExpected = 5
 
-	defaultSkillsOrg    = "inference-gateway"
-	defaultSkillsRepo   = "skills"
 	defaultSkillsRef    = "main"
 	defaultSkillsSubdir = "skills"
 )
 
-// ExpandShorthand turns shorthand install targets into full GitHub
-// tree URLs. Accepted forms:
+// splitRepository splits an "<owner>/<repo>" repository reference, falling back
+// to config.DefaultSkillsRepository when it is empty or malformed - a bad value
+// is rejected by Config.Validate at startup, so this only guards direct callers.
+func splitRepository(repository string) (owner, repo string) {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		parts = strings.Split(config.DefaultSkillsRepository, "/")
+	}
+	return parts[0], parts[1]
+}
+
+// SkillTreeURL returns the GitHub tree URL of skill inside the given
+// "<owner>/<repo>" skills repository. It is the single place the skills-repo
+// layout (<ref>/<subdir>/<skill>) is encoded.
+func SkillTreeURL(repository, skill string) string {
+	owner, repo := splitRepository(repository)
+	return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
+		owner, repo, defaultSkillsRef, defaultSkillsSubdir, skill)
+}
+
+// ExpandShorthand turns shorthand install targets into full GitHub tree URLs,
+// resolving them against the configured "<owner>/<repo>" skills repository
+// (config.DefaultSkillsRepository when empty). For the default repository:
 //
 //   - "<skill>"          → https://github.com/inference-gateway/skills/tree/main/skills/<skill>
 //   - "<org>/<skill>"    → https://github.com/<org>/skills/tree/main/skills/<skill>
 //   - any http(s):// URL → returned unchanged
 //
+// The two-segment form keeps the repository *name* from the configured value and
+// swaps only the owner, so a renamed fork stays reachable as "<org>/<skill>".
+//
 // Anything else (3+ slash-separated segments, empty segments, etc.) is
 // returned unchanged so ParseGitHubTreeURL produces its existing error.
-func ExpandShorthand(input string) string {
+func ExpandShorthand(input, repository string) string {
 	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
 		return input
 	}
@@ -51,13 +74,12 @@ func ExpandShorthand(input string) string {
 	if slices.Contains(parts, "") {
 		return input
 	}
+	_, repo := splitRepository(repository)
 	switch len(parts) {
 	case 1:
-		return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
-			defaultSkillsOrg, defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, parts[0])
+		return SkillTreeURL(repository, parts[0])
 	case 2:
-		return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s/%s",
-			parts[0], defaultSkillsRepo, defaultSkillsRef, defaultSkillsSubdir, parts[1])
+		return SkillTreeURL(parts[0]+"/"+repo, parts[1])
 	default:
 		return input
 	}
@@ -125,18 +147,24 @@ type Installer struct {
 	APIBase string
 	RawBase string
 	Token   string
+	// Repository is the "<owner>/<repo>" skills repository shorthand install
+	// targets resolve against. Empty means config.DefaultSkillsRepository.
+	Repository string
 }
 
 // NewInstaller returns an Installer pointed at github.com with a 30s HTTP
-// timeout. The GitHub token is read from the environment (GITHUB_TOKEN, then
-// GH_TOKEN); when neither is set requests are made unauthenticated. Tests
-// substitute APIBase / RawBase to point at httptest.Server.
-func NewInstaller() *Installer {
+// timeout, resolving shorthand targets against the given "<owner>/<repo>"
+// skills repository (empty = config.DefaultSkillsRepository). The GitHub token
+// is read from the environment (GITHUB_TOKEN, then GH_TOKEN); when neither is
+// set requests are made unauthenticated. Tests substitute APIBase / RawBase to
+// point at httptest.Server.
+func NewInstaller(repository string) *Installer {
 	return &Installer{
-		Client:  &http.Client{Timeout: installerTimeout},
-		APIBase: githubAPIBase,
-		RawBase: githubRawBase,
-		Token:   githubToken(),
+		Client:     &http.Client{Timeout: installerTimeout},
+		APIBase:    githubAPIBase,
+		RawBase:    githubRawBase,
+		Token:      githubToken(),
+		Repository: repository,
 	}
 }
 
@@ -168,7 +196,7 @@ func (i *Installer) setAuth(req *http.Request) {
 //
 // Returns the absolute path of the installed skill on success.
 func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase string, overwrite bool) (string, error) {
-	rawURL = ExpandShorthand(rawURL)
+	rawURL = ExpandShorthand(rawURL, i.Repository)
 	loc, err := ParseGitHubTreeURL(rawURL)
 	if err != nil {
 		return "", err

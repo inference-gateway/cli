@@ -55,6 +55,93 @@ into `.infer/skills/`. A project's `.infer/skills/` still wins over both the
 open-standard and user-global locations - useful for overriding a personal or
 shared default with a per-project variant.
 
+### Progressive discovery from the catalog (optional)
+
+When `agent.skills.discovery.enabled` is `true`, the CLI also loads the
+centralized skills catalog published by
+[inference-gateway/skills](https://github.com/inference-gateway/skills) as
+`catalog.json`. The catalog is the **last fallback** in the precedence chain:
+
+1. Project-local: `.infer/skills/<name>/SKILL.md`
+2. Open standard: `.agents/skills/<name>/SKILL.md`
+3. User-global: `~/.infer/skills/<name>/SKILL.md`
+4. Plugin skills: `<plugins-dir>/<name>/skills/<name>/SKILL.md`
+5. **Catalog (progressive discovery)**: fetched from the registry on demand
+
+A local skill with the same name always short-circuits discovery - no catalog
+lookup or download is performed. Only catalog metadata (name, description) is
+consulted up front; the full skill body is fetched only when the skill is
+actually activated (progressive disclosure).
+
+Catalog skills therefore show up in the chat `/` dropdown and in the agent's
+`AVAILABLE SKILLS` list alongside local ones, marked as not-yet-downloaded.
+Invoking one (`/rust`, or "use the rust skill") downloads its `SKILL.md` on the
+spot. The index fetch and the download both use `GITHUB_TOKEN` / `GH_TOKEN`
+when set, which raises GitHub's 60-requests-per-hour anonymous rate limit; the
+token is only ever sent to GitHub hosts.
+
+Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
+**cleaned up after the session ends** by default. Set
+`agent.skills.discovery.cleanup: false` to retain them across sessions.
+
+```yaml
+# .infer/config.yaml
+agent:
+  skills:
+    enabled: true
+    repository: "inference-gateway/skills"
+    discovery:
+      enabled: true
+      cleanup: true
+```
+
+`repository` is the `<owner>/<repo>` GitHub repository skills come from - the
+value above is the default, and `INFER_AGENT_SKILLS_REPOSITORY` overrides it.
+It drives everything: the `infer skills install <name>` shorthand, on-demand
+catalog downloads, and the catalog index, which is read from
+`https://raw.githubusercontent.com/<repository>/main/catalog.json`. Point it at
+your own fork and all three follow. It is the only knob involved: the index and
+the skill bodies always come from the same repository, so there is nothing to
+keep in sync.
+
+#### Catalog size
+
+The whole catalog index is fetched and held in memory, which is cheap even at
+a few thousand entries, but the `AVAILABLE SKILLS:` block in the system prompt
+is bounded by `agent.skills.max_chars` (default 4000). Skills that have a local
+`SKILL.md` are listed first - the model can `Read` those - and whatever does not
+fit is reported as a count, not a list of names. So a large catalog costs a
+fixed number of prompt tokens no matter how big it gets; use
+`infer skills search` to find what the prompt does not name.
+
+## Searching the catalog
+
+```bash
+infer skills search rust
+infer skills search "pull request" --limit 20
+infer skills search --format json
+```
+
+Names are fuzzy-matched and ranked by score, so typos and partial names still
+find the skill. Descriptions match on **whole words only** - a substring match
+makes a short query useless, since `go` otherwise hits "good" and "algorithm"
+across half the catalog. Name matches are listed before description matches,
+ten results by default. Omit the term to browse.
+
+The `Installed` column shows the path to the local `SKILL.md` when the skill is
+already on disk, and `no` when it is not - relative to the working directory for
+a project skill, `~`-prefixed for a user-global one. The header shows the
+catalog's published release. Descriptions are truncated to keep the table inside
+the terminal; pass `--no-trunc` for the full text.
+
+The catalog is versioned as a whole - individual skills carry no version of
+their own, so there is nothing to pin per skill.
+
+Search works regardless of `agent.skills.discovery.enabled` - fetching the
+index on an explicit search is a direct user action, not background discovery.
+Matching happens locally over the fetched index, since `catalog.json` is a
+static file with no server-side query support.
+
 ## Built-in skills
 
 The CLI ships a small set of **built-in skills** embedded in the binary. On

@@ -47,11 +47,13 @@ type frontmatter struct {
 // is gated by config.AgentSkillsConfig - when disabled the scan is skipped
 // entirely so there is zero token / IO cost.
 type Service struct {
-	cfg    *config.Config
-	scopes []scopedDir
-	mu     sync.RWMutex
-	skills []domain.Skill
-	errs   []domain.SkillLoadError
+	cfg          *config.Config
+	scopes       []scopedDir
+	mu           sync.RWMutex
+	skills       []domain.Skill
+	errs         []domain.SkillLoadError
+	catalog      *CatalogClient
+	dynamicNames []string
 }
 
 // New returns a Service bound to cfg. Call Load to populate the skill list.
@@ -68,7 +70,7 @@ func newWithScopes(cfg *config.Config, scopes []scopedDir) *Service {
 // Load scans both project and user-global skill directories, parses
 // frontmatter, validates each skill, and populates the in-memory list.
 // When skills are disabled in config the call is a no-op and returns nil.
-func (s *Service) Load(_ context.Context) error {
+func (s *Service) Load(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -126,7 +128,43 @@ func (s *Service) Load(_ context.Context) error {
 		}
 	}
 
+	s.mergeCatalog(ctx, disabled)
+
 	return nil
+}
+
+// mergeCatalog appends the centralized catalog's index entries to the loaded
+// list as metadata-only skills (empty Path = body not downloaded yet); the
+// SKILL.md is fetched on activation by Discover. Local skills win on name
+// collision. Best-effort: a failed fetch just leaves the list local-only.
+// Caller holds s.mu.
+func (s *Service) mergeCatalog(ctx context.Context, disabled map[string]struct{}) {
+	if !s.cfg.Agent.Skills.Discovery.Enabled {
+		return
+	}
+
+	if s.catalog == nil {
+		s.catalog = NewCatalogClient(s.cfg)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, catalogIndexTimeout)
+	defer cancel()
+
+	local := make(map[string]struct{}, len(s.skills))
+	for _, sk := range s.skills {
+		local[sk.Name] = struct{}{}
+	}
+
+	for _, entry := range s.catalog.Index(ctx) {
+		if _, dup := local[entry.Name]; dup {
+			continue
+		}
+		if _, dropped := disabled[entry.Name]; dropped {
+			continue
+		}
+		local[entry.Name] = struct{}{}
+		s.skills = append(s.skills, skillFromEntry(entry))
+	}
 }
 
 // List returns a defensive copy of the loaded skills.
@@ -158,6 +196,88 @@ func (s *Service) Errors() []domain.SkillLoadError {
 	out := make([]domain.SkillLoadError, len(s.errs))
 	copy(out, s.errs)
 	return out
+}
+
+// Discover resolves a skill by name, downloading its body from the
+// centralized catalog when the loaded entry is a metadata-only catalog
+// placeholder (empty Path, seeded by Load). Any skill already backed by a
+// file on disk - local or previously downloaded - is returned as-is, so this
+// is the safe replacement for Get on the activation path. Returns false when
+// the name is unknown, or when it is only resolvable via the catalog and
+// discovery is disabled.
+func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool) {
+	known, ok := s.Get(name)
+	if ok && known.Path != "" {
+		return known, true
+	}
+
+	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
+		return domain.Skill{}, false
+	}
+
+	if s.catalog == nil {
+		s.catalog = NewCatalogClient(s.cfg)
+	}
+
+	description := known.Description
+	if !ok {
+		entry, found := s.catalog.Lookup(ctx, name)
+		if !found {
+			return domain.Skill{}, false
+		}
+		description = entry.Description
+	}
+
+	skillPath, err := s.catalog.DownloadSkill(ctx, name)
+	if err != nil {
+		logger.Warn("failed to download skill from catalog", "name", name, "error", err)
+		return domain.Skill{}, false
+	}
+
+	skill := domain.Skill{
+		Name:        name,
+		Description: description,
+		Path:        skillPath,
+		Scope:       domain.SkillScopeCatalog,
+	}
+
+	s.mu.Lock()
+	if i := s.indexOf(name); i >= 0 {
+		s.skills[i] = skill
+	} else {
+		s.skills = append(s.skills, skill)
+	}
+	s.dynamicNames = append(s.dynamicNames, name)
+	s.mu.Unlock()
+
+	return skill, true
+}
+
+// indexOf returns the position of name in s.skills, or -1. Caller holds s.mu.
+func (s *Service) indexOf(name string) int {
+	for i, sk := range s.skills {
+		if sk.Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// CleanupDynamic removes dynamically downloaded skills from disk.
+// When cleanup is enabled in config, this removes all skills that were
+// fetched from the catalog during this session. No-op when discovery
+// is disabled or cleanup is explicitly turned off.
+func (s *Service) CleanupDynamic(_ context.Context) error {
+	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
+		return nil
+	}
+	if s.cfg.Agent.Skills.Discovery.Cleanup != nil && !*s.cfg.Agent.Skills.Discovery.Cleanup {
+		return nil
+	}
+	if len(s.dynamicNames) == 0 {
+		return nil
+	}
+	return CleanupDynamic()
 }
 
 type scopedDir struct {

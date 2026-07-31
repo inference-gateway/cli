@@ -685,14 +685,20 @@ func (iv *InputView) ensureHighlighter() {
 
 	var rules []inputsyntax.Rule
 	if iv.skillsService != nil {
-		rules = append(rules, inputsyntax.SkillRule(func(name string) bool {
+		lookup := func(name string) (domain.Skill, bool) {
 			lower := strings.ToLower(name)
 			if parts := strings.SplitN(lower, ":", 2); len(parts) == 2 {
-				_, found := iv.skillsService.Get(parts[1])
-				return found
+				return iv.skillsService.Get(parts[1])
 			}
-			_, found := iv.skillsService.Get(lower)
-			return found
+			return iv.skillsService.Get(lower)
+		}
+		rules = append(rules, inputsyntax.SkillRule(func(name string) bool {
+			sk, found := lookup(name)
+			return found && sk.Path != ""
+		}))
+		rules = append(rules, inputsyntax.CatalogSkillRule(func(name string) bool {
+			sk, found := lookup(name)
+			return found && sk.Path == ""
 		}))
 	}
 	if iv.shortcutRegistry != nil {

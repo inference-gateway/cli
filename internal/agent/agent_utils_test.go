@@ -19,26 +19,6 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-// stubSkillsService implements domain.SkillsService for testing the
-// system-prompt injection without depending on the real package's filesystem
-// scan.
-type stubSkillsService struct {
-	skills []domain.Skill
-}
-
-func (s *stubSkillsService) Load(_ context.Context) error    { return nil }
-func (s *stubSkillsService) List() []domain.Skill            { return s.skills }
-func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
-
-func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
-	for _, sk := range s.skills {
-		if sk.Name == name {
-			return sk, true
-		}
-	}
-	return domain.Skill{}, false
-}
-
 func TestIsCompleteJSON(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -294,13 +274,17 @@ func TestBuildSkillsInfo(t *testing.T) {
 		},
 		{
 			name:       "empty list",
-			svc:        &AgentServiceImpl{skillsService: &stubSkillsService{}},
+			svc:        &AgentServiceImpl{skillsService: &domainmocks.FakeSkillsService{}},
 			wantEmpty:  true,
 			exactPaths: -1,
 		},
 		{
 			name: "formats skills",
-			svc:  &AgentServiceImpl{skillsService: &stubSkillsService{skills: twoStubSkills()}},
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(twoStubSkills())
+				return &AgentServiceImpl{skillsService: fake}
+			}(),
 			wantContains: []string{
 				"AVAILABLE SKILLS:",
 				"Read tool",
@@ -317,15 +301,23 @@ func TestBuildSkillsInfo(t *testing.T) {
 			exactPaths: -1,
 		},
 		{
-			name:         "caps rendered list at max chars",
-			svc:          &AgentServiceImpl{config: skillsCapConfig(700), skillsService: &stubSkillsService{skills: manyStubSkills()}},
-			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "delta"},
-			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md"},
+			name: "caps rendered list at max chars",
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(manyStubSkills())
+				return &AgentServiceImpl{config: skillsCapConfig(700), skillsService: fake}
+			}(),
+			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "infer skills search"},
+			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md", "delta"},
 			exactPaths:   1,
 		},
 		{
-			name:       "no cap when max chars is zero",
-			svc:        &AgentServiceImpl{config: skillsCapConfig(0), skillsService: &stubSkillsService{skills: manyStubSkills()}},
+			name: "no cap when max chars is zero",
+			svc: func() *AgentServiceImpl {
+				fake := &domainmocks.FakeSkillsService{}
+				fake.ListReturns(manyStubSkills())
+				return &AgentServiceImpl{config: skillsCapConfig(0), skillsService: fake}
+			}(),
 			wantAbsent: []string{"more skills not expanded"},
 			exactPaths: 4,
 		},
@@ -352,6 +344,43 @@ func TestBuildSkillsInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuildSkillsInfo_LargeCatalogStaysBounded guards the section against a
+// catalog that grows without limit. This string rides in the static system
+// prompt, so anything O(catalog size) here is paid on every request and sits in
+// the KV-cache prefix.
+func TestBuildSkillsInfo_LargeCatalogStaysBounded(t *testing.T) {
+	const maxChars = 4000
+
+	all := []domain.Skill{{
+		Name:        "local-one",
+		Description: "The one skill that is actually on disk.",
+		Path:        "/abs/.infer/skills/local-one/SKILL.md",
+		Scope:       domain.SkillScopeProject,
+	}}
+	for i := 0; i < 1000; i++ {
+		all = append(all, domain.Skill{
+			Name:        fmt.Sprintf("catalog-skill-%04d", i),
+			Description: strings.Repeat("y", 200),
+			Scope:       domain.SkillScopeCatalog,
+		})
+	}
+
+	fake := &domainmocks.FakeSkillsService{}
+	fake.ListReturns(all)
+	got := (&AgentServiceImpl{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
+
+	// The tail line is written after the cap check, so allow one line of slack -
+	// what must not happen is growth proportional to the catalog.
+	require.Less(t, len(got), maxChars+200,
+		"skills section must stay within its char budget regardless of catalog size")
+	require.Contains(t, got, "more skills not expanded")
+	require.NotContains(t, got, "catalog-skill-0999",
+		"omitted skills must be counted, never named")
+
+	// The one actionable skill outranks 1000 path-less catalog entries.
+	require.Contains(t, got, "/abs/.infer/skills/local-one/SKILL.md")
 }
 
 // toolDef builds an sdk.ChatCompletionTool with the given name and (optional)
@@ -463,13 +492,23 @@ func assistantMsg(text string) sdk.Message {
 // activeSkillsAgent returns an agent whose skills service knows foo/bar, each
 // with distinctive metadata (description + path).
 func activeSkillsAgent() *AgentServiceImpl {
+	fake := &domainmocks.FakeSkillsService{}
+	skills := []domain.Skill{
+		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
+		{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
+	}
+	get := func(name string) (domain.Skill, bool) {
+		for _, sk := range skills {
+			if sk.Name == name {
+				return sk, true
+			}
+		}
+		return domain.Skill{}, false
+	}
+	fake.GetStub = get
+	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
 	return &AgentServiceImpl{
-		skillsService: &stubSkillsService{
-			skills: []domain.Skill{
-				{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
-				{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
-			},
-		},
+		skillsService: fake,
 	}
 }
 
@@ -552,7 +591,7 @@ func TestBuildActiveSkillInfo(t *testing.T) {
 				s = &AgentServiceImpl{}
 			}
 
-			got := s.buildActiveSkillInfo(tt.messages)
+			got := s.buildActiveSkillInfo(tt.messages, false)
 
 			if tt.wantEmpty {
 				require.Empty(t, got)
@@ -778,7 +817,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	}
 
 	t.Run("carries volatile sections and date", func(t *testing.T) {
-		msg, ok := newSvc(true, true).volatileTailMessage(nil)
+		msg, ok := newSvc(true, true).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		require.Equal(t, sdk.User, msg.Role)
 		content := tailContent(t, msg)
@@ -789,13 +828,13 @@ func TestVolatileTailMessage(t *testing.T) {
 	})
 
 	t.Run("disabled section is absent", func(t *testing.T) {
-		msg, ok := newSvc(false, true).volatileTailMessage(nil)
+		msg, ok := newSvc(false, true).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		require.NotContains(t, tailContent(t, msg), "PERSISTENT MEMORY INDEX")
 	})
 
 	t.Run("defaults off keeps only the date", func(t *testing.T) {
-		msg, ok := newSvc(true, false).volatileTailMessage(nil)
+		msg, ok := newSvc(true, false).volatileTailMessage(nil, true)
 		require.True(t, ok)
 		content := tailContent(t, msg)
 		require.NotContains(t, content, "PERSISTENT MEMORY INDEX")
@@ -805,7 +844,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	t.Run("no system prompt yields no tail", func(t *testing.T) {
 		s := newSvc(true, true)
 		s.config.Prompts.Agent.SystemPrompt = ""
-		_, ok := s.volatileTailMessage(nil)
+		_, ok := s.volatileTailMessage(nil, true)
 		require.False(t, ok)
 	})
 
@@ -816,7 +855,61 @@ func TestVolatileTailMessage(t *testing.T) {
 			{Role: sdk.Assistant, ToolCalls: &toolCalls},
 		}
 
-		_, ok := newSvc(true, true).volatileTailMessage(messages)
+		_, ok := newSvc(true, true).volatileTailMessage(messages, true)
 		require.True(t, ok)
 	})
+}
+
+// TestBuildSkillsInfo_CatalogEntryIsCacheStable locks in that installing a
+// catalog skill mid-session does not rewrite the static system prompt. The
+// AVAILABLE SKILLS section rides in message[0]; if the freshly-downloaded path
+// leaked into it, every conversation would lose its KV-cache prefix the moment
+// a skill was fetched.
+func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
+	notInstalled := domain.Skill{
+		Name:        "rust",
+		Description: "Idiomatic Rust.",
+		Scope:       domain.SkillScopeCatalog,
+	}
+	installed := notInstalled
+	installed.Path = "/abs/.infer/tmp/skills/rust/SKILL.md"
+
+	render := func(sk domain.Skill) string {
+		fake := &domainmocks.FakeSkillsService{}
+		fake.ListReturns([]domain.Skill{sk})
+		return (&AgentServiceImpl{skillsService: fake}).buildSkillsInfo()
+	}
+
+	before, after := render(notInstalled), render(installed)
+	require.Equal(t, before, after, "installing a catalog skill must not change the static system prompt")
+	require.Contains(t, before, "rust")
+	require.NotContains(t, after, installed.Path, "the concrete path belongs in the volatile tail, not the system prompt")
+}
+
+// TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly locks in the approval
+// split: a headless run installs a not-yet-downloaded skill itself, while chat
+// leaves it alone because the user approves the install at the input layer.
+func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
+	newAgent := func() (*AgentServiceImpl, *domainmocks.FakeSkillsService) {
+		fake := &domainmocks.FakeSkillsService{}
+		fake.GetReturns(domain.Skill{Name: "rust", Description: "RUST_DESC", Scope: domain.SkillScopeCatalog}, true)
+		fake.DiscoverReturns(domain.Skill{
+			Name:        "rust",
+			Description: "RUST_DESC",
+			Path:        "/abs/.infer/tmp/skills/rust/SKILL.md",
+			Scope:       domain.SkillScopeCatalog,
+		}, true)
+		return &AgentServiceImpl{skillsService: fake}, fake
+	}
+
+	messages := []sdk.Message{userMsg("/rust do a thing")}
+
+	chatAgent, chatFake := newAgent()
+	require.Empty(t, chatAgent.buildActiveSkillInfo(messages, true))
+	require.Zero(t, chatFake.DiscoverCallCount(), "chat must not download without approval")
+
+	headlessAgent, headlessFake := newAgent()
+	got := headlessAgent.buildActiveSkillInfo(messages, false)
+	require.Contains(t, got, "/abs/.infer/tmp/skills/rust/SKILL.md")
+	require.Equal(t, 1, headlessFake.DiscoverCallCount())
 }

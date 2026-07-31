@@ -898,9 +898,13 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
-	// Flush telemetry first so the exporters' final push (local file + optional
-	// OTLP) happens before the rest of the teardown.
 	c.telemetryRecorder.Shutdown(ctx)
+
+	if c.skillsService != nil {
+		if err := c.skillsService.CleanupDynamic(ctx); err != nil {
+			logger.Warn("failed to clean up dynamic skills", "error", err)
+		}
+	}
 
 	if c.backgroundShellService != nil {
 		logger.Info("stopping background shell service...")

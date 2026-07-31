@@ -1,34 +1,28 @@
 package components
 
 import (
-	"context"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 )
-
-// stubSkillsService is a minimal domain.SkillsService for highlight tests; there
-// is no counterfeiter fake for this interface.
-type stubSkillsService struct{ known map[string]bool }
-
-func (s *stubSkillsService) Load(context.Context) error { return nil }
-func (s *stubSkillsService) List() []domain.Skill       { return nil }
-func (s *stubSkillsService) Get(name string) (domain.Skill, bool) {
-	if s.known[name] {
-		return domain.Skill{Name: name}, true
-	}
-	return domain.Skill{}, false
-}
-func (s *stubSkillsService) Errors() []domain.SkillLoadError { return nil }
 
 func newInputViewWithHighlightDeps(t *testing.T) *InputView {
 	t.Helper()
 	iv := createInputViewWithTheme(createMockModelService())
-	iv.SetSkillsService(&stubSkillsService{known: map[string]bool{"maintainer": true}})
+
+	fake := &domainmocks.FakeSkillsService{}
+	fake.GetStub = func(name string) (domain.Skill, bool) {
+		if name == "maintainer" {
+			return domain.Skill{Name: name}, true
+		}
+		return domain.Skill{}, false
+	}
+	iv.SetSkillsService(fake)
 
 	registry := shortcuts.NewRegistry()
 	gitShortcut := &shortcutsmocks.FakeShortcut{}
