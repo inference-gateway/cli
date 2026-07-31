@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	cobra "github.com/spf13/cobra"
@@ -163,7 +164,7 @@ func searchSkills(cmd *cobra.Command, args []string) error {
 	catalog := skills.NewCatalogClient(searchCfg)
 	matches := catalog.Search(cmd.Context(), query, limit)
 	release, updated := catalog.Release()
-	installed := installedSkillNames()
+	installed := installedSkillPaths()
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
@@ -172,7 +173,8 @@ func searchSkills(cmd *cobra.Command, args []string) error {
 			out = append(out, map[string]any{
 				"name":        sk.Name,
 				"description": sk.Description,
-				"installed":   installed[sk.Name],
+				"installed":   installed[sk.Name] != "",
+				"path":        installed[sk.Name],
 			})
 		}
 		data, err := json.MarshalIndent(map[string]any{
@@ -203,9 +205,9 @@ func searchSkills(cmd *cobra.Command, args []string) error {
 	noTrunc, _ := cmd.Flags().GetBool("no-trunc")
 	table := newListTable("Name", "Description", "Installed")
 	for _, sk := range matches {
-		state := "no"
-		if installed[sk.Name] {
-			state = "yes"
+		state := shortenPath(installed[sk.Name])
+		if state == "" {
+			state = "no"
 		}
 		desc := sk.Description
 		if !noTrunc {
@@ -240,10 +242,10 @@ func catalogVersionLine(release, updated string) string {
 	}
 }
 
-// installedSkillNames returns the locally present skill names so search results
-// can be marked. Discovery stays off here - the catalog side is what Search
-// already fetched.
-func installedSkillNames() map[string]bool {
+// installedSkillPaths maps each locally present skill name to its SKILL.md, so
+// search results can point at the file rather than just saying "yes". Discovery
+// stays off here - the catalog side is what Search already fetched.
+func installedSkillPaths() map[string]string {
 	scanCfg := &config.Config{
 		Agent: config.AgentConfig{
 			Skills: config.AgentSkillsConfig{Enabled: true},
@@ -258,11 +260,31 @@ func installedSkillNames() map[string]bool {
 		return nil
 	}
 
-	names := make(map[string]bool)
+	paths := make(map[string]string)
 	for _, sk := range svc.List() {
-		names[sk.Name] = true
+		paths[sk.Name] = sk.Path
 	}
-	return names
+	return paths
+}
+
+// shortenPath renders an absolute skill path for the search table: relative to
+// the working directory when it lives under it, ~-prefixed when under $HOME,
+// absolute otherwise. A full path is 80+ columns and wraps the table borders.
+func shortenPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		if rel, relErr := filepath.Rel(cwd, path); relErr == nil && !strings.HasPrefix(rel, "..") {
+			return rel
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if rel, relErr := filepath.Rel(home, path); relErr == nil && !strings.HasPrefix(rel, "..") {
+			return filepath.Join("~", rel)
+		}
+	}
+	return path
 }
 
 var skillsInstallCmd = &cobra.Command{

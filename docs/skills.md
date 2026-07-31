@@ -128,9 +128,11 @@ makes a short query useless, since `go` otherwise hits "good" and "algorithm"
 across half the catalog. Name matches are listed before description matches,
 ten results by default. Omit the term to browse.
 
-The `Installed` column shows whether the skill is already on disk locally, and
-the header shows the catalog's published release. Descriptions are truncated to
-keep the table inside the terminal; pass `--no-trunc` for the full text.
+The `Installed` column shows the path to the local `SKILL.md` when the skill is
+already on disk, and `no` when it is not - relative to the working directory for
+a project skill, `~`-prefixed for a user-global one. The header shows the
+catalog's published release. Descriptions are truncated to keep the table inside
+the terminal; pass `--no-trunc` for the full text.
 
 The catalog is versioned as a whole - individual skills carry no version of
 their own, so there is nothing to pin per skill.
