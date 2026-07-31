@@ -1,12 +1,19 @@
 package services
 
 import (
+	"bytes"
+	"context"
+	"encoding/base64"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -70,7 +77,7 @@ func TestImageService_IsImageURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService(config.DefaultConfig())
+			service := NewImageService(config.DefaultConfig(), nil)
 			result := service.IsImageURL(tt.url)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -116,7 +123,7 @@ func TestImageService_ReadImageFromURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService(config.DefaultConfig())
+			service := NewImageService(config.DefaultConfig(), nil)
 			attachment, err := service.ReadImageFromURL(tt.url)
 
 			if tt.expectError {
@@ -138,7 +145,7 @@ func TestImageService_ReadImageFromURL_404(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewImageService(config.DefaultConfig())
+	service := NewImageService(config.DefaultConfig(), nil)
 	attachment, err := service.ReadImageFromURL(server.URL + "/notfound.png")
 
 	assert.Error(t, err)
@@ -160,7 +167,7 @@ func TestImageService_ReadImageFromURL_OversizedImage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewImageService(config.DefaultConfig())
+	service := NewImageService(config.DefaultConfig(), nil)
 	attachment, err := service.ReadImageFromURL(server.URL + "/large.png")
 
 	assert.Error(t, err)
@@ -223,9 +230,137 @@ func TestImageService_IsImageFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService(config.DefaultConfig())
+			service := NewImageService(config.DefaultConfig(), nil)
 			result := service.IsImageFile(tt.path)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestImageService_IsImageModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    string
+		expected bool
+	}{
+		{"gpt-image", "openai/gpt-image-1", true},
+		{"dall-e", "openai/dall-e-3", true},
+		{"flux", "deepinfra/FLUX-1-schnell", true},
+		{"nano-banana", "google/nano-banana", true},
+		{"text model", "openai/gpt-4o", false},
+		{"text model with image in provider path", "anthropic/claude-sonnet-5", false},
+		{"empty", "", false},
+	}
+
+	service := NewImageService(config.DefaultConfig(), nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, service.IsImageModel(tt.model))
+		})
+	}
+}
+
+// fakeImageClient records the request and returns a canned response.
+type fakeImageClient struct {
+	sdk.Client
+	gotProvider sdk.Provider
+	gotRequest  sdk.CreateImageRequest
+	response    *sdk.ImagesResponse
+	err         error
+}
+
+func (f *fakeImageClient) CreateImage(_ context.Context, provider sdk.Provider, request sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
+	f.gotProvider = provider
+	f.gotRequest = request
+	return f.response, f.err
+}
+
+// onePixelPNG is the smallest valid PNG, so ReadImageFromBinary can decode it.
+func onePixelPNG(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encoding png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestImageService_GenerateImage(t *testing.T) {
+	pngBytes := onePixelPNG(t)
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+
+	t.Run("base64 payload is decoded and saved", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+
+		t.Chdir(t.TempDir())
+		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat",
+			"low", "1024x1024")
+
+		assert.NoError(t, err)
+		saved, readErr := os.ReadFile(path)
+		assert.NoError(t, readErr)
+		assert.Equal(t, pngBytes, saved)
+
+		assert.Equal(t, sdk.Provider("openai"), client.gotProvider)
+		assert.Equal(t, "gpt-image-1", *client.gotRequest.Model)
+		assert.Equal(t, "a cat", client.gotRequest.Prompt)
+		assert.Equal(t, sdk.CreateImageRequestQualityLow, *client.gotRequest.Quality)
+		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotRequest.Size)
+	})
+
+	t.Run("blank quality and size are omitted", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+
+		t.Chdir(t.TempDir())
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+
+		assert.NoError(t, err)
+		assert.Nil(t, client.gotRequest.Quality)
+		assert.Nil(t, client.gotRequest.Size)
+	})
+
+	t.Run("url payload is downloaded", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write(pngBytes)
+		}))
+		defer server.Close()
+
+		url := server.URL + "/generated.png"
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{URL: &url}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+
+		t.Chdir(t.TempDir())
+		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+
+		assert.NoError(t, err)
+		saved, readErr := os.ReadFile(path)
+		assert.NoError(t, readErr)
+		assert.Equal(t, pngBytes, saved)
+	})
+
+	t.Run("api error is returned", func(t *testing.T) {
+		client := &fakeImageClient{err: fmt.Errorf("API error: Requested route is not found (status code: 404)")}
+		service := NewImageService(config.DefaultConfig(), client)
+
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		assert.ErrorContains(t, err, "404")
+	})
+
+	t.Run("empty data is an error", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{}}
+		service := NewImageService(config.DefaultConfig(), client)
+
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		assert.ErrorContains(t, err, "no images")
+	})
+
+	t.Run("model without a provider prefix is rejected", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+
+		_, err := service.GenerateImage(context.Background(), "gpt-image-1", "a cat", "", "")
+		assert.ErrorContains(t, err, "expected 'provider/model'")
+	})
 }

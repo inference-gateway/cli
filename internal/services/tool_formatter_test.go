@@ -241,7 +241,13 @@ func TestFormatToolResultExpanded_ThemingPreservesTree(t *testing.T) {
 	}
 	out := stripCard(full)
 
-	want := tree + "\n· ctrl+o to collapse"
+	want := "Bash(command=git branch)\n" +
+		strings.Repeat("─", 76) + "\n" +
+		"├─ Duration: 19ms\n" +
+		"├─ Status: ✓ Success\n" +
+		"└─ Result:\n" +
+		"   Exit Code: 0\n" +
+		"   * main\n· ctrl+o to collapse"
 	if out != want {
 		t.Errorf("themed tree changed content.\n got: %q\nwant: %q", out, want)
 	}

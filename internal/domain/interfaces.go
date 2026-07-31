@@ -510,6 +510,12 @@ type ImageService interface {
 	IsImageFile(filePath string) bool
 	// IsImageURL checks if a string is a valid image URL
 	IsImageURL(urlStr string) bool
+	// IsImageModel reports whether the model generates images rather than text
+	IsImageModel(model string) bool
+	// GenerateImage generates an image from prompt using model ("provider/name")
+	// and returns the path of the saved file. A blank quality or size leaves the
+	// provider's own default
+	GenerateImage(ctx context.Context, model, prompt, quality, size string) (string, error)
 }
 
 // FileInfo contains file metadata

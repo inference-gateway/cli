@@ -53,7 +53,6 @@ These shortcuts are available out of the box:
 - `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
 - `/theme` - Switch chat interface theme or list available themes
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
-- `/image <prompt>` - Generate an image and save it to `./image-<timestamp>.png` (uses the session's provider and model)
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
 - `/exit` - Exit the chat session
 
@@ -128,20 +127,27 @@ on first use. If a required tool is missing, `/voice` reports an actionable erro
 hints. The same speech-to-text engine also transcribes inbound Telegram voice messages when running
 `infer channels-manager`.
 
-### Image Shortcut
+### Image Generation
 
-The `/image` shortcut generates an image with the session's selected provider and
-model and saves it to a local PNG file:
+There is no `/image` shortcut. Just ask for the image in plain language while
+chatting with any model - the chat model calls the `ImageGeneration` tool when
+it recognises the intent:
 
-1. Type `/image <prompt>` and press Enter - e.g. `/image a cat in a spacesuit`
-2. The CLI calls the gateway's `POST /v1/images/generations` endpoint with the prompt
-3. The returned image is decoded (base64 payload) or downloaded (URL) and written
-   to `./image-<timestamp>.png` in the current working directory
-4. The saved file path is printed in the conversation
+1. Ask for `a cat in a spacesuit` (or a meme of whatever is in the context)
+2. The tool sends the prompt as a plain one-off request to the gateway's
+   `POST /v1/images/generations` endpoint using the configured image model
+   (`tools.image_generation.model`, default `openai/gpt-image-1`) - no system
+   prompt, no tools
+3. The returned image is decoded (base64 payload) or downloaded (URL), written to
+   `.infer/tmp/image-<timestamp>.png`, and the saved path is returned
 
-The gateway routes by model, so any provider with an image-capable model works.
-Unsupported providers or models surface a readable error in the chat. Inline
-terminal rendering and `n`/`size`/`quality` options are not supported yet.
+Image models never appear in the `/model` selector - they are recognised by name
+(`dall-e`, `gpt-image`, `imagen`, `flux`, `stable-diffusion`, `sdxl`, `seedream`,
+`nano-banana`, `qwen-image`, since `/v1/models` carries no modality metadata) and
+filtered out; they are only reachable through this tool. `quality` defaults to
+`low` and `size` to `1024x1024` - ask explicitly for high quality or a larger
+size to pay for it. Disable the tool with `tools.image_generation.enabled: false`.
+Inline terminal rendering and the `n` option are not supported yet.
 
 ---
 

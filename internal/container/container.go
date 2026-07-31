@@ -315,7 +315,7 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService(c.config)
+	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
 	c.messageQueue = services.NewMessageQueueService()
 
 	c.initializeMCPManager()
@@ -584,7 +584,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewEffortShortcut(c.agent, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
-	c.shortcutRegistry.Register(shortcuts.NewImageShortcut(c.createRawSDKClient(), c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewToolsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))

@@ -53,11 +53,16 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("empty response from models API")
 	}
 
-	ids := make([]string, len(resp.Data))
+	ids := make([]string, 0, len(resp.Data))
 	windows := make(map[string]int, len(resp.Data))
 	prices := make(map[string]gatewayPrice, len(resp.Data))
-	for i, model := range resp.Data {
-		ids[i] = model.ID
+	for _, model := range resp.Data {
+		// Image models are not chat-selectable; they are only reachable
+		// through the ImageGeneration tool's one-off request.
+		if imageModelRe.MatchString(model.ID) {
+			continue
+		}
+		ids = append(ids, model.ID)
 		if cw := model.ContextWindow; cw != nil && cw.Tokens > 0 {
 			windows[model.ID] = cw.Tokens
 		}

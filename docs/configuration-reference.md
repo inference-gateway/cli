@@ -182,6 +182,10 @@ tools:
   todo_write:
     enabled: true
     require_approval: false
+  image_generation:
+    enabled: true
+    model: openai/gpt-image-1 # Image model for one-off /v1/images/generations requests
+    require_approval: false
   safety:
     require_approval: true
     # How an action that needs approval is delivered: prompt (TUI in chat, IPC

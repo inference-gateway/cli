@@ -186,6 +186,7 @@ type ToolsConfig struct {
 	Agent           AgentToolConfig           `yaml:"agent" mapstructure:"agent"`
 	AskUserQuestion AskUserQuestionToolConfig `yaml:"ask_user_question" mapstructure:"ask_user_question"`
 	Wait            WaitToolConfig            `yaml:"wait" mapstructure:"wait"`
+	ImageGeneration ImageGenerationToolConfig `yaml:"image_generation" mapstructure:"image_generation"`
 
 	// MaxResultBytes caps the size of a single tool result fed back to the LLM.
 	// Oversized results are middle-truncated (head + tail kept) so one
@@ -292,6 +293,16 @@ type ScheduleToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	MaxJobs         int   `yaml:"max_jobs,omitempty" mapstructure:"max_jobs,omitempty"`
+}
+
+// ImageGenerationToolConfig contains settings for the ImageGeneration tool,
+// which sends a plain one-off request to /v1/images/generations using the
+// configured image model and saves the result locally. It is independent of
+// the model selected for the chat session.
+type ImageGenerationToolConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WaitToolConfig contains settings for the Wait tool, which blocks inside a
@@ -958,6 +969,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxTimeoutSeconds:     600,
 				CommandPollIntervalMs: 2000,
 			},
+			ImageGeneration: ImageGenerationToolConfig{
+				Enabled: true,
+				Model:   "openai/gpt-image-1",
+			},
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
@@ -1216,6 +1231,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
 	case "Wait":
+		return false
+	case "ImageGeneration":
+		if c.Tools.ImageGeneration.RequireApproval != nil {
+			return *c.Tools.ImageGeneration.RequireApproval
+		}
 		return false
 	case "Memory":
 		return false

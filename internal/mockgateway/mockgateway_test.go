@@ -187,9 +187,10 @@ func TestModelsAndHealthEndpoints(t *testing.T) {
 
 	var models sdk.ListModelsResponse
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&models))
-	require.Len(t, models.Data, 2)
+	require.Len(t, models.Data, 3)
 	require.Equal(t, DefaultModel, models.Data[0].ID)
 	require.Equal(t, AnthropicModel, models.Data[1].ID)
+	require.Equal(t, ImageModel, models.Data[2].ID)
 
 	health, err := http.Get(ts.URL + "/v1/health")
 	require.NoError(t, err)

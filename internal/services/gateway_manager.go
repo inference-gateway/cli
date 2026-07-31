@@ -331,6 +331,10 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "ENABLE_VISION=true")
 	}
 
+	if gm.config.Tools.ImageGeneration.Enabled {
+		args = append(args, "-e", "ENABLE_IMAGES=true")
+	}
+
 	if gm.config.Gateway.Debug {
 		args = append(args, "-e", "ENVIRONMENT=development")
 	}
@@ -706,6 +710,10 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	if gm.config.Gateway.VisionEnabled {
 		cmd.Env = append(cmd.Env, "ENABLE_VISION=true")
+	}
+
+	if gm.config.Tools.ImageGeneration.Enabled {
+		cmd.Env = append(cmd.Env, "ENABLE_IMAGES=true")
 	}
 
 	if gm.config.Gateway.Debug {
