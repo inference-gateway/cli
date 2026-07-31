@@ -19,9 +19,6 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-// stubSkillsService is replaced by domainmocks.FakeSkillsService (counterfeiter).
-// See TestBuildSkillsInfo and activeSkillsAgent() for usage patterns.
-
 func TestIsCompleteJSON(t *testing.T) {
 	tests := []struct {
 		name     string

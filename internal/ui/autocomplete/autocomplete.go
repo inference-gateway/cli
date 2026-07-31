@@ -39,9 +39,7 @@ type ShortcutOption struct {
 	Shortcut    string
 	Description string
 	Usage       string
-	// Catalog marks a skill that lives in the remote catalog and is not
-	// installed locally yet, so the dropdown can render it distinctly.
-	Catalog bool
+	Catalog     bool
 }
 
 // ShortcutRegistry interface for dependency injection

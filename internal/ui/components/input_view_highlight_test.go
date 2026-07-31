@@ -11,8 +11,6 @@ import (
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 )
 
-// stubSkillsService is replaced by domainmocks.FakeSkillsService (counterfeiter).
-
 func newInputViewWithHighlightDeps(t *testing.T) *InputView {
 	t.Helper()
 	iv := createInputViewWithTheme(createMockModelService())

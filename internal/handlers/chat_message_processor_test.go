@@ -580,24 +580,26 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 		"HandleRolloverCompletedEvent must SetChatPending before returning")
 }
 
-type stubSkillsService struct {
-	names map[string]struct{}
+// fakeSkills returns a SkillsService whose Get resolves exactly the given
+// skills; every other name is unknown. Discover mirrors Get so a test that
+// activates a skill sees the same set.
+func fakeSkills(skills ...domain.Skill) *mocks.FakeSkillsService {
+	byName := make(map[string]domain.Skill, len(skills))
+	for _, sk := range skills {
+		byName[sk.Name] = sk
+	}
+	get := func(name string) (domain.Skill, bool) {
+		sk, ok := byName[name]
+		return sk, ok
+	}
+	fake := &mocks.FakeSkillsService{}
+	fake.GetStub = get
+	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
+	return fake
 }
-
-func (s stubSkillsService) Load(context.Context) error { return nil }
-func (s stubSkillsService) List() []domain.Skill       { return nil }
-func (s stubSkillsService) Get(name string) (domain.Skill, bool) {
-	_, ok := s.names[name]
-	return domain.Skill{Name: name}, ok
-}
-func (s stubSkillsService) Errors() []domain.SkillLoadError { return nil }
-func (s stubSkillsService) Discover(context.Context, string) (domain.Skill, bool) {
-	return domain.Skill{}, false
-}
-func (s stubSkillsService) CleanupDynamic(context.Context) error { return nil }
 
 func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
-	skills := stubSkillsService{names: map[string]struct{}{"maintainer": {}, "ponytail": {}}}
+	skills := fakeSkills(domain.Skill{Name: "maintainer"}, domain.Skill{Name: "ponytail"})
 	p := NewChatMessageProcessor(&ChatHandler{skillsService: skills})
 
 	tests := []struct {
@@ -626,22 +628,17 @@ func TestChatMessageProcessor_isSkillInvocation_NilService(t *testing.T) {
 	require.False(t, p.isSkillInvocation("/maintainer"))
 }
 
-// catalogSkillsService reports rust as a not-yet-installed catalog skill and
-// maintainer as an installed local one.
-type catalogSkillsService struct{ stubSkillsService }
-
-func (c catalogSkillsService) Get(name string) (domain.Skill, bool) {
-	switch name {
-	case "rust":
-		return domain.Skill{Name: "rust", Scope: domain.SkillScopeCatalog}, true
-	case "maintainer":
-		return domain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"}, true
-	}
-	return domain.Skill{}, false
+// catalogSkills reports rust as a not-yet-installed catalog skill (empty Path)
+// and maintainer as an installed local one.
+func catalogSkills() *mocks.FakeSkillsService {
+	return fakeSkills(
+		domain.Skill{Name: "rust", Scope: domain.SkillScopeCatalog},
+		domain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"},
+	)
 }
 
 func TestChatMessageProcessor_pendingCatalogSkills(t *testing.T) {
-	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkillsService{}})
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkills()})
 
 	tests := []struct {
 		name    string
@@ -663,7 +660,7 @@ func TestChatMessageProcessor_pendingCatalogSkills(t *testing.T) {
 }
 
 func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
-	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkillsService{}})
+	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkills()})
 
 	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/maintainer go"}),
 		"an installed skill must not prompt")
