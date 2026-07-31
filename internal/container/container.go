@@ -898,8 +898,6 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
-	// Flush telemetry first so the exporters' final push (local file + optional
-	// OTLP) happens before the rest of the teardown.
 	c.telemetryRecorder.Shutdown(ctx)
 
 	if c.skillsService != nil {
