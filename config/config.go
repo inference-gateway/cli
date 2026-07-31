@@ -484,16 +484,11 @@ type AgentContextConfig struct {
 // agent.skills.enabled=false in config. When off, no scan runs and
 // nothing is injected into the system prompt.
 type AgentSkillsConfig struct {
-	Enabled        bool     `yaml:"enabled" mapstructure:"enabled"`
-	DisabledSkills []string `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
-	MaxChars       int      `yaml:"max_chars" mapstructure:"max_chars"`
-	// Repository is the "<owner>/<repo>" GitHub repository skills come from -
-	// both the `infer skills install <name>` shorthand and on-demand catalog
-	// downloads, and the default base for the catalog index. Defaults to
-	// DefaultSkillsRepository. Override via agent.skills.repository or
-	// INFER_AGENT_SKILLS_REPOSITORY to serve skills from your own fork.
-	Repository string                `yaml:"repository,omitempty" mapstructure:"repository"`
-	Discovery  SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
+	Enabled        bool                  `yaml:"enabled" mapstructure:"enabled"`
+	DisabledSkills []string              `yaml:"disabled_skills,omitempty" mapstructure:"disabled_skills"`
+	MaxChars       int                   `yaml:"max_chars" mapstructure:"max_chars"`
+	Repository     string                `yaml:"repository,omitempty" mapstructure:"repository"`
+	Discovery      SkillsDiscoveryConfig `yaml:"discovery" mapstructure:"discovery"`
 }
 
 // SkillsRepository returns the configured skills repository, falling back to
