@@ -584,6 +584,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewEffortShortcut(c.agent, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewImageShortcut(c.createRawSDKClient(), c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewToolsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))

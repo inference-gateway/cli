@@ -53,6 +53,7 @@ These shortcuts are available out of the box:
 - `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
 - `/theme` - Switch chat interface theme or list available themes
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
+- `/image <prompt>` - Generate an image and save it to `./image-<timestamp>.png` (uses the session's provider and model)
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
 - `/exit` - Exit the chat session
 
@@ -126,6 +127,21 @@ input field - ready to review and send. It is **disabled by default** and gated 
 on first use. If a required tool is missing, `/voice` reports an actionable error with install
 hints. The same speech-to-text engine also transcribes inbound Telegram voice messages when running
 `infer channels-manager`.
+
+### Image Shortcut
+
+The `/image` shortcut generates an image with the session's selected provider and
+model and saves it to a local PNG file:
+
+1. Type `/image <prompt>` and press Enter - e.g. `/image a cat in a spacesuit`
+2. The CLI calls the gateway's `POST /v1/images/generations` endpoint with the prompt
+3. The returned image is decoded (base64 payload) or downloaded (URL) and written
+   to `./image-<timestamp>.png` in the current working directory
+4. The saved file path is printed in the conversation
+
+The gateway routes by model, so any provider with an image-capable model works.
+Unsupported providers or models surface a readable error in the chat. Inline
+terminal rendering and `n`/`size`/`quality` options are not supported yet.
 
 ---
 
