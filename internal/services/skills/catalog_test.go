@@ -74,7 +74,6 @@ func TestSearch_RanksAndCaps(t *testing.T) {
 	require.Equal(t, domain.SkillScopeCatalog, hits[0].Scope)
 	require.Empty(t, hits[0].Path, "search returns metadata only, it must not download")
 
-	// Descriptions are searchable, not just names.
 	require.Len(t, c.Search(ctx, "idiomatic", 10), 1)
 
 	require.Empty(t, c.Search(ctx, "no-such-skill-anywhere", 10))
@@ -104,8 +103,6 @@ func TestSearch_DescriptionsMatchWholeWordsOnly(t *testing.T) {
 	}
 
 	c := testCatalog(srv)
-	// "unstructured" contains r-u-s-t as a subsequence, and "out of" contains
-	// the substring "ut" - neither is a match.
 	require.Equal(t, []string{"rust", "notes"}, names(c.Search(context.Background(), "rust", 10)),
 		"name match ranks first, description matches are whole-word")
 }
@@ -167,7 +164,6 @@ func TestIndex_TokenOnlySentToGitHubHosts(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	// httptest listens on 127.0.0.1 - a third-party registry must not see it.
 	_, found := testCatalog(srv).Lookup(context.Background(), "rust")
 	require.True(t, found)
 	require.Empty(t, auth, "token must not leak to a non-GitHub index host")
@@ -227,8 +223,6 @@ func TestDiscover_LocalSkillNeedsNoDiscovery(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeSkill(t, tmp, "local-one", validSkillBody("local-one", "Local."))
 
-	// Discovery disabled: an already-loaded skill must still resolve, since
-	// Discover is what the activation path calls.
 	s := newWithScopes(enabledCfg(), scope(tmp))
 	require.NoError(t, s.Load(context.Background()))
 
@@ -245,9 +239,6 @@ func TestDiscover_DownloadFailureLeavesPlaceholder(t *testing.T) {
 	s := discoveryService(srv, scope(t.TempDir()))
 	require.NoError(t, s.Load(context.Background()))
 
-	// The download targets the canonical GitHub repo; with a cancelled context
-	// it fails, and the placeholder must survive rather than being replaced by
-	// a half-built entry.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, ok := s.Discover(ctx, "rust")
