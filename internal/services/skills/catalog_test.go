@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
@@ -54,6 +55,85 @@ func TestNewCatalogClient_BaseURLFollowsRepository(t *testing.T) {
 	explicit.Agent.Skills.Repository = "acme/internal-skills"
 	require.Equal(t, "https://catalogs.example.com/skills/", NewCatalogClient(explicit).baseURL,
 		"an explicit registry_url must win over the derived base")
+}
+
+func TestSearch_RanksAndCaps(t *testing.T) {
+	srv, _ := catalogServer(t, twoSkillIndex)
+	c := NewCatalogClient(discoveryCfg(srv.URL))
+	ctx := context.Background()
+
+	hits := c.Search(ctx, "rust", 10)
+	require.Len(t, hits, 1)
+	require.Equal(t, "rust", hits[0].Name)
+	require.Equal(t, domain.SkillScopeCatalog, hits[0].Scope)
+	require.Empty(t, hits[0].Path, "search returns metadata only, it must not download")
+
+	// Descriptions are searchable, not just names.
+	require.Len(t, c.Search(ctx, "idiomatic", 10), 1)
+
+	require.Empty(t, c.Search(ctx, "no-such-skill-anywhere", 10))
+
+	require.Len(t, c.Search(ctx, "", 1), 1, "an empty query browses, bounded by limit")
+	require.Len(t, c.Search(ctx, "", 0), 2, "a non-positive limit falls back to the ceiling")
+}
+
+// Two rounds of over-matching came out of the real catalog: fuzzy over
+// descriptions made "rust" match r..u..s..t in any prose, and plain substring
+// made "go" match "good" / "algorithm". Names are fuzzy-matched; descriptions
+// match on whole words only.
+func TestSearch_DescriptionsMatchWholeWordsOnly(t *testing.T) {
+	const index = `{"skills":[
+		{"name":"rust","description":"Idiomatic Rust."},
+		{"name":"pdf","description":"Read unstructured text out of PDF files."},
+		{"name":"notes","description":"Mentions rust in passing."}
+	]}`
+	srv, _ := catalogServer(t, index)
+
+	names := func(hits []domain.Skill) []string {
+		out := make([]string, 0, len(hits))
+		for _, h := range hits {
+			out = append(out, h.Name)
+		}
+		return out
+	}
+
+	c := NewCatalogClient(discoveryCfg(srv.URL))
+	// "unstructured" contains r-u-s-t as a subsequence, and "out of" contains
+	// the substring "ut" - neither is a match.
+	require.Equal(t, []string{"rust", "notes"}, names(c.Search(context.Background(), "rust", 10)),
+		"name match ranks first, description matches are whole-word")
+}
+
+func TestContainsWord(t *testing.T) {
+	tests := []struct {
+		haystack string
+		needle   string
+		want     bool
+	}{
+		{"idiomatic go - package design", "go", true},
+		{"a good algorithm, going forward", "go", false},
+		{"scaffold (go/rust/typescript)", "go", true},
+		{"ends with go", "go", true},
+		{"go leads", "go", true},
+		{"handles a pull request well", "pull request", true},
+		{"gopher", "go", false},
+		{"", "go", false},
+		{"anything", "", false},
+	}
+	for _, tt := range tests {
+		require.Equal(t, tt.want, containsWord(tt.haystack, tt.needle),
+			"containsWord(%q, %q)", tt.haystack, tt.needle)
+	}
+}
+
+func TestSearch_DescriptionTruncatedToLocalLimit(t *testing.T) {
+	long := strings.Repeat("z", skillDescMaxLen*3)
+	srv, _ := catalogServer(t, `{"skills":[{"name":"huge","description":"`+long+`"}]}`)
+
+	hits := NewCatalogClient(discoveryCfg(srv.URL)).Search(context.Background(), "huge", 10)
+	require.Len(t, hits, 1)
+	require.Len(t, hits[0].Description, skillDescMaxLen,
+		"a catalog description must be capped like a local one - it lands in the system prompt")
 }
 
 func TestIndex_CachedAcrossLookups(t *testing.T) {

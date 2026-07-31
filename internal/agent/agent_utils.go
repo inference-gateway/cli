@@ -500,7 +500,15 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	if s.config != nil {
 		maxChars = s.config.GetAgentConfig().Skills.MaxChars
 	}
-	var omitted []string
+	// Expand path-bearing skills before catalog ones: those are the entries the
+	// model can act on with the Read tool, whereas a catalog entry is just a
+	// name only the user can invoke. Under budget pressure the latter is what
+	// should drop. skills is List()'s defensive copy, so sorting is local.
+	sort.SliceStable(skills, func(i, j int) bool {
+		return skills[i].Scope != domain.SkillScopeCatalog && skills[j].Scope == domain.SkillScopeCatalog
+	})
+
+	var omitted int
 	for i, sk := range skills {
 		location := fmt.Sprintf("Path: %s", sk.Path)
 		if sk.Scope == domain.SkillScopeCatalog {
@@ -508,16 +516,16 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 		}
 		entry := fmt.Sprintf("- %s (%s): %s\n  %s\n", sk.DisplayName(), sk.Scope, sk.Description, location)
 		if maxChars > 0 && b.Len()+len(entry) > maxChars {
-			for _, rest := range skills[i:] {
-				omitted = append(omitted, rest.DisplayName())
-			}
+			omitted = len(skills) - i
 			break
 		}
 		b.WriteString(entry)
 	}
-	if len(omitted) > 0 {
-		fmt.Fprintf(&b, "... (%d more skills not expanded: %s - read their SKILL.md under the skills directories)\n",
-			len(omitted), strings.Join(omitted, ", "))
+	// Count only, never the names: this section rides in the static system
+	// prompt, and joining the names of an arbitrarily large catalog blows past
+	// maxChars by however big the catalog happens to be.
+	if omitted > 0 {
+		fmt.Fprintf(&b, "... (%d more skills not expanded - run `infer skills search <term>` to find one)\n", omitted)
 	}
 
 	return b.String()

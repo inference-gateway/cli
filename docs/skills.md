@@ -106,6 +106,42 @@ your own fork and all three follow.
 `catalog.json` lives somewhere other than the repository - it overrides the
 derived index base while downloads still come from `repository`.
 
+#### Catalog size
+
+The whole catalog index is fetched and held in memory, which is cheap even at
+a few thousand entries, but the `AVAILABLE SKILLS:` block in the system prompt
+is bounded by `agent.skills.max_chars` (default 4000). Skills that have a local
+`SKILL.md` are listed first - the model can `Read` those - and whatever does not
+fit is reported as a count, not a list of names. So a large catalog costs a
+fixed number of prompt tokens no matter how big it gets; use
+`infer skills search` to find what the prompt does not name.
+
+## Searching the catalog
+
+```bash
+infer skills search rust
+infer skills search "pull request" --limit 20
+infer skills search --format json
+```
+
+Names are fuzzy-matched and ranked by score, so typos and partial names still
+find the skill. Descriptions match on **whole words only** - a substring match
+makes a short query useless, since `go` otherwise hits "good" and "algorithm"
+across half the catalog. Name matches are listed before description matches,
+ten results by default. Omit the term to browse.
+
+The `Installed` column shows whether the skill is already on disk locally, and
+the header shows the catalog's published release. Descriptions are truncated to
+keep the table inside the terminal; pass `--no-trunc` for the full text.
+
+The catalog is versioned as a whole - individual skills carry no version of
+their own, so there is nothing to pin per skill.
+
+Search works regardless of `agent.skills.discovery.enabled` - fetching the
+index on an explicit search is a direct user action, not background discovery.
+Matching happens locally over the fetched index, since `catalog.json` is a
+static file with no server-side query support.
+
 ## Built-in skills
 
 The CLI ships a small set of **built-in skills** embedded in the binary. On

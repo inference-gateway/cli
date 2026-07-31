@@ -163,11 +163,7 @@ func (s *Service) mergeCatalog(ctx context.Context, disabled map[string]struct{}
 			continue
 		}
 		local[entry.Name] = struct{}{}
-		s.skills = append(s.skills, domain.Skill{
-			Name:        entry.Name,
-			Description: entry.Description,
-			Scope:       domain.SkillScopeCatalog,
-		})
+		s.skills = append(s.skills, skillFromEntry(entry))
 	}
 }
 

@@ -13,15 +13,20 @@ import (
 	"sync"
 	"time"
 
+	fuzzy "github.com/sahilm/fuzzy"
+
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 const (
-	catalogFile         = "catalog.json"
-	catalogTimeout      = 15 * time.Second
-	catalogIndexTimeout = 3 * time.Second
-	catalogUA           = "inference-gateway-cli"
+	catalogFile             = "catalog.json"
+	catalogTimeout          = 15 * time.Second
+	catalogIndexTimeout     = 3 * time.Second
+	catalogUA               = "inference-gateway-cli"
+	catalogMaxBytes         = 8 << 20
+	catalogSearchMaxResults = 200
 )
 
 // catalogEntry is the metadata for one skill in the centralized catalog.
@@ -32,9 +37,13 @@ type catalogEntry struct {
 	Description string `json:"description"`
 }
 
-// catalogResponse is the top-level response from the catalog index.
+// catalogResponse is the top-level response from the catalog index. Release
+// and Updated describe the catalog as a whole - individual entries carry no
+// version of their own.
 type catalogResponse struct {
-	Skills []catalogEntry `json:"skills"`
+	Release string         `json:"release"`
+	Updated string         `json:"updated"`
+	Skills  []catalogEntry `json:"skills"`
 }
 
 // CatalogClient fetches skill metadata from the centralized skills registry.
@@ -45,9 +54,11 @@ type CatalogClient struct {
 	baseURL    string
 	repository string
 
-	mu     sync.Mutex
-	index  []catalogEntry
-	cached bool
+	mu      sync.Mutex
+	index   []catalogEntry
+	release string
+	updated string
+	cached  bool
 }
 
 // NewCatalogClient returns a CatalogClient pointed at the configured registry
@@ -111,7 +122,7 @@ func (c *CatalogClient) Index(ctx context.Context) []catalogEntry {
 		return nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, catalogMaxBytes))
 	if err != nil {
 		logger.Debug("failed to read catalog index body", "error", err)
 		return nil
@@ -124,8 +135,137 @@ func (c *CatalogClient) Index(ctx context.Context) []catalogEntry {
 	}
 
 	c.index = catalog.Skills
+	c.release = catalog.Release
+	c.updated = catalog.Updated
 	c.cached = true
 	return c.index
+}
+
+// Release returns the catalog's published release version and update timestamp
+// as of the last Index fetch. Both are empty when the catalog has not been
+// fetched or does not publish them. Individual skills carry no version of their
+// own - the catalog is versioned as a whole.
+func (c *CatalogClient) Release() (release, updated string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.release, c.updated
+}
+
+// skillFromEntry converts a catalog index entry into a metadata-only skill
+// (empty Path = body not downloaded yet). The description is truncated to the
+// same limit local skills are validated against: catalog entries are remote
+// input that skips that validation, and the string ends up in the system
+// prompt.
+func skillFromEntry(entry catalogEntry) domain.Skill {
+	desc := entry.Description
+	if len(desc) > skillDescMaxLen {
+		desc = strings.ToValidUTF8(desc[:skillDescMaxLen], "")
+	}
+	return domain.Skill{
+		Name:        entry.Name,
+		Description: desc,
+		Scope:       domain.SkillScopeCatalog,
+	}
+}
+
+// Search matches query against the catalog, best match first, capped at limit.
+// An empty query returns the head of the index so the command doubles as a
+// browse.
+//
+// Ranking, in order: names fuzzy-matched by score, then entries whose
+// description literally contains the query. Fuzzy runs over names ONLY -
+// a subsequence match against a paragraph of prose is meaningless ("rust"
+// matches r..u..s..t in most English sentences), which makes description
+// matching substring-only.
+//
+// Matching is local over the cached index because catalog.json is a single
+// static file with no server-side query support - see NewCatalogClient.
+func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []domain.Skill {
+	entries := c.Index(ctx)
+	if limit <= 0 || limit > catalogSearchMaxResults {
+		limit = catalogSearchMaxResults
+	}
+
+	if strings.TrimSpace(query) == "" {
+		if len(entries) > limit {
+			entries = entries[:limit]
+		}
+		out := make([]domain.Skill, 0, len(entries))
+		for _, entry := range entries {
+			out = append(out, skillFromEntry(entry))
+		}
+		return out
+	}
+
+	names := make([]string, len(entries))
+	for i, entry := range entries {
+		names[i] = entry.Name
+	}
+
+	out := make([]domain.Skill, 0, limit)
+	taken := make(map[int]struct{}, limit)
+	add := func(i int) {
+		if _, dup := taken[i]; dup {
+			return
+		}
+		taken[i] = struct{}{}
+		out = append(out, skillFromEntry(entries[i]))
+	}
+
+	for _, match := range fuzzy.Find(query, names) {
+		if len(out) >= limit {
+			return out
+		}
+		add(match.Index)
+	}
+
+	needle := strings.ToLower(strings.TrimSpace(query))
+	for i, entry := range entries {
+		if len(out) >= limit {
+			break
+		}
+		if containsWord(strings.ToLower(entry.Description), needle) {
+			add(i)
+		}
+	}
+
+	return out
+}
+
+// containsWord reports whether needle occurs in haystack delimited by
+// non-word characters. Both must already be lowercased.
+//
+// A plain substring match makes short queries useless: "go" hits "good",
+// "going" and "algorithm" across half the catalog.
+func containsWord(haystack, needle string) bool {
+	if needle == "" {
+		return false
+	}
+	for offset := 0; offset+len(needle) <= len(haystack); {
+		i := strings.Index(haystack[offset:], needle)
+		if i < 0 {
+			return false
+		}
+		start := offset + i
+		if !isWordByte(haystack, start-1) && !isWordByte(haystack, start+len(needle)) {
+			return true
+		}
+		offset = start + 1
+	}
+	return false
+}
+
+// isWordByte reports whether s[i] is an ASCII word byte, treating an
+// out-of-range index (either end of the string) as a boundary.
+func isWordByte(s string, i int) bool {
+	if i < 0 || i >= len(s) {
+		return false
+	}
+	c := s[i]
+	return c == '_' ||
+		(c >= '0' && c <= '9') ||
+		(c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z')
 }
 
 // isGitHubHost reports whether host is github.com or one of its content

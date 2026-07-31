@@ -307,8 +307,8 @@ func TestBuildSkillsInfo(t *testing.T) {
 				fake.ListReturns(manyStubSkills())
 				return &AgentServiceImpl{config: skillsCapConfig(700), skillsService: fake}
 			}(),
-			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "delta"},
-			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md"},
+			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "infer skills search"},
+			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md", "delta"},
 			exactPaths:   1,
 		},
 		{
@@ -344,6 +344,43 @@ func TestBuildSkillsInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuildSkillsInfo_LargeCatalogStaysBounded guards the section against a
+// catalog that grows without limit. This string rides in the static system
+// prompt, so anything O(catalog size) here is paid on every request and sits in
+// the KV-cache prefix.
+func TestBuildSkillsInfo_LargeCatalogStaysBounded(t *testing.T) {
+	const maxChars = 4000
+
+	all := []domain.Skill{{
+		Name:        "local-one",
+		Description: "The one skill that is actually on disk.",
+		Path:        "/abs/.infer/skills/local-one/SKILL.md",
+		Scope:       domain.SkillScopeProject,
+	}}
+	for i := 0; i < 1000; i++ {
+		all = append(all, domain.Skill{
+			Name:        fmt.Sprintf("catalog-skill-%04d", i),
+			Description: strings.Repeat("y", 200),
+			Scope:       domain.SkillScopeCatalog,
+		})
+	}
+
+	fake := &domainmocks.FakeSkillsService{}
+	fake.ListReturns(all)
+	got := (&AgentServiceImpl{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
+
+	// The tail line is written after the cap check, so allow one line of slack -
+	// what must not happen is growth proportional to the catalog.
+	require.Less(t, len(got), maxChars+200,
+		"skills section must stay within its char budget regardless of catalog size")
+	require.Contains(t, got, "more skills not expanded")
+	require.NotContains(t, got, "catalog-skill-0999",
+		"omitted skills must be counted, never named")
+
+	// The one actionable skill outranks 1000 path-less catalog entries.
+	require.Contains(t, got, "/abs/.infer/skills/local-one/SKILL.md")
 }
 
 // toolDef builds an sdk.ChatCompletionTool with the given name and (optional)
