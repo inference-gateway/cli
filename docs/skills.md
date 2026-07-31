@@ -78,7 +78,7 @@ Catalog skills therefore show up in the chat `/` dropdown and in the agent's
 Invoking one (`/rust`, or "use the rust skill") downloads its `SKILL.md` on the
 spot. The index fetch and the download both use `GITHUB_TOKEN` / `GH_TOKEN`
 when set, which raises GitHub's 60-requests-per-hour anonymous rate limit; the
-token is only sent to GitHub hosts, never to a custom `registry_url`.
+token is only ever sent to GitHub hosts.
 
 Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
 **cleaned up after the session ends** by default. Set
@@ -100,11 +100,9 @@ value above is the default, and `INFER_AGENT_SKILLS_REPOSITORY` overrides it.
 It drives everything: the `infer skills install <name>` shorthand, on-demand
 catalog downloads, and the catalog index, which is read from
 `https://raw.githubusercontent.com/<repository>/main/catalog.json`. Point it at
-your own fork and all three follow.
-
-`registry_url` (under `discovery`) is optional and only needed when the
-`catalog.json` lives somewhere other than the repository - it overrides the
-derived index base while downloads still come from `repository`.
+your own fork and all three follow. It is the only knob involved: the index and
+the skill bodies always come from the same repository, so there is nothing to
+keep in sync.
 
 #### Catalog size
 

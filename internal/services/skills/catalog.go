@@ -61,23 +61,25 @@ type CatalogClient struct {
 	cached  bool
 }
 
-// NewCatalogClient returns a CatalogClient pointed at the configured registry
-// URL. When registry_url is unset the index base is derived from the configured
-// skills repository, so agent.skills.repository alone redirects both the index
-// and the downloads; an explicit registry_url still wins (a catalog served from
-// somewhere other than the repo itself).
+// NewCatalogClient returns a CatalogClient for the configured skills
+// repository. Both the index and the skill bodies come from that one repo, so
+// agent.skills.repository is the only knob needed to point the CLI at a fork.
 func NewCatalogClient(cfg *config.Config) *CatalogClient {
 	repository := cfg.Agent.Skills.SkillsRepository()
+	return newCatalogClientWithBase(
+		fmt.Sprintf("%s/%s/%s", githubRawBase, repository, defaultSkillsRef),
+		repository,
+	)
+}
 
-	baseURL := cfg.Agent.Skills.Discovery.RegistryURL
-	if baseURL == "" {
-		baseURL = fmt.Sprintf("%s/%s/%s", githubRawBase, repository, defaultSkillsRef)
-	}
-	baseURL = strings.TrimRight(baseURL, "/") + "/"
-
+// newCatalogClientWithBase points the index at an arbitrary base URL. Only
+// tests need this: downloads still resolve against repository, so a base
+// pointing somewhere else can only serve an index for skills that live in that
+// repo anyway.
+func newCatalogClientWithBase(baseURL, repository string) *CatalogClient {
 	return &CatalogClient{
 		client:     &http.Client{Timeout: catalogTimeout},
-		baseURL:    baseURL,
+		baseURL:    strings.TrimRight(baseURL, "/") + "/",
 		repository: repository,
 	}
 }

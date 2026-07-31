@@ -27,39 +27,45 @@ func catalogServer(t *testing.T, body string) (*httptest.Server, *int) {
 	return srv, &hits
 }
 
-func discoveryCfg(registryURL string) *config.Config {
+func discoveryCfg() *config.Config {
 	cfg := enabledCfg()
-	cfg.Agent.Skills.Discovery = config.SkillsDiscoveryConfig{
-		Enabled:     true,
-		RegistryURL: registryURL,
-	}
+	cfg.Agent.Skills.Discovery = config.SkillsDiscoveryConfig{Enabled: true}
 	return cfg
+}
+
+// testCatalog points a client at srv while keeping the default repository, the
+// seam every catalog test needs to avoid hitting github.com.
+func testCatalog(srv *httptest.Server) *CatalogClient {
+	return newCatalogClientWithBase(srv.URL, config.DefaultSkillsRepository)
+}
+
+// discoveryService builds a Service whose catalog is served by srv. Discovery
+// is enabled unless the caller disables it on the returned config.
+func discoveryService(srv *httptest.Server, scopes []scopedDir) *Service {
+	s := newWithScopes(discoveryCfg(), scopes)
+	s.catalog = testCatalog(srv)
+	return s
 }
 
 const twoSkillIndex = `{"skills":[{"name":"rust","description":"Idiomatic Rust."},{"name":"local-one","description":"Catalog copy."}]}`
 
 func TestNewCatalogClient_BaseURLFollowsRepository(t *testing.T) {
-	cfg := discoveryCfg("")
+	cfg := discoveryCfg()
 	cfg.Agent.Skills.Repository = "acme/internal-skills"
 	require.Equal(t,
 		"https://raw.githubusercontent.com/acme/internal-skills/main/",
 		NewCatalogClient(cfg).baseURL,
-		"an unset registry_url must derive the index base from agent.skills.repository")
+		"the index base must be derived from agent.skills.repository")
 
 	require.Equal(t,
 		"https://raw.githubusercontent.com/inference-gateway/skills/main/",
-		NewCatalogClient(discoveryCfg("")).baseURL,
+		NewCatalogClient(discoveryCfg()).baseURL,
 		"an unset repository must keep the shipped default")
-
-	explicit := discoveryCfg("https://catalogs.example.com/skills")
-	explicit.Agent.Skills.Repository = "acme/internal-skills"
-	require.Equal(t, "https://catalogs.example.com/skills/", NewCatalogClient(explicit).baseURL,
-		"an explicit registry_url must win over the derived base")
 }
 
 func TestSearch_RanksAndCaps(t *testing.T) {
 	srv, _ := catalogServer(t, twoSkillIndex)
-	c := NewCatalogClient(discoveryCfg(srv.URL))
+	c := testCatalog(srv)
 	ctx := context.Background()
 
 	hits := c.Search(ctx, "rust", 10)
@@ -97,7 +103,7 @@ func TestSearch_DescriptionsMatchWholeWordsOnly(t *testing.T) {
 		return out
 	}
 
-	c := NewCatalogClient(discoveryCfg(srv.URL))
+	c := testCatalog(srv)
 	// "unstructured" contains r-u-s-t as a subsequence, and "out of" contains
 	// the substring "ut" - neither is a match.
 	require.Equal(t, []string{"rust", "notes"}, names(c.Search(context.Background(), "rust", 10)),
@@ -130,7 +136,7 @@ func TestSearch_DescriptionTruncatedToLocalLimit(t *testing.T) {
 	long := strings.Repeat("z", skillDescMaxLen*3)
 	srv, _ := catalogServer(t, `{"skills":[{"name":"huge","description":"`+long+`"}]}`)
 
-	hits := NewCatalogClient(discoveryCfg(srv.URL)).Search(context.Background(), "huge", 10)
+	hits := testCatalog(srv).Search(context.Background(), "huge", 10)
 	require.Len(t, hits, 1)
 	require.Len(t, hits[0].Description, skillDescMaxLen,
 		"a catalog description must be capped like a local one - it lands in the system prompt")
@@ -139,7 +145,7 @@ func TestSearch_DescriptionTruncatedToLocalLimit(t *testing.T) {
 func TestIndex_CachedAcrossLookups(t *testing.T) {
 	srv, hits := catalogServer(t, twoSkillIndex)
 
-	c := NewCatalogClient(discoveryCfg(srv.URL))
+	c := testCatalog(srv)
 	entry, found := c.Lookup(context.Background(), "rust")
 	require.True(t, found)
 	require.Equal(t, "Idiomatic Rust.", entry.Description)
@@ -162,9 +168,9 @@ func TestIndex_TokenOnlySentToGitHubHosts(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// httptest listens on 127.0.0.1 - a third-party registry must not see it.
-	_, found := NewCatalogClient(discoveryCfg(srv.URL)).Lookup(context.Background(), "rust")
+	_, found := testCatalog(srv).Lookup(context.Background(), "rust")
 	require.True(t, found)
-	require.Empty(t, auth, "token must not leak to a non-GitHub registry_url")
+	require.Empty(t, auth, "token must not leak to a non-GitHub index host")
 
 	require.True(t, isGitHubHost("raw.githubusercontent.com"))
 	require.True(t, isGitHubHost("github.com:443"))
@@ -177,7 +183,7 @@ func TestLoad_MergesCatalogEntries(t *testing.T) {
 	tmp := t.TempDir()
 	writeSkill(t, tmp, "local-one", validSkillBody("local-one", "The local copy wins."))
 
-	s := newWithScopes(discoveryCfg(srv.URL), scope(tmp))
+	s := discoveryService(srv, scope(tmp))
 	require.NoError(t, s.Load(context.Background()))
 
 	local, ok := s.Get("local-one")
@@ -194,10 +200,9 @@ func TestLoad_MergesCatalogEntries(t *testing.T) {
 func TestLoad_CatalogSkippedWhenDiscoveryDisabled(t *testing.T) {
 	srv, hits := catalogServer(t, twoSkillIndex)
 
-	cfg := enabledCfg()
-	cfg.Agent.Skills.Discovery.RegistryURL = srv.URL
+	s := discoveryService(srv, scope(t.TempDir()))
+	s.cfg.Agent.Skills.Discovery.Enabled = false
 
-	s := newWithScopes(cfg, scope(t.TempDir()))
 	require.NoError(t, s.Load(context.Background()))
 
 	require.Empty(t, s.List())
@@ -213,7 +218,7 @@ func TestLoad_CatalogFailureIsNotFatal(t *testing.T) {
 	tmp := t.TempDir()
 	writeSkill(t, tmp, "local-one", validSkillBody("local-one", "Still loads."))
 
-	s := newWithScopes(discoveryCfg(srv.URL), scope(tmp))
+	s := discoveryService(srv, scope(tmp))
 	require.NoError(t, s.Load(context.Background()))
 	require.Len(t, s.List(), 1)
 }
@@ -237,7 +242,7 @@ func TestDiscover_LocalSkillNeedsNoDiscovery(t *testing.T) {
 
 func TestDiscover_DownloadFailureLeavesPlaceholder(t *testing.T) {
 	srv, _ := catalogServer(t, twoSkillIndex)
-	s := newWithScopes(discoveryCfg(srv.URL), scope(t.TempDir()))
+	s := discoveryService(srv, scope(t.TempDir()))
 	require.NoError(t, s.Load(context.Background()))
 
 	// The download targets the canonical GitHub repo; with a cancelled context

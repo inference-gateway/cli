@@ -514,10 +514,6 @@ type SkillsDiscoveryConfig struct {
 	// catalog lookup or download is performed and the volatile section
 	// does not mention registry-based skill fetching.
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-	// RegistryURL is the base URL the catalog.json index is resolved
-	// against. Defaults to the inference-gateway/skills repo root at
-	// https://raw.githubusercontent.com/inference-gateway/skills/main/.
-	RegistryURL string `yaml:"registry_url,omitempty" mapstructure:"registry_url"`
 	// Cleanup controls whether dynamically downloaded skills are removed
 	// after the session ends. Defaults to true.
 	Cleanup *bool `yaml:"cleanup,omitempty" mapstructure:"cleanup"`
