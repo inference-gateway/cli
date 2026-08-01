@@ -1101,7 +1101,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Enabled:               true,
 			LivenessProbeEnabled:  true,
 			LivenessProbeInterval: 30,
-			AgentsReadyTimeoutSec: 900,
+			AgentsReadyTimeoutSec: 600,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
