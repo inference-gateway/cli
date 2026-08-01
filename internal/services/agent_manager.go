@@ -466,9 +466,6 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		}
 		artifactsPort := config.FindAvailablePort(artifactsBasePort)
 		args = append(args, "-p", fmt.Sprintf("%d:8081", artifactsPort))
-		// Keep the announced base URL in sync with the actually-assigned host
-		// port, otherwise the Download URLs the agent embeds in artifact
-		// metadata point at the configured (stale) port after a collision.
 		artifactsURL = setURLPort(agent.ArtifactsURL, artifactsPort)
 		logger.Info("assigned artifacts port", "session", am.sessionID, "agent", agent.Name, "port", artifactsPort)
 	}
