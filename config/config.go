@@ -932,8 +932,9 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{false}[0],
 			},
 			WebFetch: WebFetchToolConfig{
-				Enabled:        true,
-				AllowedDomains: []string{"golang.org", "localhost"},
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+				AllowedDomains:  []string{"golang.org", "localhost"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       10485760, // 10MB
 					Timeout:       30,       // 30 seconds
