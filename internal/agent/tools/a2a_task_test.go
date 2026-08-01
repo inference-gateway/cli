@@ -2,13 +2,19 @@ package tools
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
-	adk "github.com/inference-gateway/adk/types"
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	adk "github.com/inference-gateway/adk/types"
+
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestA2ASubmitTaskTool_Definition(t *testing.T) {
@@ -450,4 +456,135 @@ func TestA2ASubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
 	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
+}
+
+func TestArtifactDownloadURL_FallsBackToFilePartURI(t *testing.T) {
+	uri := "http://localhost:8084/artifacts/ctx/art/fullpage.png"
+	name := "fullpage.png"
+
+	tests := []struct {
+		name     string
+		artifact adk.Artifact
+		want     string
+	}{
+		{
+			name: "metadata url wins",
+			artifact: adk.Artifact{
+				ArtifactID: "a1",
+				Metadata:   &adk.Struct{"url": "http://meta-url"},
+				Parts:      []adk.Part{{File: &adk.FilePart{FileWithURI: &uri, Name: name}}},
+			},
+			want: "http://meta-url",
+		},
+		{
+			name: "file part uri fallback",
+			artifact: adk.Artifact{
+				ArtifactID: "a2",
+				Parts:      []adk.Part{{File: &adk.FilePart{FileWithURI: &uri, Name: name}}},
+			},
+			want: uri,
+		},
+		{
+			name:     "no url anywhere",
+			artifact: adk.Artifact{ArtifactID: "a3"},
+			want:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, artifactDownloadURL(tt.artifact))
+		})
+	}
+}
+
+func TestA2ASubmitTaskTool_FormatResult_ArtifactSavedTo(t *testing.T) {
+	cfg := &config.Config{}
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
+	name := "shot.png"
+
+	result := &domain.ToolExecutionResult{
+		ToolName: "A2A_SubmitTask",
+		Success:  true,
+		Data: A2ASubmitTaskResult{
+			TaskID:  "task-1",
+			State:   string(adk.TaskStateCompleted),
+			Success: true,
+			Task: &adk.Task{
+				ID: "task-1",
+				Artifacts: []adk.Artifact{{
+					ArtifactID: "a1",
+					Name:       &name,
+					Metadata: &adk.Struct{
+						"url":        "http://localhost:8084/artifacts/shot.png",
+						"local_path": "/home/user/.infer/tmp/shot.png",
+					},
+				}},
+			},
+		},
+	}
+
+	formatted := tool.FormatResult(result, domain.FormatterLLM)
+	assert.Contains(t, formatted, "Download URL: http://localhost:8084/artifacts/shot.png")
+	assert.Contains(t, formatted, "Saved to: /home/user/.infer/tmp/shot.png")
+	assert.Contains(t, formatted, "already downloaded locally")
+	assert.NotContains(t, formatted, "Use WebFetch tool")
+}
+
+func TestA2ASubmitTaskTool_DownloadArtifacts(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("png-bytes"))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{A2A: config.A2AConfig{Enabled: true, Agents: []string{server.URL}}}
+	cfg.SetConfigDir(t.TempDir())
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
+
+	trustedURL := server.URL + "/artifacts/shot.png"
+	task := &adk.Task{
+		ID: "task-1",
+		Artifacts: []adk.Artifact{
+			{ArtifactID: "trusted", Metadata: &adk.Struct{"url": trustedURL}},
+			{ArtifactID: "untrusted", Metadata: &adk.Struct{"url": "http://not-an-agent.example.com/x.png"}},
+		},
+	}
+
+	tool.downloadArtifacts(task)
+
+	savedPath := artifactLocalPath(task.Artifacts[0])
+	require.NotEmpty(t, savedPath)
+	content, err := os.ReadFile(savedPath)
+	require.NoError(t, err)
+	assert.Equal(t, "png-bytes", string(content))
+
+	assert.Empty(t, artifactLocalPath(task.Artifacts[1]))
+}
+
+func TestA2ASubmitTaskTool_HandleTaskState_NoDownloadByDefault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("png-bytes"))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{A2A: config.A2AConfig{Enabled: true, Agents: []string{server.URL}}}
+	cfg.SetConfigDir(t.TempDir())
+	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
+
+	task := adk.Task{
+		ID:     "task-1",
+		Status: adk.TaskStatus{State: adk.TaskStateCompleted},
+		Artifacts: []adk.Artifact{
+			{ArtifactID: "a1", Metadata: &adk.Struct{"url": server.URL + "/artifacts/shot.png"}},
+		},
+	}
+	state := &domain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
+
+	done, result := tool.handleTaskState(server.URL, "task-1", 1, state, task, "")
+	require.True(t, done)
+	require.NotNil(t, result)
+
+	submit, ok := result.Data.(A2ASubmitTaskResult)
+	require.True(t, ok)
+	assert.Empty(t, artifactLocalPath(submit.Task.Artifacts[0]))
 }

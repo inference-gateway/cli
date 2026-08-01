@@ -571,6 +571,7 @@ type A2AConfig struct {
 	Agents                []string       `yaml:"agents,omitempty" mapstructure:"agents"`
 	LivenessProbeEnabled  bool           `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
 	LivenessProbeInterval int            `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	AgentsReadyTimeoutSec int            `yaml:"agents_ready_timeout_sec" mapstructure:"agents_ready_timeout_sec"`
 	Cache                 A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
 	Task                  A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 	Tools                 A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
@@ -770,6 +771,7 @@ type A2ATaskConfig struct {
 	BackgroundMonitoring    bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
 	CompletedTaskRetention  int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
 	AgentModeMaxWaitSeconds int     `yaml:"agent_mode_max_wait_seconds" mapstructure:"agent_mode_max_wait_seconds"`
+	ArtifactsAutoDownload   bool    `yaml:"artifacts_auto_download" mapstructure:"artifacts_auto_download"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -1099,6 +1101,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Enabled:               true,
 			LivenessProbeEnabled:  true,
 			LivenessProbeInterval: 30,
+			AgentsReadyTimeoutSec: 600,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
@@ -1112,6 +1115,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				BackgroundMonitoring:    true,
 				CompletedTaskRetention:  5,
 				AgentModeMaxWaitSeconds: 300,
+				ArtifactsAutoDownload:   false,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{

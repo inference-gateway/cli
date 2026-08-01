@@ -45,6 +45,7 @@ type AgentManager struct {
 	probeStop            chan struct{}
 	probeStopOnce        sync.Once
 	probeWg              sync.WaitGroup
+	startWg              sync.WaitGroup
 	agentStates          map[string]domain.AgentState
 }
 
@@ -117,7 +118,11 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 	}
 
 	for _, agent := range agentsToStart {
-		go am.startAgentAsync(ctx, agent)
+		am.startWg.Add(1)
+		go func(agent config.AgentEntry) {
+			defer am.startWg.Done()
+			am.startAgentAsync(ctx, agent)
+		}(agent)
 	}
 
 	if len(agentsToStart) > 0 {
@@ -128,6 +133,33 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 
 	am.isRunning = true
 	return nil
+}
+
+// WaitForAgentsReady blocks until every run:true agent started by StartAgents
+// has settled (ready or failed), or ctx is done. Headless mode calls this
+// before the first LLM turn so the model never races an agent whose 3GB image
+// is still pulling; failed agents settle too, so a broken agent can't block
+// forever. Chat mode never calls it (the TUI streams status instead).
+func (am *AgentManager) WaitForAgentsReady(ctx context.Context) {
+	settled := make(chan struct{})
+	go func() {
+		am.startWg.Wait()
+		close(settled)
+	}()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-settled:
+			return
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			logger.Info("waiting for local A2A agents to become ready (image pull can take a while)")
+		}
+	}
 }
 
 // initializeExternalAgents loads external agents and monitors their readiness

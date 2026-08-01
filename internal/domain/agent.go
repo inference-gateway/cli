@@ -130,6 +130,10 @@ type AgentManager interface {
 	// StartAgents starts all agents configured with run: true
 	StartAgents(ctx context.Context) error
 
+	// WaitForAgentsReady blocks until every run:true agent started by
+	// StartAgents has settled (ready or failed), or ctx is done
+	WaitForAgentsReady(ctx context.Context)
+
 	// StopAgents stops all running agent containers
 	StopAgents(ctx context.Context) error
 
