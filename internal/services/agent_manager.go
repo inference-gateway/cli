@@ -480,6 +480,10 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	gatewayURL := am.determineGatewayURL()
 	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
 
+	if _, ok := env["A2A_QUEUE_CLEANUP_INTERVAL"]; !ok {
+		env["A2A_QUEUE_CLEANUP_INTERVAL"] = "500s"
+	}
+
 	if agent.ArtifactsURL != "" {
 		env["A2A_ARTIFACTS_ENABLED"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"

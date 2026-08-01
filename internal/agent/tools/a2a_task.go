@@ -275,7 +275,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 			State:      string(submittedTask.Status.State),
 			Success:    true,
 			Message:    fmt.Sprintf("Task delegated to %s and monitoring in background", agentURL),
-			TaskResult: fmt.Sprintf("Task %s delegated successfully. You will be notified automatically when it completes - no need to poll manually.", taskID),
+			TaskResult: fmt.Sprintf("Task %s delegated successfully. The completion notification will be injected into the conversation automatically - do not poll with A2A_QueryTask and do not block on the Wait tool; work on something else or end your turn.", taskID),
 		},
 	}, nil
 }

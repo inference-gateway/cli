@@ -45,6 +45,16 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - Prefer table-driven tests where inputs and expected results vary.
 - SA5011 false positives in tests are suppressed in `.golangci.yml` — `t.Fatal` is recognised as no-return.
 
+### Manual testing against real services
+
+**Never start the gateway or A2A agent containers by hand** (`docker run
+ghcr.io/inference-gateway/inference-gateway`, manual `docker pull`, etc.) when
+manually testing the CLI. `go run . chat` and `go run . agent <prompt>` are
+self-contained: the CLI auto-starts the local gateway and every `run: true`
+agent from `agents.yaml` (pulling images as needed) and tears them down on
+session end. Just run the command; the only manual inputs are the model flag
+(`-m provider/model`) and any `INFER_*` env overrides.
+
 ### Driving the chat TUI via tmux
 
 The chat TUI (Bubble Tea v2) can be exercised end-to-end by running it inside a
