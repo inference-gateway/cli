@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	gotenv "github.com/subosito/gotenv"
 
 	client "github.com/inference-gateway/adk/client"
 
@@ -18,7 +21,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	gotenv "github.com/subosito/gotenv"
 )
 
 const (
@@ -456,6 +458,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		"--add-host", "host.docker.internal:host-gateway",
 	}
 
+	artifactsURL := agent.ArtifactsURL
 	if agent.ArtifactsURL != "" {
 		artifactsBasePort := am.extractPortFromURL(agent.ArtifactsURL)
 		if artifactsBasePort <= 0 {
@@ -463,6 +466,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		}
 		artifactsPort := config.FindAvailablePort(artifactsBasePort)
 		args = append(args, "-p", fmt.Sprintf("%d:8081", artifactsPort))
+		artifactsURL = setURLPort(agent.ArtifactsURL, artifactsPort)
 		logger.Info("assigned artifacts port", "session", am.sessionID, "agent", agent.Name, "port", artifactsPort)
 	}
 
@@ -480,7 +484,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		env["A2A_ARTIFACTS_ENABLE"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
 		env["A2A_ARTIFACTS_SERVER_PORT"] = "8081"
-		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = agent.ArtifactsURL
+		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = artifactsURL
 	}
 
 	resolvedEnv := make(map[string]string)
@@ -656,6 +660,17 @@ func (am *AgentManager) determineGatewayURL() string {
 		gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
 	}
 	return gatewayURL
+}
+
+// setURLPort returns rawURL with its port replaced (or added). On a URL it
+// cannot parse it returns rawURL unchanged.
+func setURLPort(rawURL string, port int) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return rawURL
+	}
+	u.Host = fmt.Sprintf("%s:%d", u.Hostname(), port)
+	return u.String()
 }
 
 // extractPortFromURL extracts the port number from an agent URL
