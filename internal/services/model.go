@@ -57,8 +57,6 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	windows := make(map[string]int, len(resp.Data))
 	prices := make(map[string]gatewayPrice, len(resp.Data))
 	for _, model := range resp.Data {
-		// Image models are not chat-selectable; they are only reachable
-		// through the ImageGeneration tool's one-off request.
 		if imageModelRe.MatchString(model.ID) {
 			continue
 		}

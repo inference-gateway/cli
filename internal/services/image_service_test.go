@@ -12,9 +12,11 @@ import (
 	"os"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestImageService_IsImageURL(t *testing.T) {

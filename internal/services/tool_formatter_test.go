@@ -128,7 +128,7 @@ func TestFormatToolResultForUI_CollapsedSuccessTruncatesToFive(t *testing.T) {
 	if !strings.Contains(lines[0], "Bash(command=git branch)") || !strings.Contains(lines[0], "19ms") {
 		t.Fatalf("status line missing name/duration: %q", lines[0])
 	}
-	// status + dim separator + 5 preview lines + footer
+
 	if len(lines) != 8 {
 		t.Fatalf("expected 8 inner lines, got %d: %#v", len(lines), lines)
 	}
@@ -153,7 +153,6 @@ func TestFormatToolResultForUI_FailureShowsFullBody(t *testing.T) {
 	inner := stripCard(stripANSI(svc.FormatToolResultForUI(bashResult(false, map[string]any{"command": "boom"}), 80)))
 	lines := strings.Split(inner, "\n")
 
-	// status + separator + 5 full body lines + hint footer
 	if len(lines) != 8 {
 		t.Fatalf("expected 8 inner lines, got %d: %#v", len(lines), lines)
 	}
@@ -175,7 +174,6 @@ func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
 	res := &domain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
 	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(res, 80))), "\n")
 
-	// status + separator + 1 preview + footer
 	if len(lines) != 4 {
 		t.Fatalf("expected status + separator + 1 preview + footer = 4 lines, got %d: %#v", len(lines), lines)
 	}
@@ -279,7 +277,6 @@ func TestRenderToolSummary_SharedAndWidthAware(t *testing.T) {
 		t.Errorf("summary without icon/args = %q, want %q", noIcon, "Bash()")
 	}
 
-	// long values are truncated to the budget, never byte-sliced mid-rune
 	long := strings.Repeat("λ", 200)
 	got := stripANSI(svc.RenderToolSummary("", "Bash", map[string]any{"command": long}, "", 80))
 	if !strings.Contains(got, "…") && !strings.Contains(got, "...") {

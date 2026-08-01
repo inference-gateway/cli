@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	assert "github.com/stretchr/testify/assert"
+
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func newTestImageTool(imageService *domainmocks.FakeImageService) *ImageGenerationTool {
