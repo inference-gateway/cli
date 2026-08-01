@@ -172,3 +172,35 @@ func TestBackgroundTasksWaiter_HasPendingAcrossTaskTypes(t *testing.T) {
 		t.Errorf("expected HasPending to be consulted")
 	}
 }
+
+func TestBackgroundTasksWaiter_TryDrainDoesNotBlock(t *testing.T) {
+	registry := &domainmocks.FakeBackgroundTaskRegistry{}
+	registry.HasPendingReturns(true) // pending work must NOT make TryDrain wait
+
+	queue := &domainmocks.FakeMessageQueue{}
+	queued := &domain.QueuedMessage{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent("[A2A Task Completed: A2A_SubmitTask]\n\nTask ID: task-1"),
+		},
+		RequestID: "req-1",
+	}
+	queue.DequeueReturnsOnCall(0, queued)
+	queue.DequeueReturnsOnCall(1, nil)
+	queue.IsEmptyReturnsOnCall(0, false)
+	queue.IsEmptyReturnsOnCall(1, true)
+
+	w := services.NewBackgroundTasksWaiter(minimalA2AConfig(5), "session-1", registry, queue, nil)
+
+	if got := w.TryDrain(); len(got) != 1 {
+		t.Fatalf("expected 1 drained message, got %d", len(got))
+	}
+
+	// Empty queue: returns immediately with nothing, even with tasks pending.
+	empty := &domainmocks.FakeMessageQueue{}
+	empty.IsEmptyReturns(true)
+	w2 := services.NewBackgroundTasksWaiter(minimalA2AConfig(5), "session-1", registry, empty, nil)
+	if got := w2.TryDrain(); got != nil {
+		t.Errorf("expected nil from TryDrain on empty queue, got %v", got)
+	}
+}

@@ -520,6 +520,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		if !s.lastResponseHadNoToolCalls() {
 			consecutiveNoToolCalls = 0
+			s.injectDrained(s.bgWaiter.TryDrain())
 			continue
 		}
 
@@ -584,7 +585,12 @@ func (s *AgentSession) waitForBackgroundTasks(ctx context.Context) {
 // as internal user messages on the conversation. Returns the number of
 // messages injected.
 func (s *AgentSession) drainBackgroundResults(ctx context.Context) int {
-	drained := s.bgWaiter.WaitAndDrain(ctx)
+	return s.injectDrained(s.bgWaiter.WaitAndDrain(ctx))
+}
+
+// injectDrained materializes drained background-task payloads as internal user
+// messages on the conversation. Returns the number of messages injected.
+func (s *AgentSession) injectDrained(drained []services.DrainedMessage) int {
 	if len(drained) == 0 {
 		return 0
 	}

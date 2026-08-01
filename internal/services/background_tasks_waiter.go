@@ -79,6 +79,17 @@ func (w *BackgroundTasksWaiter) HasPendingTasks() bool {
 	return w.registry.HasPending()
 }
 
+// TryDrain drains whatever is already on the queue without blocking. Batch mode
+// calls this after every turn so a completion that landed while the model was
+// busy calling tools (e.g. blocked inside a Wait) is injected at the next turn
+// boundary instead of starving until a no-tool-call turn.
+func (w *BackgroundTasksWaiter) TryDrain() []DrainedMessage {
+	if !w.enabled {
+		return nil
+	}
+	return w.drainQueue()
+}
+
 // WaitAndDrain polls until background tasks complete and the queue has
 // results, or the per-session timeout fires. Returns drained payloads.
 // Returns nil if disabled or no work was pending.
