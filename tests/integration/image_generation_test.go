@@ -46,7 +46,7 @@ scenarios:
 	rec := imageReqs[0]
 	require.Equal(t, "/v1/images/generations", rec.Endpoint)
 	require.Equal(t, "openai", rec.Provider)
-	require.Equal(t, "gpt-image-1", rec.Model)
+	require.Equal(t, "gpt-image-2", rec.Model)
 	require.Equal(t, "a funny cat meme", rec.ImagesBody.Prompt)
 	require.NotNil(t, rec.ImagesBody.Quality)
 	require.Equal(t, "low", string(*rec.ImagesBody.Quality))

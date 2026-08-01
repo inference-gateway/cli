@@ -306,7 +306,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		assert.Equal(t, pngBytes, saved)
 
 		assert.Equal(t, sdk.Provider("openai"), client.gotProvider)
-		assert.Equal(t, "gpt-image-1", *client.gotRequest.Model)
+		assert.Equal(t, "gpt-image-2", *client.gotRequest.Model)
 		assert.Equal(t, "a cat", client.gotRequest.Prompt)
 		assert.Equal(t, sdk.CreateImageRequestQualityLow, *client.gotRequest.Quality)
 		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotRequest.Size)
