@@ -196,7 +196,6 @@ func TestBackgroundTasksWaiter_TryDrainDoesNotBlock(t *testing.T) {
 		t.Fatalf("expected 1 drained message, got %d", len(got))
 	}
 
-	// Empty queue: returns immediately with nothing, even with tasks pending.
 	empty := &domainmocks.FakeMessageQueue{}
 	empty.IsEmptyReturns(true)
 	w2 := services.NewBackgroundTasksWaiter(minimalA2AConfig(5), "session-1", registry, empty, nil)
