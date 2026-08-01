@@ -32,6 +32,11 @@ const DefaultModel = "openai/gpt-4o"
 // /v1/chat/completions.
 const AnthropicModel = "anthropic/claude-sonnet-4-5"
 
+// ImageModel is the image-generation model the mock advertises. Selecting it
+// is what makes the CLI offer the ImageGeneration tool, which posts to
+// /v1/images/generations.
+const ImageModel = "openai/gpt-image-2"
+
 // Metadata advertised for DefaultModel on /v1/models. The real gateway only
 // includes these fields when ?include=context_window,pricing is set; the mock
 // always serves them (the CLI always asks).
@@ -63,6 +68,8 @@ type Recorded struct {
 	Body sdk.CreateChatCompletionRequest
 	// MessagesBody is the full decoded request for /v1/messages.
 	MessagesBody *sdk.CreateMessagesRequest
+	// ImagesBody is the full decoded request for /v1/images/generations.
+	ImagesBody *sdk.CreateImageRequest
 }
 
 // Server is an http.Handler implementing the inference-gateway API surface
@@ -122,8 +129,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					ID: AnthropicModel, Object: "model", OwnedBy: "anthropic", ServedBy: "anthropic",
 					ContextWindow: &contextWindow, Pricing: &pricing,
 				},
+				{
+					ID: ImageModel, Object: "model", OwnedBy: "openai", ServedBy: "openai",
+					ContextWindow: &contextWindow, Pricing: &pricing,
+				},
 			},
 		})
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/images/generations":
+		s.handleImages(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
 		writeJSON(w, map[string]string{"status": "ok"})
 	default:
@@ -444,6 +457,39 @@ func argFragments(args string, size int) []string {
 	half := (len([]rune(args)) + 1) / 2
 	return chunks(args, min(size, max(1, half)))
 }
+
+// handleImages answers POST /v1/images/generations with a canned 1x1 PNG so the
+// CLI's decode-and-save path runs end to end without a real provider. The
+// request is recorded like a completion, so tests can assert the quality/size
+// the CLI asked for.
+func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
+	var req sdk.CreateImageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	model := ""
+	if req.Model != nil {
+		model = *req.Model
+	}
+	s.mu.Lock()
+	s.reqs = append(s.reqs, Recorded{
+		Endpoint:   r.URL.Path,
+		Provider:   r.URL.Query().Get("provider"),
+		Model:      model,
+		ImagesBody: &req,
+	})
+	s.mu.Unlock()
+
+	b64 := onePixelPNG
+	writeJSON(w, sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}})
+}
+
+// onePixelPNG is a base64-encoded 1x1 transparent PNG - the smallest payload
+// the CLI's image decoder accepts.
+const onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk" +
+	"YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -127,6 +127,28 @@ on first use. If a required tool is missing, `/voice` reports an actionable erro
 hints. The same speech-to-text engine also transcribes inbound Telegram voice messages when running
 `infer channels-manager`.
 
+### Image Generation
+
+There is no `/image` shortcut. Just ask for the image in plain language while
+chatting with any model - the chat model calls the `ImageGeneration` tool when
+it recognises the intent:
+
+1. Ask for `a cat in a spacesuit` (or a meme of whatever is in the context)
+2. The tool sends the prompt as a plain one-off request to the gateway's
+   `POST /v1/images/generations` endpoint using the configured image model
+   (`tools.image_generation.model`, default `openai/gpt-image-2`) - no system
+   prompt, no tools
+3. The returned image is decoded (base64 payload) or downloaded (URL), written to
+   `.infer/tmp/image-<timestamp>.png`, and the saved path is returned
+
+Image models never appear in the `/model` selector - they are recognised by name
+(`dall-e`, `gpt-image`, `imagen`, `flux`, `stable-diffusion`, `sdxl`, `seedream`,
+`nano-banana`, `qwen-image`, since `/v1/models` carries no modality metadata) and
+filtered out; they are only reachable through this tool. `quality` defaults to
+`low` and `size` to `1024x1024` - ask explicitly for high quality or a larger
+size to pay for it. Disable the tool with `tools.image_generation.enabled: false`.
+Inline terminal rendering and the `n` option are not supported yet.
+
 ---
 
 ## Git Shortcuts

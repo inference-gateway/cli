@@ -315,7 +315,7 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService(c.config)
+	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
 	c.messageQueue = services.NewMessageQueueService()
 
 	c.initializeMCPManager()

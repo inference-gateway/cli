@@ -2,6 +2,7 @@
 package domain
 
 import (
+	"context"
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/domain"
@@ -19,6 +20,23 @@ type FakeImageService struct {
 	createDataURLReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GenerateImageStub        func(context.Context, string, string, string, string) (string, error)
+	generateImageMutex       sync.RWMutex
+	generateImageArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+		arg5 string
+	}
+	generateImageReturns struct {
+		result1 string
+		result2 error
+	}
+	generateImageReturnsOnCall map[int]struct {
+		result1 string
+		result2 error
+	}
 	IsImageFileStub        func(string) bool
 	isImageFileMutex       sync.RWMutex
 	isImageFileArgsForCall []struct {
@@ -28,6 +46,17 @@ type FakeImageService struct {
 		result1 bool
 	}
 	isImageFileReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	IsImageModelStub        func(string) bool
+	isImageModelMutex       sync.RWMutex
+	isImageModelArgsForCall []struct {
+		arg1 string
+	}
+	isImageModelReturns struct {
+		result1 bool
+	}
+	isImageModelReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	IsImageURLStub        func(string) bool
@@ -146,6 +175,74 @@ func (fake *FakeImageService) CreateDataURLReturnsOnCall(i int, result1 string) 
 	}{result1}
 }
 
+func (fake *FakeImageService) GenerateImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string) (string, error) {
+	fake.generateImageMutex.Lock()
+	ret, specificReturn := fake.generateImageReturnsOnCall[len(fake.generateImageArgsForCall)]
+	fake.generateImageArgsForCall = append(fake.generateImageArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+		arg5 string
+	}{arg1, arg2, arg3, arg4, arg5})
+	stub := fake.GenerateImageStub
+	fakeReturns := fake.generateImageReturns
+	fake.recordInvocation("GenerateImage", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	fake.generateImageMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4, arg5)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeImageService) GenerateImageCallCount() int {
+	fake.generateImageMutex.RLock()
+	defer fake.generateImageMutex.RUnlock()
+	return len(fake.generateImageArgsForCall)
+}
+
+func (fake *FakeImageService) GenerateImageCalls(stub func(context.Context, string, string, string, string) (string, error)) {
+	fake.generateImageMutex.Lock()
+	defer fake.generateImageMutex.Unlock()
+	fake.GenerateImageStub = stub
+}
+
+func (fake *FakeImageService) GenerateImageArgsForCall(i int) (context.Context, string, string, string, string) {
+	fake.generateImageMutex.RLock()
+	defer fake.generateImageMutex.RUnlock()
+	argsForCall := fake.generateImageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+}
+
+func (fake *FakeImageService) GenerateImageReturns(result1 string, result2 error) {
+	fake.generateImageMutex.Lock()
+	defer fake.generateImageMutex.Unlock()
+	fake.GenerateImageStub = nil
+	fake.generateImageReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeImageService) GenerateImageReturnsOnCall(i int, result1 string, result2 error) {
+	fake.generateImageMutex.Lock()
+	defer fake.generateImageMutex.Unlock()
+	fake.GenerateImageStub = nil
+	if fake.generateImageReturnsOnCall == nil {
+		fake.generateImageReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 error
+		})
+	}
+	fake.generateImageReturnsOnCall[i] = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeImageService) IsImageFile(arg1 string) bool {
 	fake.isImageFileMutex.Lock()
 	ret, specificReturn := fake.isImageFileReturnsOnCall[len(fake.isImageFileArgsForCall)]
@@ -203,6 +300,67 @@ func (fake *FakeImageService) IsImageFileReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.isImageFileReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeImageService) IsImageModel(arg1 string) bool {
+	fake.isImageModelMutex.Lock()
+	ret, specificReturn := fake.isImageModelReturnsOnCall[len(fake.isImageModelArgsForCall)]
+	fake.isImageModelArgsForCall = append(fake.isImageModelArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.IsImageModelStub
+	fakeReturns := fake.isImageModelReturns
+	fake.recordInvocation("IsImageModel", []interface{}{arg1})
+	fake.isImageModelMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeImageService) IsImageModelCallCount() int {
+	fake.isImageModelMutex.RLock()
+	defer fake.isImageModelMutex.RUnlock()
+	return len(fake.isImageModelArgsForCall)
+}
+
+func (fake *FakeImageService) IsImageModelCalls(stub func(string) bool) {
+	fake.isImageModelMutex.Lock()
+	defer fake.isImageModelMutex.Unlock()
+	fake.IsImageModelStub = stub
+}
+
+func (fake *FakeImageService) IsImageModelArgsForCall(i int) string {
+	fake.isImageModelMutex.RLock()
+	defer fake.isImageModelMutex.RUnlock()
+	argsForCall := fake.isImageModelArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeImageService) IsImageModelReturns(result1 bool) {
+	fake.isImageModelMutex.Lock()
+	defer fake.isImageModelMutex.Unlock()
+	fake.IsImageModelStub = nil
+	fake.isImageModelReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeImageService) IsImageModelReturnsOnCall(i int, result1 bool) {
+	fake.isImageModelMutex.Lock()
+	defer fake.isImageModelMutex.Unlock()
+	fake.IsImageModelStub = nil
+	if fake.isImageModelReturnsOnCall == nil {
+		fake.isImageModelReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isImageModelReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

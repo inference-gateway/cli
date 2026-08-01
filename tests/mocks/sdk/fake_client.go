@@ -9,6 +9,21 @@ import (
 )
 
 type FakeClient struct {
+	CreateImageStub        func(context.Context, sdk.Provider, sdk.CreateImageRequest) (*sdk.ImagesResponse, error)
+	createImageMutex       sync.RWMutex
+	createImageArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageRequest
+	}
+	createImageReturns struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
+	createImageReturnsOnCall map[int]struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
 	CreateMessageStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error)
 	createMessageMutex       sync.RWMutex
 	createMessageArgsForCall []struct {
@@ -193,6 +208,72 @@ type FakeClient struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeClient) CreateImage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
+	fake.createImageMutex.Lock()
+	ret, specificReturn := fake.createImageReturnsOnCall[len(fake.createImageArgsForCall)]
+	fake.createImageArgsForCall = append(fake.createImageArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateImageStub
+	fakeReturns := fake.createImageReturns
+	fake.recordInvocation("CreateImage", []interface{}{arg1, arg2, arg3})
+	fake.createImageMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateImageCallCount() int {
+	fake.createImageMutex.RLock()
+	defer fake.createImageMutex.RUnlock()
+	return len(fake.createImageArgsForCall)
+}
+
+func (fake *FakeClient) CreateImageCalls(stub func(context.Context, sdk.Provider, sdk.CreateImageRequest) (*sdk.ImagesResponse, error)) {
+	fake.createImageMutex.Lock()
+	defer fake.createImageMutex.Unlock()
+	fake.CreateImageStub = stub
+}
+
+func (fake *FakeClient) CreateImageArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateImageRequest) {
+	fake.createImageMutex.RLock()
+	defer fake.createImageMutex.RUnlock()
+	argsForCall := fake.createImageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateImageReturns(result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageMutex.Lock()
+	defer fake.createImageMutex.Unlock()
+	fake.CreateImageStub = nil
+	fake.createImageReturns = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateImageReturnsOnCall(i int, result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageMutex.Lock()
+	defer fake.createImageMutex.Unlock()
+	fake.CreateImageStub = nil
+	if fake.createImageReturnsOnCall == nil {
+		fake.createImageReturnsOnCall = make(map[int]struct {
+			result1 *sdk.ImagesResponse
+			result2 error
+		})
+	}
+	fake.createImageReturnsOnCall[i] = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeClient) CreateMessage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error) {

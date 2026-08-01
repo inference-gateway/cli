@@ -186,6 +186,10 @@ func (r *Registry) registerTools() {
 		r.tools["WebSearch"] = NewWebSearchTool(cfg)
 	}
 
+	if cfg.Tools.ImageGeneration.Enabled && r.imageService != nil {
+		r.tools["ImageGeneration"] = NewImageGenerationTool(cfg, r.imageService)
+	}
+
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.jobLiveness)

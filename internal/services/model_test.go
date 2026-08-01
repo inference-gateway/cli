@@ -61,6 +61,27 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestHTTPModelService_ListModelsFiltersImageModels verifies that image models
+// are excluded from the selectable list; they are only reachable through the
+// ImageGeneration tool.
+func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
+	fake := &sdkmocks.FakeClient{}
+	fake.ListModelsReturns(&sdk.ListModelsResponse{
+		Object: "list",
+		Data: []sdk.Model{
+			{ID: "deepseek/deepseek-v4-flash"},
+			{ID: "openai/gpt-image-2"},
+			{ID: "openai/dall-e-3"},
+			{ID: "black-forest-labs/flux-1.1-pro"},
+		},
+	}, nil)
+
+	svc := NewHTTPModelService(fake)
+	ids, err := svc.ListModels(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"deepseek/deepseek-v4-flash"}, ids)
+}
+
 // TestHTTPModelService_ListModelsWithoutMetadataKeepsFallbacks verifies that
 // a metadata-less response (older gateway ignoring the include param) leaves
 // the existing registries untouched instead of wiping them.

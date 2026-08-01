@@ -142,10 +142,35 @@ func (s *ToolFormatterService) themeTreeLines(tree string) string {
 		return tree
 	}
 	lines := strings.Split(tree, "\n")
+	inRoot := true
 	for i, line := range lines {
-		lines[i] = s.themeTreeLine(line, i == 0)
+		if i > 0 && inRoot {
+			prefix, _ := splitTreePrefix(line)
+			inRoot = prefix == ""
+		}
+		lines[i] = s.themeTreeLine(line, i == 0 || inRoot)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// insertHeaderRule inserts the same dim "─" rule the collapsed card draws under its
+// status line after the expanded tree's root header, so both views share the layout.
+// rawTree is the pre-theme wrapped tree, used to locate where the root header ends.
+func (s *ToolFormatterService) insertHeaderRule(themed, rawTree string, width int) string {
+	rawLines := strings.Split(strings.TrimRight(rawTree, "\n"), "\n")
+	end := len(rawLines)
+	for i := 1; i < len(rawLines); i++ {
+		if prefix, _ := splitTreePrefix(rawLines[i]); prefix != "" {
+			end = i
+			break
+		}
+	}
+	if end >= len(rawLines) {
+		return themed
+	}
+	rule := s.styleProvider.RenderWithColor(strings.Repeat("─", width), s.styleProvider.GetThemeColor("dim"))
+	themedLines := strings.Split(themed, "\n")
+	return strings.Join(append(themedLines[:end], append([]string{rule}, themedLines[end:]...)...), "\n")
 }
 
 // themeTreeLine themes a single tree line. See themeTreeLines for the colour rules.

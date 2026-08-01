@@ -229,7 +229,7 @@ func (s *ToolFormatterService) wrapCard(toolName, content string, terminalWidth 
 // collapsed status line, after reserving room for the icon, name and duration.
 func (s *ToolFormatterService) argsPreviewBudget(toolName string, width int) int {
 	const (
-		reserved = 18
+		reserved = 32
 		minimum  = 50
 	)
 	budget := width - len(toolName) - reserved
@@ -280,9 +280,9 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 		tree = safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
 	}
 
-	inner := s.cardWidth(terminalWidth) - 4 // minus border + horizontal padding
+	inner := s.cardWidth(terminalWidth) - 4
 	tree = wrapTreeLines(tree, inner)
-	body := s.themeTreeLines(tree)
+	body := s.insertHeaderRule(s.themeTreeLines(tree), tree, inner)
 	if hint := s.collapseHintLine(result); hint != "" {
 		body += "\n" + hint
 	}

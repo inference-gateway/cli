@@ -135,6 +135,9 @@ func (s *Service) executeToolCommand(commandText, toolName, argsJSON string) tea
 
 	return tea.Batch(
 		func() tea.Msg {
+			return domain.UpdateHistoryEvent{History: s.conversationRepo.GetMessages()}
+		},
+		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing: %s", toolName),
 				Spinner:    true,

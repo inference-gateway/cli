@@ -469,6 +469,34 @@ tools:
 
 ---
 
+## Media Tools
+
+### ImageGeneration Tool
+
+Generate an image from a text prompt and save it as a PNG under `.infer/tmp/`. The
+chat model calls the tool when the user asks for an image; the tool sends the prompt as a plain
+one-off request to `/v1/images/generations` using the configured image model - no system prompt,
+no tools, independent of the model selected for the chat session. Image models never appear in
+the `/model` selector; they are only reachable through this tool.
+
+**Parameters:**
+
+- `prompt` (required): Text description of the desired image
+- `quality` (optional): `low` (default), `medium`, or `high`
+- `size` (optional): `1024x1024` (default), `1536x1024`, or `1024x1536`
+
+**Configuration:**
+
+```yaml
+tools:
+  image_generation:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
+```
+
+---
+
 ## Workflow Tools
 
 ### TodoWrite Tool
