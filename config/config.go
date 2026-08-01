@@ -571,6 +571,7 @@ type A2AConfig struct {
 	Agents                []string       `yaml:"agents,omitempty" mapstructure:"agents"`
 	LivenessProbeEnabled  bool           `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
 	LivenessProbeInterval int            `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	AgentsReadyTimeoutSec int            `yaml:"agents_ready_timeout_sec" mapstructure:"agents_ready_timeout_sec"`
 	Cache                 A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
 	Task                  A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 	Tools                 A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
@@ -1100,6 +1101,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Enabled:               true,
 			LivenessProbeEnabled:  true,
 			LivenessProbeInterval: 30,
+			AgentsReadyTimeoutSec: 900,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,

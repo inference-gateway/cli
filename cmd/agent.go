@@ -170,7 +170,8 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	}
 
 	if agentManager := svc.GetAgentManager(); agentManager != nil {
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 900)) * time.Second
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
 		agentManager.WaitForAgentsReady(waitCtx)
 		waitCancel()
 	}
