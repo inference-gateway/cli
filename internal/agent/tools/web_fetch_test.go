@@ -386,3 +386,64 @@ func TestFetchTool_Execute_ChannelImageDisplayHint(t *testing.T) {
 		t.Error("raw binary bytes leaked into Content")
 	}
 }
+
+func TestFetchTool_Validate_ConfiguredAgentHosts(t *testing.T) {
+	newCfg := func(a2aEnabled bool, agents []string) *config.Config {
+		return &config.Config{
+			A2A: config.A2AConfig{Enabled: a2aEnabled, Agents: agents},
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				WebFetch: config.WebFetchToolConfig{
+					Enabled:        true,
+					AllowedDomains: []string{"github.com"},
+				},
+			},
+		}
+	}
+
+	writeAgentsYAML := func(t *testing.T, content string) {
+		t.Helper()
+		if err := os.MkdirAll(".infer", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(".infer/agents.yaml", []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("agent host from a2a.agents is allowed on any port", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		writeAgentsYAML(t, "agents: []\n")
+		tool := NewWebFetchTool(newCfg(true, []string{"http://localhost:8083"}))
+		if err := tool.Validate(map[string]any{"url": "http://localhost:8084/artifacts/shot.png"}); err != nil {
+			t.Fatalf("expected artifact URL to be allowed, got: %v", err)
+		}
+	})
+
+	t.Run("artifacts_url host from agents.yaml is allowed", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		writeAgentsYAML(t, "agents:\n  - name: browser-agent\n    url: http://localhost:8083\n    artifacts_url: http://artifacts.internal:8084\n")
+		tool := NewWebFetchTool(newCfg(true, nil))
+		if err := tool.Validate(map[string]any{"url": "http://artifacts.internal:8084/shot.png"}); err != nil {
+			t.Fatalf("expected artifacts_url host to be allowed, got: %v", err)
+		}
+	})
+
+	t.Run("a2a disabled falls back to the allow-list", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		writeAgentsYAML(t, "agents: []\n")
+		tool := NewWebFetchTool(newCfg(false, []string{"http://localhost:8083"}))
+		if err := tool.Validate(map[string]any{"url": "http://localhost:8084/artifacts/shot.png"}); err == nil {
+			t.Fatal("expected URL to be blocked when a2a is disabled")
+		}
+	})
+
+	t.Run("unrelated host stays blocked", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		writeAgentsYAML(t, "agents: []\n")
+		tool := NewWebFetchTool(newCfg(true, []string{"http://localhost:8083"}))
+		if err := tool.Validate(map[string]any{"url": "https://evil.example.com/localhost"}); err == nil {
+			t.Fatal("expected unrelated host to be blocked")
+		}
+	})
+}

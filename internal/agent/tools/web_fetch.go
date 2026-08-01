@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // WebFetchTool handles content fetching operations
@@ -276,6 +278,10 @@ func (t *WebFetchTool) validateURL(url string) error {
 
 // validateURLDomain checks if URL domain is in allowed list
 func (t *WebFetchTool) validateURLDomain(url string) error {
+	if t.isConfiguredAgentHost(url) {
+		return nil
+	}
+
 	for _, domain := range t.config.Tools.WebFetch.AllowedDomains {
 		if strings.Contains(url, domain) {
 			return nil
@@ -283,6 +289,42 @@ func (t *WebFetchTool) validateURLDomain(url string) error {
 	}
 
 	return fmt.Errorf("domain not allowed")
+}
+
+// isConfiguredAgentHost reports whether url points at the host of a configured
+// A2A agent (its endpoint or artifacts server). Registering an agent is the
+// trust decision: the A2A tools instruct the model to WebFetch artifact
+// Download URLs, so those hosts must stay fetchable regardless of how
+// tools.web_fetch.allowed_domains is overridden. Ports are ignored because
+// locally-run agents get their host ports reassigned on collision.
+func (t *WebFetchTool) isConfiguredAgentHost(rawURL string) bool {
+	if !t.config.A2A.Enabled {
+		return false
+	}
+
+	target, err := url.Parse(rawURL)
+	if err != nil || target.Hostname() == "" {
+		return false
+	}
+
+	bases := append([]string{}, t.config.A2A.Agents...)
+	if agents, err := config.LoadAgents(config.ResolveAgentsPath()); err == nil {
+		for _, agent := range agents.ListEntries() {
+			bases = append(bases, agent.URL, agent.ArtifactsURL)
+		}
+	}
+
+	for _, base := range bases {
+		if base == "" {
+			continue
+		}
+		if u, err := url.Parse(base); err == nil && u.Hostname() != "" &&
+			strings.EqualFold(u.Hostname(), target.Hostname()) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // FormatResult formats tool execution results for different contexts

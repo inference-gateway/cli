@@ -153,3 +153,21 @@ LOG_LEVEL=debug
 	require.Equal(t, "debug", envMap["LOG_LEVEL"])
 	require.Len(t, envMap, 3)
 }
+
+func TestSetURLPort(t *testing.T) {
+	cases := []struct {
+		in   string
+		port int
+		want string
+	}{
+		{"http://localhost:8084", 9090, "http://localhost:9090"},
+		{"http://localhost", 8081, "http://localhost:8081"},
+		{"https://artifacts.internal:8084/base", 9090, "https://artifacts.internal:9090/base"},
+		{"::not a url::", 9090, "::not a url::"},
+	}
+	for _, c := range cases {
+		if got := setURLPort(c.in, c.port); got != c.want {
+			t.Errorf("setURLPort(%q, %d) = %q, want %q", c.in, c.port, got, c.want)
+		}
+	}
+}

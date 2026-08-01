@@ -467,6 +467,10 @@ tools:
       ttl: 3600  # 1 hour
 ```
 
+Hosts of configured A2A agents (each agent's `url` and `artifacts_url`, on any port) are always
+fetchable when A2A is enabled, regardless of `allowed_domains` - registering an agent is the trust
+decision, and the A2A tools instruct the model to download artifact URLs with WebFetch.
+
 ---
 
 ## Media Tools
