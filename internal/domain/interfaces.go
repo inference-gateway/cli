@@ -516,6 +516,14 @@ type ImageService interface {
 	// and returns the path of the saved file. A blank quality or size leaves the
 	// provider's own default
 	GenerateImage(ctx context.Context, model, prompt, quality, size string) (string, error)
+	// EditImage edits the image at imagePath using prompt and model
+	// ("provider/name") and returns the path of the saved file. A blank quality
+	// or size leaves the provider's own default
+	EditImage(ctx context.Context, model, prompt, imagePath, quality, size string) (string, error)
+	// CreateImageVariation creates a variation of the image at imagePath using
+	// model ("provider/name") and returns the path of the saved file. A blank
+	// size leaves the provider's own default
+	CreateImageVariation(ctx context.Context, model, imagePath, size string) (string, error)
 }
 
 // FileInfo contains file metadata

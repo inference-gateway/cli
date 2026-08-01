@@ -19,6 +19,7 @@ import (
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -87,6 +88,110 @@ func (s *ImageService) GenerateImage(ctx context.Context, model, prompt, quality
 		return "", err
 	}
 
+	return s.saveImage(data)
+}
+
+// EditImage edits the image at imagePath using prompt and model
+// ("provider/name") and returns the path of the saved PNG. A blank quality or
+// size is omitted from the request, leaving the provider's own default.
+func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, quality, size string) (string, error) {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
+		return "", fmt.Errorf("invalid model %q (expected 'provider/model')", model)
+	}
+
+	attachment, err := s.ReadImageFromFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+
+	imageBytes, err := base64.StdEncoding.DecodeString(attachment.Data)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode input image: %w", err)
+	}
+
+	var imageFile openapi_types.File
+	imageFile.InitFromBytes(imageBytes, attachment.Filename)
+
+	request := sdk.CreateImageEditMultipartBody{
+		Model:  &modelName,
+		Prompt: prompt,
+		Image:  imageFile,
+	}
+	if quality != "" {
+		q := sdk.CreateImageEditMultipartBodyQuality(quality)
+		request.Quality = &q
+	}
+	if size != "" {
+		sz := sdk.ImageSize(size)
+		request.Size = &sz
+	}
+
+	resp, err := s.client.CreateImageEdit(ctx, sdk.Provider(provider), request)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Data) == 0 {
+		return "", fmt.Errorf("image edit returned no images")
+	}
+
+	data, err := s.imageBytes(resp.Data[0])
+	if err != nil {
+		return "", err
+	}
+
+	return s.saveImage(data)
+}
+
+// CreateImageVariation creates a variation of the image at imagePath using
+// model ("provider/name") and returns the path of the saved PNG. A blank size
+// is omitted from the request, leaving the provider's own default.
+func (s *ImageService) CreateImageVariation(ctx context.Context, model, imagePath, size string) (string, error) {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
+		return "", fmt.Errorf("invalid model %q (expected 'provider/model')", model)
+	}
+
+	attachment, err := s.ReadImageFromFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+
+	imageBytes, err := base64.StdEncoding.DecodeString(attachment.Data)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode input image: %w", err)
+	}
+
+	var imageFile openapi_types.File
+	imageFile.InitFromBytes(imageBytes, attachment.Filename)
+
+	request := sdk.CreateImageVariationMultipartBody{
+		Model: &modelName,
+		Image: imageFile,
+	}
+	if size != "" {
+		sz := sdk.ImageSize(size)
+		request.Size = &sz
+	}
+
+	resp, err := s.client.CreateImageVariation(ctx, sdk.Provider(provider), request)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Data) == 0 {
+		return "", fmt.Errorf("image variation returned no images")
+	}
+
+	data, err := s.imageBytes(resp.Data[0])
+	if err != nil {
+		return "", err
+	}
+
+	return s.saveImage(data)
+}
+
+// saveImage writes image bytes to a timestamped PNG under the config tmp dir.
+func (s *ImageService) saveImage(data []byte) (string, error) {
 	dir := filepath.Join(config.ConfigDirName, "tmp")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create %s: %w", dir, err)

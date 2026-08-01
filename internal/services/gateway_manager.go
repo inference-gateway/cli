@@ -331,7 +331,7 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "ENABLE_VISION=true")
 	}
 
-	if gm.config.Tools.ImageGeneration.Enabled {
+	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
 		args = append(args, "-e", "ENABLE_IMAGES=true")
 	}
 
