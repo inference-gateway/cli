@@ -184,7 +184,7 @@ tools:
     require_approval: false
   image_generation:
     enabled: true
-    model: openai/gpt-image-1 # Image model for one-off /v1/images/generations requests
+    model: openai/gpt-image-2 # Image model for one-off /v1/images/generations requests
     require_approval: false
   safety:
     require_approval: true

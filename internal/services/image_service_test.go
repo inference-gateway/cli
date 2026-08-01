@@ -243,7 +243,7 @@ func TestImageService_IsImageModel(t *testing.T) {
 		model    string
 		expected bool
 	}{
-		{"gpt-image", "openai/gpt-image-1", true},
+		{"gpt-image", "openai/gpt-image-2", true},
 		{"dall-e", "openai/dall-e-3", true},
 		{"flux", "deepinfra/FLUX-1-schnell", true},
 		{"nano-banana", "google/nano-banana", true},
@@ -295,7 +295,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), client)
 
 		t.Chdir(t.TempDir())
-		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat",
+		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-2", "a cat",
 			"low", "1024x1024")
 
 		assert.NoError(t, err)
@@ -315,7 +315,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), client)
 
 		t.Chdir(t.TempDir())
-		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-2", "a cat", "", "")
 
 		assert.NoError(t, err)
 		assert.Nil(t, client.gotRequest.Quality)
@@ -333,7 +333,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), client)
 
 		t.Chdir(t.TempDir())
-		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		path, err := service.GenerateImage(context.Background(), "openai/gpt-image-2", "a cat", "", "")
 
 		assert.NoError(t, err)
 		saved, readErr := os.ReadFile(path)
@@ -345,7 +345,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		client := &fakeImageClient{err: fmt.Errorf("API error: Requested route is not found (status code: 404)")}
 		service := NewImageService(config.DefaultConfig(), client)
 
-		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-2", "a cat", "", "")
 		assert.ErrorContains(t, err, "404")
 	})
 
@@ -353,7 +353,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 		client := &fakeImageClient{response: &sdk.ImagesResponse{}}
 		service := NewImageService(config.DefaultConfig(), client)
 
-		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-1", "a cat", "", "")
+		_, err := service.GenerateImage(context.Background(), "openai/gpt-image-2", "a cat", "", "")
 		assert.ErrorContains(t, err, "no images")
 	})
 

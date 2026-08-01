@@ -136,7 +136,7 @@ it recognises the intent:
 1. Ask for `a cat in a spacesuit` (or a meme of whatever is in the context)
 2. The tool sends the prompt as a plain one-off request to the gateway's
    `POST /v1/images/generations` endpoint using the configured image model
-   (`tools.image_generation.model`, default `openai/gpt-image-1`) - no system
+   (`tools.image_generation.model`, default `openai/gpt-image-2`) - no system
    prompt, no tools
 3. The returned image is decoded (base64 payload) or downloaded (URL), written to
    `.infer/tmp/image-<timestamp>.png`, and the saved path is returned

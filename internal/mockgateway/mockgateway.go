@@ -35,7 +35,7 @@ const AnthropicModel = "anthropic/claude-sonnet-4-5"
 // ImageModel is the image-generation model the mock advertises. Selecting it
 // is what makes the CLI offer the ImageGeneration tool, which posts to
 // /v1/images/generations.
-const ImageModel = "openai/gpt-image-1"
+const ImageModel = "openai/gpt-image-2"
 
 // Metadata advertised for DefaultModel on /v1/models. The real gateway only
 // includes these fields when ?include=context_window,pricing is set; the mock

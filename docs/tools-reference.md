@@ -491,7 +491,7 @@ the `/model` selector; they are only reachable through this tool.
 tools:
   image_generation:
     enabled: true
-    model: openai/gpt-image-1
+    model: openai/gpt-image-2
     require_approval: false
 ```
 

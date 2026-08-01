@@ -70,7 +70,7 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 		Object: "list",
 		Data: []sdk.Model{
 			{ID: "deepseek/deepseek-v4-flash"},
-			{ID: "openai/gpt-image-1"},
+			{ID: "openai/gpt-image-2"},
 			{ID: "openai/dall-e-3"},
 			{ID: "black-forest-labs/flux-1.1-pro"},
 		},

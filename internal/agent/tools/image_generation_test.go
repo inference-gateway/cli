@@ -21,9 +21,9 @@ func TestImageGenerationTool_IsEnabled(t *testing.T) {
 		model        string
 		expected     bool
 	}{
-		{"enabled with configured model", true, "openai/gpt-image-1", true},
+		{"enabled with configured model", true, "openai/gpt-image-2", true},
 		{"no model configured", true, "", false},
-		{"disabled in config", false, "openai/gpt-image-1", false},
+		{"disabled in config", false, "openai/gpt-image-2", false},
 	}
 
 	for _, tt := range tests {
@@ -75,7 +75,7 @@ func TestImageGenerationTool_Execute(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result.Success)
 		_, model, prompt, quality, size := imageService.GenerateImageArgsForCall(0)
-		assert.Equal(t, "openai/gpt-image-1", model)
+		assert.Equal(t, "openai/gpt-image-2", model)
 		assert.Equal(t, "a cat", prompt)
 		assert.Equal(t, "low", quality)
 		assert.Equal(t, "1024x1024", size)

@@ -971,7 +971,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			ImageGeneration: ImageGenerationToolConfig{
 				Enabled: true,
-				Model:   "openai/gpt-image-1",
+				Model:   "openai/gpt-image-2",
 			},
 			Agent: AgentToolConfig{
 				Enabled:            true,
