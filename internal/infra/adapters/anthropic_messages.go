@@ -114,6 +114,14 @@ func (a *AnthropicMessages) CreateImage(ctx context.Context, provider sdk.Provid
 	return a.inner.CreateImage(ctx, provider, request)
 }
 
+func (a *AnthropicMessages) CreateImageEdit(ctx context.Context, provider sdk.Provider, request sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
+	return a.inner.CreateImageEdit(ctx, provider, request)
+}
+
+func (a *AnthropicMessages) CreateImageVariation(ctx context.Context, provider sdk.Provider, request sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error) {
+	return a.inner.CreateImageVariation(ctx, provider, request)
+}
+
 // GenerateContent routes Anthropic requests through /v1/messages and
 // translates the response back into the chat-completions shape.
 func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {

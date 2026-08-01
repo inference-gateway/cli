@@ -101,7 +101,7 @@ metrics from the CLI's push.
   receiver on a fixed address so the collector can feed external spans into
   the session's trace file. Unset, the receiver only serves loopback
   subprocesses.
-- The mock-agent enables telemetry via `A2A_TELEMETRY_ENABLE`, pushes traces
+- The mock-agent enables telemetry via `A2A_TELEMETRY_ENABLED`, pushes traces
   with `A2A_OTEL_TRACES_EXPORTER: otlp` to `A2A_OTEL_EXPORTER_OTLP_ENDPOINT`,
   and serves Prometheus metrics on `A2A_OTEL_EXPORTER_PROMETHEUS_PORT`.
 - Use `docker compose exec` (not `run`) for `infer traces`/`infer stats`: the

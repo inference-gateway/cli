@@ -481,7 +481,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
 
 	if agent.ArtifactsURL != "" {
-		env["A2A_ARTIFACTS_ENABLE"] = "true"
+		env["A2A_ARTIFACTS_ENABLED"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
 		env["A2A_ARTIFACTS_SERVER_PORT"] = "8081"
 		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = artifactsURL

@@ -24,6 +24,36 @@ type FakeClient struct {
 		result1 *sdk.ImagesResponse
 		result2 error
 	}
+	CreateImageEditStub        func(context.Context, sdk.Provider, sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error)
+	createImageEditMutex       sync.RWMutex
+	createImageEditArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageEditMultipartBody
+	}
+	createImageEditReturns struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
+	createImageEditReturnsOnCall map[int]struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
+	CreateImageVariationStub        func(context.Context, sdk.Provider, sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error)
+	createImageVariationMutex       sync.RWMutex
+	createImageVariationArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageVariationMultipartBody
+	}
+	createImageVariationReturns struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
+	createImageVariationReturnsOnCall map[int]struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}
 	CreateMessageStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error)
 	createMessageMutex       sync.RWMutex
 	createMessageArgsForCall []struct {
@@ -271,6 +301,138 @@ func (fake *FakeClient) CreateImageReturnsOnCall(i int, result1 *sdk.ImagesRespo
 		})
 	}
 	fake.createImageReturnsOnCall[i] = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateImageEdit(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
+	fake.createImageEditMutex.Lock()
+	ret, specificReturn := fake.createImageEditReturnsOnCall[len(fake.createImageEditArgsForCall)]
+	fake.createImageEditArgsForCall = append(fake.createImageEditArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageEditMultipartBody
+	}{arg1, arg2, arg3})
+	stub := fake.CreateImageEditStub
+	fakeReturns := fake.createImageEditReturns
+	fake.recordInvocation("CreateImageEdit", []interface{}{arg1, arg2, arg3})
+	fake.createImageEditMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateImageEditCallCount() int {
+	fake.createImageEditMutex.RLock()
+	defer fake.createImageEditMutex.RUnlock()
+	return len(fake.createImageEditArgsForCall)
+}
+
+func (fake *FakeClient) CreateImageEditCalls(stub func(context.Context, sdk.Provider, sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error)) {
+	fake.createImageEditMutex.Lock()
+	defer fake.createImageEditMutex.Unlock()
+	fake.CreateImageEditStub = stub
+}
+
+func (fake *FakeClient) CreateImageEditArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateImageEditMultipartBody) {
+	fake.createImageEditMutex.RLock()
+	defer fake.createImageEditMutex.RUnlock()
+	argsForCall := fake.createImageEditArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateImageEditReturns(result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageEditMutex.Lock()
+	defer fake.createImageEditMutex.Unlock()
+	fake.CreateImageEditStub = nil
+	fake.createImageEditReturns = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateImageEditReturnsOnCall(i int, result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageEditMutex.Lock()
+	defer fake.createImageEditMutex.Unlock()
+	fake.CreateImageEditStub = nil
+	if fake.createImageEditReturnsOnCall == nil {
+		fake.createImageEditReturnsOnCall = make(map[int]struct {
+			result1 *sdk.ImagesResponse
+			result2 error
+		})
+	}
+	fake.createImageEditReturnsOnCall[i] = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateImageVariation(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error) {
+	fake.createImageVariationMutex.Lock()
+	ret, specificReturn := fake.createImageVariationReturnsOnCall[len(fake.createImageVariationArgsForCall)]
+	fake.createImageVariationArgsForCall = append(fake.createImageVariationArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateImageVariationMultipartBody
+	}{arg1, arg2, arg3})
+	stub := fake.CreateImageVariationStub
+	fakeReturns := fake.createImageVariationReturns
+	fake.recordInvocation("CreateImageVariation", []interface{}{arg1, arg2, arg3})
+	fake.createImageVariationMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateImageVariationCallCount() int {
+	fake.createImageVariationMutex.RLock()
+	defer fake.createImageVariationMutex.RUnlock()
+	return len(fake.createImageVariationArgsForCall)
+}
+
+func (fake *FakeClient) CreateImageVariationCalls(stub func(context.Context, sdk.Provider, sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error)) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = stub
+}
+
+func (fake *FakeClient) CreateImageVariationArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateImageVariationMultipartBody) {
+	fake.createImageVariationMutex.RLock()
+	defer fake.createImageVariationMutex.RUnlock()
+	argsForCall := fake.createImageVariationArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateImageVariationReturns(result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = nil
+	fake.createImageVariationReturns = struct {
+		result1 *sdk.ImagesResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateImageVariationReturnsOnCall(i int, result1 *sdk.ImagesResponse, result2 error) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = nil
+	if fake.createImageVariationReturnsOnCall == nil {
+		fake.createImageVariationReturnsOnCall = make(map[int]struct {
+			result1 *sdk.ImagesResponse
+			result2 error
+		})
+	}
+	fake.createImageVariationReturnsOnCall[i] = struct {
 		result1 *sdk.ImagesResponse
 		result2 error
 	}{result1, result2}
