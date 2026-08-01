@@ -120,7 +120,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 	isBinary := isBinaryContent(fetchResult.ContentType, fetchResult.Content)
 
 	if download || isBinary {
-		filename := t.extractFilenameFromURL(url)
+		filename := extractFilenameFromURL(url)
 		savedPath, saveErr := t.saveToFile(fetchResult, filename)
 		if saveErr != nil {
 			result.Error = fmt.Sprintf("failed to save file: %v", saveErr)
@@ -278,7 +278,7 @@ func (t *WebFetchTool) validateURL(url string) error {
 
 // validateURLDomain checks if URL domain is in allowed list
 func (t *WebFetchTool) validateURLDomain(url string) error {
-	if t.isConfiguredAgentHost(url) {
+	if isTrustedAgentHost(t.config, url) {
 		return nil
 	}
 
@@ -291,14 +291,14 @@ func (t *WebFetchTool) validateURLDomain(url string) error {
 	return fmt.Errorf("domain not allowed")
 }
 
-// isConfiguredAgentHost reports whether url points at the host of a configured
+// isTrustedAgentHost reports whether url points at the host of a configured
 // A2A agent (its endpoint or artifacts server). Registering an agent is the
 // trust decision: the A2A tools instruct the model to WebFetch artifact
 // Download URLs, so those hosts must stay fetchable regardless of how
 // tools.web_fetch.allowed_domains is overridden. Ports are ignored because
 // locally-run agents get their host ports reassigned on collision.
-func (t *WebFetchTool) isConfiguredAgentHost(rawURL string) bool {
-	if !t.config.A2A.Enabled {
+func isTrustedAgentHost(cfg *config.Config, rawURL string) bool {
+	if !cfg.A2A.Enabled {
 		return false
 	}
 
@@ -307,7 +307,7 @@ func (t *WebFetchTool) isConfiguredAgentHost(rawURL string) bool {
 		return false
 	}
 
-	bases := append([]string{}, t.config.A2A.Agents...)
+	bases := append([]string{}, cfg.A2A.Agents...)
 	if agents, err := config.LoadAgents(config.ResolveAgentsPath()); err == nil {
 		for _, agent := range agents.ListEntries() {
 			bases = append(bases, agent.URL, agent.ArtifactsURL)
@@ -499,8 +499,9 @@ func (t *WebFetchTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
-// extractFilenameFromURL extracts a safe filename from a URL
-func (t *WebFetchTool) extractFilenameFromURL(url string) string {
+// extractFilenameFromURL extracts a safe filename from a URL; shared with the
+// A2A artifact auto-download path.
+func extractFilenameFromURL(url string) string {
 	parts := strings.Split(url, "/")
 	filename := "download"
 

@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -14,6 +18,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
@@ -438,6 +443,10 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
+		if t.config.A2A.Task.ArtifactsAutoDownload {
+			t.downloadArtifacts(&currentTask)
+		}
+
 		result := &domain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
@@ -620,10 +629,18 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 
 	if taskData.Task != nil && len(taskData.Task.Artifacts) > 0 {
 		fmt.Fprintf(&dataContent, "\n\nArtifacts Available: %d\n", len(taskData.Task.Artifacts))
+		downloaded := false
 		for i, artifact := range taskData.Task.Artifacts {
 			t.formatArtifact(&dataContent, i+1, artifact)
+			if artifactLocalPath(artifact) != "" {
+				downloaded = true
+			}
 		}
-		dataContent.WriteString("\nTo download artifacts: Use WebFetch tool with the Download URL from each artifact above.\n")
+		if downloaded {
+			dataContent.WriteString("\nArtifacts marked \"Saved to\" are already downloaded locally - use those paths directly, no need to fetch them.\n")
+		} else {
+			dataContent.WriteString("\nTo download artifacts: Use WebFetch tool with the Download URL from each artifact above.\n")
+		}
 	}
 
 	hasMetadata := len(metadata) > 0
@@ -681,11 +698,6 @@ func (t *A2ASubmitTaskTool) formatArtifact(builder *strings.Builder, index int, 
 	}
 	fmt.Fprintf(builder, "%d. %s (ID: %s)", index, artifactName, artifact.ArtifactID)
 
-	if artifact.Metadata == nil {
-		builder.WriteString("\n")
-		return
-	}
-
 	if artifact.Metadata != nil {
 		if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok {
 			fmt.Fprintf(builder, ", Type: %s", mimeType)
@@ -693,11 +705,100 @@ func (t *A2ASubmitTaskTool) formatArtifact(builder *strings.Builder, index int, 
 		if size, ok := (*artifact.Metadata)["size"].(float64); ok {
 			fmt.Fprintf(builder, ", Size: %d bytes", int64(size))
 		}
-		if url, ok := (*artifact.Metadata)["url"].(string); ok {
-			fmt.Fprintf(builder, "\n   Download URL: %s", url)
-		}
+	}
+	if url := artifactDownloadURL(artifact); url != "" {
+		fmt.Fprintf(builder, "\n   Download URL: %s", url)
+	}
+	if path := artifactLocalPath(artifact); path != "" {
+		fmt.Fprintf(builder, "\n   Saved to: %s", path)
 	}
 	builder.WriteString("\n")
+}
+
+// artifactDownloadURL resolves an artifact's download URL: metadata "url"
+// first, then the first file part carrying a URI (agents differ in where
+// they put it).
+func artifactDownloadURL(artifact adk.Artifact) string {
+	if artifact.Metadata != nil {
+		if url, ok := (*artifact.Metadata)["url"].(string); ok && url != "" {
+			return url
+		}
+	}
+	for _, part := range artifact.Parts {
+		if part.File != nil && part.File.FileWithURI != nil && *part.File.FileWithURI != "" {
+			return *part.File.FileWithURI
+		}
+	}
+	return ""
+}
+
+// artifactLocalPath returns the local path recorded by downloadArtifacts, if any.
+func artifactLocalPath(artifact adk.Artifact) string {
+	if artifact.Metadata == nil {
+		return ""
+	}
+	path, _ := (*artifact.Metadata)["local_path"].(string)
+	return path
+}
+
+// downloadArtifacts fetches each artifact of a completed task from its
+// (trusted agent-host) download URL into <configDir>/tmp and records the
+// local path in the artifact's metadata, so the completion notification can
+// point at a file on disk instead of asking the model to WebFetch it.
+// Fail-soft: any failure just leaves that artifact with its URL line.
+func (t *A2ASubmitTaskTool) downloadArtifacts(task *adk.Task) {
+	baseDir := filepath.Join(t.config.GetConfigDir(), "tmp")
+	httpClient := &http.Client{Timeout: 60 * time.Second}
+
+	for i := range task.Artifacts {
+		artifact := &task.Artifacts[i]
+		url := artifactDownloadURL(*artifact)
+		if url == "" || !isTrustedAgentHost(t.config, url) {
+			continue
+		}
+
+		path, err := downloadArtifactFile(httpClient, url, baseDir)
+		if err != nil {
+			logger.Warn("failed to auto-download A2A artifact", "url", url, "error", err)
+			continue
+		}
+
+		if artifact.Metadata == nil {
+			artifact.Metadata = &adk.Struct{}
+		}
+		(*artifact.Metadata)["local_path"] = path
+		logger.Info("auto-downloaded A2A artifact", "url", url, "path", path)
+	}
+}
+
+// downloadArtifactFile GETs url into baseDir and returns the absolute path.
+func downloadArtifactFile(httpClient *http.Client, url, baseDir string) (string, error) {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		return "", err
+	}
+	fullPath := filepath.Join(baseDir, filepath.Base(extractFilenameFromURL(url)))
+	file, err := os.Create(fullPath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return "", err
+	}
+
+	if absPath, err := filepath.Abs(fullPath); err == nil {
+		return absPath, nil
+	}
+	return fullPath, nil
 }
 
 // FormatPreview returns a short preview of the result for UI display

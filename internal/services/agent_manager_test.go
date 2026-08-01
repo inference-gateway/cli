@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -170,4 +172,27 @@ func TestSetURLPort(t *testing.T) {
 			t.Errorf("setURLPort(%q, %d) = %q, want %q", c.in, c.port, got, c.want)
 		}
 	}
+}
+
+func TestAgentManager_WaitForAgentsReady(t *testing.T) {
+	am := NewAgentManager("session", &config.Config{}, &config.AgentsConfig{}, nil, nil)
+
+	done := make(chan struct{})
+	go func() {
+		am.WaitForAgentsReady(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("WaitForAgentsReady should return immediately with no agents starting")
+	}
+
+	am.startWg.Add(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	am.WaitForAgentsReady(ctx)
+	require.Less(t, time.Since(start), time.Second, "WaitForAgentsReady should respect ctx cancellation")
+	am.startWg.Done()
 }

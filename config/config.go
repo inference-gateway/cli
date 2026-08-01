@@ -770,6 +770,7 @@ type A2ATaskConfig struct {
 	BackgroundMonitoring    bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
 	CompletedTaskRetention  int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
 	AgentModeMaxWaitSeconds int     `yaml:"agent_mode_max_wait_seconds" mapstructure:"agent_mode_max_wait_seconds"`
+	ArtifactsAutoDownload   bool    `yaml:"artifacts_auto_download" mapstructure:"artifacts_auto_download"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -1112,6 +1113,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				BackgroundMonitoring:    true,
 				CompletedTaskRetention:  5,
 				AgentModeMaxWaitSeconds: 300,
+				ArtifactsAutoDownload:   false,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{

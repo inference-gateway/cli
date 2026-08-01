@@ -169,6 +169,12 @@ Possible solutions:
 For more information, visit: https://github.com/inference-gateway/inference-gateway`, err)
 	}
 
+	if agentManager := svc.GetAgentManager(); agentManager != nil {
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		agentManager.WaitForAgentsReady(waitCtx)
+		waitCancel()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
