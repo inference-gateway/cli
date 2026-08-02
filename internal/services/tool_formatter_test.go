@@ -251,6 +251,32 @@ func TestFormatToolResultExpanded_ThemingPreservesTree(t *testing.T) {
 	}
 }
 
+// TestFormatToolResultExpanded_BareErrorGetsHeader guards the header consistency
+// between the collapsed and expanded views: tools whose LLM format is a bare
+// message (typically failure paths, e.g. "Image edit failed: ...") have no root
+// "Name(args)" tree line, so the expanded view must prepend the collapsed status
+// line and rule instead of showing only the raw message.
+func TestFormatToolResultExpanded_BareErrorGetsHeader(t *testing.T) {
+	tool := &fakeTool{name: "ImageEdit", llm: "Image edit failed: API error (status code: 404)"}
+	svc := newTestService(tool)
+
+	result := &domain.ToolExecutionResult{
+		ToolName:  "ImageEdit",
+		Success:   false,
+		Duration:  45 * time.Millisecond,
+		Arguments: map[string]any{"image": "cat.png"},
+	}
+	out := stripCard(stripANSI(svc.FormatToolResultExpanded(result, 80)))
+
+	want := "✗ ImageEdit(image=cat.png) · 45ms\n" +
+		strings.Repeat("─", 76) + "\n" +
+		"Image edit failed: API error (status code: 404)\n" +
+		"· ctrl+o to collapse"
+	if out != want {
+		t.Errorf("expanded bare-error output.\n got: %q\nwant: %q", out, want)
+	}
+}
+
 func TestFormatToolResultExpanded_AlwaysExpandOmitsHint(t *testing.T) {
 	tool := &fakeTool{name: "Edit", llm: "Edit(file_path=x)\n└─ Result:\n   diff", alwaysExpand: true}
 	svc := newTestService(tool)

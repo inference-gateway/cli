@@ -283,6 +283,10 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 	inner := s.cardWidth(terminalWidth) - 4
 	tree = wrapTreeLines(tree, inner)
 	body := s.insertHeaderRule(s.themeTreeLines(tree), tree, inner)
+	if !strings.HasPrefix(tree, result.ToolName+"(") {
+		rule := s.styleProvider.RenderWithColor(strings.Repeat("─", inner), s.styleProvider.GetThemeColor("dim"))
+		body = s.statusLine(result, terminalWidth) + "\n" + rule + "\n" + body
+	}
 	if hint := s.collapseHintLine(result); hint != "" {
 		body += "\n" + hint
 	}
