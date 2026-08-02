@@ -1245,7 +1245,7 @@ vision:
   sources:
     camera-front:
       type: directory
-      path: /var/frames/front
+      path: .infer/frames/front # wherever your camera process writes frames
       retention: { max_files: 100, max_age: 24h }
 ```
 
