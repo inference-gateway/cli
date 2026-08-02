@@ -2,31 +2,6 @@ package config
 
 import "testing"
 
-func TestVisionIsTextOnlyModel(t *testing.T) {
-	tests := []struct {
-		name     string
-		patterns []string
-		model    string
-		want     bool
-	}{
-		{"empty list", nil, "deepseek/deepseek-chat", false},
-		{"empty model", []string{"deepseek"}, "", false},
-		{"substring match", []string{"deepseek"}, "deepseek/deepseek-chat", true},
-		{"case insensitive", []string{"DeepSeek"}, "deepseek/deepseek-chat", true},
-		{"provider-qualified", []string{"ollama/qwen3"}, "ollama/qwen3:8b", true},
-		{"no match", []string{"deepseek"}, "anthropic/claude-sonnet-5", false},
-		{"blank entries ignored", []string{" ", ""}, "deepseek/deepseek-chat", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := VisionConfig{TextOnlyModels: tt.patterns}
-			if got := v.IsTextOnlyModel(tt.model); got != tt.want {
-				t.Fatalf("IsTextOnlyModel(%q) = %v, want %v", tt.model, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestVisionAnnotatorReady(t *testing.T) {
 	tests := []struct {
 		name string

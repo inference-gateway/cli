@@ -253,8 +253,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
 	)
-	application.SetImageAnnotator(services.GetImageAnnotator())
-
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)

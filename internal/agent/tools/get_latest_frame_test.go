@@ -110,30 +110,23 @@ func TestGetLatestFrameFormatMatrix(t *testing.T) {
 	tests := []struct {
 		name          string
 		args          map[string]any
-		textOnly      bool
 		annotator     bool
 		annotatorErr  error
 		wantAnnotated bool
 		wantImages    int
 		wantNoteSub   string
 	}{
-		{"vision model default regular", map[string]any{}, false, true, nil, false, 1, ""},
-		{"text-only auto annotates, omits image", map[string]any{}, true, true, nil, true, 0, ""},
-		{"text-only without annotator gets omission note", map[string]any{"format": "annotated"}, true, false, nil, false, 0, "image omitted"},
-		{"explicit annotated vision keeps image", map[string]any{"format": "annotated"}, false, true, nil, true, 1, ""},
-		{"explicit annotated without annotator degrades", map[string]any{"format": "annotated"}, false, false, nil, false, 1, "annotation unavailable"},
-		{"annotator error degrades vision", map[string]any{"format": "annotated"}, false, true, errors.New("boom"), false, 1, "annotation failed"},
-		{"annotator error degrades text-only", map[string]any{"format": "annotated"}, true, true, errors.New("boom"), false, 0, "image omitted"},
-		{"explicit regular wins for text-only", map[string]any{"format": "regular"}, true, true, nil, false, 1, ""},
+		{"default annotated when annotator configured", map[string]any{}, true, nil, true, 0, ""},
+		{"default regular without annotator", map[string]any{}, false, nil, false, 1, ""},
+		{"explicit annotated replaces image with text", map[string]any{"format": "annotated"}, true, nil, true, 0, ""},
+		{"explicit annotated without annotator degrades", map[string]any{"format": "annotated"}, false, nil, false, 1, "annotation unavailable"},
+		{"annotator error degrades to regular", map[string]any{"format": "annotated"}, true, errors.New("boom"), false, 1, "annotation failed"},
+		{"explicit regular wins over annotator", map[string]any{"format": "regular"}, true, nil, false, 1, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := newFrameTestConfig()
 			ctx := context.Background()
-			if tt.textOnly {
-				cfg.Vision.TextOnlyModels = []string{"deepseek"}
-				ctx = domain.WithModel(ctx, "deepseek/deepseek-chat")
-			}
 
 			var annotator domain.ImageAnnotator
 			if tt.annotator {
@@ -204,8 +197,6 @@ func TestGetLatestFramePerSourcePromptOverride(t *testing.T) {
 	cfg.Vision.Sources = map[string]config.VisionSourceConfig{
 		"cam": {Type: "directory", Path: "/frames", Prompt: "look for forklifts"},
 	}
-	cfg.Vision.TextOnlyModels = []string{"deepseek"}
-
 	fake := &domainmocks.FakeImageAnnotator{}
 	fake.AnnotateImageReturns(&domain.ImageAnnotation{Summary: "ok"}, nil)
 
@@ -213,8 +204,7 @@ func TestGetLatestFramePerSourcePromptOverride(t *testing.T) {
 	cam.GetLatestFrameReturns(frameFixture(), nil)
 	tool := NewGetLatestFrameTool(cfg, fakeSourceLookup{"cam": cam}, fake)
 
-	ctx := domain.WithModel(context.Background(), "deepseek/deepseek-chat")
-	result, err := tool.Execute(ctx, map[string]any{})
+	result, err := tool.Execute(context.Background(), map[string]any{})
 	assert.NoError(t, err)
 	assert.True(t, result.Success)
 

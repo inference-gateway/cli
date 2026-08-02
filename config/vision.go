@@ -12,9 +12,8 @@ import (
 // gateway.vision_enabled, which only toggles vision support on the gateway
 // container itself.
 type VisionConfig struct {
-	Annotator      VisionAnnotatorConfig         `yaml:"annotator" mapstructure:"annotator"`
-	TextOnlyModels []string                      `yaml:"text_only_models" mapstructure:"text_only_models"` // models without vision; substring match vs "provider/model"
-	Sources        map[string]VisionSourceConfig `yaml:"sources" mapstructure:"sources"`                   // named frame sources ("screen" is implicit)
+	Annotator VisionAnnotatorConfig         `yaml:"annotator" mapstructure:"annotator"`
+	Sources   map[string]VisionSourceConfig `yaml:"sources" mapstructure:"sources"` // named frame sources ("screen" is implicit)
 }
 
 // VisionAnnotatorConfig configures the image annotator. The default "local"
@@ -52,22 +51,6 @@ const (
 	VisionEngineLocal   = "local"
 	VisionEngineGateway = "gateway"
 )
-
-// IsTextOnlyModel reports whether the given "provider/model" string is declared
-// text-only via vision.text_only_models (case-insensitive substring match).
-// Unknown models are assumed vision-capable, so images keep flowing as before.
-func (v VisionConfig) IsTextOnlyModel(model string) bool {
-	if model == "" {
-		return false
-	}
-	m := strings.ToLower(model)
-	for _, pattern := range v.TextOnlyModels {
-		if p := strings.ToLower(strings.TrimSpace(pattern)); p != "" && strings.Contains(m, p) {
-			return true
-		}
-	}
-	return false
-}
 
 // AnnotatorReady reports whether the annotator is enabled and usable.
 func (v VisionConfig) AnnotatorReady() bool {

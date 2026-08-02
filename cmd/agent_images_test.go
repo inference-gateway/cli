@@ -5,7 +5,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // conversationWithToolImage is a user->assistant(tool_call)->tool exchange
@@ -42,69 +41,6 @@ func TestBuildSDKMessagesHoistsToolImages(t *testing.T) {
 		t.Fatalf("expected lead text + image part, got %d parts", len(parts))
 	}
 	if ip, err := parts[1].AsImageContentPart(); err != nil || string(ip.Type) != "image_url" {
-		t.Errorf("second part should be an image for a vision model (type %q, err %v)", ip.Type, err)
-	}
-}
-
-func TestBuildSDKMessagesTextOnlyModelGetsAnnotationText(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Prompts = *config.DefaultPromptsConfig()
-	cfg.Vision.TextOnlyModels = []string{"deepseek"}
-
-	annotator := &domainmocks.FakeImageAnnotator{}
-	annotator.AnnotateImageReturns(&domain.ImageAnnotation{Summary: "Login form"}, nil)
-
-	session := &AgentSession{
-		config:       cfg,
-		model:        "deepseek/deepseek-chat",
-		annotator:    annotator,
-		conversation: conversationWithToolImage(),
-	}
-
-	msgs := session.buildSDKMessages()
-	if len(msgs) != 3 {
-		t.Fatalf("expected 3 messages, got %d", len(msgs))
-	}
-
-	parts, err := msgs[2].Content.AsMessageContent1()
-	if err != nil {
-		t.Fatalf("follow-up message should be multipart: %v", err)
-	}
-	for i, part := range parts {
-		if ip, err := part.AsImageContentPart(); err == nil && string(ip.Type) == "image_url" {
-			t.Errorf("part %d is an image; text-only models must receive no base64", i)
-		}
-	}
-	text, err := parts[1].AsTextContentPart()
-	if err != nil {
-		t.Fatalf("expected text part: %v", err)
-	}
-	if want := "Frame summary: Login form"; text.Text != want {
-		t.Errorf("annotation text = %q, want %q", text.Text, want)
-	}
-}
-
-func TestBuildSDKMessagesTextOnlyWithoutAnnotatorGetsOmissionNote(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Prompts = *config.DefaultPromptsConfig()
-	cfg.Vision.TextOnlyModels = []string{"deepseek"}
-
-	session := &AgentSession{
-		config:       cfg,
-		model:        "deepseek/deepseek-chat",
-		conversation: conversationWithToolImage(),
-	}
-
-	msgs := session.buildSDKMessages()
-	parts, err := msgs[2].Content.AsMessageContent1()
-	if err != nil {
-		t.Fatalf("follow-up message should be multipart: %v", err)
-	}
-	text, err := parts[1].AsTextContentPart()
-	if err != nil {
-		t.Fatalf("expected text part: %v", err)
-	}
-	if want := "[image omitted: model has no vision; configure vision.annotator for text descriptions]"; text.Text != want {
-		t.Errorf("omission note = %q, want %q", text.Text, want)
+		t.Errorf("second part should be an image (type %q, err %v)", ip.Type, err)
 	}
 }

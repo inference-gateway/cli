@@ -320,11 +320,9 @@ compact:
 Frame sources and the image-annotation pipeline that lets text-only models "see" screen and camera
 frames. Not to be confused with **gateway.vision_enabled**, which is an unrelated gateway-side flag.
 
-- **vision.text_only_models**: Models declared as having no vision capability (case-insensitive
-  substring match against `provider/model`, e.g. `deepseek`). Images sent to these models are
-  replaced with annotation text (annotator configured) or an omission note. Empty (default) means
-  every model is treated as vision-capable - today's behavior, base64 images forwarded as-is.
-- **vision.annotator.enabled**: Enable the image annotator (default: false)
+- **vision.annotator.enabled**: Enable the image annotator (default: false). When enabled,
+  `GetLatestFrame` defaults to annotated (text) output and the `ImageDecode` tool is registered, so
+  text-only models can understand frames without any per-model configuration.
 - **vision.annotator.engine**: `local` (default; runs `llama-mtmd-cli` offline) or `gateway`
   (side-call to a vision model through the configured gateway)
 - **vision.annotator.model**: Local short-name (`qwen3-vl-2b`, default; also `qwen3-vl-4b`) or a
@@ -343,8 +341,6 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 
 ```yaml
 vision:
-  text_only_models:
-    - deepseek
   annotator:
     enabled: true
     engine: local

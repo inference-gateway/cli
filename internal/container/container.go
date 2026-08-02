@@ -425,7 +425,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundTaskRegistry,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
-	agentImpl.SetImageAnnotator(c.imageAnnotator)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
 }
@@ -677,12 +676,6 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 
 func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
-}
-
-// GetImageAnnotator returns the image annotator, or nil when the vision
-// annotator is not configured.
-func (c *ServiceContainer) GetImageAnnotator() domain.ImageAnnotator {
-	return c.imageAnnotator
 }
 
 // createImageAnnotator builds the configured annotation engine: the local

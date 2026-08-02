@@ -23,7 +23,7 @@ func (a *EventDrivenAgent) executeTools() {
 	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher, a.req.IsChatMode)
 	logger.Debug("tool execution completed", "result_count", len(toolResults))
 
-	stop := a.service.handleToolResults(a.agentCtx.Ctx, toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
+	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
 
 	failed := domain.AnyToolFailed(toolResults)
 	a.mu.Lock()

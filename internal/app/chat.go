@@ -2437,14 +2437,6 @@ func (app *ChatApplication) GetAgentService() domain.AgentService {
 }
 
 // GetImageService returns the image service
-// SetImageAnnotator forwards the vision annotator to the chat handler so
-// user-attached images can be described as text for text-only session models.
-func (app *ChatApplication) SetImageAnnotator(annotator domain.ImageAnnotator) {
-	if h, ok := app.chatHandler.(interface{ SetImageAnnotator(domain.ImageAnnotator) }); ok {
-		h.SetImageAnnotator(annotator)
-	}
-}
-
 func (app *ChatApplication) GetImageService() domain.ImageService {
 	return app.imageService
 }

@@ -67,7 +67,7 @@ func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
 					"format": map[string]any{
 						"type":        "string",
 						"enum":        []string{"regular", "annotated"},
-						"description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list. Omit to choose automatically.",
+						"description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.",
 					},
 				},
 			},
@@ -116,9 +116,8 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 		Method: frame.Method,
 	}
 
-	textOnly := t.config.Vision.IsTextOnlyModel(domain.GetModel(ctx))
-	if t.wantAnnotated(args, textOnly) {
-		return t.annotatedResult(ctx, args, sourceName, attachment, result, textOnly, start)
+	if t.wantAnnotated(args) {
+		return t.annotatedResult(ctx, args, sourceName, attachment, result, start)
 	}
 
 	return &domain.ToolExecutionResult{
@@ -171,27 +170,22 @@ func (t *GetLatestFrameTool) checkRateLimit(source string) string {
 }
 
 // wantAnnotated resolves the format: explicit wins; omitted defaults to
-// annotated only for text-only session models with a configured annotator.
-func (t *GetLatestFrameTool) wantAnnotated(args map[string]any, textOnly bool) bool {
+// annotated whenever an annotator is configured.
+func (t *GetLatestFrameTool) wantAnnotated(args map[string]any) bool {
 	switch format, _ := args["format"].(string); format {
 	case "regular":
 		return false
 	case "annotated":
 		return true
 	default:
-		return t.annotator != nil && textOnly
+		return t.annotator != nil
 	}
 }
 
-// annotatedResult annotates the frame and builds the result. Annotation
-// problems never fail the call: they degrade to a regular frame (vision
-// models) or an omission note (text-only models).
-func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[string]any, sourceName string, attachment domain.ImageAttachment, result domain.FrameToolResult, textOnly bool, start time.Time) (*domain.ToolExecutionResult, error) {
-	images := []domain.ImageAttachment{attachment}
-	if textOnly {
-		images = nil // never send base64 to a model that cannot see it
-	}
-
+// annotatedResult annotates the frame and builds a text-only result (the
+// annotation replaces the image). Annotation problems never fail the call:
+// they degrade to a regular frame with a note.
+func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[string]any, sourceName string, attachment domain.ImageAttachment, result domain.FrameToolResult, start time.Time) (*domain.ToolExecutionResult, error) {
 	degrade := func(note string) (*domain.ToolExecutionResult, error) {
 		result.Note = note
 		return &domain.ToolExecutionResult{
@@ -200,14 +194,11 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 			Success:   true,
 			Duration:  time.Since(start),
 			Data:      result,
-			Images:    images,
+			Images:    []domain.ImageAttachment{attachment},
 		}, nil
 	}
 
 	if t.annotator == nil {
-		if textOnly {
-			return degrade("[image omitted: model has no vision; configure vision.annotator to enable annotated frames]")
-		}
 		return degrade("annotation unavailable: set vision.annotator in config.yaml; returned the regular frame")
 	}
 
@@ -217,9 +208,6 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 		Height: result.Height,
 	})
 	if err != nil {
-		if textOnly {
-			return degrade(fmt.Sprintf("[image omitted: model has no vision; annotation failed: %v]", err))
-		}
 		return degrade(fmt.Sprintf("annotation failed: %v; returned the regular frame", err))
 	}
 
@@ -231,7 +219,6 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 		Success:   true,
 		Duration:  time.Since(start),
 		Data:      result,
-		Images:    images,
 	}, nil
 }
 

@@ -43,12 +43,12 @@ func hasImagePart(body sdk.CreateChatCompletionRequest) bool {
 	return false
 }
 
-// TestGetLatestFrameAnnotatedForTextOnlyModel drives the robotics loop
-// end-to-end: a directory frame source, a session model declared text-only,
-// and a gateway annotator. The agent asks for the latest frame, the tool
+// TestGetLatestFrameAnnotatedWithAnnotator drives the robotics loop
+// end-to-end: a directory frame source and a gateway annotator, so annotated
+// is the default format. The agent asks for the latest frame, the tool
 // side-calls the annotator (an ordinary chat completion through the same
-// mock gateway), and the model receives annotation text - never base64.
-func TestGetLatestFrameAnnotatedForTextOnlyModel(t *testing.T) {
+// mock gateway), and the session model receives annotation text - never base64.
+func TestGetLatestFrameAnnotatedWithAnnotator(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
   content: "Done."
@@ -73,7 +73,6 @@ scenarios:
 		cfg.Vision.Sources = map[string]config.VisionSourceConfig{
 			"camera-front": {Type: "directory", Path: frameDir},
 		}
-		cfg.Vision.TextOnlyModels = []string{mockgateway.DefaultModel}
 		cfg.Vision.Annotator = config.VisionAnnotatorConfig{
 			Enabled:   true,
 			Engine:    config.VisionEngineGateway,
@@ -109,13 +108,13 @@ scenarios:
 	}
 
 	require.Equal(t, 1, annotatorReqs, "expected exactly one annotator side-call")
-	require.Zero(t, imageParts, "no base64 image may reach the text-only session model")
+	require.Zero(t, imageParts, "annotated frames replace the image: no base64 may reach the session model")
 	require.True(t, annotationTextSeen, "the annotation text must reach the session model as the tool result")
 }
 
-// TestGetLatestFrameRegularForVisionModel checks the unchanged default: a
-// model NOT declared text-only receives the raw frame as an image part.
-func TestGetLatestFrameRegularForVisionModel(t *testing.T) {
+// TestGetLatestFrameRegularWithoutAnnotator checks the default without an
+// annotator: the session model receives the raw frame as an image part.
+func TestGetLatestFrameRegularWithoutAnnotator(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
   content: "Done."

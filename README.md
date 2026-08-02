@@ -1234,8 +1234,6 @@ boxes.
 ```yaml
 # .infer/config.yaml
 vision:
-  text_only_models: # substring match against provider/model
-    - deepseek
   annotator:
     enabled: true
     engine: local # offline: llama-mtmd-cli + auto-downloaded Qwen3-VL GGUF (~1.3 GB)
@@ -1250,11 +1248,11 @@ vision:
 ```
 
 The agent reads frames via `GetLatestFrame(source, format)` and arbitrary image files via
-`ImageDecode(image, prompt)`. For a model listed under `text_only_models`, every image - tool
-results, `@path` chat attachments, frames - is replaced by annotation text before it reaches the
-model; no base64 is ever sent. Unlisted models keep today's behavior and receive the raw image. The
-local engine needs `llama-mtmd-cli` on the `PATH` (`brew install llama.cpp`); model weights download
-automatically on first use. See the
+`ImageDecode(image, prompt)`. Any orchestrator or model that speaks chat completions can use these
+tools - a text-only model simply gets the annotation text instead of an image: with an annotator
+configured, `GetLatestFrame` defaults to `format: annotated` (text replaces the frame), and
+`format: regular` returns the raw image for vision models. The local engine needs `llama-mtmd-cli`
+on the `PATH` (`brew install llama.cpp`); model weights download automatically on first use. See the
 [configuration reference](docs/configuration-reference.md#vision-settings) for all options.
 
 ## Persistent Memory

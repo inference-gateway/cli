@@ -350,8 +350,8 @@ func (p *ChatMessageProcessor) formatIssueBlock(iss *domain.GitHubIssue) string 
 	return b.String()
 }
 
-// buildUserMessage assembles the outgoing user message; image attachments become
-// image parts, or descriptive text parts when the current model is text-only.
+// buildUserMessage assembles the outgoing user message; image attachments
+// become image content parts.
 func (p *ChatMessageProcessor) buildUserMessage(
 	content string,
 	images []domain.ImageAttachment,
@@ -366,19 +366,7 @@ func (p *ChatMessageProcessor) buildUserMessage(
 	}
 	contentParts := []sdk.ContentPart{textPart}
 
-	textOnly := p.handler.config.Vision.IsTextOnlyModel(p.handler.modelService.GetCurrentModel())
-
 	for _, img := range images {
-		if textOnly {
-			description := domain.DescribeImage(context.Background(), p.handler.imageAnnotator,
-				p.handler.config.Prompts.Vision.Annotator.SceneSystemPrompt, img)
-			part, err := sdk.NewTextContentPart(fmt.Sprintf("[Attached image %s]\n%s", img.DisplayName, description))
-			if err == nil {
-				contentParts = append(contentParts, part)
-			}
-			continue
-		}
-
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {

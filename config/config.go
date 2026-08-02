@@ -880,8 +880,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxTokens:    1024,
 				Timeout:      120,
 			},
-			TextOnlyModels: []string{},
-			Sources:        map[string]VisionSourceConfig{},
+			Sources: map[string]VisionSourceConfig{},
 		},
 		Client: ClientConfig{
 			Timeout:           200,

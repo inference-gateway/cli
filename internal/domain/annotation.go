@@ -1,24 +1,9 @@
 package domain
 
 import (
-	"context"
 	"fmt"
 	"strings"
 )
-
-// DescribeImage returns annotation text for an image a text-only session
-// model cannot see, via the given annotator. It is nil-safe and never fails:
-// an unconfigured or failing annotator degrades to an omission note.
-func DescribeImage(ctx context.Context, annotator ImageAnnotator, prompt string, img ImageAttachment) string {
-	if annotator == nil {
-		return "[image omitted: model has no vision; configure vision.annotator for text descriptions]"
-	}
-	annotation, err := annotator.AnnotateImage(ctx, img, AnnotateOptions{Prompt: prompt})
-	if err != nil {
-		return fmt.Sprintf("[image omitted: model has no vision; annotation failed: %v]", err)
-	}
-	return AnnotationText(annotation)
-}
 
 // AnnotationText renders an ImageAnnotation as the canonical LLM-facing text:
 // a one-line summary followed by the numbered element list with centers and

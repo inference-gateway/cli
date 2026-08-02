@@ -41,7 +41,6 @@ type AgentServiceImpl struct {
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
-	annotator        domain.ImageAnnotator
 	recorder         *telemetry.Recorder
 
 	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
@@ -449,13 +448,6 @@ func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
 // message, so pushing there would commit-storm. A nil backend disables sync.
 func (s *AgentServiceImpl) SetMemoryBackend(backend domain.MemoryBackend) {
 	s.memoryBackend = backend
-}
-
-// SetImageAnnotator wires the image annotator used to describe tool-result
-// images for session models declared text-only. A nil annotator means such
-// images degrade to an omission note.
-func (s *AgentServiceImpl) SetImageAnnotator(annotator domain.ImageAnnotator) {
-	s.annotator = annotator
 }
 
 // Run executes an agent task synchronously (for background/batch processing)
@@ -1224,7 +1216,6 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 // handleToolResults processes tool execution results and returns true if agent should stop
 func (s *AgentServiceImpl) handleToolResults(
-	ctx context.Context,
 	toolResults []domain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
@@ -1232,7 +1223,7 @@ func (s *AgentServiceImpl) handleToolResults(
 ) bool {
 	hasRejection, planContent, planID := s.checkToolResultsStatus(toolResults)
 
-	s.addToolResultsToConversation(ctx, toolResults, conversation, req.Model)
+	s.addToolResultsToConversation(toolResults, conversation)
 
 	if hasRejection {
 		logger.Info("tool was rejected - stopping agent loop")
@@ -1266,7 +1257,7 @@ func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.Conversat
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
-func (s *AgentServiceImpl) addToolResultsToConversation(ctx context.Context, toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
+func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1276,7 +1267,7 @@ func (s *AgentServiceImpl) addToolResultsToConversation(ctx context.Context, too
 		*conversation = append(*conversation, toolResult)
 	}
 
-	s.addImageMessageFromToolResults(ctx, toolResults, conversation, model)
+	s.addImageMessageFromToolResults(toolResults, conversation)
 }
 
 // createPlanMessage creates and stores a plan message for approval
@@ -1352,8 +1343,8 @@ func extractPlanID(result *domain.ToolExecutionResult) string {
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message
 // This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
-func (s *AgentServiceImpl) addImageMessageFromToolResults(ctx context.Context, toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
-	imageMessage := s.createImageMessageFromToolResults(ctx, toolResults, model)
+func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
+	imageMessage := s.createImageMessageFromToolResults(toolResults)
 	if imageMessage == nil {
 		return
 	}
@@ -1371,10 +1362,8 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(ctx context.Context, t
 }
 
 // createImageMessageFromToolResults creates a hidden user message containing images from tool results.
-// For session models declared text-only (vision.text_only_models) the image
-// parts are replaced with annotation text (or an omission note) instead of
-// base64 the model cannot see. Returns nil if no images are present.
-func (s *AgentServiceImpl) createImageMessageFromToolResults(ctx context.Context, toolResults []domain.ConversationEntry, model string) *sdk.Message {
+// Returns nil if no images are present.
+func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry) *sdk.Message {
 	var allImages []domain.ImageAttachment
 
 	for _, result := range toolResults {
@@ -1387,8 +1376,6 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(ctx context.Context
 		return nil
 	}
 
-	textOnly := s.config.Vision.IsTextOnlyModel(model)
-
 	var contentParts []sdk.ContentPart
 	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(allImages)))
 	if err == nil {
@@ -1396,16 +1383,6 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(ctx context.Context
 	}
 
 	for i, img := range allImages {
-		if textOnly {
-			part, err := sdk.NewTextContentPart(s.describeImageForTextOnlyModel(ctx, img))
-			if err != nil {
-				logger.Warn("failed to create text content part", "index", i, "error", err)
-				continue
-			}
-			contentParts = append(contentParts, part)
-			continue
-		}
-
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
@@ -1424,12 +1401,6 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(ctx context.Context
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(contentParts),
 	}
-}
-
-// describeImageForTextOnlyModel turns an image into annotation text via the
-// configured annotator, or an omission note when annotation is unavailable.
-func (s *AgentServiceImpl) describeImageForTextOnlyModel(ctx context.Context, img domain.ImageAttachment) string {
-	return domain.DescribeImage(ctx, s.annotator, s.config.Prompts.Vision.Annotator.SceneSystemPrompt, img)
 }
 
 // requestToolApproval requests user approval for a tool and waits for response

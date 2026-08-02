@@ -560,12 +560,12 @@ written to disk). Enabled whenever at least one frame source is registered.
 - `source` (optional): Frame source name. Defaults to the only registered source, or `screen` when
   several exist.
 - `format` (optional): `regular` (raw image attached) or `annotated` (scene summary + numbered
-  elements with bounding boxes, produced by the configured `vision.annotator`). When omitted, the
-  format is chosen automatically: `annotated` if the session model is listed in
-  `vision.text_only_models` and an annotator is ready, otherwise `regular`.
+  elements with bounding boxes, produced by the configured `vision.annotator`, replacing the image).
+  When omitted: `annotated` if an annotator is configured, otherwise `regular`.
 
 For the `screen` source, annotated output includes element centers usable directly with `MouseClick`.
-Text-only sessions receive annotation text only - no base64 ever reaches the model.
+Annotated frames carry no base64 - the text replaces the image, so text-only models can use the tool
+directly; vision models can always request `format: regular`.
 
 ### ImageDecode Tool
 
