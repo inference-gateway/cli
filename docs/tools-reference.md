@@ -583,7 +583,7 @@ question about it. Read-only, no approval required. Enabled when `vision.annotat
 vision:
   annotator:
     enabled: true
-    model: ollama_cloud/qwen3.5:397b # any vision model served by your gateway
+    model: anthropic/claude-haiku-4-5-20251001 # any vision model served by your gateway
 ```
 
 ---
