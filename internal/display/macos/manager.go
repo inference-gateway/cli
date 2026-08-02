@@ -96,12 +96,12 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 	appDir := filepath.Join(mgr.cfg.GetConfigDir(), "tmp", "ComputerUse.app")
 	mgr.appPath = appDir
 
-	if _, err := os.Stat(appDir); os.IsNotExist(err) {
-		logger.Debug("extracting ComputerUse.app from embedded binary", "path", appDir)
-		if err := mgr.extractApp(appDir); err != nil {
-			return fmt.Errorf("failed to extract embedded app: %w", err)
-		}
-		logger.Info("computerUse.app extracted successfully", "path", appDir)
+	if err := os.RemoveAll(appDir); err != nil {
+		return fmt.Errorf("failed to remove previous extracted app: %w", err)
+	}
+	logger.Debug("extracting ComputerUse.app from embedded binary", "path", appDir)
+	if err := mgr.extractApp(appDir); err != nil {
+		return fmt.Errorf("failed to extract embedded app: %w", err)
 	}
 
 	position := mgr.cfg.ComputerUse.FloatingWindow.Position

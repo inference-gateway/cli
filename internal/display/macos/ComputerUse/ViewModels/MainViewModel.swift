@@ -21,6 +21,11 @@ class MainViewModel: ObservableObject {
     @Published private(set) var currentRequestID: String?
     @Published private(set) var contentItems: [ContentItem] = []
 
+    /// Line index and start time of each tool's "running..." line, so
+    /// keep-alive "running" events update it in place with elapsed time
+    /// instead of appending a new line per tick.
+    private var runningToolLines: [String: (index: Int, started: Date)] = [:]
+
     // MARK: - Dependencies
 
     private let outputWriter: OutputWriter
@@ -113,7 +118,12 @@ extension MainViewModel: EventDispatcherDelegate {
     func handleToolExecutionProgress(_ event: ToolExecutionProgressEvent) {
         switch event.status.lowercased() {
         case "completed":
-            appendText("✓ \(event.toolName) completed\n", color: DesignColors.success)
+            if let entry = runningToolLines.removeValue(forKey: event.toolName) {
+                let secs = Int(Date().timeIntervalSince(entry.started))
+                contentItems[entry.index] = .text("✓ \(event.toolName) completed (\(secs)s)\n", color: DesignColors.success)
+            } else {
+                appendText("✓ \(event.toolName) completed\n", color: DesignColors.success)
+            }
 
             if let images = event.images, !images.isEmpty {
                 for image in images {
@@ -123,10 +133,20 @@ extension MainViewModel: EventDispatcherDelegate {
 
         case "failed":
             let message = event.message ?? "Unknown error"
-            appendText("✗ \(event.toolName) failed: \(message)\n", color: DesignColors.error)
+            if let entry = runningToolLines.removeValue(forKey: event.toolName) {
+                contentItems[entry.index] = .text("✗ \(event.toolName) failed: \(message)\n", color: DesignColors.error)
+            } else {
+                appendText("✗ \(event.toolName) failed: \(message)\n", color: DesignColors.error)
+            }
 
         case "running":
-            appendText("⟳ \(event.toolName) running...\n", color: DesignColors.info)
+            if let entry = runningToolLines[event.toolName] {
+                let secs = Int(Date().timeIntervalSince(entry.started))
+                contentItems[entry.index] = .text("⟳ \(event.toolName) running... \(secs)s\n", color: DesignColors.info)
+            } else {
+                runningToolLines[event.toolName] = (contentItems.count, Date())
+                appendText("⟳ \(event.toolName) running...\n", color: DesignColors.info)
+            }
 
         default:
             break
