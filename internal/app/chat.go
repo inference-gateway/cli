@@ -2170,6 +2170,10 @@ func (app *ChatApplication) clearFileSelectionState() {
 // images here (the old behavior) dropped the token, leaving non-vision models
 // with no reference to the selected file at all.
 func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetDisabled(false)
+	}
+
 	currentInput := app.inputView.GetInput()
 	cursor := app.inputView.GetCursor()
 
