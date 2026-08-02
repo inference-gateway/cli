@@ -2163,23 +2163,13 @@ func (app *ChatApplication) clearFileSelectionState() {
 	app.stateManager.ClearFileSelectionState()
 }
 
+// updateInputWithSelectedFile inserts "@<path> " for every selected file,
+// including images: expandFileReferences resolves the token at send time,
+// attaching the image AND replacing the token with "[Image: <path>]" so the
+// model always learns the file path even without vision support. Pre-attaching
+// images here (the old behavior) dropped the token, leaving non-vision models
+// with no reference to the selected file at all.
 func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
-	if app.imageService != nil && app.imageService.IsImageFile(selectedFile) {
-		imageAttachment, err := app.imageService.ReadImageFromFile(selectedFile)
-		if err == nil {
-			currentInput := app.inputView.GetInput()
-			cursor := app.inputView.GetCursor()
-			atIndex := app.findAtSymbolBeforeCursor(currentInput, cursor)
-			if atIndex >= 0 {
-				newInput := currentInput[:atIndex] + currentInput[cursor:]
-				app.inputView.SetText(newInput)
-				app.inputView.SetCursor(atIndex)
-			}
-			app.inputView.AddImageAttachment(*imageAttachment)
-			return
-		}
-	}
-
 	currentInput := app.inputView.GetInput()
 	cursor := app.inputView.GetCursor()
 
@@ -2187,16 +2177,6 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 
 	app.inputView.SetText(newInput)
 	app.inputView.SetCursor(newCursor)
-}
-
-// findAtSymbolBeforeCursor finds the position of the @ symbol before the cursor
-func (app *ChatApplication) findAtSymbolBeforeCursor(input string, cursor int) int {
-	for i := cursor - 1; i >= 0; i-- {
-		if input[i] == '@' {
-			return i
-		}
-	}
-	return -1
 }
 
 func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView domain.ViewState) []tea.Cmd {

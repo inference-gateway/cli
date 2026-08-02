@@ -43,12 +43,6 @@ func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 	}
 }
 
-// fileExpansionResult holds the result of expanding file references
-type fileExpansionResult struct {
-	content string
-	images  []domain.ImageAttachment
-}
-
 // handleUserInput processes user input messages
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
@@ -69,7 +63,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 		return p.handler.HandleBashCommand(msg.Content)
 	}
 
-	result, err := p.expandFileReferences(msg.Content)
+	content, err := p.expandFileReferences(msg.Content)
 	if err != nil {
 		return func() tea.Msg {
 			return domain.ShowErrorEvent{
@@ -79,12 +73,9 @@ func (p *ChatMessageProcessor) handleUserInput(
 		}
 	}
 
-	result.content = p.expandIssueReferences(context.Background(), result.content)
+	content = p.expandIssueReferences(context.Background(), content)
 
-	allImages := append(msg.Images, result.images...)
-
-	chatCmd := p.processChatMessage(result.content, allImages)
-	return chatCmd
+	return p.processChatMessage(content, msg.Images)
 }
 
 // isSkillInvocation reports whether content is a "/<name> ..." where <name> is
@@ -246,18 +237,14 @@ func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, b
 	return "", false
 }
 
-// expandFileReferences expands @filename references with file content or images
-func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpansionResult, error) {
+// expandFileReferences expands @filename references: text files are inlined,
+// images are referenced by path only ("[Image: <path>]").
+func (p *ChatMessageProcessor) expandFileReferences(content string) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
-	result := &fileExpansionResult{
-		content: content,
-		images:  []domain.ImageAttachment{},
-	}
-
 	if len(matches) == 0 {
-		return result, nil
+		return content, nil
 	}
 
 	expandedContent := content
@@ -271,11 +258,9 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 		}
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
-			imageAttachment, err := p.handler.imageService.ReadImageFromFile(filename)
-			if err != nil {
-				continue
-			}
-			result.images = append(result.images, *imageAttachment)
+			// Reference images by path only - inlining the bytes would waste context
+			// and non-vision models can't use them anyway. Tools (ImageEdit, computer
+			// use) take the path; pasted clipboard images still attach as pixels.
 			imageRef := fmt.Sprintf("[Image: %s]", filename)
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
@@ -297,8 +282,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
 	}
 
-	result.content = expandedContent
-	return result, nil
+	return expandedContent, nil
 }
 
 // expandIssueReferences replaces `#N` tokens in the user's message with an
