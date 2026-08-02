@@ -258,7 +258,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 		}
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
-			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", filename)
+			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", filename)
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
@@ -350,50 +350,60 @@ func (p *ChatMessageProcessor) formatIssueBlock(iss *domain.GitHubIssue) string 
 	return b.String()
 }
 
+// buildUserMessage assembles the outgoing user message; image attachments become
+// image parts, or descriptive text parts when the current model is text-only.
+func (p *ChatMessageProcessor) buildUserMessage(
+	content string,
+	images []domain.ImageAttachment,
+) (sdk.Message, tea.Cmd) {
+	if len(images) == 0 {
+		return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}, nil
+	}
+
+	textPart, err := sdk.NewTextContentPart(content)
+	if err != nil {
+		return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create text content: %v", err))
+	}
+	contentParts := []sdk.ContentPart{textPart}
+
+	textOnly := p.handler.config.Vision.IsTextOnlyModel(p.handler.modelService.GetCurrentModel())
+
+	for _, img := range images {
+		if textOnly {
+			description := domain.DescribeImage(context.Background(), p.handler.imageAnnotator,
+				p.handler.config.Prompts.Vision.Annotator.SceneSystemPrompt, img)
+			part, err := sdk.NewTextContentPart(fmt.Sprintf("[Attached image %s]\n%s", img.DisplayName, description))
+			if err == nil {
+				contentParts = append(contentParts, part)
+			}
+			continue
+		}
+
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create image content: %v", err))
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(contentParts)}, nil
+}
+
+func showErrorCmd(msg string) tea.Cmd {
+	return func() tea.Msg {
+		return domain.ShowErrorEvent{Error: msg, Sticky: false}
+	}
+}
+
 // processChatMessage processes a regular chat message with optional image attachments
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
 	images []domain.ImageAttachment,
 ) tea.Cmd {
-	var message sdk.Message
-
-	if len(images) > 0 {
-		var contentParts []sdk.ContentPart
-
-		textPart, err := sdk.NewTextContentPart(content)
-		if err != nil {
-			return func() tea.Msg {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to create text content: %v", err),
-					Sticky: false,
-				}
-			}
-		}
-		contentParts = append(contentParts, textPart)
-
-		for _, img := range images {
-			dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
-			imagePart, err := sdk.NewImageContentPart(dataURL, nil)
-			if err != nil {
-				return func() tea.Msg {
-					return domain.ShowErrorEvent{
-						Error:  fmt.Sprintf("Failed to create image content: %v", err),
-						Sticky: false,
-					}
-				}
-			}
-			contentParts = append(contentParts, imagePart)
-		}
-
-		message = sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(contentParts),
-		}
-	} else {
-		message = sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(content),
-		}
+	message, errCmd := p.buildUserMessage(content, images)
+	if errCmd != nil {
+		return errCmd
 	}
 
 	if p.handler.stateManager.IsAgentBusy() {

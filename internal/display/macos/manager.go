@@ -328,12 +328,12 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 	}
 
 	if progressEvent, ok := event.(domain.ToolExecutionProgressEvent); ok {
-		if progressEvent.ToolName == "GetLatestScreenshot" && progressEvent.Status == "completed" {
+		if progressEvent.ToolName == "GetLatestFrame" && progressEvent.Status == "completed" {
 			jsonPreview := string(data)
 			if len(jsonPreview) > 500 {
 				jsonPreview = jsonPreview[:500] + "..."
 			}
-			logger.Info("sending GetLatestScreenshot completed event to Swift",
+			logger.Info("sending GetLatestFrame completed event to Swift",
 				"hasImages", len(progressEvent.Images) > 0,
 				"imageCount", len(progressEvent.Images),
 				"jsonLength", len(data),

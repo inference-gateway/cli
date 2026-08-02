@@ -40,6 +40,7 @@ import (
 	stt "github.com/inference-gateway/cli/internal/stt"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	vlm "github.com/inference-gateway/cli/internal/vlm"
 )
 
 // ServiceContainer manages all application dependencies
@@ -65,6 +66,7 @@ type ServiceContainer struct {
 	toolService            domain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
+	imageAnnotator         domain.ImageAnnotator
 	pricingService         domain.PricingService
 	telemetryRecorder      *telemetry.Recorder
 	a2aAgentService        domain.A2AAgentService
@@ -327,8 +329,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 	stores, err := storage.NewStorage(storageConfig)
 	c.stores = stores
 
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil, c.backgroundTaskRegistry, stores)
+	c.imageAnnotator = c.createImageAnnotator()
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
+
+	for name, srcCfg := range c.config.Vision.Sources {
+		c.toolRegistry.RegisterFrameSource(name, services.NewDirectoryFrameSource(name, srcCfg, c.imageService))
+	}
 
 	styleProvider := styles.NewProvider(c.themeService)
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
@@ -418,6 +425,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundTaskRegistry,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
+	agentImpl.SetImageAnnotator(c.imageAnnotator)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
 }
@@ -669,6 +677,25 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 
 func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
+}
+
+// GetImageAnnotator returns the image annotator, or nil when the vision
+// annotator is not configured.
+func (c *ServiceContainer) GetImageAnnotator() domain.ImageAnnotator {
+	return c.imageAnnotator
+}
+
+// createImageAnnotator builds the configured annotation engine: the local
+// llama.cpp subprocess by default, or a gateway side-call (title-generator
+// style) when vision.annotator.engine is "gateway".
+func (c *ServiceContainer) createImageAnnotator() domain.ImageAnnotator {
+	if !c.config.Vision.AnnotatorReady() {
+		return nil
+	}
+	if c.config.Vision.Annotator.Engine == config.VisionEngineGateway {
+		return vlm.NewGatewayAnnotator(c.createRawSDKClient(), c.config)
+	}
+	return vlm.NewLocalAnnotator(c.config)
 }
 
 func (c *ServiceContainer) GetSkillsService() domain.SkillsService {

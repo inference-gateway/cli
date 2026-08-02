@@ -542,7 +542,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **MouseMove** / **MouseClick** / **MouseScroll** | Control the mouse | No |
 | **KeyboardType** | Type text or send key combinations | No |
 | **GetFocusedApp** / **ActivateApp** | Query or focus an application | No |
-| **GetLatestScreenshot** | Read the latest streamed screenshot | No |
+| **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 
@@ -1210,11 +1210,11 @@ enabled: true
 rate_limit:
   enabled: true
 screenshot:
-  streaming_enabled: true   # also registers the GetLatestScreenshot tool
+  streaming_enabled: true   # also registers the GetLatestFrame tool
 ```
 
 Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`, and
-`GetLatestScreenshot`. They run silently in the background (bypassing the approval prompt) and are
+`GetLatestFrame`. They run silently in the background (bypassing the approval prompt) and are
 governed by `computer_use.enabled` plus the configured rate limits. On macOS an optional **floating
 progress window** can mirror what the agent is doing. For a sandboxed desktop to drive, see
 [examples/computer-use](examples/computer-use/).
@@ -1222,6 +1222,40 @@ progress window** can mirror what the agent is doing. For a sandboxed desktop to
 > **⚠️ Windows note:** Computer use (mouse, keyboard, screenshot tools) is **not supported on Windows**.
 > The agent will log a warning and disable these tools when running on Windows. All other features
 > work normally.
+
+## Frame Sources & Vision Annotation
+
+Cheap or text-only models (DeepSeek, small local models) can still "see". Named **frame sources**
+feed images to the agent - the built-in `screen` source (computer-use screenshot streaming) plus any
+number of **directory sources** watching a folder for camera frames - and a pluggable **image
+annotator** turns each frame into text: a scene summary and a numbered element list with bounding
+boxes.
+
+```yaml
+# .infer/config.yaml
+vision:
+  text_only_models: # substring match against provider/model
+    - deepseek
+  annotator:
+    enabled: true
+    engine: local # offline: llama-mtmd-cli + auto-downloaded Qwen3-VL GGUF (~1.3 GB)
+    model: qwen3-vl-2b
+    # engine: gateway            # or side-call a vision model through the gateway
+    # model: anthropic/claude-sonnet-5
+  sources:
+    camera-front:
+      type: directory
+      path: /var/frames/front
+      retention: { max_files: 100, max_age: 24h }
+```
+
+The agent reads frames via `GetLatestFrame(source, format)` and arbitrary image files via
+`ImageDecode(image, prompt)`. For a model listed under `text_only_models`, every image - tool
+results, `@path` chat attachments, frames - is replaced by annotation text before it reaches the
+model; no base64 is ever sent. Unlisted models keep today's behavior and receive the raw image. The
+local engine needs `llama-mtmd-cli` on the `PATH` (`brew install llama.cpp`); model weights download
+automatically on first use. See the
+[configuration reference](docs/configuration-reference.md#vision-settings) for all options.
 
 ## Persistent Memory
 

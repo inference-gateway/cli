@@ -32,6 +32,7 @@ type ChatHandler struct {
 	toolService            domain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
+	imageAnnotator         domain.ImageAnnotator
 	shortcutRegistry       *shortcuts.Registry
 	stateManager           stateManager
 	messageQueue           domain.MessageQueue
@@ -111,6 +112,12 @@ func NewChatHandler(
 
 // Handle routes incoming messages to appropriate handler methods based on message type.
 // TODO - refactor this
+// SetImageAnnotator wires the vision annotator used to describe user-attached
+// images for session models declared text-only (vision.text_only_models).
+func (h *ChatHandler) SetImageAnnotator(annotator domain.ImageAnnotator) {
+	h.imageAnnotator = annotator
+}
+
 func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
 	case domain.UserInputEvent:

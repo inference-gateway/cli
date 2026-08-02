@@ -548,6 +548,8 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,
+		"INFER_PROMPTS_VISION_ANNOTATOR_SCREEN_SYSTEM_PROMPT":       &cfg.Prompts.Vision.Annotator.ScreenSystemPrompt,
+		"INFER_PROMPTS_VISION_ANNOTATOR_SCENE_SYSTEM_PROMPT":        &cfg.Prompts.Vision.Annotator.SceneSystemPrompt,
 		"INFER_PROMPTS_INIT_PROMPT":                                 &cfg.Prompts.Init.Prompt,
 
 		"INFER_PROMPTS_TOOLS_BASH_DESCRIPTION":                  &cfg.Prompts.Tools.Bash.Description,
@@ -575,7 +577,8 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_TOOLS_KEYBOARD_TYPE_DESCRIPTION":         &cfg.Prompts.Tools.KeyboardType.Description,
 		"INFER_PROMPTS_TOOLS_GET_FOCUSED_APP_DESCRIPTION":       &cfg.Prompts.Tools.GetFocusedApp.Description,
 		"INFER_PROMPTS_TOOLS_ACTIVATE_APP_DESCRIPTION":          &cfg.Prompts.Tools.ActivateApp.Description,
-		"INFER_PROMPTS_TOOLS_GET_LATEST_SCREENSHOT_DESCRIPTION": &cfg.Prompts.Tools.GetLatestScreenshot.Description,
+		"INFER_PROMPTS_TOOLS_GET_LATEST_FRAME_DESCRIPTION":      &cfg.Prompts.Tools.GetLatestFrame.Description,
+		"INFER_PROMPTS_TOOLS_IMAGE_DECODE_DESCRIPTION":          &cfg.Prompts.Tools.ImageDecode.Description,
 	}
 
 	for envKey, target := range envOverrides {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,24 +41,26 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config             *config.Config
-	toolsMu            sync.RWMutex
-	tools              map[string]domain.Tool
-	readToolUsed       atomic.Bool
-	readFiles          map[string]fileReadSnapshot
-	readFilesMu        sync.Mutex
-	taskTracker        domain.A2ATaskTracker
-	subagentTracker    domain.SubagentTracker
-	jobSubmitter       domain.JobSubmitter
-	jobStopper         domain.JobStopper
-	jobLiveness        domain.JobLivenessReporter
-	imageService       domain.ImageService
-	mcpManager         domain.MCPManager
-	shellService       domain.BackgroundShellService
-	stateManager       computerUseState
-	screenshotProvider domain.ScreenshotProvider
-	memoryBackend      domain.MemoryBackend
-	stores             *storage.Stores
+	config          *config.Config
+	toolsMu         sync.RWMutex
+	tools           map[string]domain.Tool
+	readToolUsed    atomic.Bool
+	readFiles       map[string]fileReadSnapshot
+	readFilesMu     sync.Mutex
+	taskTracker     domain.A2ATaskTracker
+	subagentTracker domain.SubagentTracker
+	jobSubmitter    domain.JobSubmitter
+	jobStopper      domain.JobStopper
+	jobLiveness     domain.JobLivenessReporter
+	imageService    domain.ImageService
+	mcpManager      domain.MCPManager
+	shellService    domain.BackgroundShellService
+	stateManager    computerUseState
+	annotator       domain.ImageAnnotator
+	frameSources    map[string]domain.FrameSource
+	frameSourcesMu  sync.RWMutex
+	memoryBackend   domain.MemoryBackend
+	stores          *storage.Stores
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -76,21 +79,22 @@ type computerUseState interface {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, screenshotProvider domain.ScreenshotProvider, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, annotator domain.ImageAnnotator, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
 	registry := &Registry{
-		config:             cfg,
-		tools:              make(map[string]domain.Tool),
-		shellService:       shellService,
-		readFiles:          make(map[string]fileReadSnapshot),
-		taskTracker:        taskTracker,
-		imageService:       imageService,
-		mcpManager:         mcpManager,
-		stateManager:       stateManager,
-		screenshotProvider: screenshotProvider,
-		stores:             stores,
+		config:       cfg,
+		tools:        make(map[string]domain.Tool),
+		shellService: shellService,
+		readFiles:    make(map[string]fileReadSnapshot),
+		taskTracker:  taskTracker,
+		imageService: imageService,
+		mcpManager:   mcpManager,
+		stateManager: stateManager,
+		annotator:    annotator,
+		frameSources: make(map[string]domain.FrameSource),
+		stores:       stores,
 	}
 	if st, ok := taskTracker.(domain.SubagentTracker); ok {
 		registry.subagentTracker = st
@@ -109,20 +113,37 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 	return registry
 }
 
-// SetScreenshotProvider updates the screenshot provider for tools that need it
-func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
-	r.screenshotProvider = provider
-
-	cfg := r.config
-	if cfg.ComputerUse.Enabled {
-		displayProvider, err := display.DetectDisplay()
-		if err == nil {
-			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-			r.toolsMu.Lock()
-			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
-			r.toolsMu.Unlock()
-		}
+// RegisterFrameSource adds (or replaces) a named frame source. The
+// GetLatestFrame tool is registered statically and reports itself enabled as
+// soon as at least one source exists, so late registration (e.g. chat starting
+// the screenshot server) needs no re-registration machinery.
+func (r *Registry) RegisterFrameSource(name string, src domain.FrameSource) {
+	if name == "" || src == nil {
+		return
 	}
+	r.frameSourcesMu.Lock()
+	r.frameSources[name] = src
+	r.frameSourcesMu.Unlock()
+}
+
+// FrameSource returns the named frame source.
+func (r *Registry) FrameSource(name string) (domain.FrameSource, bool) {
+	r.frameSourcesMu.RLock()
+	defer r.frameSourcesMu.RUnlock()
+	src, ok := r.frameSources[name]
+	return src, ok
+}
+
+// FrameSourceNames returns the registered source names, sorted.
+func (r *Registry) FrameSourceNames() []string {
+	r.frameSourcesMu.RLock()
+	defer r.frameSourcesMu.RUnlock()
+	names := make([]string, 0, len(r.frameSources))
+	for name := range r.frameSources {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // registerTools initializes and registers all available tools. It runs during
@@ -206,6 +227,12 @@ func (r *Registry) registerTools() {
 
 	if cfg.ComputerUse.Enabled {
 		r.registerComputerUseTools()
+	}
+
+	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
+
+	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
+		r.tools["ImageDecode"] = NewImageDecodeTool(cfg, r.imageService, r.annotator)
 	}
 
 	if cfg.Memory.Enabled {
@@ -374,30 +401,6 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	return removedCount
 }
 
-// SetScreenshotServer dynamically registers the GetLatestScreenshot tool
-// This should be called after the screenshot server is started
-func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
-	cfg := r.config
-	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
-		logger.Debug("screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
-		return
-	}
-
-	if provider == nil {
-		logger.Warn("screenshot provider is nil, cannot register GetLatestScreenshot tool")
-		return
-	}
-
-	r.SetScreenshotProvider(provider)
-
-	getLatestTool := NewGetLatestScreenshotTool(cfg, provider)
-	r.toolsMu.Lock()
-	r.tools["GetLatestScreenshot"] = getLatestTool
-	r.toolsMu.Unlock()
-
-	logger.Info("dynamically registered GetLatestScreenshot tool for streaming mode")
-}
-
 // SetReadToolUsed marks that the Read tool has been used. Tool calls in one
 // assistant turn execute concurrently, so this must be safe under parallel use.
 func (r *Registry) SetReadToolUsed() {
@@ -459,13 +462,13 @@ func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
 // and bypass the standard approval flow
 func IsComputerUseTool(toolName string) bool {
 	computerUseTools := map[string]bool{
-		"MouseClick":          true,
-		"MouseMove":           true,
-		"MouseScroll":         true,
-		"KeyboardType":        true,
-		"ActivateApp":         true,
-		"GetFocusedApp":       true,
-		"GetLatestScreenshot": true,
+		"MouseClick":     true,
+		"MouseMove":      true,
+		"MouseScroll":    true,
+		"KeyboardType":   true,
+		"ActivateApp":    true,
+		"GetFocusedApp":  true,
+		"GetLatestFrame": true,
 	}
 	return computerUseTools[toolName]
 }

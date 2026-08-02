@@ -51,6 +51,7 @@ type Config struct {
 	ContextWindows   map[string]int         `yaml:"context_windows" mapstructure:"context_windows"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
+	Vision           VisionConfig           `yaml:"vision" mapstructure:"vision"`
 	Provisioner      ProvisionerConfig      `yaml:"provisioner,omitempty" mapstructure:"provisioner"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
@@ -868,6 +869,20 @@ func DefaultConfig() *Config { //nolint:funlen
 			RetainRecordings:    0,
 			RecordingsDir:       "",
 		},
+		Vision: VisionConfig{
+			Annotator: VisionAnnotatorConfig{
+				Enabled:      false,
+				Engine:       VisionEngineLocal,
+				Model:        "qwen3-vl-2b",
+				BinaryPath:   "",
+				ModelsDir:    "",
+				AutoDownload: true,
+				MaxTokens:    1024,
+				Timeout:      120,
+			},
+			TextOnlyModels: []string{},
+			Sources:        map[string]VisionSourceConfig{},
+		},
 		Client: ClientConfig{
 			Timeout:           200,
 			StallThresholdSec: 30,
@@ -1268,6 +1283,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		}
 	case "Wait":
 		return false
+	case "ImageDecode":
+		return false
 	case "ImageGeneration":
 		if c.Tools.ImageGeneration.RequireApproval != nil {
 			return *c.Tools.ImageGeneration.RequireApproval
@@ -1285,7 +1302,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		return false
 	case "Memory":
 		return false
-	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":
+	case "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame":
 		return false
 	}
 
@@ -1348,6 +1365,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.Memory.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Vision.Validate(); err != nil {
 		return err
 	}
 

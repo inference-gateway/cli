@@ -105,6 +105,7 @@ type AgentSession struct {
 	saveEnabled      bool
 	bgWaiter         *services.BackgroundTasksWaiter
 	requireApproval  bool
+	annotator        domain.ImageAnnotator
 	approvalCh       chan domain.ApprovalResponse
 	rolloverManager  *services.SessionRolloverManager
 	groupKey         string
@@ -228,6 +229,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		reminderProvider: cfg.Reminders,
 		hookProvider:     cfg.Hooks,
 		memoryBackend:    svc.GetMemoryBackend(),
+		annotator:        svc.GetImageAnnotator(),
 		firedReminders:   make(map[string]bool),
 		saveEnabled:      saveEnabled,
 		bgWaiter: services.NewBackgroundTasksWaiter(
@@ -681,6 +683,11 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 
 	for _, msg := range s.conversation {
 		content := s.buildMessageContent(msg)
+		if msg.Role == "tool" {
+			// Providers (Anthropic) require tool messages to be text-only;
+			// tool-result images are hoisted into a follow-up user message.
+			content = sdk.NewMessageContent(msg.Content)
+		}
 
 		sdkMsg := sdk.Message{
 			Role:    sdk.MessageRole(msg.Role),
@@ -702,6 +709,12 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 		}
 
 		messages = append(messages, sdkMsg)
+
+		if msg.Role == "tool" && len(msg.Images) > 0 {
+			if followUp := s.toolImagesFollowUpMessage(msg.Images); followUp != nil {
+				messages = append(messages, *followUp)
+			}
+		}
 	}
 
 	repaired, synthetics := services.EnsureToolCallsClosed(messages)
@@ -710,6 +723,41 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 			"count", len(synthetics))
 	}
 	return repaired
+}
+
+// toolImagesFollowUpMessage builds the user message carrying tool-result
+// images. For session models declared text-only (vision.text_only_models)
+// the image parts are replaced by annotation text via the configured
+// annotator, so a cheap planner still learns what the frame shows.
+func (s *AgentSession) toolImagesFollowUpMessage(images []domain.ImageAttachment) *sdk.Message {
+	textOnly := s.config.Vision.IsTextOnlyModel(s.model)
+
+	var parts []sdk.ContentPart
+	if lead, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(images))); err == nil {
+		parts = append(parts, lead)
+	}
+
+	for _, img := range images {
+		if textOnly {
+			part, err := sdk.NewTextContentPart(domain.DescribeImage(s.baseCtx(), s.annotator, s.config.Prompts.Vision.Annotator.SceneSystemPrompt, img))
+			if err == nil {
+				parts = append(parts, part)
+			}
+			continue
+		}
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("failed to create image content part", "filename", img.Filename, "error", err)
+			continue
+		}
+		parts = append(parts, imagePart)
+	}
+
+	if len(parts) <= 1 {
+		return nil
+	}
+	return &sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(parts)}
 }
 
 func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
@@ -908,6 +956,7 @@ func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, r
 		Content:       s.formatToolResult(result),
 		ToolCallID:    tc.ID,
 		ToolExecution: result,
+		Images:        result.Images,
 		Timestamp:     time.Now(),
 	}
 }

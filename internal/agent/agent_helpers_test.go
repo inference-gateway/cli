@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -282,7 +283,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 		{Role: sdk.User, Content: sdk.NewMessageContent("initial")},
 	}
 
-	agentService.addToolResultsToConversation(toolResults, &conversation)
+	agentService.addToolResultsToConversation(context.Background(), toolResults, &conversation, "test-model")
 
 	assert.Equal(t, 3, len(conversation))
 	assert.Equal(t, sdk.Tool, conversation[1].Role)

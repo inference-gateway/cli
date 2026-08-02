@@ -315,6 +315,49 @@ compact:
   - **require_approval**: Override global safety setting for this tool (optional)
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 
+### Vision Settings
+
+Frame sources and the image-annotation pipeline that lets text-only models "see" screen and camera
+frames. Not to be confused with **gateway.vision_enabled**, which is an unrelated gateway-side flag.
+
+- **vision.text_only_models**: Models declared as having no vision capability (case-insensitive
+  substring match against `provider/model`, e.g. `deepseek`). Images sent to these models are
+  replaced with annotation text (annotator configured) or an omission note. Empty (default) means
+  every model is treated as vision-capable - today's behavior, base64 images forwarded as-is.
+- **vision.annotator.enabled**: Enable the image annotator (default: false)
+- **vision.annotator.engine**: `local` (default; runs `llama-mtmd-cli` offline) or `gateway`
+  (side-call to a vision model through the configured gateway)
+- **vision.annotator.model**: Local short-name (`qwen3-vl-2b`, default; also `qwen3-vl-4b`) or a
+  `provider/model` reference for the gateway engine
+- **vision.annotator.binary_path**: Path to `llama-mtmd-cli` for the local engine (default: found on
+  `PATH`; install via `brew install llama.cpp` or nix)
+- **vision.annotator.models_dir**: Where local GGUF weights are stored (default: `~/.infer/models/vlm`)
+- **vision.annotator.auto_download**: Auto-download the local model pair (LLM + mmproj, ~1.3 GB for
+  the default) from HuggingFace on first use (default: true)
+- **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
+- **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
+- **vision.sources.\<name\>**: Named frame sources beyond the built-in `screen` source (registered
+  when computer-use screenshot streaming is on). Each entry: **type** (`directory`), **path** (newest
+  image file by mtime is served), optional **prompt** (per-source annotator prompt override), and
+  optional **retention** (`max_files`, `max_age` e.g. `24h`) pruning the directory after reads.
+
+```yaml
+vision:
+  text_only_models:
+    - deepseek
+  annotator:
+    enabled: true
+    engine: local
+    model: qwen3-vl-2b
+  sources:
+    camera-front:
+      type: directory
+      path: /var/frames/front
+      retention:
+        max_files: 100
+        max_age: 24h
+```
+
 ### Compact Settings
 
 - **compact.enabled**: Enable automatic mid-conversation compaction at the `auto_at`

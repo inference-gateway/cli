@@ -57,7 +57,7 @@ tools:
 **Rules:**
 
 - Keys use the LLM-visible tool name (e.g. `Bash`, `MultiEdit`,
-  `A2A_SubmitTask`, `GetLatestScreenshot`). MCP tools are **not**
+  `A2A_SubmitTask`, `GetLatestFrame`). MCP tools are **not**
   customisable here - their descriptions come from the MCP server.
 - Any tool you omit (or any field left empty) falls back to the
   in-code default in `config.DefaultPromptsConfig`. You can override
@@ -543,6 +543,48 @@ tools:
     enabled: true
     model: openai/gpt-image-2
     require_approval: false
+```
+
+---
+
+## Vision Tools
+
+### GetLatestFrame Tool
+
+Fetch the most recent frame from a named frame source: the built-in `screen` source (computer-use
+screenshot streaming) or any directory source configured under `vision.sources` (e.g. camera frames
+written to disk). Enabled whenever at least one frame source is registered.
+
+**Parameters:**
+
+- `source` (optional): Frame source name. Defaults to the only registered source, or `screen` when
+  several exist.
+- `format` (optional): `regular` (raw image attached) or `annotated` (scene summary + numbered
+  elements with bounding boxes, produced by the configured `vision.annotator`). When omitted, the
+  format is chosen automatically: `annotated` if the session model is listed in
+  `vision.text_only_models` and an annotator is ready, otherwise `regular`.
+
+For the `screen` source, annotated output includes element centers usable directly with `MouseClick`.
+Text-only sessions receive annotation text only - no base64 ever reaches the model.
+
+### ImageDecode Tool
+
+Describe an arbitrary local image file through the vision annotator, optionally answering a specific
+question about it. Read-only, no approval required. Enabled when `vision.annotator` is configured.
+
+**Parameters:**
+
+- `image` (required): Local file path of the image
+- `prompt` (optional): A question to answer about the image
+
+**Configuration** (see [Configuration Reference](configuration-reference.md#vision-settings)):
+
+```yaml
+vision:
+  annotator:
+    enabled: true
+    engine: local        # offline llama-mtmd-cli + auto-downloaded GGUF
+    model: qwen3-vl-2b
 ```
 
 ---

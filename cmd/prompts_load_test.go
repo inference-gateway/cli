@@ -114,5 +114,5 @@ func TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent(t *testing.T)
 	require.Equal(t, defaults.Tools.Bash.Description, cfg.Prompts.Tools.Bash.Description)
 	require.Equal(t, defaults.Tools.Read.Description, cfg.Prompts.Tools.Read.Description)
 	require.Equal(t, defaults.Tools.Edit.Description, cfg.Prompts.Tools.Edit.Description)
-	require.Equal(t, defaults.Tools.GetLatestScreenshot.Description, cfg.Prompts.Tools.GetLatestScreenshot.Description)
+	require.Equal(t, defaults.Tools.GetLatestFrame.Description, cfg.Prompts.Tools.GetLatestFrame.Description)
 }
