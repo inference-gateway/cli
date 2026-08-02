@@ -451,12 +451,15 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	binaryPath := filepath.Join(binaryDir, binaryName)
 
 	if _, err := os.Stat(binaryPath); err == nil {
-		return binaryPath, nil
+		if !gatewayBinaryIsStale(ctx, binaryPath) {
+			return binaryPath, nil
+		}
+		fmt.Println("• Updating stale gateway binary...")
+	} else {
+		fmt.Println("• Downloading gateway binary...")
 	}
 
 	logger.Info("downloading latest gateway binary")
-
-	fmt.Println("• Downloading gateway binary...")
 
 	tag, err := latestGatewayTag(ctx)
 	if err != nil {
@@ -484,6 +487,34 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	fmt.Println("• Gateway binary downloaded successfully")
 	logger.Info("gateway binary installed successfully", "path", binaryPath, "version", tag)
 	return binaryPath, nil
+}
+
+// gatewayBinaryIsStale reports whether the cached gateway binary is older than the
+// latest release. Any failure (offline, rate limit, unparsable version output)
+// reports false so startup never breaks on a GitHub hiccup — the cached binary
+// keeps working as before.
+func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	out, err := exec.CommandContext(checkCtx, binaryPath, "--version").Output()
+	fields := strings.Fields(string(out))
+	if err != nil || len(fields) == 0 {
+		return false
+	}
+	current := strings.TrimPrefix(fields[len(fields)-1], "v")
+
+	tag, err := latestGatewayTag(checkCtx)
+	if err != nil {
+		return false
+	}
+	latest := strings.TrimPrefix(tag, "v")
+
+	if current == "" || latest == "" || current == latest {
+		return false
+	}
+	logger.Info("cached gateway binary is stale", "current", current, "latest", latest)
+	return true
 }
 
 // githubToken returns the GitHub token from the environment, preferring
@@ -712,7 +743,7 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENABLE_VISION=true")
 	}
 
-	if gm.config.Tools.ImageGeneration.Enabled {
+	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
 		cmd.Env = append(cmd.Env, "ENABLE_IMAGES=true")
 	}
 

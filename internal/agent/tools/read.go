@@ -117,7 +117,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
-			Error:     "Cannot read image files. Ask the user to share the image using the @ file reference syntax (e.g., @image.png) to attach it to their message.",
+			Error:     "Cannot read image files. Pass the file path directly to image tools instead (e.g. ImageEdit or ImageVariation take a local image path); there is no need to read the bytes first.",
 		}, nil
 	}
 

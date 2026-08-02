@@ -228,10 +228,30 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedOutput, result.content)
+				assert.Equal(t, tt.expectedOutput, result)
 			}
 		})
 	}
+}
+
+// Images referenced with @ are expanded to a path-only "[Image: <path>]" token -
+// the bytes are never inlined into the message, so non-vision models still learn
+// which file was selected and tools like ImageEdit can act on the path.
+func TestChatMessageProcessor_expandFileReferences_ImagePathOnly(t *testing.T) {
+	mockFile := &mocks.FakeFileService{}
+	mockFile.ValidateFileReturns(nil)
+	mockImage := &mocks.FakeImageService{}
+	mockImage.IsImageFileReturns(true)
+
+	processor := NewChatMessageProcessor(&ChatHandler{
+		fileService:  mockFile,
+		imageService: mockImage,
+	})
+
+	result, err := processor.expandFileReferences("Edit @.infer/tmp/cat.png please")
+	assert.NoError(t, err)
+	assert.Equal(t, "Edit [Image file: .infer/tmp/cat.png - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read] please", result)
+	assert.Zero(t, mockFile.ReadFileCallCount(), "image bytes must not be read/inlined")
 }
 
 func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {

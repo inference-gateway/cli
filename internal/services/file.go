@@ -107,8 +107,9 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 	}
 
 	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
+		inferTmp := filepath.Join(".infer", "tmp") + string(filepath.Separator)
 		ext := strings.ToLower(filepath.Ext(relPath))
-		if ext != ".md" {
+		if !strings.HasPrefix(relPath, inferTmp) && ext != ".md" {
 			return false
 		}
 	} else if strings.HasPrefix(d.Name(), ".") {
