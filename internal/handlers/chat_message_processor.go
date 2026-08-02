@@ -258,10 +258,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 		}
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
-			// Reference images by path only - inlining the bytes would waste context
-			// and non-vision models can't use them anyway. Tools (ImageEdit, computer
-			// use) take the path; pasted clipboard images still attach as pixels.
-			imageRef := fmt.Sprintf("[Image: %s]", filename)
+			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", filename)
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}

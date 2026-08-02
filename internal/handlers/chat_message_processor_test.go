@@ -250,7 +250,7 @@ func TestChatMessageProcessor_expandFileReferences_ImagePathOnly(t *testing.T) {
 
 	result, err := processor.expandFileReferences("Edit @.infer/tmp/cat.png please")
 	assert.NoError(t, err)
-	assert.Equal(t, "Edit [Image: .infer/tmp/cat.png] please", result)
+	assert.Equal(t, "Edit [Image file: .infer/tmp/cat.png - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read] please", result)
 	assert.Zero(t, mockFile.ReadFileCallCount(), "image bytes must not be read/inlined")
 }
 
