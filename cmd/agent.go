@@ -682,8 +682,6 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	for _, msg := range s.conversation {
 		content := s.buildMessageContent(msg)
 		if msg.Role == "tool" {
-			// Providers (Anthropic) require tool messages to be text-only;
-			// tool-result images are hoisted into a follow-up user message.
 			content = sdk.NewMessageContent(msg.Content)
 		}
 
