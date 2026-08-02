@@ -499,6 +499,52 @@ tools:
     require_approval: false
 ```
 
+### ImageEdit Tool
+
+Edit an existing image and save the result as a PNG under `.infer/tmp/`. The chat model calls the tool
+when the user asks to edit an image; the tool reads the input image from a local file path and sends a plain
+one-off request to `/v1/images/edits` using the configured image model - no system prompt, no tools,
+independent of the model selected for the chat session.
+
+**Parameters:**
+
+- `image` (required): Local file path of the image to edit
+- `prompt` (required): Text description of the desired edit
+- `quality` (optional): `auto` (default), `low`, `medium`, `high`, or `standard`
+- `size` (optional): `1024x1024` (default), `1536x1024`, or `1024x1536`
+
+**Configuration:**
+
+```yaml
+tools:
+  image_edit:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
+```
+
+### ImageVariation Tool
+
+Create a variation of an existing image and save the result as a PNG under `.infer/tmp/`. The chat model
+calls the tool when the user asks for a variation; the tool reads the input image from a local file path and
+sends a plain one-off request to `/v1/images/variations` using the configured image model - no system
+prompt, no tools, independent of the model selected for the chat session.
+
+**Parameters:**
+
+- `image` (required): Local file path of the image to base the variation on
+- `size` (optional): `1024x1024` (default), `1536x1024`, or `1024x1536`
+
+**Configuration:**
+
+```yaml
+tools:
+  image_variation:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
+```
+
 ---
 
 ## Workflow Tools

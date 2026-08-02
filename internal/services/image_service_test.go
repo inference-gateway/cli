@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -265,15 +266,31 @@ func TestImageService_IsImageModel(t *testing.T) {
 // fakeImageClient records the request and returns a canned response.
 type fakeImageClient struct {
 	sdk.Client
-	gotProvider sdk.Provider
-	gotRequest  sdk.CreateImageRequest
-	response    *sdk.ImagesResponse
-	err         error
+	gotProvider          sdk.Provider
+	gotRequest           sdk.CreateImageRequest
+	gotEditProvider      sdk.Provider
+	gotEditRequest       sdk.CreateImageEditMultipartBody
+	gotVariationProvider sdk.Provider
+	gotVariationRequest  sdk.CreateImageVariationMultipartBody
+	response             *sdk.ImagesResponse
+	err                  error
 }
 
 func (f *fakeImageClient) CreateImage(_ context.Context, provider sdk.Provider, request sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
 	f.gotProvider = provider
 	f.gotRequest = request
+	return f.response, f.err
+}
+
+func (f *fakeImageClient) CreateImageEdit(_ context.Context, provider sdk.Provider, request sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
+	f.gotEditProvider = provider
+	f.gotEditRequest = request
+	return f.response, f.err
+}
+
+func (f *fakeImageClient) CreateImageVariation(_ context.Context, provider sdk.Provider, request sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error) {
+	f.gotVariationProvider = provider
+	f.gotVariationRequest = request
 	return f.response, f.err
 }
 
@@ -363,6 +380,172 @@ func TestImageService_GenerateImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
 
 		_, err := service.GenerateImage(context.Background(), "gpt-image-1", "a cat", "", "")
+		assert.ErrorContains(t, err, "expected 'provider/model'")
+	})
+}
+
+func TestImageService_EditImage(t *testing.T) {
+	pngBytes := onePixelPNG(t)
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+
+	// writeInput writes a valid PNG so ReadImageFromFile can decode it.
+	writeInput := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "input.png")
+		if err := os.WriteFile(path, pngBytes, 0o644); err != nil {
+			t.Fatalf("writing input png: %v", err)
+		}
+		return path
+	}
+
+	t.Run("input image is uploaded and result is saved", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		t.Chdir(t.TempDir())
+		path, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "auto", "1024x1024")
+
+		assert.NoError(t, err)
+		saved, readErr := os.ReadFile(path)
+		assert.NoError(t, readErr)
+		assert.Equal(t, pngBytes, saved)
+
+		assert.Equal(t, sdk.Provider("openai"), client.gotEditProvider)
+		assert.Equal(t, "gpt-image-2", *client.gotEditRequest.Model)
+		assert.Equal(t, "make it blue", client.gotEditRequest.Prompt)
+		assert.Equal(t, sdk.CreateImageEditMultipartBodyQualityAuto, *client.gotEditRequest.Quality)
+		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotEditRequest.Size)
+
+		uploaded, fileErr := client.gotEditRequest.Image.Bytes()
+		assert.NoError(t, fileErr)
+		assert.Equal(t, pngBytes, uploaded)
+	})
+
+	t.Run("blank quality and size are omitted", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		t.Chdir(t.TempDir())
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+
+		assert.NoError(t, err)
+		assert.Nil(t, client.gotEditRequest.Quality)
+		assert.Nil(t, client.gotEditRequest.Size)
+	})
+
+	t.Run("api error is returned", func(t *testing.T) {
+		client := &fakeImageClient{err: fmt.Errorf("API error: Requested route is not found (status code: 404)")}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+		assert.ErrorContains(t, err, "404")
+	})
+
+	t.Run("empty data is an error", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+		assert.ErrorContains(t, err, "no images")
+	})
+
+	t.Run("missing input file is an error", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", "/nonexistent/input.png", "", "")
+		assert.ErrorContains(t, err, "failed to read image file")
+	})
+
+	t.Run("model without a provider prefix is rejected", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+		input := writeInput(t)
+
+		_, err := service.EditImage(context.Background(), "gpt-image-1", "make it blue", input, "", "")
+		assert.ErrorContains(t, err, "expected 'provider/model'")
+	})
+}
+
+func TestImageService_CreateImageVariation(t *testing.T) {
+	pngBytes := onePixelPNG(t)
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+
+	writeInput := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "input.png")
+		if err := os.WriteFile(path, pngBytes, 0o644); err != nil {
+			t.Fatalf("writing input png: %v", err)
+		}
+		return path
+	}
+
+	t.Run("input image is uploaded and result is saved", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		t.Chdir(t.TempDir())
+		path, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", input, "1024x1024")
+
+		assert.NoError(t, err)
+		saved, readErr := os.ReadFile(path)
+		assert.NoError(t, readErr)
+		assert.Equal(t, pngBytes, saved)
+
+		assert.Equal(t, sdk.Provider("openai"), client.gotVariationProvider)
+		assert.Equal(t, "gpt-image-2", *client.gotVariationRequest.Model)
+		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotVariationRequest.Size)
+
+		uploaded, fileErr := client.gotVariationRequest.Image.Bytes()
+		assert.NoError(t, fileErr)
+		assert.Equal(t, pngBytes, uploaded)
+	})
+
+	t.Run("blank size is omitted", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		t.Chdir(t.TempDir())
+		_, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", input, "")
+
+		assert.NoError(t, err)
+		assert.Nil(t, client.gotVariationRequest.Size)
+	})
+
+	t.Run("api error is returned", func(t *testing.T) {
+		client := &fakeImageClient{err: fmt.Errorf("API error: Requested route is not found (status code: 404)")}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		_, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", input, "")
+		assert.ErrorContains(t, err, "404")
+	})
+
+	t.Run("empty data is an error", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+
+		_, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", input, "")
+		assert.ErrorContains(t, err, "no images")
+	})
+
+	t.Run("missing input file is an error", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+
+		_, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", "/nonexistent/input.png", "")
+		assert.ErrorContains(t, err, "failed to read image file")
+	})
+
+	t.Run("model without a provider prefix is rejected", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+		input := writeInput(t)
+
+		_, err := service.CreateImageVariation(context.Background(), "gpt-image-1", input, "")
 		assert.ErrorContains(t, err, "expected 'provider/model'")
 	})
 }

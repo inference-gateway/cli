@@ -141,12 +141,21 @@ it recognises the intent:
 3. The returned image is decoded (base64 payload) or downloaded (URL), written to
    `.infer/tmp/image-<timestamp>.png`, and the saved path is returned
 
+Editing and variations work the same way. Ask to edit an existing image and the
+chat model calls the `ImageEdit` tool, which reads the image from a local file
+path and sends it with your prompt to `POST /v1/images/edits`
+(`tools.image_edit.model`). Ask for variations of an image and the
+`ImageVariation` tool sends the local file to `POST /v1/images/variations`
+(`tools.image_variation.model`). Results are saved under `.infer/tmp/` the same
+way as generation.
+
 Image models never appear in the `/model` selector - they are recognised by name
 (`dall-e`, `gpt-image`, `imagen`, `flux`, `stable-diffusion`, `sdxl`, `seedream`,
 `nano-banana`, `qwen-image`, since `/v1/models` carries no modality metadata) and
-filtered out; they are only reachable through this tool. `quality` defaults to
+filtered out; they are only reachable through these tools. `quality` defaults to
 `low` and `size` to `1024x1024` - ask explicitly for high quality or a larger
-size to pay for it. Disable the tool with `tools.image_generation.enabled: false`.
+size to pay for it. Disable the tools with `tools.image_generation.enabled: false`,
+`tools.image_edit.enabled: false`, or `tools.image_variation.enabled: false`.
 Inline terminal rendering and the `n` option are not supported yet.
 
 ---

@@ -190,6 +190,14 @@ func (r *Registry) registerTools() {
 		r.tools["ImageGeneration"] = NewImageGenerationTool(cfg, r.imageService)
 	}
 
+	if cfg.Tools.ImageEdit.Enabled && r.imageService != nil {
+		r.tools["ImageEdit"] = NewImageEditTool(cfg, r.imageService)
+	}
+
+	if cfg.Tools.ImageVariation.Enabled && r.imageService != nil {
+		r.tools["ImageVariation"] = NewImageVariationTool(cfg, r.imageService)
+	}
+
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.jobLiveness)

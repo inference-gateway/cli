@@ -20,6 +20,40 @@ type FakeImageService struct {
 	createDataURLReturnsOnCall map[int]struct {
 		result1 string
 	}
+	CreateImageVariationStub        func(context.Context, string, string, string) (string, error)
+	createImageVariationMutex       sync.RWMutex
+	createImageVariationArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+	}
+	createImageVariationReturns struct {
+		result1 string
+		result2 error
+	}
+	createImageVariationReturnsOnCall map[int]struct {
+		result1 string
+		result2 error
+	}
+	EditImageStub        func(context.Context, string, string, string, string, string) (string, error)
+	editImageMutex       sync.RWMutex
+	editImageArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+		arg5 string
+		arg6 string
+	}
+	editImageReturns struct {
+		result1 string
+		result2 error
+	}
+	editImageReturnsOnCall map[int]struct {
+		result1 string
+		result2 error
+	}
 	GenerateImageStub        func(context.Context, string, string, string, string) (string, error)
 	generateImageMutex       sync.RWMutex
 	generateImageArgsForCall []struct {
@@ -173,6 +207,142 @@ func (fake *FakeImageService) CreateDataURLReturnsOnCall(i int, result1 string) 
 	fake.createDataURLReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
+}
+
+func (fake *FakeImageService) CreateImageVariation(arg1 context.Context, arg2 string, arg3 string, arg4 string) (string, error) {
+	fake.createImageVariationMutex.Lock()
+	ret, specificReturn := fake.createImageVariationReturnsOnCall[len(fake.createImageVariationArgsForCall)]
+	fake.createImageVariationArgsForCall = append(fake.createImageVariationArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+	}{arg1, arg2, arg3, arg4})
+	stub := fake.CreateImageVariationStub
+	fakeReturns := fake.createImageVariationReturns
+	fake.recordInvocation("CreateImageVariation", []interface{}{arg1, arg2, arg3, arg4})
+	fake.createImageVariationMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeImageService) CreateImageVariationCallCount() int {
+	fake.createImageVariationMutex.RLock()
+	defer fake.createImageVariationMutex.RUnlock()
+	return len(fake.createImageVariationArgsForCall)
+}
+
+func (fake *FakeImageService) CreateImageVariationCalls(stub func(context.Context, string, string, string) (string, error)) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = stub
+}
+
+func (fake *FakeImageService) CreateImageVariationArgsForCall(i int) (context.Context, string, string, string) {
+	fake.createImageVariationMutex.RLock()
+	defer fake.createImageVariationMutex.RUnlock()
+	argsForCall := fake.createImageVariationArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+}
+
+func (fake *FakeImageService) CreateImageVariationReturns(result1 string, result2 error) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = nil
+	fake.createImageVariationReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeImageService) CreateImageVariationReturnsOnCall(i int, result1 string, result2 error) {
+	fake.createImageVariationMutex.Lock()
+	defer fake.createImageVariationMutex.Unlock()
+	fake.CreateImageVariationStub = nil
+	if fake.createImageVariationReturnsOnCall == nil {
+		fake.createImageVariationReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 error
+		})
+	}
+	fake.createImageVariationReturnsOnCall[i] = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeImageService) EditImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string, arg6 string) (string, error) {
+	fake.editImageMutex.Lock()
+	ret, specificReturn := fake.editImageReturnsOnCall[len(fake.editImageArgsForCall)]
+	fake.editImageArgsForCall = append(fake.editImageArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+		arg4 string
+		arg5 string
+		arg6 string
+	}{arg1, arg2, arg3, arg4, arg5, arg6})
+	stub := fake.EditImageStub
+	fakeReturns := fake.editImageReturns
+	fake.recordInvocation("EditImage", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6})
+	fake.editImageMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4, arg5, arg6)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeImageService) EditImageCallCount() int {
+	fake.editImageMutex.RLock()
+	defer fake.editImageMutex.RUnlock()
+	return len(fake.editImageArgsForCall)
+}
+
+func (fake *FakeImageService) EditImageCalls(stub func(context.Context, string, string, string, string, string) (string, error)) {
+	fake.editImageMutex.Lock()
+	defer fake.editImageMutex.Unlock()
+	fake.EditImageStub = stub
+}
+
+func (fake *FakeImageService) EditImageArgsForCall(i int) (context.Context, string, string, string, string, string) {
+	fake.editImageMutex.RLock()
+	defer fake.editImageMutex.RUnlock()
+	argsForCall := fake.editImageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6
+}
+
+func (fake *FakeImageService) EditImageReturns(result1 string, result2 error) {
+	fake.editImageMutex.Lock()
+	defer fake.editImageMutex.Unlock()
+	fake.EditImageStub = nil
+	fake.editImageReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeImageService) EditImageReturnsOnCall(i int, result1 string, result2 error) {
+	fake.editImageMutex.Lock()
+	defer fake.editImageMutex.Unlock()
+	fake.EditImageStub = nil
+	if fake.editImageReturnsOnCall == nil {
+		fake.editImageReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 error
+		})
+	}
+	fake.editImageReturnsOnCall[i] = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeImageService) GenerateImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string) (string, error) {

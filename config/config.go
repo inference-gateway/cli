@@ -187,6 +187,8 @@ type ToolsConfig struct {
 	AskUserQuestion AskUserQuestionToolConfig `yaml:"ask_user_question" mapstructure:"ask_user_question"`
 	Wait            WaitToolConfig            `yaml:"wait" mapstructure:"wait"`
 	ImageGeneration ImageGenerationToolConfig `yaml:"image_generation" mapstructure:"image_generation"`
+	ImageEdit       ImageEditToolConfig       `yaml:"image_edit" mapstructure:"image_edit"`
+	ImageVariation  ImageVariationToolConfig  `yaml:"image_variation" mapstructure:"image_variation"`
 
 	// MaxResultBytes caps the size of a single tool result fed back to the LLM.
 	// Oversized results are middle-truncated (head + tail kept) so one
@@ -300,6 +302,26 @@ type ScheduleToolConfig struct {
 // configured image model and saves the result locally. It is independent of
 // the model selected for the chat session.
 type ImageGenerationToolConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ImageEditToolConfig contains settings for the ImageEdit tool, which sends a
+// plain one-off request to /v1/images/edits using the configured image model
+// and saves the result locally. It is independent of the model selected for
+// the chat session.
+type ImageEditToolConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ImageVariationToolConfig contains settings for the ImageVariation tool,
+// which sends a plain one-off request to /v1/images/variations using the
+// configured image model and saves the result locally. It is independent of
+// the model selected for the chat session.
+type ImageVariationToolConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model           string `yaml:"model" mapstructure:"model"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
@@ -976,6 +998,14 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled: true,
 				Model:   "openai/gpt-image-2",
 			},
+			ImageEdit: ImageEditToolConfig{
+				Enabled: true,
+				Model:   "openai/gpt-image-2",
+			},
+			ImageVariation: ImageVariationToolConfig{
+				Enabled: true,
+				Model:   "openai/gpt-image-2",
+			},
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
@@ -1240,6 +1270,16 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "ImageGeneration":
 		if c.Tools.ImageGeneration.RequireApproval != nil {
 			return *c.Tools.ImageGeneration.RequireApproval
+		}
+		return false
+	case "ImageEdit":
+		if c.Tools.ImageEdit.RequireApproval != nil {
+			return *c.Tools.ImageEdit.RequireApproval
+		}
+		return false
+	case "ImageVariation":
+		if c.Tools.ImageVariation.RequireApproval != nil {
+			return *c.Tools.ImageVariation.RequireApproval
 		}
 		return false
 	case "Memory":
