@@ -373,6 +373,12 @@ func (p *ChatMessageProcessor) buildUserMessage(
 			return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create image content: %v", err))
 		}
 		contentParts = append(contentParts, imagePart)
+
+		if note := domain.ImagePathNote(img); note != "" {
+			if notePart, err := sdk.NewTextContentPart(note); err == nil {
+				contentParts = append(contentParts, notePart)
+			}
+		}
 	}
 
 	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(contentParts)}, nil

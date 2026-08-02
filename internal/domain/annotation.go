@@ -5,6 +5,20 @@ import (
 	"strings"
 )
 
+// ImagePathNote returns a text note pointing at an attached image's on-disk
+// source, so models without vision can inspect it via ImageDecode. Returns ""
+// when the image has no source path.
+func ImagePathNote(img ImageAttachment) string {
+	if img.SourcePath == "" {
+		return ""
+	}
+	name := img.DisplayName
+	if name == "" {
+		name = "image"
+	}
+	return fmt.Sprintf("[%s saved at %s; use ImageDecode to inspect it if you cannot see images]", name, img.SourcePath)
+}
+
 // AnnotationText renders an ImageAnnotation as the canonical LLM-facing text:
 // a one-line summary followed by the numbered element list with centers and
 // bounding boxes. Every consumer (tools, chat, headless) uses this one shape.
