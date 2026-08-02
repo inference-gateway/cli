@@ -872,7 +872,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Vision: VisionConfig{
 			Annotator: VisionAnnotatorConfig{
 				Enabled:   false,
-				Model:     "ollama_cloud/qwen3.5-vl",
+				Model:     "ollama_cloud/qwen3.5:397b",
 				MaxTokens: 1024,
 				Timeout:   120,
 			},

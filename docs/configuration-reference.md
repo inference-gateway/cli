@@ -324,7 +324,7 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
   `GetLatestFrame` defaults to annotated (text) output and the `ImageDecode` tool is registered, so
   text-only models can understand frames without any per-model configuration.
 - **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
-  the configured gateway (default: `ollama_cloud/qwen3.5-vl`). The gateway also serves fully local
+  the configured gateway (default: `ollama_cloud/qwen3.5:397b`). The gateway also serves fully local
   models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)
 - **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
 - **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
@@ -337,7 +337,7 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 vision:
   annotator:
     enabled: true
-    model: ollama_cloud/qwen3.5-vl # any vision model served by your gateway
+    model: ollama_cloud/qwen3.5:397b # any vision model served by your gateway
   sources:
     camera-front:
       type: directory

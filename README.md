@@ -1236,7 +1236,7 @@ boxes.
 vision:
   annotator:
     enabled: true
-    model: ollama_cloud/qwen3.5-vl # any vision model served by your gateway
+    model: ollama_cloud/qwen3.5:397b # any vision model served by your gateway
   sources:
     camera-front:
       type: directory
