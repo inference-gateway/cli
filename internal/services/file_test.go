@@ -24,6 +24,8 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		{".infer/chat_export.md", "## Summary\nTest export", false},
 		{config.DefaultConfigPath, "gateway:", false},
 		{".infer/debug.log", "debug info", false},
+		{".infer/tmp/image-123.png", "png bytes", false},
+		{".infer/tmp/artifact.txt", "generated", false},
 		{"src/file.go", "package src", false},
 		{"node_modules/package/index.js", "module.exports = {}", false},
 		{"large_file.txt", string(make([]byte, 200*1024)), false}, // 200KB file
@@ -69,6 +71,8 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		"README.md",
 		"main.go",
 		".infer/chat_export.md",
+		".infer/tmp/image-123.png",
+		".infer/tmp/artifact.txt",
 		"src/file.go",
 	}
 
