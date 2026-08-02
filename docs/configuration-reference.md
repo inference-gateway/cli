@@ -323,15 +323,9 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 - **vision.annotator.enabled**: Enable the image annotator (default: false). When enabled,
   `GetLatestFrame` defaults to annotated (text) output and the `ImageDecode` tool is registered, so
   text-only models can understand frames without any per-model configuration.
-- **vision.annotator.engine**: `local` (default; runs `llama-mtmd-cli` offline) or `gateway`
-  (side-call to a vision model through the configured gateway)
-- **vision.annotator.model**: Local short-name (`qwen3-vl-2b`, default; also `qwen3-vl-4b`) or a
-  `provider/model` reference for the gateway engine
-- **vision.annotator.binary_path**: Path to `llama-mtmd-cli` for the local engine (default: found on
-  `PATH`; install via `brew install llama.cpp` or nix)
-- **vision.annotator.models_dir**: Where local GGUF weights are stored (default: `~/.infer/models/vlm`)
-- **vision.annotator.auto_download**: Auto-download the local model pair (LLM + mmproj, ~1.3 GB for
-  the default) from HuggingFace on first use (default: true)
+- **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
+  the configured gateway (default: `ollama_cloud/qwen3.5-vl`). The gateway also serves fully local
+  models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)
 - **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
 - **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
 - **vision.sources.\<name\>**: Named frame sources beyond the built-in `screen` source (registered
@@ -343,8 +337,7 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 vision:
   annotator:
     enabled: true
-    engine: local
-    model: qwen3-vl-2b
+    model: ollama_cloud/qwen3.5-vl # any vision model served by your gateway
   sources:
     camera-front:
       type: directory

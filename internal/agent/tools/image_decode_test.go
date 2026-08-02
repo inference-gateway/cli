@@ -16,6 +16,7 @@ func newImageDecodeTestTool(annotator domain.ImageAnnotator, images domain.Image
 	cfg := config.DefaultConfig()
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	cfg.Vision.Annotator.Enabled = true
+	cfg.Vision.Annotator.Model = "ollama/qwen3-vl:2b"
 	return NewImageDecodeTool(cfg, images, annotator)
 }
 

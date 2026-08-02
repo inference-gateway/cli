@@ -16,19 +16,14 @@ type VisionConfig struct {
 	Sources   map[string]VisionSourceConfig `yaml:"sources" mapstructure:"sources"` // named frame sources ("screen" is implicit)
 }
 
-// VisionAnnotatorConfig configures the image annotator. The default "local"
-// engine shells out to llama.cpp's llama-mtmd-cli with an auto-downloaded GGUF
-// vision model (mirroring speech_to_text / whisper.cpp); the "gateway" engine
-// side-calls a provider/model through the inference gateway instead.
+// VisionAnnotatorConfig configures the image annotator: a side-call to a
+// vision model through the inference gateway. The gateway also serves local
+// models (e.g. Ollama), so offline annotation is just a gateway provider.
 type VisionAnnotatorConfig struct {
-	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
-	Engine       string `yaml:"engine" mapstructure:"engine"`               // "local" (llama.cpp) or "gateway"
-	Model        string `yaml:"model" mapstructure:"model"`                 // local: short name (e.g. "qwen3-vl-2b"); gateway: "provider/model"
-	BinaryPath   string `yaml:"binary_path" mapstructure:"binary_path"`     // local engine; "" -> resolve llama-mtmd-cli on PATH
-	ModelsDir    string `yaml:"models_dir" mapstructure:"models_dir"`       // "" -> ~/.infer/models/vlm
-	AutoDownload bool   `yaml:"auto_download" mapstructure:"auto_download"` // download GGUF model files on first use if missing
-	MaxTokens    int    `yaml:"max_tokens" mapstructure:"max_tokens"`
-	Timeout      int    `yaml:"timeout" mapstructure:"timeout"` // annotation timeout (seconds)
+	Enabled   bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model     string `yaml:"model" mapstructure:"model"` // "provider/model" vision model reference
+	MaxTokens int    `yaml:"max_tokens" mapstructure:"max_tokens"`
+	Timeout   int    `yaml:"timeout" mapstructure:"timeout"` // annotation timeout (seconds)
 }
 
 // VisionSourceConfig configures a named frame source.
@@ -46,39 +41,15 @@ type VisionRetentionConfig struct {
 	MaxAge   string `yaml:"max_age" mapstructure:"max_age"`     // e.g. "24h" (time.ParseDuration; "" = unlimited)
 }
 
-// AnnotatorEngine values.
-const (
-	VisionEngineLocal   = "local"
-	VisionEngineGateway = "gateway"
-)
-
 // AnnotatorReady reports whether the annotator is enabled and usable.
 func (v VisionConfig) AnnotatorReady() bool {
-	a := v.Annotator
-	if !a.Enabled || a.Model == "" {
-		return false
-	}
-	if a.Engine == VisionEngineGateway {
-		return strings.Contains(a.Model, "/")
-	}
-	return true
+	return v.Annotator.Enabled && v.Annotator.Model != ""
 }
 
 // Validate checks the vision section invariants so a typo fails at load.
 func (v VisionConfig) Validate() error {
-	if v.Annotator.Enabled {
-		switch v.Annotator.Engine {
-		case "", VisionEngineLocal, VisionEngineGateway:
-		default:
-			return fmt.Errorf("invalid vision.annotator.engine %q: must be %q or %q",
-				v.Annotator.Engine, VisionEngineLocal, VisionEngineGateway)
-		}
-		if v.Annotator.Model == "" {
-			return fmt.Errorf("vision.annotator.model must be set when the annotator is enabled")
-		}
-		if v.Annotator.Engine == VisionEngineGateway && !strings.Contains(v.Annotator.Model, "/") {
-			return fmt.Errorf("invalid vision.annotator.model %q for the gateway engine: expected \"provider/model\"", v.Annotator.Model)
-		}
+	if v.Annotator.Enabled && !strings.Contains(v.Annotator.Model, "/") {
+		return fmt.Errorf("invalid vision.annotator.model %q: expected a \"provider/model\" vision model reference (e.g. \"ollama/qwen3-vl:2b\")", v.Annotator.Model)
 	}
 	for name, src := range v.Sources {
 		if src.Type != "directory" {

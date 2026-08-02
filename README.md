@@ -1236,10 +1236,7 @@ boxes.
 vision:
   annotator:
     enabled: true
-    engine: local # offline: llama-mtmd-cli + auto-downloaded Qwen3-VL GGUF (~1.3 GB)
-    model: qwen3-vl-2b
-    # engine: gateway            # or side-call a vision model through the gateway
-    # model: anthropic/claude-sonnet-5
+    model: ollama_cloud/qwen3.5-vl # any vision model served by your gateway
   sources:
     camera-front:
       type: directory
@@ -1251,8 +1248,8 @@ The agent reads frames via `GetLatestFrame(source, format)` and arbitrary image 
 `ImageDecode(image, prompt)`. Any orchestrator or model that speaks chat completions can use these
 tools - a text-only model simply gets the annotation text instead of an image: with an annotator
 configured, `GetLatestFrame` defaults to `format: annotated` (text replaces the frame), and
-`format: regular` returns the raw image for vision models. The local engine needs `llama-mtmd-cli`
-on the `PATH` (`brew install llama.cpp`); model weights download automatically on first use. See the
+`format: regular` returns the raw image for vision models. Annotation is a side-call through the
+gateway, so any vision model it serves works - including fully local ones via Ollama. See the
 [configuration reference](docs/configuration-reference.md#vision-settings) for all options.
 
 ## Persistent Memory

@@ -10,9 +10,8 @@ func TestVisionAnnotatorReady(t *testing.T) {
 	}{
 		{"disabled", VisionAnnotatorConfig{Enabled: false, Model: "qwen3-vl-2b"}, false},
 		{"no model", VisionAnnotatorConfig{Enabled: true}, false},
-		{"local ready", VisionAnnotatorConfig{Enabled: true, Engine: VisionEngineLocal, Model: "qwen3-vl-2b"}, true},
-		{"gateway needs provider", VisionAnnotatorConfig{Enabled: true, Engine: VisionEngineGateway, Model: "sonnet"}, false},
-		{"gateway ready", VisionAnnotatorConfig{Enabled: true, Engine: VisionEngineGateway, Model: "anthropic/claude-sonnet-5"}, true},
+		{"local ready", VisionAnnotatorConfig{Enabled: true, Model: "qwen3-vl-2b"}, true},
+		{"gateway ready", VisionAnnotatorConfig{Enabled: true, Model: "anthropic/claude-sonnet-5"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,9 +31,7 @@ func TestVisionValidate(t *testing.T) {
 	}{
 		{"zero value", VisionConfig{}, false},
 		{"default config", DefaultConfig().Vision, false},
-		{"bad engine", VisionConfig{Annotator: VisionAnnotatorConfig{Enabled: true, Engine: "sidecar", Model: "x"}}, true},
-		{"enabled without model", VisionConfig{Annotator: VisionAnnotatorConfig{Enabled: true, Engine: VisionEngineLocal}}, true},
-		{"gateway without provider", VisionConfig{Annotator: VisionAnnotatorConfig{Enabled: true, Engine: VisionEngineGateway, Model: "sonnet"}}, true},
+		{"enabled without model", VisionConfig{Annotator: VisionAnnotatorConfig{Enabled: true}}, true},
 		{"bad source type", VisionConfig{Sources: map[string]VisionSourceConfig{"cam": {Type: "rtsp", Path: "/x"}}}, true},
 		{"source without path", VisionConfig{Sources: map[string]VisionSourceConfig{"cam": {Type: "directory"}}}, true},
 		{"bad max_age", VisionConfig{Sources: map[string]VisionSourceConfig{"cam": {Type: "directory", Path: "/x", Retention: VisionRetentionConfig{MaxAge: "yesterday"}}}}, true},

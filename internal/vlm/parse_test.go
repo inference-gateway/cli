@@ -2,8 +2,6 @@ package vlm
 
 import (
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestParseAnnotation(t *testing.T) {
@@ -50,22 +48,4 @@ func TestParseAnnotation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRescaleBBoxes(t *testing.T) {
-	a := &domain.ImageAnnotation{Elements: []domain.AnnotatedElement{
-		{BBox: [4]int{500, 500, 1000, 1000}},
-	}}
-	rescaleBBoxes(a, 1024, 768)
-	if got, want := a.Elements[0].BBox, [4]int{512, 384, 1024, 768}; got != want {
-		t.Errorf("BBox = %v, want %v", got, want)
-	}
-
-	unchanged := &domain.ImageAnnotation{Elements: []domain.AnnotatedElement{{BBox: [4]int{1, 2, 3, 4}}}}
-	rescaleBBoxes(unchanged, 0, 0)
-	if got, want := unchanged.Elements[0].BBox, [4]int{1, 2, 3, 4}; got != want {
-		t.Errorf("BBox = %v, want %v (no-op for unknown dims)", got, want)
-	}
-
-	rescaleBBoxes(nil, 100, 100) // must not panic
 }

@@ -871,14 +871,10 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Vision: VisionConfig{
 			Annotator: VisionAnnotatorConfig{
-				Enabled:      false,
-				Engine:       VisionEngineLocal,
-				Model:        "qwen3-vl-2b",
-				BinaryPath:   "",
-				ModelsDir:    "",
-				AutoDownload: true,
-				MaxTokens:    1024,
-				Timeout:      120,
+				Enabled:   false,
+				Model:     "ollama_cloud/qwen3.5-vl",
+				MaxTokens: 1024,
+				Timeout:   120,
 			},
 			Sources: map[string]VisionSourceConfig{},
 		},

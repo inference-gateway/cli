@@ -583,8 +583,7 @@ question about it. Read-only, no approval required. Enabled when `vision.annotat
 vision:
   annotator:
     enabled: true
-    engine: local        # offline llama-mtmd-cli + auto-downloaded GGUF
-    model: qwen3-vl-2b
+    model: ollama_cloud/qwen3.5-vl # any vision model served by your gateway
 ```
 
 ---

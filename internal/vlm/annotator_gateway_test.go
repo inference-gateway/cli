@@ -15,7 +15,6 @@ import (
 func gatewayTestConfig() *config.Config {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
-	cfg.Vision.Annotator.Engine = config.VisionEngineGateway
 	cfg.Vision.Annotator.Model = "ollama/qwen3-vl:4b"
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	return cfg

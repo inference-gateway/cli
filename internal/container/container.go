@@ -680,15 +680,12 @@ func (c *ServiceContainer) GetImageService() domain.ImageService {
 
 // createImageAnnotator builds the configured annotation engine: the local
 // llama.cpp subprocess by default, or a gateway side-call (title-generator
-// style) when vision.annotator.engine is "gateway".
+// style).
 func (c *ServiceContainer) createImageAnnotator() domain.ImageAnnotator {
 	if !c.config.Vision.AnnotatorReady() {
 		return nil
 	}
-	if c.config.Vision.Annotator.Engine == config.VisionEngineGateway {
-		return vlm.NewGatewayAnnotator(c.createRawSDKClient(), c.config)
-	}
-	return vlm.NewLocalAnnotator(c.config)
+	return vlm.NewGatewayAnnotator(c.createRawSDKClient(), c.config)
 }
 
 func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
