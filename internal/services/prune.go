@@ -4,10 +4,21 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
+
+// PruneClipboardImages removes stale clipboard-image files from dir, keeping
+// the newest 20 and anything younger than 24 hours. Recently pasted images
+// must outlive the message that referenced them - the model may read the file
+// via ImageDecode after the send.
+func PruneClipboardImages(dir string) {
+	pruneFilesByModTime(dir, 20, 24*time.Hour, func(e os.DirEntry) bool {
+		return strings.HasPrefix(e.Name(), "clipboard-image-")
+	})
+}
 
 // pruneFilesByModTime removes files in dir that fall outside the retention
 // window: when keep > 0 only the newest keep files matching match survive, and
