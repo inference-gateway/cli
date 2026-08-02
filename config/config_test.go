@@ -810,6 +810,8 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh pr checks", "gh repo view", "gh run list", "gh release view v1",
 		"gh workflow view ci.yml", "gh auth status",
 		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
+		"gh api repos/inference-gateway/.github/contents/ISSUE_TEMPLATE",
+		"gh api repos/o/r/contents/docs/README.md",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -825,6 +827,8 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh workflow run ci.yml", "gh issue delete 5", "gh pr close 5",
 		"gh project item-add 7 --url u", "gh project item-edit 7 --field Status",
 		"gh api repos/o/r/issues -X POST",
+		"gh api repos/o/r/contents/x -X PUT", "gh api repos/o/r/contents/x -f content=y",
+		"gh api user",
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {

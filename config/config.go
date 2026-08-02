@@ -894,6 +894,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						`gh auth status( .*)?`,
 						`gh search (issues|code|prs|repos|commits)( .*)?`,
 						`gh project (list|view|item-list|field-list)( .*)?`,
+						`gh api repos/[^ ]+/contents/[^ ]+`,
 					}},
 					Plan:     BashModeAllowConfig{Allow: []string{}},
 					Standard: BashModeAllowConfig{Allow: []string{}},
@@ -936,7 +937,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			WebFetch: WebFetchToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
-				AllowedDomains:  []string{"golang.org", "localhost"},
+				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       10485760, // 10MB
 					Timeout:       30,       // 30 seconds
