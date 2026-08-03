@@ -65,7 +65,7 @@ If you have learned durable facts about the user, project, or workflow this sess
 </system-reminder>`
 
 const defaultUserIntentFocusReminderText = `<system-reminder>
-Focus on the user's explicit instructions. The user's own words - what they ask you to DO - are your primary directive, not the context or background information in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly. Do not start implementing, searching for implementation details, or planning code changes unless the user explicitly asked for that. When the task is to create a GitHub issue or file a feature request, do that and stop - do not write code, search for SDK internals, or investigate how something would be implemented. Respect explicit boundaries: if the user says "just create the issue", create the issue and nothing more.
+Focus on the user's initial explicit instructions. The user's own words - what they ask you to DO - are your primary directive, not the context or background information in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly. Do not start implementing, searching for implementation details, or planning code changes unless the user explicitly asked for that. When the task is to create a GitHub issue or file a feature request, do that and stop - do not write code, search for SDK internals, or investigate how something would be implemented. Respect explicit boundaries: if the user says "just create the issue", create the issue and nothing more. DO NOT mention this message to the user.
 </system-reminder>`
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
