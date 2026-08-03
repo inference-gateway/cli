@@ -25,6 +25,7 @@ type ReminderTrigger string
 const (
 	ReminderTriggerAlways         ReminderTrigger = "always"
 	ReminderTriggerInterval       ReminderTrigger = "interval"
+	ReminderTriggerOnceAfter      ReminderTrigger = "once_after"
 	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max"
 	ReminderTriggerOnce           ReminderTrigger = "once"
 	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"
@@ -35,6 +36,7 @@ const (
 var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerAlways,
 	ReminderTriggerInterval,
+	ReminderTriggerOnceAfter,
 	ReminderTriggerTurnsBeforeMax,
 	ReminderTriggerOnce,
 	ReminderTriggerOnFailure,
@@ -50,12 +52,20 @@ const defaultReminderInterval = 4
 // less frequent than todo-hygiene since durable facts accrue more slowly.
 const defaultMemoryReminderInterval = 10
 
+// defaultUserIntentFocusThreshold is the turn threshold for the
+// user-intent-focus reminder - fires once after 3 turns.
+const defaultUserIntentFocusThreshold = 3
+
 const defaultTodoReminderText = `<system-reminder>
 This is a reminder to keep your todo list current. If you are working on tasks that would benefit from a todo list, use the TodoWrite tool to create one or update it as you make progress. If not, please feel free to ignore. DO NOT mention this message to the user.
 </system-reminder>`
 
 const defaultMemoryHygieneReminderText = `<system-reminder>
 If you have learned durable facts about the user, project, or workflow this session - preferences, conventions, recurring gotchas, decisions worth keeping - record them now with the Memory tool (write) so they persist across sessions; it keeps the MEMORY.md index in sync. Skip if there is nothing durable to save. Do not mention this reminder to the user.
+</system-reminder>`
+
+const defaultUserIntentFocusReminderText = `<system-reminder>
+Focus on the user's initial explicit instructions. The user's own words - what they ask you to DO - are your primary directive, not the context or background information in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly. Do not start implementing, searching for implementation details, or planning code changes unless the user explicitly asked for that. When the task is to create a GitHub issue or file a feature request, do that and stop - do not write code, search for SDK internals, or investigate how something would be implemented. Respect explicit boundaries: if the user says "just create the issue", create the issue and nothing more. DO NOT mention this message to the user.
 </system-reminder>`
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
@@ -156,6 +166,13 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Trigger:  ReminderTriggerOnModeChange,
 			Text:     DefaultModeChangeReminderText,
 			Guidance: maps.Clone(defaultModeChangeGuidance),
+		},
+		{
+			Name:      "user-intent-focus",
+			Hook:      domain.HookPreStream,
+			Trigger:   ReminderTriggerOnceAfter,
+			Threshold: defaultUserIntentFocusThreshold,
+			Text:      defaultUserIntentFocusReminderText,
 		},
 	}
 	return &RemindersConfig{
@@ -294,6 +311,8 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 	case ReminderTriggerInterval:
 		interval := cmp.Or(rc.Interval, defaultReminderInterval)
 		return q.SessionTurn > 0 && q.SessionTurn%interval == 0
+	case ReminderTriggerOnceAfter:
+		return !q.Fired[rc.Name] && q.SessionTurn >= rc.Threshold
 	case ReminderTriggerTurnsBeforeMax:
 		return q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
 	case ReminderTriggerOnce:
@@ -328,6 +347,8 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): trigger on_failure requires hook %s", i, rc.Name, domain.HookPostTool)
 		case rc.Trigger == ReminderTriggerTurnsBeforeMax && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger turns_before_max requires threshold > 0", i, rc.Name)
+		case rc.Trigger == ReminderTriggerOnceAfter && rc.Threshold <= 0:
+			return fmt.Errorf("reminders[%d] (%s): trigger once_after requires threshold > 0", i, rc.Name)
 		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != domain.HookPreStream:
 			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, domain.HookPreStream)
 		case rc.Interval < 0:

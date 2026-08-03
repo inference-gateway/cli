@@ -74,13 +74,20 @@ func TestDefaultRemindersConfig(t *testing.T) {
 		t.Errorf("unexpected default reminder: %+v", first)
 	}
 	hasMemoryConsult := false
+	hasUserIntentFocus := false
 	for _, r := range cfg.Reminders {
 		if r.Name == "memory-consult" {
 			hasMemoryConsult = true
 		}
+		if r.Name == "user-intent-focus" {
+			hasUserIntentFocus = true
+		}
 	}
 	if !hasMemoryConsult {
 		t.Error("default reminders should include memory-consult")
+	}
+	if !hasUserIntentFocus {
+		t.Error("default reminders should include user-intent-focus")
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("default reminders config must be valid: %v", err)
@@ -152,6 +159,10 @@ func TestRemindersDue_Triggers(t *testing.T) {
 		{"empty trigger defaults to always", config.ReminderConfig{Name: "d", Text: "t"}, 1, 0, nil, true},
 		{"once not fired", config.ReminderConfig{Name: "o", Text: "t", Trigger: config.ReminderTriggerOnce}, 5, 0, nil, true},
 		{"once already fired", config.ReminderConfig{Name: "o", Text: "t", Trigger: config.ReminderTriggerOnce}, 5, 0, map[string]bool{"o": true}, false},
+		{"once_after before threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 2, 0, nil, false},
+		{"once_after at threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 3, 0, nil, true},
+		{"once_after past threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 5, 0, nil, true},
+		{"once_after already fired", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 5, 0, map[string]bool{"oa": true}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -302,6 +313,7 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 	hasTodo := false
 	hasMemoryConsult := false
 	hasMemoryHygiene := false
+	hasUserIntentFocus := false
 	for _, r := range merged.Reminders {
 		switch r.Name {
 		case "todo-hygiene":
@@ -310,6 +322,8 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 			hasMemoryConsult = true
 		case "memory-hygiene":
 			hasMemoryHygiene = true
+		case "user-intent-focus":
+			hasUserIntentFocus = true
 		}
 	}
 	if !hasTodo {
@@ -320,6 +334,9 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 	}
 	if !hasMemoryHygiene {
 		t.Error("merged result should include memory-hygiene")
+	}
+	if !hasUserIntentFocus {
+		t.Error("merged result should include user-intent-focus")
 	}
 }
 
@@ -351,14 +368,20 @@ func TestMergeWithDefaults_OverridesByName(t *testing.T) {
 		}
 	}
 	hasMemoryConsult := false
+	hasUserIntentFocus := false
 	for _, r := range merged.Reminders {
 		if r.Name == "memory-consult" {
 			hasMemoryConsult = true
-			break
+		}
+		if r.Name == "user-intent-focus" {
+			hasUserIntentFocus = true
 		}
 	}
 	if !hasMemoryConsult {
 		t.Error("merged result should include memory-consult")
+	}
+	if !hasUserIntentFocus {
+		t.Error("merged result should include user-intent-focus")
 	}
 }
 
