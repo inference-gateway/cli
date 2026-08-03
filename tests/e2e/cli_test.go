@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
 	"github.com/stretchr/testify/require"
 
 	e2etest "github.com/inference-gateway/tokenless/e2etest"
@@ -51,10 +50,22 @@ func startMock(t *testing.T) (*mockgateway.Server, string) {
 	return e2etest.StartMock(t)
 }
 
-// runCLI executes the built binary hermetically via e2etest.RunCLI.
+// inferEnv is the hermetic INFER_* preset: gateway URL pointed at the mock,
+// gateway auto-start off, storage off, retry backoff zeroed.
+func inferEnv(gatewayURL string) map[string]string {
+	return map[string]string{
+		"INFER_GATEWAY_URL":                      gatewayURL,
+		"INFER_GATEWAY_RUN":                      "false",
+		"INFER_AGENT_MODEL":                      mockgateway.DefaultModel,
+		"INFER_STORAGE_ENABLED":                  "false",
+		"INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC": "0",
+	}
+}
+
+// runCLI executes the built binary hermetically via e2etest.Run.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	return e2etest.RunCLI(t, binPath, gatewayURL, dir, stdin, args...)
+	return e2etest.Run(t, binPath, dir, stdin, inferEnv(gatewayURL), args...)
 }
 
 func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
@@ -81,7 +92,7 @@ func writeFixtures(t *testing.T, dir string, names ...string) {
 	e2etest.WriteFixtures(t, dir, names...)
 }
 
-func toolMessages(body sdk.CreateChatCompletionRequest) []sdk.Message {
+func toolMessages(body mockgateway.CreateChatCompletionRequest) []mockgateway.Message {
 	return e2etest.ToolMessages(body)
 }
 

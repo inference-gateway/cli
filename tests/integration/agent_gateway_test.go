@@ -6,6 +6,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http/httptest"
@@ -169,12 +170,15 @@ func drain(t *testing.T, events <-chan domain.ChatEvent) result {
 	}
 }
 
-// completionBodies returns the recorded chat-completion request bodies.
+// completionBodies returns the recorded chat-completion request bodies,
+// decoded from the raw JSON into the SDK's richer types.
 func (e *env) completionBodies() []sdk.CreateChatCompletionRequest {
 	reqs := e.gateway.Requests()
 	bodies := make([]sdk.CreateChatCompletionRequest, len(reqs))
 	for i, r := range reqs {
-		bodies[i] = r.Body
+		if err := json.Unmarshal(r.RawBody, &bodies[i]); err != nil {
+			panic(fmt.Sprintf("decoding recorded request %d: %v", i, err))
+		}
 	}
 	return bodies
 }
