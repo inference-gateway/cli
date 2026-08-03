@@ -14,7 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	mockgateway "github.com/inference-gateway/tokenless/mockgateway"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"

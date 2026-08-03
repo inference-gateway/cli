@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	e2etest "github.com/inference-gateway/tokenless/e2etest"
-	mockgateway "github.com/inference-gateway/tokenless/mockgateway"
+	e2etest "github.com/inference-gateway/tokenless/harness"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
 var binPath string
@@ -62,10 +62,11 @@ func inferEnv(gatewayURL string) map[string]string {
 	}
 }
 
-// runCLI executes the built binary hermetically via e2etest.Run.
+// runCLI executes the built binary hermetically via harness.App.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	return e2etest.Run(t, binPath, dir, stdin, inferEnv(gatewayURL), args...)
+	res := e2etest.App{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
+	return res.Stdout, res.Stderr, res.ExitCode
 }
 
 func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {

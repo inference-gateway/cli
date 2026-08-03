@@ -176,8 +176,8 @@ github.com/inference-gateway/adk v0.26.1 h1:1F6jiZ3V0XkLvHSMLqtKqPpWSy/Fi1fWUhL8
 github.com/inference-gateway/adk v0.26.1/go.mod h1:8c2il9YqCjhE20aKJOtJ5cPJ6Fi/KmaUlrX/BgMhCgs=
 github.com/inference-gateway/sdk v1.33.0 h1:IHNQL+zx6yGG5Hs2UdTvjPF/A0rMRMyW3RU37fpEPSo=
 github.com/inference-gateway/sdk v1.33.0/go.mod h1:ZcrZj2pGquVpGUakHx/MEcjPsbJTS1VX067bONi+F7k=
-github.com/inference-gateway/tokenless v0.2.1 h1:zheE9UgTmIIzq0aSDgzqGHBi/8+R6rpKj4cVtP93Elg=
-github.com/inference-gateway/tokenless v0.2.1/go.mod h1:Bvgh2YZrBn9tHvhCDHihYgPj4DUVUtFEdPJQS9Q0dzY=
+github.com/inference-gateway/tokenless v0.4.1 h1:5z7zObtGUodS7e33Iay4ZUv7xbLggsO7jxvKuzsYgFA=
+github.com/inference-gateway/tokenless v0.4.1/go.mod h1:Bvgh2YZrBn9tHvhCDHihYgPj4DUVUtFEdPJQS9Q0dzY=
 github.com/invopop/jsonschema v0.12.0 h1:6ovsNSuvn9wEQVOyc72aycBMVQFKz7cPdMJn10CvzRI=
 github.com/invopop/jsonschema v0.12.0/go.mod h1:ffZ5Km5SWWRAIN6wbDXItl95euhFz2uON45H2qjYt+0=
 github.com/jezek/xgb v1.3.0 h1:Wa1pn4GVtcmNVAVB6/pnQVJ7xPFZVZ/W1Tc27msDhgI=
