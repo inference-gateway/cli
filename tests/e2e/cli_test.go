@@ -169,7 +169,7 @@ func toolMessages(body sdk.CreateChatCompletionRequest) []sdk.Message {
 	return out
 }
 
-func TestAgentTextOnlyTerminatesAfterTwoTurns(t *testing.T) {
+func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
 	gw, url := startMock(t)
 
 	stdout, code := runAgent(t, url, t.TempDir(), "say hello")
@@ -181,15 +181,13 @@ func TestAgentTextOnlyTerminatesAfterTwoTurns(t *testing.T) {
 
 	stats := statusOfType(lines, "session_stats")
 	require.NotNil(t, stats, "a session_stats line must be emitted")
-	require.EqualValues(t, 2, stats["requests"], "two consecutive no-tool-call turns end the run")
-	require.EqualValues(t, 30, stats["total_tokens"], "usage must accumulate across both turns")
+	require.EqualValues(t, 1, stats["requests"], "a single no-tool-call turn ends the run")
+	require.EqualValues(t, 15, stats["total_tokens"], "usage from the single turn")
 
 	reqs := gw.Requests()
-	require.Len(t, reqs, 2)
-	for _, r := range reqs {
-		require.Equal(t, "text-only", r.Scenario, "the injected automated-check reminder must not re-route the scenario")
-		require.False(t, r.Stream, "headless agent uses the non-streaming path")
-	}
+	require.Len(t, reqs, 1)
+	require.Equal(t, "text-only", reqs[0].Scenario, "scenario must be text-only")
+	require.False(t, reqs[0].Stream, "headless agent uses the non-streaming path")
 }
 
 func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
@@ -229,7 +227,7 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	require.Contains(t, contentsByRole(lines, "assistant"), "All four files read.")
 
 	reqs := gw.Requests()
-	require.Len(t, reqs, 3, "tool turn, answer turn, then the automated-check turn")
+	require.Len(t, reqs, 2, "tool turn, then answer turn")
 
 	tools := toolMessages(reqs[1].Body)
 	require.Len(t, tools, 4)
@@ -296,8 +294,8 @@ func TestAgentRecoversAfterTransientErrors(t *testing.T) {
 	require.Zero(t, code, "transient errors must be retried, not fatal")
 
 	require.Contains(t, contentsByRole(jsonLines(t, stdout), "assistant"), "Recovered after retries.")
-	require.Len(t, gw.Requests(), 4,
-		"two failed attempts, the successful retry, and the loop's automated completion check")
+	require.Len(t, gw.Requests(), 3,
+		"two failed attempts, then the successful retry")
 }
 
 func TestChatPipedInputStreamsPlainText(t *testing.T) {
