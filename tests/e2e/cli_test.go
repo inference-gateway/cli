@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	require "github.com/stretchr/testify/require"
 
-	"github.com/inference-gateway/tokenless/harness"
+	harness "github.com/inference-gateway/tokenless/harness"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
