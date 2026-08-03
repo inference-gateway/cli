@@ -4,11 +4,12 @@ package e2e
 
 import (
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
 	require "github.com/stretchr/testify/require"
+
+	harness "github.com/inference-gateway/tokenless/harness"
 )
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
@@ -128,35 +129,16 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
 }
 
-// capturePane returns the last 200 lines of the session's pane, or "" if it
-// cannot be read.
 func capturePane(session string) string {
-	out, err := exec.Command("tmux", "capture-pane", "-t", session, "-p", "-S", "-200").Output()
-	if err != nil {
-		return ""
-	}
-	return string(out)
+	return harness.CapturePane(session)
 }
 
-// tmuxSendKeys sends one send-keys call to the session (literal text needs a
-// leading "-l" arg; named keys like Enter are passed bare).
 func tmuxSendKeys(t *testing.T, session string, args ...string) {
 	t.Helper()
-	full := append([]string{"send-keys", "-t", session}, args...)
-	require.NoError(t, exec.Command("tmux", full...).Run())
+	harness.SendKeys(t, session, args...)
 }
 
-// waitForPane polls the pane until it contains want or timeout elapses.
 func waitForPane(t *testing.T, session, want string, timeout time.Duration) bool {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		if strings.Contains(capturePane(session), want) {
-			return true
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
+	return harness.WaitForPane(t, session, want, timeout)
 }

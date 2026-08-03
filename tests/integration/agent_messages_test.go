@@ -11,7 +11,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -51,8 +51,7 @@ func (e *env) messagesBodies(t *testing.T) []sdk.CreateMessagesRequest {
 	for i, r := range reqs {
 		require.Equal(t, "/v1/messages", r.Endpoint, "anthropic model must never hit /v1/chat/completions")
 		require.Equal(t, "anthropic", r.Provider)
-		require.NotNil(t, r.MessagesBody)
-		bodies[i] = *r.MessagesBody
+		require.NoError(t, json.Unmarshal(r.RawBody, &bodies[i]))
 	}
 	return bodies
 }

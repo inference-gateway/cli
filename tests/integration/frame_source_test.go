@@ -13,7 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
 // framePNG is a minimal 1x1 PNG frame fixture.

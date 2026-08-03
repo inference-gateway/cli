@@ -9,21 +9,18 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/require"
+	require "github.com/stretchr/testify/require"
 
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	harness "github.com/inference-gateway/tokenless/harness"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
 var binPath string
@@ -31,28 +28,15 @@ var binPath string
 // TestMain builds the CLI once for all tests. Set INFER_E2E_BINARY to reuse
 // an already-built binary (e.g. the Taskfile output) and skip the build.
 func TestMain(m *testing.M) {
-	if p := os.Getenv("INFER_E2E_BINARY"); p != "" {
-		binPath = p
-		os.Exit(m.Run())
-	}
-
-	dir, err := os.MkdirTemp("", "infer-e2e-*")
+	var cleanup func()
+	var err error
+	binPath, cleanup, err = harness.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	binPath = filepath.Join(dir, "infer")
-
-	build := exec.Command("go", "build", "-o", binPath, ".")
-	build.Dir = repoRoot()
-	if out, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "building infer: %v\n%s", err, out)
-		_ = os.RemoveAll(dir)
-		os.Exit(1)
-	}
-
 	code := m.Run()
-	_ = os.RemoveAll(dir)
+	cleanup()
 	os.Exit(code)
 }
 
@@ -63,51 +47,26 @@ func repoRoot() string {
 
 func startMock(t *testing.T) (*mockgateway.Server, string) {
 	t.Helper()
-	gw := mockgateway.New(mockgateway.Default())
-	ts := httptest.NewServer(gw)
-	t.Cleanup(ts.Close)
-	return gw, ts.URL
+	return harness.StartMock(t)
 }
 
-// runCLI executes the built binary with a hermetic environment: gateway URL
-// pointed at the mock, gateway auto-start off, storage off, retry backoff
-// zeroed, and HOME moved to a temp dir so ~/.infer never leaks in. Note
-// INFER_AGENT_MODEL resolves through the resolveViperEnvironmentVariables
-// backstop in cmd/config.go (agent.model has a zero default, so it is not a
-// registered viper default).
+// inferEnv is the hermetic INFER_* preset: gateway URL pointed at the mock,
+// gateway auto-start off, storage off, retry backoff zeroed.
+func inferEnv(gatewayURL string) map[string]string {
+	return map[string]string{
+		"INFER_GATEWAY_URL":                      gatewayURL,
+		"INFER_GATEWAY_RUN":                      "false",
+		"INFER_AGENT_MODEL":                      mockgateway.DefaultModel,
+		"INFER_STORAGE_ENABLED":                  "false",
+		"INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC": "0",
+	}
+}
+
+// runCLI executes the built binary hermetically via harness.App.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, binPath, args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"INFER_GATEWAY_URL="+gatewayURL,
-		"INFER_GATEWAY_RUN=false",
-		"INFER_AGENT_MODEL="+mockgateway.DefaultModel,
-		"INFER_STORAGE_ENABLED=false",
-		"INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC=0",
-		"HOME="+t.TempDir(),
-	)
-	if stdin != "" {
-		cmd.Stdin = strings.NewReader(stdin)
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	require.NoError(t, ctx.Err(), "CLI run exceeded the test timeout; stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
-
-	exitCode := 0
-	if err != nil {
-		var exitErr *exec.ExitError
-		require.ErrorAs(t, err, &exitErr, "unexpected non-exit error: %v; stderr:\n%s", err, stderr.String())
-		exitCode = exitErr.ExitCode()
-	}
-	return stdout.String(), stderr.String(), exitCode
+	res := harness.App{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
+	return res.Stdout, res.Stderr, res.ExitCode
 }
 
 func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
@@ -116,57 +75,26 @@ func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
 	return stdout, code
 }
 
-// jsonLines parses every stdout line into a generic map; the headless agent
-// emits newline-delimited JSON only.
 func jsonLines(t *testing.T, stdout string) []map[string]any {
 	t.Helper()
-	var lines []map[string]any
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		var obj map[string]any
-		require.NoError(t, json.Unmarshal([]byte(line), &obj), "non-JSON stdout line: %q", line)
-		lines = append(lines, obj)
-	}
-	return lines
+	return harness.JSONLines(t, stdout)
 }
 
 func contentsByRole(lines []map[string]any, role string) []string {
-	var out []string
-	for _, l := range lines {
-		if l["role"] == role {
-			content, _ := l["content"].(string)
-			out = append(out, content)
-		}
-	}
-	return out
+	return harness.ContentsByRole(lines, role)
 }
 
 func statusOfType(lines []map[string]any, typ string) map[string]any {
-	for _, l := range lines {
-		if l["type"] == typ {
-			return l
-		}
-	}
-	return nil
+	return harness.StatusOfType(lines, typ)
 }
 
 func writeFixtures(t *testing.T, dir string, names ...string) {
 	t.Helper()
-	for _, name := range names {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("fixture content\n"), 0o600))
-	}
+	harness.WriteFixtures(t, dir, names...)
 }
 
-func toolMessages(body sdk.CreateChatCompletionRequest) []sdk.Message {
-	var out []sdk.Message
-	for _, m := range body.Messages {
-		if m.Role == sdk.Tool {
-			out = append(out, m)
-		}
-	}
-	return out
+func toolMessages(body mockgateway.CreateChatCompletionRequest) []mockgateway.Message {
+	return harness.ToolMessages(body)
 }
 
 func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
