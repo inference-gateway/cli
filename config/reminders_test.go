@@ -159,6 +159,10 @@ func TestRemindersDue_Triggers(t *testing.T) {
 		{"empty trigger defaults to always", config.ReminderConfig{Name: "d", Text: "t"}, 1, 0, nil, true},
 		{"once not fired", config.ReminderConfig{Name: "o", Text: "t", Trigger: config.ReminderTriggerOnce}, 5, 0, nil, true},
 		{"once already fired", config.ReminderConfig{Name: "o", Text: "t", Trigger: config.ReminderTriggerOnce}, 5, 0, map[string]bool{"o": true}, false},
+		{"once_after before threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 2, 0, nil, false},
+		{"once_after at threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 3, 0, nil, true},
+		{"once_after past threshold", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 5, 0, nil, true},
+		{"once_after already fired", config.ReminderConfig{Name: "oa", Text: "t", Trigger: config.ReminderTriggerOnceAfter, Threshold: 3}, 5, 0, map[string]bool{"oa": true}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
