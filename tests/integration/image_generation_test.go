@@ -7,7 +7,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	mockgateway "github.com/inference-gateway/tokenless/mockgateway"
 )
 
 // TestImageGenerationToolHitsImagesEndpoint drives the full loop: the chat

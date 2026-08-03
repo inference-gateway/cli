@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	mockgateway "github.com/inference-gateway/cli/internal/mockgateway"
+	mockgateway "github.com/inference-gateway/tokenless/mockgateway"
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
@@ -211,15 +212,26 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
 }
 
-// startMockGateway serves the embedded scenario library (internal/mockgateway) on an
-// ephemeral localhost port, rewriting Gateway.URL to it and forcing Gateway.Run off
+// startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
+// on an ephemeral localhost port, rewriting Gateway.URL to it and forcing
+// Gateway.Run off. INFER_GATEWAY_MOCK_SCENARIOS overrides the embedded library
+// with an app-owned scenarios YAML file, so non-Go apps that spawn infer can
+// ship their own test scenarios.
 func (c *ServiceContainer) startMockGateway() {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(fmt.Sprintf("mock gateway mode: failed to listen: %v", err))
 	}
 
-	c.mockGateway = &http.Server{Handler: mockgateway.New(mockgateway.Default())}
+	defs := mockgateway.Default()
+	if path := os.Getenv("INFER_GATEWAY_MOCK_SCENARIOS"); path != "" {
+		defs, err = mockgateway.LoadFile(path)
+		if err != nil {
+			panic(fmt.Sprintf("mock gateway mode: INFER_GATEWAY_MOCK_SCENARIOS: %v", err))
+		}
+	}
+
+	c.mockGateway = &http.Server{Handler: mockgateway.New(defs)}
 	go func() { _ = c.mockGateway.Serve(ln) }()
 
 	c.config.Gateway.URL = "http://" + ln.Addr().String()
