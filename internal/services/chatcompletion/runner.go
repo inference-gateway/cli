@@ -383,7 +383,8 @@ func (r *Runner) handleEmptyContent(chatSession *domain.ChatSession) tea.Cmd {
 }
 
 func (r *Runner) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) []tea.Cmd {
-	newStatus, shouldUpdateStatus := determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
+	previousStatus := chatSession.Status
+	newStatus, shouldUpdateStatus := determineNewStatus(msg, previousStatus, chatSession.IsFirstChunk)
 	if !shouldUpdateStatus {
 		return nil
 	}
@@ -395,7 +396,7 @@ func (r *Runner) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *doma
 		return firstChunkStatusCmd(newStatus)
 	}
 
-	if newStatus != chatSession.Status {
+	if newStatus != previousStatus {
 		return statusUpdateCmd(newStatus)
 	}
 
