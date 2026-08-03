@@ -9,7 +9,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	"github.com/inference-gateway/tokenless/harness"
+	harness "github.com/inference-gateway/tokenless/harness"
 )
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
