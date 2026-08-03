@@ -467,3 +467,18 @@ func TestToConversationShowEntry_Multimodal(t *testing.T) {
 		t.Errorf("expected image-only content to render [Image 1], got %q", got.Content)
 	}
 }
+
+func TestConversationsDeleteCmd_Definition(t *testing.T) {
+	if conversationsDeleteCmd.Use != "delete <session-id>" {
+		t.Errorf("expected Use 'delete <session-id>', got %q", conversationsDeleteCmd.Use)
+	}
+	if conversationsDeleteCmd.Short != "Delete a saved conversation" {
+		t.Errorf("expected Short 'Delete a saved conversation', got %q", conversationsDeleteCmd.Short)
+	}
+	if conversationsDeleteCmd.Args == nil {
+		t.Error("expected Args to be set")
+	}
+	if conversationsDeleteCmd.RunE == nil {
+		t.Error("expected RunE to be set")
+	}
+}
