@@ -51,7 +51,7 @@ const defaultReminderInterval = 4
 const defaultMemoryReminderInterval = 10
 
 const defaultTodoReminderText = `<system-reminder>
-This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+This is a reminder to keep your todo list current. If you are working on tasks that would benefit from a todo list, use the TodoWrite tool to create one or update it as you make progress. If not, please feel free to ignore. DO NOT mention this message to the user.
 </system-reminder>`
 
 const defaultMemoryHygieneReminderText = `<system-reminder>
