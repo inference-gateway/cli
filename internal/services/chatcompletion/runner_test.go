@@ -347,10 +347,6 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
 		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
 
-		// Consume the first chunk like turn 1 did, then start a fresh turn: the
-		// agent re-publishes ChatStartEvent on every streaming turn (including
-		// after tool execution), so the session status is Starting again while
-		// IsFirstChunk stays false.
 		session := state.GetChatSession()
 		session.IsFirstChunk = false
 		_ = state.UpdateChatStatus(domain.ChatStatusStarting)
