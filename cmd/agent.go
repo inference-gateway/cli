@@ -671,6 +671,9 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 
 	for _, msg := range s.conversation {
 		content := s.buildMessageContent(msg)
+		if msg.Role == "tool" {
+			content = sdk.NewMessageContent(msg.Content)
+		}
 
 		sdkMsg := sdk.Message{
 			Role:    sdk.MessageRole(msg.Role),
@@ -692,6 +695,12 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 		}
 
 		messages = append(messages, sdkMsg)
+
+		if msg.Role == "tool" && len(msg.Images) > 0 {
+			if followUp := s.toolImagesFollowUpMessage(msg.Images); followUp != nil {
+				messages = append(messages, *followUp)
+			}
+		}
 	}
 
 	repaired, synthetics := services.EnsureToolCallsClosed(messages)
@@ -700,6 +709,31 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 			"count", len(synthetics))
 	}
 	return repaired
+}
+
+// toolImagesFollowUpMessage builds the user message carrying tool-result
+// images. Tool-role messages must stay text-only (Anthropic), so images are
+// hoisted into a follow-up user message.
+func (s *AgentSession) toolImagesFollowUpMessage(images []domain.ImageAttachment) *sdk.Message {
+	var parts []sdk.ContentPart
+	if lead, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(images))); err == nil {
+		parts = append(parts, lead)
+	}
+
+	for _, img := range images {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("failed to create image content part", "filename", img.Filename, "error", err)
+			continue
+		}
+		parts = append(parts, imagePart)
+	}
+
+	if len(parts) <= 1 {
+		return nil
+	}
+	return &sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(parts)}
 }
 
 func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
@@ -732,6 +766,12 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 			continue
 		}
 		contentParts = append(contentParts, imagePart)
+
+		if note := domain.ImagePathNote(img); note != "" {
+			if notePart, err := sdk.NewTextContentPart(note); err == nil {
+				contentParts = append(contentParts, notePart)
+			}
+		}
 	}
 
 	return contentParts
@@ -898,6 +938,7 @@ func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, r
 		Content:       s.formatToolResult(result),
 		ToolCallID:    tc.ID,
 		ToolExecution: result,
+		Images:        result.Images,
 		Timestamp:     time.Now(),
 	}
 }

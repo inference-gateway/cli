@@ -542,7 +542,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **MouseMove** / **MouseClick** / **MouseScroll** | Control the mouse | No |
 | **KeyboardType** | Type text or send key combinations | No |
 | **GetFocusedApp** / **ActivateApp** | Query or focus an application | No |
-| **GetLatestScreenshot** | Read the latest streamed screenshot | No |
+| **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 
@@ -1210,11 +1210,11 @@ enabled: true
 rate_limit:
   enabled: true
 screenshot:
-  streaming_enabled: true   # also registers the GetLatestScreenshot tool
+  streaming_enabled: true   # also registers the GetLatestFrame tool
 ```
 
 Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`, and
-`GetLatestScreenshot`. They run silently in the background (bypassing the approval prompt) and are
+`GetLatestFrame`. They run silently in the background (bypassing the approval prompt) and are
 governed by `computer_use.enabled` plus the configured rate limits. On macOS an optional **floating
 progress window** can mirror what the agent is doing. For a sandboxed desktop to drive, see
 [examples/computer-use](examples/computer-use/).
@@ -1222,6 +1222,35 @@ progress window** can mirror what the agent is doing. For a sandboxed desktop to
 > **⚠️ Windows note:** Computer use (mouse, keyboard, screenshot tools) is **not supported on Windows**.
 > The agent will log a warning and disable these tools when running on Windows. All other features
 > work normally.
+
+## Frame Sources & Vision Annotation
+
+Cheap or text-only models (DeepSeek, small local models) can still "see". Named **frame sources**
+feed images to the agent - the built-in `screen` source (computer-use screenshot streaming) plus any
+number of **directory sources** watching a folder for camera frames - and a pluggable **image
+annotator** turns each frame into text: a scene summary and a numbered element list with bounding
+boxes.
+
+```yaml
+# .infer/config.yaml
+vision:
+  annotator:
+    enabled: true
+    model: anthropic/claude-haiku-4-5-20251001 # any vision model served by your gateway
+  sources:
+    camera-front:
+      type: directory
+      path: .infer/frames/front # wherever your camera process writes frames
+      retention: { max_files: 100, max_age: 24h }
+```
+
+The agent reads frames via `GetLatestFrame(source, format)` and arbitrary image files via
+`ImageDecode(image, prompt)`. Any orchestrator or model that speaks chat completions can use these
+tools - a text-only model simply gets the annotation text instead of an image: with an annotator
+configured, `GetLatestFrame` defaults to `format: annotated` (text replaces the frame), and
+`format: regular` returns the raw image for vision models. Annotation is a side-call through the
+gateway, so any vision model it serves works - including fully local ones via Ollama. See the
+[configuration reference](docs/configuration-reference.md#vision-settings) for all options.
 
 ## Persistent Memory
 

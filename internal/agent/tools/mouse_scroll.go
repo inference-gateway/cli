@@ -191,7 +191,7 @@ func (t *MouseScrollTool) FormatForLLM(result *domain.ToolExecutionResult) strin
 		return "Scrolled successfully"
 	}
 
-	return fmt.Sprintf("%s. Use GetLatestScreenshot to see the new content.", data["message"])
+	return fmt.Sprintf("%s. Use GetLatestFrame to see the new content.", data["message"])
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in UI

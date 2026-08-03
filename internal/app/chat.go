@@ -2508,11 +2508,13 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 
 	app.conversationView.ResetUserScroll()
 
+	// Keep just-sent image files on disk - the message references their path
+	// so the model can inspect them via ImageDecode. Stale ones are pruned by
+	// retention instead of deleted on send.
 	for _, img := range images {
 		if img.SourcePath != "" {
-			if err := os.Remove(img.SourcePath); err != nil {
-				logger.Warn("failed to clean up temporary image file", "path", img.SourcePath, "error", err)
-			}
+			services.PruneClipboardImages(filepath.Dir(img.SourcePath))
+			break
 		}
 	}
 

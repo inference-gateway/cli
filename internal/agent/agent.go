@@ -1361,8 +1361,8 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.C
 	}
 }
 
-// createImageMessageFromToolResults creates a hidden user message containing images from tool results
-// Returns nil if no images are present
+// createImageMessageFromToolResults creates a hidden user message containing images from tool results.
+// Returns nil if no images are present.
 func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry) *sdk.Message {
 	var allImages []domain.ImageAttachment
 

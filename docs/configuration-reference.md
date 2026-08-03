@@ -315,6 +315,38 @@ compact:
   - **require_approval**: Override global safety setting for this tool (optional)
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 
+### Vision Settings
+
+Frame sources and the image-annotation pipeline that lets text-only models "see" screen and camera
+frames. Not to be confused with **gateway.vision_enabled**, which is an unrelated gateway-side flag.
+
+- **vision.annotator.enabled**: Enable the image annotator (default: false). When enabled,
+  `GetLatestFrame` defaults to annotated (text) output and the `ImageDecode` tool is registered, so
+  text-only models can understand frames without any per-model configuration.
+- **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
+  the configured gateway (default: `anthropic/claude-haiku-4-5-20251001`). The gateway also serves fully local
+  models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)
+- **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
+- **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
+- **vision.sources.\<name\>**: Named frame sources beyond the built-in `screen` source (registered
+  when computer-use screenshot streaming is on). Each entry: **type** (`directory`), **path** (newest
+  image file by mtime is served), optional **prompt** (per-source annotator prompt override), and
+  optional **retention** (`max_files`, `max_age` e.g. `24h`) pruning the directory after reads.
+
+```yaml
+vision:
+  annotator:
+    enabled: true
+    model: anthropic/claude-haiku-4-5-20251001 # any vision model served by your gateway
+  sources:
+    camera-front:
+      type: directory
+      path: .infer/frames/front # wherever your camera process writes frames
+      retention:
+        max_files: 100
+        max_age: 24h
+```
+
 ### Compact Settings
 
 - **compact.enabled**: Enable automatic mid-conversation compaction at the `auto_at`

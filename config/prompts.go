@@ -53,6 +53,12 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Init.Prompt == "" {
 		loaded.Init.Prompt = defaults.Init.Prompt
 	}
+	if loaded.Vision.Annotator.ScreenSystemPrompt == "" {
+		loaded.Vision.Annotator.ScreenSystemPrompt = defaults.Vision.Annotator.ScreenSystemPrompt
+	}
+	if loaded.Vision.Annotator.SceneSystemPrompt == "" {
+		loaded.Vision.Annotator.SceneSystemPrompt = defaults.Vision.Annotator.SceneSystemPrompt
+	}
 	mergeToolDefaults(&loaded.Tools, &defaults.Tools)
 }
 
@@ -93,7 +99,8 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.KeyboardType, &defaults.KeyboardType)
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
-	mergeToolDescription(&loaded.GetLatestScreenshot, &defaults.GetLatestScreenshot)
+	mergeToolDescription(&loaded.GetLatestFrame, &defaults.GetLatestFrame)
+	mergeToolDescription(&loaded.ImageDecode, &defaults.ImageDecode)
 	mergeToolDescription(&loaded.Memory, &defaults.Memory)
 	mergeToolDescription(&loaded.Wait, &defaults.Wait)
 	mergeToolDescription(&loaded.ImageGeneration, &defaults.ImageGeneration)
@@ -121,7 +128,22 @@ type PromptsConfig struct {
 	Git          PromptsGitConfig          `yaml:"git" mapstructure:"git"`
 	Conversation PromptsConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Init         PromptsInitConfig         `yaml:"init" mapstructure:"init"`
+	Vision       PromptsVisionConfig       `yaml:"vision" mapstructure:"vision"`
 	Tools        PromptsToolsConfig        `yaml:"tools" mapstructure:"tools"`
+}
+
+// PromptsVisionConfig holds the image annotator task prompts.
+type PromptsVisionConfig struct {
+	Annotator PromptsVisionAnnotatorConfig `yaml:"annotator" mapstructure:"annotator"`
+}
+
+// PromptsVisionAnnotatorConfig carries the two built-in annotation task
+// prompts: UI-element detection for the screen source, general scene
+// description for everything else. Directory sources can override per-source
+// via vision.sources.<name>.prompt in config.yaml.
+type PromptsVisionAnnotatorConfig struct {
+	ScreenSystemPrompt string `yaml:"screen_system_prompt" mapstructure:"screen_system_prompt"`
+	SceneSystemPrompt  string `yaml:"scene_system_prompt" mapstructure:"scene_system_prompt"`
 }
 
 type PromptsAgentConfig struct {
@@ -202,7 +224,8 @@ type PromptsToolsConfig struct {
 	KeyboardType        PromptsToolDescription `yaml:"KeyboardType" mapstructure:"KeyboardType"`
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
-	GetLatestScreenshot PromptsToolDescription `yaml:"GetLatestScreenshot" mapstructure:"GetLatestScreenshot"`
+	GetLatestFrame      PromptsToolDescription `yaml:"GetLatestFrame" mapstructure:"GetLatestFrame"`
+	ImageDecode         PromptsToolDescription `yaml:"ImageDecode" mapstructure:"ImageDecode"`
 	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
 	Wait                PromptsToolDescription `yaml:"Wait" mapstructure:"Wait"`
 	ImageGeneration     PromptsToolDescription `yaml:"ImageGeneration" mapstructure:"ImageGeneration"`
@@ -342,6 +365,12 @@ EXAMPLES:
 - "refactor(examples): simplify error handling"
 
 Respond with ONLY the commit message, no quotes or explanation.`,
+			},
+		},
+		Vision: PromptsVisionConfig{
+			Annotator: PromptsVisionAnnotatorConfig{
+				ScreenSystemPrompt: `You are a UI screen annotator. Describe the screenshot for an agent that cannot see it: what application/screen is shown and which interactive elements exist (buttons, links, text fields, menus, checkboxes, tabs). Read visible text exactly. Be precise about element positions.`,
+				SceneSystemPrompt:  `You are a scene annotator. Describe the image for an agent that cannot see it: what the scene shows and the notable objects, people, and text in it. Be factual and concise.`,
 			},
 		},
 		Conversation: PromptsConversationConfig{
@@ -669,8 +698,11 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		ActivateApp: PromptsToolDescription{
 			Description: `Activates (brings to foreground/focus) a specific application by its bundle identifier. Use GetFocusedApp first to check the current state, then use this tool to switch to the target app before performing computer use actions. After activation, wait briefly before sending keyboard/mouse commands.`,
 		},
-		GetLatestScreenshot: PromptsToolDescription{
-			Description: `Retrieves the latest screenshot from the buffer. This is a read-only operation that does NOT require approval. Use this tool to see the current state of the screen. Screenshots are automatically captured every few seconds when streaming is enabled.`,
+		GetLatestFrame: PromptsToolDescription{
+			Description: `Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources (e.g. camera frames on disk). Formats: "regular" returns the raw image; "annotated" returns a text scene summary plus a numbered element list (label, text, bounding box) produced by the configured vision annotator - useful when you cannot see images yourself. When format is omitted it is chosen automatically based on your vision capability.`,
+		},
+		ImageDecode: PromptsToolDescription{
+			Description: `Describes a local image file as text: a scene summary plus a numbered list of detected elements (label, text, bounding box), produced by the configured vision annotator. Use it to inspect any image on disk - e.g. outputs of ImageGeneration/ImageEdit under .infer/tmp, @-referenced image paths, or downloaded files - especially when you cannot see images yourself. Pass an optional prompt to ask a specific question about the image; the summary then answers it. Read-only, does not require approval.`,
 		},
 		Memory: PromptsToolDescription{
 			Description: `Persistent, cross-session memory stored as fact-files in a global memory directory, organized by project. Global facts live at the root (<name>.md); project facts live in a per-project subdirectory (<project>/<name>.md, e.g. inference-gateway-cli/build-commands.md). Each fact is one Markdown file with YAML frontmatter (name, description, metadata.type, metadata.project, metadata.session - the session that last wrote it); MEMORY.md is the index (one line per fact, linking to its path). At session start you are given the index entries for the current project and for global facts; other projects are listed by name only - read the full index (read with no name) to see them.

@@ -100,7 +100,7 @@ func buildApprovalCases() []approvalCase {
 	standard := standardPolicy(domain.AgentModeStandard)
 	var tests []approvalCase
 	tests = append(tests, approvalCases("computer use bypasses approval:", standard, "{}", true, false,
-		"MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot")...)
+		"MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame")...)
 	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(domain.AgentModeAutoAccept),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
 	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(domain.AgentModeReadOnly),

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -599,42 +598,9 @@ func pruneSessionImages(sessionID string, retention int) {
 	if retention <= 0 {
 		return
 	}
-
-	dir := sessionImageDir(sessionID)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-
-	var files []os.DirEntry
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), "infer-") {
-			files = append(files, e)
-		}
-	}
-
-	if len(files) <= retention {
-		return
-	}
-
-	slices.SortFunc(files, func(a, b os.DirEntry) int {
-		fi, _ := a.Info()
-		fj, _ := b.Info()
-		if fi == nil || fj == nil {
-			return 0
-		}
-		return fi.ModTime().Compare(fj.ModTime())
+	pruneFilesByModTime(sessionImageDir(sessionID), retention, 0, func(e os.DirEntry) bool {
+		return strings.HasPrefix(e.Name(), "infer-")
 	})
-
-	toRemove := len(files) - retention
-	for i := 0; i < toRemove; i++ {
-		path := filepath.Join(dir, files[i].Name())
-		if err := os.Remove(path); err != nil {
-			logger.Warn("failed to prune session image", "path", path, "error", err)
-			continue
-		}
-		logger.Info("pruned old session image", "path", path)
-	}
 }
 
 // isAllowedUser checks if a sender is in the allowed users list for the given channel

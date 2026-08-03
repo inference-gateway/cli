@@ -253,7 +253,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		return fmt.Errorf("failed to process image: %w", err)
 	}
 
-	screenshot := &domain.Screenshot{
+	screenshot := &domain.Frame{
 		Timestamp:      time.Now(),
 		Data:           imageAttachment.Data,
 		Width:          width,
@@ -339,8 +339,8 @@ func (s *ScreenshotServer) handleGetStatus(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// GetLatestScreenshot retrieves the latest screenshot from the buffer
-func (s *ScreenshotServer) GetLatestScreenshot() (*domain.Screenshot, error) {
+// GetLatestFrame retrieves the latest screenshot from the buffer
+func (s *ScreenshotServer) GetLatestFrame() (*domain.Frame, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

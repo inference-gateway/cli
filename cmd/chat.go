@@ -253,7 +253,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
 	)
-
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
@@ -478,8 +477,8 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 
 	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
 
-	toolRegistry.SetScreenshotServer(screenshotServer)
-	logger.Info("registered GetLatestScreenshot tool with tool registry")
+	toolRegistry.RegisterFrameSource("screen", screenshotServer)
+	logger.Info("registered screen frame source with tool registry")
 
 	return screenshotServer
 }

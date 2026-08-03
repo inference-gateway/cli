@@ -16,7 +16,7 @@ import (
 // CircularScreenshotBuffer implements a thread-safe ring buffer for screenshots
 // with optional disk persistence
 type CircularScreenshotBuffer struct {
-	screenshots  []*domain.Screenshot
+	screenshots  []*domain.Frame
 	maxSize      int
 	currentIndex int
 	count        int
@@ -33,7 +33,7 @@ func NewCircularScreenshotBuffer(maxSize int, tempDir string, sessionID string) 
 	}
 
 	return &CircularScreenshotBuffer{
-		screenshots:  make([]*domain.Screenshot, maxSize),
+		screenshots:  make([]*domain.Frame, maxSize),
 		maxSize:      maxSize,
 		currentIndex: 0,
 		count:        0,
@@ -44,7 +44,7 @@ func NewCircularScreenshotBuffer(maxSize int, tempDir string, sessionID string) 
 
 // Add adds a new screenshot to the buffer
 // If the buffer is full, it evicts the oldest screenshot
-func (b *CircularScreenshotBuffer) Add(screenshot *domain.Screenshot) error {
+func (b *CircularScreenshotBuffer) Add(screenshot *domain.Frame) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -78,7 +78,7 @@ func (b *CircularScreenshotBuffer) Add(screenshot *domain.Screenshot) error {
 }
 
 // GetLatest returns the most recent screenshot
-func (b *CircularScreenshotBuffer) GetLatest() (*domain.Screenshot, error) {
+func (b *CircularScreenshotBuffer) GetLatest() (*domain.Frame, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -91,7 +91,7 @@ func (b *CircularScreenshotBuffer) GetLatest() (*domain.Screenshot, error) {
 }
 
 // GetByID returns a screenshot by its ID
-func (b *CircularScreenshotBuffer) GetByID(id string) (*domain.Screenshot, error) {
+func (b *CircularScreenshotBuffer) GetByID(id string) (*domain.Frame, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -105,7 +105,7 @@ func (b *CircularScreenshotBuffer) GetByID(id string) (*domain.Screenshot, error
 }
 
 // GetRecent returns the N most recent screenshots
-func (b *CircularScreenshotBuffer) GetRecent(limit int) []*domain.Screenshot {
+func (b *CircularScreenshotBuffer) GetRecent(limit int) []*domain.Frame {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -113,7 +113,7 @@ func (b *CircularScreenshotBuffer) GetRecent(limit int) []*domain.Screenshot {
 		limit = b.count
 	}
 
-	result := make([]*domain.Screenshot, 0, limit)
+	result := make([]*domain.Frame, 0, limit)
 
 	for i := 0; i < limit; i++ {
 		index := (b.currentIndex - 1 - i + b.maxSize) % b.maxSize
@@ -143,7 +143,7 @@ func (b *CircularScreenshotBuffer) Clear() error {
 		}
 	}
 
-	b.screenshots = make([]*domain.Screenshot, b.maxSize)
+	b.screenshots = make([]*domain.Frame, b.maxSize)
 	b.currentIndex = 0
 	b.count = 0
 
@@ -163,7 +163,7 @@ func (b *CircularScreenshotBuffer) Cleanup() error {
 }
 
 // writeToDisk writes a screenshot to disk as a PNG file
-func (b *CircularScreenshotBuffer) writeToDisk(screenshot *domain.Screenshot) error {
+func (b *CircularScreenshotBuffer) writeToDisk(screenshot *domain.Frame) error {
 	if screenshot.Data == "" {
 		return nil
 	}
@@ -181,6 +181,7 @@ func (b *CircularScreenshotBuffer) writeToDisk(screenshot *domain.Screenshot) er
 	if err := os.WriteFile(filename, imageData, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
+	screenshot.Path = filename
 
 	return nil
 }

@@ -49,7 +49,7 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"tools.KeyboardType.description":              cfg.Tools.KeyboardType.Description,
 		"tools.GetFocusedApp.description":             cfg.Tools.GetFocusedApp.Description,
 		"tools.ActivateApp.description":               cfg.Tools.ActivateApp.Description,
-		"tools.GetLatestScreenshot.description":       cfg.Tools.GetLatestScreenshot.Description,
+		"tools.GetLatestFrame.description":            cfg.Tools.GetLatestFrame.Description,
 	}
 
 	for key, val := range cases {
