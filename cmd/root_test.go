@@ -82,6 +82,22 @@ func TestA2AAgentsEnvironmentVariable(t *testing.T) {
 	}
 }
 
+// A single comma-joined env value must become a real slice: viper would
+// otherwise hand the WebFetch domain matcher one bogus element that matches
+// nothing, silently blocking every fetch (including the defaults).
+func TestWebFetchAllowedDomainsEnvironmentVariable(t *testing.T) {
+	t.Setenv("INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS", "github.com, raw.githubusercontent.com,user-images.githubusercontent.com")
+
+	initConfig()
+
+	domains := V.GetStringSlice("tools.web_fetch.allowed_domains")
+	assert.Equal(t, []string{"github.com", "raw.githubusercontent.com", "user-images.githubusercontent.com"}, domains)
+
+	cfg, err := loadConfigFromViper()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"github.com", "raw.githubusercontent.com", "user-images.githubusercontent.com"}, cfg.Tools.WebFetch.AllowedDomains)
+}
+
 // bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so
 // CI (and infer-action) can add a few commands to the allow-list baseline without
 // rewriting tools.bash.mode.all.allow or shipping ".*".

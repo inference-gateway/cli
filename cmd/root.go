@@ -74,8 +74,9 @@ func init() {
 }
 
 // parseDelimitedList splits a comma/newline-separated env value into trimmed,
-// non-empty entries. Used for INFER_A2A_AGENTS and the bash allow-list append
-// override (tools.bash.mode.all.allow), neither of which viper can parse
+// non-empty entries. Used for INFER_A2A_AGENTS,
+// INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS, and the bash allow-list append
+// override (tools.bash.mode.all.allow), none of which viper can parse
 // generically into a slice from a single env var.
 func parseDelimitedList(value string) []string {
 	var out []string
@@ -212,6 +213,10 @@ func initConfig() {
 
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
 		v.Set("a2a.agents", parseDelimitedList(a2aAgents))
+	}
+
+	if domains := os.Getenv("INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS"); domains != "" {
+		v.Set("tools.web_fetch.allowed_domains", parseDelimitedList(domains))
 	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {

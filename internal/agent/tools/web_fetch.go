@@ -288,7 +288,8 @@ func (t *WebFetchTool) validateURLDomain(url string) error {
 		}
 	}
 
-	return fmt.Errorf("domain not allowed")
+	return fmt.Errorf("domain not allowed (tools.web_fetch.allowed_domains: %s)",
+		strings.Join(t.config.Tools.WebFetch.AllowedDomains, ", "))
 }
 
 // isTrustedAgentHost reports whether url points at the host of a configured
