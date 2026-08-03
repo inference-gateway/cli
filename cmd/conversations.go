@@ -21,7 +21,7 @@ var conversationsCmd = &cobra.Command{
 	Short: "Manage conversation history",
 	Long: `View and manage saved conversation history from the database.
 
-This command allows you to list, search, and analyze past conversations
+This command allows you to list, search, analyze, and delete past conversations
 stored in your configured storage backend (SQLite, PostgreSQL, or Redis).`,
 }
 
@@ -46,6 +46,27 @@ Examples:
   # Compact list command
   infer conversations list -l 10`,
 	RunE: listConversations,
+}
+
+var conversationsDeleteCmd = &cobra.Command{
+	Use:   "delete <session-id>",
+	Short: "Delete a saved conversation",
+	Long: `Delete a saved conversation by its session ID.
+
+Removes the conversation and all its entries from the configured storage
+backend. This operation is permanent and cannot be undone.
+
+Runs non-interactively - no confirmation prompt is shown, so the caller
+(the desktop app, scripts, etc.) owns the confirmation UX.
+
+Examples:
+  # Delete a conversation by session id
+  infer conversations delete 12345678-1234-1234-1234-123456789abc
+
+  # Delete by session group name (e.g. a channel group key)
+  infer conversations delete channel-telegram-12345`,
+	Args: cobra.ExactArgs(1),
+	RunE: deleteConversation,
 }
 
 var conversationsShowCmd = &cobra.Command{
@@ -88,6 +109,8 @@ func init() {
 	conversationsListCmd.Flags().IntP("limit", "l", 50, "Maximum number of conversations to display")
 	conversationsListCmd.Flags().Int("offset", 0, "Number of conversations to skip (for pagination)")
 	conversationsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+
+	conversationsCmd.AddCommand(conversationsDeleteCmd)
 
 	conversationsCmd.AddCommand(conversationsShowCmd)
 
@@ -175,6 +198,25 @@ func renderConversationsTable(conversations []storage.ConversationSummary, limit
 		fmt.Println(listHint(fmt.Sprintf("Showing %d-%d", offset+1, offset+len(conversations))))
 	}
 
+	return nil
+}
+
+func deleteConversation(cmd *cobra.Command, args []string) error {
+	services := container.NewServiceContainer(Cfg)
+
+	store := services.GetStorage()
+	if store == nil {
+		return fmt.Errorf("storage is not configured")
+	}
+
+	sessionID := resolveConversationSessionID(services, args[0])
+
+	ctx := context.Background()
+	if err := store.DeleteConversation(ctx, sessionID); err != nil {
+		return fmt.Errorf("failed to delete conversation: %w", err)
+	}
+
+	fmt.Printf("Deleted conversation: %s\n", sessionID)
 	return nil
 }
 
