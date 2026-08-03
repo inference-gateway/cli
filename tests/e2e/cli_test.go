@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	e2etest "github.com/inference-gateway/tokenless/harness"
+	"github.com/inference-gateway/tokenless/harness"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
@@ -30,7 +30,7 @@ var binPath string
 func TestMain(m *testing.M) {
 	var cleanup func()
 	var err error
-	binPath, cleanup, err = e2etest.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
+	binPath, cleanup, err = harness.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -47,7 +47,7 @@ func repoRoot() string {
 
 func startMock(t *testing.T) (*mockgateway.Server, string) {
 	t.Helper()
-	return e2etest.StartMock(t)
+	return harness.StartMock(t)
 }
 
 // inferEnv is the hermetic INFER_* preset: gateway URL pointed at the mock,
@@ -65,7 +65,7 @@ func inferEnv(gatewayURL string) map[string]string {
 // runCLI executes the built binary hermetically via harness.App.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	res := e2etest.App{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
+	res := harness.App{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
 	return res.Stdout, res.Stderr, res.ExitCode
 }
 
@@ -77,24 +77,24 @@ func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
 
 func jsonLines(t *testing.T, stdout string) []map[string]any {
 	t.Helper()
-	return e2etest.JSONLines(t, stdout)
+	return harness.JSONLines(t, stdout)
 }
 
 func contentsByRole(lines []map[string]any, role string) []string {
-	return e2etest.ContentsByRole(lines, role)
+	return harness.ContentsByRole(lines, role)
 }
 
 func statusOfType(lines []map[string]any, typ string) map[string]any {
-	return e2etest.StatusOfType(lines, typ)
+	return harness.StatusOfType(lines, typ)
 }
 
 func writeFixtures(t *testing.T, dir string, names ...string) {
 	t.Helper()
-	e2etest.WriteFixtures(t, dir, names...)
+	harness.WriteFixtures(t, dir, names...)
 }
 
 func toolMessages(body mockgateway.CreateChatCompletionRequest) []mockgateway.Message {
-	return e2etest.ToolMessages(body)
+	return harness.ToolMessages(body)
 }
 
 func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {

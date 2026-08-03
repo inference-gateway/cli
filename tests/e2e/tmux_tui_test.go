@@ -9,7 +9,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	e2etest "github.com/inference-gateway/tokenless/harness"
+	"github.com/inference-gateway/tokenless/harness"
 )
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
@@ -130,15 +130,15 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 }
 
 func capturePane(session string) string {
-	return e2etest.CapturePane(session)
+	return harness.CapturePane(session)
 }
 
 func tmuxSendKeys(t *testing.T, session string, args ...string) {
 	t.Helper()
-	e2etest.SendKeys(t, session, args...)
+	harness.SendKeys(t, session, args...)
 }
 
 func waitForPane(t *testing.T, session, want string, timeout time.Duration) bool {
 	t.Helper()
-	return e2etest.WaitForPane(t, session, want, timeout)
+	return harness.WaitForPane(t, session, want, timeout)
 }
