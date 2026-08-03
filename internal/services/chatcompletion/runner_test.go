@@ -315,6 +315,60 @@ func TestRunner_Start(t *testing.T) {
 	})
 }
 
+// TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns is a regression test
+// for issue #992: after the first turn (tool execution, IsFirstChunk consumed),
+// a reasoning chunk must still flip the status line to "Thinking..." on later
+// turns. Previously the comparison ran after UpdateChatStatus had already
+// mutated chatSession.Status, so no status event was ever emitted and the
+// spinner stayed on "Starting response..." for the whole thinking phase.
+func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
+	t.Run("first chunk emits SetStatusEvent Thinking...", func(t *testing.T) {
+		runner, _, state, _, _ := newRunnerForTest()
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+
+		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+			RequestID:        "req-1",
+			ReasoningContent: "thinking...",
+		}, state.GetChatSession())
+
+		if len(cmds) != 1 {
+			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
+		}
+		evt, ok := cmds[0]().(domain.SetStatusEvent)
+		if !ok {
+			t.Fatalf("expected SetStatusEvent, got %T", cmds[0]())
+		}
+		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+			t.Errorf("expected Thinking... status event, got %+v", evt)
+		}
+	})
+
+	t.Run("later turn (IsFirstChunk false) emits UpdateStatusEvent Thinking...", func(t *testing.T) {
+		runner, _, state, _, _ := newRunnerForTest()
+		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+
+		session := state.GetChatSession()
+		session.IsFirstChunk = false
+		_ = state.UpdateChatStatus(domain.ChatStatusStarting)
+
+		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+			RequestID:        "req-1",
+			ReasoningContent: "thinking...",
+		}, session)
+
+		if len(cmds) != 1 {
+			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
+		}
+		evt, ok := cmds[0]().(domain.UpdateStatusEvent)
+		if !ok {
+			t.Fatalf("expected UpdateStatusEvent, got %T", cmds[0]())
+		}
+		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+			t.Errorf("expected Thinking... status event, got %+v", evt)
+		}
+	})
+}
+
 func TestRunner_HandleChatComplete(t *testing.T) {
 	t.Run("non-cancelled, no tool calls: updates status to Completed and returns non-nil cmd", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
