@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 func TestBashTool_Definition(t *testing.T) {
@@ -287,6 +288,72 @@ func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
 	if !strings.Contains(result.Error, "No such") {
 		t.Errorf("expected result.Error to include the command's stderr, got %q", result.Error)
 	}
+}
+
+func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"sh( .*)?"}},
+				},
+			},
+		},
+	}
+	tool := NewBashTool(cfg, nil)
+
+	utils.SetColorsDisabled(true)
+	defer utils.SetColorsDisabled(false)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
+	})
+	if err != nil {
+		t.Fatalf("Execute() returned a Go error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("expected Success=false for a non-zero exit")
+	}
+	if !strings.Contains(result.Error, "exit status 3") {
+		t.Errorf("expected result.Error to include the exit status, got %q", result.Error)
+	}
+	if strings.Contains(result.Error, "\x1b") {
+		t.Errorf("result.Error still contains ANSI escapes when colors are disabled: %q", result.Error)
+	}
+	if !strings.Contains(result.Error, "boom") {
+		t.Errorf("expected stripped error to keep the text, got %q", result.Error)
+	}
+
+	t.Run("streaming path strips ANSI", func(t *testing.T) {
+		var mu sync.Mutex
+		var streamed strings.Builder
+		callback := func(output string) {
+			mu.Lock()
+			streamed.WriteString(output)
+			mu.Unlock()
+		}
+		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+		result, err := tool.Execute(ctx, map[string]any{
+			"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
+		})
+		if err != nil {
+			t.Fatalf("Execute() returned a Go error: %v", err)
+		}
+		if strings.Contains(result.Error, "\x1b") {
+			t.Errorf("streamed result.Error still contains ANSI escapes: %q", result.Error)
+		}
+		mu.Lock()
+		got := streamed.String()
+		mu.Unlock()
+		if strings.Contains(got, "\x1b") {
+			t.Errorf("streamed callback still contains ANSI escapes: %q", got)
+		}
+		if !strings.Contains(got, "boom") {
+			t.Errorf("expected streamed text preserved, got %q", got)
+		}
+	})
 }
 
 func TestBashTool_GitPushValidation(t *testing.T) {

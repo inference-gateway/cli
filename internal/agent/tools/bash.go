@@ -215,8 +215,12 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 
 	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
 
+	cmd.Env = os.Environ()
 	if env := domain.GetTraceEnv(ctx); env != nil {
-		cmd.Env = append(os.Environ(), env...)
+		cmd.Env = append(cmd.Env, env...)
+	}
+	if utils.ColorsDisabled() {
+		cmd.Env = append(cmd.Env, "NO_COLOR=1")
 	}
 
 	if hasCallback && outputCallback != nil {
@@ -228,6 +232,9 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	output, err := cmd.CombinedOutput()
 	result.Duration = time.Since(start).String()
 	result.Output = string(output)
+	if utils.ColorsDisabled() {
+		result.Output = utils.StripANSI(result.Output)
+	}
 
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -387,6 +394,9 @@ func (t *BashTool) readPipeWithBatching(
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		if utils.ColorsDisabled() {
+			line = utils.StripANSI(line)
+		}
 
 		outputMux.Lock()
 		if outputBuffer != nil {

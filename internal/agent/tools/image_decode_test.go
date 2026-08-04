@@ -42,18 +42,17 @@ func TestImageDecodeValidate(t *testing.T) {
 func TestImageDecodeExecute(t *testing.T) {
 	t.Run("not an image file", func(t *testing.T) {
 		images := &domainmocks.FakeImageService{}
-		images.IsImageFileReturns(false)
+		images.ReadImageFromFileReturns(nil, errors.New("failed to detect image format: unknown format"))
 		tool := newImageDecodeTestTool(&domainmocks.FakeImageAnnotator{}, images)
 
 		result, err := tool.Execute(context.Background(), map[string]any{"image": "notes.txt"})
 		assert.NoError(t, err)
 		assert.False(t, result.Success)
-		assert.Contains(t, result.Error, "not a readable image file")
+		assert.Contains(t, result.Error, "failed to detect image format")
 	})
 
 	t.Run("read failure", func(t *testing.T) {
 		images := &domainmocks.FakeImageService{}
-		images.IsImageFileReturns(true)
 		images.ReadImageFromFileReturns(nil, errors.New("no such file"))
 		tool := newImageDecodeTestTool(&domainmocks.FakeImageAnnotator{}, images)
 
@@ -64,7 +63,6 @@ func TestImageDecodeExecute(t *testing.T) {
 
 	t.Run("success with prompt pass-through", func(t *testing.T) {
 		images := &domainmocks.FakeImageService{}
-		images.IsImageFileReturns(true)
 		images.ReadImageFromFileReturns(&domain.ImageAttachment{Data: "aW1n", MimeType: "image/png", Filename: "shot.png"}, nil)
 
 		annotator := &domainmocks.FakeImageAnnotator{}
@@ -90,7 +88,6 @@ func TestImageDecodeExecute(t *testing.T) {
 
 	t.Run("annotator failure fails the call", func(t *testing.T) {
 		images := &domainmocks.FakeImageService{}
-		images.IsImageFileReturns(true)
 		images.ReadImageFromFileReturns(&domain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, nil)
 
 		annotator := &domainmocks.FakeImageAnnotator{}

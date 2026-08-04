@@ -9,6 +9,7 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // Shared styling for non-TUI `infer ... list` command output. These draw from
@@ -36,6 +37,7 @@ var outputColorsDisabled bool
 
 func disableOutputColors() {
 	outputColorsDisabled = true
+	utils.SetColorsDisabled(true)
 	listTitleStyle = lipgloss.NewStyle()
 	listLabelStyle = lipgloss.NewStyle()
 	listHintStyle = lipgloss.NewStyle()

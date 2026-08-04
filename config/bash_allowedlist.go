@@ -183,15 +183,17 @@ func hasAllowAll(allow []string) bool {
 }
 
 // matchesAnyAllow reports whether seg matches any allow entry as a WHOLE command.
-// Each entry is wrapped as \A(?:entry)\z so it must match the entire command - a
+// Each entry is wrapped as \A(?s:entry)\z so it must match the entire command - a
 // prefix match is never enough, and any anchors the entry already carries are
-// harmless. Invalid regexes are skipped rather than failing the whole check.
+// harmless. The s flag lets . span quoted newlines (e.g. a multi-line
+// git commit -m "..."); unquoted newlines never reach here - they are segment
+// split points. Invalid regexes are skipped rather than failing the whole check.
 func matchesAnyAllow(seg string, allow []string) bool {
 	for _, entry := range allow {
 		if entry == "" {
 			continue
 		}
-		matched, err := regexp.MatchString(`\A(?:`+entry+`)\z`, seg)
+		matched, err := regexp.MatchString(`\A(?s:`+entry+`)\z`, seg)
 		if err == nil && matched {
 			return true
 		}
