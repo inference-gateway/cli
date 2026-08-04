@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -50,10 +52,18 @@ deployment, monitoring, and management of inference services.`,
 	},
 }
 
+// ExitCodeMaxTurns is the process exit code when an agent run ends by
+// exhausting agent.max_turns, so callers (e.g. infer-action) can tell
+// turn exhaustion (2) apart from success (0) and failure (1).
+const ExitCodeMaxTurns = 2
+
 func Execute() {
 	defer logger.Close()
 
 	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
+		if errors.Is(err, domain.ErrMaxTurnsReached) {
+			os.Exit(ExitCodeMaxTurns)
+		}
 		os.Exit(1)
 	}
 }

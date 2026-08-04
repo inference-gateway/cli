@@ -52,7 +52,12 @@ Examples:
   # Resume existing sessions
   infer agent "continue fixing the authentication bug" --session-id abc-123-def
   infer agent "analyze these new error logs" --session-id abc-123 --files error.log
-  infer agent "try a different approach" --session-id abc-123 --no-save`,
+  infer agent "try a different approach" --session-id abc-123 --no-save
+
+Exit Codes:
+  0  task completed
+  1  the run failed
+  2  agent.max_turns was exhausted before the task completed`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
@@ -263,12 +268,15 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 }
 
 // agentSessionOutcome maps a run error to the infer.run.outcome enum: a
-// cancelled/timed-out context is "stopped_early", any other error "failed".
+// cancelled/timed-out context or max-turns exhaustion is "stopped_early",
+// any other error "failed".
 func agentSessionOutcome(err error) string {
 	switch {
 	case err == nil:
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return telemetry.RunStoppedEarly
+	case errors.Is(err, domain.ErrMaxTurnsReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
@@ -507,6 +515,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	}
 
 	consecutiveNoToolCalls := 0
+	completedNormally := false
 
 	for s.completedTurns < s.maxTurns {
 		s.maybeRollover()
@@ -541,17 +550,25 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		if consecutiveNoToolCalls >= 1 {
 			logger.Info("task appears complete (no more tool calls)", "turns", s.completedTurns)
+			completedNormally = true
 			break
 		}
 	}
 
-	if s.completedTurns >= s.maxTurns {
-		logger.Info("maximum turns reached", "turns", s.completedTurns)
+	var sessionErr error
+
+	if !completedNormally && s.completedTurns >= s.maxTurns {
+		logger.Info("agent session stopped early (max turns reached)", "turns", s.completedTurns)
+		sessionErr = fmt.Errorf("%w: agent reached the maximum of %d turns without completing the task", domain.ErrMaxTurnsReached, s.maxTurns)
 	}
 
 	s.dispatchHooks(domain.HookPostSession, s.completedTurns)
 
 	s.waitForBackgroundTasks(monitorCtx)
+
+	if sessionErr != nil {
+		return sessionErr
+	}
 
 	logger.Info("agent session completed", "turns", s.completedTurns)
 	return nil
