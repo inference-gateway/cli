@@ -1545,7 +1545,11 @@ func (c *Config) ValidatePathInSandboxWrite(path string) error {
 	if err := c.ValidatePathInSandbox(path); err != nil {
 		return err
 	}
-	if isWithinGoLibDirs(path) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	if isWithinGoLibDirs(absPath) {
 		return fmt.Errorf("path '%s' is in a read-only library directory", path)
 	}
 	return nil

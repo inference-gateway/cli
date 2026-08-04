@@ -1070,6 +1070,53 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	}
 }
 
+// TestValidatePathInSandbox_GoLibCarveOut locks in that the Go module cache is
+// readable via the carve-out but rejected for writes — including via relative
+// paths, which must be resolved before the read-only check (regression: raw
+// relative paths used to bypass ValidatePathInSandboxWrite's prefix match).
+func TestValidatePathInSandbox_GoLibCarveOut(t *testing.T) {
+	modcache := t.TempDir()
+	t.Setenv("GOMODCACHE", modcache)
+	cfg := DefaultConfig()
+
+	target := filepath.Join(modcache, "github.com", "some", "mod@v1.0.0", "file.go")
+
+	t.Run("read inside modcache allowed", func(t *testing.T) {
+		if err := cfg.ValidatePathInSandbox(target); err != nil {
+			t.Fatalf("expected %s readable, got %v", target, err)
+		}
+	})
+
+	t.Run("write inside modcache rejected (absolute)", func(t *testing.T) {
+		if err := cfg.ValidatePathInSandboxWrite(target); err == nil {
+			t.Fatalf("expected write to %s rejected", target)
+		}
+	})
+
+	t.Run("write inside modcache rejected (relative)", func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("getwd: %v", err)
+		}
+		rel, err := filepath.Rel(cwd, target)
+		if err != nil {
+			t.Skipf("no relative path from %s to %s: %v", cwd, target, err)
+		}
+		if err := cfg.ValidatePathInSandbox(rel); err != nil {
+			t.Fatalf("expected relative %s readable, got %v", rel, err)
+		}
+		if err := cfg.ValidatePathInSandboxWrite(rel); err == nil {
+			t.Fatalf("expected write to relative %s rejected", rel)
+		}
+	})
+
+	t.Run("write in sandbox still allowed", func(t *testing.T) {
+		if err := cfg.ValidatePathInSandboxWrite("somefile.txt"); err != nil {
+			t.Fatalf("expected sandbox write allowed, got %v", err)
+		}
+	})
+}
+
 // TestValidatePathInSandbox_ConfigDirUserspace locks in that the tmp/plans
 // carve-out also covers the resolved userspace config dir (~/.infer). When the
 // config is loaded from the userspace location, GetConfigDir() returns an
