@@ -46,7 +46,7 @@ import (
 // receiverGracePeriod is how long the OTLP receiver stays alive after the
 // tracer provider shuts down, giving the gateway's batch exporter time to
 // flush pending spans (default batch delay is 5s). Override in tests.
-receiverGracePeriod = 6 * time.Second
+var receiverGracePeriod = 6 * time.Second
 
 // Process-wide facts stamped onto every metric via the resource. Version is the
 // build version; ExecutionMode distinguishes interactive chat from headless
@@ -226,8 +226,6 @@ func New(opts Options) *Recorder {
 
 		attrSessionIDKey:  cmp.Or(opts.AttrSessionIDKey, defaultAttrSessionIDKey),
 		attrToolCallIDKey: cmp.Or(opts.AttrToolCallIDKey, defaultAttrToolCallIDKey),
-
-		receiverGracePeriod: 6 * time.Second,
 	}
 
 	if err := rec.initInstruments(provider.Meter("infer-cli")); err != nil {
@@ -477,7 +475,7 @@ func (r *Recorder) Shutdown(ctx context.Context) {
 		// Give the gateway's batch exporter time to flush pending spans
 		// (default batch delay is 5s, so 6s gives a comfortable margin).
 		// Override receiverGracePeriod to 0 in tests.
-		time.Sleep(r.receiverGracePeriod)
+		time.Sleep(receiverGracePeriod)
 		_ = r.recvSrv.Close()
 	}
 	if r.file != nil {
