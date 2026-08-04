@@ -516,7 +516,7 @@ func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine st
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *EditTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
+	return t.config.ValidatePathInSandboxWrite(path)
 }
 
 // validateFile checks if a file path is valid and exists (only works with existing files)

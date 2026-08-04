@@ -305,7 +305,7 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 
 // validatePathSecurity checks if a path is allowed for deletion within the sandbox
 func (t *DeleteTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
+	return t.config.ValidatePathInSandboxWrite(path)
 }
 
 // FormatResult formats tool execution results for different contexts

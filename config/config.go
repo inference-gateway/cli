@@ -1503,7 +1503,8 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
-		isWithinMemoryDir(absPath, c.Memory)
+		isWithinMemoryDir(absPath, c.Memory) ||
+		isWithinGoLibDirs(absPath)
 
 	if err := c.checkProtectedPaths(path, carveOut); err != nil {
 		return err
@@ -1534,6 +1535,20 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
+}
+
+// ValidatePathInSandboxWrite is like ValidatePathInSandbox but additionally
+// rejects paths inside read-only library directories (Go module cache, GOROOT
+// src). Write/Edit/Delete tools must call this instead of ValidatePathInSandbox
+// so the Go lib carve-out remains read-only.
+func (c *Config) ValidatePathInSandboxWrite(path string) error {
+	if err := c.ValidatePathInSandbox(path); err != nil {
+		return err
+	}
+	if isWithinGoLibDirs(path) {
+		return fmt.Errorf("path '%s' is in a read-only library directory", path)
+	}
+	return nil
 }
 
 // isWithinSkillsDir reports whether absPath lives inside one of the skills
@@ -1602,6 +1617,47 @@ func (c *Config) isWithinPluginsDir(absPath string) bool {
 		return false
 	}
 	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+}
+
+// isWithinGoLibDirs reports whether absPath lives inside a well-known Go
+// library directory: the Go module cache ($GOMODCACHE or $GOPATH/pkg/mod)
+// or the Go standard library source tree ($GOROOT/src). Paths are resolved
+// from the environment at runtime, not hardcoded, so they work regardless
+// of the Go toolchain installation layout. This carve-out is read-only:
+// write tools must additionally call ValidatePathInSandboxWrite to reject
+// mutations under these directories.
+func isWithinGoLibDirs(absPath string) bool {
+	// GOMODCACHE takes precedence; fall back to GOPATH/pkg/mod, then ~/go/pkg/mod.
+	gomodcache := os.Getenv("GOMODCACHE")
+	if gomodcache == "" {
+		gopath := os.Getenv("GOPATH")
+		if gopath == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return false
+			}
+			gopath = filepath.Join(home, "go")
+		}
+		gomodcache = filepath.Join(gopath, "pkg", "mod")
+	}
+	if absGoMod, err := filepath.Abs(gomodcache); err == nil {
+		if absPath == absGoMod || strings.HasPrefix(absPath, absGoMod+string(filepath.Separator)) {
+			return true
+		}
+	}
+
+	// GOROOT/src for the standard library source.
+	goroot := os.Getenv("GOROOT")
+	if goroot != "" {
+		gorootSrc := filepath.Join(goroot, "src")
+		if absGoRootSrc, err := filepath.Abs(gorootSrc); err == nil {
+			if absPath == absGoRootSrc || strings.HasPrefix(absPath, absGoRootSrc+string(filepath.Separator)) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // isWithinMemoryDir reports whether absPath lives inside the global memory
