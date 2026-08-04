@@ -240,7 +240,6 @@ type EditToolConfig struct {
 
 // MultiEditToolConfig contains multi-edit-specific tool settings
 type MultiEditToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
@@ -961,7 +960,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				StrictWhitespace: false,
 			},
 			MultiEdit: MultiEditToolConfig{
-				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
 			},
 			Delete: DeleteToolConfig{

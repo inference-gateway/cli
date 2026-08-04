@@ -550,17 +550,21 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		}
 	}
 
+	var sessionErr error
+
 	if !completedNormally && s.completedTurns >= s.maxTurns {
 		logger.Info("maximum turns reached", "turns", s.completedTurns)
-		s.dispatchHooks(domain.HookPostSession, s.completedTurns)
-		s.waitForBackgroundTasks(monitorCtx)
 		logger.Info("agent session stopped early (max turns)", "turns", s.completedTurns)
-		return fmt.Errorf("%w: agent reached the maximum of %d turns without completing the task", domain.ErrMaxTurnsReached, s.maxTurns)
+		sessionErr = fmt.Errorf("%w: agent reached the maximum of %d turns without completing the task", domain.ErrMaxTurnsReached, s.maxTurns)
 	}
 
 	s.dispatchHooks(domain.HookPostSession, s.completedTurns)
 
 	s.waitForBackgroundTasks(monitorCtx)
+
+	if sessionErr != nil {
+		return sessionErr
+	}
 
 	logger.Info("agent session completed", "turns", s.completedTurns)
 	return nil
