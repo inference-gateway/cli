@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 func TestBashTool_Definition(t *testing.T) {
@@ -286,6 +287,43 @@ func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
 	}
 	if !strings.Contains(result.Error, "No such") {
 		t.Errorf("expected result.Error to include the command's stderr, got %q", result.Error)
+	}
+}
+
+func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"sh( .*)?"}},
+				},
+			},
+		},
+	}
+	tool := NewBashTool(cfg, nil)
+
+	utils.SetColorsDisabled(true)
+	defer utils.SetColorsDisabled(false)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
+	})
+	if err != nil {
+		t.Fatalf("Execute() returned a Go error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("expected Success=false for a non-zero exit")
+	}
+	if !strings.Contains(result.Error, "exit status 3") {
+		t.Errorf("expected result.Error to include the exit status, got %q", result.Error)
+	}
+	if strings.Contains(result.Error, "\x1b") {
+		t.Errorf("result.Error still contains ANSI escapes when colors are disabled: %q", result.Error)
+	}
+	if !strings.Contains(result.Error, "boom") {
+		t.Errorf("expected stripped error to keep the text, got %q", result.Error)
 	}
 }
 
