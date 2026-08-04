@@ -50,7 +50,7 @@ const defaultReminderInterval = 10
 
 // defaultMemoryReminderInterval is the cadence of the memory-hygiene reminder -
 // less frequent than todo-hygiene since durable facts accrue more slowly.
-const defaultMemoryReminderInterval = 15
+const defaultMemoryReminderInterval = 13
 
 // defaultUserIntentFocusThreshold is the turn threshold for the
 // user-intent-focus reminder - fires once after 3 turns.
