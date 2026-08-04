@@ -3,7 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -116,7 +118,7 @@ func (t *ImageEditTool) Validate(args map[string]any) error {
 		if !ok || mask == "" {
 			return fmt.Errorf("mask must be a non-empty file path when provided")
 		}
-		if !t.imageService.IsImageFile(mask) {
+		if !strings.EqualFold(filepath.Ext(mask), ".png") {
 			return fmt.Errorf("mask must point to a PNG file")
 		}
 	}

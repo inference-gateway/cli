@@ -433,6 +433,31 @@ func TestImageService_EditImage(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, client.gotEditRequest.Quality)
 		assert.Nil(t, client.gotEditRequest.Size)
+		assert.Nil(t, client.gotEditRequest.Mask)
+	})
+
+	t.Run("mask is attached to the request", func(t *testing.T) {
+		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
+		service := NewImageService(config.DefaultConfig(), client)
+		input := writeInput(t)
+		mask := writeInput(t)
+
+		t.Chdir(t.TempDir())
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "", mask)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, client.gotEditRequest.Mask)
+		uploaded, fileErr := client.gotEditRequest.Mask.Bytes()
+		assert.NoError(t, fileErr)
+		assert.Equal(t, pngBytes, uploaded)
+	})
+
+	t.Run("missing mask file is an error", func(t *testing.T) {
+		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
+		input := writeInput(t)
+
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "", "/nonexistent/mask.png")
+		assert.ErrorContains(t, err, "failed to read mask image")
 	})
 
 	t.Run("api error is returned", func(t *testing.T) {

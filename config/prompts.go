@@ -740,6 +740,8 @@ Cost control: quality defaults to "low" and size to "1024x1024". Keep those defa
 
 Provide the local file path of the image to edit and a plain prompt describing the change. The request goes to /v1/images/edits using the image model configured for this tool (not the chat model), so do not ask which model to use.
 
+Optionally pass mask: a local file path to a PNG whose fully transparent areas (alpha = 0) mark the region to edit; all other pixels are preserved exactly. The mask must be a PNG with the same dimensions as the input image. Omit mask to let the model localize the change from the prompt alone.
+
 Cost control: quality defaults to "auto" and size to "1024x1024". Keep those defaults unless the user explicitly asks for a different tier or size - higher tiers cost significantly more and take longer.`,
 		},
 		ImageVariation: PromptsToolDescription{
