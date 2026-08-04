@@ -1627,7 +1627,6 @@ func (c *Config) isWithinPluginsDir(absPath string) bool {
 // write tools must additionally call ValidatePathInSandboxWrite to reject
 // mutations under these directories.
 func isWithinGoLibDirs(absPath string) bool {
-	// GOMODCACHE takes precedence; fall back to GOPATH/pkg/mod, then ~/go/pkg/mod.
 	gomodcache := os.Getenv("GOMODCACHE")
 	if gomodcache == "" {
 		gopath := os.Getenv("GOPATH")
@@ -1646,7 +1645,6 @@ func isWithinGoLibDirs(absPath string) bool {
 		}
 	}
 
-	// GOROOT/src for the standard library source.
 	goroot := os.Getenv("GOROOT")
 	if goroot != "" {
 		gorootSrc := filepath.Join(goroot, "src")
