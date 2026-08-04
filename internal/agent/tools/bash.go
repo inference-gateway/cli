@@ -220,9 +220,6 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		cmd.Env = append(cmd.Env, env...)
 	}
 	if utils.ColorsDisabled() {
-		// Let well-behaved children disable their own colors too, so the raw
-		// transcript stays clean; StripANSI below is the guarantee for tools
-		// that ignore NO_COLOR.
 		cmd.Env = append(cmd.Env, "NO_COLOR=1")
 	}
 
