@@ -2,11 +2,16 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
+
+// ErrMaxTurnsReached is returned when the agent reaches its maximum turn limit
+// without completing the task. Callers should use errors.Is to check for it.
+var ErrMaxTurnsReached = errors.New("max_turns_reached")
 
 // AgentContext represents the execution context for the agent state machine
 type AgentContext struct {

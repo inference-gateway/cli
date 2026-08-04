@@ -960,6 +960,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval:  &[]bool{true}[0],
 				StrictWhitespace: false,
 			},
+			MultiEdit: MultiEditToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+			},
 			Delete: DeleteToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],

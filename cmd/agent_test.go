@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // captureStdout redirects os.Stdout for the duration of fn and returns what was written.
@@ -89,6 +91,27 @@ func TestOutputAgentError(t *testing.T) {
 			t.Errorf("expected at most 3501 runes, got %d", len(runes))
 		}
 	})
+}
+
+func TestAgentSessionOutcome(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil error returns success", err: nil, want: telemetry.RunSuccess},
+		{name: "context canceled returns stopped_early", err: context.Canceled, want: telemetry.RunStoppedEarly},
+		{name: "deadline exceeded returns stopped_early", err: context.DeadlineExceeded, want: telemetry.RunStoppedEarly},
+		{name: "max turns reached returns stopped_early", err: fmt.Errorf("%w: agent reached max turns", domain.ErrMaxTurnsReached), want: telemetry.RunStoppedEarly},
+		{name: "generic error returns failed", err: fmt.Errorf("something went wrong"), want: telemetry.RunFailed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := agentSessionOutcome(tt.err); got != tt.want {
+				t.Errorf("agentSessionOutcome(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestFormatToolCallSummary(t *testing.T) {

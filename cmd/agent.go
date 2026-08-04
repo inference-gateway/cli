@@ -271,7 +271,7 @@ func agentSessionOutcome(err error) string {
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return telemetry.RunStoppedEarly
-	case strings.Contains(err.Error(), "max_turns_reached"):
+	case errors.Is(err, domain.ErrMaxTurnsReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
@@ -510,6 +510,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	}
 
 	consecutiveNoToolCalls := 0
+	completedNormally := false
 
 	for s.completedTurns < s.maxTurns {
 		s.maybeRollover()
@@ -544,16 +545,17 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		if consecutiveNoToolCalls >= 1 {
 			logger.Info("task appears complete (no more tool calls)", "turns", s.completedTurns)
+			completedNormally = true
 			break
 		}
 	}
 
-	if s.completedTurns >= s.maxTurns {
+	if !completedNormally && s.completedTurns >= s.maxTurns {
 		logger.Info("maximum turns reached", "turns", s.completedTurns)
 		s.dispatchHooks(domain.HookPostSession, s.completedTurns)
 		s.waitForBackgroundTasks(monitorCtx)
 		logger.Info("agent session stopped early (max turns)", "turns", s.completedTurns)
-		return fmt.Errorf("max_turns_reached: agent reached the maximum of %d turns without completing the task", s.maxTurns)
+		return fmt.Errorf("%w: agent reached the maximum of %d turns without completing the task", domain.ErrMaxTurnsReached, s.maxTurns)
 	}
 
 	s.dispatchHooks(domain.HookPostSession, s.completedTurns)
