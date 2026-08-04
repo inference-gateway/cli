@@ -263,12 +263,15 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 }
 
 // agentSessionOutcome maps a run error to the infer.run.outcome enum: a
-// cancelled/timed-out context is "stopped_early", any other error "failed".
+// cancelled/timed-out context or max-turns exhaustion is "stopped_early",
+// any other error "failed".
 func agentSessionOutcome(err error) string {
 	switch {
 	case err == nil:
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return telemetry.RunStoppedEarly
+	case strings.Contains(err.Error(), "max_turns_reached"):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
@@ -547,6 +550,10 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 	if s.completedTurns >= s.maxTurns {
 		logger.Info("maximum turns reached", "turns", s.completedTurns)
+		s.dispatchHooks(domain.HookPostSession, s.completedTurns)
+		s.waitForBackgroundTasks(monitorCtx)
+		logger.Info("agent session stopped early (max turns)", "turns", s.completedTurns)
+		return fmt.Errorf("max_turns_reached: agent reached the maximum of %d turns without completing the task", s.maxTurns)
 	}
 
 	s.dispatchHooks(domain.HookPostSession, s.completedTurns)

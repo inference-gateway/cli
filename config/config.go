@@ -177,6 +177,7 @@ type ToolsConfig struct {
 	Read            ReadToolConfig            `yaml:"read" mapstructure:"read"`
 	Write           WriteToolConfig           `yaml:"write" mapstructure:"write"`
 	Edit            EditToolConfig            `yaml:"edit" mapstructure:"edit"`
+	MultiEdit       MultiEditToolConfig       `yaml:"multi_edit" mapstructure:"multi_edit"`
 	Delete          DeleteToolConfig          `yaml:"delete" mapstructure:"delete"`
 	Grep            GrepToolConfig            `yaml:"grep" mapstructure:"grep"`
 	Tree            TreeToolConfig            `yaml:"tree" mapstructure:"tree"`
@@ -1222,6 +1223,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "Edit":
 		if c.Tools.Edit.RequireApproval != nil {
 			return *c.Tools.Edit.RequireApproval
+		}
+	case "MultiEdit":
+		if c.Tools.MultiEdit.RequireApproval != nil {
+			return *c.Tools.MultiEdit.RequireApproval
 		}
 	case "Delete":
 		if c.Tools.Delete.RequireApproval != nil {
