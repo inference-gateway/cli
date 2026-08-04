@@ -43,6 +43,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
+// receiverGracePeriod is how long the OTLP receiver stays alive after the
+// tracer provider shuts down, giving the gateway's batch exporter time to
+// flush pending spans (default batch delay is 5s). Override in tests.
+var receiverGracePeriod = 6 * time.Second
+
 // Process-wide facts stamped onto every metric via the resource. Version is the
 // build version; ExecutionMode distinguishes interactive chat from headless
 // `infer agent`. cmd sets these before building the service container.
@@ -467,6 +472,10 @@ func (r *Recorder) Shutdown(ctx context.Context) {
 		}
 	}
 	if r.recvSrv != nil {
+		// Give the gateway's batch exporter time to flush pending spans
+		// (default batch delay is 5s, so 6s gives a comfortable margin).
+		// Override receiverGracePeriod to 0 in tests.
+		time.Sleep(receiverGracePeriod)
 		_ = r.recvSrv.Close()
 	}
 	if r.file != nil {
