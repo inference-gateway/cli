@@ -325,6 +325,35 @@ func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
 	if !strings.Contains(result.Error, "boom") {
 		t.Errorf("expected stripped error to keep the text, got %q", result.Error)
 	}
+
+	t.Run("streaming path strips ANSI", func(t *testing.T) {
+		var mu sync.Mutex
+		var streamed strings.Builder
+		callback := func(output string) {
+			mu.Lock()
+			streamed.WriteString(output)
+			mu.Unlock()
+		}
+		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+		result, err := tool.Execute(ctx, map[string]any{
+			"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
+		})
+		if err != nil {
+			t.Fatalf("Execute() returned a Go error: %v", err)
+		}
+		if strings.Contains(result.Error, "\x1b") {
+			t.Errorf("streamed result.Error still contains ANSI escapes: %q", result.Error)
+		}
+		mu.Lock()
+		got := streamed.String()
+		mu.Unlock()
+		if strings.Contains(got, "\x1b") {
+			t.Errorf("streamed callback still contains ANSI escapes: %q", got)
+		}
+		if !strings.Contains(got, "boom") {
+			t.Errorf("expected streamed text preserved, got %q", got)
+		}
+	})
 }
 
 func TestBashTool_GitPushValidation(t *testing.T) {

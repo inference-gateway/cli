@@ -394,6 +394,9 @@ func (t *BashTool) readPipeWithBatching(
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		if utils.ColorsDisabled() {
+			line = utils.StripANSI(line)
+		}
 
 		outputMux.Lock()
 		if outputBuffer != nil {
