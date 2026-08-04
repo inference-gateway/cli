@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.161.0](https://github.com/inference-gateway/cli/compare/v0.160.2...v0.161.0) (2026-08-04)
+
+### 🚀 Features
+
+* **sandbox:** add read-only Go lib carve-out ([#1022](https://github.com/inference-gateway/cli/issues/1022)) ([cfeb455](https://github.com/inference-gateway/cli/commit/cfeb4557f43eab5e5da49a4d8f76c3d38f7e5a32)), closes [#1020](https://github.com/inference-gateway/cli/issues/1020)
+* **agent:** include tool args in blocked tool call logging ([#1021](https://github.com/inference-gateway/cli/issues/1021)) ([418b317](https://github.com/inference-gateway/cli/commit/418b3174ec7464309e83a84a28d10dbf1e9e8755)), closes [#1019](https://github.com/inference-gateway/cli/issues/1019)
+
+### 🐛 Bug Fixes
+
+* **bash:** allow quoted newlines in allow-list matching ([#1023](https://github.com/inference-gateway/cli/issues/1023)) ([62537b1](https://github.com/inference-gateway/cli/commit/62537b1815493c948a204186c99595989cae695c))
+
+### 📚 Documentation
+
+* reconcile AGENTS.md and replace CLAUDE.md with symlink ([#1018](https://github.com/inference-gateway/cli/issues/1018)) ([6b87919](https://github.com/inference-gateway/cli/commit/6b879190ae0df3fc57285b2952b0060fd873678c))
+
+### 🧹 Maintenance
+
+* remove deprecated ollama-api-key input ([#1015](https://github.com/inference-gateway/cli/issues/1015)) ([549de2b](https://github.com/inference-gateway/cli/commit/549de2b715fca8c00b7ddf989c1c3b5bedd0c836))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.161.0 --help
+npx @inference-gateway/cli@0.161.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.161.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.161.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.161.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.161.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.161.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.160.2](https://github.com/inference-gateway/cli/compare/v0.160.1...v0.160.2) (2026-08-04)
 
 ### 🐛 Bug Fixes
