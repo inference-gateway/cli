@@ -238,6 +238,12 @@ type EditToolConfig struct {
 	StrictWhitespace bool  `yaml:"strict_whitespace" mapstructure:"strict_whitespace"`
 }
 
+// MultiEditToolConfig contains multi-edit-specific tool settings
+type MultiEditToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
 // DeleteToolConfig contains delete-specific tool settings
 type DeleteToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
