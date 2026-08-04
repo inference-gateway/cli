@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -120,7 +121,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 	isBinary := isBinaryContent(fetchResult.ContentType, fetchResult.Content)
 
 	if download || isBinary {
-		filename := extractFilenameFromURL(url)
+		filename := extractFilenameFromURL(url, fetchResult.ContentType)
 		savedPath, saveErr := t.saveToFile(fetchResult, filename)
 		if saveErr != nil {
 			result.Error = fmt.Sprintf("failed to save file: %v", saveErr)
@@ -501,8 +502,10 @@ func (t *WebFetchTool) ShouldAlwaysExpand() bool {
 }
 
 // extractFilenameFromURL extracts a safe filename from a URL; shared with the
-// A2A artifact auto-download path.
-func extractFilenameFromURL(url string) string {
+// A2A artifact auto-download path. When the URL path has no extension, the
+// response Content-Type is used to derive one (e.g. image/png -> .png),
+// falling back to .dat for unknown types.
+func extractFilenameFromURL(url, contentType string) string {
 	parts := strings.Split(url, "/")
 	filename := "download"
 
@@ -524,10 +527,25 @@ func extractFilenameFromURL(url string) string {
 	filename = filepath.Base(filename)
 
 	if !strings.Contains(filename, ".") {
-		filename = fmt.Sprintf("%s.dat", filename)
+		ext := extensionFromContentType(contentType)
+		filename = fmt.Sprintf("%s%s", filename, ext)
 	}
 
 	return filename
+}
+
+// extensionFromContentType derives a file extension from a MIME content type
+// using the standard library, returning ".dat" for unknown types.
+func extensionFromContentType(contentType string) string {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+	exts, err := mime.ExtensionsByType(ct)
+	if err != nil || len(exts) == 0 {
+		return ".dat"
+	}
+	return exts[0]
 }
 
 // saveToFile saves the fetched content to disk in <configDir>/tmp directory

@@ -785,7 +785,7 @@ func downloadArtifactFile(httpClient *http.Client, url, baseDir string) (string,
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return "", err
 	}
-	fullPath := filepath.Join(baseDir, filepath.Base(extractFilenameFromURL(url)))
+	fullPath := filepath.Join(baseDir, filepath.Base(extractFilenameFromURL(url, resp.Header.Get("Content-Type"))))
 	file, err := os.Create(fullPath)
 	if err != nil {
 		return "", err

@@ -75,9 +75,6 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 
 	path, _ := args["image"].(string)
-	if !t.imageService.IsImageFile(path) {
-		return fail(fmt.Sprintf("%q is not a readable image file (supported: png, jpg, jpeg, gif, webp)", path))
-	}
 
 	attachment, err := t.imageService.ReadImageFromFile(path)
 	if err != nil {
