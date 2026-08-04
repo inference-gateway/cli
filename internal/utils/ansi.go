@@ -1,10 +1,6 @@
 package utils
 
-import "regexp"
-
-// ansiEscape matches ANSI escape sequences: CSI (ESC[... - colors, cursor
-// movement) and OSC (ESC]...BEL - terminal titles, hyperlinks).
-var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)`)
+import "github.com/charmbracelet/x/ansi"
 
 // colorsDisabled mirrors the CLI's --no-colors / NO_COLOR / non-TTY decision
 // (see cmd.disableOutputColors) so leaf packages can strip ANSI from
@@ -19,5 +15,5 @@ func ColorsDisabled() bool { return colorsDisabled }
 
 // StripANSI removes ANSI escape sequences from s.
 func StripANSI(s string) string {
-	return ansiEscape.ReplaceAllString(s, "")
+	return ansi.Strip(s)
 }

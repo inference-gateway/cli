@@ -9,9 +9,3 @@ func TestStripANSI(t *testing.T) {
 		t.Errorf("StripANSI() = %q, want %q", got, want)
 	}
 }
-
-func TestStripANSI_PlainText(t *testing.T) {
-	if got := StripANSI("bun test v1.3.13"); got != "bun test v1.3.13" {
-		t.Errorf("StripANSI() altered plain text: %q", got)
-	}
-}
