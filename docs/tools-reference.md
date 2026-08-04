@@ -569,12 +569,12 @@ directly; vision models can always request `format: regular`.
 
 ### ImageDecode Tool
 
-Describe an arbitrary local image file through the vision annotator, optionally answering a specific
+Describe an arbitrary local image file or http(s) URL through the vision annotator, optionally answering a specific
 question about it. Read-only, no approval required. Enabled when `vision.annotator` is configured.
 
 **Parameters:**
 
-- `image` (required): Local file path of the image
+- `image` (required): Local file path or http(s) URL of the image
 - `prompt` (optional): A question to answer about the image
 
 **Configuration** (see [Configuration Reference](configuration-reference.md#vision-settings)):
