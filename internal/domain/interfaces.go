@@ -553,8 +553,10 @@ type ImageService interface {
 	GenerateImage(ctx context.Context, model, prompt, quality, size string) (string, error)
 	// EditImage edits the image at imagePath using prompt and model
 	// ("provider/name") and returns the path of the saved file. A blank quality
-	// or size leaves the provider's own default
-	EditImage(ctx context.Context, model, prompt, imagePath, quality, size string) (string, error)
+	// or size leaves the provider's own default. A non-empty maskPath points to
+	// a PNG whose transparent (alpha=0) areas mark the editable region; all
+	// other pixels are preserved exactly.
+	EditImage(ctx context.Context, model, prompt, imagePath, quality, size, maskPath string) (string, error)
 	// CreateImageVariation creates a variation of the image at imagePath using
 	// model ("provider/name") and returns the path of the saved file. A blank
 	// size leaves the provider's own default

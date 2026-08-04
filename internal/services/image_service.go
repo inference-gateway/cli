@@ -93,8 +93,10 @@ func (s *ImageService) GenerateImage(ctx context.Context, model, prompt, quality
 
 // EditImage edits the image at imagePath using prompt and model
 // ("provider/name") and returns the path of the saved PNG. A blank quality or
-// size is omitted from the request, leaving the provider's own default.
-func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, quality, size string) (string, error) {
+// size is omitted from the request, leaving the provider's own default. A
+// non-empty maskPath points to a PNG whose transparent (alpha=0) areas mark
+// the editable region; all other pixels are preserved exactly.
+func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, quality, size, maskPath string) (string, error) {
 	provider, modelName, ok := strings.Cut(model, "/")
 	if !ok {
 		return "", fmt.Errorf("invalid model %q (expected 'provider/model')", model)
@@ -125,6 +127,19 @@ func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, 
 	if size != "" {
 		sz := sdk.ImageSize(size)
 		request.Size = &sz
+	}
+	if maskPath != "" {
+		maskAttachment, err := s.ReadImageFromFile(maskPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read mask image: %w", err)
+		}
+		maskBytes, err := base64.StdEncoding.DecodeString(maskAttachment.Data)
+		if err != nil {
+			return "", fmt.Errorf("failed to decode mask image: %w", err)
+		}
+		var maskFile openapi_types.File
+		maskFile.InitFromBytes(maskBytes, maskAttachment.Filename)
+		request.Mask = &maskFile
 	}
 
 	resp, err := s.client.CreateImageEdit(ctx, sdk.Provider(provider), request)

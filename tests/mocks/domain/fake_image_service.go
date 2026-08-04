@@ -36,7 +36,7 @@ type FakeImageService struct {
 		result1 string
 		result2 error
 	}
-	EditImageStub        func(context.Context, string, string, string, string, string) (string, error)
+	EditImageStub        func(context.Context, string, string, string, string, string, string) (string, error)
 	editImageMutex       sync.RWMutex
 	editImageArgsForCall []struct {
 		arg1 context.Context
@@ -45,6 +45,7 @@ type FakeImageService struct {
 		arg4 string
 		arg5 string
 		arg6 string
+		arg7 string
 	}
 	editImageReturns struct {
 		result1 string
@@ -276,7 +277,7 @@ func (fake *FakeImageService) CreateImageVariationReturnsOnCall(i int, result1 s
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) EditImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string, arg6 string) (string, error) {
+func (fake *FakeImageService) EditImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string, arg6 string, arg7 string) (string, error) {
 	fake.editImageMutex.Lock()
 	ret, specificReturn := fake.editImageReturnsOnCall[len(fake.editImageArgsForCall)]
 	fake.editImageArgsForCall = append(fake.editImageArgsForCall, struct {
@@ -286,13 +287,14 @@ func (fake *FakeImageService) EditImage(arg1 context.Context, arg2 string, arg3 
 		arg4 string
 		arg5 string
 		arg6 string
-	}{arg1, arg2, arg3, arg4, arg5, arg6})
+		arg7 string
+	}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
 	stub := fake.EditImageStub
 	fakeReturns := fake.editImageReturns
-	fake.recordInvocation("EditImage", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6})
+	fake.recordInvocation("EditImage", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
 	fake.editImageMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3, arg4, arg5, arg6)
+		return stub(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -306,17 +308,17 @@ func (fake *FakeImageService) EditImageCallCount() int {
 	return len(fake.editImageArgsForCall)
 }
 
-func (fake *FakeImageService) EditImageCalls(stub func(context.Context, string, string, string, string, string) (string, error)) {
+func (fake *FakeImageService) EditImageCalls(stub func(context.Context, string, string, string, string, string, string) (string, error)) {
 	fake.editImageMutex.Lock()
 	defer fake.editImageMutex.Unlock()
 	fake.EditImageStub = stub
 }
 
-func (fake *FakeImageService) EditImageArgsForCall(i int) (context.Context, string, string, string, string, string) {
+func (fake *FakeImageService) EditImageArgsForCall(i int) (context.Context, string, string, string, string, string, string) {
 	fake.editImageMutex.RLock()
 	defer fake.editImageMutex.RUnlock()
 	argsForCall := fake.editImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6, argsForCall.arg7
 }
 
 func (fake *FakeImageService) EditImageReturns(result1 string, result2 error) {
