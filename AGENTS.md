@@ -84,13 +84,15 @@ tmux new-session -d -s infer-tui -x 200 -y 50 \
 - `BTab` (shift+tab) toggles agent mode.
 
 **Mock gateway scenarios:** the mock matches the latest real user message
-(injected `<system-reminder>` content is skipped) against the regexes in
-`internal/mockgateway/scenarios.yaml` — e.g. `say hello` → a text reply,
-`please search for X` → a Grep tool call. Unmatched prompts get the `Done.`
-fallback. To test with custom scenarios, build the standalone binary
-(`task build:mockgateway` → `.infer/bin/mock-gateway --scenarios my.yaml`),
-read the listen address from its first stdout line, and point the CLI at it
-with `INFER_GATEWAY_URL` instead of `INFER_GATEWAY_MOCK`.
+(injected `<system-reminder>` content is skipped) against the regexes in the
+embedded scenario library (`github.com/inference-gateway/tokenless/gateway`)
+— e.g. `say hello` → a text reply, `please search for X` → a Grep tool call.
+Unmatched prompts get the `Done.` fallback. To test with custom scenarios, set
+`INFER_GATEWAY_MOCK_SCENARIOS=/path/to/scenarios.yaml` — the container loads
+it via `mockgateway.LoadFile` and serves it on the mock gateway. The
+`tests/e2e/` and `tests/integration/` packages import the tokenless harness
+(`github.com/inference-gateway/tokenless/harness`) for in-process mock setup
+and the gateway library for scenario definitions and request inspection.
 
 ## Linter Constraints
 
