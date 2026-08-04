@@ -411,7 +411,7 @@ func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOp
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *MultiEditTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
+	return t.config.ValidatePathInSandboxWrite(path)
 }
 
 // validateFile checks if a file path is valid - supports both existing files and new file creation

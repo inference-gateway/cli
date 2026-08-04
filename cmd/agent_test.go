@@ -439,7 +439,7 @@ func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
 
 			results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{
-					Name: "Write", Arguments: `{"file_path":"x","content":"y"}`,
+					Name: "Bash", Arguments: `{"command":"ls -la"}`,
 				}},
 			})
 
@@ -454,6 +454,9 @@ func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
 			}
 			if !strings.Contains(results[0].Content, "Blocked") {
 				t.Errorf("expected a 'Blocked' reason, got %q", results[0].Content)
+			}
+			if !strings.Contains(results[0].Content, `"command":"ls -la"`) {
+				t.Errorf("expected blocked reason to include the Bash command args, got %q", results[0].Content)
 			}
 		})
 	}

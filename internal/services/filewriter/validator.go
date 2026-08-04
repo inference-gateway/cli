@@ -42,7 +42,7 @@ func (v *PathValidator) Validate(path string) error {
 		return fmt.Errorf("path contains null bytes: %s", path)
 	}
 
-	if err := v.config.ValidatePathInSandbox(absPath); err != nil {
+	if err := v.config.ValidatePathInSandboxWrite(absPath); err != nil {
 		return err
 	}
 

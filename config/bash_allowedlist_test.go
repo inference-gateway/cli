@@ -145,6 +145,31 @@ func TestIsBashCommandAllowed_QuotedOperators(t *testing.T) {
 	}
 }
 
+// TestIsBashCommandAllowed_QuotedNewlines verifies that .* in an allow entry
+// spans newlines inside quoted arguments (the (?s) wrap in matchesAnyAllow) - a
+// multi-line git commit -m "..." must match `git commit( .*)?` - while unquoted
+// newlines still split into segments and hit the single-command policy.
+func TestIsBashCommandAllowed_QuotedNewlines(t *testing.T) {
+	cfg := &Config{
+		Tools: ToolsConfig{
+			Enabled: true,
+			Bash: BashToolConfig{
+				Enabled: true,
+				Mode: BashModesConfig{
+					All: BashModeAllowConfig{Allow: []string{"git commit( .*)?"}},
+				},
+			},
+		},
+	}
+
+	if !cfg.IsBashCommandAllowed("git commit -m \"subject\n\nmulti-line body\"", "standard") {
+		t.Error("expected multi-line quoted commit message to be allowed")
+	}
+	if cfg.IsBashCommandAllowed("git commit -m subject\nrm -rf /", "standard") {
+		t.Error("expected unquoted newline to stay denied (single-command policy)")
+	}
+}
+
 func TestIsBashCommandAllowed_MalformedAndEmpty(t *testing.T) {
 	cfg := DefaultConfig()
 

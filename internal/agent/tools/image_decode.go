@@ -48,7 +48,7 @@ func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"image": map[string]any{
 						"type":        "string",
-						"description": "Path to a local image file (png, jpg, jpeg, gif, webp)",
+						"description": "Path to a local image file or http(s) URL (png, jpg, jpeg, gif, webp)",
 					},
 					"prompt": map[string]any{
 						"type":        "string",
@@ -75,11 +75,14 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 
 	path, _ := args["image"].(string)
-	if !t.imageService.IsImageFile(path) {
-		return fail(fmt.Sprintf("%q is not a readable image file (supported: png, jpg, jpeg, gif, webp)", path))
-	}
 
-	attachment, err := t.imageService.ReadImageFromFile(path)
+	var attachment *domain.ImageAttachment
+	var err error
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		attachment, err = t.imageService.ReadImageFromURL(path)
+	} else {
+		attachment, err = t.imageService.ReadImageFromFile(path)
+	}
 	if err != nil {
 		return fail(err.Error())
 	}

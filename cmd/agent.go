@@ -1030,10 +1030,10 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 	if config.ResolveApprovalDelivery(behaviour, s.requireApproval, false) != config.ApprovalBehaviourIPC {
 		reason := fmt.Sprintf(
 			"Blocked: %q was not auto-approved and no approver is available in this run "+
-				"(tools.safety.approval_behaviour=%s). Do not retry the same call - use an allowed "+
+				"(tools.safety.approval_behaviour=%s). Args: %s. Do not retry the same call - use an allowed "+
 				"command or tool, or stop and tell the user exactly what you need and why.",
-			tc.Function.Name, behaviour)
-		logger.Info("tool blocked (no approver reachable)", "tool", tc.Function.Name, "behaviour", behaviour)
+			tc.Function.Name, behaviour, tc.Function.Arguments)
+		logger.Info("tool blocked (no approver reachable)", "tool", tc.Function.Name, "behaviour", behaviour, "args", tc.Function.Arguments)
 		return s.toolRejectedMessage(tc, reason, reason)
 	}
 
