@@ -89,7 +89,8 @@ func TestImageEditTool_Execute(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, result.Success)
-		_, model, prompt, image, quality, size := imageService.EditImageArgsForCall(0)
+		_, model, prompt, image, quality, size, mask := imageService.EditImageArgsForCall(0)
+		assert.Equal(t, "", mask)
 		assert.Equal(t, "openai/gpt-image-2", model)
 		assert.Equal(t, "make it blue", prompt)
 		assert.Equal(t, "input.png", image)
@@ -108,7 +109,8 @@ func TestImageEditTool_Execute(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		_, _, _, _, quality, size := imageService.EditImageArgsForCall(0)
+		_, _, _, _, quality, size, mask := imageService.EditImageArgsForCall(0)
+		assert.Equal(t, "", mask)
 		assert.Equal(t, "high", quality)
 		assert.Equal(t, "1536x1024", size)
 	})

@@ -404,7 +404,7 @@ func TestImageService_EditImage(t *testing.T) {
 		input := writeInput(t)
 
 		t.Chdir(t.TempDir())
-		path, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "auto", "1024x1024")
+		path, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "auto", "1024x1024", "")
 
 		assert.NoError(t, err)
 		saved, readErr := os.ReadFile(path)
@@ -428,7 +428,7 @@ func TestImageService_EditImage(t *testing.T) {
 		input := writeInput(t)
 
 		t.Chdir(t.TempDir())
-		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "", "")
 
 		assert.NoError(t, err)
 		assert.Nil(t, client.gotEditRequest.Quality)
@@ -440,7 +440,7 @@ func TestImageService_EditImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), client)
 		input := writeInput(t)
 
-		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "", "")
 		assert.ErrorContains(t, err, "404")
 	})
 
@@ -449,14 +449,14 @@ func TestImageService_EditImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), client)
 		input := writeInput(t)
 
-		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "")
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", input, "", "", "")
 		assert.ErrorContains(t, err, "no images")
 	})
 
 	t.Run("missing input file is an error", func(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
 
-		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", "/nonexistent/input.png", "", "")
+		_, err := service.EditImage(context.Background(), "openai/gpt-image-2", "make it blue", "/nonexistent/input.png", "", "", "")
 		assert.ErrorContains(t, err, "failed to read image file")
 	})
 
@@ -464,7 +464,7 @@ func TestImageService_EditImage(t *testing.T) {
 		service := NewImageService(config.DefaultConfig(), &fakeImageClient{})
 		input := writeInput(t)
 
-		_, err := service.EditImage(context.Background(), "gpt-image-1", "make it blue", input, "", "")
+		_, err := service.EditImage(context.Background(), "gpt-image-1", "make it blue", input, "", "", "")
 		assert.ErrorContains(t, err, "expected 'provider/model'")
 	})
 }
