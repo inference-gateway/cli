@@ -23,5 +23,8 @@ func TestMain(m *testing.M) {
 	} {
 		_ = os.Unsetenv(k)
 	}
+	// Disable the receiver grace period in tests so Shutdown returns
+	// immediately instead of waiting 6s for the gateway's batch exporter.
+	receiverGracePeriod = 0
 	os.Exit(m.Run())
 }
