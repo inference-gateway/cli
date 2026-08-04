@@ -3,7 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -70,6 +72,10 @@ func (t *ImageEditTool) Definition() sdk.ChatCompletionTool {
 						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
 						"default":     string(sdk.ImageSize1024X1024),
 					},
+					"mask": map[string]any{
+						"type":        "string",
+						"description": "Optional local file path to a PNG mask whose fully transparent areas (alpha = 0) mark the editable region; all other pixels are preserved exactly. Must have the same dimensions as the input image.",
+					},
 				},
 				"required":             []string{"image", "prompt"},
 				"additionalProperties": false,
@@ -107,6 +113,16 @@ func (t *ImageEditTool) Validate(args map[string]any) error {
 		}
 	}
 
+	if raw, ok := args["mask"]; ok {
+		mask, ok := raw.(string)
+		if !ok || mask == "" {
+			return fmt.Errorf("mask must be a non-empty file path when provided")
+		}
+		if !strings.EqualFold(filepath.Ext(mask), ".png") {
+			return fmt.Errorf("mask must point to a PNG file")
+		}
+	}
+
 	return nil
 }
 
@@ -120,6 +136,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	prompt, _ := args["prompt"].(string)
 	quality, _ := args["quality"].(string)
 	size, _ := args["size"].(string)
+	mask, _ := args["mask"].(string)
 
 	if quality == "" {
 		quality = string(sdk.CreateImageEditMultipartBodyQualityAuto)
@@ -130,7 +147,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	start := time.Now()
 	model := t.config.Tools.ImageEdit.Model
-	path, err := t.imageService.EditImage(ctx, model, prompt, image, quality, size)
+	path, err := t.imageService.EditImage(ctx, model, prompt, image, quality, size, mask)
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "ImageEdit",

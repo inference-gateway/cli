@@ -58,6 +58,11 @@ func TestImageEditTool_Validate(t *testing.T) {
 		{"empty prompt", map[string]any{"image": "input.png", "prompt": ""}, true},
 		{"bad quality", map[string]any{"image": "input.png", "prompt": "make it blue", "quality": "ultra"}, true},
 		{"bad size", map[string]any{"image": "input.png", "prompt": "make it blue", "size": "9999x9999"}, true},
+		{"png mask", map[string]any{"image": "input.png", "prompt": "make it blue", "mask": "mask.png"}, false},
+		{"uppercase png mask", map[string]any{"image": "input.png", "prompt": "make it blue", "mask": "MASK.PNG"}, false},
+		{"non-png mask", map[string]any{"image": "input.png", "prompt": "make it blue", "mask": "mask.jpg"}, true},
+		{"empty mask", map[string]any{"image": "input.png", "prompt": "make it blue", "mask": ""}, true},
+		{"non-string mask", map[string]any{"image": "input.png", "prompt": "make it blue", "mask": 42}, true},
 	}
 
 	for _, tt := range tests {
@@ -89,7 +94,8 @@ func TestImageEditTool_Execute(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, result.Success)
-		_, model, prompt, image, quality, size := imageService.EditImageArgsForCall(0)
+		_, model, prompt, image, quality, size, mask := imageService.EditImageArgsForCall(0)
+		assert.Equal(t, "", mask)
 		assert.Equal(t, "openai/gpt-image-2", model)
 		assert.Equal(t, "make it blue", prompt)
 		assert.Equal(t, "input.png", image)
@@ -108,9 +114,25 @@ func TestImageEditTool_Execute(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		_, _, _, _, quality, size := imageService.EditImageArgsForCall(0)
+		_, _, _, _, quality, size, mask := imageService.EditImageArgsForCall(0)
+		assert.Equal(t, "", mask)
 		assert.Equal(t, "high", quality)
 		assert.Equal(t, "1536x1024", size)
+	})
+
+	t.Run("passes through the mask path", func(t *testing.T) {
+		imageService := &domainmocks.FakeImageService{}
+		imageService.IsImageFileReturns(true)
+		imageService.EditImageReturns("image-1.png", nil)
+		tool := newTestImageEditTool(imageService)
+
+		_, err := tool.Execute(context.Background(), map[string]any{
+			"image": "input.png", "prompt": "make it blue", "mask": "mask.png",
+		})
+
+		assert.NoError(t, err)
+		_, _, _, _, _, _, mask := imageService.EditImageArgsForCall(0)
+		assert.Equal(t, "mask.png", mask)
 	})
 
 	t.Run("edit failure is a failed result, not an error", func(t *testing.T) {
