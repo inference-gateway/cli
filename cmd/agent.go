@@ -52,7 +52,12 @@ Examples:
   # Resume existing sessions
   infer agent "continue fixing the authentication bug" --session-id abc-123-def
   infer agent "analyze these new error logs" --session-id abc-123 --files error.log
-  infer agent "try a different approach" --session-id abc-123 --no-save`,
+  infer agent "try a different approach" --session-id abc-123 --no-save
+
+Exit Codes:
+  0  task completed
+  1  the run failed
+  2  agent.max_turns was exhausted before the task completed`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
@@ -553,8 +558,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 	var sessionErr error
 
 	if !completedNormally && s.completedTurns >= s.maxTurns {
-		logger.Info("maximum turns reached", "turns", s.completedTurns)
-		logger.Info("agent session stopped early (max turns)", "turns", s.completedTurns)
+		logger.Info("agent session stopped early (max turns reached)", "turns", s.completedTurns)
 		sessionErr = fmt.Errorf("%w: agent reached the maximum of %d turns without completing the task", domain.ErrMaxTurnsReached, s.maxTurns)
 	}
 
