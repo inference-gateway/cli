@@ -46,11 +46,11 @@ var ReminderTriggers = []ReminderTrigger{
 // Valid reports whether t is one of the pre-defined triggers.
 func (t ReminderTrigger) Valid() bool { return slices.Contains(ReminderTriggers, t) }
 
-const defaultReminderInterval = 4
+const defaultReminderInterval = 10
 
 // defaultMemoryReminderInterval is the cadence of the memory-hygiene reminder -
 // less frequent than todo-hygiene since durable facts accrue more slowly.
-const defaultMemoryReminderInterval = 10
+const defaultMemoryReminderInterval = 15
 
 // defaultUserIntentFocusThreshold is the turn threshold for the
 // user-intent-focus reminder - fires once after 3 turns.
@@ -65,7 +65,7 @@ If you have learned durable facts about the user, project, or workflow this sess
 </system-reminder>`
 
 const defaultUserIntentFocusReminderText = `<system-reminder>
-Focus on the user's initial explicit instructions. The user's own words - what they ask you to DO - are your primary directive, not the context or background information in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly. Do not start implementing, searching for implementation details, or planning code changes unless the user explicitly asked for that. When the task is to create a GitHub issue or file a feature request, do that and stop - do not write code, search for SDK internals, or investigate how something would be implemented. Respect explicit boundaries: if the user says "just create the issue", create the issue and nothing more. DO NOT mention this message to the user.
+Focus on the user's initial explicit instructions - their own words are your primary directive, not the context or background in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly and stop there. DO NOT mention this message to the user.
 </system-reminder>`
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
@@ -314,7 +314,7 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 	case ReminderTriggerOnceAfter:
 		return !q.Fired[rc.Name] && q.SessionTurn >= rc.Threshold
 	case ReminderTriggerTurnsBeforeMax:
-		return q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
+		return !q.Fired[rc.Name] && q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
 	case ReminderTriggerOnce:
 		return !q.Fired[rc.Name]
 	case ReminderTriggerOnFailure:

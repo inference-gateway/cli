@@ -386,8 +386,8 @@ reminders:
       <system-reminder>Your todo list is empty ...</system-reminder>
     hook: pre_stream # where in the loop it fires (default: pre_stream)
     trigger: interval # when it fires at that hook (default: always)
-    interval: 4 # trigger: interval - fire every Nth session turn
-    threshold: 3 # trigger: turns_before_max - fire within N turns of max_turns
+    interval: 10 # trigger: interval - fire every Nth session turn
+    threshold: 3 # trigger: turns_before_max - fire once within N turns of max_turns
 ```
 
 **Hook points** (`hook`): `pre_session`, `post_session`, `pre_stream`, `post_stream`,
@@ -398,7 +398,7 @@ reminders:
 | Trigger | Fires |
 | --- | --- |
 | `always` | Every time the hook point fires (default). |
-| `interval` | Every Nth session turn (`interval`, default 4). |
+| `interval` | Every Nth session turn (`interval`, default 10). |
 | `turns_before_max` | Within `threshold` turns of `max_turns` (requires `threshold > 0`). |
 | `once` | The first firing of its hook point this run. |
 | `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |

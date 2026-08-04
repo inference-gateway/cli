@@ -94,9 +94,9 @@ func TestDefaultRemindersConfig(t *testing.T) {
 	}
 }
 
-// memory-hygiene is a periodic (every-10-turns) nudge to record durable facts,
+// memory-hygiene is a periodic (every-15-turns) nudge to record durable facts,
 // mirroring todo-hygiene but less frequent; it fires on pre_stream when
-// SessionTurn % 10 == 0.
+// SessionTurn % 15 == 0.
 func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 	cfg := config.DefaultRemindersConfig()
 
@@ -109,8 +109,8 @@ func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 	if mh == nil {
 		t.Fatal("default reminders should include memory-hygiene")
 	}
-	if mh.Hook != domain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 10 {
-		t.Errorf("memory-hygiene should fire every 10 turns on pre_stream: %+v", *mh)
+	if mh.Hook != domain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 15 {
+		t.Errorf("memory-hygiene should fire every 15 turns on pre_stream: %+v", *mh)
 	}
 
 	fires := func(turn int) bool {
@@ -121,11 +121,11 @@ func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 		}
 		return false
 	}
-	if fires(1) || fires(4) {
-		t.Error("memory-hygiene should not fire before turn 10")
+	if fires(1) || fires(10) {
+		t.Error("memory-hygiene should not fire before turn 15")
 	}
-	if !fires(10) || !fires(20) {
-		t.Error("memory-hygiene should fire at turns 10 and 20")
+	if !fires(15) || !fires(30) {
+		t.Error("memory-hygiene should fire at turns 15 and 30")
 	}
 }
 
@@ -147,14 +147,15 @@ func TestRemindersDue_Triggers(t *testing.T) {
 		fired    map[string]bool
 		want     bool
 	}{
-		{"interval hit", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 4}, 4, 0, nil, true},
-		{"interval miss", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 4}, 3, 0, nil, false},
-		{"interval turn zero", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 4}, 0, 0, nil, false},
-		{"interval default four", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval}, 8, 0, nil, true},
+		{"interval hit", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 10}, 10, 0, nil, true},
+		{"interval miss", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 10}, 3, 0, nil, false},
+		{"interval turn zero", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: 10}, 0, 0, nil, false},
+		{"interval default ten", config.ReminderConfig{Name: "i", Text: "t", Trigger: config.ReminderTriggerInterval}, 10, 0, nil, true},
 		{"turns_before_max inside", config.ReminderConfig{Name: "w", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 3}, 8, 10, nil, true},
 		{"turns_before_max boundary", config.ReminderConfig{Name: "w", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 3}, 7, 10, nil, true},
 		{"turns_before_max outside", config.ReminderConfig{Name: "w", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 3}, 6, 10, nil, false},
 		{"turns_before_max no max", config.ReminderConfig{Name: "w", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 3}, 8, 0, nil, false},
+		{"turns_before_max already fired", config.ReminderConfig{Name: "w", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax, Threshold: 3}, 8, 10, map[string]bool{"w": true}, false},
 		{"always", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerAlways}, 1, 0, nil, true},
 		{"empty trigger defaults to always", config.ReminderConfig{Name: "d", Text: "t"}, 1, 0, nil, true},
 		{"once not fired", config.ReminderConfig{Name: "o", Text: "t", Trigger: config.ReminderTriggerOnce}, 5, 0, nil, true},
