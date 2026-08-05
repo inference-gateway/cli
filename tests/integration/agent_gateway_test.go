@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -32,9 +33,22 @@ import (
 
 const runTimeout = 30 * time.Second
 
+// Model IDs used in tests — no "mock/" prefix so production code (parseProvider)
+// never needs to know about mock-specific prefixes.
+const (
+	testModel          = "openai/gpt-4o"
+	testAnthropicModel = "anthropic/claude-sonnet-4-5"
+	testDeepseekModel  = "deepseek/deepseek-v4-flash"
+)
+
 type env struct {
 	container *container.ServiceContainer
 	gateway   *mockgateway.Server
+}
+
+func repoRoot() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Dir(filepath.Dir(filepath.Dir(file)))
 }
 
 // newEnv builds a real service container pointed at an in-process mock
@@ -42,13 +56,22 @@ type env struct {
 // executions (Read, Grep, ...) stay sandboxed to fixtures.
 func newEnv(t *testing.T, mutate ...func(*config.Config)) *env {
 	t.Helper()
-	return newEnvWithScenarios(t, mockgateway.Default(), mutate...)
+	defs, err := mockgateway.LoadFile(filepath.Join(repoRoot(), "tests", "integration", "scenarios.yaml"))
+	require.NoError(t, err)
+	return newEnvWithScenarios(t, defs, mutate...)
 }
 
 // newEnvWithScenarios is newEnv with a custom scenario file (e.g. zero-usage
-// turns to force the token polyfill).
+// turns to force the token polyfill). Defs without their own models block get
+// the suite's standard models, so the mock never falls back to its built-in
+// "mock/"-prefixed defaults.
 func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ...func(*config.Config)) *env {
 	t.Helper()
+	if len(defs.Models) == 0 {
+		std, err := mockgateway.LoadFile(filepath.Join(repoRoot(), "tests", "integration", "scenarios.yaml"))
+		require.NoError(t, err)
+		defs.Models = std.Models
+	}
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)
@@ -62,7 +85,7 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 	cfg.Gateway.URL = ts.URL
 	cfg.Gateway.Run = false
 	cfg.Storage.Enabled = false
-	cfg.Agent.Model = mockgateway.DefaultModel
+	cfg.Agent.Model = testModel
 	cfg.Client.Retry.InitialBackoffSec = 0
 	cfg.Client.Retry.MaxAttempts = 3
 	cfg.Client.StallThresholdSec = 1
@@ -79,8 +102,8 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 
 	models, err := c.GetModelService().ListModels(context.Background())
 	require.NoError(t, err, "mock /v1/models must serve the real ModelService")
-	require.Equal(t, []string{mockgateway.DefaultModel, mockgateway.AnthropicModel}, models)
-	require.NoError(t, c.GetModelService().SelectModel(mockgateway.DefaultModel))
+	require.Equal(t, []string{testModel, testAnthropicModel, testDeepseekModel}, models)
+	require.NoError(t, c.GetModelService().SelectModel(testModel))
 
 	return &env{container: c, gateway: gw}
 }
@@ -137,7 +160,7 @@ func (e *env) runStream(ctx context.Context, t *testing.T, prompt string) result
 	t.Helper()
 	req := &domain.AgentRequest{
 		RequestID: fmt.Sprintf("req-%s", strings.ReplaceAll(t.Name(), "/", "-")),
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, prompt)},
 	}
 
@@ -377,7 +400,7 @@ func TestSyncRunParsesNonStreamingResponse(t *testing.T) {
 
 	resp, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
 		RequestID: "req-sync",
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},
 	})
 	require.NoError(t, err)
@@ -403,7 +426,7 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	syncEnv := newEnv(t)
 	resp, err := syncEnv.container.GetAgentService().Run(ctx, &domain.AgentRequest{
 		RequestID: "req-usage-sync",
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "report your usage")},
 	})
 	require.NoError(t, err)
@@ -487,7 +510,7 @@ func TestSyncRunAppendsVolatileTail(t *testing.T) {
 
 	_, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
 		RequestID: "req-sync-tail",
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},
 	})
 	require.NoError(t, err)
@@ -522,7 +545,7 @@ func TestStreamResumedMidToolCallStillGetsVolatileTail(t *testing.T) {
 	}
 	req := &domain.AgentRequest{
 		RequestID: "req-resume-tail",
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages: []sdk.Message{
 			userMessage(t, "resume after interruption"),
 			{Role: sdk.Assistant, Content: sdk.NewMessageContent("Reading."), ToolCalls: &toolCalls},
@@ -566,7 +589,7 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 
 	_, err = e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
 		RequestID: "req-polyfill-sync",
-		Model:     mockgateway.DefaultModel,
+		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "estimate me")},
 	})
 	require.NoError(t, err)
@@ -591,16 +614,16 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 func TestModelMetadataFromGateway(t *testing.T) {
 	newEnv(t)
 
-	window, known := models.LookupContextWindow(mockgateway.DefaultModel)
+	window, known := models.LookupContextWindow(testModel)
 	require.True(t, known, "gateway-reported model must be known")
 	require.Equal(t, mockgateway.DefaultContextWindow, window)
 
 	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
-	in, out, total := pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 1_000_000, 0, 0)
+	in, out, total := pricing.CalculateCost(testModel, 1_000_000, 1_000_000, 0, 0)
 	require.InDelta(t, 2.5, in, 1e-9)
 	require.InDelta(t, 10.0, out, 1e-9)
 	require.InDelta(t, 12.5, total, 1e-9)
 
-	in, _, _ = pricing.CalculateCost(mockgateway.DefaultModel, 1_000_000, 0, 1_000_000, 0)
+	in, _, _ = pricing.CalculateCost(testModel, 1_000_000, 0, 1_000_000, 0)
 	require.InDelta(t, 0.25, in, 1e-9, "cached tokens must bill at the cache-read rate")
 }

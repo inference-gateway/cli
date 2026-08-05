@@ -4,12 +4,13 @@ package e2e
 
 import (
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
 	require "github.com/stretchr/testify/require"
 
-	harness "github.com/inference-gateway/tokenless/harness"
+	tokenless "github.com/inference-gateway/tokenless"
 )
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
@@ -27,7 +28,9 @@ func TestChatTUIViaTmux(t *testing.T) {
 	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
 
 	launch := "env HOME=" + t.TempDir() +
-		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false " + binPath + " chat"
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
+		" " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 
@@ -59,7 +62,9 @@ func TestChatTUIBackgroundShellOutput(t *testing.T) {
 	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
 
 	launch := "env HOME=" + t.TempDir() +
-		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false " + binPath + " chat"
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
+		" " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 
@@ -99,6 +104,7 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 
 	launch := "env HOME=" + t.TempDir() +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" INFER_TOOLS_AGENT_MODE=headless INFER_TOOLS_AGENT_WAIT=false" +
 		" INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
@@ -130,15 +136,15 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 }
 
 func capturePane(session string) string {
-	return harness.CapturePane(session)
+	return tokenless.CapturePane(session)
 }
 
 func tmuxSendKeys(t *testing.T, session string, args ...string) {
 	t.Helper()
-	harness.SendKeys(t, session, args...)
+	tokenless.SendKeys(t, session, args...)
 }
 
 func waitForPane(t *testing.T, session, want string, timeout time.Duration) bool {
 	t.Helper()
-	return harness.WaitForPane(t, session, want, timeout)
+	return tokenless.WaitForPane(t, session, want, timeout)
 }

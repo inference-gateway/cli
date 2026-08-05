@@ -11,8 +11,6 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	mockgateway "github.com/inference-gateway/tokenless/gateway"
-
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -23,10 +21,10 @@ import (
 func newAnthropicEnv(t *testing.T) *env {
 	t.Helper()
 	e := newEnv(t, func(cfg *config.Config) {
-		cfg.Agent.Model = mockgateway.AnthropicModel
+		cfg.Agent.Model = testAnthropicModel
 		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
 	})
-	require.NoError(t, e.container.GetModelService().SelectModel(mockgateway.AnthropicModel))
+	require.NoError(t, e.container.GetModelService().SelectModel(testAnthropicModel))
 	return e
 }
 
@@ -34,7 +32,7 @@ func (e *env) runAnthropicStream(ctx context.Context, t *testing.T, prompt strin
 	t.Helper()
 	req := &domain.AgentRequest{
 		RequestID: fmt.Sprintf("req-%s", strings.ReplaceAll(t.Name(), "/", "-")),
-		Model:     mockgateway.AnthropicModel,
+		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, prompt)},
 	}
 	events, err := e.container.GetAgentService().RunWithStream(ctx, req)
@@ -134,10 +132,10 @@ func TestMessagesCacheWritePricing(t *testing.T) {
 	newAnthropicEnv(t)
 
 	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
-	in, _, _ := pricing.CalculateCost(mockgateway.AnthropicModel, 1_000_000, 0, 0, 1_000_000)
+	in, _, _ := pricing.CalculateCost(testAnthropicModel, 1_000_000, 0, 0, 1_000_000)
 	require.InDelta(t, 3.125, in, 1e-9, "cache writes must bill at the cache-write rate")
 
-	in, _, _ = pricing.CalculateCost(mockgateway.AnthropicModel, 1_000_000, 0, 400_000, 600_000)
+	in, _, _ = pricing.CalculateCost(testAnthropicModel, 1_000_000, 0, 400_000, 600_000)
 	require.InDelta(t, 0.4*0.25+0.6*3.125, in, 1e-9, "mixed read/write must bill each bucket at its rate")
 }
 
@@ -171,7 +169,7 @@ func TestMessagesSyncRun(t *testing.T) {
 
 	resp, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
 		RequestID: "req-messages-sync",
-		Model:     mockgateway.AnthropicModel,
+		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},
 	})
 	require.NoError(t, err)

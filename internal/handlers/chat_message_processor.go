@@ -14,6 +14,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 // issueRefRe matches `#<digits>` only at start-of-line or after whitespace, so
@@ -259,6 +260,9 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
 			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", filename)
+			if p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel()) {
+				imageRef = fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", filename)
+			}
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
@@ -374,7 +378,7 @@ func (p *ChatMessageProcessor) buildUserMessage(
 		}
 		contentParts = append(contentParts, imagePart)
 
-		if note := domain.ImagePathNote(img); note != "" {
+		if note := domain.ImagePathNoteForModel(img, models.SupportsVision(p.handler.modelService.GetCurrentModel())); note != "" {
 			if notePart, err := sdk.NewTextContentPart(note); err == nil {
 				contentParts = append(contentParts, notePart)
 			}

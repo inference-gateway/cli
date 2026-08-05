@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -34,6 +35,10 @@ type AnthropicMessages struct {
 	opts          *sdk.CreateChatCompletionRequest
 	tools         *[]sdk.ChatCompletionTool
 	cacheCreation atomic.Int64
+	// noEffort remembers models that rejected output_config.effort (e.g.
+	// Haiku 4.5) so later turns skip the parameter instead of re-tripping
+	// the same 400.
+	noEffort sync.Map
 }
 
 var _ sdk.Client = (*AnthropicMessages)(nil)
@@ -129,7 +134,12 @@ func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Pr
 		return a.inner.GenerateContent(ctx, provider, model, messages)
 	}
 
-	resp, err := a.inner.CreateMessage(ctx, provider, a.buildMessagesRequest(model, messages))
+	req := a.buildMessagesRequest(model, messages)
+	resp, err := a.inner.CreateMessage(ctx, provider, req)
+	if a.effortRejected(model, err) {
+		req.OutputConfig = nil
+		resp, err = a.inner.CreateMessage(ctx, provider, req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("anthropic /v1/messages request failed (the gateway must support the Messages API): %w", err)
 	}
@@ -144,7 +154,12 @@ func (a *AnthropicMessages) GenerateContentStream(ctx context.Context, provider 
 		return a.inner.GenerateContentStream(ctx, provider, model, messages)
 	}
 
-	in, err := a.inner.CreateMessageStream(ctx, provider, a.buildMessagesRequest(model, messages))
+	req := a.buildMessagesRequest(model, messages)
+	in, err := a.inner.CreateMessageStream(ctx, provider, req)
+	if a.effortRejected(model, err) {
+		req.OutputConfig = nil
+		in, err = a.inner.CreateMessageStream(ctx, provider, req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("anthropic /v1/messages request failed (the gateway must support the Messages API): %w", err)
 	}
@@ -201,9 +216,25 @@ func (a *AnthropicMessages) buildMessagesRequest(model string, messages []sdk.Me
 		req.Tools = &tools
 	}
 
-	req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
+	if _, rejected := a.noEffort.Load(model); !rejected {
+		req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
+	}
 
 	return req
+}
+
+// effortRejected reports whether err is Anthropic's 400 for models that do
+// not support output_config.effort (e.g. Haiku 4.5), recording the model so
+// subsequent requests omit the parameter up front. Anthropic publishes no
+// per-model capability flag for effort, so the rejection itself is the
+// detection.
+func (a *AnthropicMessages) effortRejected(model string, err error) bool {
+	if err == nil || !strings.Contains(err.Error(), "does not support the effort parameter") {
+		return false
+	}
+	a.noEffort.Store(model, true)
+	logger.Debug("model rejected output_config.effort; retrying without it", "model", model)
+	return true
 }
 
 func (a *AnthropicMessages) maxTokens() int {
@@ -318,9 +349,8 @@ func stageMessages(messages []sdk.Message) []*stagedMessage {
 				appendBlocks(sdk.MessagesMessageRoleUser, isVolatile(text), textBlock(text))
 			}
 		case sdk.User:
-			if text := messageText(msg); text != "" {
-				appendBlocks(sdk.MessagesMessageRoleUser, isVolatile(text), textBlock(text))
-			}
+			blocks, text := userBlocks(msg)
+			appendBlocks(sdk.MessagesMessageRoleUser, isVolatile(text), blocks...)
 		case sdk.Assistant:
 			blocks, text := assistantBlocks(msg)
 			appendBlocks(sdk.MessagesMessageRoleAssistant, isVolatile(text), blocks...)
@@ -428,6 +458,64 @@ func messageText(msg sdk.Message) string {
 		}
 	}
 	return b.String()
+}
+
+// userBlocks maps a user message to text + image blocks. All Anthropic
+// models accept image input, so image parts translate unconditionally; the
+// chat/agent paths attach them as data URLs, remote images as http(s) URLs.
+func userBlocks(msg sdk.Message) ([]sdk.MessagesRequestContentBlock, string) {
+	var blocks []sdk.MessagesRequestContentBlock
+	text := messageText(msg)
+	if text != "" {
+		blocks = append(blocks, textBlock(text))
+	}
+
+	parts, err := msg.Content.AsMessageContent1()
+	if err != nil {
+		return blocks, text
+	}
+	for _, part := range parts {
+		ip, err := part.AsImageContentPart()
+		if err != nil || ip.ImageURL.URL == "" {
+			continue
+		}
+		if block, ok := imageBlock(ip.ImageURL.URL); ok {
+			blocks = append(blocks, block)
+		}
+	}
+	return blocks, text
+}
+
+// imageBlock converts a chat-completions image URL — a "data:<media>;base64,"
+// payload or a plain http(s) URL — into an Anthropic image content block.
+func imageBlock(url string) (sdk.MessagesRequestContentBlock, bool) {
+	var block sdk.MessagesRequestContentBlock
+	if rest, found := strings.CutPrefix(url, "data:"); found {
+		mediaType, data, ok := strings.Cut(rest, ";base64,")
+		if !ok || data == "" {
+			return block, false
+		}
+		_ = block.FromMessagesImageBlock(sdk.MessagesImageBlock{
+			Type: sdk.MessagesImageBlockTypeImage,
+			Source: sdk.MessagesImageSource{
+				Type:      sdk.MessagesImageSourceTypeBase64,
+				MediaType: &mediaType,
+				Data:      &data,
+			},
+		})
+		return block, true
+	}
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+		_ = block.FromMessagesImageBlock(sdk.MessagesImageBlock{
+			Type: sdk.MessagesImageBlockTypeImage,
+			Source: sdk.MessagesImageSource{
+				Type: sdk.MessagesImageSourceTypeURL,
+				URL:  &url,
+			},
+		})
+		return block, true
+	}
+	return block, false
 }
 
 func textBlock(text string) sdk.MessagesRequestContentBlock {

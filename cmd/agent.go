@@ -25,6 +25,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
@@ -848,7 +849,7 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 		}
 		contentParts = append(contentParts, imagePart)
 
-		if note := domain.ImagePathNote(img); note != "" {
+		if note := domain.ImagePathNoteForModel(img, models.SupportsVision(s.model)); note != "" {
 			if notePart, err := sdk.NewTextContentPart(note); err == nil {
 				contentParts = append(contentParts, notePart)
 			}
