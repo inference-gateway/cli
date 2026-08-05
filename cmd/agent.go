@@ -27,7 +27,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
@@ -537,25 +536,31 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		s.dispatchHooks(domain.HookPostTool, turn)
 		s.completedTurns++
+
+		stalled := s.lastResponseHadNoToolCalls()
+		drained := 0
+		if stalled {
+			if drained = s.drainBackgroundResults(monitorCtx); drained > 0 {
+				stalled = false
+			}
+		}
+		if stalled {
+			consecutiveNoToolCalls++
+		} else {
+			consecutiveNoToolCalls = 0
+		}
+		s.stalledStrikes = consecutiveNoToolCalls
 		s.dispatchHooks(domain.HookPostStream, turn)
 
-		if !s.lastResponseHadNoToolCalls() {
-			consecutiveNoToolCalls = 0
-			s.injectDrained(s.bgWaiter.TryDrain())
+		if !stalled {
+			if drained == 0 {
+				s.injectDrained(s.bgWaiter.TryDrain())
+			}
 			continue
 		}
-
-		injected := s.drainBackgroundResults(monitorCtx)
-		if injected > 0 {
-			consecutiveNoToolCalls = 0
-			continue
-		}
-
-		consecutiveNoToolCalls++
 
 		if s.lastFinishReason == string(sdk.Length) {
 			logger.Warn("response truncated by token limit; continuing", "strike", consecutiveNoToolCalls)
-			s.stalledStrikes = consecutiveNoToolCalls
 			continue
 		}
 
@@ -563,7 +568,6 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		if len(incomplete) > 0 && consecutiveNoToolCalls < 3 {
 			logger.Info("no tool calls but todos incomplete; nudging model to continue",
 				"incomplete", len(incomplete), "strike", consecutiveNoToolCalls, "finish_reason", s.lastFinishReason)
-			s.stalledStrikes = consecutiveNoToolCalls
 			continue
 		}
 
@@ -655,39 +659,6 @@ func incompleteTodoItems(todos []domain.TodoItem) []domain.TodoItem {
 		}
 	}
 	return incomplete
-}
-
-// todoContinuationMessage is the headless loop's termination guard (#946): a
-// no-tool-call reply normally ends the session, but while the model's own todo
-// list still has open items the reply is treated as a stall, not completion.
-func todoContinuationMessage(incomplete []domain.TodoItem) ConversationMessage {
-	var items strings.Builder
-	for _, t := range incomplete {
-		fmt.Fprintf(&items, "- [%s] %s\n", t.Status, t.Content)
-	}
-	return ConversationMessage{
-		Role: "user",
-		Content: fmt.Sprintf(`<system-reminder>
-This is an automated check, not a message from the user. Your todo list still has incomplete items:
-%sYour last reply had no tool calls, which ends the session. Continue working on the next incomplete item now, using tool calls. If an item is already done or obsolete, update the list via TodoWrite (mark it completed or remove it) before stopping. Do not reply with prose only.
-</system-reminder>`, items.String()),
-		Timestamp: time.Now(),
-		Internal:  true,
-	}
-}
-
-// truncationContinuationMessage is injected when finish_reason is "length": the
-// reply was cut off by the token limit and may have swallowed a pending tool
-// call, so it is never treated as completion.
-func truncationContinuationMessage() ConversationMessage {
-	return ConversationMessage{
-		Role: "user",
-		Content: `<system-reminder>
-This is an automated check, not a message from the user. Your previous response was truncated by the token limit before any tool call was emitted. Continue where you left off: keep the reply short and re-issue the intended tool call.
-</system-reminder>`,
-		Timestamp: time.Now(),
-		Internal:  true,
-	}
 }
 
 // completionNotice distills a drained background-task result into a one-line
@@ -1324,27 +1295,21 @@ func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
 		Fired:       s.firedReminders,
 		ToolFailed:  s.lastToolFailed,
 	}
-	for _, r := range provider.RemindersDue(q) {
+	if hook == domain.HookPostStream && s.stalledStrikes > 0 {
+		q.FinishReason = s.lastFinishReason
+		q.StalledStrikes = s.stalledStrikes
+		if s.lastFinishReason != string(sdk.Length) { // truncation nudge wins over the todo nudge
+			q.IncompleteTodos = incompleteTodoItems(s.latestTodos)
+		}
+	}
+	agent.InjectDueReminders(provider, q, func(r domain.SystemReminder) {
 		s.addMessage(ConversationMessage{
 			Role:      "user",
 			Content:   r.Text,
 			Timestamp: time.Now(),
 			Internal:  true,
 		})
-		logger.Info("system reminder injected",
-			"turn", turn,
-			"hook", string(hook),
-			"name", r.Name,
-			"reminder_chars", len(r.Text),
-		)
-		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
-			"turn":         turn,
-			"session_turn": turn,
-			"hook":         string(hook),
-			"name":         r.Name,
-		})
-		s.firedReminders[r.Name] = true
-	}
+	})
 }
 
 func (s *AgentSession) addMessage(msg ConversationMessage) {

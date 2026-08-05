@@ -1148,17 +1148,15 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		s.firedReminders = make(map[string]bool)
 	}
 
-	sessionTurn := int(s.sessionTurns.Load())
 	q := domain.ReminderQuery{
 		Hook:        hook,
 		Turn:        agentCtx.Turns,
-		SessionTurn: sessionTurn,
+		SessionTurn: int(s.sessionTurns.Load()),
 		MaxTurns:    agentCtx.MaxTurns,
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}
 	if hook == domain.HookPostTool {
-		q.ToolFailed = agentCtx.LastToolFailed
 		if name, n := s.takeRepeatedFailure(); name != "" {
 			q.RepeatedFailures = n
 			q.FailedTool = name
@@ -1167,26 +1165,39 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 	if hook == domain.HookPreStream {
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
 	}
-	for _, r := range provider.RemindersDue(q) {
+	InjectDueReminders(provider, q, func(r domain.SystemReminder) {
 		if r.AppendToToolResult {
 			s.appendToLastToolMessage(agentCtx, r)
 		} else {
 			s.injectReminderAsUserMessage(agentCtx, r)
 		}
+	})
+}
 
+// InjectDueReminders is the single reminder-injection seam shared by the chat
+// (AgentServiceImpl) and headless (AgentSession) loops: it resolves the
+// reminders due for q, delivers each via the caller-owned deliver callback
+// (the two loops hold different conversation representations), logs it, emits
+// the tagged system_reminder stream event, and marks the name in q.Fired.
+// Callers own provider resolution, the awaiting-tool-results guard, query
+// construction, and locking.
+func InjectDueReminders(provider domain.SystemReminderProvider, q domain.ReminderQuery, deliver func(domain.SystemReminder)) {
+	for _, r := range provider.RemindersDue(q) {
+		deliver(r)
 		logger.Debug("system reminder injected",
-			"session_turn", sessionTurn,
-			"hook", string(hook),
+			"turn", q.Turn,
+			"session_turn", q.SessionTurn,
+			"hook", string(q.Hook),
 			"name", r.Name,
 			"reminder_chars", len(r.Text),
 		)
 		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
-			"turn":         agentCtx.Turns,
-			"session_turn": sessionTurn,
-			"hook":         string(hook),
+			"turn":         q.Turn,
+			"session_turn": q.SessionTurn,
+			"hook":         string(q.Hook),
 			"name":         r.Name,
 		})
-		s.firedReminders[r.Name] = true
+		q.Fired[r.Name] = true
 	}
 }
 

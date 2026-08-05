@@ -82,6 +82,8 @@ type SystemReminder struct {
 // IncompleteTodos carries the remaining open todo items from the model's
 // TodoWrite list; it drives the `on_stalled_todos` trigger at the post_stream
 // hook (firing when non-empty and the response had no tool calls).
+// StalledStrikes is the count of consecutive no-tool-call responses, gating
+// that trigger's strike cap (threshold).
 //
 // ModeChanged reports whether the agent mode differs from the previous
 // streaming turn; PrevMode/Mode carry the transition. They are meaningful only
@@ -98,6 +100,7 @@ type ReminderQuery struct {
 	FailedTool       string
 	FinishReason     string
 	IncompleteTodos  []TodoItem
+	StalledStrikes   int
 	ModeChanged      bool
 	PrevMode         AgentMode
 	Mode             AgentMode

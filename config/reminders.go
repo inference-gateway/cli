@@ -406,7 +406,7 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 		return q.FinishReason == "length"
 	case ReminderTriggerOnStalledTodos:
 		strikeCap := cmp.Or(rc.Threshold, defaultStalledTodosThreshold)
-		return len(q.IncompleteTodos) > 0 && q.RepeatedFailures < strikeCap
+		return len(q.IncompleteTodos) > 0 && q.StalledStrikes < strikeCap
 	default:
 		return false
 	}
