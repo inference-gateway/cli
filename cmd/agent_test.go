@@ -1578,3 +1578,127 @@ func TestCompletionNotice(t *testing.T) {
 		})
 	}
 }
+
+func TestAddMessageCapturesTodoSnapshot(t *testing.T) {
+	todos := []domain.TodoItem{
+		{ID: "1", Content: "bump the sdk", Status: "completed"},
+		{ID: "2", Content: "wire modalities", Status: "in_progress"},
+	}
+
+	tests := []struct {
+		name      string
+		execution *domain.ToolExecutionResult
+		want      int
+	}{
+		{
+			name: "successful TodoWrite result captured",
+			execution: &domain.ToolExecutionResult{
+				ToolName: "TodoWrite",
+				Success:  true,
+				Data:     &domain.TodoWriteToolResult{Todos: todos},
+			},
+			want: 2,
+		},
+		{
+			name: "failed TodoWrite result ignored",
+			execution: &domain.ToolExecutionResult{
+				ToolName: "TodoWrite",
+				Success:  false,
+				Data:     &domain.TodoWriteToolResult{Todos: todos},
+			},
+			want: 0,
+		},
+		{
+			name: "non-todo tool result ignored",
+			execution: &domain.ToolExecutionResult{
+				ToolName: "Read",
+				Success:  true,
+				Data:     "file content",
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := &AgentSession{}
+			session.addMessage(ConversationMessage{
+				Role:          "tool",
+				Content:       "result",
+				ToolExecution: tt.execution,
+				Timestamp:     mockTime(),
+			})
+			if len(session.latestTodos) != tt.want {
+				t.Errorf("latestTodos = %d items, want %d", len(session.latestTodos), tt.want)
+			}
+		})
+	}
+}
+
+func TestIncompleteTodoItems(t *testing.T) {
+	tests := []struct {
+		name  string
+		todos []domain.TodoItem
+		want  int
+	}{
+		{"no todos", nil, 0},
+		{"all completed", []domain.TodoItem{
+			{ID: "1", Content: "a", Status: "completed"},
+			{ID: "2", Content: "b", Status: "completed"},
+		}, 0},
+		{"mixed statuses", []domain.TodoItem{
+			{ID: "1", Content: "a", Status: "completed"},
+			{ID: "2", Content: "b", Status: "in_progress"},
+			{ID: "3", Content: "c", Status: "pending"},
+		}, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := incompleteTodoItems(tt.todos); len(got) != tt.want {
+				t.Errorf("incompleteTodoItems = %d items, want %d", len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestTodoContinuationMessage(t *testing.T) {
+	msg := todoContinuationMessage([]domain.TodoItem{
+		{ID: "1", Content: "wire modalities", Status: "in_progress"},
+		{ID: "2", Content: "open draft PR", Status: "pending"},
+	})
+
+	if msg.Role != "user" || !msg.Internal {
+		t.Errorf("nudge must be an internal user message, got role=%q internal=%v", msg.Role, msg.Internal)
+	}
+	for _, want := range []string{"<system-reminder>", "[in_progress] wire modalities", "[pending] open draft PR"} {
+		if !strings.Contains(msg.Content, want) {
+			t.Errorf("nudge content missing %q:\n%s", want, msg.Content)
+		}
+	}
+}
+
+func TestTruncationContinuationMessage(t *testing.T) {
+	msg := truncationContinuationMessage()
+	if msg.Role != "user" || !msg.Internal {
+		t.Errorf("truncation note must be an internal user message, got role=%q internal=%v", msg.Role, msg.Internal)
+	}
+	if !strings.Contains(msg.Content, "truncated by the token limit") {
+		t.Errorf("truncation note content unexpected:\n%s", msg.Content)
+	}
+}
+
+func TestProcessSyncResponseRecordsFinishReason(t *testing.T) {
+	session := &AgentSession{}
+
+	err := session.processSyncResponse(&domain.ChatSyncResponse{
+		RequestID:    "req_1",
+		FinishReason: "length",
+	}, "req_1")
+	if err != nil {
+		t.Fatalf("processSyncResponse: %v", err)
+	}
+	if session.lastFinishReason != "length" {
+		t.Errorf("lastFinishReason = %q, want %q (must be recorded even for empty responses)", session.lastFinishReason, "length")
+	}
+}
