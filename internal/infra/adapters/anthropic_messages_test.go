@@ -422,3 +422,39 @@ func TestGenerateContentRetriesWithoutEffortWhenRejected(t *testing.T) {
 	_, _, third := fake.CreateMessageArgsForCall(2)
 	assert.Nil(t, third.OutputConfig, "rejected model skips effort up front")
 }
+
+// TestBuildMessagesRequestTranslatesImageParts verifies multimodal user
+// messages survive the /v1/messages translation: data-URL image parts become
+// base64 image blocks, http(s) URLs become url-source blocks, and the text
+// part rides alongside. All Anthropic models accept image input, so no
+// capability gating applies.
+func TestBuildMessagesRequestTranslatesImageParts(t *testing.T) {
+	textPart, err := sdk.NewTextContentPart("What's in this image?")
+	require.NoError(t, err)
+	dataPart, err := sdk.NewImageContentPart("data:image/png;base64,aGVsbG8=", nil)
+	require.NoError(t, err)
+	urlPart, err := sdk.NewImageContentPart("https://example.com/pic.jpg", nil)
+	require.NoError(t, err)
+	content := sdk.NewMessageContent([]sdk.ContentPart{textPart, dataPart, urlPart})
+
+	adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+	shape := decodeRequest(t, adapter.buildMessagesRequest("claude-haiku-4-5",
+		[]sdk.Message{{Role: sdk.User, Content: content}}))
+
+	require.Len(t, shape.Messages, 1)
+	blocks := shape.Messages[0].Content
+	require.Len(t, blocks, 3)
+	assert.Equal(t, "text", blocks[0]["type"])
+	assert.Equal(t, "What's in this image?", blocks[0]["text"])
+
+	assert.Equal(t, "image", blocks[1]["type"])
+	src := blocks[1]["source"].(map[string]any)
+	assert.Equal(t, "base64", src["type"])
+	assert.Equal(t, "image/png", src["media_type"])
+	assert.Equal(t, "aGVsbG8=", src["data"])
+
+	assert.Equal(t, "image", blocks[2]["type"])
+	src = blocks[2]["source"].(map[string]any)
+	assert.Equal(t, "url", src["type"])
+	assert.Equal(t, "https://example.com/pic.jpg", src["url"])
+}
