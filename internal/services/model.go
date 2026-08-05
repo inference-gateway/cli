@@ -61,8 +61,10 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		if model.Modalities != nil {
 			modalities[model.ID] = *model.Modalities
 		}
-		if isImageGenModel(model.Modalities) {
-			continue
+		if model.Modalities != nil {
+			if hasText, hasImage := models.TextImage(*model.Modalities); hasImage && !hasText {
+				continue
+			}
 		}
 		ids = append(ids, model.ID)
 		if cw := model.ContextWindow; cw != nil && cw.Tokens > 0 {
@@ -171,23 +173,4 @@ func (s *HTTPModelService) handleListModelsError(modelID string, _ /* err */ err
 // isValidModelFormat performs basic format validation on model IDs
 func isValidModelFormat(modelID string) bool {
 	return strings.Contains(modelID, "/") && len(modelID) > 3
-}
-
-// isImageGenModel reports whether a model's modalities indicate it generates
-// images rather than text (has "image" but NOT "text"). Returns false when
-// modalities is nil (unknown model).
-func isImageGenModel(modalities *[]sdk.ModelModalities) bool {
-	if modalities == nil {
-		return false
-	}
-	hasText, hasImage := false, false
-	for _, m := range *modalities {
-		switch m {
-		case sdk.ModelModalitiesText:
-			hasText = true
-		case sdk.ModelModalitiesImage:
-			hasImage = true
-		}
-	}
-	return hasImage && !hasText
 }

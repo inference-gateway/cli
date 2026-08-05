@@ -42,18 +42,9 @@ func SetGatewayModalities(modalities map[string][]sdk.ModelModalities) {
 	gatewayMu.Unlock()
 }
 
-// SupportsVision reports whether the model supports native image input
-// (modalities include both "text" and "image"). Image-generation models
-// (dall-e, flux) have "image" only and return false. Models not in the
-// registry or with nil modalities also return false.
-func SupportsVision(modelID string) bool {
-	gatewayMu.RLock()
-	defer gatewayMu.RUnlock()
-	mods, ok := gatewayModalities[strings.ToLower(modelID)]
-	if !ok || len(mods) == 0 {
-		return false
-	}
-	hasText, hasImage := false, false
+// TextImage reports whether a modality list contains "text" and "image"
+// respectively. All modality-derived predicates route through this one loop.
+func TextImage(mods []sdk.ModelModalities) (hasText, hasImage bool) {
 	for _, m := range mods {
 		switch m {
 		case sdk.ModelModalitiesText:
@@ -62,6 +53,21 @@ func SupportsVision(modelID string) bool {
 			hasImage = true
 		}
 	}
+	return hasText, hasImage
+}
+
+func modelModalities(modelID string) []sdk.ModelModalities {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	return gatewayModalities[strings.ToLower(modelID)]
+}
+
+// SupportsVision reports whether the model supports native image input
+// (modalities include both "text" and "image"). Image-generation models
+// (dall-e, flux) have "image" only and return false. Models not in the
+// registry or with nil modalities also return false.
+func SupportsVision(modelID string) bool {
+	hasText, hasImage := TextImage(modelModalities(modelID))
 	return hasText && hasImage
 }
 
@@ -69,22 +75,7 @@ func SupportsVision(modelID string) bool {
 // than text (modalities include "image" but NOT "text"). Falls back to
 // false when the model is not in the registry.
 func IsImageGenerationModel(modelID string) bool {
-	gatewayMu.RLock()
-	defer gatewayMu.RUnlock()
-	mods, ok := gatewayModalities[strings.ToLower(modelID)]
-	if !ok || len(mods) == 0 {
-		return false
-	}
-	hasText := false
-	hasImage := false
-	for _, m := range mods {
-		switch m {
-		case sdk.ModelModalitiesText:
-			hasText = true
-		case sdk.ModelModalitiesImage:
-			hasImage = true
-		}
-	}
+	hasText, hasImage := TextImage(modelModalities(modelID))
 	return hasImage && !hasText
 }
 
@@ -93,21 +84,7 @@ func IsImageGenerationModel(modelID string) bool {
 // (text+image) get "vision"; image-generation models (image only) get
 // "image-gen"; text-only models get "".
 func ModalitiesLabel(modelID string) string {
-	gatewayMu.RLock()
-	defer gatewayMu.RUnlock()
-	mods, ok := gatewayModalities[strings.ToLower(modelID)]
-	if !ok || len(mods) == 0 {
-		return ""
-	}
-	hasText, hasImage := false, false
-	for _, m := range mods {
-		switch m {
-		case sdk.ModelModalitiesText:
-			hasText = true
-		case sdk.ModelModalitiesImage:
-			hasImage = true
-		}
-	}
+	hasText, hasImage := TextImage(modelModalities(modelID))
 	switch {
 	case hasText && hasImage:
 		return "vision"

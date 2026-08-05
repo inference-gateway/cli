@@ -18,6 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 func TestImageService_IsImageURL(t *testing.T) {
@@ -240,7 +241,23 @@ func TestImageService_IsImageFile(t *testing.T) {
 	}
 }
 
+// TestImageService_IsImageModel verifies that image-model detection is driven
+// by gateway-reported modalities: "image" without "text" means image-gen;
+// anything else (vision, text-only, unknown) is not.
 func TestImageService_IsImageModel(t *testing.T) {
+	imageMods := []sdk.ModelModalities{sdk.ModelModalitiesImage}
+	textMods := []sdk.ModelModalities{sdk.ModelModalitiesText}
+	visionMods := []sdk.ModelModalities{sdk.ModelModalitiesText, sdk.ModelModalitiesImage}
+	models.SetGatewayModalities(map[string][]sdk.ModelModalities{
+		"openai/gpt-image-2":        imageMods,
+		"openai/dall-e-3":           imageMods,
+		"deepinfra/FLUX-1-schnell":  imageMods,
+		"google/nano-banana":        imageMods,
+		"openai/gpt-4o":             visionMods,
+		"anthropic/claude-sonnet-5": textMods,
+	})
+	defer models.SetGatewayModalities(nil)
+
 	tests := []struct {
 		name     string
 		model    string
@@ -250,8 +267,9 @@ func TestImageService_IsImageModel(t *testing.T) {
 		{"dall-e", "openai/dall-e-3", true},
 		{"flux", "deepinfra/FLUX-1-schnell", true},
 		{"nano-banana", "google/nano-banana", true},
-		{"text model", "openai/gpt-4o", false},
-		{"text model with image in provider path", "anthropic/claude-sonnet-5", false},
+		{"vision model", "openai/gpt-4o", false},
+		{"text model", "anthropic/claude-sonnet-5", false},
+		{"unknown model", "some/unknown-model", false},
 		{"empty", "", false},
 	}
 
