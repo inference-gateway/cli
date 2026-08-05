@@ -68,6 +68,14 @@ Exit Codes:
 		heartbeat, _ := cmd.Flags().GetBool("heartbeat")
 		remote, _ := cmd.Flags().GetBool("remote")
 		resultFile, _ := cmd.Flags().GetString("result-file")
+		outputFormat, _ := cmd.Flags().GetString("output-format")
+		switch outputFormat {
+		case "", "json":
+		case "ag-ui":
+			agui = &aguiEncoder{w: os.Stdout}
+		default:
+			return fmt.Errorf("invalid --output-format %q (supported: json, ag-ui)", outputFormat)
+		}
 		return RunAgentCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat, remote, resultFile)
 	},
 }
@@ -254,6 +262,13 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.maybeRollover()
 
+	if agui != nil {
+		agui.emitRunStarted(session.sessionID)
+		if len(session.conversation) > 0 {
+			agui.emitMessagesSnapshot(session.conversation)
+		}
+	}
+
 	rec := svc.GetTelemetryRecorder()
 	rec.SetConversationID(session.sessionID)
 	sessionStart := time.Now()
@@ -261,6 +276,10 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	session.telemetryCtx = rec.SpanContext(context.Background())
 
 	err = session.execute(taskDescription, files)
+
+	if agui != nil && err == nil {
+		agui.emitRunFinished()
+	}
 
 	endSessionSpan(agentSessionOutcome(err))
 	rec.RecordSession(agentMode.AllowedlistKey(), agentSessionOutcome(err), time.Since(sessionStart))
@@ -1142,6 +1161,10 @@ func outputAgentError(message string) {
 	if len(message) > maxLen {
 		message = message[:maxLen] + "…"
 	}
+	if agui != nil {
+		agui.emitRunError(message)
+		return
+	}
 	msg := domain.AgentErrorMessage{Type: "agent_error", Message: message}
 	out, err := json.Marshal(msg)
 	if err != nil {
@@ -1160,6 +1183,10 @@ func (s *AgentSession) outputApprovalRequest(tc sdk.ChatCompletionMessageToolCal
 		ToolName:   tc.Function.Name,
 		ToolArgs:   tc.Function.Arguments,
 		ToolCallID: tc.ID,
+	}
+	if agui != nil {
+		agui.emitApprovalRequest(req)
+		return
 	}
 	output, err := json.Marshal(req)
 	if err != nil {
@@ -1338,6 +1365,9 @@ func (s *AgentSession) addMessage(msg ConversationMessage) {
 	if msg.ToolExecution != nil && msg.ToolExecution.Success {
 		if todoResult, ok := msg.ToolExecution.Data.(*domain.TodoWriteToolResult); ok {
 			s.latestTodos = todoResult.Todos
+			if agui != nil {
+				agui.emitTodos(todoResult.Todos)
+			}
 		}
 	}
 
@@ -1390,6 +1420,11 @@ func (s *AgentSession) initializeSession(sessionID string) (bool, error) {
 
 func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	if msg.Role == "system" || msg.Internal {
+		return
+	}
+
+	if agui != nil {
+		agui.emitMessage(msg)
 		return
 	}
 
@@ -1462,6 +1497,13 @@ func (s *AgentSession) outputStatusMessage(messageType, message string, metadata
 
 	for k, v := range metadata {
 		statusMsg[k] = v
+	}
+
+	if agui != nil {
+		if messageType == "session_stats" {
+			agui.result = statusMsg
+		}
+		return
 	}
 
 	output, err := json.Marshal(statusMsg)
@@ -1562,5 +1604,6 @@ func init() {
 	agentCmd.Flags().Bool("heartbeat", false, "Run with the heartbeat system prompt (used by the heartbeat service)")
 	agentCmd.Flags().Bool("remote", false, "Run with the remote-control system prompt (used by the channels-manager daemon)")
 	agentCmd.Flags().String("result-file", "", "Write the final assistant message and outcome as JSON to this path on exit (used by the Agent tool to harvest detached subagents)")
+	agentCmd.Flags().String("output-format", "json", "Stdout format: json (legacy CLI lines) or ag-ui (newline-delimited AG-UI protocol events)")
 	rootCmd.AddCommand(agentCmd)
 }

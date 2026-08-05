@@ -62,6 +62,11 @@ require (
 )
 
 require (
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260805190036-2a57151d9e7b
+	github.com/sirupsen/logrus v1.9.3 // indirect
+)
+
+require (
 	github.com/BurntSushi/freetype-go v0.0.0-20160129220410-b763ddbfe298 // indirect
 	github.com/BurntSushi/graphics-go v0.0.0-20160129215708-b43f31a4a966 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
