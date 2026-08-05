@@ -54,7 +54,6 @@ type AgentServiceImpl struct {
 	firedReminders map[string]bool
 	reminderMux    sync.Mutex
 
-	// ponytail: session-lifetime map of identical failing tool calls
 	// (name+args), reset per key on success; backs the retry-loop breaker
 	failedCalls    map[string]int
 	failedCallsMux sync.Mutex
@@ -698,6 +697,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		logger.Info("execution is paused, waiting for resume")
 		return nil, fmt.Errorf("execution is paused")
 	}
+
+	// Retry loops the repeated-failure breaker targets happen within a single
+	// run; resetting per run also keeps the map from growing across a session.
+	s.failedCallsMux.Lock()
+	clear(s.failedCalls)
+	s.failedCallsMux.Unlock()
 
 	chatEvents := make(chan domain.ChatEvent, 1000)
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
