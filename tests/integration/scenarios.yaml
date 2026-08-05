@@ -1,0 +1,207 @@
+# Test scenario library — same scenarios as the tokenless built-in library,
+# but with model IDs that do NOT carry the "mock/" prefix. Production code
+# (parseProvider) must never know about mock-specific prefixes; the test
+# boundary owns that concern.
+#
+# ponytail: model IDs without "mock/" prefix so parseProvider stays clean.
+
+models:
+  - id: openai/gpt-4o
+    object: model
+    owned_by: openai
+    served_by: openai
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: { input: [text, image], output: [text] }
+  - id: anthropic/claude-sonnet-4-5
+    object: model
+    owned_by: anthropic
+    served_by: anthropic
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: { input: [text, image], output: [text] }
+  - id: openai/gpt-image-2
+    object: model
+    owned_by: openai
+    served_by: openai
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: { input: [text, image], output: [image] }
+  - id: deepseek/deepseek-v4-flash
+    object: model
+    owned_by: deepseek
+    served_by: deepseek
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: { input: [text], output: [text] }
+
+fallback:
+  content: "Done."
+
+scenarios:
+  - name: text-only
+    match: '(?i)^say hello'
+    turns:
+      - content: "Hello! How can I help?"
+
+  - name: parallel-reads
+    match: '(?i)execute (the )?Read tool 4 times in parallel'
+    turns:
+      - tool_calls:
+              - { name: Read, args: { file_path: "a.txt" } }
+              - { name: Read, args: { file_path: "b.txt" } }
+              - { name: Read, args: { file_path: "c.txt" } }
+              - { name: Read, args: { file_path: "d.txt" } }
+      - content: "All four files read."
+
+  - name: search
+    match: '(?i)^please search for (.+)'
+    turns:
+      - tool_calls:
+              - { name: Grep, args: { pattern: "TODO", path: "." } }
+      - content: "Search finished: found matches for TODO."
+
+  - name: sequential-explore
+    match: '(?i)explore the project structure'
+    turns:
+      - tool_calls:
+              - { name: Tree, args: { path: "." } }
+      - tool_calls:
+              - { name: Read, args: { file_path: "a.txt" } }
+      - content: "The project contains a.txt with fixture content."
+
+  - name: write-blocked
+    match: '(?i)create a file named blocked\.txt'
+    turns:
+      - tool_calls:
+              - { name: Write, args: { file_path: "blocked.txt", content: "hi" } }
+      - content: "Understood, the write was not permitted."
+
+  - name: bash-allowed
+    match: '(?i)run the echo command'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-bash" } }
+      - content: "The echo command ran."
+
+  - name: bash-blocked
+    match: '(?i)run the forbidden command'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "curl http://example.com" } }
+      - content: "Understood, the command was not permitted."
+
+  - name: error-retry
+    match: '(?i)flaky backend'
+    turns:
+      - error: { status: 429, times: 2 }
+        content: "Recovered after retries."
+
+  - name: error-hard
+    match: '(?i)always fails'
+    turns:
+      - error: { status: 500, times: -1 }
+
+  - name: stalled-stream
+    match: '(?i)stall the stream'
+    turns:
+      - stall: { times: 1 }
+        content: "Reconnected after the stall."
+
+  - name: stalled-connect
+    match: '(?i)hang the connection'
+    turns:
+      - stall: { times: 1, connect: true }
+        content: "Connected after the hang."
+
+  - name: malformed-sse
+    match: '(?i)garbled stream'
+    turns:
+      - malformed: true
+        content: "Still standing."
+
+  - name: slow-stream
+    match: '(?i)stream slowly'
+    turns:
+      - content: "This response is intentionally streamed in very small fragments with a per-frame delay so that progressive rendering, spinner behaviour and mid-stream cancellation can be observed and asserted deterministically by tests."
+        chunk_size: 4
+        delay_ms: 50
+
+  - name: usage-report
+    match: '(?i)report your usage'
+    turns:
+      - content: "Usage reported."
+        usage: { prompt_tokens: 100, completion_tokens: 42, cached_tokens: 64 }
+
+  - name: anthropic-cache
+    match: '(?i)exercise the anthropic cache'
+    turns:
+      - reasoning: "Deciding which file to inspect first."
+        tool_calls:
+              - { name: Read, args: { file_path: "a.txt" } }
+        usage: { prompt_tokens: 230, completion_tokens: 25, cache_write_tokens: 100 }
+      - content: "Cache exercised."
+        usage: { prompt_tokens: 260, completion_tokens: 12, cached_tokens: 120 }
+
+  - name: read-missing
+    match: '(?i)read the missing file'
+    turns:
+      - tool_calls:
+              - { name: Read, args: { file_path: "does-not-exist-xyz.txt" } }
+      - content: "The file could not be read."
+
+  - name: reasoning
+    match: '(?i)think step by step'
+    turns:
+      - reasoning: "Considering the question carefully before answering."
+        content: "Answer: 42."
+
+  - name: background-shell
+    match: '(?i)run a background shell'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-background-shell", detached: true } }
+      - content: "The background shell task ran."
+
+  - name: launch-subagent
+    match: '(?i)launch a subagent'
+    turns:
+      - tool_calls:
+              - { name: Agent, args: { description: "subagent-e2e-probe task", label: "probe" } }
+      - content: "The subagent task was launched."
+
+  - name: subagent-probe
+    match: 'subagent-e2e-probe task'
+    turns:
+      - content: "hello-from-subagent-probe"
+      - content: "hello-from-subagent-probe"
+
+  - name: model-specific
+    match: '(?i)model specific'
+    model: gpt-4o-mini
+    turns:
+      - content: "This is a model-specific response for gpt-4o-mini."

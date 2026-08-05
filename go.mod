@@ -28,7 +28,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/inference-gateway/adk v0.26.1
-	github.com/inference-gateway/sdk v1.33.0
+	github.com/inference-gateway/sdk v1.35.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
 	github.com/metoro-io/mcp-golang v0.16.1
@@ -98,7 +98,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/inference-gateway/tokenless v0.1.2
+	github.com/inference-gateway/tokenless v0.4.1-0.20260805171050-e3120f206994
 	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/jezek/xgb v1.3.0 // indirect
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a // indirect

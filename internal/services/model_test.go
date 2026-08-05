@@ -61,18 +61,29 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestHTTPModelService_ListModelsFiltersImageModels verifies that image models
-// are excluded from the selectable list; they are only reachable through the
-// ImageGeneration tool.
+// TestHTTPModelService_ListModelsFiltersImageModels verifies that image-generation
+// models (output modalities include "image" but not "text") are excluded from the
+// selectable list; vision models (both "text" and "image") are kept.
 func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
+	defer models.SetGatewayModalities(nil)
+
+	imageMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityImage},
+	}
+	textMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
 		Object: "list",
 		Data: []sdk.Model{
-			{ID: "deepseek/deepseek-v4-flash"},
-			{ID: "openai/gpt-image-2"},
-			{ID: "openai/dall-e-3"},
-			{ID: "black-forest-labs/flux-1.1-pro"},
+			{ID: "deepseek/deepseek-v4-flash", Modalities: &textMods},
+			{ID: "openai/gpt-image-2", Modalities: &imageMods},
+			{ID: "openai/dall-e-3", Modalities: &imageMods},
+			{ID: "black-forest-labs/flux-1.1-pro", Modalities: &imageMods},
 		},
 	}, nil)
 
@@ -80,6 +91,37 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 	ids, err := svc.ListModels(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"deepseek/deepseek-v4-flash"}, ids)
+}
+
+// TestHTTPModelService_ListModelsKeepsVisionModels verifies that models with
+// both "text" and "image" modalities (vision-capable models) are NOT filtered
+// out of the selectable list.
+func TestHTTPModelService_ListModelsKeepsVisionModels(t *testing.T) {
+	defer models.SetGatewayModalities(nil)
+
+	textImageMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+	textMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+
+	fake := &sdkmocks.FakeClient{}
+	fake.ListModelsReturns(&sdk.ListModelsResponse{
+		Object: "list",
+		Data: []sdk.Model{
+			{ID: "openai/gpt-4o", Modalities: &textImageMods},
+			{ID: "anthropic/claude-sonnet-5", Modalities: &textImageMods},
+			{ID: "deepseek/deepseek-v4-flash", Modalities: &textMods},
+		},
+	}, nil)
+
+	svc := NewHTTPModelService(fake)
+	ids, err := svc.ListModels(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"openai/gpt-4o", "anthropic/claude-sonnet-5", "deepseek/deepseek-v4-flash"}, ids)
 }
 
 // TestHTTPModelService_ListModelsWithoutMetadataKeepsFallbacks verifies that

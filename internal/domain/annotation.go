@@ -19,6 +19,16 @@ func ImagePathNote(img ImageAttachment) string {
 	return fmt.Sprintf("[%s saved at %s; use ImageDecode to inspect it if you cannot see images]", name, img.SourcePath)
 }
 
+// ImagePathNoteForModel returns ImagePathNote(img) when supportsVision is
+// false, and "" when it is true (so vision-capable models receive image data
+// directly without a text note telling them to use ImageDecode).
+func ImagePathNoteForModel(img ImageAttachment, supportsVision bool) string {
+	if supportsVision {
+		return ""
+	}
+	return ImagePathNote(img)
+}
+
 // AnnotationText renders an ImageAnnotation as the canonical LLM-facing text:
 // a one-line summary followed by the numbered element list with centers and
 // bounding boxes. Every consumer (tools, chat, headless) uses this one shape.
