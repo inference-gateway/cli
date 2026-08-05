@@ -277,7 +277,7 @@ func (m *ModelSelectorImpl) viewContent() string {
 // model row, combining the context window (compact "128K"/"1M" form, or "?"
 // when no matcher pattern hits) with the pricing string when available.
 func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
-	parts := make([]string, 0, 2)
+	parts := make([]string, 0, 3)
 
 	window, ok := models.LookupContextWindow(model)
 	if ok {
@@ -287,6 +287,10 @@ func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
 	}
 
 	if label := domain.FormatModelPricingLabel(m.pricingService, model); label != "" {
+		parts = append(parts, label)
+	}
+
+	if label := models.ModalitiesLabel(model); label != "" {
 		parts = append(parts, label)
 	}
 

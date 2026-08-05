@@ -20,18 +20,24 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	harness "github.com/inference-gateway/tokenless/harness"
+	tokenless "github.com/inference-gateway/tokenless"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
 var binPath string
+
+// Model IDs used in tests — no "mock/" prefix so production code (parseProvider)
+// never needs to know about mock-specific prefixes.
+const (
+	testModel = "openai/gpt-4o"
+)
 
 // TestMain builds the CLI once for all tests. Set INFER_E2E_BINARY to reuse
 // an already-built binary (e.g. the Taskfile output) and skip the build.
 func TestMain(m *testing.M) {
 	var cleanup func()
 	var err error
-	binPath, cleanup, err = harness.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
+	binPath, cleanup, err = tokenless.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -46,9 +52,11 @@ func repoRoot() string {
 	return filepath.Dir(filepath.Dir(filepath.Dir(file)))
 }
 
-func startMock(t *testing.T) (*mockgateway.Server, string) {
+func startMock(t *testing.T) *tokenless.Mock {
 	t.Helper()
-	return harness.StartMock(t)
+	defs, err := mockgateway.LoadFile(filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml"))
+	require.NoError(t, err)
+	return tokenless.StartMock(t, defs)
 }
 
 // inferEnv is the hermetic INFER_* preset: gateway URL pointed at the mock,
@@ -57,7 +65,7 @@ func inferEnv(gatewayURL string) map[string]string {
 	return map[string]string{
 		"INFER_GATEWAY_URL":                      gatewayURL,
 		"INFER_GATEWAY_RUN":                      "false",
-		"INFER_AGENT_MODEL":                      mockgateway.DefaultModel,
+		"INFER_AGENT_MODEL":                      testModel,
 		"INFER_STORAGE_ENABLED":                  "false",
 		"INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC": "0",
 	}
@@ -66,7 +74,7 @@ func inferEnv(gatewayURL string) map[string]string {
 // runCLI executes the built binary hermetically via harness.App.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	res := harness.App{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
+	res := tokenless.Orchestrator{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
 	return res.Stdout, res.Stderr, res.ExitCode
 }
 
@@ -78,30 +86,30 @@ func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
 
 func jsonLines(t *testing.T, stdout string) []map[string]any {
 	t.Helper()
-	return harness.JSONLines(t, stdout)
+	return tokenless.JSONLines(t, stdout)
 }
 
 func contentsByRole(lines []map[string]any, role string) []string {
-	return harness.ContentsByRole(lines, role)
+	return tokenless.ContentsByRole(lines, role)
 }
 
 func statusOfType(lines []map[string]any, typ string) map[string]any {
-	return harness.StatusOfType(lines, typ)
+	return tokenless.StatusOfType(lines, typ)
 }
 
 func writeFixtures(t *testing.T, dir string, names ...string) {
 	t.Helper()
-	harness.WriteFixtures(t, dir, names...)
+	tokenless.WriteFixtures(t, dir, names...)
 }
 
 func toolMessages(body mockgateway.CreateChatCompletionRequest) []mockgateway.Message {
-	return harness.ToolMessages(body)
+	return tokenless.ToolMessages(body)
 }
 
 func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "say hello")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "say hello")
 	require.Zero(t, code)
 
 	lines := jsonLines(t, stdout)
@@ -113,7 +121,7 @@ func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
 	require.EqualValues(t, 1, stats["requests"], "a single no-tool-call turn ends the run")
 	require.EqualValues(t, 15, stats["total_tokens"], "usage from the single turn")
 
-	reqs := gw.Requests()
+	reqs := m.Requests()
 	require.Len(t, reqs, 1)
 	require.Equal(t, "text-only", reqs[0].Scenario, "scenario must be text-only")
 	require.False(t, reqs[0].Stream, "headless agent uses the non-streaming path")
@@ -126,30 +134,12 @@ func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
 // with no todos (TestAgentTextOnlyTerminatesAfterOneTurn) still ends on the
 // first no-tool-call turn.
 func TestAgentNudgesOnIncompleteTodos(t *testing.T) {
-	defs, err := mockgateway.Load([]byte(`
-fallback:
-  content: "Done."
-scenarios:
-  - name: todo-stall
-    match: '(?i)^implement the vision feature'
-    turns:
-      - tool_calls:
-          - name: TodoWrite
-            args:
-              todos:
-                - { id: "1", content: "bump the sdk", status: "in_progress" }
-                - { id: "2", content: "wire modalities", status: "pending" }
-      - content: "Let me check the callers next."
-      - content: "Still reading the code."
-      - content: "Wrapping up."
-`))
-	require.NoError(t, err)
-	gw, url := harness.StartMock(t, defs)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "implement the vision feature")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "implement the vision feature")
 	require.Zero(t, code)
 
-	reqs := gw.Requests()
+	reqs := m.Requests()
 	require.Len(t, reqs, 4, "TodoWrite turn, text-only strike + nudge, nudged retry + nudge, final retry then break")
 
 	nudges := 0
@@ -171,11 +161,12 @@ func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binPath, "agent", "-m", mockgateway.DefaultModel, "say hello")
+	cmd := exec.CommandContext(ctx, binPath, "agent", "-m", testModel, "say hello")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(os.Environ(),
 		"HOME="+t.TempDir(),
 		"INFER_GATEWAY_MOCK=true",
+		"INFER_GATEWAY_MOCK_SCENARIOS="+filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml"),
 	)
 
 	var stdout, stderr bytes.Buffer
@@ -188,11 +179,11 @@ func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
 }
 
 func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 	dir := t.TempDir()
 	writeFixtures(t, dir, "a.txt", "b.txt", "c.txt", "d.txt")
 
-	stdout, code := runAgent(t, url, dir, "please execute the Read tool 4 times in parallel")
+	stdout, code := runAgent(t, m.URL, dir, "please execute the Read tool 4 times in parallel")
 	require.Zero(t, code)
 
 	lines := jsonLines(t, stdout)
@@ -203,7 +194,7 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	}
 	require.Contains(t, contentsByRole(lines, "assistant"), "All four files read.")
 
-	reqs := gw.Requests()
+	reqs := m.Requests()
 	require.Len(t, reqs, 2, "tool turn, then answer turn")
 
 	tools := toolMessages(reqs[1].Body)
@@ -214,10 +205,10 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 }
 
 func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 	dir := t.TempDir()
 
-	stdout, code := runAgent(t, url, dir, "create a file named blocked.txt")
+	stdout, code := runAgent(t, m.URL, dir, "create a file named blocked.txt")
 	require.Zero(t, code)
 
 	require.NoFileExists(t, filepath.Join(dir, "blocked.txt"),
@@ -228,14 +219,14 @@ func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
 	require.Len(t, toolResults, 1)
 	require.Contains(t, toolResults[0], "Blocked:", "the rejection must carry an actionable reason")
 
-	tools := toolMessages(gw.Requests()[1].Body)
+	tools := toolMessages(m.Requests()[1].Body)
 	require.Len(t, tools, 1, "the rejection must flow back to the gateway as a tool result")
 }
 
 func TestAgentBashAllowlistedCommandRuns(t *testing.T) {
-	_, url := startMock(t)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "run the echo command")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "run the echo command")
 	require.Zero(t, code)
 
 	toolResults := contentsByRole(jsonLines(t, stdout), "tool")
@@ -244,9 +235,9 @@ func TestAgentBashAllowlistedCommandRuns(t *testing.T) {
 }
 
 func TestAgentBashOffListCommandIsBlocked(t *testing.T) {
-	_, url := startMock(t)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "run the forbidden command")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "run the forbidden command")
 	require.Zero(t, code)
 
 	toolResults := contentsByRole(jsonLines(t, stdout), "tool")
@@ -255,34 +246,34 @@ func TestAgentBashOffListCommandIsBlocked(t *testing.T) {
 }
 
 func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "this always fails")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "this always fails")
 	require.NotZero(t, code, "a run that cannot reach the model must fail loudly")
 
 	require.NotNil(t, statusOfType(jsonLines(t, stdout), "agent_error"), "an agent_error line must be emitted")
-	require.Len(t, gw.Requests(), 5, "initial request plus four retries before giving up")
+	require.Len(t, m.Requests(), 5, "initial request plus four retries before giving up")
 }
 
 func TestAgentRecoversAfterTransientErrors(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 
-	stdout, code := runAgent(t, url, t.TempDir(), "call the flaky backend")
+	stdout, code := runAgent(t, m.URL, t.TempDir(), "call the flaky backend")
 	require.Zero(t, code, "transient errors must be retried, not fatal")
 
 	require.Contains(t, contentsByRole(jsonLines(t, stdout), "assistant"), "Recovered after retries.")
-	require.Len(t, gw.Requests(), 3,
+	require.Len(t, m.Requests(), 3,
 		"two failed attempts, then the successful retry")
 }
 
 func TestChatPipedInputStreamsPlainText(t *testing.T) {
-	gw, url := startMock(t)
+	m := startMock(t)
 
-	stdout, _, code := runCLI(t, url, t.TempDir(), "say hello\n", "chat")
+	stdout, _, code := runCLI(t, m.URL, t.TempDir(), "say hello\n", "chat")
 	require.Zero(t, code)
 	require.Contains(t, stdout, "Hello! How can I help?", "piped chat must print the streamed content")
 
-	reqs := gw.Requests()
+	reqs := m.Requests()
 	require.Len(t, reqs, 1)
 	require.True(t, reqs[0].Stream, "chat uses the SSE streaming path")
 }

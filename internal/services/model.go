@@ -44,7 +44,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("SDK client is not initialized")
 	}
 
-	resp, err := s.client.ListModels(ctx, sdk.ListModelsParamsIncludeContextWindow, sdk.ListModelsParamsIncludePricing)
+	resp, err := s.client.ListModels(ctx, sdk.ListModelsParamsIncludeContextWindow, sdk.ListModelsParamsIncludePricing, sdk.ListModelsParamsIncludeModalities)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 	}
@@ -56,8 +56,12 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	ids := make([]string, 0, len(resp.Data))
 	windows := make(map[string]int, len(resp.Data))
 	prices := make(map[string]gatewayPrice, len(resp.Data))
+	modalities := make(map[string][]sdk.ModelModalities, len(resp.Data))
 	for _, model := range resp.Data {
-		if imageModelRe.MatchString(model.ID) {
+		if model.Modalities != nil {
+			modalities[model.ID] = *model.Modalities
+		}
+		if isImageGenModel(model.Modalities) {
 			continue
 		}
 		ids = append(ids, model.ID)
@@ -79,6 +83,9 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	}
 	if len(prices) > 0 {
 		setGatewayPricing(prices)
+	}
+	if len(modalities) > 0 {
+		models.SetGatewayModalities(modalities)
 	}
 
 	result := make([]string, len(ids))
@@ -164,4 +171,23 @@ func (s *HTTPModelService) handleListModelsError(modelID string, _ /* err */ err
 // isValidModelFormat performs basic format validation on model IDs
 func isValidModelFormat(modelID string) bool {
 	return strings.Contains(modelID, "/") && len(modelID) > 3
+}
+
+// isImageGenModel reports whether a model's modalities indicate it generates
+// images rather than text (has "image" but NOT "text"). Returns false when
+// modalities is nil (unknown model).
+func isImageGenModel(modalities *[]sdk.ModelModalities) bool {
+	if modalities == nil {
+		return false
+	}
+	hasText, hasImage := false, false
+	for _, m := range *modalities {
+		switch m {
+		case sdk.ModelModalitiesText:
+			hasText = true
+		case sdk.ModelModalitiesImage:
+			hasImage = true
+		}
+	}
+	return hasImage && !hasText
 }

@@ -1,0 +1,144 @@
+# E2E test scenario library — only the scenarios exercised by the binary-contract
+# tests in tests/e2e/. Model IDs do NOT carry the "mock/" prefix so production
+# code (parseProvider) never needs to know about mock-specific prefixes; the test
+# boundary owns that concern.
+#
+# ponytail: model IDs without "mock/" prefix so parseProvider stays clean.
+
+models:
+  - id: openai/gpt-4o
+    object: model
+    owned_by: openai
+    served_by: openai
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: [text, image]
+  - id: anthropic/claude-sonnet-4-5
+    object: model
+    owned_by: anthropic
+    served_by: anthropic
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: [text, image]
+  - id: openai/gpt-image-2
+    object: model
+    owned_by: openai
+    served_by: openai
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: [image]
+  - id: deepseek/deepseek-v4-flash
+    object: model
+    owned_by: deepseek
+    served_by: deepseek
+    context_window: { tokens: 128000, source: "provider" }
+    pricing:
+      input_per_token: "0.0000025"
+      output_per_token: "0.00001"
+      cache_read_per_token: "0.00000025"
+      cache_write_per_token: "0.000003125"
+      currency: "USD"
+      source: "provider"
+    modalities: [text]
+
+fallback:
+  content: "Done."
+
+scenarios:
+  - name: text-only
+    match: '(?i)^say hello'
+    turns:
+      - content: "Hello! How can I help?"
+
+  - name: parallel-reads
+    match: '(?i)execute (the )?Read tool 4 times in parallel'
+    turns:
+      - tool_calls:
+              - { name: Read, args: { file_path: "a.txt" } }
+              - { name: Read, args: { file_path: "b.txt" } }
+              - { name: Read, args: { file_path: "c.txt" } }
+              - { name: Read, args: { file_path: "d.txt" } }
+      - content: "All four files read."
+
+  - name: write-blocked
+    match: '(?i)create a file named blocked\.txt'
+    turns:
+      - tool_calls:
+              - { name: Write, args: { file_path: "blocked.txt", content: "hi" } }
+      - content: "Understood, the write was not permitted."
+
+  - name: bash-allowed
+    match: '(?i)run the echo command'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-bash" } }
+      - content: "The echo command ran."
+
+  - name: bash-blocked
+    match: '(?i)run the forbidden command'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "curl http://example.com" } }
+      - content: "Understood, the command was not permitted."
+
+  - name: error-retry
+    match: '(?i)flaky backend'
+    turns:
+      - error: { status: 429, times: 2 }
+        content: "Recovered after retries."
+
+  - name: error-hard
+    match: '(?i)always fails'
+    turns:
+      - error: { status: 500, times: -1 }
+
+  - name: background-shell
+    match: '(?i)run a background shell'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "echo hello-from-background-shell", detached: true } }
+      - content: "The background shell task ran."
+
+  - name: launch-subagent
+    match: '(?i)launch a subagent'
+    turns:
+      - tool_calls:
+              - { name: Agent, args: { description: "subagent-e2e-probe task", label: "probe" } }
+      - content: "The subagent task was launched."
+
+  - name: subagent-probe
+    match: 'subagent-e2e-probe task'
+    turns:
+      - content: "hello-from-subagent-probe"
+      - content: "hello-from-subagent-probe"
+
+  - name: todo-stall
+    match: '(?i)^implement the vision feature'
+    turns:
+      - tool_calls:
+          - name: TodoWrite
+            args:
+              todos:
+                - { id: "1", content: "bump the sdk", status: "in_progress" }
+                - { id: "2", content: "wire modalities", status: "pending" }
+      - content: "Let me check the callers next."
+      - content: "Still reading the code."
+      - content: "Wrapping up."

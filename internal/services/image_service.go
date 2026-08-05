@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -23,15 +22,16 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
-// imageModelRe matches models that generate images rather than text.
-//
-// ponytail: name heuristic - /v1/models exposes no modality metadata (sdk.Model
-// carries only id/owned_by/served_by/pricing/context_window). Replace this with
-// the real field once the gateway returns one.
-var imageModelRe = regexp.MustCompile(`(?i)dall-e|gpt-image|imagen|` +
-	`flux|stable-diffusion|sdxl|seedream|nano-banana|qwen-image`)
+// IsImageModel reports whether the model generates images rather than text.
+// Uses gateway-reported modalities: a model is an image-generation model if
+// its modalities include "image" but NOT "text". Falls back to false when
+// the model is not in the registry.
+func (s *ImageService) IsImageModel(model string) bool {
+	return models.IsImageGenerationModel(model)
+}
 
 // ImageService handles image operations including file-based image loading and base64 encoding
 // Note: Direct clipboard support requires platform-specific dependencies and is not yet implemented
@@ -46,11 +46,6 @@ func NewImageService(cfg *config.Config, client sdk.Client) *ImageService {
 		config: cfg,
 		client: client,
 	}
-}
-
-// IsImageModel reports whether the model generates images rather than text.
-func (s *ImageService) IsImageModel(model string) bool {
-	return imageModelRe.MatchString(model)
 }
 
 // GenerateImage generates an image from prompt using model ("provider/name")

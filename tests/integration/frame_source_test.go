@@ -75,7 +75,7 @@ scenarios:
 		}
 		cfg.Vision.Annotator = config.VisionAnnotatorConfig{
 			Enabled:   true,
-			Model:     mockgateway.DefaultModel,
+			Model:     testModel,
 			MaxTokens: 512,
 		}
 	})

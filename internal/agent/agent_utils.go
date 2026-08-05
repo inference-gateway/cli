@@ -1070,20 +1070,12 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 // parseProvider parses provider and model name from model string.
 // The bare fallback returns "claude" only for legacy un-prefixed inputs.
 func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
-	if s.config != nil {
-		cfg := s.config.GetAgentConfig()
-		if cfg != nil {
-			parts := strings.SplitN(model, "/", 2)
-			if len(parts) == 1 {
-				return "claude", model, nil
-			}
-
-			return parts[0], parts[1], nil
-		}
-	}
-
 	parts := strings.SplitN(model, "/", 2)
-	if len(parts) != 2 {
+
+	if len(parts) == 1 {
+		if s.config != nil && s.config.GetAgentConfig() != nil {
+			return "claude", model, nil
+		}
 		return "", "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
 

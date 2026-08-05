@@ -14,6 +14,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 // issueRefRe matches `#<digits>` only at start-of-line or after whitespace, so
@@ -374,7 +375,7 @@ func (p *ChatMessageProcessor) buildUserMessage(
 		}
 		contentParts = append(contentParts, imagePart)
 
-		if note := domain.ImagePathNote(img); note != "" {
+		if note := domain.ImagePathNoteForModel(img, models.SupportsVision(p.handler.modelService.GetCurrentModel())); note != "" {
 			if notePart, err := sdk.NewTextContentPart(note); err == nil {
 				contentParts = append(contentParts, notePart)
 			}

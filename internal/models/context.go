@@ -5,12 +5,15 @@ import (
 	"strings"
 	"sync"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 )
 
 var (
-	gatewayMu      sync.RWMutex
-	gatewayWindows map[string]int
+	gatewayMu         sync.RWMutex
+	gatewayWindows    map[string]int
+	gatewayModalities map[string][]sdk.ModelModalities
 )
 
 // SetGatewayContextWindows replaces the gateway-reported context windows
@@ -24,6 +27,95 @@ func SetGatewayContextWindows(windows map[string]int) {
 	gatewayMu.Lock()
 	gatewayWindows = normalized
 	gatewayMu.Unlock()
+}
+
+// SetGatewayModalities replaces the gateway-reported modalities (from
+// /v1/models?include=modalities). Keys are full "provider/model" ids;
+// matching is exact on the lowercased id.
+func SetGatewayModalities(modalities map[string][]sdk.ModelModalities) {
+	normalized := make(map[string][]sdk.ModelModalities, len(modalities))
+	for id, mods := range modalities {
+		normalized[strings.ToLower(id)] = mods
+	}
+	gatewayMu.Lock()
+	gatewayModalities = normalized
+	gatewayMu.Unlock()
+}
+
+// SupportsVision reports whether the model supports native image input
+// (modalities include both "text" and "image"). Image-generation models
+// (dall-e, flux) have "image" only and return false. Models not in the
+// registry or with nil modalities also return false.
+func SupportsVision(modelID string) bool {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	mods, ok := gatewayModalities[strings.ToLower(modelID)]
+	if !ok || len(mods) == 0 {
+		return false
+	}
+	hasText, hasImage := false, false
+	for _, m := range mods {
+		switch m {
+		case sdk.ModelModalitiesText:
+			hasText = true
+		case sdk.ModelModalitiesImage:
+			hasImage = true
+		}
+	}
+	return hasText && hasImage
+}
+
+// IsImageGenerationModel reports whether the model generates images rather
+// than text (modalities include "image" but NOT "text"). Falls back to
+// false when the model is not in the registry.
+func IsImageGenerationModel(modelID string) bool {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	mods, ok := gatewayModalities[strings.ToLower(modelID)]
+	if !ok || len(mods) == 0 {
+		return false
+	}
+	hasText := false
+	hasImage := false
+	for _, m := range mods {
+		switch m {
+		case sdk.ModelModalitiesText:
+			hasText = true
+		case sdk.ModelModalitiesImage:
+			hasImage = true
+		}
+	}
+	return hasImage && !hasText
+}
+
+// ModalitiesLabel returns a compact human-readable label for a model's
+// modalities, or "" when the model is not in the registry. Vision models
+// (text+image) get "vision"; image-generation models (image only) get
+// "image-gen"; text-only models get "".
+func ModalitiesLabel(modelID string) string {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	mods, ok := gatewayModalities[strings.ToLower(modelID)]
+	if !ok || len(mods) == 0 {
+		return ""
+	}
+	hasText, hasImage := false, false
+	for _, m := range mods {
+		switch m {
+		case sdk.ModelModalitiesText:
+			hasText = true
+		case sdk.ModelModalitiesImage:
+			hasImage = true
+		}
+	}
+	switch {
+	case hasText && hasImage:
+		return "vision"
+	case hasImage && !hasText:
+		return "image-gen"
+	default:
+		return ""
+	}
 }
 
 func gatewayContextWindow(fullID string) (int, bool) {
