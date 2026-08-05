@@ -698,8 +698,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("execution is paused")
 	}
 
-	// Retry loops the repeated-failure breaker targets happen within a single
-	// run; resetting per run also keeps the map from growing across a session.
 	s.failedCallsMux.Lock()
 	clear(s.failedCalls)
 	s.failedCallsMux.Unlock()
