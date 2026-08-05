@@ -1071,6 +1071,9 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 				"(tools.safety.approval_behaviour=%s). Args: %s. Do not retry the same call - use an allowed "+
 				"command or tool, or stop and tell the user exactly what you need and why.",
 			tc.Function.Name, behaviour, tc.Function.Arguments)
+		if hint := bashRejectionHint(tc); hint != "" {
+			reason += " Hint: " + hint
+		}
 		logger.Info("tool blocked (no approver reachable)", "tool", tc.Function.Name, "behaviour", behaviour, "args", tc.Function.Arguments)
 		return s.toolRejectedMessage(tc, reason, reason)
 	}
@@ -1091,6 +1094,23 @@ func (s *AgentSession) deliverApprovalRequiredTool(tc sdk.ChatCompletionMessageT
 
 	result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments, tc.ID, true)
 	return s.toolResultMessage(tc, result, err)
+}
+
+// bashRejectionHint surfaces the structural reason a Bash command failed the
+// allow-list (a chained command, a file redirect, a $VAR leak, ...) so the
+// blocked-tool message tells the model how to correct the command instead of
+// leaving it to retry the same call. Returns "" for non-Bash tools, malformed
+// arguments, or a command that is simply off-list with no structural reason.
+func bashRejectionHint(tc sdk.ChatCompletionMessageToolCall) string {
+	if tc.Function.Name != "Bash" {
+		return ""
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return ""
+	}
+	command, _ := args["command"].(string)
+	return config.BashCommandRejectionHint(command)
 }
 
 // isToolApprovalRequired checks if a tool requires user approval based on config.

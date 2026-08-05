@@ -638,11 +638,15 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 	}
 
 	if !t.config.IsBashCommandAllowed(cmdStr, domain.BashAllowModeKey(ctx)) {
+		errMsg := fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr)
+		if hint := config.BashCommandRejectionHint(cmdStr); hint != "" {
+			errMsg += " - " + hint
+		}
 		return map[string]any{
 			"condition": "command",
 			"reason":    "not_allowed",
 			"command":   cmdStr,
-			"error":     fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr),
+			"error":     errMsg,
 		}
 	}
 

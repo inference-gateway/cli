@@ -462,6 +462,36 @@ func TestExecuteToolCalls_BlocksWhenNoApprover(t *testing.T) {
 	}
 }
 
+// TestExecuteToolCalls_BlockedChainedBashIncludesHint locks in that the
+// no-approver block message carries the structural rejection hint for a Bash
+// command that fails the clean-command guard (here: an && chain), so the model
+// corrects the command instead of retrying it verbatim (issue #1032).
+func TestExecuteToolCalls_BlockedChainedBashIncludesHint(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 5}}
+	cfg.Tools.Safety.RequireApproval = true
+	cfg.Tools.Safety.ApprovalBehaviour = config.ApprovalBehaviourPrompt
+	cfg.Tools.Bash.Mode.Standard.Allow = []string{`cargo( .*)?`}
+
+	session := &AgentSession{
+		toolService:     &domainmocks.FakeToolService{},
+		config:          cfg,
+		requireApproval: false,
+	}
+
+	results := session.executeToolCalls([]sdk.ChatCompletionMessageToolCall{
+		{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{
+			Name: "Bash", Arguments: `{"command":"cd src-tauri && cargo fmt --check"}`,
+		}},
+	})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !strings.Contains(results[0].Content, "only a single command is auto-approved") {
+		t.Errorf("expected blocked reason to include the chained-command hint, got %q", results[0].Content)
+	}
+}
+
 func TestInheritedSubagentMode(t *testing.T) {
 	t.Run("unset defaults to Standard", func(t *testing.T) {
 		t.Setenv("INFER_SUBAGENT_AGENT_MODE", "")
