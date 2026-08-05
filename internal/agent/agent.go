@@ -54,6 +54,11 @@ type AgentServiceImpl struct {
 	firedReminders map[string]bool
 	reminderMux    sync.Mutex
 
+	// ponytail: session-lifetime map of identical failing tool calls
+	// (name+args), reset per key on success; backs the retry-loop breaker
+	failedCalls    map[string]int
+	failedCallsMux sync.Mutex
+
 	// Session tracking: covers the full lifetime of a RunWithStream call.
 	// Cancelling a session aborts streaming, tool execution, approval waits,
 	// and the main event loop in one shot. Idempotent via sync.Once so
@@ -386,6 +391,7 @@ func NewAgent(
 		reminderProvider: cfg.Reminders,
 		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),
+		failedCalls:      make(map[string]int),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
@@ -1052,6 +1058,14 @@ func (s *AgentServiceImpl) executeToolInternal(
 	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
 
 	defer func() {
+		if note := s.trackRepeatedFailure(tc, finalEntry); note != "" {
+			if txt, err := finalEntry.Message.Content.AsMessageContent0(); err == nil {
+				finalEntry.Message.Content = sdk.NewMessageContent(txt + note)
+			}
+		}
+	}()
+
+	defer func() {
 		status, message := "completed", "Completed successfully"
 		var images []domain.ImageAttachment
 		if finalEntry.ToolExecution != nil {
@@ -1439,6 +1453,32 @@ func (s *AgentServiceImpl) requestToolApproval(
 	}
 
 	return approved, err
+}
+
+// trackRepeatedFailure counts identical failing tool calls (same name and
+// arguments) and, from the third failure on, returns a <system-reminder> to
+// append to the tool result so the model stops retrying a call that will
+// never succeed (e.g. reading a guessed, non-existent file path). A success
+// with the same arguments resets the counter.
+func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry domain.ConversationEntry) string {
+	key := tc.Function.Name + "\x00" + tc.Function.Arguments
+	s.failedCallsMux.Lock()
+	defer s.failedCallsMux.Unlock()
+
+	if entry.ToolExecution == nil || entry.ToolExecution.Success {
+		delete(s.failedCalls, key)
+		return ""
+	}
+
+	s.failedCalls[key]++
+	n := s.failedCalls[key]
+	if n < 3 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"\n\n<system-reminder>\nYou have called %s with these exact arguments %d times and it failed every time. STOP retrying this call - the result will not change. Do not guess arguments: verify your assumptions first (e.g. for file paths, list the directory or search with Grep/Glob to see what actually exists), then take a different approach.\n</system-reminder>",
+		tc.Function.Name, n,
+	)
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
