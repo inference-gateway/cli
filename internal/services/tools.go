@@ -12,6 +12,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
@@ -19,6 +20,16 @@ type LLMToolService struct {
 	registry *tools.Registry
 	enabled  bool
 	config   *config.Config
+	// currentModel, when wired, reports the active model so tools can be
+	// filtered per model capability (nil in tests and headless paths that
+	// never set it).
+	currentModel func() string
+}
+
+// SetCurrentModelFn wires the current-model accessor used for per-model tool
+// filtering (e.g. hiding ImageDecode from vision-capable models).
+func (s *LLMToolService) SetCurrentModelFn(fn func() string) {
+	s.currentModel = fn
 }
 
 // NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry
@@ -32,6 +43,9 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *LLMToolService) isToolEnabled(toolName string) bool {
+	if toolName == "ImageDecode" && s.currentModel != nil && models.SupportsVision(s.currentModel()) {
+		return false // vision-capable models see images natively; don't steer them to decoding
+	}
 	if s.isA2ATool(toolName) {
 		return s.config.IsA2AToolsEnabled() && s.registry.IsToolEnabled(toolName)
 	}

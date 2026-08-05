@@ -376,7 +376,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService.SetCurrentModelFn(c.modelService.GetCurrentModel)
+		c.toolService = llmToolService
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}

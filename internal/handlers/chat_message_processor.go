@@ -260,6 +260,9 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
 			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", filename)
+			if p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel()) {
+				imageRef = fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", filename)
+			}
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
