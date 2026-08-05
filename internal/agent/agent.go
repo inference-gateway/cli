@@ -1476,7 +1476,7 @@ func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageTool
 		return ""
 	}
 	return fmt.Sprintf(
-		"\n\n<system-reminder>\nYou have called %s with these exact arguments %d times and it failed every time. STOP retrying this call - the result will not change. Do not guess arguments: verify your assumptions first (e.g. for file paths, list the directory or search with Grep/Glob to see what actually exists), then take a different approach.\n</system-reminder>",
+		"\n\n<system-reminder>\n%s failed %d times with identical arguments. Stop retrying - verify your assumptions (list or search first) and take a different approach.\n</system-reminder>",
 		tc.Function.Name, n,
 	)
 }
