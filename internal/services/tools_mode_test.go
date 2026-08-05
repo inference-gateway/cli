@@ -95,6 +95,9 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 	if slices.Contains(names(), "ImageDecode") {
 		t.Error("vision model must not be offered ImageDecode")
 	}
+	if !svc.IsToolEnabled("ImageDecode") {
+		t.Error("ImageDecode must stay executable for vision models (hidden, not disabled)")
+	}
 
 	current = "deepseek/deepseek-v4-flash"
 	if !slices.Contains(names(), "ImageDecode") {

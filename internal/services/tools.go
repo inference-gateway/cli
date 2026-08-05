@@ -43,13 +43,21 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *LLMToolService) isToolEnabled(toolName string) bool {
-	if toolName == "ImageDecode" && s.currentModel != nil && models.SupportsVision(s.currentModel()) {
-		return false // vision-capable models see images natively; don't steer them to decoding
-	}
 	if s.isA2ATool(toolName) {
 		return s.config.IsA2AToolsEnabled() && s.registry.IsToolEnabled(toolName)
 	}
 	return s.enabled && s.registry.IsToolEnabled(toolName)
+}
+
+// isToolAdvertised reports whether a tool should be offered to the LLM. It is
+// stricter than isToolEnabled: ImageDecode stays executable for any model (a
+// model may still call it from conversation history) but is not advertised to
+// vision-capable ones, which see images natively.
+func (s *LLMToolService) isToolAdvertised(toolName string) bool {
+	if toolName == "ImageDecode" && s.currentModel != nil && models.SupportsVision(s.currentModel()) {
+		return false
+	}
+	return s.isToolEnabled(toolName)
 }
 
 // ListTools returns definitions for all enabled tools
@@ -58,7 +66,7 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 
 	allTools := s.registry.GetToolDefinitions()
 	for _, tool := range allTools {
-		if s.isToolEnabled(tool.Function.Name) {
+		if s.isToolAdvertised(tool.Function.Name) {
 			definitions = append(definitions, tool)
 		}
 	}
@@ -83,7 +91,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 		var definitions []sdk.ChatCompletionTool
 		allTools := s.registry.GetToolDefinitions()
 		for _, tool := range allTools {
-			if s.isToolEnabled(tool.Function.Name) && allowedTools[tool.Function.Name] {
+			if s.isToolAdvertised(tool.Function.Name) && allowedTools[tool.Function.Name] {
 				definitions = append(definitions, tool)
 			}
 		}
@@ -105,7 +113,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 		var definitions []sdk.ChatCompletionTool
 		allTools := s.registry.GetToolDefinitions()
 		for _, tool := range allTools {
-			if s.isToolEnabled(tool.Function.Name) && allowedTools[tool.Function.Name] {
+			if s.isToolAdvertised(tool.Function.Name) && allowedTools[tool.Function.Name] {
 				definitions = append(definitions, tool)
 			}
 		}
@@ -120,7 +128,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 	var definitions []sdk.ChatCompletionTool
 	allTools := s.registry.GetToolDefinitions()
 	for _, tool := range allTools {
-		if s.isToolEnabled(tool.Function.Name) && !planOnlyTools[tool.Function.Name] {
+		if s.isToolAdvertised(tool.Function.Name) && !planOnlyTools[tool.Function.Name] {
 			definitions = append(definitions, tool)
 		}
 	}
@@ -133,7 +141,7 @@ func (s *LLMToolService) ListAvailableTools() []string {
 
 	allTools := s.registry.ListAvailableTools()
 	for _, toolName := range allTools {
-		if s.isToolEnabled(toolName) {
+		if s.isToolAdvertised(toolName) {
 			tools = append(tools, toolName)
 		}
 	}
