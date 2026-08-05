@@ -1470,6 +1470,10 @@ func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageTool
 	s.failedCallsMux.Lock()
 	defer s.failedCallsMux.Unlock()
 
+	if s.failedCalls == nil {
+		s.failedCalls = make(map[string]int)
+	}
+
 	if entry.ToolExecution == nil || entry.ToolExecution.Success {
 		delete(s.failedCalls, key)
 		return ""
