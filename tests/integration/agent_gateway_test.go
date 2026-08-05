@@ -62,9 +62,16 @@ func newEnv(t *testing.T, mutate ...func(*config.Config)) *env {
 }
 
 // newEnvWithScenarios is newEnv with a custom scenario file (e.g. zero-usage
-// turns to force the token polyfill).
+// turns to force the token polyfill). Defs without their own models block get
+// the suite's standard models, so the mock never falls back to its built-in
+// "mock/"-prefixed defaults.
 func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ...func(*config.Config)) *env {
 	t.Helper()
+	if len(defs.Models) == 0 {
+		std, err := mockgateway.LoadFile(filepath.Join(repoRoot(), "tests", "integration", "scenarios.yaml"))
+		require.NoError(t, err)
+		defs.Models = std.Models
+	}
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)

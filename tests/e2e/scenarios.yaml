@@ -18,7 +18,7 @@ models:
       cache_write_per_token: "0.000003125"
       currency: "USD"
       source: "provider"
-    modalities: [text, image]
+    modalities: { input: [text, image], output: [text] }
   - id: anthropic/claude-sonnet-4-5
     object: model
     owned_by: anthropic
@@ -31,7 +31,7 @@ models:
       cache_write_per_token: "0.000003125"
       currency: "USD"
       source: "provider"
-    modalities: [text, image]
+    modalities: { input: [text, image], output: [text] }
   - id: openai/gpt-image-2
     object: model
     owned_by: openai
@@ -44,7 +44,7 @@ models:
       cache_write_per_token: "0.000003125"
       currency: "USD"
       source: "provider"
-    modalities: [image]
+    modalities: { input: [text, image], output: [image] }
   - id: deepseek/deepseek-v4-flash
     object: model
     owned_by: deepseek
@@ -57,7 +57,7 @@ models:
       cache_write_per_token: "0.000003125"
       currency: "USD"
       source: "provider"
-    modalities: [text]
+    modalities: { input: [text], output: [text] }
 
 fallback:
   content: "Done."

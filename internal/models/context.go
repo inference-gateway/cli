@@ -2,6 +2,7 @@
 package models
 
 import (
+	"slices"
 	"strings"
 	"sync"
 
@@ -13,7 +14,7 @@ import (
 var (
 	gatewayMu         sync.RWMutex
 	gatewayWindows    map[string]int
-	gatewayModalities map[string][]sdk.ModelModalities
+	gatewayModalities map[string]sdk.ModelModalities
 )
 
 // SetGatewayContextWindows replaces the gateway-reported context windows
@@ -32,8 +33,8 @@ func SetGatewayContextWindows(windows map[string]int) {
 // SetGatewayModalities replaces the gateway-reported modalities (from
 // /v1/models?include=modalities). Keys are full "provider/model" ids;
 // matching is exact on the lowercased id.
-func SetGatewayModalities(modalities map[string][]sdk.ModelModalities) {
-	normalized := make(map[string][]sdk.ModelModalities, len(modalities))
+func SetGatewayModalities(modalities map[string]sdk.ModelModalities) {
+	normalized := make(map[string]sdk.ModelModalities, len(modalities))
 	for id, mods := range modalities {
 		normalized[strings.ToLower(id)] = mods
 	}
@@ -42,54 +43,50 @@ func SetGatewayModalities(modalities map[string][]sdk.ModelModalities) {
 	gatewayMu.Unlock()
 }
 
-// TextImage reports whether a modality list contains "text" and "image"
-// respectively. All modality-derived predicates route through this one loop.
-func TextImage(mods []sdk.ModelModalities) (hasText, hasImage bool) {
-	for _, m := range mods {
-		switch m {
-		case sdk.ModelModalitiesText:
-			hasText = true
-		case sdk.ModelModalitiesImage:
-			hasImage = true
-		}
-	}
-	return hasText, hasImage
+// IsImageGenModalities reports whether a modality set describes an
+// image-generation model: it outputs "image" but not "text", so it can
+// produce pictures but cannot chat. Vision chat models (image in, text out)
+// return false.
+func IsImageGenModalities(mods sdk.ModelModalities) bool {
+	return slices.Contains(mods.Output, sdk.ModalityImage) &&
+		!slices.Contains(mods.Output, sdk.ModalityText)
 }
 
-func modelModalities(modelID string) []sdk.ModelModalities {
+// modelModalities returns the registry entry for a model; the zero value
+// (empty input/output) stands in for unknown models, making every predicate
+// below false.
+func modelModalities(modelID string) sdk.ModelModalities {
 	gatewayMu.RLock()
 	defer gatewayMu.RUnlock()
 	return gatewayModalities[strings.ToLower(modelID)]
 }
 
-// SupportsVision reports whether the model supports native image input
-// (modalities include both "text" and "image"). Image-generation models
-// (dall-e, flux) have "image" only and return false. Models not in the
-// registry or with nil modalities also return false.
+// SupportsVision reports whether the model accepts native image input
+// (input modalities include both "text" and "image"). Models not in the
+// registry return false.
 func SupportsVision(modelID string) bool {
-	hasText, hasImage := TextImage(modelModalities(modelID))
-	return hasText && hasImage
+	mods := modelModalities(modelID)
+	return slices.Contains(mods.Input, sdk.ModalityText) &&
+		slices.Contains(mods.Input, sdk.ModalityImage)
 }
 
 // IsImageGenerationModel reports whether the model generates images rather
-// than text (modalities include "image" but NOT "text"). Falls back to
-// false when the model is not in the registry.
+// than text (see IsImageGenModalities). Falls back to false when the model
+// is not in the registry.
 func IsImageGenerationModel(modelID string) bool {
-	hasText, hasImage := TextImage(modelModalities(modelID))
-	return hasImage && !hasText
+	return IsImageGenModalities(modelModalities(modelID))
 }
 
 // ModalitiesLabel returns a compact human-readable label for a model's
-// modalities, or "" when the model is not in the registry. Vision models
-// (text+image) get "vision"; image-generation models (image only) get
-// "image-gen"; text-only models get "".
+// modalities, or "" when the model is not in the registry: "image-gen" for
+// image-generation models, "vision" for image-accepting chat models, ""
+// otherwise.
 func ModalitiesLabel(modelID string) string {
-	hasText, hasImage := TextImage(modelModalities(modelID))
 	switch {
-	case hasText && hasImage:
-		return "vision"
-	case hasImage && !hasText:
+	case IsImageGenerationModel(modelID):
 		return "image-gen"
+	case SupportsVision(modelID):
+		return "vision"
 	default:
 		return ""
 	}

@@ -245,10 +245,19 @@ func TestImageService_IsImageFile(t *testing.T) {
 // by gateway-reported modalities: "image" without "text" means image-gen;
 // anything else (vision, text-only, unknown) is not.
 func TestImageService_IsImageModel(t *testing.T) {
-	imageMods := []sdk.ModelModalities{sdk.ModelModalitiesImage}
-	textMods := []sdk.ModelModalities{sdk.ModelModalitiesText}
-	visionMods := []sdk.ModelModalities{sdk.ModelModalitiesText, sdk.ModelModalitiesImage}
-	models.SetGatewayModalities(map[string][]sdk.ModelModalities{
+	imageMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityImage},
+	}
+	textMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+	visionMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+	models.SetGatewayModalities(map[string]sdk.ModelModalities{
 		"openai/gpt-image-2":        imageMods,
 		"openai/dall-e-3":           imageMods,
 		"deepinfra/FLUX-1-schnell":  imageMods,

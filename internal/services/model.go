@@ -56,13 +56,11 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	ids := make([]string, 0, len(resp.Data))
 	windows := make(map[string]int, len(resp.Data))
 	prices := make(map[string]gatewayPrice, len(resp.Data))
-	modalities := make(map[string][]sdk.ModelModalities, len(resp.Data))
+	modalities := make(map[string]sdk.ModelModalities, len(resp.Data))
 	for _, model := range resp.Data {
 		if model.Modalities != nil {
 			modalities[model.ID] = *model.Modalities
-		}
-		if model.Modalities != nil {
-			if hasText, hasImage := models.TextImage(*model.Modalities); hasImage && !hasText {
+			if models.IsImageGenModalities(*model.Modalities) {
 				continue
 			}
 		}

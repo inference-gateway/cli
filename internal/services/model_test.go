@@ -62,13 +62,19 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 }
 
 // TestHTTPModelService_ListModelsFiltersImageModels verifies that image-generation
-// models (modalities include "image" but NOT "text") are excluded from the
+// models (output modalities include "image" but not "text") are excluded from the
 // selectable list; vision models (both "text" and "image") are kept.
 func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 	defer models.SetGatewayModalities(nil)
 
-	imageMods := []sdk.ModelModalities{sdk.ModelModalitiesImage}
-	textMods := []sdk.ModelModalities{sdk.ModelModalitiesText}
+	imageMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityImage},
+	}
+	textMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
 
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
@@ -93,8 +99,14 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 func TestHTTPModelService_ListModelsKeepsVisionModels(t *testing.T) {
 	defer models.SetGatewayModalities(nil)
 
-	textImageMods := []sdk.ModelModalities{sdk.ModelModalitiesText, sdk.ModelModalitiesImage}
-	textMods := []sdk.ModelModalities{sdk.ModelModalitiesText}
+	textImageMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+	textMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
 
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
