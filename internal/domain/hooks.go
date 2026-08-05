@@ -41,9 +41,13 @@ var HookPoints = []HookPoint{
 func (h HookPoint) Valid() bool { return slices.Contains(HookPoints, h) }
 
 // SystemReminder is a resolved reminder ready to inject into the conversation.
+// When AppendToToolResult is true, the Text is appended to the last tool-role
+// message content (for tool_call/tool pairing) instead of inserted as a
+// standalone user message. Set by the provider for on_repeated_failure reminders.
 type SystemReminder struct {
-	Name string
-	Text string
+	Name               string
+	Text               string
+	AppendToToolResult bool
 }
 
 // ReminderQuery carries the context a SystemReminderProvider needs to decide
@@ -66,20 +70,40 @@ type SystemReminder struct {
 // call. It is meaningful only at the post_tool hook (set right before that
 // dispatch) and drives the `on_failure` trigger.
 //
+// RepeatedFailures and FailedTool are set at the post_tool hook when the same
+// tool call has failed threshold+ consecutive times; they drive the
+// `on_repeated_failure` trigger. FailedTool is the function name, for
+// templating.
+//
+// FinishReason carries the LLM response's finish_reason string. It drives
+// the `on_truncation` trigger at the post_stream hook (firing when the value
+// is "length").
+//
+// IncompleteTodos carries the remaining open todo items from the model's
+// TodoWrite list; it drives the `on_stalled_todos` trigger at the post_stream
+// hook (firing when non-empty and the response had no tool calls).
+// StalledStrikes is the count of consecutive no-tool-call responses, gating
+// that trigger's strike cap (threshold).
+//
 // ModeChanged reports whether the agent mode differs from the previous
 // streaming turn; PrevMode/Mode carry the transition. They are meaningful only
 // at the pre_stream hook (set right before that dispatch) and drive the
 // `on_mode_change` trigger.
 type ReminderQuery struct {
-	Hook        HookPoint
-	Turn        int
-	SessionTurn int
-	MaxTurns    int
-	Fired       map[string]bool
-	ToolFailed  bool
-	ModeChanged bool
-	PrevMode    AgentMode
-	Mode        AgentMode
+	Hook             HookPoint
+	Turn             int
+	SessionTurn      int
+	MaxTurns         int
+	Fired            map[string]bool
+	ToolFailed       bool
+	RepeatedFailures int
+	FailedTool       string
+	FinishReason     string
+	IncompleteTodos  []TodoItem
+	StalledStrikes   int
+	ModeChanged      bool
+	PrevMode         AgentMode
+	Mode             AgentMode
 }
 
 // HookCommand is a resolved command hook ready to run at a hook point: a named

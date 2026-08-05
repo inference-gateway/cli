@@ -1662,32 +1662,6 @@ func TestIncompleteTodoItems(t *testing.T) {
 	}
 }
 
-func TestTodoContinuationMessage(t *testing.T) {
-	msg := todoContinuationMessage([]domain.TodoItem{
-		{ID: "1", Content: "wire modalities", Status: "in_progress"},
-		{ID: "2", Content: "open draft PR", Status: "pending"},
-	})
-
-	if msg.Role != "user" || !msg.Internal {
-		t.Errorf("nudge must be an internal user message, got role=%q internal=%v", msg.Role, msg.Internal)
-	}
-	for _, want := range []string{"<system-reminder>", "[in_progress] wire modalities", "[pending] open draft PR"} {
-		if !strings.Contains(msg.Content, want) {
-			t.Errorf("nudge content missing %q:\n%s", want, msg.Content)
-		}
-	}
-}
-
-func TestTruncationContinuationMessage(t *testing.T) {
-	msg := truncationContinuationMessage()
-	if msg.Role != "user" || !msg.Internal {
-		t.Errorf("truncation note must be an internal user message, got role=%q internal=%v", msg.Role, msg.Internal)
-	}
-	if !strings.Contains(msg.Content, "truncated by the token limit") {
-		t.Errorf("truncation note content unexpected:\n%s", msg.Content)
-	}
-}
-
 func TestProcessSyncResponseRecordsFinishReason(t *testing.T) {
 	session := &AgentSession{}
 

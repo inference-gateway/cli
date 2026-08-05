@@ -1148,42 +1148,90 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		s.firedReminders = make(map[string]bool)
 	}
 
-	sessionTurn := int(s.sessionTurns.Load())
 	q := domain.ReminderQuery{
 		Hook:        hook,
 		Turn:        agentCtx.Turns,
-		SessionTurn: sessionTurn,
+		SessionTurn: int(s.sessionTurns.Load()),
 		MaxTurns:    agentCtx.MaxTurns,
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}
+	if hook == domain.HookPostTool {
+		if name, n := s.takeRepeatedFailure(); name != "" {
+			q.RepeatedFailures = n
+			q.FailedTool = name
+		}
+	}
 	if hook == domain.HookPreStream {
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
 	}
-	for _, r := range provider.RemindersDue(q) {
-		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
-		*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
-
-		if s.conversationRepo != nil {
-			entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
-			if err := s.conversationRepo.AddMessage(entry); err != nil {
-				logger.Error("failed to store system reminder message", "error", err)
-			}
+	InjectDueReminders(provider, q, func(r domain.SystemReminder) {
+		if r.AppendToToolResult {
+			s.appendToLastToolMessage(agentCtx, r)
+		} else {
+			s.injectReminderAsUserMessage(agentCtx, r)
 		}
+	})
+}
 
+// InjectDueReminders is the single reminder-injection seam shared by the chat
+// (AgentServiceImpl) and headless (AgentSession) loops: it resolves the
+// reminders due for q, delivers each via the caller-owned deliver callback
+// (the two loops hold different conversation representations), logs it, emits
+// the tagged system_reminder stream event, and marks the name in q.Fired.
+// Callers own provider resolution, the awaiting-tool-results guard, query
+// construction, and locking.
+func InjectDueReminders(provider domain.SystemReminderProvider, q domain.ReminderQuery, deliver func(domain.SystemReminder)) {
+	for _, r := range provider.RemindersDue(q) {
+		deliver(r)
 		logger.Debug("system reminder injected",
-			"session_turn", sessionTurn,
-			"hook", string(hook),
+			"turn", q.Turn,
+			"session_turn", q.SessionTurn,
+			"hook", string(q.Hook),
 			"name", r.Name,
 			"reminder_chars", len(r.Text),
 		)
 		streamevent.EmitDebugMessage("user", r.Text, "system_reminder", map[string]any{
-			"turn":         agentCtx.Turns,
-			"session_turn": sessionTurn,
-			"hook":         string(hook),
+			"turn":         q.Turn,
+			"session_turn": q.SessionTurn,
+			"hook":         string(q.Hook),
 			"name":         r.Name,
 		})
-		s.firedReminders[r.Name] = true
+		q.Fired[r.Name] = true
+	}
+}
+
+// appendToLastToolMessage appends reminder text to the last tool-role message
+// in the conversation (for on_repeated_failure reminders that require
+// tool_call/tool pairing). If no tool message is found, it falls back to
+// appending a standalone user message.
+func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+	conv := *agentCtx.Conversation
+	for i := len(conv) - 1; i >= 0; i-- {
+		if conv[i].Role == sdk.Tool {
+			if txt, err := conv[i].Content.AsMessageContent0(); err == nil {
+				conv[i].Content = sdk.NewMessageContent(txt + "\n\n" + r.Text)
+			} else {
+				conv[i].Content = sdk.NewMessageContent(r.Text)
+			}
+			return
+		}
+	}
+	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
+	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
+}
+
+// injectReminderAsUserMessage appends a reminder as a hidden user message,
+// persisting it when a conversation repo is wired in.
+func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
+	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
+
+	if s.conversationRepo != nil {
+		entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to store system reminder message", "error", err)
+		}
 	}
 }
 

@@ -23,13 +23,16 @@ const (
 type ReminderTrigger string
 
 const (
-	ReminderTriggerAlways         ReminderTrigger = "always"
-	ReminderTriggerInterval       ReminderTrigger = "interval"
-	ReminderTriggerOnceAfter      ReminderTrigger = "once_after"
-	ReminderTriggerTurnsBeforeMax ReminderTrigger = "turns_before_max"
-	ReminderTriggerOnce           ReminderTrigger = "once"
-	ReminderTriggerOnFailure      ReminderTrigger = "on_failure"
-	ReminderTriggerOnModeChange   ReminderTrigger = "on_mode_change"
+	ReminderTriggerAlways            ReminderTrigger = "always"
+	ReminderTriggerInterval          ReminderTrigger = "interval"
+	ReminderTriggerOnceAfter         ReminderTrigger = "once_after"
+	ReminderTriggerTurnsBeforeMax    ReminderTrigger = "turns_before_max"
+	ReminderTriggerOnce              ReminderTrigger = "once"
+	ReminderTriggerOnFailure         ReminderTrigger = "on_failure"
+	ReminderTriggerOnModeChange      ReminderTrigger = "on_mode_change"
+	ReminderTriggerOnRepeatedFailure ReminderTrigger = "on_repeated_failure"
+	ReminderTriggerOnTruncation      ReminderTrigger = "on_truncation"
+	ReminderTriggerOnStalledTodos    ReminderTrigger = "on_stalled_todos"
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
@@ -41,6 +44,9 @@ var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerOnce,
 	ReminderTriggerOnFailure,
 	ReminderTriggerOnModeChange,
+	ReminderTriggerOnRepeatedFailure,
+	ReminderTriggerOnTruncation,
+	ReminderTriggerOnStalledTodos,
 }
 
 // Valid reports whether t is one of the pre-defined triggers.
@@ -67,6 +73,27 @@ If you have learned durable facts about the user, project, or workflow this sess
 const defaultUserIntentFocusReminderText = `<system-reminder>
 Focus on the user's initial explicit instructions - their own words are your primary directive, not the context or background in the issue/PR body. If the user says "DO NOT implement yet", "just create the issue", or any other explicit constraint, follow it exactly and stop there. DO NOT mention this message to the user.
 </system-reminder>`
+
+const defaultRepeatedFailureReminderText = `<system-reminder>
+{tool_name} failed {count} times with identical arguments. Stop retrying - verify your assumptions (list or search first) and take a different approach.
+</system-reminder>`
+
+const defaultTodoContinuationReminderText = `<system-reminder>
+This is an automated check, not a message from the user. Your todo list still has incomplete items:
+{todo_list}Your last reply had no tool calls, which ends the session. Continue working on the next incomplete item now, using tool calls. If an item is already done or obsolete, update the list via TodoWrite (mark it completed or remove it) before stopping. Do not reply with prose only.
+</system-reminder>`
+
+const defaultTruncationContinuationReminderText = `<system-reminder>
+This is an automated check, not a message from the user. Your previous response was truncated by the token limit before any tool call was emitted. Continue where you left off: keep the reply short and re-issue the intended tool call.
+</system-reminder>`
+
+// defaultRepeatedFailureThreshold is the built-in threshold for the
+// on_repeated_failure trigger (fires from the 3rd identical failure on).
+const defaultRepeatedFailureThreshold = 3
+
+// defaultStalledTodosThreshold caps the consecutive no-tool-call strikes
+// before the on_stalled_todos trigger stops firing (3-strike cap from #946).
+const defaultStalledTodosThreshold = 3
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
 // point, gated by a trigger.
@@ -175,9 +202,32 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Text:      defaultUserIntentFocusReminderText,
 		},
 	}
+	reminders = append(reminders,
+		ReminderConfig{
+			Name:      "repeated-failure",
+			Hook:      domain.HookPostTool,
+			Trigger:   ReminderTriggerOnRepeatedFailure,
+			Threshold: defaultRepeatedFailureThreshold,
+			Text:      defaultRepeatedFailureReminderText,
+		},
+		ReminderConfig{
+			Name:      "todo-continuation",
+			Hook:      domain.HookPostStream,
+			Trigger:   ReminderTriggerOnStalledTodos,
+			Threshold: defaultStalledTodosThreshold,
+			Text:      defaultTodoContinuationReminderText,
+		},
+		ReminderConfig{
+			Name:    "truncation-continuation",
+			Hook:    domain.HookPostStream,
+			Trigger: ReminderTriggerOnTruncation,
+			Text:    defaultTruncationContinuationReminderText,
+		},
+	)
+	reminders = append(reminders, MemoryReminders()...)
 	return &RemindersConfig{
 		Enabled:   true,
-		Reminders: append(reminders, MemoryReminders()...),
+		Reminders: reminders,
 	}
 }
 
@@ -286,10 +336,19 @@ func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemRem
 			continue
 		}
 		text := rc.Text
-		if rc.Trigger == ReminderTriggerOnModeChange {
+		switch rc.Trigger {
+		case ReminderTriggerOnModeChange:
 			text = resolveModeChangeText(rc, q)
+		case ReminderTriggerOnRepeatedFailure:
+			text = resolveRepeatedFailureText(rc, q)
+		case ReminderTriggerOnStalledTodos:
+			text = resolveStalledTodosText(rc, q)
 		}
-		due = append(due, domain.SystemReminder{Name: rc.Name, Text: text})
+		due = append(due, domain.SystemReminder{
+			Name:               rc.Name,
+			Text:               text,
+			AppendToToolResult: rc.Trigger == ReminderTriggerOnRepeatedFailure,
+		})
 	}
 	return due
 }
@@ -304,6 +363,23 @@ func resolveModeChangeText(rc ReminderConfig, q domain.ReminderQuery) string {
 	text := strings.ReplaceAll(rc.Text, "{prev_mode}", q.PrevMode.DisplayName())
 	text = strings.ReplaceAll(text, "{new_mode}", q.Mode.DisplayName())
 	return strings.ReplaceAll(text, "{guidance}", guidance)
+}
+
+// resolveRepeatedFailureText substitutes the {tool_name}/{count} placeholders
+// of an on_repeated_failure reminder from the query's failure tracking.
+func resolveRepeatedFailureText(rc ReminderConfig, q domain.ReminderQuery) string {
+	text := strings.ReplaceAll(rc.Text, "{tool_name}", q.FailedTool)
+	return strings.ReplaceAll(text, "{count}", fmt.Sprintf("%d", q.RepeatedFailures))
+}
+
+// resolveStalledTodosText substitutes the {todo_list} placeholder of an
+// on_stalled_todos reminder from the query's incomplete todo items.
+func resolveStalledTodosText(rc ReminderConfig, q domain.ReminderQuery) string {
+	var items strings.Builder
+	for _, t := range q.IncompleteTodos {
+		fmt.Fprintf(&items, "- [%s] %s\n", t.Status, t.Content)
+	}
+	return strings.ReplaceAll(rc.Text, "{todo_list}", items.String())
 }
 
 func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
@@ -323,6 +399,14 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 		return q.ModeChanged
 	case ReminderTriggerAlways:
 		return true
+	case ReminderTriggerOnRepeatedFailure:
+		threshold := cmp.Or(rc.Threshold, defaultRepeatedFailureThreshold)
+		return q.RepeatedFailures >= threshold
+	case ReminderTriggerOnTruncation:
+		return q.FinishReason == "length"
+	case ReminderTriggerOnStalledTodos:
+		strikeCap := cmp.Or(rc.Threshold, defaultStalledTodosThreshold)
+		return len(q.IncompleteTodos) > 0 && q.StalledStrikes < strikeCap
 	default:
 		return false
 	}
@@ -332,6 +416,8 @@ func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
 // catalogs and the per-trigger requirements. It returns an error describing the
 // first invalid entry. An empty Hook/Trigger is allowed (defaulted by
 // effective); only non-empty values are checked against the catalog.
+//
+//nolint:gocyclo,cyclop // Validate is a flat switch of independent checks on the same loop; splitting would scatter closely related validation logic.
 func (r RemindersConfig) Validate() error {
 	for i, rc := range r.Reminders {
 		switch {
@@ -351,6 +437,14 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): trigger once_after requires threshold > 0", i, rc.Name)
 		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != domain.HookPreStream:
 			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, domain.HookPreStream)
+		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Hook != "" && rc.Hook != domain.HookPostTool:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_repeated_failure requires hook %s", i, rc.Name, domain.HookPostTool)
+		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Threshold <= 0:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_repeated_failure requires threshold > 0", i, rc.Name)
+		case rc.Trigger == ReminderTriggerOnTruncation && rc.Hook != "" && rc.Hook != domain.HookPostStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_truncation requires hook %s", i, rc.Name, domain.HookPostStream)
+		case rc.Trigger == ReminderTriggerOnStalledTodos && rc.Hook != "" && rc.Hook != domain.HookPostStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_stalled_todos requires hook %s", i, rc.Name, domain.HookPostStream)
 		case rc.Interval < 0:
 			return fmt.Errorf("reminders[%d] (%s): interval must be >= 0", i, rc.Name)
 		}

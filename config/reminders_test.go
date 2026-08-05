@@ -1,7 +1,9 @@
 package config_test
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -443,5 +445,162 @@ func TestReminders_Validate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantError %v", err, tt.wantError)
 			}
 		})
+	}
+}
+
+func TestOnStalledTodosTrigger(t *testing.T) {
+	todos := []domain.TodoItem{
+		{ID: "1", Content: "wire modalities", Status: "pending"},
+		{ID: "2", Content: "open draft PR", Status: "in_progress"},
+	}
+	tests := []struct {
+		name      string
+		threshold int
+		todos     []domain.TodoItem
+		strikes   int
+		want      bool
+	}{
+		{"first strike fires", 0, todos, 1, true},
+		{"second strike fires", 0, todos, 2, true},
+		{"third strike capped by default threshold", 0, todos, 3, false},
+		{"no incomplete todos is silent", 0, nil, 1, false},
+		{"overridden threshold extends the cap", 5, todos, 4, true},
+		{"overridden threshold still caps", 2, todos, 2, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := remindersCfg(true, config.ReminderConfig{
+				Name:      "todo-continuation",
+				Hook:      domain.HookPostStream,
+				Trigger:   config.ReminderTriggerOnStalledTodos,
+				Threshold: tt.threshold,
+				Text:      "incomplete:\n{todo_list}",
+			})
+			q := query(domain.HookPostStream, 1, 10, nil)
+			q.IncompleteTodos = tt.todos
+			q.StalledStrikes = tt.strikes
+			due := cfg.RemindersDue(q)
+			if fired := len(due) == 1; fired != tt.want {
+				t.Fatalf("fired = %v, want %v (due: %+v)", fired, tt.want, due)
+			}
+			if tt.want {
+				text := due[0].Text
+				for _, want := range []string{"- [pending] wire modalities", "- [in_progress] open draft PR"} {
+					if !strings.Contains(text, want) {
+						t.Errorf("resolved text missing %q:\n%s", want, text)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestOnTruncationTrigger(t *testing.T) {
+	tests := []struct {
+		name         string
+		hook         domain.HookPoint
+		finishReason string
+		want         bool
+	}{
+		{"fires on length at post_stream", domain.HookPostStream, "length", true},
+		{"silent on stop", domain.HookPostStream, "stop", false},
+		{"silent on empty finish reason", domain.HookPostStream, "", false},
+		{"silent at other hooks", domain.HookPostTool, "length", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := remindersCfg(true, config.ReminderConfig{
+				Name:    "truncation-continuation",
+				Hook:    domain.HookPostStream,
+				Trigger: config.ReminderTriggerOnTruncation,
+				Text:    "continue where you left off",
+			})
+			q := query(tt.hook, 1, 10, nil)
+			q.FinishReason = tt.finishReason
+			if fired := len(cfg.RemindersDue(q)) == 1; fired != tt.want {
+				t.Fatalf("fired = %v, want %v", fired, tt.want)
+			}
+		})
+	}
+}
+
+func TestOnRepeatedFailureTrigger(t *testing.T) {
+	tests := []struct {
+		name     string
+		failures int
+		want     bool
+	}{
+		{"below threshold is silent", 2, false},
+		{"at threshold fires", 3, true},
+		{"above threshold fires", 5, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := remindersCfg(true, config.ReminderConfig{
+				Name:      "repeated-failure",
+				Hook:      domain.HookPostTool,
+				Trigger:   config.ReminderTriggerOnRepeatedFailure,
+				Threshold: 3,
+				Text:      "{tool_name} failed {count} times",
+			})
+			q := query(domain.HookPostTool, 1, 10, nil)
+			q.RepeatedFailures = tt.failures
+			q.FailedTool = "Read"
+			due := cfg.RemindersDue(q)
+			if fired := len(due) == 1; fired != tt.want {
+				t.Fatalf("fired = %v, want %v", fired, tt.want)
+			}
+			if tt.want {
+				if want := fmt.Sprintf("Read failed %d times", tt.failures); due[0].Text != want {
+					t.Errorf("resolved text = %q, want %q", due[0].Text, want)
+				}
+				if !due[0].AppendToToolResult {
+					t.Error("on_repeated_failure reminders must set AppendToToolResult")
+				}
+			}
+		})
+	}
+}
+
+func TestValidateNewTriggerRequirements(t *testing.T) {
+	tests := []struct {
+		name      string
+		reminder  config.ReminderConfig
+		wantError bool
+	}{
+		{"on_repeated_failure at wrong hook", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, true},
+		{"on_repeated_failure without threshold", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Text: "t"}, true},
+		{"on_repeated_failure valid", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, false},
+		{"on_truncation at wrong hook", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, true},
+		{"on_truncation valid", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, false},
+		{"on_stalled_todos at wrong hook", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, true},
+		{"on_stalled_todos valid", config.ReminderConfig{
+			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := remindersCfg(true, tt.reminder)
+			if err := cfg.Validate(); (err != nil) != tt.wantError {
+				t.Fatalf("Validate() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestDefaultRemindersSeedContinuationBuiltins(t *testing.T) {
+	names := map[string]bool{}
+	for _, r := range config.DefaultRemindersConfig().Reminders {
+		names[r.Name] = true
+	}
+	for _, want := range []string{"repeated-failure", "todo-continuation", "truncation-continuation"} {
+		if !names[want] {
+			t.Errorf("DefaultRemindersConfig missing built-in %q", want)
+		}
 	}
 }

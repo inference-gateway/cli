@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -20,25 +19,33 @@ func TestTrackRepeatedFailure(t *testing.T) {
 	failed := domain.ConversationEntry{ToolExecution: &domain.ToolExecutionResult{Success: false}}
 	ok := domain.ConversationEntry{ToolExecution: &domain.ToolExecutionResult{Success: true}}
 
-	if s.trackRepeatedFailure(tc, failed) != "" {
+	s.trackRepeatedFailure(tc, failed)
+	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {
 		t.Fatal("1st failure should not warn")
 	}
-	if s.trackRepeatedFailure(tc, failed) != "" {
+	s.trackRepeatedFailure(tc, failed)
+	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {
 		t.Fatal("2nd failure should not warn")
 	}
-	note := s.trackRepeatedFailure(tc, failed)
-	if !strings.Contains(note, "<system-reminder>") || !strings.Contains(note, "3 times") {
-		t.Fatalf("3rd failure should warn, got: %q", note)
+	s.trackRepeatedFailure(tc, failed)
+	name, n := s.takeRepeatedFailure()
+	if name != "Read" || n != 3 {
+		t.Fatalf("3rd failure should warn (name=Read, n=3), got name=%q n=%d", name, n)
 	}
 
 	tc2 := tc
 	tc2.Function.Arguments = `{"file_path":"/other.go"}`
-	if s.trackRepeatedFailure(tc2, failed) != "" {
+	s.trackRepeatedFailure(tc2, failed)
+	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {
 		t.Fatal("different args should start a fresh count")
 	}
 
 	s.trackRepeatedFailure(tc, ok)
-	if s.trackRepeatedFailure(tc, failed) != "" {
+	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {
 		t.Fatal("count should reset after success")
+	}
+	s.trackRepeatedFailure(tc, failed)
+	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {
+		t.Fatal("count should reset after success (1st failure again)")
 	}
 }
