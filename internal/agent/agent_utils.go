@@ -1217,7 +1217,6 @@ func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *domain.AgentContext
 			return
 		}
 	}
-	// Fallback: no tool message found, append as standalone
 	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
 	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
 }

@@ -1298,7 +1298,7 @@ func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
 	if hook == domain.HookPostStream && s.stalledStrikes > 0 {
 		q.FinishReason = s.lastFinishReason
 		q.StalledStrikes = s.stalledStrikes
-		if s.lastFinishReason != string(sdk.Length) { // truncation nudge wins over the todo nudge
+		if s.lastFinishReason != string(sdk.Length) {
 			q.IncompleteTodos = incompleteTodoItems(s.latestTodos)
 		}
 	}
