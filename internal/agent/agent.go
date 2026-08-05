@@ -390,7 +390,6 @@ func NewAgent(
 		reminderProvider: cfg.Reminders,
 		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),
-		failedCalls:      make(map[string]int),
 		activeSessions:   make(map[string]*sessionCancel),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),

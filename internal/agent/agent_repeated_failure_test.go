@@ -4,12 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestTrackRepeatedFailure(t *testing.T) {
-	s := &AgentServiceImpl{failedCalls: make(map[string]int)}
+	s := &AgentServiceImpl{}
 	tc := sdk.ChatCompletionMessageToolCall{
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Read",
