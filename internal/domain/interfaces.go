@@ -306,6 +306,7 @@ type ChatSyncResponse struct {
 	ToolCalls        []sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
 	Usage            *sdk.CompletionUsage                `json:"usage,omitempty"`
 	Duration         time.Duration                       `json:"duration"`
+	FinishReason     string                              `json:"finish_reason,omitempty"`
 }
 
 // ChatService handles chat completion operations

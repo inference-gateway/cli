@@ -520,7 +520,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	duration := time.Since(startTime)
 
-	content, reasoningContent, toolCalls := extractFirstChoice(response)
+	content, reasoningContent, toolCalls, finishReason := extractFirstChoice(response)
 
 	effectiveUsage := s.storeIterationMetrics(timeoutCtx, req.RequestID, req.Model, startTime, response.Usage, &storeIterationMetricsInput{
 		inputMessages:   messages,
@@ -536,17 +536,18 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		ToolCalls:        toolCalls,
 		Usage:            effectiveUsage,
 		Duration:         duration,
+		FinishReason:     finishReason,
 	}
 
 	return syncResponse, nil
 }
 
-// extractFirstChoice pulls content, reasoning, and tool calls from the first
-// choice of a non-streaming response. Reasoning preference matches the
-// streaming path in agent_streaming.go.
-func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, string, []sdk.ChatCompletionMessageToolCall) {
+// extractFirstChoice pulls content, reasoning, tool calls, and finish reason
+// from the first choice of a non-streaming response. Reasoning preference
+// matches the streaming path in agent_streaming.go.
+func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, string, []sdk.ChatCompletionMessageToolCall, string) {
 	if len(response.Choices) == 0 {
-		return "", "", nil
+		return "", "", nil, ""
 	}
 
 	choice := response.Choices[0]
@@ -569,7 +570,7 @@ func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, str
 		toolCalls = *choice.Message.ToolCalls
 	}
 
-	return content, reasoning, toolCalls
+	return content, reasoning, toolCalls, string(choice.FinishReason)
 }
 
 // ensureConversationIntegrity enforces the OpenAI tool_call/response

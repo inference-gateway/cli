@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,54 @@ func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
 	require.Len(t, reqs, 1)
 	require.Equal(t, "text-only", reqs[0].Scenario, "scenario must be text-only")
 	require.False(t, reqs[0].Stream, "headless agent uses the non-streaming path")
+}
+
+// TestAgentNudgesOnIncompleteTodos guards the todo-aware completion gate
+// (#946; regression via #994): a text-only reply while the model's own todo
+// list still has open items is a stall, not completion — the loop injects up
+// to two continuation nudges listing the open items before giving up. A run
+// with no todos (TestAgentTextOnlyTerminatesAfterOneTurn) still ends on the
+// first no-tool-call turn.
+func TestAgentNudgesOnIncompleteTodos(t *testing.T) {
+	defs, err := mockgateway.Load([]byte(`
+fallback:
+  content: "Done."
+scenarios:
+  - name: todo-stall
+    match: '(?i)^implement the vision feature'
+    turns:
+      - tool_calls:
+          - name: TodoWrite
+            args:
+              todos:
+                - { id: "1", content: "bump the sdk", status: "in_progress" }
+                - { id: "2", content: "wire modalities", status: "pending" }
+      - content: "Let me check the callers next."
+      - content: "Still reading the code."
+      - content: "Wrapping up."
+`))
+	require.NoError(t, err)
+	gw, url := harness.StartMock(t, defs)
+
+	stdout, code := runAgent(t, url, t.TempDir(), "implement the vision feature")
+	require.Zero(t, code)
+
+	reqs := gw.Requests()
+	require.Len(t, reqs, 4, "TodoWrite turn, text-only strike + nudge, nudged retry + nudge, final retry then break")
+
+	nudges := 0
+	for _, m := range reqs[3].Body.Messages {
+		text := m.Content.Text()
+		if strings.Contains(text, "todo list still has incomplete items") {
+			nudges++
+			require.Contains(t, text, "[pending] wire modalities", "nudge must list the open items verbatim")
+		}
+	}
+	require.Equal(t, 2, nudges, "exactly two continuation nudges before giving up")
+
+	stats := statusOfType(jsonLines(t, stdout), "session_stats")
+	require.NotNil(t, stats)
+	require.EqualValues(t, 4, stats["requests"])
 }
 
 func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {

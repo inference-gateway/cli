@@ -107,6 +107,8 @@ type AgentSession struct {
 	memoryBackend    domain.MemoryBackend
 	firedReminders   map[string]bool
 	lastToolFailed   bool
+	lastFinishReason string
+	latestTodos      []domain.TodoItem
 	saveEnabled      bool
 	bgWaiter         *services.BackgroundTasksWaiter
 	requireApproval  bool
@@ -548,11 +550,27 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		consecutiveNoToolCalls++
 
-		if consecutiveNoToolCalls >= 1 {
-			logger.Info("task appears complete (no more tool calls)", "turns", s.completedTurns)
-			completedNormally = true
-			break
+		if s.lastFinishReason == string(sdk.Length) {
+			logger.Warn("response truncated by token limit; continuing", "strike", consecutiveNoToolCalls)
+			s.addMessage(truncationContinuationMessage())
+			continue
 		}
+
+		incomplete := incompleteTodoItems(s.latestTodos)
+		if len(incomplete) > 0 && consecutiveNoToolCalls < 3 {
+			logger.Info("no tool calls but todos incomplete; nudging model to continue",
+				"incomplete", len(incomplete), "strike", consecutiveNoToolCalls, "finish_reason", s.lastFinishReason)
+			s.addMessage(todoContinuationMessage(incomplete))
+			continue
+		}
+
+		if len(incomplete) > 0 {
+			logger.Info("task stopped with incomplete todos", "turns", s.completedTurns, "incomplete", len(incomplete))
+		} else {
+			logger.Info("task appears complete (no more tool calls)", "turns", s.completedTurns, "finish_reason", s.lastFinishReason)
+		}
+		completedNormally = true
+		break
 	}
 
 	var sessionErr error
@@ -623,6 +641,50 @@ func (s *AgentSession) injectDrained(drained []services.DrainedMessage) int {
 
 	logger.Info("injected background task results into conversation", "count", len(drained))
 	return len(drained)
+}
+
+// incompleteTodoItems returns the todos not yet marked completed.
+func incompleteTodoItems(todos []domain.TodoItem) []domain.TodoItem {
+	var incomplete []domain.TodoItem
+	for _, t := range todos {
+		if t.Status != "completed" {
+			incomplete = append(incomplete, t)
+		}
+	}
+	return incomplete
+}
+
+// todoContinuationMessage is the headless loop's termination guard (#946): a
+// no-tool-call reply normally ends the session, but while the model's own todo
+// list still has open items the reply is treated as a stall, not completion.
+func todoContinuationMessage(incomplete []domain.TodoItem) ConversationMessage {
+	var items strings.Builder
+	for _, t := range incomplete {
+		fmt.Fprintf(&items, "- [%s] %s\n", t.Status, t.Content)
+	}
+	return ConversationMessage{
+		Role: "user",
+		Content: fmt.Sprintf(`<system-reminder>
+This is an automated check, not a message from the user. Your todo list still has incomplete items:
+%sYour last reply had no tool calls, which ends the session. Continue working on the next incomplete item now, using tool calls. If an item is already done or obsolete, update the list via TodoWrite (mark it completed or remove it) before stopping. Do not reply with prose only.
+</system-reminder>`, items.String()),
+		Timestamp: time.Now(),
+		Internal:  true,
+	}
+}
+
+// truncationContinuationMessage is injected when finish_reason is "length": the
+// reply was cut off by the token limit and may have swallowed a pending tool
+// call, so it is never treated as completion.
+func truncationContinuationMessage() ConversationMessage {
+	return ConversationMessage{
+		Role: "user",
+		Content: `<system-reminder>
+This is an automated check, not a message from the user. Your previous response was truncated by the token limit before any tool call was emitted. Continue where you left off: keep the reply short and re-issue the intended tool call.
+</system-reminder>`,
+		Timestamp: time.Now(),
+		Internal:  true,
+	}
 }
 
 // completionNotice distills a drained background-task result into a one-line
@@ -795,6 +857,8 @@ func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentP
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	s.lastFinishReason = response.FinishReason
+
 	if response.Content == "" && len(response.ToolCalls) == 0 {
 		return nil
 	}
@@ -1282,6 +1346,12 @@ func (s *AgentSession) injectDueReminders(hook domain.HookPoint, turn int) {
 
 func (s *AgentSession) addMessage(msg ConversationMessage) {
 	s.conversation = append(s.conversation, msg)
+
+	if msg.ToolExecution != nil && msg.ToolExecution.Success {
+		if todoResult, ok := msg.ToolExecution.Data.(*domain.TodoWriteToolResult); ok {
+			s.latestTodos = todoResult.Todos
+		}
+	}
 
 	if s.saveEnabled && s.conversationRepo != nil {
 		entry := s.convertToConversationEntry(msg)
