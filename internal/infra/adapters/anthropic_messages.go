@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -34,6 +35,10 @@ type AnthropicMessages struct {
 	opts          *sdk.CreateChatCompletionRequest
 	tools         *[]sdk.ChatCompletionTool
 	cacheCreation atomic.Int64
+	// noEffort remembers models that rejected output_config.effort (e.g.
+	// Haiku 4.5) so later turns skip the parameter instead of re-tripping
+	// the same 400.
+	noEffort sync.Map
 }
 
 var _ sdk.Client = (*AnthropicMessages)(nil)
@@ -129,7 +134,12 @@ func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Pr
 		return a.inner.GenerateContent(ctx, provider, model, messages)
 	}
 
-	resp, err := a.inner.CreateMessage(ctx, provider, a.buildMessagesRequest(model, messages))
+	req := a.buildMessagesRequest(model, messages)
+	resp, err := a.inner.CreateMessage(ctx, provider, req)
+	if a.effortRejected(model, err) {
+		req.OutputConfig = nil
+		resp, err = a.inner.CreateMessage(ctx, provider, req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("anthropic /v1/messages request failed (the gateway must support the Messages API): %w", err)
 	}
@@ -144,7 +154,12 @@ func (a *AnthropicMessages) GenerateContentStream(ctx context.Context, provider 
 		return a.inner.GenerateContentStream(ctx, provider, model, messages)
 	}
 
-	in, err := a.inner.CreateMessageStream(ctx, provider, a.buildMessagesRequest(model, messages))
+	req := a.buildMessagesRequest(model, messages)
+	in, err := a.inner.CreateMessageStream(ctx, provider, req)
+	if a.effortRejected(model, err) {
+		req.OutputConfig = nil
+		in, err = a.inner.CreateMessageStream(ctx, provider, req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("anthropic /v1/messages request failed (the gateway must support the Messages API): %w", err)
 	}
@@ -201,9 +216,25 @@ func (a *AnthropicMessages) buildMessagesRequest(model string, messages []sdk.Me
 		req.Tools = &tools
 	}
 
-	req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
+	if _, rejected := a.noEffort.Load(model); !rejected {
+		req.OutputConfig = &sdk.MessagesOutputConfig{Effort: a.effortOption()}
+	}
 
 	return req
+}
+
+// effortRejected reports whether err is Anthropic's 400 for models that do
+// not support output_config.effort (e.g. Haiku 4.5), recording the model so
+// subsequent requests omit the parameter up front. Anthropic publishes no
+// per-model capability flag for effort, so the rejection itself is the
+// detection.
+func (a *AnthropicMessages) effortRejected(model string, err error) bool {
+	if err == nil || !strings.Contains(err.Error(), "does not support the effort parameter") {
+		return false
+	}
+	a.noEffort.Store(model, true)
+	logger.Debug("model rejected output_config.effort; retrying without it", "model", model)
+	return true
 }
 
 func (a *AnthropicMessages) maxTokens() int {

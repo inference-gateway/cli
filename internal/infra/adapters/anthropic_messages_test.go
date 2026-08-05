@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -383,4 +384,41 @@ func TestGenerateContentSyncPassthrough(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, fake.GenerateContentCallCount())
 	assert.Equal(t, 0, fake.CreateMessageCallCount())
+}
+
+// TestGenerateContentRetriesWithoutEffortWhenRejected verifies the adapter's
+// handling of models that reject output_config.effort (e.g. Haiku 4.5): the
+// 400 triggers one retry without the parameter, and the model is remembered
+// so later turns omit effort up front.
+func TestGenerateContentRetriesWithoutEffortWhenRejected(t *testing.T) {
+	fake := &mocksdk.FakeClient{}
+	fake.CreateMessageReturnsOnCall(0, nil,
+		fmt.Errorf("API error: This model does not support the effort parameter. (status code: 400)"))
+	ok := &sdk.MessagesResponse{
+		ID: "msg_1", Model: "claude-haiku-4-5", Role: sdk.MessagesResponseRoleAssistant,
+		Content: []sdk.MessagesResponseContentBlock{
+			responseBlock(t, `{"type":"text","text":"hi"}`),
+		},
+		StopReason: sdk.MessagesResponseStopReasonEndTurn,
+	}
+	fake.CreateMessageReturnsOnCall(1, ok, nil)
+	fake.CreateMessageReturnsOnCall(2, ok, nil)
+	adapter := NewAnthropicMessages(fake)
+
+	_, err := adapter.GenerateContent(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
+		[]sdk.Message{textMessage(sdk.User, "hi")})
+	require.NoError(t, err)
+	require.Equal(t, 2, fake.CreateMessageCallCount())
+
+	_, _, first := fake.CreateMessageArgsForCall(0)
+	require.NotNil(t, first.OutputConfig, "first attempt carries the default effort")
+	_, _, second := fake.CreateMessageArgsForCall(1)
+	assert.Nil(t, second.OutputConfig, "retry must drop output_config entirely")
+
+	_, err = adapter.GenerateContent(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
+		[]sdk.Message{textMessage(sdk.User, "again")})
+	require.NoError(t, err)
+	require.Equal(t, 3, fake.CreateMessageCallCount(), "no re-trip on later turns")
+	_, _, third := fake.CreateMessageArgsForCall(2)
+	assert.Nil(t, third.OutputConfig, "rejected model skips effort up front")
 }
