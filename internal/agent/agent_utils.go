@@ -1165,18 +1165,21 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}
+	if hook == domain.HookPostTool {
+		q.ToolFailed = agentCtx.LastToolFailed
+		if name, n := s.takeRepeatedFailure(); name != "" {
+			q.RepeatedFailures = n
+			q.FailedTool = name
+		}
+	}
 	if hook == domain.HookPreStream {
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
 	}
 	for _, r := range provider.RemindersDue(q) {
-		msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
-		*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
-
-		if s.conversationRepo != nil {
-			entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
-			if err := s.conversationRepo.AddMessage(entry); err != nil {
-				logger.Error("failed to store system reminder message", "error", err)
-			}
+		if r.AppendToToolResult {
+			s.appendToLastToolMessage(agentCtx, r)
+		} else {
+			s.injectReminderAsUserMessage(agentCtx, r)
 		}
 
 		logger.Debug("system reminder injected",
@@ -1192,6 +1195,41 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 			"name":         r.Name,
 		})
 		s.firedReminders[r.Name] = true
+	}
+}
+
+// appendToLastToolMessage appends reminder text to the last tool-role message
+// in the conversation (for on_repeated_failure reminders that require
+// tool_call/tool pairing). If no tool message is found, it falls back to
+// appending a standalone user message.
+func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+	conv := *agentCtx.Conversation
+	for i := len(conv) - 1; i >= 0; i-- {
+		if conv[i].Role == sdk.Tool {
+			if txt, err := conv[i].Content.AsMessageContent0(); err == nil {
+				conv[i].Content = sdk.NewMessageContent(txt + "\n\n" + r.Text)
+			} else {
+				conv[i].Content = sdk.NewMessageContent(r.Text)
+			}
+			return
+		}
+	}
+	// Fallback: no tool message found, append as standalone
+	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
+	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
+}
+
+// injectReminderAsUserMessage appends a reminder as a hidden user message,
+// persisting it when a conversation repo is wired in.
+func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
+	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
+
+	if s.conversationRepo != nil {
+		entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to store system reminder message", "error", err)
+		}
 	}
 }
 

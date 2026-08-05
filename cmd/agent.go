@@ -108,6 +108,7 @@ type AgentSession struct {
 	firedReminders   map[string]bool
 	lastToolFailed   bool
 	lastFinishReason string
+	stalledStrikes   int
 	latestTodos      []domain.TodoItem
 	saveEnabled      bool
 	bgWaiter         *services.BackgroundTasksWaiter
@@ -535,6 +536,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		s.dispatchHooks(domain.HookPostTool, turn)
 		s.completedTurns++
+		s.dispatchHooks(domain.HookPostStream, turn)
 
 		if !s.lastResponseHadNoToolCalls() {
 			consecutiveNoToolCalls = 0
@@ -552,7 +554,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 
 		if s.lastFinishReason == string(sdk.Length) {
 			logger.Warn("response truncated by token limit; continuing", "strike", consecutiveNoToolCalls)
-			s.addMessage(truncationContinuationMessage())
+			s.stalledStrikes = consecutiveNoToolCalls
 			continue
 		}
 
@@ -560,7 +562,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		if len(incomplete) > 0 && consecutiveNoToolCalls < 3 {
 			logger.Info("no tool calls but todos incomplete; nudging model to continue",
 				"incomplete", len(incomplete), "strike", consecutiveNoToolCalls, "finish_reason", s.lastFinishReason)
-			s.addMessage(todoContinuationMessage(incomplete))
+			s.stalledStrikes = consecutiveNoToolCalls
 			continue
 		}
 

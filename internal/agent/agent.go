@@ -58,6 +58,13 @@ type AgentServiceImpl struct {
 	failedCalls    map[string]int
 	failedCallsMux sync.Mutex
 
+	// repeatedFailure holds the last tool-call key whose failure count
+	// meets the on_repeated_failure threshold. Set by trackRepeatedFailure
+	// during tool execution and consumed by injectDueReminders at the
+	// post_tool hook. Cleared on the first post_tool dispatch read.
+	repeatedFailureKey string
+	repeatedFailureMux sync.Mutex
+
 	// Session tracking: covers the full lifetime of a RunWithStream call.
 	// Cancelling a session aborts streaming, tool execution, approval waits,
 	// and the main event loop in one shot. Idempotent via sync.Once so
@@ -1061,11 +1068,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
 
 	defer func() {
-		if note := s.trackRepeatedFailure(tc, finalEntry); note != "" {
-			if txt, err := finalEntry.Message.Content.AsMessageContent0(); err == nil {
-				finalEntry.Message.Content = sdk.NewMessageContent(txt + note)
-			}
-		}
+		s.trackRepeatedFailure(tc, finalEntry)
 	}()
 
 	defer func() {
@@ -1459,11 +1462,10 @@ func (s *AgentServiceImpl) requestToolApproval(
 }
 
 // trackRepeatedFailure counts identical failing tool calls (same name and
-// arguments) and, from the third failure on, returns a <system-reminder> to
-// append to the tool result so the model stops retrying a call that will
-// never succeed (e.g. reading a guessed, non-existent file path). A success
-// with the same arguments resets the counter.
-func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry domain.ConversationEntry) string {
+// arguments) and, from the third failure on, stores the key so
+// injectDueReminders can deliver the on_repeated_failure reminder via the
+// reminders pipeline. A success with the same arguments resets the counter.
+func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry domain.ConversationEntry) {
 	key := tc.Function.Name + "\x00" + tc.Function.Arguments
 	s.failedCallsMux.Lock()
 	defer s.failedCallsMux.Unlock()
@@ -1474,18 +1476,37 @@ func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageTool
 
 	if entry.ToolExecution == nil || entry.ToolExecution.Success {
 		delete(s.failedCalls, key)
-		return ""
+		return
 	}
 
 	s.failedCalls[key]++
-	n := s.failedCalls[key]
-	if n < 3 {
-		return ""
+	if s.failedCalls[key] >= 3 {
+		s.repeatedFailureMux.Lock()
+		s.repeatedFailureKey = key
+		s.repeatedFailureMux.Unlock()
 	}
-	return fmt.Sprintf(
-		"\n\n<system-reminder>\n%s failed %d times with identical arguments. Stop retrying - verify your assumptions (list or search first) and take a different approach.\n</system-reminder>",
-		tc.Function.Name, n,
-	)
+}
+
+// takeRepeatedFailure reads and clears the repeated-failure key stored by
+// trackRepeatedFailure, returning the tool name and failure count. Returns ("", 0)
+// when no failure met the threshold. Called by injectDueReminders at post_tool.
+func (s *AgentServiceImpl) takeRepeatedFailure() (string, int) {
+	s.repeatedFailureMux.Lock()
+	defer s.repeatedFailureMux.Unlock()
+	key := s.repeatedFailureKey
+	s.repeatedFailureKey = ""
+
+	if key == "" {
+		return "", 0
+	}
+	s.failedCallsMux.Lock()
+	n := s.failedCalls[key]
+	s.failedCallsMux.Unlock()
+
+	if i := strings.IndexByte(key, '\x00'); i >= 0 {
+		return key[:i], n
+	}
+	return key, n
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
