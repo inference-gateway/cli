@@ -31,14 +31,12 @@ func TestTrackRepeatedFailure(t *testing.T) {
 		t.Fatalf("3rd failure should warn, got: %q", note)
 	}
 
-	// different args = different key
 	tc2 := tc
 	tc2.Function.Arguments = `{"file_path":"/other.go"}`
 	if s.trackRepeatedFailure(tc2, failed) != "" {
 		t.Fatal("different args should start a fresh count")
 	}
 
-	// success resets
 	s.trackRepeatedFailure(tc, ok)
 	if s.trackRepeatedFailure(tc, failed) != "" {
 		t.Fatal("count should reset after success")
