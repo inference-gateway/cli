@@ -216,18 +216,18 @@ agent:
 All channel settings can be configured via environment variables with the
 `INFER_` prefix:
 
-| Setting                           | Environment Variable                    |
-|-----------------------------------|-----------------------------------------|
-| `channels.enabled`                | `INFER_CHANNELS_ENABLED`                |
-| `channels.require_approval`       | `INFER_CHANNELS_REQUIRE_APPROVAL`       |
-| `channels.telegram.enabled`       | `INFER_CHANNELS_TELEGRAM_ENABLED`       |
-| `channels.telegram.bot_token`     | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`     |
-| `channels.telegram.allowed_users` | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS` |
-| `channels.telegram.poll_timeout`  | `INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT`  |
-| `channels.telegram.media.enabled` | `INFER_CHANNELS_TELEGRAM_MEDIA_ENABLED` |
-| `channels.telegram.media.dir`     | `INFER_CHANNELS_TELEGRAM_MEDIA_DIR`     |
+| Setting                               | Environment Variable                        |
+|---------------------------------------|---------------------------------------------|
+| `channels.enabled`                    | `INFER_CHANNELS_ENABLED`                    |
+| `channels.require_approval`           | `INFER_CHANNELS_REQUIRE_APPROVAL`           |
+| `channels.telegram.enabled`           | `INFER_CHANNELS_TELEGRAM_ENABLED`           |
+| `channels.telegram.bot_token`         | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`         |
+| `channels.telegram.allowed_users`     | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS`     |
+| `channels.telegram.poll_timeout`      | `INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT`      |
+| `channels.telegram.media.enabled`     | `INFER_CHANNELS_TELEGRAM_MEDIA_ENABLED`     |
+| `channels.telegram.media.dir`         | `INFER_CHANNELS_TELEGRAM_MEDIA_DIR`         |
 | `channels.telegram.media.max_size_mb` | `INFER_CHANNELS_TELEGRAM_MEDIA_MAX_SIZE_MB` |
-| `channels.telegram.media.retain`  | `INFER_CHANNELS_TELEGRAM_MEDIA_RETAIN`  |
+| `channels.telegram.media.retain`      | `INFER_CHANNELS_TELEGRAM_MEDIA_RETAIN`      |
 
 ## Media Uploads (Telegram)
 

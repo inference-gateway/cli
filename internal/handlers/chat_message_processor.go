@@ -259,10 +259,8 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 		}
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
-			imageRef := fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", filename)
-			if p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel()) {
-				imageRef = fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", filename)
-			}
+			supportsVision := p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel())
+			imageRef := domain.ImageFileRef(filename, supportsVision)
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
@@ -369,20 +367,23 @@ func (p *ChatMessageProcessor) buildUserMessage(
 		return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create text content: %v", err))
 	}
 	contentParts := []sdk.ContentPart{textPart}
+	supportsVision := models.SupportsVision(p.handler.modelService.GetCurrentModel())
 
 	for _, img := range images {
+		if !supportsVision {
+			if note := domain.ImagePathNote(img); note != "" {
+				if notePart, err := sdk.NewTextContentPart(note); err == nil {
+					contentParts = append(contentParts, notePart)
+				}
+			}
+			continue
+		}
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
 			return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create image content: %v", err))
 		}
 		contentParts = append(contentParts, imagePart)
-
-		if note := domain.ImagePathNoteForModel(img, models.SupportsVision(p.handler.modelService.GetCurrentModel())); note != "" {
-			if notePart, err := sdk.NewTextContentPart(note); err == nil {
-				contentParts = append(contentParts, notePart)
-			}
-		}
 	}
 
 	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(contentParts)}, nil

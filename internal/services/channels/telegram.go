@@ -749,10 +749,13 @@ func formatApprovalText(req *domain.ApprovalRequest) string {
 }
 
 var (
-	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?(/[^"]+)"[^>]*/?>`)
-	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?(/[^)]+)\)`)
-	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)(/[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
+	// Paths are absolute or .infer/-relative — models often relativize the
+	// CLI's own tmp dir (.infer/tmp/...) when echoing tool output.
+	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?((?:/|\.infer/)[^"]+)"[^>]*/?>`)
+	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?((?:/|\.infer/)[^)]+)\)`)
+	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)((?:/|\.infer/)[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
 	fenceRe     = regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\n?(.*?)```")
+	quoteRe     = regexp.MustCompile(`(?m)^>[^\n]*(?:\n>[^\n]*)*`)
 	inlCodeRe   = regexp.MustCompile("`([^`\n]+)`")
 	boldRe      = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
 	headerRe    = regexp.MustCompile(`(?m)^#{1,6} +(.+)$`)
@@ -828,10 +831,42 @@ func extractImagePaths(content string) ([]string, string) {
 	return paths, out.String()
 }
 
-// renderTelegramHTML converts common Markdown (fenced code, inline code, bold,
-// headers) to Telegram HTML. Everything else is escaped so the message never
-// breaks on user content.
+// renderTelegramHTML converts common Markdown (blockquotes, fenced code, inline
+// code, bold, headers) to Telegram HTML. Everything else is escaped so the
+// message never breaks on user content. "> "-quoted line groups become
+// <blockquote expandable> — collapsed by default in Telegram clients (Bot API
+// 7.3+); the channel manager quotes tool calls/results to get that behavior.
 func renderTelegramHTML(md string) string {
+	var sb strings.Builder
+	last := 0
+	for _, loc := range quoteRe.FindAllStringIndex(md, -1) {
+		sb.WriteString(renderFencedHTML(md[last:loc[0]]))
+		sb.WriteString("<blockquote expandable>")
+		sb.WriteString(renderFencedHTML(unquoteBlock(md[loc[0]:loc[1]])))
+		sb.WriteString("</blockquote>")
+		last = loc[1]
+	}
+	sb.WriteString(renderFencedHTML(md[last:]))
+	return sb.String()
+}
+
+// unquoteBlock strips the leading "> " (or bare ">") from every line of a
+// markdown blockquote group.
+func unquoteBlock(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if after, ok := strings.CutPrefix(l, "> "); ok {
+			lines[i] = after
+		} else {
+			lines[i] = strings.TrimPrefix(l, ">")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderFencedHTML renders a quote-free segment: fenced code becomes <pre>,
+// the rest goes through renderInlineHTML.
+func renderFencedHTML(md string) string {
 	var sb strings.Builder
 	last := 0
 	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {

@@ -238,10 +238,10 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 		if len(messages) != 3 {
 			t.Fatalf("expected 3 messages, got %d", len(messages))
 		}
-		if messages[0].Content != "Let me check...\n\nRead" {
+		if messages[0].Content != "Let me check...\n\n> Read" {
 			t.Errorf("expected tool message, got %q", messages[0].Content)
 		}
-		if messages[1].Content != "```\nfile contents\n```" {
+		if messages[1].Content != "> ```\n> file contents\n> ```" {
 			t.Errorf("expected tool result, got %q", messages[1].Content)
 		}
 		if messages[2].Content != "Here are the results." {
@@ -318,22 +318,27 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "assistant with tool calls",
 			line: `{"role":"assistant","content":"Let me check...","tools":["Read","Grep"]}`,
-			want: "Let me check...\n\nRead\nGrep",
+			want: "Let me check...\n\n> Read\n> Grep",
 		},
 		{
 			name: "assistant with tool calls no content",
 			line: `{"role":"assistant","content":"","tools":["Write"]}`,
-			want: "Write",
+			want: "> Write",
 		},
 		{
 			name: "assistant tool call with args goes monospace",
 			line: `{"role":"assistant","content":"","tools":["Bash(command=ls -la)"]}`,
-			want: "Bash: `command=ls -la`",
+			want: "> Bash: `command=ls -la`",
 		},
 		{
 			name: "tool result forwarded in code block",
 			line: `{"role":"tool","content":"file contents","tool_call_id":"123"}`,
-			want: "```\nfile contents\n```",
+			want: "> ```\n> file contents\n> ```",
+		},
+		{
+			name: "failed tool result is flagged",
+			line: `{"role":"tool","content":"Tool execution failed: 502","tool_call_id":"123","failed":true}`,
+			want: "> ⚠️ Tool failed - retrying may follow:\n> ```\n> Tool execution failed: 502\n> ```",
 		},
 		{
 			name: "empty tool result is skipped",

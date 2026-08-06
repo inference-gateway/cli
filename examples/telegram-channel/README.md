@@ -220,6 +220,27 @@ on your host) and the agent receives the saved path in the message, e.g.
 over the size limit or with a type outside the allowlist are rejected and the
 agent tells you why. The oldest files are pruned once `retain` is exceeded.
 
+### Understanding images with a text-only model
+
+Images are never sent to the agent model as raw image input - the agent receives
+the saved file path and inspects it with the **ImageDecode** tool, which
+side-calls a vision model (the "annotator") through the gateway. This is what
+lets a cheap text-only agent model still answer "what's in this picture?". The
+compose file enables it:
+
+```yaml
+INFER_VISION_ANNOTATOR_ENABLED: true
+```
+
+The default annotator model is `anthropic/claude-haiku-4-5-20251001`, so put an
+`ANTHROPIC_API_KEY` in `.env` (or point `INFER_VISION_ANNOTATOR_MODEL` at any
+vision model your gateway serves, e.g. a local Ollama one). Asking the bot to
+*generate* an image works out of the box via the ImageGeneration tool
+(`openai/gpt-image-2` by default - needs `OPENAI_API_KEY`); generated images are
+sent back to the chat as photos. Image generation/edits/variations go through the
+gateway's Images API, which is opt-in - the compose sets `ENABLE_IMAGES: true` on
+the `inference-gateway` service (currently OpenAI-only).
+
 ## Running Without Docker
 
 ```bash

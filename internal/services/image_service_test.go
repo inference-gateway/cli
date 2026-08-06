@@ -293,14 +293,12 @@ func TestImageService_IsImageModel(t *testing.T) {
 // fakeImageClient records the request and returns a canned response.
 type fakeImageClient struct {
 	sdk.Client
-	gotProvider          sdk.Provider
-	gotRequest           sdk.CreateImageRequest
-	gotEditProvider      sdk.Provider
-	gotEditRequest       sdk.CreateImageEditMultipartBody
-	gotVariationProvider sdk.Provider
-	gotVariationRequest  sdk.CreateImageVariationMultipartBody
-	response             *sdk.ImagesResponse
-	err                  error
+	gotProvider     sdk.Provider
+	gotRequest      sdk.CreateImageRequest
+	gotEditProvider sdk.Provider
+	gotEditRequest  sdk.CreateImageEditMultipartBody
+	response        *sdk.ImagesResponse
+	err             error
 }
 
 func (f *fakeImageClient) CreateImage(_ context.Context, provider sdk.Provider, request sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
@@ -312,12 +310,6 @@ func (f *fakeImageClient) CreateImage(_ context.Context, provider sdk.Provider, 
 func (f *fakeImageClient) CreateImageEdit(_ context.Context, provider sdk.Provider, request sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
 	f.gotEditProvider = provider
 	f.gotEditRequest = request
-	return f.response, f.err
-}
-
-func (f *fakeImageClient) CreateImageVariation(_ context.Context, provider sdk.Provider, request sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error) {
-	f.gotVariationProvider = provider
-	f.gotVariationRequest = request
 	return f.response, f.err
 }
 
@@ -534,7 +526,9 @@ func TestImageService_CreateImageVariation(t *testing.T) {
 		return path
 	}
 
-	t.Run("input image is uploaded and result is saved", func(t *testing.T) {
+	// Variations are served through the edits endpoint with a built-in prompt:
+	// OpenAI's /v1/images/variations only supported the sunset dall-e-2 model.
+	t.Run("input image is uploaded via edits endpoint and result is saved", func(t *testing.T) {
 		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
 		service := NewImageService(config.DefaultConfig(), client)
 		input := writeInput(t)
@@ -547,11 +541,12 @@ func TestImageService_CreateImageVariation(t *testing.T) {
 		assert.NoError(t, readErr)
 		assert.Equal(t, pngBytes, saved)
 
-		assert.Equal(t, sdk.Provider("openai"), client.gotVariationProvider)
-		assert.Equal(t, "gpt-image-2", *client.gotVariationRequest.Model)
-		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotVariationRequest.Size)
+		assert.Equal(t, sdk.Provider("openai"), client.gotEditProvider)
+		assert.Equal(t, "gpt-image-2", *client.gotEditRequest.Model)
+		assert.Equal(t, variationPrompt, client.gotEditRequest.Prompt)
+		assert.Equal(t, sdk.ImageSize1024X1024, *client.gotEditRequest.Size)
 
-		uploaded, fileErr := client.gotVariationRequest.Image.Bytes()
+		uploaded, fileErr := client.gotEditRequest.Image.Bytes()
 		assert.NoError(t, fileErr)
 		assert.Equal(t, pngBytes, uploaded)
 	})
@@ -565,7 +560,7 @@ func TestImageService_CreateImageVariation(t *testing.T) {
 		_, err := service.CreateImageVariation(context.Background(), "openai/gpt-image-2", input, "")
 
 		assert.NoError(t, err)
-		assert.Nil(t, client.gotVariationRequest.Size)
+		assert.Nil(t, client.gotEditRequest.Size)
 	})
 
 	t.Run("api error is returned", func(t *testing.T) {

@@ -803,6 +803,13 @@ func TestExtractImagePaths(t *testing.T) {
 	if err := os.WriteFile(big, make([]byte, maxPhotoBytes+1), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(dir, ".infer", "tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".infer", "tmp", "rel.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
 
 	tests := []struct {
 		name      string
@@ -827,6 +834,12 @@ func TestExtractImagePaths(t *testing.T) {
 			content:   "Saved to " + img + " (145 KB)",
 			wantPaths: []string{img},
 			wantText:  "Saved to " + img + " (145 KB)",
+		},
+		{
+			name:      "relative .infer path is extracted",
+			content:   "Saved!\n\n![meme](.infer/tmp/rel.png)",
+			wantPaths: []string{".infer/tmp/rel.png"},
+			wantText:  "Saved!\n\n",
 		},
 		{
 			name:      "missing file left untouched",
@@ -886,6 +899,16 @@ func TestRenderTelegramHTML(t *testing.T) {
 		{"html escaped", "a < b & c", "a &lt; b &amp; c"},
 		{"escape inside fence", "```\n<img>\n```", "<pre>&lt;img&gt;</pre>"},
 		{"plain text untouched", "hello world", "hello world"},
+		{
+			"quoted prose collapses to expandable blockquote",
+			"look:\n> line one\n> line two\ndone",
+			"look:\n<blockquote expandable>line one\nline two</blockquote>\ndone",
+		},
+		{
+			"quoted fence renders pre inside blockquote",
+			"> ⚠️ Tool failed:\n> ```\n> exit 502\n> ```",
+			"<blockquote expandable>⚠️ Tool failed:\n<pre>exit 502</pre></blockquote>",
+		},
 		{
 			"header and aligned table",
 			"### Tool Calls\n\n| Tool | Calls |\n|------|-------|\n| Bash | 4 |\n| Tree | 3 |",

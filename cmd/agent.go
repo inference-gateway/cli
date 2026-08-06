@@ -88,6 +88,7 @@ type ConversationMessage struct {
 	ToolCalls        *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
 	Tools            []string                             `json:"tools,omitempty"`
 	ToolCallID       string                               `json:"tool_call_id,omitempty"`
+	Failed           bool                                 `json:"failed,omitempty"`
 	ToolExecution    *domain.ToolExecutionResult          `json:"-"`
 	TokenUsage       *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
 	Timestamp        time.Time                            `json:"timestamp"`
@@ -259,6 +260,10 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	session.rolloverManager = svc.GetSessionRolloverManager()
 	session.groupKey = resolveAndLoadSession(session, session.rolloverManager, sessionID, selectedModel)
+
+	domain.RetryNotifier = func(message string) {
+		session.outputStatusMessage("notification", message, nil)
+	}
 
 	session.maybeRollover()
 
@@ -435,19 +440,11 @@ func (s *AgentSession) maybeRollover() {
 	}
 }
 
-// fileExpansionResult holds the result of expanding file references
-type fileExpansionResult struct {
-	content string
-	images  []domain.ImageAttachment
-}
-
-// expandFileReferences expands @filename references and --files flag inputs
-func (s *AgentSession) expandFileReferences(content string, additionalFiles []string) (*fileExpansionResult, error) {
-	result := &fileExpansionResult{
-		content: content,
-		images:  []domain.ImageAttachment{},
-	}
-
+// expandFileReferences expands @filename references and --files flag inputs.
+// Image files become text path references (domain.ImageFileRef) — same as the
+// chat TUI — so the model reaches them via image tools instead of inline base64,
+// which non-vision models reject.
+func (s *AgentSession) expandFileReferences(content string, additionalFiles []string) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
@@ -462,13 +459,7 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 		}
 
 		if s.imageService != nil && s.imageService.IsImageFile(filename) {
-			imageAttachment, err := s.imageService.ReadImageFromFile(filename)
-			if err != nil {
-				logger.Warn("failed to read image file", "filename", filename, "error", err)
-				continue
-			}
-			result.images = append(result.images, *imageAttachment)
-			imageRef := fmt.Sprintf("[Image: %s]", filename)
+			imageRef := domain.ImageFileRef(filename, models.SupportsVision(s.model))
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
@@ -485,43 +476,37 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 
 	for _, filename := range additionalFiles {
 		if err := s.fileService.ValidateFile(filename); err != nil {
-			return nil, fmt.Errorf("invalid file '%s': %w", filename, err)
+			return "", fmt.Errorf("invalid file '%s': %w", filename, err)
 		}
 
 		if s.imageService != nil && s.imageService.IsImageFile(filename) {
-			imageAttachment, err := s.imageService.ReadImageFromFile(filename)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read image file '%s': %w", filename, err)
-			}
-			result.images = append(result.images, *imageAttachment)
+			expandedContent += "\n\n" + domain.ImageFileRef(filename, models.SupportsVision(s.model))
 			continue
 		}
 
 		fileContent, err := s.fileService.ReadFile(filename)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", filename, err)
+			return "", fmt.Errorf("failed to read file '%s': %w", filename, err)
 		}
 
 		fileBlock := fmt.Sprintf("\n\nFile: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
 		expandedContent += fileBlock
 	}
 
-	result.content = expandedContent
-	return result, nil
+	return expandedContent, nil
 }
 
 func (s *AgentSession) execute(taskDescription string, files []string) error {
 	defer s.emitSessionStats()
 
-	expansion, err := s.expandFileReferences(taskDescription, files)
+	expanded, err := s.expandFileReferences(taskDescription, files)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
 
 	s.addMessage(ConversationMessage{
 		Role:      "user",
-		Content:   expansion.content,
-		Images:    expansion.images,
+		Content:   expanded,
 		Timestamp: time.Now(),
 	})
 
@@ -742,10 +727,7 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	var messages []sdk.Message
 
 	for _, msg := range s.conversation {
-		content := s.buildMessageContent(msg)
-		if msg.Role == "tool" {
-			content = sdk.NewMessageContent(msg.Content)
-		}
+		content := sdk.NewMessageContent(msg.Content)
 
 		sdkMsg := sdk.Message{
 			Role:    sdk.MessageRole(msg.Role),
@@ -785,14 +767,25 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 
 // toolImagesFollowUpMessage builds the user message carrying tool-result
 // images. Tool-role messages must stay text-only (Anthropic), so images are
-// hoisted into a follow-up user message.
+// hoisted into a follow-up user message. Non-vision models get text path notes
+// (pointing at ImageDecode) instead of raw image parts, which they reject.
 func (s *AgentSession) toolImagesFollowUpMessage(images []domain.ImageAttachment) *sdk.Message {
+	supportsVision := models.SupportsVision(s.model)
+
 	var parts []sdk.ContentPart
 	if lead, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(images))); err == nil {
 		parts = append(parts, lead)
 	}
 
 	for _, img := range images {
+		if !supportsVision {
+			if note := domain.ImagePathNote(img); note != "" {
+				if notePart, err := sdk.NewTextContentPart(note); err == nil {
+					parts = append(parts, notePart)
+				}
+			}
+			continue
+		}
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
@@ -806,47 +799,6 @@ func (s *AgentSession) toolImagesFollowUpMessage(images []domain.ImageAttachment
 		return nil
 	}
 	return &sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(parts)}
-}
-
-func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
-	if len(msg.Images) == 0 {
-		return sdk.NewMessageContent(msg.Content)
-	}
-
-	contentParts := s.buildContentParts(msg)
-	if contentParts == nil {
-		return sdk.NewMessageContent(msg.Content)
-	}
-
-	return sdk.NewMessageContent(contentParts)
-}
-
-func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentPart {
-	textPart, err := sdk.NewTextContentPart(msg.Content)
-	if err != nil {
-		logger.Warn("failed to create text content part", "error", err)
-		return nil
-	}
-
-	contentParts := []sdk.ContentPart{textPart}
-
-	for _, img := range msg.Images {
-		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
-		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
-		if err != nil {
-			logger.Warn("failed to create image content part", "filename", img.Filename, "error", err)
-			continue
-		}
-		contentParts = append(contentParts, imagePart)
-
-		if note := domain.ImagePathNoteForModel(img, models.SupportsVision(s.model)); note != "" {
-			if notePart, err := sdk.NewTextContentPart(note); err == nil {
-				contentParts = append(contentParts, notePart)
-			}
-		}
-	}
-
-	return contentParts
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
@@ -944,6 +896,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 					Role:          "tool",
 					Content:       fmt.Sprintf("Tool execution failed: %s", err.Error()),
 					ToolCallID:    tc.ID,
+					Failed:        true,
 					ToolExecution: errorResult,
 					Timestamp:     time.Now(),
 				}
@@ -954,6 +907,7 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 				Role:          "tool",
 				Content:       s.formatToolResult(result),
 				ToolCallID:    tc.ID,
+				Failed:        result == nil || !result.Success,
 				ToolExecution: result,
 				Timestamp:     time.Now(),
 			}
@@ -999,6 +953,7 @@ func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, r
 			Role:       "tool",
 			Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
 			ToolCallID: tc.ID,
+			Failed:     true,
 			ToolExecution: &domain.ToolExecutionResult{
 				ToolName: tc.Function.Name,
 				Success:  false,
@@ -1011,6 +966,7 @@ func (s *AgentSession) toolResultMessage(tc sdk.ChatCompletionMessageToolCall, r
 		Role:          "tool",
 		Content:       s.formatToolResult(result),
 		ToolCallID:    tc.ID,
+		Failed:        result == nil || !result.Success,
 		ToolExecution: result,
 		Images:        result.Images,
 		Timestamp:     time.Now(),
