@@ -447,9 +447,10 @@ func formatToolLine(tool string) string {
 	if found {
 		args = strings.TrimSuffix(args, ")")
 	}
-	const maxArgs = 200
-	if r := []rune(args); len(r) > maxArgs {
-		args = string(r[:maxArgs]) + "…"
+	// Full args are forwarded (same cap as tool results): the channel renders
+	// tool lines as collapsed quotes, so length no longer floods the chat.
+	if r := []rune(args); len(r) > maxToolResultLen {
+		args = string(r[:maxToolResultLen]) + "…"
 	}
 	if args == "" {
 		return name
