@@ -905,9 +905,9 @@ func TestRenderTelegramHTML(t *testing.T) {
 			"look:\n<blockquote expandable>line one\nline two</blockquote>\ndone",
 		},
 		{
-			"quoted fence renders pre inside blockquote",
+			"quoted fence renders code (not pre) inside blockquote",
 			"> ⚠️ Tool failed:\n> ```\n> exit 502\n> ```",
-			"<blockquote expandable>⚠️ Tool failed:\n<pre>exit 502</pre></blockquote>",
+			"<blockquote expandable>⚠️ Tool failed:\n<code>exit 502</code></blockquote>",
 		},
 		{
 			"header and aligned table",

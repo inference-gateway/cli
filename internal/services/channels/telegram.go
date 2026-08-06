@@ -842,11 +842,30 @@ func renderTelegramHTML(md string) string {
 	for _, loc := range quoteRe.FindAllStringIndex(md, -1) {
 		sb.WriteString(renderFencedHTML(md[last:loc[0]]))
 		sb.WriteString("<blockquote expandable>")
-		sb.WriteString(renderFencedHTML(unquoteBlock(md[loc[0]:loc[1]])))
+		// Fences inside a quote become <code>, not <pre>: a pre block inside an
+		// expandable blockquote renders fully expanded (probed on iOS), which
+		// defeats the collapse entirely. Multi-line code entities do collapse.
+		sb.WriteString(renderQuotedHTML(unquoteBlock(md[loc[0]:loc[1]])))
 		sb.WriteString("</blockquote>")
 		last = loc[1]
 	}
 	sb.WriteString(renderFencedHTML(md[last:]))
+	return sb.String()
+}
+
+// renderQuotedHTML renders blockquote-inner content: fenced code becomes a
+// multi-line <code> entity, the rest goes through renderInlineHTML.
+func renderQuotedHTML(md string) string {
+	var sb strings.Builder
+	last := 0
+	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {
+		sb.WriteString(renderInlineHTML(md[last:loc[0]]))
+		sb.WriteString("<code>")
+		sb.WriteString(html.EscapeString(strings.TrimRight(md[loc[2]:loc[3]], "\n")))
+		sb.WriteString("</code>")
+		last = loc[1]
+	}
+	sb.WriteString(renderInlineHTML(md[last:]))
 	return sb.String()
 }
 
