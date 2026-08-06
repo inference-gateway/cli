@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -43,6 +44,32 @@ func TestDefaultChannelsConfig(t *testing.T) {
 	}
 	if cfg.WhatsApp.WebhookPort != 8443 {
 		t.Errorf("Expected WhatsApp.WebhookPort=8443, got %d", cfg.WhatsApp.WebhookPort)
+	}
+	if cfg.Telegram.Media.Enabled {
+		t.Error("Expected Telegram.Media.Enabled to be false by default")
+	}
+	if cfg.Telegram.Media.MaxSizeMB != 10 {
+		t.Errorf("Expected Telegram.Media.MaxSizeMB=10, got %d", cfg.Telegram.Media.MaxSizeMB)
+	}
+	if cfg.Telegram.Media.Retain != 20 {
+		t.Errorf("Expected Telegram.Media.Retain=20, got %d", cfg.Telegram.Media.Retain)
+	}
+	if len(cfg.Telegram.Media.AllowedMimeTypes) == 0 {
+		t.Error("Expected Telegram.Media.AllowedMimeTypes to have defaults")
+	}
+}
+
+func TestTelegramMediaConfigResolveDir(t *testing.T) {
+	if dir, err := (config.TelegramMediaConfig{Dir: "/tmp/custom"}).ResolveDir(); err != nil || dir != "/tmp/custom" {
+		t.Errorf("Expected explicit dir '/tmp/custom', got %q (err %v)", dir, err)
+	}
+	dir, err := (config.TelegramMediaConfig{}).ResolveDir()
+	if err != nil {
+		t.Fatalf("ResolveDir() failed: %v", err)
+	}
+	want := filepath.Join(config.ConfigDirName, "media")
+	if !filepath.IsAbs(dir) || !strings.HasSuffix(dir, want) {
+		t.Errorf("Expected absolute default dir ending in %q, got %q", want, dir)
 	}
 }
 

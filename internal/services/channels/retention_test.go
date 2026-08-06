@@ -11,7 +11,7 @@ import (
 
 func TestVoiceRetentionSaveWritesFile(t *testing.T) {
 	dir := t.TempDir()
-	r := &VoiceRetention{Dir: dir, Keep: 3}
+	r := NewVoiceRetention(dir, 3)
 
 	name, err := r.save("voice/file_42.oga", []byte("audio-bytes"))
 	if err != nil {
@@ -40,7 +40,7 @@ func TestVoiceRetentionSaveWritesFile(t *testing.T) {
 
 func TestVoiceRetentionSaveDisabled(t *testing.T) {
 	dir := t.TempDir()
-	r := &VoiceRetention{Dir: dir, Keep: 0}
+	r := NewVoiceRetention(dir, 0)
 
 	name, err := r.save("x.oga", []byte("x"))
 	if err != nil {
@@ -59,7 +59,7 @@ func TestVoiceRetentionSaveDisabled(t *testing.T) {
 }
 
 func TestVoiceRetentionSaveNilReceiver(t *testing.T) {
-	var r *VoiceRetention
+	var r *FileRetention
 	name, err := r.save("x.oga", []byte("x"))
 	if err != nil {
 		t.Fatalf("save on nil receiver: %v", err)
@@ -71,7 +71,7 @@ func TestVoiceRetentionSaveNilReceiver(t *testing.T) {
 
 func TestVoiceRetentionSaveEnforcesCap(t *testing.T) {
 	dir := t.TempDir()
-	r := &VoiceRetention{Dir: dir, Keep: 2}
+	r := NewVoiceRetention(dir, 2)
 
 	for i := range 4 {
 		if _, err := r.save("x.oga", []byte{byte(i)}); err != nil {
@@ -112,12 +112,12 @@ func TestPruneRecordingsKeepsNewest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pruneRecordings(dir, 2)
+	pruneRetained(dir, recordingFilePrefix, 2)
 
 	for i, name := range names {
 		_, statErr := os.Stat(name)
 		removed := os.IsNotExist(statErr)
-		wantRemoved := i < 3 // oldest three pruned, newest two kept
+		wantRemoved := i < 3
 		if removed != wantRemoved {
 			t.Errorf("file %d: removed=%v, want removed=%v (stat err=%v)", i, removed, wantRemoved, statErr)
 		}
@@ -136,7 +136,7 @@ func TestPruneRecordingsNoOpUnderCap(t *testing.T) {
 		}
 	}
 
-	pruneRecordings(dir, 5)
+	pruneRetained(dir, recordingFilePrefix, 5)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {

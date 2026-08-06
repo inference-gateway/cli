@@ -1,6 +1,11 @@
 package config
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	utils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -21,10 +26,34 @@ type ChannelsConfig struct {
 
 // TelegramChannelConfig contains Telegram bot settings
 type TelegramChannelConfig struct {
-	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
-	BotToken     string   `yaml:"bot_token" mapstructure:"bot_token"`
-	AllowedUsers []string `yaml:"allowed_users" mapstructure:"allowed_users"`
-	PollTimeout  int      `yaml:"poll_timeout" mapstructure:"poll_timeout"`
+	Enabled      bool                `yaml:"enabled" mapstructure:"enabled"`
+	BotToken     string              `yaml:"bot_token" mapstructure:"bot_token"`
+	AllowedUsers []string            `yaml:"allowed_users" mapstructure:"allowed_users"`
+	PollTimeout  int                 `yaml:"poll_timeout" mapstructure:"poll_timeout"`
+	Media        TelegramMediaConfig `yaml:"media" mapstructure:"media"`
+}
+
+// TelegramMediaConfig controls saving inbound photo/video attachments to a
+// local directory so the agent can use them as assets.
+type TelegramMediaConfig struct {
+	Enabled          bool     `yaml:"enabled" mapstructure:"enabled"`
+	Dir              string   `yaml:"dir" mapstructure:"dir"`                               // "" -> ~/.infer/media
+	MaxSizeMB        int      `yaml:"max_size_mb" mapstructure:"max_size_mb"`               // reject files larger than this (0 -> 10)
+	Retain           int      `yaml:"retain" mapstructure:"retain"`                         // keep the last N files (0 -> 20)
+	AllowedMimeTypes []string `yaml:"allowed_mime_types" mapstructure:"allowed_mime_types"` // empty -> built-in image/video defaults
+}
+
+// ResolveDir returns the directory where inbound media attachments are stored,
+// defaulting to ~/.infer/media when Dir is unset.
+func (c TelegramMediaConfig) ResolveDir() (string, error) {
+	if strings.TrimSpace(c.Dir) != "" {
+		return c.Dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "media"), nil
 }
 
 // WhatsAppChannelConfig contains WhatsApp Business API settings
@@ -51,6 +80,19 @@ func DefaultChannelsConfig() *ChannelsConfig {
 			BotToken:     "",
 			AllowedUsers: []string{},
 			PollTimeout:  30,
+			Media: TelegramMediaConfig{
+				Enabled:   false,
+				Dir:       "",
+				MaxSizeMB: 10,
+				Retain:    20,
+				AllowedMimeTypes: []string{
+					"image/jpeg",
+					"image/png",
+					"image/webp",
+					"video/mp4",
+					"video/quicktime",
+				},
+			},
 		},
 		WhatsApp: WhatsAppChannelConfig{
 			Enabled:       false,

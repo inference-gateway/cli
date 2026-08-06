@@ -826,6 +826,9 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
+			if notify := domain.RetryNotifier; notify != nil {
+				notify(fmt.Sprintf("⏳ %s - retrying in %s (attempt %d)", err.Error(), delay, attempt))
+			}
 			if originalOnRetry != nil {
 				originalOnRetry(attempt, err, delay)
 			}

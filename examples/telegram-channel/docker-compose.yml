@@ -12,7 +12,8 @@ services:
       SERVER_WRITE_TIMEOUT: 230s
       SERVER_IDLE_TIMEOUT: 230s
       CLIENT_TIMEOUT: 230s
-    restart: unless-stopped
+      CLIENT_RESPONSE_HEADER_TIMEOUT: 230s
+      ENABLE_IMAGES: true
 
   browser-agent:
     image: ghcr.io/inference-gateway/browser-agent:latest
@@ -84,11 +85,12 @@ services:
       INFER_TOOLS_ENABLED: true
       INFER_TOOLS_SCHEDULE_ENABLED: true
       INFER_A2A_ENABLED: true
+      INFER_VISION_ANNOTATOR_ENABLED: true
       INFER_A2A_AGENTS: |
         http://browser-agent:8080
       INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS: |
         browser-agent
-      INFER_AGENT_MODEL: deepseek/deepseek-v4-flash
+      INFER_AGENT_MODEL: ${INFER_AGENT_MODEL:-ollama_cloud/deepseek-v4-flash:preview}
       INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS: true
     volumes:
       - ./tmp:/home/infer

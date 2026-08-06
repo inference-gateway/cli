@@ -282,7 +282,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 		{Role: sdk.User, Content: sdk.NewMessageContent("initial")},
 	}
 
-	agentService.addToolResultsToConversation(toolResults, &conversation)
+	agentService.addToolResultsToConversation(toolResults, &conversation, "openai/gpt-4o")
 
 	assert.Equal(t, 3, len(conversation))
 	assert.Equal(t, sdk.Tool, conversation[1].Role)

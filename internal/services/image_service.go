@@ -153,51 +153,16 @@ func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, 
 	return s.saveImage(data)
 }
 
+// variationPrompt drives edits-backed image variations: OpenAI's dedicated
+// /v1/images/variations endpoint only ever supported the sunset dall-e-2
+// model, so variations are produced through the edits endpoint instead.
+const variationPrompt = "Create a variation of this image, preserving its subject, composition and overall style."
+
 // CreateImageVariation creates a variation of the image at imagePath using
 // model ("provider/name") and returns the path of the saved PNG. A blank size
 // is omitted from the request, leaving the provider's own default.
 func (s *ImageService) CreateImageVariation(ctx context.Context, model, imagePath, size string) (string, error) {
-	provider, modelName, ok := strings.Cut(model, "/")
-	if !ok {
-		return "", fmt.Errorf("invalid model %q (expected 'provider/model')", model)
-	}
-
-	attachment, err := s.ReadImageFromFile(imagePath)
-	if err != nil {
-		return "", err
-	}
-
-	imageBytes, err := base64.StdEncoding.DecodeString(attachment.Data)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode input image: %w", err)
-	}
-
-	var imageFile openapi_types.File
-	imageFile.InitFromBytes(imageBytes, attachment.Filename)
-
-	request := sdk.CreateImageVariationMultipartBody{
-		Model: &modelName,
-		Image: imageFile,
-	}
-	if size != "" {
-		sz := sdk.ImageSize(size)
-		request.Size = &sz
-	}
-
-	resp, err := s.client.CreateImageVariation(ctx, sdk.Provider(provider), request)
-	if err != nil {
-		return "", err
-	}
-	if len(resp.Data) == 0 {
-		return "", fmt.Errorf("image variation returned no images")
-	}
-
-	data, err := s.imageBytes(resp.Data[0])
-	if err != nil {
-		return "", err
-	}
-
-	return s.saveImage(data)
+	return s.EditImage(ctx, model, variationPrompt, imagePath, "", size, "")
 }
 
 // saveImage writes image bytes to a timestamped PNG under the config tmp dir.
@@ -209,6 +174,9 @@ func (s *ImageService) saveImage(data []byte) (string, error) {
 	path := filepath.Join(dir, fmt.Sprintf("image-%d.png", time.Now().UnixNano()))
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", fmt.Errorf("failed to save image: %w", err)
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
 	}
 	return path, nil
 }
@@ -238,7 +206,13 @@ func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachme
 		return nil, fmt.Errorf("failed to read image file: %w", err)
 	}
 
-	return s.ReadImageFromBinary(imageData, filePath)
+	attachment, err := s.ReadImageFromBinary(imageData, filePath)
+	if err != nil {
+		return nil, err
+	}
+	attachment.SourcePath = filePath
+	attachment.DisplayName = filepath.Base(filePath)
+	return attachment, nil
 }
 
 // ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment

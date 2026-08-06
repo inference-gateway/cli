@@ -447,9 +447,9 @@ func formatToolLine(tool string) string {
 	if found {
 		args = strings.TrimSuffix(args, ")")
 	}
-	const maxArgs = 200
-	if r := []rune(args); len(r) > maxArgs {
-		args = string(r[:maxArgs]) + "…"
+
+	if r := []rune(args); len(r) > maxToolResultLen {
+		args = string(r[:maxToolResultLen]) + "…"
 	}
 	if args == "" {
 		return name
@@ -505,7 +505,7 @@ func formatAgentMessage(line []byte) string {
 					lines = append(lines, formatToolLine(name))
 				}
 			}
-			toolMsg := strings.Join(lines, "\n")
+			toolMsg := quoteBlock(strings.Join(lines, "\n"))
 			if content != "" {
 				return content + "\n\n" + toolMsg
 			}
@@ -525,10 +525,24 @@ func formatAgentMessage(line []byte) string {
 		if r := []rune(result); len(r) > maxToolResultLen {
 			result = string(r[:maxToolResultLen]) + "…"
 		}
-		return "```\n" + result + "\n```"
+		if failed, _ := msg["failed"].(bool); failed {
+			return quoteBlock("⚠️ Tool failed - retrying may follow:\n```\n" + result + "\n```")
+		}
+		return quoteBlock("```\n" + result + "\n```")
 	}
 
 	return ""
+}
+
+// quoteBlock prefixes every line with "> " so tool traffic arrives as a
+// markdown blockquote — channels render quotes as collapsed/secondary content
+// (Telegram: <blockquote expandable>).
+func quoteBlock(s string) string {
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = "> " + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // getSenderMutex returns a per-sender mutex, creating one if it doesn't exist

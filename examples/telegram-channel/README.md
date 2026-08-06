@@ -182,6 +182,65 @@ setup that path resolves to `/home/infer/.infer/voice`, which already persists t
 on your host via the existing volume mount. Override the location with
 `INFER_SPEECH_TO_TEXT_RECORDINGS_DIR` if you want.
 
+## Media Uploads (Optional)
+
+The bot can save photos and videos you send it to a local directory, so you can
+hand the agent assets on the go and ask it to work with them (e.g. "take this
+clip and generate a voiced-over video from it"). Enable it via environment
+variables (in `.env` or the compose `environment:` block):
+
+```bash
+INFER_CHANNELS_TELEGRAM_MEDIA_ENABLED=true
+INFER_CHANNELS_TELEGRAM_MEDIA_MAX_SIZE_MB=10  # reject anything larger
+INFER_CHANNELS_TELEGRAM_MEDIA_RETAIN=20       # keep the last 20 files
+```
+
+Or in `.infer/channels.yaml`:
+
+```yaml
+---
+telegram:
+  media:
+    enabled: true
+    dir: ""            # "" -> ~/.infer/media
+    max_size_mb: 10
+    retain: 20
+    allowed_mime_types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - video/mp4
+      - video/quicktime
+```
+
+Send a photo or video to your bot; it is saved under `media.dir` (default
+`~/.infer/media` - in this compose setup that persists to `./tmp/.infer/media`
+on your host) and the agent receives the saved path in the message, e.g.
+`[Attachment saved: /home/infer/.infer/media/infer-media-1234.mp4]`. Files
+over the size limit or with a type outside the allowlist are rejected and the
+agent tells you why. The oldest files are pruned once `retain` is exceeded.
+
+### Understanding images with a text-only model
+
+Images are never sent to the agent model as raw image input - the agent receives
+the saved file path and inspects it with the **ImageDecode** tool, which
+side-calls a vision model (the "annotator") through the gateway. This is what
+lets a cheap text-only agent model still answer "what's in this picture?". The
+compose file enables it:
+
+```yaml
+INFER_VISION_ANNOTATOR_ENABLED: true
+```
+
+The default annotator model is `anthropic/claude-haiku-4-5-20251001`, so put an
+`ANTHROPIC_API_KEY` in `.env` (or point `INFER_VISION_ANNOTATOR_MODEL` at any
+vision model your gateway serves, e.g. a local Ollama one). Asking the bot to
+*generate* an image works out of the box via the ImageGeneration tool
+(`openai/gpt-image-2` by default - needs `OPENAI_API_KEY`); generated images are
+sent back to the chat as photos. Image generation/edits/variations go through the
+gateway's Images API, which is opt-in - the compose sets `ENABLE_IMAGES: true` on
+the `inference-gateway` service (currently OpenAI-only).
+
 ## Running Without Docker
 
 ```bash

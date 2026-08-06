@@ -16,7 +16,7 @@ a subprocess host reading stdout is a fully valid transport.
 ## Event mapping
 
 | Agent lifecycle moment | AG-UI event(s) |
-|---|---|
+| --- | --- |
 | Session start | `RUN_STARTED` with `threadId` = session id, `runId` = fresh per-invocation id |
 | Resume via `--session-id` | `MESSAGES_SNAPSHOT` of the restored history, right after `RUN_STARTED` |
 | User / assistant message | `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END`, role on START |

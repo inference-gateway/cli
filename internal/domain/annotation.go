@@ -5,6 +5,17 @@ import (
 	"strings"
 )
 
+// ImageFileRef returns the inline text substituted for an image file reference
+// (chat "@path" or headless --files): images are never sent as raw base64 —
+// the model reaches them through image tools instead. Non-vision models are
+// additionally pointed at ImageDecode for a text description.
+func ImageFileRef(path string, supportsVision bool) string {
+	if supportsVision {
+		return fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", path)
+	}
+	return fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", path)
+}
+
 // ImagePathNote returns a text note pointing at an attached image's on-disk
 // source, so models without vision can inspect it via ImageDecode. Returns ""
 // when the image has no source path.
@@ -17,16 +28,6 @@ func ImagePathNote(img ImageAttachment) string {
 		name = "image"
 	}
 	return fmt.Sprintf("[%s saved at %s; use ImageDecode to inspect it if you cannot see images]", name, img.SourcePath)
-}
-
-// ImagePathNoteForModel returns ImagePathNote(img) when supportsVision is
-// false, and "" when it is true (so vision-capable models receive image data
-// directly without a text note telling them to use ImageDecode).
-func ImagePathNoteForModel(img ImageAttachment, supportsVision bool) string {
-	if supportsVision {
-		return ""
-	}
-	return ImagePathNote(img)
 }
 
 // AnnotationText renders an ImageAnnotation as the canonical LLM-facing text:

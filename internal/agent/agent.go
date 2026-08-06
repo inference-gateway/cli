@@ -17,6 +17,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
@@ -1243,7 +1244,7 @@ func (s *AgentServiceImpl) handleToolResults(
 ) bool {
 	hasRejection, planContent, planID := s.checkToolResultsStatus(toolResults)
 
-	s.addToolResultsToConversation(toolResults, conversation)
+	s.addToolResultsToConversation(toolResults, conversation, req.Model)
 
 	if hasRejection {
 		logger.Info("tool was rejected - stopping agent loop")
@@ -1277,7 +1278,7 @@ func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.Conversat
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
-func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
+func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1287,7 +1288,7 @@ func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.Con
 		*conversation = append(*conversation, toolResult)
 	}
 
-	s.addImageMessageFromToolResults(toolResults, conversation)
+	s.addImageMessageFromToolResults(toolResults, conversation, model)
 }
 
 // createPlanMessage creates and stores a plan message for approval
@@ -1363,8 +1364,8 @@ func extractPlanID(result *domain.ToolExecutionResult) string {
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message
 // This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
-func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
-	imageMessage := s.createImageMessageFromToolResults(toolResults)
+func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
+	imageMessage := s.createImageMessageFromToolResults(toolResults, model)
 	if imageMessage == nil {
 		return
 	}
@@ -1382,8 +1383,9 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.C
 }
 
 // createImageMessageFromToolResults creates a hidden user message containing images from tool results.
-// Returns nil if no images are present.
-func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry) *sdk.Message {
+// Non-vision models get text path notes (pointing at ImageDecode) instead of raw
+// image parts, which they reject. Returns nil if no images are present.
+func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry, model string) *sdk.Message {
 	var allImages []domain.ImageAttachment
 
 	for _, result := range toolResults {
@@ -1396,6 +1398,8 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 		return nil
 	}
 
+	supportsVision := models.SupportsVision(model)
+
 	var contentParts []sdk.ContentPart
 	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(allImages)))
 	if err == nil {
@@ -1403,6 +1407,14 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 	}
 
 	for i, img := range allImages {
+		if !supportsVision {
+			if note := domain.ImagePathNote(img); note != "" {
+				if notePart, err := sdk.NewTextContentPart(note); err == nil {
+					contentParts = append(contentParts, notePart)
+				}
+			}
+			continue
+		}
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
 		if err != nil {
@@ -1412,7 +1424,7 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 		contentParts = append(contentParts, imagePart)
 	}
 
-	if len(contentParts) == 0 {
+	if len(contentParts) <= 1 {
 		logger.Warn("no content parts created for image message from tool results")
 		return nil
 	}

@@ -3,12 +3,14 @@ package channels
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -63,7 +65,7 @@ func TestProcessUpdate_TextMessage(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message")
 	}
@@ -82,7 +84,7 @@ func TestProcessUpdate_TextMessage(t *testing.T) {
 	}
 }
 
-func TestProcessUpdate_VideoFiltered(t *testing.T) {
+func TestProcessUpdate_VideoFilteredWhenMediaDisabled(t *testing.T) {
 	update := &models.Update{
 		ID: 1,
 		Message: &models.Message{
@@ -96,9 +98,66 @@ func TestProcessUpdate_VideoFiltered(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg != nil {
-		t.Fatal("expected nil message for video")
+		t.Fatal("expected nil message for video when media saving is disabled")
+	}
+}
+
+func TestProcessUpdate_VideoWhenMediaEnabled(t *testing.T) {
+	update := &models.Update{
+		ID: 1,
+		Message: &models.Message{
+			ID:   42,
+			Chat: models.Chat{ID: 123, Type: "private"},
+			Date: int(time.Now().Unix()),
+			Video: &models.Video{
+				FileID:   "video123",
+				MimeType: "video/mp4",
+				FileSize: 1024,
+			},
+		},
+	}
+
+	msg := processUpdate(update, true)
+	if msg == nil {
+		t.Fatal("expected non-nil message for video when media saving is enabled")
+	}
+	if msg.Content != "[Attached video]" {
+		t.Errorf("expected placeholder content '[Attached video]', got %q", msg.Content)
+	}
+	if msg.Metadata["media_file_id"] != "video123" {
+		t.Errorf("expected media_file_id 'video123', got %q", msg.Metadata["media_file_id"])
+	}
+	if msg.Metadata["media_mime"] != "video/mp4" {
+		t.Errorf("expected media_mime 'video/mp4', got %q", msg.Metadata["media_mime"])
+	}
+	if msg.Metadata["media_size"] != "1024" {
+		t.Errorf("expected media_size '1024', got %q", msg.Metadata["media_size"])
+	}
+}
+
+func TestProcessUpdate_VideoDefaultsMime(t *testing.T) {
+	update := &models.Update{
+		ID: 1,
+		Message: &models.Message{
+			ID:      42,
+			Chat:    models.Chat{ID: 123, Type: "private"},
+			Date:    int(time.Now().Unix()),
+			Video:   &models.Video{FileID: "video123"},
+			Caption: "my video",
+		},
+	}
+
+	msg := processUpdate(update, true)
+	if msg == nil {
+		t.Fatal("expected non-nil message")
+	}
+	if msg.Content != "my video" {
+		t.Errorf("expected caption as content, got %q", msg.Content)
+	}
+	if msg.Metadata["media_mime"] != "video/mp4" {
+		t.Errorf("expected media_mime to default to 'video/mp4', got %q", msg.Metadata["media_mime"])
 	}
 }
 
@@ -117,7 +176,7 @@ func TestProcessUpdate_PhotoWithCaption(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message for photo")
 	}
@@ -143,7 +202,7 @@ func TestProcessUpdate_PhotoWithoutCaption(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message for photo without caption")
 	}
@@ -167,7 +226,7 @@ func TestProcessUpdate_VoiceMessage(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message for voice")
 	}
@@ -190,7 +249,7 @@ func TestProcessUpdate_AudioMessage(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message for audio")
 	}
@@ -213,7 +272,7 @@ func TestProcessUpdate_NilMessage(t *testing.T) {
 		Message: nil,
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg != nil {
 		t.Fatal("expected nil for nil message")
 	}
@@ -229,7 +288,7 @@ func TestProcessUpdate_EmptyMessage(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg != nil {
 		t.Fatal("expected nil for empty message")
 	}
@@ -301,22 +360,209 @@ func TestMimeFromPath(t *testing.T) {
 	}
 }
 
-func TestDownloadTelegramPhoto(t *testing.T) {
-	imageData := []byte("fake-png-data")
+// fileServer serves getFile (resolving any file_id to filePath) and the file
+// download endpoint (returning content), so fetchTelegramFile can be exercised
+// end to end against a local server.
+func fileServer(t *testing.T, filePath string, content []byte) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/getFile"):
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"ok":true,"result":{"file_id":"x","file_path":%q}}`, filePath)
+		case strings.Contains(r.URL.Path, "/file/bot"):
+			_, _ = w.Write(content)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+		}
+	}))
+}
+
+func TestFetchTelegramFile(t *testing.T) {
+	srv := fileServer(t, "photos/file_1.jpg", []byte("jpeg-bytes"))
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	data, filePath, err := fetchTelegramFile(context.Background(), ch.bot, "photo123")
+	if err != nil {
+		t.Fatalf("fetchTelegramFile: %v", err)
+	}
+	if string(data) != "jpeg-bytes" {
+		t.Errorf("data = %q, want jpeg-bytes", data)
+	}
+	if filePath != "photos/file_1.jpg" {
+		t.Errorf("filePath = %q, want photos/file_1.jpg", filePath)
+	}
+}
+
+func TestMediaAcceptable(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     config.TelegramMediaConfig
+		mime    string
+		size    int64
+		wantErr bool
+	}{
+		{"defaults allow small mp4", config.TelegramMediaConfig{}, "video/mp4", 1 << 20, false},
+		{"defaults allow jpeg", config.TelegramMediaConfig{}, "image/jpeg", 1 << 20, false},
+		{"defaults reject over 10MB", config.TelegramMediaConfig{}, "video/mp4", 11 << 20, true},
+		{"defaults reject unknown mime", config.TelegramMediaConfig{}, "application/x-msdownload", 100, true},
+		{"custom max size", config.TelegramMediaConfig{MaxSizeMB: 1}, "video/mp4", 2 << 20, true},
+		{"custom allowlist rejects mp4", config.TelegramMediaConfig{AllowedMimeTypes: []string{"image/png"}}, "video/mp4", 100, true},
+		{"custom allowlist accepts png", config.TelegramMediaConfig{AllowedMimeTypes: []string{"image/png"}}, "image/png", 100, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := NewTelegramChannel(config.TelegramChannelConfig{Media: tt.cfg}, nil, nil)
+			err := ch.mediaAcceptable(tt.mime, tt.size)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("mediaAcceptable(%q, %d) err = %v, wantErr %v", tt.mime, tt.size, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// newMediaChannel returns a channel with media saving enabled into a temp dir.
+func newMediaChannel(t *testing.T, cfg config.TelegramMediaConfig) *TelegramChannel {
+	t.Helper()
+	cfg.Enabled = true
+	if cfg.Dir == "" {
+		cfg.Dir = t.TempDir()
+	}
+	return NewTelegramChannel(config.TelegramChannelConfig{Media: cfg}, nil, nil)
+}
+
+func TestSaveInboundMedia(t *testing.T) {
+	ch := newMediaChannel(t, config.TelegramMediaConfig{})
+	msg := &domain.InboundMessage{Content: "[Attached image]", Metadata: map[string]string{}}
+
+	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
+
+	path := msg.Metadata["media_path"]
+	if path == "" {
+		t.Fatal("expected media_path metadata to be set")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("saved file unreadable: %v", err)
+	}
+	if string(data) != "jpeg-bytes" {
+		t.Errorf("saved content = %q, want jpeg-bytes", data)
+	}
+	if filepath.Ext(path) != ".jpg" {
+		t.Errorf("saved file extension = %q, want .jpg", filepath.Ext(path))
+	}
+	if !strings.Contains(msg.Content, "[Attachment saved: "+path+"]") {
+		t.Errorf("expected content to mention saved path, got %q", msg.Content)
+	}
+}
+
+func TestSaveInboundMedia_RejectsDisallowedMime(t *testing.T) {
+	ch := newMediaChannel(t, config.TelegramMediaConfig{AllowedMimeTypes: []string{"image/png"}})
+	dir := ch.media.Dir
+	msg := &domain.InboundMessage{Content: "x", Metadata: map[string]string{}}
+
+	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
+
+	if msg.Metadata["media_path"] != "" {
+		t.Errorf("expected no media_path for disallowed mime, got %q", msg.Metadata["media_path"])
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected nothing written for disallowed mime, got %d entries", len(entries))
+	}
+}
+
+func TestSaveInboundMedia_DisabledIsNoOp(t *testing.T) {
+	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
+	msg := &domain.InboundMessage{Content: "x", Metadata: map[string]string{}}
+
+	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
+
+	if msg.Content != "x" || msg.Metadata["media_path"] != "" {
+		t.Errorf("expected message untouched when media disabled, got %+v", msg)
+	}
+}
+
+func TestDownloadInboundVideo_SavesFile(t *testing.T) {
+	srv := fileServer(t, "videos/file_7.mp4", []byte("mp4-bytes"))
+	defer srv.Close()
+
+	ch := newMediaChannel(t, config.TelegramMediaConfig{})
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.bot = b
+
+	msg := &domain.InboundMessage{
+		Content: "[Attached video]",
+		Metadata: map[string]string{
+			"media_file_id": "video123",
+			"media_mime":    "video/mp4",
+			"media_size":    "9",
+		},
+	}
+	ch.downloadInboundVideo(context.Background(), b, msg, "video123")
+
+	path := msg.Metadata["media_path"]
+	if path == "" {
+		t.Fatalf("expected media_path metadata, content: %q", msg.Content)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("saved file unreadable: %v", err)
+	}
+	if string(data) != "mp4-bytes" {
+		t.Errorf("saved content = %q, want mp4-bytes", data)
+	}
+	if filepath.Ext(path) != ".mp4" {
+		t.Errorf("saved file extension = %q, want .mp4", filepath.Ext(path))
+	}
+}
+
+func TestDownloadInboundVideo_RejectsOversizeBeforeDownload(t *testing.T) {
+	var downloads int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "/file/bot") {
-			http.NotFound(w, r)
-			return
+		if strings.Contains(r.URL.Path, "/file/bot") {
+			downloads++
 		}
-		w.Header().Set("Content-Type", "image/png")
-		if _, err := w.Write(imageData); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"file_id":"x","file_path":"videos/file_7.mp4"}}`))
 	}))
 	defer srv.Close()
 
-	_ = downloadTelegramPhoto
+	ch := newMediaChannel(t, config.TelegramMediaConfig{MaxSizeMB: 10})
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.bot = b
+
+	msg := &domain.InboundMessage{
+		Content: "[Attached video]",
+		Metadata: map[string]string{
+			"media_file_id": "video123",
+			"media_mime":    "video/mp4",
+			"media_size":    strconv.FormatInt(11<<20, 10),
+		},
+	}
+	ch.downloadInboundVideo(context.Background(), b, msg, "video123")
+
+	if downloads != 0 {
+		t.Errorf("expected no download attempt for oversized video, got %d", downloads)
+	}
+	if msg.Metadata["media_path"] != "" {
+		t.Errorf("expected no media_path, got %q", msg.Metadata["media_path"])
+	}
+	if !strings.Contains(msg.Content, "[Attachment rejected:") {
+		t.Errorf("expected rejection note in content, got %q", msg.Content)
+	}
 }
 
 func TestTelegramChannel_SendRequiresBot(t *testing.T) {
@@ -499,7 +745,7 @@ func TestProcessUpdate_CallbackQuery(t *testing.T) {
 		},
 	}
 
-	msg := processUpdate(update)
+	msg := processUpdate(update, false)
 	if msg == nil {
 		t.Fatal("expected non-nil message for callback query")
 	}
@@ -557,6 +803,13 @@ func TestExtractImagePaths(t *testing.T) {
 	if err := os.WriteFile(big, make([]byte, maxPhotoBytes+1), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(dir, ".infer", "tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".infer", "tmp", "rel.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
 
 	tests := []struct {
 		name      string
@@ -581,6 +834,12 @@ func TestExtractImagePaths(t *testing.T) {
 			content:   "Saved to " + img + " (145 KB)",
 			wantPaths: []string{img},
 			wantText:  "Saved to " + img + " (145 KB)",
+		},
+		{
+			name:      "relative .infer path is extracted",
+			content:   "Saved!\n\n![meme](.infer/tmp/rel.png)",
+			wantPaths: []string{".infer/tmp/rel.png"},
+			wantText:  "Saved!\n\n",
 		},
 		{
 			name:      "missing file left untouched",
@@ -640,6 +899,16 @@ func TestRenderTelegramHTML(t *testing.T) {
 		{"html escaped", "a < b & c", "a &lt; b &amp; c"},
 		{"escape inside fence", "```\n<img>\n```", "<pre>&lt;img&gt;</pre>"},
 		{"plain text untouched", "hello world", "hello world"},
+		{
+			"quoted prose collapses to expandable blockquote",
+			"look:\n> line one\n> line two\ndone",
+			"look:\n<blockquote expandable>line one\nline two</blockquote>\ndone",
+		},
+		{
+			"quoted fence renders code (not pre) inside blockquote",
+			"> ⚠️ Tool failed:\n> ```\n> exit 502\n> ```",
+			"<blockquote expandable>⚠️ Tool failed:\n<code>exit 502</code></blockquote>",
+		},
 		{
 			"header and aligned table",
 			"### Tool Calls\n\n| Tool | Calls |\n|------|-------|\n| Bash | 4 |\n| Tree | 3 |",

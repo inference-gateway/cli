@@ -2,6 +2,7 @@ package channels
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +35,15 @@ const htmlChunkLen = 3500
 
 // maxPhotoBytes is Telegram's upload limit for sendPhoto.
 const maxPhotoBytes = 10 << 20
+
+// defaultMediaMaxSizeMB caps inbound media downloads when media.max_size_mb is unset.
+const defaultMediaMaxSizeMB = 10
+
+// defaultMediaRetain is the retained-file cap when media.retain is unset.
+const defaultMediaRetain = 20
+
+// defaultMediaMimeTypes is the inbound media allowlist when media.allowed_mime_types is unset.
+var defaultMediaMimeTypes = []string{"image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"}
 
 // maxTrackedMessages caps the per-chat message-ID buffer used by ClearHistory.
 const maxTrackedMessages = 500
@@ -63,7 +74,11 @@ type TelegramChannel struct {
 	cfg         config.TelegramChannelConfig
 	bot         *bot.Bot
 	transcriber VoiceTranscriber
-	retention   *VoiceRetention
+	retention   *FileRetention
+
+	// media retains inbound photo/video attachments on disk when
+	// cfg.Media.Enabled; nil disables the feature.
+	media *FileRetention
 
 	// commands to advertise via SetMyCommands on Start.
 	commands []domain.ChannelCommand
@@ -77,8 +92,17 @@ type TelegramChannel struct {
 // NewTelegramChannel creates a new Telegram channel. transcriber may be nil, in
 // which case inbound voice messages are ignored. retention may be nil to disable
 // local persistence of inbound voice/audio files.
-func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber, retention *VoiceRetention) *TelegramChannel {
-	return &TelegramChannel{cfg: cfg, transcriber: transcriber, retention: retention, msgIDs: make(map[int64][]int)}
+func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTranscriber, retention *FileRetention) *TelegramChannel {
+	t := &TelegramChannel{cfg: cfg, transcriber: transcriber, retention: retention, msgIDs: make(map[int64][]int)}
+	if cfg.Media.Enabled {
+		if dir, err := cfg.Media.ResolveDir(); err != nil {
+			logger.Warn("inbound media saving disabled", "error", err)
+		} else {
+			t.media = NewMediaRetention(dir, cmp.Or(cfg.Media.Retain, defaultMediaRetain))
+			logger.Info("saving inbound media attachments", "dir", dir, "keep", t.media.Keep)
+		}
+	}
+	return t
 }
 
 // SetCommands sets the slash commands advertised to Telegram on Start.
@@ -177,7 +201,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 			if update.Message != nil {
 				t.trackMessage(update.Message.Chat.ID, update.Message.ID)
 			}
-			msg := processUpdate(update)
+			msg := processUpdate(update, t.media != nil)
 			if msg == nil {
 				return
 			}
@@ -210,11 +234,21 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 			}
 
 			if fileID, ok := msg.Metadata["photo_file_id"]; ok && fileID != "" {
-				if img, err := downloadTelegramPhoto(ctx, b, t.cfg.BotToken, fileID); err != nil {
+				if data, filePath, err := fetchTelegramFile(ctx, b, fileID); err != nil {
 					logger.Error("failed to download photo", "error", err)
 				} else {
-					msg.Images = append(msg.Images, *img)
+					msg.Images = append(msg.Images, domain.ImageAttachment{
+						Data:        base64.StdEncoding.EncodeToString(data),
+						MimeType:    mimeFromPath(filePath),
+						Filename:    filepath.Base(filePath),
+						DisplayName: filepath.Base(filePath),
+					})
+					t.saveInboundMedia(msg, mimeFromPath(filePath), filePath, data)
 				}
+			}
+
+			if fileID, ok := msg.Metadata["media_file_id"]; ok && fileID != "" {
+				t.downloadInboundVideo(ctx, b, msg, fileID)
 			}
 
 			if fileID, ok := msg.Metadata["voice_file_id"]; ok && fileID != "" {
@@ -374,8 +408,10 @@ func (t *TelegramChannel) Stop() error {
 	return nil
 }
 
-// processUpdate converts a Telegram update into an InboundMessage (or nil if skipped)
-func processUpdate(update *models.Update) *domain.InboundMessage {
+// processUpdate converts a Telegram update into an InboundMessage (or nil if
+// skipped). Videos are only accepted when mediaEnabled (channels.telegram.media
+// saving is on); otherwise they are skipped as before.
+func processUpdate(update *models.Update, mediaEnabled bool) *domain.InboundMessage {
 	if update.CallbackQuery != nil {
 		return processCallbackQuery(update.CallbackQuery)
 	}
@@ -385,8 +421,8 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 	}
 	msg := update.Message
 
-	if msg.Video != nil {
-		logger.Warn("skipping video message", "chat_id", msg.Chat.ID)
+	if msg.Video != nil && !mediaEnabled {
+		logger.Warn("skipping video message: enable channels.telegram.media to save inbound videos", "chat_id", msg.Chat.ID)
 		return nil
 	}
 
@@ -395,7 +431,7 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 		content = msg.Caption
 	}
 
-	if content == "" && len(msg.Photo) == 0 && msg.Voice == nil && msg.Audio == nil {
+	if content == "" && len(msg.Photo) == 0 && msg.Voice == nil && msg.Audio == nil && msg.Video == nil {
 		return nil
 	}
 
@@ -427,6 +463,15 @@ func processUpdate(update *models.Update) *domain.InboundMessage {
 
 		if inbound.Content == "" {
 			inbound.Content = "[Attached image]"
+		}
+	}
+
+	if msg.Video != nil {
+		inbound.Metadata["media_file_id"] = msg.Video.FileID
+		inbound.Metadata["media_mime"] = cmp.Or(msg.Video.MimeType, "video/mp4")
+		inbound.Metadata["media_size"] = strconv.FormatInt(msg.Video.FileSize, 10)
+		if inbound.Content == "" {
+			inbound.Content = "[Attached video]"
 		}
 	}
 
@@ -478,7 +523,7 @@ func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bo
 // transcribeVoice downloads the referenced Telegram file, optionally retains a
 // copy of the original audio, and transcribes it via the configured transcriber.
 func (t *TelegramChannel) transcribeVoice(ctx context.Context, b *bot.Bot, fileID string) (string, error) {
-	data, filePath, err := fetchTelegramFile(ctx, b, t.cfg.BotToken, fileID)
+	data, filePath, err := fetchTelegramFile(ctx, b, fileID)
 	if err != nil {
 		return "", err
 	}
@@ -507,24 +552,68 @@ func (t *TelegramChannel) transcribeVoice(ctx context.Context, b *bot.Bot, fileI
 	return t.transcriber.TranscribeFile(ctx, tmpName)
 }
 
-// downloadTelegramPhoto fetches a photo from Telegram's file API and returns it as an ImageAttachment.
-func downloadTelegramPhoto(ctx context.Context, b *bot.Bot, token, fileID string) (*domain.ImageAttachment, error) {
-	data, filePath, err := fetchTelegramFile(ctx, b, token, fileID)
+// mediaAcceptable reports whether an inbound attachment passes the configured
+// size and mime-type limits. Unset limits fall back to the built-in defaults.
+func (t *TelegramChannel) mediaAcceptable(mime string, size int64) error {
+	maxBytes := int64(cmp.Or(t.cfg.Media.MaxSizeMB, defaultMediaMaxSizeMB)) << 20
+	if size > maxBytes {
+		return fmt.Errorf("file size %d exceeds the %d MB limit", size, maxBytes>>20)
+	}
+	allowed := t.cfg.Media.AllowedMimeTypes
+	if len(allowed) == 0 {
+		allowed = defaultMediaMimeTypes
+	}
+	if !slices.Contains(allowed, mime) {
+		return fmt.Errorf("mime type %q is not allowed", mime)
+	}
+	return nil
+}
+
+// saveInboundMedia persists an already-downloaded attachment to the media
+// directory after size/mime checks, then records the saved path in the message
+// metadata and content so the agent can use the file as an asset. Best-effort:
+// a rejected or failed save never drops the message.
+func (t *TelegramChannel) saveInboundMedia(msg *domain.InboundMessage, mime, hintPath string, data []byte) {
+	if t.media == nil {
+		return
+	}
+	if err := t.mediaAcceptable(mime, int64(len(data))); err != nil {
+		logger.Warn("not saving inbound media", "error", err)
+		return
+	}
+	path, err := t.media.save(hintPath, data)
 	if err != nil {
-		return nil, err
+		logger.Warn("failed to save inbound media", "error", err)
+		return
+	}
+	msg.Metadata["media_path"] = path
+	msg.Content += "\n[Attachment saved: " + path + "]"
+}
+
+// downloadInboundVideo enforces the size/mime limits against the metadata
+// Telegram declared (so oversized files are rejected before any download),
+// then fetches the video and saves it via saveInboundMedia. Rejections are
+// appended to the message content so the agent can tell the user why.
+func (t *TelegramChannel) downloadInboundVideo(ctx context.Context, b *bot.Bot, msg *domain.InboundMessage, fileID string) {
+	mime := msg.Metadata["media_mime"]
+	size, _ := strconv.ParseInt(msg.Metadata["media_size"], 10, 64)
+	if err := t.mediaAcceptable(mime, size); err != nil {
+		logger.Warn("rejecting inbound video", "error", err)
+		msg.Content += "\n[Attachment rejected: " + err.Error() + "]"
+		return
 	}
 
-	return &domain.ImageAttachment{
-		Data:        base64.StdEncoding.EncodeToString(data),
-		MimeType:    mimeFromPath(filePath),
-		Filename:    filepath.Base(filePath),
-		DisplayName: filepath.Base(filePath),
-	}, nil
+	data, filePath, err := fetchTelegramFile(ctx, b, fileID)
+	if err != nil {
+		logger.Error("failed to download video", "error", err)
+		return
+	}
+	t.saveInboundMedia(msg, mime, filePath, data)
 }
 
 // fetchTelegramFile resolves a file_id to its download path and returns the raw
 // file bytes along with the Telegram file path (used for extension/MIME hints).
-func fetchTelegramFile(ctx context.Context, b *bot.Bot, token, fileID string) ([]byte, string, error) {
+func fetchTelegramFile(ctx context.Context, b *bot.Bot, fileID string) ([]byte, string, error) {
 	file, err := b.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
 	if err != nil {
 		return nil, "", fmt.Errorf("getFile: %w", err)
@@ -533,9 +622,7 @@ func fetchTelegramFile(ctx context.Context, b *bot.Bot, token, fileID string) ([
 		return nil, "", fmt.Errorf("empty file path for file_id %s", fileID)
 	}
 
-	url := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", token, file.FilePath)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.FileDownloadLink(file), nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request: %w", err)
 	}
@@ -662,10 +749,11 @@ func formatApprovalText(req *domain.ApprovalRequest) string {
 }
 
 var (
-	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?(/[^"]+)"[^>]*/?>`)
-	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?(/[^)]+)\)`)
-	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)(/[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
+	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?((?:/|\.infer/)[^"]+)"[^>]*/?>`)
+	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?((?:/|\.infer/)[^)]+)\)`)
+	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)((?:/|\.infer/)[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
 	fenceRe     = regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\n?(.*?)```")
+	quoteRe     = regexp.MustCompile(`(?m)^>[^\n]*(?:\n>[^\n]*)*`)
 	inlCodeRe   = regexp.MustCompile("`([^`\n]+)`")
 	boldRe      = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
 	headerRe    = regexp.MustCompile(`(?m)^#{1,6} +(.+)$`)
@@ -741,10 +829,58 @@ func extractImagePaths(content string) ([]string, string) {
 	return paths, out.String()
 }
 
-// renderTelegramHTML converts common Markdown (fenced code, inline code, bold,
-// headers) to Telegram HTML. Everything else is escaped so the message never
-// breaks on user content.
+// renderTelegramHTML converts common Markdown (blockquotes, fenced code, inline
+// code, bold, headers) to Telegram HTML. Everything else is escaped so the
+// message never breaks on user content. "> "-quoted line groups become
+// <blockquote expandable> — collapsed by default in Telegram clients (Bot API
+// 7.3+); the channel manager quotes tool calls/results to get that behavior.
 func renderTelegramHTML(md string) string {
+	var sb strings.Builder
+	last := 0
+	for _, loc := range quoteRe.FindAllStringIndex(md, -1) {
+		sb.WriteString(renderFencedHTML(md[last:loc[0]]))
+		sb.WriteString("<blockquote expandable>")
+		sb.WriteString(renderQuotedHTML(unquoteBlock(md[loc[0]:loc[1]])))
+		sb.WriteString("</blockquote>")
+		last = loc[1]
+	}
+	sb.WriteString(renderFencedHTML(md[last:]))
+	return sb.String()
+}
+
+// renderQuotedHTML renders blockquote-inner content: fenced code becomes a
+// multi-line <code> entity, the rest goes through renderInlineHTML.
+func renderQuotedHTML(md string) string {
+	var sb strings.Builder
+	last := 0
+	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {
+		sb.WriteString(renderInlineHTML(md[last:loc[0]]))
+		sb.WriteString("<code>")
+		sb.WriteString(html.EscapeString(strings.TrimRight(md[loc[2]:loc[3]], "\n")))
+		sb.WriteString("</code>")
+		last = loc[1]
+	}
+	sb.WriteString(renderInlineHTML(md[last:]))
+	return sb.String()
+}
+
+// unquoteBlock strips the leading "> " (or bare ">") from every line of a
+// markdown blockquote group.
+func unquoteBlock(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if after, ok := strings.CutPrefix(l, "> "); ok {
+			lines[i] = after
+		} else {
+			lines[i] = strings.TrimPrefix(l, ">")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderFencedHTML renders a quote-free segment: fenced code becomes <pre>,
+// the rest goes through renderInlineHTML.
+func renderFencedHTML(md string) string {
 	var sb strings.Builder
 	last := 0
 	for _, loc := range fenceRe.FindAllStringSubmatchIndex(md, -1) {
