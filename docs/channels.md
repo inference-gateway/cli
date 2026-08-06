@@ -9,6 +9,7 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 - [Architecture](#architecture)
 - [Quick Start (Telegram)](#quick-start-telegram)
 - [Configuration](#configuration)
+- [Media Uploads (Telegram)](#media-uploads-telegram)
 - [Security](#security)
 - [Remote-Control Prompt and System Reminders](#remote-control-prompt-and-system-reminders)
 - [Adding a Custom Channel](#adding-a-custom-channel)
@@ -30,6 +31,8 @@ Key features:
 - **Secure by default**: Allowlist-based access control per channel
 - **Persistent sessions**: Deterministic session IDs per sender
 - **Text and image support**: Forward text messages and images to the agent
+- **Media uploads**: Save inbound photos and videos to a local directory so the
+  agent can use them as assets - see [Media Uploads](#media-uploads-telegram)
 - **Voice transcription**: Inbound voice messages are transcribed to text with Whisper when
   `speech_to_text.enabled` is set - see [Speech-to-Text](speech-to-text.md)
 
@@ -177,6 +180,17 @@ telegram:
   bot_token: ""              # Bot token from @BotFather
   allowed_users: []          # List of allowed chat IDs (strings)
   poll_timeout: 30           # Long-polling timeout in seconds
+  media:
+    enabled: false           # Save inbound photos/videos to disk
+    dir: ""                  # "" -> ~/.infer/media
+    max_size_mb: 10          # Reject downloads larger than this
+    retain: 20               # Keep the last N files, oldest pruned
+    allowed_mime_types:      # Only these types are saved
+      - image/jpeg
+      - image/png
+      - image/webp
+      - video/mp4
+      - video/quicktime
 
 # WhatsApp Business API channel (Phase 2 - not yet implemented)
 whatsapp:
@@ -210,6 +224,31 @@ All channel settings can be configured via environment variables with the
 | `channels.telegram.bot_token`     | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`     |
 | `channels.telegram.allowed_users` | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS` |
 | `channels.telegram.poll_timeout`  | `INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT`  |
+| `channels.telegram.media.enabled` | `INFER_CHANNELS_TELEGRAM_MEDIA_ENABLED` |
+| `channels.telegram.media.dir`     | `INFER_CHANNELS_TELEGRAM_MEDIA_DIR`     |
+| `channels.telegram.media.max_size_mb` | `INFER_CHANNELS_TELEGRAM_MEDIA_MAX_SIZE_MB` |
+| `channels.telegram.media.retain`  | `INFER_CHANNELS_TELEGRAM_MEDIA_RETAIN`  |
+
+## Media Uploads (Telegram)
+
+With `telegram.media.enabled: true`, photos and videos sent to the bot are
+saved to a local directory so the agent can use them as assets (edit them,
+feed them to other tools, generate content from them):
+
+- Files land in `media.dir` (default `~/.infer/media`) with an
+  `infer-media-` prefix; the saved path is appended to the message the agent
+  receives (`[Attachment saved: /path/to/infer-media-xxx.mp4]`) and exposed
+  as `media_path` metadata.
+- **Retention**: only the last `media.retain` files are kept (default 20);
+  older ones are pruned automatically.
+- **Size limit**: downloads larger than `media.max_size_mb` (default 10) are
+  rejected before anything is fetched, and the agent is told why.
+- **MIME allowlist**: only `media.allowed_mime_types` are saved (default:
+  JPEG/PNG/WebP images and MP4/QuickTime videos).
+
+Photos are still forwarded to the model as vision input regardless of this
+setting; enabling it additionally keeps the original files on disk. Videos
+are only accepted when this setting is on - otherwise they are skipped.
 
 ## Security
 

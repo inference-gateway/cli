@@ -182,6 +182,44 @@ setup that path resolves to `/home/infer/.infer/voice`, which already persists t
 on your host via the existing volume mount. Override the location with
 `INFER_SPEECH_TO_TEXT_RECORDINGS_DIR` if you want.
 
+## Media Uploads (Optional)
+
+The bot can save photos and videos you send it to a local directory, so you can
+hand the agent assets on the go and ask it to work with them (e.g. "take this
+clip and generate a voiced-over video from it"). Enable it via environment
+variables (in `.env` or the compose `environment:` block):
+
+```bash
+INFER_CHANNELS_TELEGRAM_MEDIA_ENABLED=true
+INFER_CHANNELS_TELEGRAM_MEDIA_MAX_SIZE_MB=10  # reject anything larger
+INFER_CHANNELS_TELEGRAM_MEDIA_RETAIN=20       # keep the last 20 files
+```
+
+Or in `.infer/channels.yaml`:
+
+```yaml
+---
+telegram:
+  media:
+    enabled: true
+    dir: ""            # "" -> ~/.infer/media
+    max_size_mb: 10
+    retain: 20
+    allowed_mime_types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - video/mp4
+      - video/quicktime
+```
+
+Send a photo or video to your bot; it is saved under `media.dir` (default
+`~/.infer/media` - in this compose setup that persists to `./tmp/.infer/media`
+on your host) and the agent receives the saved path in the message, e.g.
+`[Attachment saved: /home/infer/.infer/media/infer-media-1234.mp4]`. Files
+over the size limit or with a type outside the allowlist are rejected and the
+agent tells you why. The oldest files are pruned once `retain` is exceeded.
+
 ## Running Without Docker
 
 ```bash
