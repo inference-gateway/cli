@@ -526,8 +526,6 @@ func TestImageService_CreateImageVariation(t *testing.T) {
 		return path
 	}
 
-	// Variations are served through the edits endpoint with a built-in prompt:
-	// OpenAI's /v1/images/variations only supported the sunset dall-e-2 model.
 	t.Run("input image is uploaded via edits endpoint and result is saved", func(t *testing.T) {
 		client := &fakeImageClient{response: &sdk.ImagesResponse{Data: []sdk.Image{{B64Json: &b64}}}}
 		service := NewImageService(config.DefaultConfig(), client)

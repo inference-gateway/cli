@@ -749,8 +749,6 @@ func formatApprovalText(req *domain.ApprovalRequest) string {
 }
 
 var (
-	// Paths are absolute or .infer/-relative — models often relativize the
-	// CLI's own tmp dir (.infer/tmp/...) when echoing tool output.
 	imgTagRe    = regexp.MustCompile(`(?i)<img[^>]*\bsrc="(?:file://)?((?:/|\.infer/)[^"]+)"[^>]*/?>`)
 	mdImgRe     = regexp.MustCompile(`!\[[^\]]*\]\((?:file://)?((?:/|\.infer/)[^)]+)\)`)
 	bareImgRe   = regexp.MustCompile(`(?i)(?:^|\s)((?:/|\.infer/)[^\s"'<>` + "`" + `]+\.(?:png|jpe?g|gif|webp))`)
@@ -842,9 +840,6 @@ func renderTelegramHTML(md string) string {
 	for _, loc := range quoteRe.FindAllStringIndex(md, -1) {
 		sb.WriteString(renderFencedHTML(md[last:loc[0]]))
 		sb.WriteString("<blockquote expandable>")
-		// Fences inside a quote become <code>, not <pre>: a pre block inside an
-		// expandable blockquote renders fully expanded (probed on iOS), which
-		// defeats the collapse entirely. Multi-line code entities do collapse.
 		sb.WriteString(renderQuotedHTML(unquoteBlock(md[loc[0]:loc[1]])))
 		sb.WriteString("</blockquote>")
 		last = loc[1]

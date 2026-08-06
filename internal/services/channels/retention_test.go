@@ -117,7 +117,7 @@ func TestPruneRecordingsKeepsNewest(t *testing.T) {
 	for i, name := range names {
 		_, statErr := os.Stat(name)
 		removed := os.IsNotExist(statErr)
-		wantRemoved := i < 3 // oldest three pruned, newest two kept
+		wantRemoved := i < 3
 		if removed != wantRemoved {
 			t.Errorf("file %d: removed=%v, want removed=%v (stat err=%v)", i, removed, wantRemoved, statErr)
 		}
