@@ -7,6 +7,6 @@ CLAUDE.md
 # publish time (see npm/.gitignore); they are not authored here.
 npm/
 
-# Example runtime artifacts (browser-agent output, etc.) — gitignored, not authored
+# Example runtime artifacts (browser-agent output, etc.) - gitignored, not authored
 examples/telegram-channel/agents/
 examples/telegram-channel/tmp/

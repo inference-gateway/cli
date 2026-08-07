@@ -334,8 +334,13 @@ func (c *CatalogClient) DownloadSkill(ctx context.Context, name string) (string,
 		return "", err
 	}
 
+	sourceURL := SkillTreeURL(c.repository, name)
+	if entry, ok := c.Lookup(ctx, name); ok && entry.Source != "" {
+		sourceURL = entry.Source
+	}
+
 	installer := NewInstaller(c.repository)
-	absPath, err := installer.InstallFromGitHub(ctx, SkillTreeURL(c.repository, name), destBase, false)
+	absPath, err := installer.InstallFromGitHub(ctx, sourceURL, destBase, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to download skill %q from catalog: %w", name, err)
 	}
