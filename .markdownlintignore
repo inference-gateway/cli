@@ -9,3 +9,4 @@ npm/
 
 # Example runtime artifacts (browser-agent output, etc.) — gitignored, not authored
 examples/telegram-channel/agents/
+examples/telegram-channel/tmp/
