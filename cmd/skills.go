@@ -295,14 +295,17 @@ var skillsInstallCmd = &cobra.Command{
 You can pass any of the following:
 
   - A skill name:           skill-creator
-      → https://github.com/inference-gateway/skills/tree/main/skills/skill-creator
+      → the source recorded in the catalog, else
+        https://github.com/inference-gateway/skills/tree/main/skills/skill-creator
   - An <org>/<skill> pair:  acme/skill-creator
       → https://github.com/acme/skills/tree/main/skills/skill-creator
   - A full GitHub tree URL: https://github.com/<owner>/<repo>/tree/<ref>/<path>
 
-Shorthand forms assume the skill lives under skills/<name>/ inside a repo
-named "skills" on the given org, and resolve against the "main" branch.
-For any other layout, branch, or tag, use the full URL form.
+A bare name resolves to its catalog source first, so a skill sourced from another
+repo (e.g. under .agents/skills/<name>/) installs by name. When the catalog is
+unavailable or does not list it, the bare name and the <org>/<skill> form assume
+the skill lives under skills/<name>/ in a repo named "skills" on the given org,
+on the "main" branch. For any other layout, branch, or tag, use the full URL form.
 
 Examples:
   infer skills install skill-creator
@@ -342,6 +345,9 @@ func installSkill(cmd *cobra.Command, args []string) error {
 	repository := config.DefaultSkillsRepository
 	if Cfg != nil {
 		repository = Cfg.Agent.Skills.SkillsRepository()
+		if src, ok := skills.NewCatalogClient(Cfg).ResolveInstallURL(cmd.Context(), rawURL); ok {
+			rawURL = src
+		}
 	}
 
 	dest, err := skills.NewInstaller(repository).

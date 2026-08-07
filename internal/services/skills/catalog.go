@@ -35,6 +35,7 @@ const (
 type catalogEntry struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Source      string `json:"source"`
 }
 
 // catalogResponse is the top-level response from the catalog index. Release
@@ -297,6 +298,22 @@ func (c *CatalogClient) Lookup(ctx context.Context, name string) (*catalogEntry,
 	return nil, false
 }
 
+// ResolveInstallURL maps a bare catalog skill name to the GitHub tree URL in its
+// catalog `source`, so `skills install <name>` fetches the body from wherever the
+// skill actually lives instead of the hardcoded <repo>/skills/<name> convention.
+// ok is false for inputs that already carry their own location - a full URL or an
+// "<org>/<skill>" shorthand, both of which contain "/" or ":" - and for names the
+// catalog does not list, leaving the caller's shorthand expansion in charge.
+func (c *CatalogClient) ResolveInstallURL(ctx context.Context, input string) (string, bool) {
+	if strings.ContainsAny(input, "/:") {
+		return "", false
+	}
+	if entry, ok := c.Lookup(ctx, input); ok && entry.Source != "" {
+		return entry.Source, true
+	}
+	return "", false
+}
+
 // dynamicSkillsDir returns the directory where dynamically downloaded skills
 // are stored. It lives under the project's .infer/tmp/skills/ so it is
 // ephemeral and cleaned up after the session.
@@ -317,8 +334,13 @@ func (c *CatalogClient) DownloadSkill(ctx context.Context, name string) (string,
 		return "", err
 	}
 
+	sourceURL := SkillTreeURL(c.repository, name)
+	if entry, ok := c.Lookup(ctx, name); ok && entry.Source != "" {
+		sourceURL = entry.Source
+	}
+
 	installer := NewInstaller(c.repository)
-	absPath, err := installer.InstallFromGitHub(ctx, SkillTreeURL(c.repository, name), destBase, false)
+	absPath, err := installer.InstallFromGitHub(ctx, sourceURL, destBase, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to download skill %q from catalog: %w", name, err)
 	}

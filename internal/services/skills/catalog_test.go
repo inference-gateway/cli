@@ -49,6 +49,39 @@ func discoveryService(srv *httptest.Server, scopes []scopedDir) *Service {
 
 const twoSkillIndex = `{"skills":[{"name":"rust","description":"Idiomatic Rust."},{"name":"local-one","description":"Catalog copy."}]}`
 
+// sourcedIndex mixes a skill sourced from another repo (adl) with one that lives
+// in the default skills repo, so install-by-name resolution can be checked both ways.
+const sourcedIndex = `{"skills":[` +
+	`{"name":"adl","description":"ADL.","source":"https://github.com/inference-gateway/adl/tree/main/.agents/skills/adl"},` +
+	`{"name":"local-one","description":"In repo.","source":"https://github.com/inference-gateway/skills/tree/main/skills/local-one"}` +
+	`]}`
+
+func TestResolveInstallURL(t *testing.T) {
+	srv, _ := catalogServer(t, sourcedIndex)
+	c := testCatalog(srv)
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantURL string
+		wantOK  bool
+	}{
+		{"external source resolves by name", "adl", "https://github.com/inference-gateway/adl/tree/main/.agents/skills/adl", true},
+		{"in-repo source resolves by name", "local-one", "https://github.com/inference-gateway/skills/tree/main/skills/local-one", true},
+		{"unknown name falls through to shorthand", "missing", "", false},
+		{"full URL is left to the installer", "https://github.com/acme/skills/tree/main/skills/x", "", false},
+		{"org/skill shorthand is left to the installer", "acme/x", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := c.ResolveInstallURL(ctx, tt.input)
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.wantURL, got)
+		})
+	}
+}
+
 func TestNewCatalogClient_BaseURLFollowsRepository(t *testing.T) {
 	cfg := discoveryCfg()
 	cfg.Agent.Skills.Repository = "acme/internal-skills"
