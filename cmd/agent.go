@@ -715,12 +715,62 @@ func (s *AgentSession) executeTurn() error {
 		Messages:  messages,
 	}
 
+	if agui != nil {
+		return s.executeStreamingTurn(ctx, req, requestID)
+	}
+
 	response, err := s.agentService.Run(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
 	return s.processSyncResponse(response, requestID)
+}
+
+// executeStreamingTurn runs one model turn with token-level streaming and emits
+// AG-UI reasoning/text deltas as they arrive, then processes the assembled
+// response (persistence + tool execution) without re-emitting the streamed
+// text. Only used in AG-UI output mode.
+func (s *AgentSession) executeStreamingTurn(ctx context.Context, req *domain.AgentRequest, requestID string) error {
+	msgID := requestID
+	reasoningOpen := false
+	textOpen := false
+
+	onDelta := func(content, reasoning string, _ []sdk.ChatCompletionMessageToolCallChunk) {
+		if reasoning != "" {
+			if !reasoningOpen {
+				agui.emitReasoningStart(msgID)
+				reasoningOpen = true
+			}
+			agui.emitReasoningDelta(msgID, reasoning)
+		}
+		if content != "" {
+			if reasoningOpen {
+				agui.emitReasoningEnd(msgID)
+				reasoningOpen = false
+			}
+			if !textOpen {
+				agui.emitTextStart(msgID)
+				textOpen = true
+			}
+			agui.emitTextDelta(msgID, content)
+		}
+	}
+
+	response, err := s.agentService.RunStreaming(ctx, req, onDelta)
+
+	if reasoningOpen {
+		agui.emitReasoningEnd(msgID)
+	}
+	if textOpen {
+		agui.emitTextEnd(msgID)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+
+	return s.processStreamedResponse(response, requestID)
 }
 
 func (s *AgentSession) buildSDKMessages() []sdk.Message {
@@ -802,6 +852,29 @@ func (s *AgentSession) toolImagesFollowUpMessage(images []domain.ImageAttachment
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	return s.applyResponse(response, requestID, s.outputMessage)
+}
+
+// processStreamedResponse handles a response whose text and reasoning were
+// already streamed as AG-UI deltas: it persists and executes the same way as
+// the sync path but only emits the assistant message's tool calls (the text was
+// already sent).
+func (s *AgentSession) processStreamedResponse(response *domain.ChatSyncResponse, requestID string) error {
+	return s.applyResponse(response, requestID, func(msg ConversationMessage) {
+		if agui != nil {
+			agui.emitToolCalls(msg)
+		}
+	})
+}
+
+// applyResponse records the assistant message, emits it via emitAssistant, and
+// executes any tool calls. The sync and streamed paths differ only in how the
+// assistant message reaches the output (whole message vs. tool calls only).
+func (s *AgentSession) applyResponse(
+	response *domain.ChatSyncResponse,
+	requestID string,
+	emitAssistant func(ConversationMessage),
+) error {
 	s.lastFinishReason = response.FinishReason
 
 	if response.Content == "" && len(response.ToolCalls) == 0 {
@@ -822,7 +895,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	}
 
 	s.addMessage(assistantMsg)
-	s.outputMessage(assistantMsg)
+	emitAssistant(assistantMsg)
 
 	if len(response.ToolCalls) == 0 {
 		return nil
