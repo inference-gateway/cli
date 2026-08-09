@@ -97,6 +97,12 @@ type AgentService interface {
 	// RunWithStream executes an agent task with streaming (for interactive chat)
 	RunWithStream(ctx context.Context, req *AgentRequest) (<-chan ChatEvent, error)
 
+	// RunStreaming executes a single model turn with streaming, invoking onDelta
+	// for each content/reasoning/tool-call delta, and returns the assembled
+	// response like Run. For callers that own their own agentic loop (the
+	// headless AG-UI agent) but want token-level output. onDelta may be nil.
+	RunStreaming(ctx context.Context, req *AgentRequest, onDelta func(content, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)) (*ChatSyncResponse, error)
+
 	// CancelRequest cancels an active request
 	CancelRequest(requestID string) error
 

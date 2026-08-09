@@ -152,3 +152,54 @@ func (e *aguiEncoder) emitRunError(message string) {
 	}
 	e.emit(aguievents.NewRunErrorEvent(message, opts...))
 }
+
+// --- Streaming emit points ---
+//
+// When `infer agent --output-format ag-ui` streams a model turn (see
+// executeStreamingTurn in agent.go), text and reasoning arrive token by token.
+// These helpers emit the AG-UI START/CONTENT/END triads incrementally so a
+// client renders the answer and the thinking as they are generated, instead of
+// one full message per turn via emitMessage.
+
+func (e *aguiEncoder) emitTextStart(messageID string) {
+	e.emit(aguievents.NewTextMessageStartEvent(messageID, aguievents.WithRole("assistant")))
+}
+
+func (e *aguiEncoder) emitTextDelta(messageID, delta string) {
+	e.emit(aguievents.NewTextMessageContentEvent(messageID, delta))
+}
+
+func (e *aguiEncoder) emitTextEnd(messageID string) {
+	e.emit(aguievents.NewTextMessageEndEvent(messageID))
+}
+
+func (e *aguiEncoder) emitReasoningStart(messageID string) {
+	e.emit(aguievents.NewReasoningMessageStartEvent(messageID, "assistant"))
+}
+
+func (e *aguiEncoder) emitReasoningDelta(messageID, delta string) {
+	e.emit(aguievents.NewReasoningMessageContentEvent(messageID, delta))
+}
+
+func (e *aguiEncoder) emitReasoningEnd(messageID string) {
+	e.emit(aguievents.NewReasoningMessageEndEvent(messageID))
+}
+
+// emitToolCalls emits only the tool-call triads of an assistant message. The
+// streaming path uses it after the turn: text and reasoning were already
+// streamed as deltas, but the turn's tool calls still need to reach the client.
+// ponytail: tool-call arguments are emitted whole, not token-streamed - args
+// are JSON with no rendering benefit from streaming. Stream them per-delta if a
+// client ever needs live arg preview.
+func (e *aguiEncoder) emitToolCalls(msg ConversationMessage) {
+	if msg.ToolCalls == nil {
+		return
+	}
+	for _, tc := range *msg.ToolCalls {
+		e.emit(aguievents.NewToolCallStartEvent(tc.ID, tc.Function.Name))
+		if tc.Function.Arguments != "" {
+			e.emit(aguievents.NewToolCallArgsEvent(tc.ID, tc.Function.Arguments))
+		}
+		e.emit(aguievents.NewToolCallEndEvent(tc.ID))
+	}
+}
