@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -96,7 +97,7 @@ func init() {
 	rootCmd.AddCommand(headlessCmd)
 }
 
-func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
+func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolint:gocyclo,cyclop,funlen
 	switch opts.Format {
 	case "json", "json-pretty", "ag-ui", "text":
 	default:
@@ -110,14 +111,27 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 		_ = svc.Shutdown(ctx)
 	}()
 
+	rendered := false
+	defer func() {
+		if err != nil && !rendered {
+			render.EmitPreRunError(os.Stdout, opts.Format, err)
+		}
+	}()
+
 	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
-	defer cancel()
+	if agentManager := svc.GetAgentManager(); agentManager != nil {
+		readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 600)) * time.Second
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
+		agentManager.WaitForAgentsReady(waitCtx)
+		waitCancel()
+	}
 
-	availModels, err := svc.GetModelService().ListModels(ctx)
+	listCtx, listCancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
+	availModels, err := svc.GetModelService().ListModels(listCtx)
+	listCancel()
 	if err != nil {
 		return fmt.Errorf("inference gateway not available: %w", err)
 	}
@@ -149,21 +163,45 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 		sessionID = uuid.New().String()
 	}
 
+	groupKey := ""
+	rolloverMgr := svc.GetSessionRolloverManager()
+	if rolloverMgr != nil {
+		if resolved, gk, _ := rolloverMgr.ResolveSessionID(sessionID); resolved != "" {
+			sessionID = resolved
+			groupKey = gk
+		}
+	}
+
+	ctx := context.Background()
+
 	history := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
+
+	if newID, fired := rolloverMgr.MaybeRollover(ctx, selectedModel, groupKey); fired {
+		logger.Info("rolled over to new session (summary preserved)",
+			"previous_session_id", sessionID, "new_session_id", newID)
+		sessionID = newID
+		history = chatcompletion.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
+	}
 
 	expanded, err := expandFileReferences(opts.Task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
 
+	userMsg := sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(expanded),
+	}
+	if err := conversationRepo.AddMessage(domain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
+		logger.Warn("failed to persist user task message", "error", err)
+	}
+
 	req := &domain.AgentRequest{
-		RequestID: sessionID,
-		Model:     selectedModel,
-		Messages: append(history, sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(expanded),
-		}),
+		RequestID:              sessionID,
+		Model:                  selectedModel,
+		Messages:               append(history, userMsg),
 		ApprovalBrokerAttached: opts.RequireApproval,
+		GroupKey:               groupKey,
 	}
 
 	rec := svc.GetTelemetryRecorder()
@@ -181,6 +219,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	if opts.RequireApproval {
 		stdin = os.Stdin
 	}
+	rendered = true
 	switch opts.Format {
 	case "json":
 		err = render.RenderJSON(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
@@ -195,8 +234,8 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
 
-	if opts.ResultFile != "" && err == nil {
-		writeResultFile(opts.ResultFile, conversationRepo)
+	if opts.ResultFile != "" {
+		writeResultFile(opts.ResultFile, conversationRepo, sessionID, err)
 	}
 	return err
 }
@@ -301,10 +340,10 @@ func sessionOutcome(err error) string {
 	}
 }
 
-func writeResultFile(path string, repo domain.ConversationRepository) {
-	if path == "" {
-		return
-	}
+// writeResultFile atomically writes the run's outcome and final assistant
+// message to path, for a parent Agent tool to harvest - on failure too, so
+// the parent gets the partial answer and error detail instead of silence.
+func writeResultFile(path string, repo domain.ConversationRepository, sessionID string, runErr error) {
 	entries := repo.GetMessages()
 	content := ""
 	for i := len(entries) - 1; i >= 0; i-- {
@@ -318,7 +357,11 @@ func writeResultFile(path string, repo domain.ConversationRepository) {
 	}
 	rf := domain.SubagentResultFile{
 		FinalAssistant: content,
-		Success:        true,
+		Success:        runErr == nil,
+		SessionID:      sessionID,
+	}
+	if runErr != nil {
+		rf.Error = runErr.Error()
 	}
 	data, _ := json.Marshal(rf)
 	tmp := path + ".tmp"

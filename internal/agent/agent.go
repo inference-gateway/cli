@@ -39,6 +39,7 @@ type AgentServiceImpl struct {
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
+	rolloverManager  *services.SessionRolloverManager
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
@@ -368,6 +369,7 @@ func NewAgent(
 	timeoutSeconds int,
 	optimizer domain.ConversationOptimizer,
 	bgRegistry domain.BackgroundTaskRegistry,
+	rolloverManager *services.SessionRolloverManager,
 ) *AgentServiceImpl {
 	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 
@@ -394,6 +396,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
+		rolloverManager:  rolloverManager,
 		reminderProvider: cfg.Reminders,
 		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),

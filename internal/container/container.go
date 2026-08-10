@@ -437,6 +437,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
+		c.sessionRolloverManager,
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)

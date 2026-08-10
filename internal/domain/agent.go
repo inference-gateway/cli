@@ -86,14 +86,12 @@ type AgentStateMachine interface {
 
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
-	RequestID  string        `json:"request_id"`
-	Model      string        `json:"model"`
-	Messages   []sdk.Message `json:"messages"`
-	IsChatMode bool          `json:"is_chat_mode"`
-	// ApprovalBrokerAttached signals that an IPC approval broker is reading
-	// stdout/stdin (headless --require-approval under the channel manager), so
-	// tool approval resolves to IPC delivery instead of block.
-	ApprovalBrokerAttached bool `json:"approval_broker_attached"`
+	RequestID              string        `json:"request_id"`
+	Model                  string        `json:"model"`
+	Messages               []sdk.Message `json:"messages"`
+	IsChatMode             bool          `json:"is_chat_mode"`
+	ApprovalBrokerAttached bool          `json:"approval_broker_attached"`
+	GroupKey               string        `json:"group_key,omitempty"`
 }
 
 // AgentService handles agent operations with both sync and streaming modes

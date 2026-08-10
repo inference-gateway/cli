@@ -71,6 +71,11 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 	if !strings.Contains(got, `"TOOL_CALL_START"`) {
 		t.Errorf("missing TOOL_CALL_START for per-turn tool calls\n%s", got)
 	}
+	for _, typ := range []string{`"TEXT_MESSAGE_START"`, `"TEXT_MESSAGE_END"`} {
+		if n := strings.Count(got, typ); n != 2 {
+			t.Errorf("%s count = %d, want one per turn (2)\n%s", typ, n, got)
+		}
+	}
 }
 
 func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
@@ -100,6 +105,8 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 		{"approved", `{"type":"approval_response","tool_call_id":"tc1","approved":true}` + "\n", domain.ApprovalApprove},
 		{"rejected", `{"type":"approval_response","tool_call_id":"tc1","approved":false}` + "\n", domain.ApprovalReject},
 		{"skips noise lines", "not json\n" + `{"type":"other"}` + "\n" + `{"type":"approval_response","approved":true}` + "\n", domain.ApprovalApprove},
+		{"skips stale tool_call_id", `{"type":"approval_response","tool_call_id":"stale","approved":true}` + "\n" + `{"type":"approval_response","tool_call_id":"tc1","approved":false}` + "\n", domain.ApprovalReject},
+		{"only stale responses reject", `{"type":"approval_response","tool_call_id":"stale","approved":true}` + "\n", domain.ApprovalReject},
 		{"closed stdin rejects", "", domain.ApprovalReject},
 	}
 	for _, tt := range tests {
@@ -201,5 +208,43 @@ func TestRenderJSON_MaxTurns(t *testing.T) {
 	err := RenderJSON(stream(domain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
 	if !errors.Is(err, domain.ErrMaxTurnsReached) {
 		t.Fatalf("RenderJSON() err = %v, want ErrMaxTurnsReached", err)
+	}
+}
+
+func TestEmitPreRunError_MachineFormats(t *testing.T) {
+	tests := []struct {
+		format string
+		want   string
+	}{
+		{"json", `"agent_error"`},
+		{"json-pretty", `"agent_error"`},
+		{"ag-ui", `"RUN_ERROR"`},
+		{"text", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			var out strings.Builder
+			EmitPreRunError(&out, tt.format, errors.New("gateway down"))
+			if tt.want == "" {
+				if out.Len() != 0 {
+					t.Fatalf("text format must stay silent, got %q", out.String())
+				}
+				return
+			}
+			if !strings.Contains(out.String(), tt.want) || !strings.Contains(out.String(), "gateway down") {
+				t.Fatalf("EmitPreRunError(%s) output = %q, want %s with the message", tt.format, out.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestToolContent_NoLegacyEnvelope(t *testing.T) {
+	ok := toolContent(&domain.ToolExecutionResult{ToolName: "Read", Success: true})
+	if strings.HasPrefix(ok, "Result of tool call") || !strings.Contains(ok, `"tool_name":"Read"`) {
+		t.Fatalf("success content = %q, want bare marshaled result", ok)
+	}
+	failed := toolContent(&domain.ToolExecutionResult{ToolName: "Bash", Success: false, Error: "exit 1"})
+	if failed != "exit 1" {
+		t.Fatalf("failure content = %q, want bare error detail", failed)
 	}
 }

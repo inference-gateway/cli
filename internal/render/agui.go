@@ -12,11 +12,17 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// aguiEncoder serializes headless agent output as AG-UI protocol events.
+// aguiEncoder serializes headless agent output as AG-UI protocol events. It
+// tracks the open assistant message of the current turn so streamed text and
+// reasoning arrive framed in the protocol's START/CONTENT/END triads.
 type aguiEncoder struct {
 	w        io.Writer
 	threadID string
 	runID    string
+
+	msgID         string
+	textOpen      bool
+	reasoningOpen bool
 }
 
 func (e *aguiEncoder) emit(ev aguievents.Event) {
@@ -48,12 +54,49 @@ func (e *aguiEncoder) emitRunError(message string) {
 	e.emit(aguievents.NewRunErrorEvent(message, opts...))
 }
 
-func (e *aguiEncoder) emitTextDelta(messageID, delta string) {
-	e.emit(aguievents.NewTextMessageContentEvent(messageID, delta))
+// streamText emits a text delta, opening the turn's assistant message (and
+// closing any open reasoning block, which precedes text) on the first delta.
+func (e *aguiEncoder) streamText(delta string) {
+	if e.msgID == "" {
+		e.msgID = guuid.New().String()
+	}
+	if e.reasoningOpen {
+		e.emit(aguievents.NewReasoningMessageEndEvent(e.msgID))
+		e.reasoningOpen = false
+	}
+	if !e.textOpen {
+		e.emit(aguievents.NewTextMessageStartEvent(e.msgID, aguievents.WithRole("assistant")))
+		e.textOpen = true
+	}
+	e.emit(aguievents.NewTextMessageContentEvent(e.msgID, delta))
 }
 
-func (e *aguiEncoder) emitReasoningDelta(messageID, delta string) {
-	e.emit(aguievents.NewReasoningMessageContentEvent(messageID, delta))
+// streamReasoning emits a reasoning delta, opening the turn's reasoning
+// message on the first delta.
+func (e *aguiEncoder) streamReasoning(delta string) {
+	if e.msgID == "" {
+		e.msgID = guuid.New().String()
+	}
+	if !e.reasoningOpen {
+		e.emit(aguievents.NewReasoningMessageStartEvent(e.msgID, "assistant"))
+		e.reasoningOpen = true
+	}
+	e.emit(aguievents.NewReasoningMessageContentEvent(e.msgID, delta))
+}
+
+// closeMessage ends any open text/reasoning framing and resets the per-turn
+// message ID so the next delta starts a fresh AG-UI message. Safe to call
+// when nothing is open.
+func (e *aguiEncoder) closeMessage() {
+	if e.reasoningOpen {
+		e.emit(aguievents.NewReasoningMessageEndEvent(e.msgID))
+		e.reasoningOpen = false
+	}
+	if e.textOpen {
+		e.emit(aguievents.NewTextMessageEndEvent(e.msgID))
+		e.textOpen = false
+	}
+	e.msgID = ""
 }
 
 func (e *aguiEncoder) emitToolCallStart(id, name string) {

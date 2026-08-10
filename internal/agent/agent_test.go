@@ -263,6 +263,7 @@ func TestNewAgentService(t *testing.T) {
 		120,
 		nil,
 		nil,
+		nil,
 	)
 
 	assert.NotNil(t, agentService)

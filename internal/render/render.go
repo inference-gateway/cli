@@ -67,9 +67,7 @@ func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any
 	return msg
 }
 
-// toolMessage builds the JSON line for one tool execution result. content
-// keeps the legacy "Result of tool call: {...}" / "Tool execution failed: ..."
-// envelope that downstream consumers (infer-action) parse.
+// toolMessage builds the JSON line for one tool execution result.
 func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 	return map[string]any{
 		"role":         "tool",
@@ -87,12 +85,13 @@ func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 	}
 }
 
+// toolContent is the marshaled result on success, the error detail on failure.
 func toolContent(r *domain.ToolExecutionResult) string {
 	if r.Success {
 		if b, err := json.Marshal(r); err == nil {
-			return "Result of tool call: " + string(b)
+			return string(b)
 		}
-		return fmt.Sprintf("Result of tool call: %v", r.Data)
+		return fmt.Sprintf("%v", r.Data)
 	}
 	detail := r.Error
 	if detail == "" && r.Data != nil {
@@ -100,7 +99,7 @@ func toolContent(r *domain.ToolExecutionResult) string {
 			detail = string(b)
 		}
 	}
-	return "Tool execution failed: " + detail
+	return detail
 }
 
 // completionErr maps a terminal event to the error the command should return:
@@ -116,7 +115,9 @@ func completionErr(e domain.ChatCompleteEvent) error {
 }
 
 // answerApproval reads approval_response lines from in and answers the
-// engine's pending approval on the event's response channel. Any read or
+// engine's pending approval on the event's response channel. Responses
+// carrying a different tool_call_id are skipped (a late answer to a request
+// the engine already timed out must not decide the next one). Any read or
 // parse failure rejects the tool so the engine never waits out its timeout
 // on a dead broker.
 func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
@@ -126,6 +127,9 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
 	for in != nil && in.Scan() {
 		var resp domain.ApprovalResponse
 		if err := json.Unmarshal(in.Bytes(), &resp); err != nil || resp.Type != "approval_response" {
+			continue
+		}
+		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
 			continue
 		}
 		if resp.Approved {
@@ -175,7 +179,7 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 	for event := range events {
 		switch e := event.(type) {
 		case domain.ChatErrorEvent:
-			emit(map[string]any{"type": "agent_error", "message": truncate(e.Error.Error(), 3500)})
+			emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case domain.ChatChunkEvent:
 			content.WriteString(e.Content)
@@ -268,12 +272,13 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		switch ev := event.(type) {
 		case domain.ChatChunkEvent:
 			if ev.ReasoningContent != "" {
-				e.emitReasoningDelta(ev.RequestID, ev.ReasoningContent)
+				e.streamReasoning(ev.ReasoningContent)
 			}
 			if ev.Content != "" {
-				e.emitTextDelta(ev.RequestID, ev.Content)
+				e.streamText(ev.Content)
 			}
 		case domain.ChatCompleteEvent:
+			e.closeMessage()
 			for _, tc := range ev.ToolCalls {
 				e.emitToolCallStart(tc.ID, tc.Function.Name)
 				e.emitToolCallArgs(tc.ID, tc.Function.Arguments)
@@ -301,10 +306,24 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		}
 	}
 
+	e.closeMessage()
 	if runErr != nil {
 		e.emitRunError(runErr.Error())
 		return fmt.Errorf("agent error: %w", runErr)
 	}
 	e.emitRunFinished()
 	return nil
+}
+
+// EmitPreRunError writes a machine-readable failure line for errors that occur
+// before the event stream starts (gateway down, unknown model, ...), so stdout
+// consumers - the channel manager and agentrunner - see the failure instead of
+// silence. The text format stays quiet; the CLI's stderr prose covers it.
+func EmitPreRunError(w io.Writer, format string, err error) {
+	switch format {
+	case "json", "json-pretty":
+		emitJSON(w, domain.AgentErrorMessage{Type: "agent_error", Message: truncate(err.Error(), 3500)}, format == "json-pretty")
+	case "ag-ui":
+		(&aguiEncoder{w: w}).emitRunError(truncate(err.Error(), 3500))
+	}
 }

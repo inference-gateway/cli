@@ -38,6 +38,10 @@ func (a *EventDrivenAgent) startStreaming() {
 		time.Sleep(constants.AgentIterationDelay)
 	}
 
+	if !a.req.IsChatMode && a.agentCtx.Turns > 1 {
+		a.service.maybeRolloverSession(a.agentCtx, a.req)
+	}
+
 	a.eventPublisher.publishChatStart()
 
 	if a.agentCtx.Turns == 1 {

@@ -22,6 +22,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
+	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
@@ -521,9 +522,6 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 		}
 		b.WriteString(entry)
 	}
-	// Count only, never the names: this section rides in the static system
-	// prompt, and joining the names of an arbitrarily large catalog blows past
-	// maxChars by however big the catalog happens to be.
 	if omitted > 0 {
 		fmt.Fprintf(&b, "... (%d more skills not expanded - run `infer skills search <term>` to find one)\n", omitted)
 	}
@@ -551,7 +549,7 @@ var (
 // explicitly invoked (via "/<name>" or "use the <name> skill"). Unlike
 // buildSkillsInfo - which lists every available skill and leaves it to the
 // model whether to engage one - this guarantees an invoked skill is flagged as
-// active regardless of mode (chat, `infer agent`, channels, heartbeat), all of
+// active regardless of mode (chat, `infer headless`, channels, heartbeat), all of
 // which funnel through addSystemPrompt. It injects only the skill's metadata
 // (description + path), not the body: the SKILL.md body stays progressive
 // disclosure, read on demand by the model via the Read tool (now reachable
@@ -1144,6 +1142,23 @@ func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// maybeRolloverSession rolls the conversation over into a new session when it
+// crosses the compact threshold (SessionRolloverManager gates and performs the
+// rollover), then rebuilds the in-flight conversation from the now-compacted
+// repository. Called at the top of every headless turn after the first - chat
+// rollover is owned by the UI (chat_message_processor), and the first turn is
+// handled by the headless command before the run starts.
+func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *domain.AgentContext, req *domain.AgentRequest) {
+	newID, fired := s.rolloverManager.MaybeRollover(agentCtx.Ctx, req.Model, req.GroupKey)
+	if !fired {
+		return
+	}
+	logger.Info("rolled over to new session (summary preserved)",
+		"previous_session_id", req.RequestID, "new_session_id", newID)
+	*agentCtx.Conversation = s.addSystemPrompt(
+		chatcompletion.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
 }
 
 // trackStreamOutcome records the just-finished stream's finish reason and

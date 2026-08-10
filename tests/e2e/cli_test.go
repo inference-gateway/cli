@@ -190,7 +190,7 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 4, "all four Read executions must be reported")
 	for _, content := range toolResults {
-		require.Contains(t, content, "Result of tool call", "Read is auto-approved and must succeed")
+		require.Contains(t, content, `"success":true`, "Read is auto-approved and must succeed")
 	}
 	require.Contains(t, contentsByRole(lines, "assistant"), "All four files read.")
 
