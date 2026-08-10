@@ -90,15 +90,15 @@ func init() {
 	headlessCmd.Flags().Bool("heartbeat", false, "Use heartbeat system prompt")
 	headlessCmd.Flags().Bool("remote", false, "Use remote-control system prompt")
 	headlessCmd.Flags().String("result-file", "", "Write final result JSON to this path")
-	headlessCmd.Flags().String("format", "json", "Output format: json, ag-ui, text")
+	headlessCmd.Flags().String("format", "json", "Output format: json, json-pretty, ag-ui, text")
 	rootCmd.AddCommand(headlessCmd)
 }
 
 func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	switch opts.Format {
-	case "json", "ag-ui", "text":
+	case "json", "json-pretty", "ag-ui", "text":
 	default:
-		return fmt.Errorf("invalid --format %q (supported: json, ag-ui, text)", opts.Format)
+		return fmt.Errorf("invalid --format %q (supported: json, json-pretty, ag-ui, text)", opts.Format)
 	}
 
 	svc := container.NewServiceContainer(cfg)
@@ -185,6 +185,8 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	switch opts.Format {
 	case "json":
 		err = render.RenderJSON(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
+	case "json-pretty":
+		err = render.RenderJSONPretty(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
 	case "ag-ui":
 		err = render.RenderAGUI(events, os.Stdout, stdin, sessionID, selectedModel)
 	case "text":

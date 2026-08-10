@@ -156,11 +156,13 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSON(stream(
-		domain.ChatCompleteEvent{Message: "calling a tool", ToolCalls: []sdk.ChatCompletionMessageToolCall{
+		domain.ChatChunkEvent{Content: "calling a tool"},
+		domain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
 			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}},
 		}},
 		domain.ToolExecutionCompletedEvent{Results: []*domain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
-		domain.ChatCompleteEvent{Message: "all done"},
+		domain.ChatChunkEvent{Content: "all done"},
+		domain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v", err)
@@ -173,6 +175,24 @@ func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 	}
 	if first, second := strings.Index(got, `"calling a tool"`), strings.Index(got, `"tool_name":"Bash"`); first > second {
 		t.Errorf("tool result emitted before its assistant turn:\n%s", got)
+	}
+}
+
+func TestRenderJSONPretty_Multiline(t *testing.T) {
+	var out strings.Builder
+	err := RenderJSONPretty(stream(
+		domain.ChatChunkEvent{Content: "hello"},
+		domain.ChatCompleteEvent{},
+	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	if err != nil {
+		t.Fatalf("RenderJSONPretty() err = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "{\n  \"") {
+		t.Fatalf("output not indented multiline JSON:\n%s", got)
+	}
+	if !strings.Contains(got, `"content": "hello"`) {
+		t.Fatalf("missing assistant content:\n%s", got)
 	}
 }
 

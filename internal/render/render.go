@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -19,8 +20,14 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-func emitJSON(w io.Writer, msg any) {
-	data, err := json.Marshal(msg)
+func emitJSON(w io.Writer, msg any, pretty bool) {
+	var data []byte
+	var err error
+	if pretty {
+		data, err = json.MarshalIndent(msg, "", "  ")
+	} else {
+		data, err = json.Marshal(msg)
+	}
 	if err != nil {
 		logger.Error("render: failed to marshal JSON", "error", err)
 		return
@@ -36,14 +43,16 @@ func truncate(s string, maxLen int) string {
 }
 
 // assistantMessage builds the JSON line for a completed assistant turn, or
-// nil for completions with nothing to say (cancellation, max-turns).
-func assistantMessage(e domain.ChatCompleteEvent) map[string]any {
-	if e.Message == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
+// nil for completions with nothing to say (cancellation, max-turns). content
+// is the turn's text accumulated from chunk deltas — the engine publishes
+// completion events without the message body.
+func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any {
+	if content == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
 		return nil
 	}
 	msg := map[string]any{
 		"role":      "assistant",
-		"content":   e.Message,
+		"content":   content,
 		"timestamp": e.Timestamp,
 	}
 	if e.ReasoningContent != "" {
@@ -111,7 +120,19 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
 // When in is non-nil it acts as the IPC approval broker: each approval_request
 // line is answered by reading an approval_response line from in.
 func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
-	emitJSON(w, map[string]any{
+	return renderJSON(events, w, in, sessionID, model, cfg, repo, false)
+}
+
+// RenderJSONPretty is RenderJSON with each object indented across multiple
+// lines for human reading. Objects are separated by newlines but are no
+// longer one-per-line, so machine consumers should use RenderJSON.
+func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+	return renderJSON(events, w, in, sessionID, model, cfg, repo, true)
+}
+
+func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
+	emit := func(msg any) { emitJSON(w, msg, pretty) }
+	emit(map[string]any{
 		"type":       "info",
 		"message":    "Starting new agent session",
 		"session_id": sessionID,
@@ -125,32 +146,36 @@ func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 	}
 
 	var runErr error
+	var content strings.Builder
 	for event := range events {
 		switch e := event.(type) {
 		case domain.ChatErrorEvent:
-			emitJSON(w, map[string]any{"type": "agent_error", "message": truncate(e.Error.Error(), 3500)})
+			emit(map[string]any{"type": "agent_error", "message": truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
+		case domain.ChatChunkEvent:
+			content.WriteString(e.Content)
 		case domain.ChatCompleteEvent:
-			if msg := assistantMessage(e); msg != nil {
-				emitJSON(w, msg)
+			if msg := assistantMessage(e, content.String()); msg != nil {
+				emit(msg)
 			}
+			content.Reset()
 			if err := completionErr(e); err != nil {
 				runErr = err
 			}
 		case domain.ToolExecutionCompletedEvent:
 			for _, r := range e.Results {
 				if r != nil {
-					emitJSON(w, toolMessage(r))
+					emit(toolMessage(r))
 				}
 			}
 		case domain.ToolApprovalRequestedEvent:
-			emitJSON(w, map[string]any{
+			emit(map[string]any{
 				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
 				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
 			answerApproval(e, stdin)
 		case domain.TodoUpdateChatEvent:
-			emitJSON(w, map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
+			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		}
 	}
 
@@ -163,7 +188,7 @@ func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 	if cfg != nil && cfg.Pricing.Currency != "" {
 		currency = cfg.Pricing.Currency
 	}
-	emitJSON(w, map[string]any{
+	emit(map[string]any{
 		"type": "session_stats", "message": "Session complete", "model": model,
 		"prompt_tokens": tokenStats.TotalInputTokens, "completion_tokens": tokenStats.TotalOutputTokens,
 		"total_tokens": tokenStats.TotalTokens, "requests": tokenStats.RequestCount,
