@@ -35,35 +35,41 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen] + "…"
 }
 
-// entryMessage builds a map from a conversation entry for JSON output.
-func entryMessage(entry domain.ConversationEntry) map[string]any {
+// assistantMessage builds the JSON line for a completed assistant turn, or
+// nil for completions with nothing to say (cancellation, max-turns).
+func assistantMessage(e domain.ChatCompleteEvent) map[string]any {
+	if e.Message == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
+		return nil
+	}
 	msg := map[string]any{
-		"role":      string(entry.Message.Role),
-		"timestamp": entry.Time,
+		"role":      "assistant",
+		"content":   e.Message,
+		"timestamp": e.Timestamp,
 	}
-	if content, err := entry.Message.Content.AsMessageContent0(); err == nil {
-		msg["content"] = content
+	if e.ReasoningContent != "" {
+		msg["reasoning_content"] = e.ReasoningContent
 	}
-	if entry.ReasoningContent != "" {
-		msg["reasoning_content"] = entry.ReasoningContent
-	}
-	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
-		msg["tool_calls"] = *entry.Message.ToolCalls
-	}
-	if entry.Message.ToolCallID != nil {
-		msg["tool_call_id"] = *entry.Message.ToolCallID
-	}
-	if entry.ToolExecution != nil {
-		msg["failed"] = !entry.ToolExecution.Success
-		msg["tool_execution"] = map[string]any{
-			"tool_name": entry.ToolExecution.ToolName,
-			"success":   entry.ToolExecution.Success,
-			"error":     entry.ToolExecution.Error,
-			"rejected":  entry.ToolExecution.Rejected,
-			"duration":  entry.ToolExecution.Duration.String(),
-		}
+	if len(e.ToolCalls) > 0 {
+		msg["tool_calls"] = e.ToolCalls
 	}
 	return msg
+}
+
+// toolMessage builds the JSON line for one tool execution result.
+func toolMessage(r *domain.ToolExecutionResult) map[string]any {
+	return map[string]any{
+		"role":      "tool",
+		"failed":    !r.Success,
+		"timestamp": time.Now(),
+		"tool_execution": map[string]any{
+			"tool_name": r.ToolName,
+			"success":   r.Success,
+			"error":     r.Error,
+			"rejected":  r.Rejected,
+			"duration":  r.Duration.String(),
+		},
+		"data": r.Data,
+	}
 }
 
 // completionErr maps a terminal event to the error the command should return:
@@ -98,9 +104,10 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
 	e.ResponseChan <- domain.ApprovalReject
 }
 
-// RenderJSON renders events as JSON lines. It emits session info at start,
-// forwards approval requests and errors in real time, and after the event
-// channel closes reads the full conversation and session stats from the repo.
+// RenderJSON renders events as JSON lines, streaming each message as its turn
+// completes: assistant messages on ChatCompleteEvent, tool results on
+// ToolExecutionCompletedEvent, approval requests and errors in real time.
+// After the channel closes only the session stats are read from the repo.
 // When in is non-nil it acts as the IPC approval broker: each approval_request
 // line is answered by reading an approval_response line from in.
 func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
@@ -124,8 +131,17 @@ func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 			emitJSON(w, map[string]any{"type": "agent_error", "message": truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case domain.ChatCompleteEvent:
+			if msg := assistantMessage(e); msg != nil {
+				emitJSON(w, msg)
+			}
 			if err := completionErr(e); err != nil {
 				runErr = err
+			}
+		case domain.ToolExecutionCompletedEvent:
+			for _, r := range e.Results {
+				if r != nil {
+					emitJSON(w, toolMessage(r))
+				}
 			}
 		case domain.ToolApprovalRequestedEvent:
 			emitJSON(w, map[string]any{
@@ -138,15 +154,6 @@ func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		}
 	}
 
-	// Dump the full conversation from the repo.
-	for _, entry := range repo.GetMessages() {
-		if entry.Hidden {
-			continue
-		}
-		emitJSON(w, entryMessage(entry))
-	}
-
-	// Session stats.
 	tokenStats := repo.GetSessionTokens()
 	if tokenStats.RequestCount <= 0 {
 		return runErr
@@ -179,7 +186,7 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 				printed = true
 			}
 		case domain.ChatCompleteEvent:
-			if printed { // tool-only turns produce no text, so no blank line
+			if printed {
 				_, _ = fmt.Fprintln(w)
 				printed = false
 			}

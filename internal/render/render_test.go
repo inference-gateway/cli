@@ -153,6 +153,29 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRenderJSON_StreamsPerTurn(t *testing.T) {
+	var out strings.Builder
+	err := RenderJSON(stream(
+		domain.ChatCompleteEvent{Message: "calling a tool", ToolCalls: []sdk.ChatCompletionMessageToolCall{
+			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}},
+		}},
+		domain.ToolExecutionCompletedEvent{Results: []*domain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
+		domain.ChatCompleteEvent{Message: "all done"},
+	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	if err != nil {
+		t.Fatalf("RenderJSON() err = %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{`"calling a tool"`, `"tool_name":"Bash"`, `"all done"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in streamed output:\n%s", want, got)
+		}
+	}
+	if first, second := strings.Index(got, `"calling a tool"`), strings.Index(got, `"tool_name":"Bash"`); first > second {
+		t.Errorf("tool result emitted before its assistant turn:\n%s", got)
+	}
+}
+
 func TestRenderJSON_MaxTurns(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSON(stream(domain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
