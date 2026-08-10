@@ -16,9 +16,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
-	"github.com/inference-gateway/cli/internal/render"
+	render "github.com/inference-gateway/cli/internal/render"
 	services "github.com/inference-gateway/cli/internal/services"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
