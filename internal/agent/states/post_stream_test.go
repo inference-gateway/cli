@@ -40,6 +40,7 @@ func TestPostStreamState_Handle(t *testing.T) {
 			setup: func(f *stateFixture) {
 				f.ctx.AgentCtx.Turns = 1
 				f.ctx.AgentCtx.HasToolResults = true
+				f.sm.CanTransitionReturns(true)
 			},
 			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
 			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
@@ -51,12 +52,15 @@ func TestPostStreamState_Handle(t *testing.T) {
 		},
 		{
 			name:            "no tools on turn zero continues the loop",
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
+			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
 		},
 		{
-			name:            "transition failure is returned",
-			setup:           func(f *stateFixture) { f.ctx.AgentCtx.Turns = 1 },
+			name: "transition failure is returned",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+			},
 			transitionErr:   errBoom,
 			wantErr:         true,
 			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},

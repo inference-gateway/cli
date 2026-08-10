@@ -315,6 +315,9 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 	for _, entry := range results {
 		if entry.ToolExecution != nil {
+			if entry.ToolExecution.ToolCallID == "" && entry.Message.ToolCallID != nil {
+				entry.ToolExecution.ToolCallID = *entry.Message.ToolCallID
+			}
 			if entry.ToolExecution.Success {
 				successCount++
 			} else {

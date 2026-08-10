@@ -23,6 +23,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/models"
 	render "github.com/inference-gateway/cli/internal/render"
 	services "github.com/inference-gateway/cli/internal/services"
+	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
@@ -141,18 +142,15 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
+	svc.GetStateManager().SetAgentMode(inheritedSubagentMode())
+
 	sessionID := opts.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
 
-	if !opts.NoSave {
-		if persistentRepo, ok := conversationRepo.(*services.PersistentConversationRepository); ok {
-			persistentRepo.SetConversationID(sessionID)
-		}
-	}
+	history := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
 
-	// Expand @file references.
 	expanded, err := expandFileReferences(opts.Task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
@@ -161,10 +159,10 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 	req := &domain.AgentRequest{
 		RequestID: sessionID,
 		Model:     selectedModel,
-		Messages: []sdk.Message{{
+		Messages: append(history, sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(expanded),
-		}},
+		}),
 		ApprovalBrokerAttached: opts.RequireApproval,
 	}
 
@@ -266,6 +264,28 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 		expanded += fmt.Sprintf("\n\nFile: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
 	}
 	return expanded, nil
+}
+
+// prepareConversation points the persistent repository at the session,
+// honours --no-save, and returns prior history when resuming an existing
+// --session-id (empty when starting fresh or storage is not persistent).
+func prepareConversation(ctx context.Context, repo domain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
+	persistentRepo, ok := repo.(*services.PersistentConversationRepository)
+	if !ok {
+		return nil
+	}
+	persistentRepo.SetConversationID(sessionID)
+	if noSave {
+		persistentRepo.SetAutoSave(false)
+	}
+	if !resume {
+		return nil
+	}
+	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
+		logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
+		return nil
+	}
+	return chatcompletion.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
 }
 
 func sessionOutcome(err error) string {

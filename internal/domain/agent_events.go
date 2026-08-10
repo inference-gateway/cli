@@ -120,6 +120,7 @@ type StateContext struct {
 	PublishChatEvent      func(event ChatEvent)
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *ChatMetrics)
 	PublishChatCancelled  func(metrics *ChatMetrics)
+	PublishToolResults    func(results []ConversationEntry)
 
 	// DispatchHooks runs the actions attached to a hook point. State executors call it
 	// at their loop point; the streaming path calls the service directly.

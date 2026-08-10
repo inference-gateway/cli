@@ -54,10 +54,6 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
-	if !isChatMode {
-		return false
-	}
-
 	if toolCall.Function.Name == "Bash" {
 		return !p.isBashCommandAllowed(toolCall)
 	}

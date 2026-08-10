@@ -72,10 +72,11 @@ func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any
 // envelope that downstream consumers (infer-action) parse.
 func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 	return map[string]any{
-		"role":      "tool",
-		"content":   toolContent(r),
-		"failed":    !r.Success,
-		"timestamp": time.Now(),
+		"role":         "tool",
+		"content":      toolContent(r),
+		"failed":       !r.Success,
+		"tool_call_id": r.ToolCallID,
+		"timestamp":    time.Now(),
 		"tool_execution": map[string]any{
 			"tool_name": r.ToolName,
 			"success":   r.Success,

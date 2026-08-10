@@ -77,12 +77,11 @@ func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false
 	logger.Debug("no tool calls in response")
 
-	canComplete := s.ctx.AgentCtx.Turns > 0 && s.ctx.AgentCtx.MessageQueue.IsEmpty()
-	if canComplete {
+	if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
 		return s.transitionToCompleting()
 	}
 
-	return s.transitionToCheckingQueue()
+	return s.transitionToStreaming()
 }
 
 // transitionToCompleting transitions to completing state
@@ -100,13 +99,15 @@ func (s *PostStreamState) transitionToCompleting() error {
 	return nil
 }
 
-// transitionToCheckingQueue transitions back to checking queue state
-func (s *PostStreamState) transitionToCheckingQueue() error {
+// transitionToStreaming starts another LLM turn. Reached when completion is
+// not possible yet with an empty queue - e.g. a hook appended a hidden
+// user-role reminder to the conversation, which the model must answer.
+func (s *PostStreamState) transitionToStreaming() error {
 	logger.Debug("continuing agent loop (need more turns)")
-	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
-		logger.Error("failed to transition to checking queue", "error", err)
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateStreamingLLM); err != nil {
+		logger.Error("failed to transition to streaming", "error", err)
 		return err
 	}
-	s.ctx.Events <- domain.MessageReceivedEvent{}
+	s.ctx.Events <- domain.StartStreamingEvent{}
 	return nil
 }

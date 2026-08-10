@@ -72,7 +72,7 @@ func (e *aguiEncoder) emitToolCallEnd(id string) {
 
 func (e *aguiEncoder) emitToolResult(r *domain.ToolExecutionResult) {
 	content, _ := json.Marshal(r)
-	e.emit(aguievents.NewToolCallResultEvent(guuid.New().String(), r.ToolName, string(content)))
+	e.emit(aguievents.NewToolCallResultEvent(guuid.New().String(), r.ToolCallID, string(content)))
 }
 
 func (e *aguiEncoder) emitTodos(todos []domain.TodoItem) {

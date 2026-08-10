@@ -344,7 +344,7 @@ func TestHandlePostStreamState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateCheckingQueue, toState)
+				assert.Equal(t, domain.StateStreamingLLM, toState)
 			},
 		},
 	}

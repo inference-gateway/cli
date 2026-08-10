@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,18 +140,21 @@ func TestAgentNudgesOnIncompleteTodos(t *testing.T) {
 	require.Zero(t, code)
 
 	reqs := m.Requests()
-	require.Len(t, reqs, 2, "TodoWrite turn then text-only reply")
+	require.Len(t, reqs, 4, "TodoWrite turn, text-only strike + nudge, nudged retry + nudge, final retry then break")
 
-	lines := jsonLines(t, stdout)
-	toolResults := contentsByRole(lines, "tool")
-	require.Len(t, toolResults, 1, "the TodoWrite tool call must be reported")
+	nudges := 0
+	for _, m := range reqs[3].Body.Messages {
+		text := m.Content.Text()
+		if strings.Contains(text, "todo list still has incomplete items") {
+			nudges++
+			require.Contains(t, text, "[pending] wire modalities", "nudge must list the open items verbatim")
+		}
+	}
+	require.Equal(t, 2, nudges, "exactly two continuation nudges before giving up")
 
-	assistants := contentsByRole(lines, "assistant")
-	require.Contains(t, assistants, "Let me check the callers next.", "text-only reply from mock must be rendered")
-
-	stats := statusOfType(lines, "session_stats")
+	stats := statusOfType(jsonLines(t, stdout), "session_stats")
 	require.NotNil(t, stats)
-	require.EqualValues(t, 2, stats["requests"])
+	require.EqualValues(t, 4, stats["requests"])
 }
 
 func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
@@ -186,7 +190,7 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 4, "all four Read executions must be reported")
 	for _, content := range toolResults {
-		require.Contains(t, content, "Status: ✓ Success", "Read is auto-approved and must succeed")
+		require.Contains(t, content, "Result of tool call", "Read is auto-approved and must succeed")
 	}
 	require.Contains(t, contentsByRole(lines, "assistant"), "All four files read.")
 
@@ -207,16 +211,16 @@ func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
 	stdout, code := runAgent(t, m.URL, dir, "create a file named blocked.txt")
 	require.Zero(t, code)
 
-	require.FileExists(t, filepath.Join(dir, "blocked.txt"),
-		"Write is auto-approved in headless mode")
+	require.NoFileExists(t, filepath.Join(dir, "blocked.txt"),
+		"Write requires approval and headless runs have no approver")
 
 	lines := jsonLines(t, stdout)
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 1)
-	require.Contains(t, toolResults[0], "Status: ✓ Success", "Write is auto-approved and must succeed")
+	require.Contains(t, toolResults[0], "Blocked:", "the rejection must carry an actionable reason")
 
 	tools := toolMessages(m.Requests()[1].Body)
-	require.Len(t, tools, 1, "the tool result must flow back to the gateway")
+	require.Len(t, tools, 1, "the rejection must flow back to the gateway as a tool result")
 }
 
 func TestAgentBashAllowlistedCommandRuns(t *testing.T) {
@@ -238,7 +242,7 @@ func TestAgentBashOffListCommandIsBlocked(t *testing.T) {
 
 	toolResults := contentsByRole(jsonLines(t, stdout), "tool")
 	require.Len(t, toolResults, 1)
-	require.Contains(t, toolResults[0], "Tool execution failed: Bash - command not allowed", "off-allowlist Bash must not execute headless")
+	require.Contains(t, toolResults[0], "Blocked:", "off-allowlist Bash must not execute headless")
 }
 
 func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {

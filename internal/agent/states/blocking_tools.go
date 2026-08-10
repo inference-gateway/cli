@@ -90,6 +90,9 @@ func (s *BlockingToolsState) processBlockedTools() {
 	}
 
 	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
+	if s.ctx.PublishToolResults != nil {
+		s.ctx.PublishToolResults(*s.ctx.ToolResults)
+	}
 	s.ctx.Events <- domain.AllToolsProcessedEvent{}
 }
 
@@ -109,12 +112,12 @@ func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall)
 // rendered as "queued") is cleared instead of lingering forever.
 func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 	reason := fmt.Sprintf(
-		"%s requires approval, but approvals are not available in this session (tools.safety.approval_behaviour). "+
+		"Blocked: %s requires approval, but approvals are not available in this session (tools.safety.approval_behaviour). "+
 			"The action was NOT executed. Do not retry the same call - tell the user what you need and why, "+
 			"or use a tool or command that does not require approval.",
 		tc.Function.Name,
 	)
-	content := "Blocked: " + reason
+	content := reason
 
 	logger.Info("tool blocked (approval required, no approver reachable)", "tool", tc.Function.Name)
 

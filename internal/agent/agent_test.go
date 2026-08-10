@@ -445,7 +445,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			expectedResult:     false,
 		},
 		{
-			name: "non_chat_mode_never_requires_approval",
+			name: "non_chat_mode_follows_same_approval_rules",
 			toolCall: &sdk.ChatCompletionMessageToolCall{
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Write",
@@ -455,7 +455,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			isChatMode:         false,
 			agentMode:          domain.AgentModeStandard,
 			isApprovalRequired: true,
-			expectedResult:     false,
+			expectedResult:     true,
 		},
 		{
 			name: "bash_allowed_command_no_approval",
