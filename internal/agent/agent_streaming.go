@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"time"
 
@@ -22,6 +23,7 @@ var errConnectStalled = errors.New("stream connect stalled")
 
 // startStreaming implements the LLM streaming logic for the EventDrivenAgent
 func (a *EventDrivenAgent) startStreaming() {
+	defer a.recoverPanic()
 	iterationStartTime := time.Now()
 
 	a.agentCtx.Turns++
@@ -181,6 +183,18 @@ func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
 		conversation = append(slices.Clone(conversation), a.volatileTail...)
 	}
 	return conversation
+}
+
+// recoverPanic converts a panic on an agent goroutine into the terminal
+// stream-error path (ChatErrorEvent + StateError), so headless consumers get
+// an agent_error line instead of a process crash (#1042). Deferred at every
+// goroutine root that runs task code: the event loop, streaming, and tool
+// execution.
+func (a *EventDrivenAgent) recoverPanic() {
+	if r := recover(); r != nil {
+		logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
+		a.failStream(fmt.Errorf("agent panic: %v", r))
+	}
 }
 
 // failStream publishes a terminal stream error and moves the state machine to

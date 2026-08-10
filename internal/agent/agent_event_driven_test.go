@@ -706,6 +706,51 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 	}
 }
 
+// TestProcessEvents_RecoversPanicToChatError verifies that a panic inside a
+// state handler is recovered and surfaced as a ChatErrorEvent instead of
+// crashing the process, so headless consumers get an agent_error line (#1042).
+func TestProcessEvents_RecoversPanicToChatError(t *testing.T) {
+	mocks := setupTestMocks()
+	agent := createTestAgent(mocks, createTestContext(mocks))
+	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+
+	chatEvents := make(chan domain.ChatEvent, 10)
+	agent.eventPublisher = &eventPublisher{chatEvents: chatEvents}
+
+	panicHandler := &mockdomain.FakeStateHandler{}
+	panicHandler.NameReturns(domain.StateIdle)
+	panicHandler.HandleStub = func(domain.AgentEvent) error { panic("boom") }
+	agent.stateHandlers[domain.StateIdle] = panicHandler
+	mocks.stateMachine.GetCurrentStateReturns(domain.StateIdle)
+	mocks.stateMachine.TransitionReturns(nil)
+
+	agent.events <- domain.MessageReceivedEvent{}
+
+	agent.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		agent.processEvents()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processEvents did not exit within 2s after a panicking handler")
+	}
+
+	select {
+	case ev := <-chatEvents:
+		errEv, ok := ev.(domain.ChatErrorEvent)
+		if !ok {
+			t.Fatalf("expected ChatErrorEvent, got %T", ev)
+		}
+		assert.Contains(t, errEv.Error.Error(), "agent panic: boom")
+	default:
+		t.Fatal("expected a ChatErrorEvent on chatEvents after panic recovery")
+	}
+}
+
 func TestHandleCompletingState(t *testing.T) {
 	tests := []struct {
 		name        string

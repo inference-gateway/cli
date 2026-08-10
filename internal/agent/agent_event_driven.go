@@ -156,7 +156,8 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)
 		},
-		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) domain.ConversationEntry {
+		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry domain.ConversationEntry) {
+			defer a.recoverPanic()
 			return a.service.executeToolInternal(a.agentCtx.Ctx, toolCall, a.eventPublisher, isApproved, time.Now())
 		},
 		GetAgentMode: func() domain.AgentMode {
@@ -228,6 +229,7 @@ func (a *EventDrivenAgent) Wait() {
 // could mask the cancel signal and force the user to press Esc again.
 func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
+	defer a.recoverPanic()
 
 	cancelAndExit := func() {
 		if err := a.stateMachine.Transition(a.agentCtx, domain.StateCancelled); err != nil {
