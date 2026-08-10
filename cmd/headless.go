@@ -135,6 +135,8 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptRemote
 	}
 
+	cfg.Tools.Agent.Mode = domain.SubagentModeHeadless
+
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
