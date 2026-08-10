@@ -10,6 +10,7 @@ import (
 // executeTools executes all tools in parallel (runs in background goroutine)
 func (a *EventDrivenAgent) executeTools() {
 	defer a.wg.Done()
+	defer a.recoverPanic()
 
 	logger.Debug("executing tools", "tool_count", len(a.currentToolCalls))
 

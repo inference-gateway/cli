@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -104,18 +105,23 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		return fmt.Errorf("invalid --format %q (supported: json, json-pretty, ag-ui, text)", opts.Format)
 	}
 
+	rendered := false
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("headless run panic", "panic", r, "stack", string(debug.Stack()))
+			err = fmt.Errorf("agent panic: %v", r)
+			rendered = false
+		}
+		if err != nil && !rendered {
+			render.EmitPreRunError(os.Stdout, opts.Format, err)
+		}
+	}()
+
 	svc := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = svc.Shutdown(ctx)
-	}()
-
-	rendered := false
-	defer func() {
-		if err != nil && !rendered {
-			render.EmitPreRunError(os.Stdout, opts.Format, err)
-		}
 	}()
 
 	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {

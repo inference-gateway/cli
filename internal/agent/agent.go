@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -873,6 +874,16 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.deregisterSession(req.RequestID)
 			sc.Cancel()
 		}()
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
+				eventPublisher.chatEvents <- domain.ChatErrorEvent{
+					RequestID: req.RequestID,
+					Timestamp: time.Now(),
+					Error:     fmt.Errorf("agent panic: %v", r),
+				}
+			}
+		}()
 
 		conversation = s.optimizeConversation(sessionCtx, req, conversation, eventPublisher)
 
@@ -1108,6 +1119,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	if len(parallelTools) > 0 {
 		resultsChan := make(chan IndexedToolResult, len(parallelTools))
 		semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
+		panicked := make(chan any, 1)
 
 		var wg sync.WaitGroup
 		for _, pt := range parallelTools {
@@ -1115,6 +1127,15 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 			go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
 				defer func() {
 					wg.Done()
+				}()
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Error("tool goroutine panic", "tool", toolCall.Function.Name, "panic", r, "stack", string(debug.Stack()))
+						select {
+						case panicked <- r:
+						default:
+						}
+					}
 				}()
 
 				semaphore <- struct{}{}
@@ -1147,6 +1168,12 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 
 		for res := range resultsChan {
 			results[res.Index] = res.Result
+		}
+
+		select {
+		case r := <-panicked:
+			panic(r)
+		default:
 		}
 	}
 
