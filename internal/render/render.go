@@ -196,9 +196,15 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 // RenderAGUI renders events as newline-delimited AG-UI protocol events. The
 // run gets exactly one RUN_STARTED and one terminal event (RUN_FINISHED or
 // RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
-func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, sessionID, model string) error {
+// When in is non-nil it acts as the IPC approval broker, same as RenderJSON.
+func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
+
+	var stdin *bufio.Scanner
+	if in != nil {
+		stdin = bufio.NewScanner(in)
+	}
 
 	var runErr error
 	for event := range events {
@@ -236,6 +242,7 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, sessionID, model st
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
+			answerApproval(ev, stdin)
 		}
 	}
 

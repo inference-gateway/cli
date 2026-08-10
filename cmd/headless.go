@@ -176,15 +176,15 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
 		return fmt.Errorf("failed to run agent: %w", err)
 	}
 
+	var stdin io.Reader
+	if opts.RequireApproval {
+		stdin = os.Stdin
+	}
 	switch opts.Format {
 	case "json":
-		var stdin io.Reader
-		if opts.RequireApproval {
-			stdin = os.Stdin
-		}
 		err = render.RenderJSON(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
 	case "ag-ui":
-		err = render.RenderAGUI(events, os.Stdout, sessionID, selectedModel)
+		err = render.RenderAGUI(events, os.Stdout, stdin, sessionID, selectedModel)
 	case "text":
 		err = render.RenderText(events, os.Stdout)
 	}

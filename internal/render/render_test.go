@@ -57,7 +57,7 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 		domain.ChatStartEvent{},
 		domain.ChatChunkEvent{RequestID: "r1", Content: "done"},
 		domain.ChatCompleteEvent{},
-	), &out, "session-1", "openai/gpt-4o")
+	), &out, nil, "session-1", "openai/gpt-4o")
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -78,7 +78,7 @@ func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	err := RenderAGUI(stream(
 		domain.ChatCompleteEvent{},
 		domain.ChatErrorEvent{Error: errors.New("boom")},
-	), &out, "session-1", "m")
+	), &out, nil, "session-1", "m")
 	if err == nil {
 		t.Fatal("RenderAGUI() err = nil, want error")
 	}
@@ -126,6 +126,30 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 				t.Fatalf("approval_request line not emitted:\n%s", out.String())
 			}
 		})
+	}
+}
+
+func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
+	respChan := make(chan domain.ApprovalAction, 1)
+	ev := domain.ToolApprovalRequestedEvent{
+		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
+		ResponseChan: respChan,
+	}
+	stdin := strings.NewReader(`{"type":"approval_response","tool_call_id":"tc1","approved":true}` + "\n")
+	var out strings.Builder
+	if err := RenderAGUI(stream(ev, domain.ChatCompleteEvent{}), &out, stdin, "s1", "m"); err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+	select {
+	case got := <-respChan:
+		if got != domain.ApprovalApprove {
+			t.Fatalf("approval action = %v, want ApprovalApprove", got)
+		}
+	default:
+		t.Fatal("no approval action sent on ResponseChan")
+	}
+	if !strings.Contains(out.String(), `approval_request`) {
+		t.Fatalf("approval_request event not emitted:\n%s", out.String())
 	}
 }
 
