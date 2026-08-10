@@ -236,7 +236,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 		}
 
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded = strings.ReplaceAll(expanded, fullMatch, domain.ImageFileRef(filename, models.SupportsVision(model)))
+			expanded = strings.Replace(expanded, fullMatch, domain.ImageFileRef(filename, models.SupportsVision(model)), 1)
 			continue
 		}
 
@@ -246,7 +246,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 			continue
 		}
 		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
-		expanded = strings.ReplaceAll(expanded, fullMatch, fileBlock)
+		expanded = strings.Replace(expanded, fullMatch, fileBlock, 1)
 	}
 
 	for _, filename := range files {
