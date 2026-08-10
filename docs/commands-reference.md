@@ -349,10 +349,11 @@ of the agent loop (hook points) to keep durable guidance in context. They are co
 infer chat
 ```
 
-### `infer agent`
+### `infer headless`
 
-Execute a task using an autonomous agent in background mode. The CLI will work iteratively until the
-task is considered complete. Particularly useful for SCM tickets like GitHub issues.
+Execute a task using an autonomous agent in headless (non-interactive) mode.
+The CLI works iteratively until the task is considered complete. Particularly useful
+for SCM tickets like GitHub issues, CI/CD pipelines, and automated workflows.
 
 **Features:**
 
@@ -364,95 +365,80 @@ task is considered complete. Particularly useful for SCM tickets like GitHub iss
 - **Background operation**: Runs without interactive user input
 - **Task completion detection**: Automatically detects when tasks are complete
 - **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
-- **JSON output**: Structured JSON output for easy parsing and integration
+- **Multiple output formats**: `--format json|ag-ui|text` for different consumption patterns
 - **Multimodal support**: Process images and files with vision-capable models
-- **Session resumption**: Resume previous agent sessions to continue work from where it left off
+- **Session resumption**: Resume previous sessions to continue work from where it left off
 
 **Options:**
 
-- `-m, --model`: Model to use for the agent (e.g., openai/gpt-4)
+- `-m, --model`: Model to use`: Model to use (e.g. openai/gpt-4)
 - `-f, --files`: Files or images to include (can be specified multiple times)
-- `--session-id`: Resume an existing agent session by conversation ID
+- `--session-id`: Resume an existing session by conversation ID
 - `--no-save`: Disable saving conversation to database
-- `--reminders-file`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer`
-  reminders.yaml (`INFER_REMINDERS_CONFIG` inline YAML takes precedence)
+- `--require-approval`: Enable IPC-based tool approval via stdin/stdout (used by channel manager)
+- `--heartbeat`: Use heartbeat system prompt (used by the heartbeat service)
+- `--remote`: Use remote-control system prompt (used by the channels-manager daemon)
+- `--result-file`: Write the final assistant message and outcome as JSON to this path on exit
+- `--format json|ag-ui|text`: Output format (default json)
 
 **Examples:**
 
 ```bash
 # Execute a task described in a GitHub issue
-infer agent "Please fix the github issue 38"
+infer headless "Please fix the github issue 38"
 
-# Use a specific model for the agent
-infer agent --model "openai/gpt-4" "Implement the feature described in issue #42"
+# Use a specific model
+infer headless --model "openai/gpt-4" "Implement the feature described in issue #42"
 
 # Debug a failing test
-infer agent "Debug the failing test in PR 15"
+infer headless "Debug the failing test in PR 15"
 
 # Refactor code
-infer agent "Refactor the authentication module to use JWT tokens"
+infer headless "Refactor the authentication module to use JWT tokens"
 
 # Analyze screenshots with vision-capable models
-infer agent "Analyze this screenshot and identify the UI issue" --files screenshot.png
+infer headless "Analyze this screenshot and identify the UI issue" --files screenshot.png
 
 # Process multiple images
-infer agent "Compare these diagrams and suggest improvements" -f diagram1.png -f diagram2.png
+infer headless "Compare these diagrams and suggest improvements" -f diagram1.png -f diagram2.png
 
 # Mix images and code files using @filename syntax
-infer agent "Review @app.go and @architecture.png and suggest refactoring"
+infer headless "Review @app.go and @architecture.png and suggest refactoring"
 
 # Combine --files flag with @filename references
-infer agent "Analyze @error.log and this screenshot" --files debug-screen.png
+infer headless "Analyze @error.log and this screenshot" --files debug-screen.png
+
+# Output as AG-UI protocol events
+infer headless --format ag-ui "fix the failing test"
 
 # Session resumption - list conversations to find session IDs
 infer conversations list
 
+conversations list
+
 # Resume an existing session with new instructions
-infer agent "continue fixing the authentication bug" --session-id abc-123-def
+infer headless "continue fixing the authentication bug" --session-id abc-123-def
 
 # Resume with additional files
-infer agent "analyze these new error logs" --session-id abc-123-def --files error.log
+infer headless "analyze these new error logs" --session-id abc-123-def --files error.log
 
 # Resume without saving (testing mode)
-infer agent "try a different refactoring approach" --session-id abc-123-def --no-save
+infer headless "try a different refactoring approach" --session-id abc-123-def --no-save
 ```
 
 **Session Resumption:**
 
-The agent command supports resuming previous sessions, allowing you to continue work from where it left off:
+The headless command supports resuming previous sessions, allowing you to continue work from where it left off:
 
 - Use `infer conversations list` to find available session IDs
 - Pass `--session-id <id>` to resume a specific session
-- The agent will load the full conversation history and continue from there
-- Your task description is appended as a new user message
+- The session history is loaded from storage and the new task description is appended
 - Turn counter resets to full budget when resuming
 - Session ID is preserved for continued persistence
-- If session ID is invalid or not found, a warning is shown and a fresh session starts
-
-**Example JSON Status Messages:**
-
-When resuming a session, the agent outputs structured JSON status messages:
-
-```json
-// Successful resume
-{"type":"info","message":"Resumed agent session","session_id":"abc-123","message_count":15,"timestamp":"2025-12-11T..."}
-
-// Failed resume (warning)
-{
-  "type": "warning",
-  "message": "Could not load session, starting fresh",
-  "session_id": "invalid",
-  "error": "failed to load conversation: not found",
-  "timestamp": "2025-12-11T..."
-}
-
-// New session
-{"type":"info","message":"Starting new agent session","session_id":"new-uuid","model":"openai/gpt-4","timestamp":"2025-12-11T..."}
-```
 
 **Image and File Support:**
 
-The agent command supports multimodal content for vision-capable models:
+The headless command supports multimodal content for vision-capable models:
 
 - Use `--files` or `-f` flag to attach images or files
 - Use `@filename` syntax in the task description to reference files

@@ -1,13 +1,13 @@
 # AG-UI Output Format
 
-`infer agent` can emit its stdout stream as [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui)
+`infer headless` can emit its stdout stream as [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui)
 events instead of the legacy CLI-specific JSON lines:
 
 ```bash
-infer agent --output-format ag-ui "fix the failing test"
+infer headless --format ag-ui "fix the failing test"
 ```
 
-The default (`--output-format json`) is unchanged. With `ag-ui`, stdout carries exclusively
+The default (`--format json`) is unchanged. With `ag-ui`, stdout carries exclusively
 newline-delimited AG-UI events, serialized with the official AG-UI Go SDK
 (`github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events`), so any AG-UI client can
 decode them with `events.EventFromJSON` without a custom adapter. AG-UI is transport agnostic, so
