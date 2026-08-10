@@ -132,7 +132,6 @@ func RunHeadlessCommand(cfg *config.Config, modelFlag, taskDescription string, f
 		}
 	}
 
-	// Expand @file references.
 	expanded, err := expandFileReferences(taskDescription, files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)

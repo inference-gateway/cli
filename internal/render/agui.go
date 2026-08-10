@@ -9,7 +9,7 @@ import (
 	guuid "github.com/google/uuid"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // aguiEncoder serializes headless agent output as AG-UI protocol events.
