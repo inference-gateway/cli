@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -268,10 +269,12 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 }
 
 func sessionOutcome(err error) string {
-	switch err {
-	case nil:
+	switch {
+	case err == nil:
 		return telemetry.RunSuccess
-	case context.Canceled, context.DeadlineExceeded:
+	case errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, domain.ErrMaxTurnsReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
@@ -299,6 +302,11 @@ func writeResultFile(path string, repo domain.ConversationRepository) {
 	}
 	data, _ := json.Marshal(rf)
 	tmp := path + ".tmp"
-	_ = os.WriteFile(tmp, data, 0o644)
-	_ = os.Rename(tmp, path)
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		logger.Warn("failed to write result file", "path", tmp, "error", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		logger.Warn("failed to rename result file", "path", path, "error", err)
+	}
 }

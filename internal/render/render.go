@@ -8,8 +8,8 @@ package render
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -105,6 +105,9 @@ func toolContent(r *domain.ToolExecutionResult) string {
 // completionErr maps a terminal event to the error the command should return:
 // ErrMaxTurnsReached for a turn-limit completion (exit code 2), nil otherwise.
 func completionErr(e domain.ChatCompleteEvent) error {
+	if e.Cancelled {
+		return context.Canceled
+	}
 	if e.MaxTurnsReached {
 		return domain.ErrMaxTurnsReached
 	}
@@ -275,9 +278,7 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				e.emitToolCallArgs(tc.ID, tc.Function.Arguments)
 				e.emitToolCallEnd(tc.ID)
 			}
-			if ev.Cancelled {
-				runErr = errors.New("cancelled")
-			} else if err := completionErr(ev); err != nil {
+			if err := completionErr(ev); err != nil {
 				runErr = err
 			}
 		case domain.ChatErrorEvent:
