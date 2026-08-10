@@ -26,7 +26,7 @@ const hookCommandOutputLimit = 4096
 // skipped and reported with the rejection hint (the user authorizes a command by
 // allow-listing it, e.g. tools.bash.mode.*.allow or INFER_TOOLS_BASH_ALLOW_APPEND).
 //
-// Both the event-driven chat agent and the headless `infer agent` loop call this
+// Both the event-driven chat agent and the headless `infer headless` loop call this
 // from their dispatchHooks seam so the gate and observability cannot drift apart.
 // cfg supplies the allow-list and the fallback provider; modeKey is the resolved
 // per-mode allow-list key (standard/plan/auto); sessionID and turn populate the

@@ -290,7 +290,7 @@ func chatExitMessage(sessionID string) string {
 // resumeChatSession loads the conversation for sessionID into the repository,
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
-// mirroring `infer agent --session-id` semantics.
+// mirroring `infer headless --session-id` semantics.
 func resumeChatSession(repo domain.ConversationRepository, rolloverManager *screenshotsvc.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)

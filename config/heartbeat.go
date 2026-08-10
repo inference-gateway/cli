@@ -10,7 +10,7 @@ const (
 )
 
 // HeartbeatConfig configures the periodic "wake-up" tick that spawns
-// `infer agent` with a tailored system prompt so the agent can check
+// `infer headless` with a tailored system prompt so the agent can check
 // for pending work without waiting for user input. Disabled by default.
 //
 // The companion system prompt lives at

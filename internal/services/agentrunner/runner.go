@@ -1,4 +1,4 @@
-// Package agentrunner centralizes spawning `infer agent` as a subprocess and
+// Package agentrunner centralizes spawning `infer headless` as a subprocess and
 // streaming its stdout. It is the single implementation shared by the channel
 // manager, scheduler, heartbeat, and the Agent tool (local subagents), so the
 // spawn/scan/approval-IPC loop lives in exactly one place.
@@ -25,7 +25,7 @@ import (
 // so callers' own named exec-override types stay assignable without conversion.
 type ExecFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd
 
-// Options configures a single `infer agent` subprocess run.
+// Options configures a single `infer headless` subprocess run.
 type Options struct {
 	// BinaryPath is the infer binary to spawn; defaults to os.Args[0] when empty.
 	BinaryPath string
@@ -64,7 +64,7 @@ type Result struct {
 	Stderr string
 }
 
-// Run spawns `infer agent ...`, streams stdout line-by-line, optionally brokers
+// Run spawns `infer headless ...`, streams stdout line-by-line, optionally brokers
 // tool approval over stdin, and returns the harvested final assistant message
 // plus captured stderr. The returned error is the subprocess setup/exit error;
 // callers format their own user-facing messages from it.

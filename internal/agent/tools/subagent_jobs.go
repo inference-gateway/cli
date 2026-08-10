@@ -12,7 +12,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// headlessSubagentJob adapts a headless subagent (an `infer agent` subprocess) to
+// headlessSubagentJob adapts a headless subagent (an `infer headless` subprocess) to
 // a BackgroundJob: Run executes it and reports the outcome. Structurally it is a
 // subprocess like a shell - the supervisor owns the goroutine and the completion
 // notification, replacing the SubagentPoller's headless path.

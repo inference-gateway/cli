@@ -22,7 +22,7 @@ each tick using a tailored system prompt.
 │   ├─ SchedulerService         (cron jobs - optional)          │
 │   └─ HeartbeatService                                         │
 │        ├─ time.Ticker(interval)                               │
-│        └─ on tick: spawn `infer agent --heartbeat             │
+│        └─ on tick: spawn `infer headless --heartbeat             │
 │                                  --session-id <uuid> <prompt>`│
 │                    log stdout                                 │
 └───────────────────────────────────────────────────────────────┘

@@ -146,7 +146,7 @@ func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
 // case) so normal input handling proceeds untouched.
 //
 // This lives in the chat input path on purpose: it is the only skill-activation
-// route a human is watching. Headless runs (`infer agent`, channels, heartbeat)
+// route a human is watching. Headless runs (`infer headless`, channels, heartbeat)
 // have no approver, so they install directly in buildActiveSkillInfo.
 //
 // The returned cmds run concurrently: the first renders the question form, the

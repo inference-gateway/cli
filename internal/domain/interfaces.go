@@ -690,7 +690,7 @@ type BackgroundTaskRegistry interface {
 	// HasPending reports whether *any* background work is still in flight,
 	// regardless of type. True when there is at least one A2A task being
 	// polled, one running background shell, OR one running HEADLESS subagent.
-	// It deliberately excludes interactive subagents so a one-shot `infer agent`
+	// It deliberately excludes interactive subagents so a one-shot `infer headless`
 	// does not hang at exit waiting on a user-driven tmux pane.
 	HasPending() bool
 

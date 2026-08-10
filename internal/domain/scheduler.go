@@ -9,7 +9,7 @@ import (
 // to run on a cron schedule. Jobs are persisted as YAML files and loaded by
 // the SchedulerService running inside the channels-manager daemon.
 //
-// Each fire spawns a fresh `infer agent` subprocess with a brand-new session
+// Each fire spawns a fresh `infer headless` subprocess with a brand-new session
 // ID - no context is carried between fires, matching the issue's requirement.
 type ScheduledJob struct {
 	ID             string     `yaml:"id" json:"id"`

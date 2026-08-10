@@ -26,7 +26,7 @@ type ChannelLookupFn func(name string) domain.Channel
 // loaded from the configured ScheduledJobStorage, registered with a robfig/cron
 // scheduler, and hot-reloaded by polling the storage and diffing (reconcile).
 //
-// On fire, a fresh `infer agent --session-id <uuid>` subprocess is spawned -
+// On fire, a fresh `infer headless --session-id <uuid>` subprocess is spawned -
 // every fire gets a brand-new session, so no context carries between runs.
 // Each assistant line emitted by the agent is forwarded to the configured
 // channel/recipient via the in-process channel lookup.
@@ -189,7 +189,7 @@ func (s *Service) removeJob(id string) {
 	}
 }
 
-// fire runs a single execution of the job: spawns `infer agent`, streams
+// fire runs a single execution of the job: spawns `infer headless`, streams
 // stdout into channel messages, and persists run metadata back to the store.
 func (s *Service) fire(job domain.ScheduledJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
@@ -264,7 +264,7 @@ func (s *Service) persistRun(job *domain.ScheduledJob) {
 	}
 }
 
-// runAgent spawns `infer agent --session-id <new-uuid> <prompt>` (via the shared
+// runAgent spawns `infer headless --session-id <new-uuid> <prompt>` (via the shared
 // agentrunner) and forwards each formatted assistant line through sendFn.
 func (s *Service) runAgent(ctx context.Context, job domain.ScheduledJob, sendFn func(string)) error {
 	res, err := agentrunner.Run(ctx, agentrunner.Options{

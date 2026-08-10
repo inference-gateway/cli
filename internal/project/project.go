@@ -32,7 +32,7 @@ var (
 )
 
 // Detect returns the current project, cached for the process lifetime (chat
-// sessions and `infer agent` subprocesses run with a fixed cwd). Detection
+// sessions and `infer headless` subprocesses run with a fixed cwd). Detection
 // order: git remote origin -> org/repo; else the cwd basename; else global
 // (the zero Identity).
 func Detect() Identity {

@@ -475,12 +475,12 @@ rather than reading files directly).
 **`show` flags:**
 
 - `--include-hidden`: Include entries marked hidden - system reminders, plan-approval prompts,
-  drained background-task results, and the synthetic verify message injected by `infer agent`.
+  drained background-task results, and the synthetic verify message injected by `infer headless`.
   Off by default.
 - `--format text|json`: `text` (default) is human-readable; `json` emits one JSON object per
-  line (NDJSON), matching the `infer agent` stdout shape for piping into `jq` or log scrapers.
+  line (NDJSON), matching the `infer headless` stdout shape for piping into `jq` or log scrapers.
 
-The `<session-id>` is resolved the same way as `infer agent --session-id`: a literal UUID is
+The `<session-id>` is resolved the same way as `infer headless --session-id`: a literal UUID is
 used as-is, while any other value is treated as a session group key and resolved to that
 group's current session id (registering the group if it is new).
 

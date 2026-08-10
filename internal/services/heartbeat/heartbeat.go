@@ -4,7 +4,7 @@
 // and is disabled by default.
 //
 // Unlike the scheduler, heartbeat does not route output to a channel.
-// Each tick fires `infer agent --heartbeat`, the agent runs to
+// Each tick fires `infer headless --heartbeat`, the agent runs to
 // completion using a tailored system prompt, and the agent's stdout
 // is logged. Whatever externally-visible action the agent takes (e.g.
 // posting to Telegram, opening a PR) it does via its own tools.
@@ -168,7 +168,7 @@ func (s *Service) fireGuarded() {
 	}
 }
 
-// fire spawns a single `infer agent --heartbeat` subprocess (via the shared
+// fire spawns a single `infer headless --heartbeat` subprocess (via the shared
 // agentrunner) and streams its stdout to the logger. Each fire gets a fresh
 // UUID session ID so no context carries between ticks.
 func (s *Service) fire(ctx context.Context) error {

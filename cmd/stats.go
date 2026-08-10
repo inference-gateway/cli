@@ -80,7 +80,7 @@ func renderStatsText(stats telemetry.Stats) error {
 	if stats.Empty {
 		fmt.Println("No telemetry recorded yet.")
 		fmt.Println()
-		fmt.Println(listHint("Telemetry accumulates as you use `infer chat` / `infer agent` (when telemetry.enabled)."))
+		fmt.Println(listHint("Telemetry accumulates as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
 		return nil
 	}
 

@@ -50,7 +50,7 @@ var receiverGracePeriod = 6 * time.Second
 
 // Process-wide facts stamped onto every metric via the resource. Version is the
 // build version; ExecutionMode distinguishes interactive chat from headless
-// `infer agent`. cmd sets these before building the service container.
+// `infer headless`. cmd sets these before building the service container.
 var (
 	Version       = "dev"
 	ExecutionMode = ExecHeadless

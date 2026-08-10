@@ -67,7 +67,7 @@ func runTraces(cmd *cobra.Command, args []string) error {
 	default:
 		fmt.Println("No traces recorded yet.")
 		fmt.Println()
-		fmt.Println(listHint("Traces accumulate as you use `infer chat` / `infer agent` (when telemetry.enabled)."))
+		fmt.Println(listHint("Traces accumulate as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
 		return nil
 	}
 

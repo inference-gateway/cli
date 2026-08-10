@@ -23,7 +23,7 @@ const (
 // EnvSubagentAgentMode names the environment variable the Agent tool sets to
 // carry the parent chat's coding mode (the AgentMode.AllowedlistKey form -
 // "standard"/"plan"/"auto") to a spawned subagent, so it starts in the same
-// mode as its parent. It is absent for top-level `infer chat`/`infer agent`
+// mode as its parent. It is absent for top-level `infer chat`/`infer headless`
 // runs, which therefore stay Standard-by-default.
 const EnvSubagentAgentMode = "INFER_SUBAGENT_AGENT_MODE"
 
@@ -65,7 +65,7 @@ type SubagentApprovalFile struct {
 	Summary  string `json:"summary,omitempty"`
 }
 
-// SubagentState is the data record for one local subagent (an `infer agent`
+// SubagentState is the data record for one local subagent (an `infer headless`
 // subprocess or tmux pane spawned by the Agent tool) that the subagent control
 // tools (ListSubagents, CloseSubagent, ...) read. Monitoring is owned by the job
 // supervisor (headlessSubagentJob / interactiveSubagentJob), not this struct.
@@ -83,7 +83,7 @@ type SubagentState struct {
 	Silent      bool
 }
 
-// SubagentResultFile is the JSON written by `infer agent --result-file` on exit
+// SubagentResultFile is the JSON written by `infer headless --result-file` on exit
 // and read back by the Agent tool to harvest a subagent's outcome from a
 // detached (tmux) run whose stdout the parent does not own.
 type SubagentResultFile struct {

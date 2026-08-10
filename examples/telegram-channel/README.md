@@ -9,7 +9,7 @@ your phone. A VNC viewer is included so you can watch the browser navigate live.
 ## What's Included
 
 - **inference-gateway** - routes LLM requests to your configured providers
-- **infer-channels-manager** - long-polls Telegram, spawns `infer agent` per message
+- **infer-channels-manager** - long-polls Telegram, spawns `infer headless` per message
 - **browser-agent** - A2A service running Playwright in headed mode under Xvfb
 - **browser-vnc** *(optional, `--profile vnc`)* - `x11vnc` bridge so you can watch the browser at `vnc://localhost:5900`
 
@@ -74,7 +74,7 @@ Send any of these to your bot:
 - *"Find the current weather in Berlin from a public website."*
 
 The channels-manager has `INFER_A2A_ENABLED=true` and the browser agent
-registered, so the spawned `infer agent` process will pick `A2A_SubmitTask`
+registered, so the spawned `infer headless` process will pick `A2A_SubmitTask`
 and delegate the browsing task to the `browser-agent` container.
 
 ### Watching the Browser Live (Optional)
@@ -105,7 +105,7 @@ image - the bot itself works without it.
 You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
                                             |
                                             v
-                                     infer agent --session-id <id>
+                                     infer headless --session-id <id>
                                             |
                                             v  (A2A_SubmitTask)
                                      browser-agent --> Playwright --> the web
@@ -123,7 +123,7 @@ You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
 1. You send a message in Telegram
 2. The channel listener (long-polling) picks it up
 3. The message is checked against `allowed_users`
-4. If authorized, `infer agent --session-id <id>` is triggered as a subprocess
+4. If authorized, `infer headless --session-id <id>` is triggered as a subprocess
 5. The agent processes it (may use tools, call LLM)
 6. The response is parsed from stdout and sent back through Telegram
 
