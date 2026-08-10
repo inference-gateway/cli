@@ -80,7 +80,7 @@ func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string
 
 func runAgent(t *testing.T, gatewayURL, dir, prompt string) (string, int) {
 	t.Helper()
-	stdout, _, code := runCLI(t, gatewayURL, dir, "", "agent", prompt)
+	stdout, _, code := runCLI(t, gatewayURL, dir, "", "headless", prompt)
 	return stdout, code
 }
 
@@ -161,7 +161,7 @@ func TestAgentMockModeNeedsOnlyOneEnvVar(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binPath, "agent", "-m", testModel, "say hello")
+	cmd := exec.CommandContext(ctx, binPath, "headless", "-m", testModel, "say hello")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(os.Environ(),
 		"HOME="+t.TempDir(),
