@@ -178,6 +178,41 @@ func TestRemindersDue_Triggers(t *testing.T) {
 	}
 }
 
+func TestRemindersDue_WhenTodosEmpty(t *testing.T) {
+	reminder := config.ReminderConfig{
+		Name: "todo-hygiene", Text: "t",
+		Trigger: config.ReminderTriggerInterval, Interval: 4,
+		When: config.ReminderWhenTodosEmpty,
+	}
+	tests := []struct {
+		name      string
+		todoCount int
+		want      bool
+	}{
+		{"fires while list empty", 0, true},
+		{"skipped while list has items", 8, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := remindersCfg(true, reminder)
+			q := query(domain.HookPreStream, 4, 0, nil)
+			q.TodoCount = tt.todoCount
+			if got := r.RemindersDue(q); (len(got) > 0) != tt.want {
+				t.Fatalf("RemindersDue fired=%v, want %v", len(got) > 0, tt.want)
+			}
+		})
+	}
+
+	t.Run("unknown when never fires", func(t *testing.T) {
+		bad := reminder
+		bad.When = "todos_emtpy"
+		r := remindersCfg(true, bad)
+		if got := r.RemindersDue(query(domain.HookPreStream, 4, 0, nil)); len(got) != 0 {
+			t.Fatalf("unknown when fired: %v", got)
+		}
+	})
+}
+
 func TestRemindersDue_HookFiltering(t *testing.T) {
 	r := remindersCfg(true,
 		config.ReminderConfig{Name: "pre", Text: "p", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},

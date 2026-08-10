@@ -101,6 +101,7 @@ type ReminderQuery struct {
 	FinishReason     string
 	IncompleteTodos  []TodoItem
 	StalledStrikes   int
+	TodoCount        int
 	ModeChanged      bool
 	PrevMode         AgentMode
 	Mode             AgentMode

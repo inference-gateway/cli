@@ -349,12 +349,14 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 // NewAgentService creates a new agent service with pre-configured client
 // stateManager is the narrow slice of the app state manager the agent core
-// needs: the current agent mode, computer-use pause state, and retry-status
-// updates. *services.StateManager satisfies it.
+// needs: the current agent mode, computer-use pause state, retry-status
+// updates, and the session todo list (reminder gating). *services.StateManager
+// satisfies it.
 type stateManager interface {
 	domain.AgentModeManager
 	domain.ComputerUsePauseManager
 	domain.ChatSessionManager
+	domain.TodoManager
 }
 
 func NewAgent(
@@ -1338,6 +1340,9 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 	if result.ToolName == "TodoWrite" && result.Success {
 		if todoResult, ok := result.Data.(*domain.TodoWriteToolResult); ok && todoResult != nil {
+			if s.stateManager != nil {
+				s.stateManager.SetTodos(todoResult.Todos)
+			}
 			eventPublisher.publishTodoUpdate(todoResult.Todos)
 		}
 	}

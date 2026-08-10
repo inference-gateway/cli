@@ -166,7 +166,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				m.stateMachine.TransitionReturns(nil)
 			},
 			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
-				assert.Equal(t, 1, m.stateMachine.CanTransitionCallCount())
+				assert.Equal(t, 2, m.stateMachine.CanTransitionCallCount())
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, domain.StateCompleting, toState)

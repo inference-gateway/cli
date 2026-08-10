@@ -1197,6 +1197,9 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}
+	if s.stateManager != nil {
+		q.TodoCount = len(s.stateManager.GetTodos())
+	}
 	if hook == domain.HookPostTool {
 		if name, n := s.takeRepeatedFailure(); name != "" {
 			q.RepeatedFailures = n
