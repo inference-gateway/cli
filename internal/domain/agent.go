@@ -27,6 +27,9 @@ type AgentContext struct {
 	ApprovalPolicy   ApprovalPolicy
 	Ctx              context.Context
 	IsChatMode       bool
+	// MaxTurnsExceeded is set by the state machine when the run is forced into
+	// Completing because the turn limit was hit before the task could complete.
+	MaxTurnsExceeded bool
 }
 
 // AnyToolFailed reports whether any entry in a completed tool batch failed
@@ -83,10 +86,12 @@ type AgentStateMachine interface {
 
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
-	RequestID  string        `json:"request_id"`
-	Model      string        `json:"model"`
-	Messages   []sdk.Message `json:"messages"`
-	IsChatMode bool          `json:"is_chat_mode"`
+	RequestID              string        `json:"request_id"`
+	Model                  string        `json:"model"`
+	Messages               []sdk.Message `json:"messages"`
+	IsChatMode             bool          `json:"is_chat_mode"`
+	ApprovalBrokerAttached bool          `json:"approval_broker_attached"`
+	GroupKey               string        `json:"group_key,omitempty"`
 }
 
 // AgentService handles agent operations with both sync and streaming modes

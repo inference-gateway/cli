@@ -25,6 +25,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	render "github.com/inference-gateway/cli/internal/render"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
@@ -289,7 +290,7 @@ func chatExitMessage(sessionID string) string {
 // resumeChatSession loads the conversation for sessionID into the repository,
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
-// mirroring `infer agent --session-id` semantics.
+// mirroring `infer headless --session-id` semantics.
 func resumeChatSession(repo domain.ConversationRepository, rolloverManager *screenshotsvc.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
@@ -429,7 +430,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 		return fmt.Errorf("failed to start chat: %w", err)
 	}
 
-	return processStreamingOutput(events)
+	return render.RenderText(events, os.Stdout)
 }
 
 // contains checks if a slice contains a string
@@ -440,26 +441,6 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-// processStreamingOutput handles streaming output for non-interactive mode
-func processStreamingOutput(events <-chan domain.ChatEvent) error {
-	for event := range events {
-		switch e := event.(type) {
-		case domain.ChatChunkEvent:
-			if e.Content != "" {
-				fmt.Print(e.Content)
-				_ = os.Stdout.Sync()
-			}
-		case domain.ChatCompleteEvent:
-			fmt.Print("\n")
-			_ = os.Stdout.Sync()
-			return nil
-		case domain.ChatErrorEvent:
-			return fmt.Errorf("chat error: %w", e.Error)
-		}
-	}
-	return nil
 }
 
 // startScreenshotServer initializes and starts the screenshot streaming server

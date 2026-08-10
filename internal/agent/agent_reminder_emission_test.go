@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
@@ -251,4 +252,67 @@ func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
 
 	assert.Equal(t, []int{4, 8}, firedAt,
 		"interval:4 must fire on cumulative turns 4 and 8 across separate single-turn requests")
+}
+
+// The stalled-todos continuation nudge: after consecutive no-tool-call turns
+// with incomplete todos, the post_stream hook injects the todo-continuation
+// reminder so the agent keeps following its list instead of stopping silently.
+func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
+	cfg := remindersConfig(true, config.ReminderConfig{
+		Name: "todo-continuation", Text: "continue your todos: {todo_list}",
+		Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
+	})
+	sm := services.NewStateManager(false)
+	sm.SetTodos([]domain.TodoItem{
+		{ID: "1", Content: "done thing", Status: "completed"},
+		{ID: "2", Content: "open thing", Status: "pending"},
+	})
+	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
+
+	// A turn that ends with no tool calls arms the strike counter.
+	svc.trackStreamOutcome("stop", false)
+
+	conv := []sdk.Message{}
+	agentCtx := newReminderAgentCtx(&conv, 2, 50)
+	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+
+	require.Len(t, conv, 1, "stalled run with incomplete todos must inject the continuation nudge")
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Contains(t, content, "open thing")
+	assert.NotContains(t, content, "done thing", "completed items must not appear in the nudge")
+
+	// A turn WITH tool calls resets the strikes: no nudge.
+	svc.trackStreamOutcome("stop", true)
+	conv = nil
+	agentCtx = newReminderAgentCtx(&conv, 3, 50)
+	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+	assert.Empty(t, conv, "tool-calling turn must not trigger the continuation nudge")
+}
+
+// A length-truncated stream fires the truncation nudge instead of the
+// stalled-todos one, even when incomplete todos exist.
+func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
+	cfg := remindersConfig(true,
+		config.ReminderConfig{
+			Name: "todo-continuation", Text: "continue todos",
+			Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
+		},
+		config.ReminderConfig{
+			Name: "truncation-continuation", Text: "you were truncated, continue",
+			Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation,
+		},
+	)
+	sm := services.NewStateManager(false)
+	sm.SetTodos([]domain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
+	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
+
+	svc.trackStreamOutcome("length", false)
+
+	conv := []sdk.Message{}
+	agentCtx := newReminderAgentCtx(&conv, 2, 50)
+	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+
+	require.Len(t, conv, 1)
+	content, _ := conv[0].Content.AsMessageContent0()
+	assert.Contains(t, content, "truncated")
 }

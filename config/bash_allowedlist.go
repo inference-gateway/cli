@@ -54,7 +54,7 @@ func (c *Config) BashAllowedCommands(mode string) []string {
 //
 //   - If the effective allow-list contains the sentinel ".*" the mode is
 //     UNRESTRICTED: any single command is allowed and the clean-command guard is
-//     skipped (full autonomy - this is what mode.auto / headless `infer agent`
+//     skipped (full autonomy - this is what mode.auto / headless `infer headless`
 //     uses). Tighten mode.auto.allow to a curated list to re-enable the guard.
 //   - Otherwise the clean-command guard runs first and rejects, regardless of the
 //     list: command substitution ($(...), backticks, <()/>()), multi-command

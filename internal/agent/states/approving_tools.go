@@ -253,6 +253,9 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	if domain.AnyToolRejected(*s.ctx.ToolResults) {
 		s.ctx.AgentCtx.HasToolResults = false
 	}
+	if s.ctx.PublishToolResults != nil {
+		s.ctx.PublishToolResults(*s.ctx.ToolResults)
+	}
 	s.ctx.Events <- domain.AllToolsProcessedEvent{}
 }
 

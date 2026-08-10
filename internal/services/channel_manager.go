@@ -297,7 +297,7 @@ func (cm *ChannelManagerService) recordMessageProcessed(ctx context.Context, cha
 	}
 }
 
-// runAgent executes `infer agent --session-id <id> "<message>"` as a subprocess
+// runAgent executes `infer headless --session-id <id> "<message>"` as a subprocess
 // (via the shared agentrunner), streaming each assistant message back through the
 // sendFn callback in real-time. If images are present, they are written to
 // session-scoped files and passed via --files flags. When require_approval is

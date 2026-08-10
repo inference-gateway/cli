@@ -110,7 +110,12 @@ type ReminderConfig struct {
 	Interval  int               `yaml:"interval,omitempty" mapstructure:"interval"`
 	Threshold int               `yaml:"threshold,omitempty" mapstructure:"threshold"`
 	Guidance  map[string]string `yaml:"guidance,omitempty" mapstructure:"guidance"`
+	When      string            `yaml:"when,omitempty" mapstructure:"when"`
 }
+
+// ReminderWhenTodosEmpty gates a reminder to fire only while the session's
+// todo list has no items at all.
+const ReminderWhenTodosEmpty = "todos_empty"
 
 // RemindersConfig is the content of reminders.yaml: the master switch plus the
 // list of named reminders. Each reminder attaches to a pre-defined agent-loop
@@ -185,6 +190,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Hook:     domain.HookPreStream,
 			Trigger:  ReminderTriggerInterval,
 			Interval: defaultReminderInterval,
+			When:     ReminderWhenTodosEmpty,
 			Text:     defaultTodoReminderText,
 		},
 		{
@@ -332,6 +338,9 @@ func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemRem
 		if rc.Hook != q.Hook {
 			continue
 		}
+		if !reminderWhenHolds(rc, q) {
+			continue
+		}
 		if !reminderTriggerFires(rc, q) {
 			continue
 		}
@@ -380,6 +389,20 @@ func resolveStalledTodosText(rc ReminderConfig, q domain.ReminderQuery) string {
 		fmt.Fprintf(&items, "- [%s] %s\n", t.Status, t.Content)
 	}
 	return strings.ReplaceAll(rc.Text, "{todo_list}", items.String())
+}
+
+// reminderWhenHolds evaluates the optional `when` state condition. An empty
+// When always holds; an unknown value never does (fail-closed so a typo
+// surfaces as a silent reminder rather than an unconditional one).
+func reminderWhenHolds(rc ReminderConfig, q domain.ReminderQuery) bool {
+	switch rc.When {
+	case "":
+		return true
+	case ReminderWhenTodosEmpty:
+		return q.TodoCount == 0
+	default:
+		return false
+	}
 }
 
 func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {

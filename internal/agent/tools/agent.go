@@ -24,7 +24,7 @@ import (
 
 // subagentDepthEnv guards against subagent fork-bombs: each spawned subagent
 // inherits INFER_SUBAGENT_DEPTH=<parent+1>, and the tool disables itself once
-// the depth reaches the configured max (a subagent is itself an `infer agent`).
+// the depth reaches the configured max (a subagent is itself an `infer headless`).
 const subagentDepthEnv = "INFER_SUBAGENT_DEPTH"
 
 // subagentSystemPromptEnv carries a per-subagent system prompt to the spawned
@@ -62,7 +62,7 @@ type AgentToolResult struct {
 	Message    string           `json:"message,omitempty"`
 }
 
-// AgentTool spawns local subagents (each an `infer agent` subprocess) in
+// AgentTool spawns local subagents (each an `infer headless` subprocess) in
 // parallel and folds their results back into the main context. It is the
 // lightweight, no-A2A-server complement to the A2A tools.
 type AgentTool struct {

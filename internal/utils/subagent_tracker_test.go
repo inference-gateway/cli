@@ -133,7 +133,7 @@ func TestSubagentTracker_CountRunning(t *testing.T) {
 // TestSubagentTracker_ConcurrentStatusReadWrite races SetSubagentStatus (writer)
 // against GetSubagent/GetAllSubagents readers that read Status. It fails under
 // `go test -race` if the getters hand out the live entry instead of a copy - the
-// same write/read pattern as the BackgroundTasksWaiter polling countPendingSubagents
+// same write/read pattern as the engine polling countPendingSubagents
 // while a job goroutine marks the subagent completed.
 func TestSubagentTracker_ConcurrentStatusReadWrite(t *testing.T) {
 	tr := NewSubagentTracker()

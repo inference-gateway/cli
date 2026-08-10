@@ -105,7 +105,7 @@ func buildApprovalCases() []approvalCase {
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
 	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(domain.AgentModeReadOnly),
 		`{}`, true, false, "Read", "Grep", "Tree", "WebFetch", "Write")...)
-	tests = append(tests, approvalCases("non-chat bypasses approval:", standard, "{}", false, false,
+	tests = append(tests, approvalCases("non-chat follows the same approval rules:", standard, "{}", false, true,
 		"Bash", "Read", "Write", "Edit")...)
 	tests = append(tests, bashCases("allowed bash bypasses approval:", standard, false, "ls", "pwd", "echo", "ls -la")...)
 	tests = append(tests, bashCases("disallowed bash requires approval:", standard, true, "rm -rf /", "sudo", "curl http://malicious.com")...)
@@ -197,8 +197,8 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 		}
 
 		stateManager.SetAgentMode(domain.AgentModeStandard)
-		if policy.ShouldRequireApproval(ctx, bash, false) {
-			t.Error("Non-chat mode should bypass bash allowedlist and config")
+		if !policy.ShouldRequireApproval(ctx, bash, false) {
+			t.Error("Non-chat mode must enforce the bash allowedlist and config, not bypass them")
 		}
 
 		allowedBash := createToolCall("Bash", `{"command": "ls"}`)

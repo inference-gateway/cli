@@ -96,7 +96,7 @@ An agentic command-line assistant that writes code, understands project context,
   `infer plugins install owner/repo` - content only, plugin code is never executed - [Learn more →](docs/plugins.md)
 - **Persistent Memory**: Cross-session memory stored as individual Markdown fact-files with an
   auto-maintained `MEMORY.md` index that is injected at session start - on by default - [Learn more →](#persistent-memory)
-- **Subagents**: Spawn parallel `infer agent` subprocesses from chat with the `Agent` tool to fan out
+- **Subagents**: Spawn parallel `infer headless` subprocesses from chat with the `Agent` tool to fan out
   independent work (research, edits, investigations) and fold their results back into the conversation
 - **Computer Use**: Let the agent drive the desktop - mouse, keyboard, screenshots, app focus - across
   macOS, X11, and Wayland - off by default - [Learn more →](#computer-use)
@@ -351,18 +351,18 @@ infer chat --web --port 8080  # Custom port
 - Access from any device on the network
 - Responsive terminal sizing with horizontal padding
 
-**`infer agent`** - Execute autonomous tasks in background mode
+**`infer headless`** - Execute autonomous tasks in background mode
 
 ```bash
 # Start new agent sessions
-infer agent "Please fix the github issue 38"
-infer agent --model "openai/gpt-4" "Implement feature from issue #42"
-infer agent "Analyze this UI issue" --files screenshot.png
+infer headless "Please fix the github issue 38"
+infer headless --model "openai/gpt-4" "Implement feature from issue #42"
+infer headless "Analyze this UI issue" --files screenshot.png
 
 # Resume existing sessions
 infer conversations list  # Find session IDs
-infer agent "continue fixing the bug" --session-id abc-123-def
-infer agent "analyze new logs" --session-id abc-123 --files error.log
+infer headless "continue fixing the bug" --session-id abc-123-def
+infer headless "analyze new logs" --session-id abc-123 --files error.log
 ```
 
 **Features:** Autonomous execution, multimodal support (images/files), parallel tool execution, **session resumption**.
@@ -528,7 +528,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
-| **Agent** | Spawn an `infer agent` subprocess to run work in parallel | Yes |
+| **Agent** | Spawn an `infer headless` subprocess to run work in parallel | Yes |
 | **ListSubagents** | List spawned subagents and their status | No |
 | **GetSubagentResult** | Re-read a finished subagent's last message | No |
 | **ReadSubagentScreen** | Capture an interactive subagent's terminal screen | No |
@@ -1053,7 +1053,7 @@ infer channels-manager
 
 **5. Send a message** to your bot in Telegram - the agent will respond.
 
-Each incoming message triggers `infer agent --session-id <id>` as a
+Each incoming message triggers `infer headless --session-id <id>` as a
 subprocess with a persistent session per sender.
 
 ### Tool Approval
@@ -1333,7 +1333,7 @@ infer init
 infer chat
 
 # Execute autonomous task
-infer agent "Fix the bug in issue #42"
+infer headless "Fix the bug in issue #42"
 
 # Check gateway status
 infer status

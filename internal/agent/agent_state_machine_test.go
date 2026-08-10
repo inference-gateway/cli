@@ -538,3 +538,46 @@ func TestExecutingToolsToStoppedTransition(t *testing.T) {
 		t.Errorf("expected state Stopped, got %s", sm.GetCurrentState())
 	}
 }
+
+// TestMaxTurnsExceededFlag verifies the PostToolExecution → Completing action
+// marks the context when completion is forced by the turn limit (and only then),
+// so the headless renderers can surface ErrMaxTurnsReached (exit code 2).
+func TestMaxTurnsExceededFlag(t *testing.T) {
+	tests := []struct {
+		name           string
+		hasToolResults bool
+		want           bool
+	}{
+		{"forced by turn limit", true, true},
+		{"legitimately complete at limit", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sm := NewAgentStateMachine()
+			ctx := &domain.AgentContext{
+				Conversation: &[]sdk.Message{{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")}},
+				MessageQueue: &mockdomain.FakeMessageQueue{},
+				Turns:        10,
+				MaxTurns:     10,
+				Ctx:          context.Background(),
+			}
+			ctx.MessageQueue.(*mockdomain.FakeMessageQueue).IsEmptyReturns(true)
+
+			_ = sm.Transition(ctx, domain.StateCheckingQueue)
+			_ = sm.Transition(ctx, domain.StateStreamingLLM)
+			_ = sm.Transition(ctx, domain.StatePostStream)
+			ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{{ID: "t", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "t", Arguments: "{}"}}}
+			_ = sm.Transition(ctx, domain.StateEvaluatingTools)
+			_ = sm.Transition(ctx, domain.StateExecutingTools)
+			_ = sm.Transition(ctx, domain.StatePostToolExecution)
+
+			ctx.HasToolResults = tt.hasToolResults
+			if err := sm.Transition(ctx, domain.StateCompleting); err != nil {
+				t.Fatalf("transition to Completing failed: %v", err)
+			}
+			if ctx.MaxTurnsExceeded != tt.want {
+				t.Errorf("MaxTurnsExceeded = %v, want %v", ctx.MaxTurnsExceeded, tt.want)
+			}
+		})
+	}
+}

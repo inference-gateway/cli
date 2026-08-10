@@ -113,7 +113,7 @@ func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string,
 }
 
 // MaybeRollover combines the ShouldRollover gate with PerformRollover and the
-// uniform warn-on-failure fallback that both `chat` and `infer agent` need.
+// uniform warn-on-failure fallback that both `chat` and `infer headless` need.
 // Returns the new session id and true if a rollover fired; "" and false
 // otherwise (whether because the gate was closed or because PerformRollover
 // errored - callers do not need to distinguish).

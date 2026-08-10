@@ -22,6 +22,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
+	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
@@ -521,9 +522,6 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 		}
 		b.WriteString(entry)
 	}
-	// Count only, never the names: this section rides in the static system
-	// prompt, and joining the names of an arbitrarily large catalog blows past
-	// maxChars by however big the catalog happens to be.
 	if omitted > 0 {
 		fmt.Fprintf(&b, "... (%d more skills not expanded - run `infer skills search <term>` to find one)\n", omitted)
 	}
@@ -551,7 +549,7 @@ var (
 // explicitly invoked (via "/<name>" or "use the <name> skill"). Unlike
 // buildSkillsInfo - which lists every available skill and leaves it to the
 // model whether to engage one - this guarantees an invoked skill is flagged as
-// active regardless of mode (chat, `infer agent`, channels, heartbeat), all of
+// active regardless of mode (chat, `infer headless`, channels, heartbeat), all of
 // which funnel through addSystemPrompt. It injects only the skill's metadata
 // (description + path), not the body: the SKILL.md body stays progressive
 // disclosure, read on demand by the model via the Read tool (now reachable
@@ -1105,6 +1103,90 @@ func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook dom
 	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, modeKey, hook, agentCtx.Turns, sessionID)
 }
 
+// waitForBackgroundTasks blocks until in-flight background work (A2A tasks,
+// background shells) pushes a result onto the shared message queue or
+// quiesces, up to a2a.task.agent_mode_max_wait_seconds. Headless runs call
+// this at the completion boundary so a run never exits with orphaned
+// background tasks; chat mode never calls it (the UI ticker starts fresh
+// turns instead).
+func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
+	if s.bgRegistry == nil || s.messageQueue == nil || !s.bgRegistry.HasPending() {
+		return
+	}
+
+	maxWaitSec := 300
+	if s.config != nil && s.config.A2A.Task.AgentModeMaxWaitSeconds > 0 {
+		maxWaitSec = s.config.A2A.Task.AgentModeMaxWaitSeconds
+	}
+	deadline := time.NewTimer(time.Duration(maxWaitSec) * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	logger.Info("waiting for pending background tasks before completing",
+		"running_jobs", s.bgRegistry.CountRunning(),
+		"max_wait_seconds", maxWaitSec)
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			logger.Warn("timed out waiting for background tasks to complete",
+				"running_jobs", s.bgRegistry.CountRunning(),
+				"max_wait_seconds", maxWaitSec)
+			return
+		case <-ctx.Done():
+			return
+		}
+		if !s.messageQueue.IsEmpty() || !s.bgRegistry.HasPending() {
+			return
+		}
+	}
+}
+
+// maybeRolloverSession rolls the conversation over into a new session when it
+// crosses the compact threshold (SessionRolloverManager gates and performs the
+// rollover), then rebuilds the in-flight conversation from the now-compacted
+// repository. Called at the top of every headless turn after the first - chat
+// rollover is owned by the UI (chat_message_processor), and the first turn is
+// handled by the headless command before the run starts.
+func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *domain.AgentContext, req *domain.AgentRequest) {
+	newID, fired := s.rolloverManager.MaybeRollover(agentCtx.Ctx, req.Model, req.GroupKey)
+	if !fired {
+		return
+	}
+	logger.Info("rolled over to new session (summary preserved)",
+		"previous_session_id", req.RequestID, "new_session_id", newID)
+	*agentCtx.Conversation = s.addSystemPrompt(
+		chatcompletion.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
+}
+
+// trackStreamOutcome records the just-finished stream's finish reason and
+// updates the consecutive no-tool-call strike counter that gates the
+// post_stream continuation nudges (on_stalled_todos / on_truncation).
+func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls bool) {
+	s.reminderMux.Lock()
+	defer s.reminderMux.Unlock()
+	s.lastFinishReason = finishReason
+	if hadToolCalls {
+		s.stalledStrikes = 0
+	} else {
+		s.stalledStrikes++
+	}
+}
+
+// incompleteTodoItems filters the session todo list down to items not yet
+// completed, for the {todo_list} template of the stalled-todos nudge.
+func incompleteTodoItems(todos []domain.TodoItem) []domain.TodoItem {
+	var incomplete []domain.TodoItem
+	for _, t := range todos {
+		if t.Status != "completed" {
+			incomplete = append(incomplete, t)
+		}
+	}
+	return incomplete
+}
+
 // conversationAwaitsToolResults reports whether the last message is an assistant
 // turn carrying tool_calls that have not yet been answered. Injecting a user
 // reminder in that state would orphan the tool_calls, so reminder injection is
@@ -1155,6 +1237,16 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		MaxTurns:    agentCtx.MaxTurns,
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
+	}
+	if s.stateManager != nil {
+		q.TodoCount = len(s.stateManager.GetTodos())
+	}
+	if hook == domain.HookPostStream && s.stalledStrikes > 0 {
+		q.FinishReason = s.lastFinishReason
+		q.StalledStrikes = s.stalledStrikes
+		if s.lastFinishReason != string(sdk.Length) && s.stateManager != nil {
+			q.IncompleteTodos = incompleteTodoItems(s.stateManager.GetTodos())
+		}
 	}
 	if hook == domain.HookPostTool {
 		if name, n := s.takeRepeatedFailure(); name != "" {

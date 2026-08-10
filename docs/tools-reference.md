@@ -390,7 +390,7 @@ tools:
         allow: []
       standard:   # interactive default: baseline only (same as plan)
         allow: []
-      auto:       # headless `infer agent`: full autonomy (commit, push, etc.)
+      auto:       # headless `infer headless`: full autonomy (commit, push, etc.)
         allow:
           - .*
 ```
@@ -399,7 +399,7 @@ The effective allow-list for a mode is `mode.all.allow` unioned with that mode's
 is a regex matched against the **whole** command (`\A(?:entry)\z`), so a bare token matches only
 itself (`gh` allows `gh`, never `gh issue list`) - use `( .*)?` to accept arguments. The single
 sentinel `.*` means **unrestricted** (any single command, guard skipped); it is the default for `auto`
-mode, which is how an autonomous `infer agent` commits and pushes. Tighten `mode.auto.allow` to a
+mode, which is how an autonomous `infer headless` commits and pushes. Tighten `mode.auto.allow` to a
 curated list for CI with secrets so the guard re-applies.
 
 **Clean-command guard (every non-`.*` mode):**
@@ -695,7 +695,7 @@ today to call mum" - initiated from a chat with the bot.
 
 - Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
 - The `infer channels-manager` daemon hosts the scheduler and watches that directory via fsnotify, so newly created jobs fire without a restart.
-- Each fire spawns a brand-new `infer agent` session - no context carries between runs. Make prompts specific and self-contained.
+- Each fire spawns a brand-new `infer headless` session - no context carries between runs. Make prompts specific and self-contained.
 - Channel + recipient are derived automatically from the current session ID -
   the LLM never passes them. The tool can therefore only be used from a
   channel-driven session.

@@ -344,7 +344,7 @@ type WaitToolConfig struct {
 }
 
 // AgentToolConfig contains settings for the Agent tool, which spawns local
-// subagents (each an `infer agent` subprocess) in parallel and folds their
+// subagents (each an `infer headless` subprocess) in parallel and folds their
 // results back into the main context. Unlike the A2A tools it needs no agent
 // server. Subagents run either headless (background) or interactive (in a tmux
 // pane the user can watch).
@@ -354,7 +354,7 @@ type AgentToolConfig struct {
 	Mode               string                 `yaml:"mode" mapstructure:"mode"`                 // headless | interactive
 	Wait               bool                   `yaml:"wait" mapstructure:"wait"`                 // false => async (fire-and-forget + notify)
 	MaxParallel        int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
-	MaxDepth           int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer agent`)
+	MaxDepth           int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer headless`)
 	Model              string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	InheritMock        bool                   `yaml:"inherit_mock" mapstructure:"inherit_mock"` // propagate gateway.mock to spawned subagents
 	Interactive        AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
@@ -392,7 +392,7 @@ type QueryTaskToolConfig struct {
 // like "gh" matches only "gh" and never "gh issue list" - write "gh issue.*" to
 // allow arguments. The single sentinel ".*" (or "^.*$"/".+") means "allow any
 // single command" and additionally skips the clean-command guard, i.e. full
-// autonomy (used by mode.auto so headless `infer agent` can act unattended).
+// autonomy (used by mode.auto so headless `infer headless` can act unattended).
 type BashModeAllowConfig struct {
 	Allow []string `yaml:"allow" mapstructure:"allow"`
 }

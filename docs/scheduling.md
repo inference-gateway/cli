@@ -14,11 +14,11 @@ an inspiring quote"* - initiated from a chat with the bot rather than from the C
 │  infer channels-manager (long-running daemon)               │
 │                                                              │
 │   ChannelManagerService                                      │
-│    ├─ inbound msgs   → spawn `infer agent`                   │
+│    ├─ inbound msgs   → spawn `infer headless`                   │
 │    └─ SchedulerService                                       │
 │         ├─ robfig/cron/v3 scheduler                          │
 │         ├─ 2s poll + diff against storage backend            │
-│         └─ on fire: spawn `infer agent --session-id <uuid>`  │
+│         └─ on fire: spawn `infer headless --session-id <uuid>`  │
 │                     capture stdout → channel.Send(...)       │
 └─────────────────────────────────────────────────────────────┘
            ▲                                       ▲
@@ -185,7 +185,7 @@ Provide `job_id` and any of: `cron_expression`, `prompt`, `run_once`, `name`,
 5. **User approves** (because `require_approval: true`).
 6. **Bot:** *"Done - job 01HG... scheduled. I'll message you tomorrow at 8 AM UTC."*
 7. **At 08:00 UTC the next day**, the daemon fires the job: spawns a fresh
-   `infer agent` session with the saved prompt, captures the assistant's response,
+   `infer headless` session with the saved prompt, captures the assistant's response,
    and sends it to the user via Telegram.
 
 ## End-to-end Telegram example - one-off

@@ -153,12 +153,12 @@ client must send W3C `traceparent`), and a readable TUI (the operator sets
 `INFER_LOGGING_STDOUT=true` for the channels-manager daemon, and `infer chat`
 must ignore it - on an older image, prefix the exec with
 `env INFER_LOGGING_STDOUT=false`). Only one process per pod can hold the
-receiver port, so an `infer agent` subprocess spawned by a channel while you
+receiver port, so an `infer headless` subprocess spawned by a channel while you
 are chatting will not get the remote spans.
 
 Two things to know: the `session` root span is exported when the session ends,
 so it shows as `(in progress)` while the chat is open; and a headless
-`infer agent` run exits in ~2s, before the collector flushes, so the remote
+`infer headless` run exits in ~2s, before the collector flushes, so the remote
 spans miss it - use `infer chat` for the nested view.
 
 Those `tool.*` spans are real: the scenario's `task_description` is

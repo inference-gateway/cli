@@ -38,6 +38,7 @@ type EventDrivenAgent struct {
 	currentMessage   sdk.Message
 	currentToolCalls []*sdk.ChatCompletionMessageToolCall
 	currentReasoning string
+	finishReason     string
 	availableTools   []sdk.ChatCompletionTool
 
 	// Tool processing state (for sequential approval and execution)
@@ -146,7 +147,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 				return config.ApprovalBehaviourPrompt
 			}
 			behaviour := a.service.config.ApprovalBehaviourFor(toolCall.Function.Name)
-			return config.ResolveApprovalDelivery(behaviour, false, a.req.IsChatMode)
+			return config.ResolveApprovalDelivery(behaviour, a.req.ApprovalBrokerAttached, a.req.IsChatMode)
 		},
 		AddMessage: a.service.conversationRepo.AddMessage,
 		BatchDrainQueue: func() int {
@@ -173,8 +174,14 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		PublishChatCancelled: func(metrics *domain.ChatMetrics) {
 			a.eventPublisher.publishChatCancelled(metrics)
 		},
+		PublishToolResults: func(results []domain.ConversationEntry) {
+			a.eventPublisher.publishToolExecutionCompleted(results)
+		},
 		DispatchHooks: func(hook domain.HookPoint) {
 			a.service.dispatchHooks(a.agentCtx, hook)
+		},
+		WaitForBackgroundTasks: func() {
+			a.service.waitForBackgroundTasks(a.agentCtx.Ctx)
 		},
 	}
 

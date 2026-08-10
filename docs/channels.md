@@ -21,7 +21,7 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 Channels provide a bridge between external messaging platforms and the CLI
 agent. The `infer channels-manager` command runs as a standalone long-running daemon
 that listens for messages from platforms like Telegram. When a message arrives,
-it triggers `infer agent --session-id <id>` as a subprocess. The agent
+it triggers `infer headless --session-id <id>` as a subprocess. The agent
 processes the message and the response is sent back through the channel.
 
 Key features:
@@ -48,7 +48,7 @@ Key features:
                    │    │  Per message:                       │         │
                    │    │  1. Check allowlist                 │         │
                    │    │  2. Derive session ID               │         │
-                   │    │  3. exec: infer agent               │         │
+                   │    │  3. exec: infer headless               │         │
                    │    │     --session-id channel-telegram-X │         │
                    │    │     "user message"                  │         │
                    │    │  4. Parse JSON stdout               │         │
@@ -64,7 +64,7 @@ Key features:
 3. Channel Manager checks the sender against the allowlist
 4. If authorized, derives a deterministic session ID (e.g.,
    `channel-telegram-123456789`)
-5. Triggers `infer agent --session-id <id> "<message>"` as a subprocess
+5. Triggers `infer headless --session-id <id> "<message>"` as a subprocess
 6. Parses the agent's JSON stdout for the assistant response
 7. Sends the response back through the originating channel
 
@@ -129,7 +129,7 @@ infer channels-manager
 ```
 
 This starts a long-running daemon that listens for Telegram messages. Each
-incoming message triggers a new `infer agent` invocation with a persistent
+incoming message triggers a new `infer headless` invocation with a persistent
 session per sender.
 
 ### 5. Send a Message
@@ -278,7 +278,7 @@ prompts the channel user and waits for confirmation.
 
 ### How It Works
 
-1. The channel manager spawns `infer agent --require-approval`
+1. The channel manager spawns `infer headless --require-approval`
 2. When the agent encounters a tool that requires approval, it outputs a JSON
    approval request on stdout and blocks
 3. The channel manager detects the request and sends a human-readable prompt
@@ -348,7 +348,7 @@ conversations, which means:
 
 ## Remote-Control Prompt and System Reminders
 
-Messages routed through the channels-manager invoke `infer agent --remote`,
+Messages routed through the channels-manager invoke `infer headless --remote`,
 which swaps the default agent system prompt for
 `prompts.agent.system_prompt_remote`. That prompt is tuned for short,
 chat-style replies so that a casual "Hi" does not trigger a paragraph-long
@@ -498,8 +498,8 @@ case "mychannel":
 ### Bot not responding
 
 1. Verify the channel listener is running (`infer channels-manager`)
-2. Check that `infer agent` works independently:
-   `infer agent "Hello" --session-id test`
+2. Check that `infer headless` works independently:
+   `infer headless "Hello" --session-id test`
 3. Look for `[channels] agent failed` in logs
 
 ### Rate limiting

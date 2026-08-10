@@ -80,10 +80,10 @@ postgres, redis, memory) because it loads through the storage layer rather than
 reading files directly.
 
 Hidden entries - system reminders, plan-approval prompts, drained background-task
-results, and the synthetic verify message injected by 'infer agent' - are omitted
+results, and the synthetic verify message injected by 'infer headless' - are omitted
 by default. Pass --include-hidden to surface them.
 
-The session id is resolved the same way as 'infer agent --session-id': a literal
+The session id is resolved the same way as 'infer headless --session-id': a literal
 UUID is used as-is, while any other value is treated as a session group key and
 resolved to that group's current session id (registering the group if it is new).
 
@@ -247,7 +247,7 @@ func showConversation(cmd *cobra.Command, args []string) error {
 	return printConversationShowText(entries, sessionID)
 }
 
-// resolveConversationSessionID mirrors 'infer agent --session-id' resolution:
+// resolveConversationSessionID mirrors 'infer headless --session-id' resolution:
 // a literal UUID is passed through unchanged, while any other value is resolved
 // via the rollover manager's session-group lookup. Falls back to the raw id when
 // no rollover manager is configured.
@@ -342,7 +342,7 @@ func toConversationShowEntry(e domain.ConversationEntry) conversationShowEntry {
 }
 
 // buildConversationShowJSON returns newline-joined compact JSON, one object per
-// entry (NDJSON), matching the 'infer agent' stdout shape. Pure function.
+// entry (NDJSON), matching the 'infer headless' stdout shape. Pure function.
 func buildConversationShowJSON(entries []domain.ConversationEntry) (string, error) {
 	var b strings.Builder
 	for _, e := range entries {

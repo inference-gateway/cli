@@ -135,7 +135,7 @@ tools:
         allow: []
       standard: # interactive default: baseline only (same as plan)
         allow: []
-      auto: # headless `infer agent`: full autonomy (commit/push/etc.). Replace
+      auto: # headless `infer headless`: full autonomy (commit/push/etc.). Replace
         # ".*" with a curated list for CI with secrets so the guard re-applies.
         allow:
           - .*
@@ -413,7 +413,7 @@ Embedded/CI consumers can provide reminders without writing `reminders.yaml`:
 - **`INFER_REMINDERS_CONFIG`** - inline YAML with the same schema as the file; when set it
   replaces the file-loaded config.
 - **`--reminders-file PATH`** - load reminders from an arbitrary path (not constrained to
-  `~/.infer/`), available on `infer agent` and `infer chat`.
+  `~/.infer/`), available on `infer headless` and `infer chat`.
 
 Precedence, highest first: `INFER_REMINDERS_CONFIG` → `--reminders-file` → project
 `./.infer/reminders.yaml` → `~/.infer/reminders.yaml` → built-in defaults.
@@ -784,7 +784,7 @@ tools:
       standard: # opt-in: baseline-only by default; add writes here to skip approval
         allow:
           - gh pr create( .*)?
-      auto: # headless `infer agent`: full autonomy (commit, push, etc.)
+      auto: # headless `infer headless`: full autonomy (commit, push, etc.)
         allow:
           - .*
 ```

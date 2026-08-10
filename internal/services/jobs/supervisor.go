@@ -519,7 +519,7 @@ func (s *Supervisor) IsRunning(id string) bool {
 // HasPending reports whether any session-holding job is still running - the
 // cross-kind "is the session safe to close?" query. A job opts in via
 // JobMeta.HoldsSession (A2A tasks, shells, headless subagents); interactive
-// subagent panes set it false so a one-shot `infer agent` does not wait on a
+// subagent panes set it false so a one-shot `infer headless` does not wait on a
 // user-driven pane.
 func (s *Supervisor) HasPending() bool {
 	s.mu.RLock()

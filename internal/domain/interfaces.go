@@ -690,7 +690,7 @@ type BackgroundTaskRegistry interface {
 	// HasPending reports whether *any* background work is still in flight,
 	// regardless of type. True when there is at least one A2A task being
 	// polled, one running background shell, OR one running HEADLESS subagent.
-	// It deliberately excludes interactive subagents so a one-shot `infer agent`
+	// It deliberately excludes interactive subagents so a one-shot `infer headless`
 	// does not hang at exit waiting on a user-driven tmux pane.
 	HasPending() bool
 
@@ -1011,16 +1011,17 @@ type ToolFormatter interface {
 
 // ToolExecutionResult represents the complete result of a tool execution
 type ToolExecutionResult struct {
-	ToolName  string            `json:"tool_name"`
-	Arguments map[string]any    `json:"arguments"`
-	Success   bool              `json:"success"`
-	Duration  time.Duration     `json:"duration"`
-	Error     string            `json:"error,omitempty"`
-	Data      any               `json:"data,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-	Diff      string            `json:"diff,omitempty"`
-	Rejected  bool              `json:"rejected,omitempty"`
-	Images    []ImageAttachment `json:"images,omitempty"`
+	ToolName   string            `json:"tool_name"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
+	Arguments  map[string]any    `json:"arguments"`
+	Success    bool              `json:"success"`
+	Duration   time.Duration     `json:"duration"`
+	Error      string            `json:"error,omitempty"`
+	Data       any               `json:"data,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	Diff       string            `json:"diff,omitempty"`
+	Rejected   bool              `json:"rejected,omitempty"`
+	Images     []ImageAttachment `json:"images,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

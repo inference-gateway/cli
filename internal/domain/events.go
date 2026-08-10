@@ -61,6 +61,9 @@ type ChatCompleteEvent struct {
 	ToolCalls        []sdk.ChatCompletionMessageToolCall
 	Metrics          *ChatMetrics
 	Cancelled        bool
+	// MaxTurnsReached marks a completion forced by the turn limit rather than
+	// the task finishing; headless renderers map it to ErrMaxTurnsReached.
+	MaxTurnsReached bool
 }
 
 func (e ChatCompleteEvent) GetRequestID() string    { return e.RequestID }

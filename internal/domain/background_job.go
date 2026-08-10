@@ -32,18 +32,13 @@ func (s JobStatus) IsTerminal() bool { return s == JobCompleted || s == JobFaile
 // supervisor reads it once at submit (and surfaces it in the task view); it is
 // not on any hot path.
 type JobMeta struct {
-	ID          string
-	Kind        JobKind
-	Label       string
-	Description string
-	Detail      string
-	StartedAt   time.Time
-
-	Silent bool
-
-	// HoldsSession keeps a headless session alive until the job terminates (A2A
-	// tasks, shells, headless subagents). False for user-driven interactive
-	// subagent panes so a one-shot `infer agent` does not hang at exit.
+	ID           string
+	Kind         JobKind
+	Label        string
+	Description  string
+	Detail       string
+	StartedAt    time.Time
+	Silent       bool
 	HoldsSession bool
 }
 

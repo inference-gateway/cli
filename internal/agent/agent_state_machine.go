@@ -153,7 +153,10 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 		func(ctx *domain.AgentContext) bool {
 			return sm.maxTurnsReached(ctx) || sm.canComplete(ctx)
 		},
-		nil)
+		func(ctx *domain.AgentContext) error {
+			ctx.MaxTurnsExceeded = sm.maxTurnsReached(ctx) && !sm.canComplete(ctx)
+			return nil
+		})
 
 	sm.addTransition(domain.StatePostToolExecution, domain.StateStreamingLLM,
 		func(ctx *domain.AgentContext) bool {

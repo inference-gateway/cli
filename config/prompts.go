@@ -639,7 +639,7 @@ For one-off jobs, build a cron expression that pinpoints the exact moment (use t
 The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.`,
 		},
 		Agent: PromptsToolDescription{
-			Description: `Spawn local subagents - each an autonomous "infer agent" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
+			Description: `Spawn local subagents - each an autonomous "infer headless" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
 
 Provide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).
 

@@ -60,7 +60,7 @@ type SystemReminder struct {
 // starts a fresh run, so the `interval` trigger fires on every Nth
 // conversational turn as users expect (per-request Turns would reset to 1 each
 // message and an interval reminder would essentially never fire in chat). In
-// headless `infer agent` a single invocation IS the session, so the two are
+// headless `infer headless` a single invocation IS the session, so the two are
 // equal.
 //
 // Fired carries reminder names already emitted this session (consulted by the
@@ -101,6 +101,7 @@ type ReminderQuery struct {
 	FinishReason     string
 	IncompleteTodos  []TodoItem
 	StalledStrikes   int
+	TodoCount        int
 	ModeChanged      bool
 	PrevMode         AgentMode
 	Mode             AgentMode

@@ -39,21 +39,16 @@ type AgentServiceImpl struct {
 	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
+	rolloverManager  *services.SessionRolloverManager
 	reminderProvider domain.SystemReminderProvider
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
 	recorder         *telemetry.Recorder
-
-	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
-	// cumulative model turns across the whole chat session so an `interval`
-	// reminder fires on every Nth conversational turn - the per-request
-	// AgentContext.Turns resets to 1 on each user message, so keying interval
-	// off it would essentially never fire in normal chat. firedReminders backs
-	// the `once` trigger across the session. Both reset implicitly when a new
-	// chat process builds a fresh AgentServiceImpl.
-	sessionTurns   atomic.Int64
-	firedReminders map[string]bool
-	reminderMux    sync.Mutex
+	sessionTurns     atomic.Int64
+	firedReminders   map[string]bool
+	reminderMux      sync.Mutex
+	stalledStrikes   int
+	lastFinishReason string
 
 	// (name+args), reset per key on success; backs the retry-loop breaker
 	failedCalls    map[string]int
@@ -321,6 +316,9 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 	for _, entry := range results {
 		if entry.ToolExecution != nil {
+			if entry.ToolExecution.ToolCallID == "" && entry.Message.ToolCallID != nil {
+				entry.ToolExecution.ToolCallID = *entry.Message.ToolCallID
+			}
 			if entry.ToolExecution.Success {
 				successCount++
 			} else {
@@ -349,12 +347,14 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 // NewAgentService creates a new agent service with pre-configured client
 // stateManager is the narrow slice of the app state manager the agent core
-// needs: the current agent mode, computer-use pause state, and retry-status
-// updates. *services.StateManager satisfies it.
+// needs: the current agent mode, computer-use pause state, retry-status
+// updates, and the session todo list (reminder gating). *services.StateManager
+// satisfies it.
 type stateManager interface {
 	domain.AgentModeManager
 	domain.ComputerUsePauseManager
 	domain.ChatSessionManager
+	domain.TodoManager
 }
 
 func NewAgent(
@@ -369,6 +369,7 @@ func NewAgent(
 	timeoutSeconds int,
 	optimizer domain.ConversationOptimizer,
 	bgRegistry domain.BackgroundTaskRegistry,
+	rolloverManager *services.SessionRolloverManager,
 ) *AgentServiceImpl {
 	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 
@@ -395,6 +396,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		bgRegistry:       bgRegistry,
+		rolloverManager:  rolloverManager,
 		reminderProvider: cfg.Reminders,
 		hookProvider:     hookProvider,
 		firedReminders:   make(map[string]bool),
@@ -1338,6 +1340,9 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 	if result.ToolName == "TodoWrite" && result.Success {
 		if todoResult, ok := result.Data.(*domain.TodoWriteToolResult); ok && todoResult != nil {
+			if s.stateManager != nil {
+				s.stateManager.SetTodos(todoResult.Todos)
+			}
 			eventPublisher.publishTodoUpdate(todoResult.Todos)
 		}
 	}

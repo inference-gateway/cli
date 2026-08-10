@@ -38,6 +38,10 @@ func (a *EventDrivenAgent) startStreaming() {
 		time.Sleep(constants.AgentIterationDelay)
 	}
 
+	if !a.req.IsChatMode && a.agentCtx.Turns > 1 {
+		a.service.maybeRolloverSession(a.agentCtx, a.req)
+	}
+
 	a.eventPublisher.publishChatStart()
 
 	if a.agentCtx.Turns == 1 {
@@ -102,6 +106,7 @@ func (a *EventDrivenAgent) startStreaming() {
 // should reconnect, false when the turn finished - successfully, cancelled, or
 // with a non-recoverable error that has already been published.
 func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
+	a.finishReason = ""
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
@@ -380,6 +385,10 @@ func (a *EventDrivenAgent) processChoiceDelta(
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
 ) {
+	if choice.FinishReason != "" {
+		a.finishReason = string(choice.FinishReason)
+	}
+
 	a.accumulateReasoning(choice.Delta, message)
 
 	deltaContent := a.accumulateContent(choice.Delta, message)
@@ -539,6 +548,8 @@ func (a *EventDrivenAgent) finalizeStream(
 	for i := range completeToolCalls {
 		toolCallsSlice = append(toolCallsSlice, &completeToolCalls[i])
 	}
+
+	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0)
 
 	a.events <- domain.StreamCompletedEvent{
 		Message:            assistantMessage,

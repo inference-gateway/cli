@@ -13,9 +13,10 @@ import (
 //  3. Can complete → transition to Completing
 //  4. Otherwise → continue agent loop (StreamingLLM)
 //
-// The turn does NOT wait in-state for background work. Background-job completion
-// notes are drained from the queue here (when the chat-UI ticker or headless
-// waiter starts a fresh turn), so Idle stays terminal.
+// In chat mode the turn does NOT wait in-state for background work (the UI
+// ticker starts fresh turns that drain completion notes here). Headless runs
+// wait at the completion boundary via WaitForBackgroundTasks so a run never
+// exits with orphaned background tasks.
 type CheckingQueueState struct {
 	ctx *domain.StateContext
 }
@@ -51,6 +52,13 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 		}
 
 		s.drainQueueWithHooks()
+
+		if !s.ctx.Request.IsChatMode && s.ctx.WaitForBackgroundTasks != nil &&
+			s.ctx.AgentCtx.Ctx.Err() == nil &&
+			s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
+			s.ctx.WaitForBackgroundTasks()
+			s.drainQueueWithHooks()
+		}
 
 		if s.ctx.AgentCtx.Ctx.Err() != nil {
 			logger.Debug("session cancelled - completing without next turn",
