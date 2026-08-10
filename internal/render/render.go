@@ -64,10 +64,13 @@ func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any
 	return msg
 }
 
-// toolMessage builds the JSON line for one tool execution result.
+// toolMessage builds the JSON line for one tool execution result. content
+// keeps the legacy "Result of tool call: {...}" / "Tool execution failed: ..."
+// envelope that downstream consumers (infer-action) parse.
 func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 	return map[string]any{
 		"role":      "tool",
+		"content":   toolContent(r),
 		"failed":    !r.Success,
 		"timestamp": time.Now(),
 		"tool_execution": map[string]any{
@@ -77,8 +80,23 @@ func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 			"rejected":  r.Rejected,
 			"duration":  r.Duration.String(),
 		},
-		"data": r.Data,
 	}
+}
+
+func toolContent(r *domain.ToolExecutionResult) string {
+	if r.Success {
+		if b, err := json.Marshal(r); err == nil {
+			return "Result of tool call: " + string(b)
+		}
+		return fmt.Sprintf("Result of tool call: %v", r.Data)
+	}
+	detail := r.Error
+	if detail == "" && r.Data != nil {
+		if b, err := json.Marshal(r.Data); err == nil {
+			detail = string(b)
+		}
+	}
+	return "Tool execution failed: " + detail
 }
 
 // completionErr maps a terminal event to the error the command should return:
