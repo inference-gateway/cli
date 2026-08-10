@@ -61,6 +61,9 @@ func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any
 	if len(e.ToolCalls) > 0 {
 		msg["tool_calls"] = e.ToolCalls
 	}
+	if e.Metrics != nil && e.Metrics.Usage != nil {
+		msg["token_usage"] = e.Metrics.Usage
+	}
 	return msg
 }
 
