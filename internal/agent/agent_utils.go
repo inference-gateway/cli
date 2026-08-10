@@ -1105,6 +1105,47 @@ func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook dom
 	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, modeKey, hook, agentCtx.Turns, sessionID)
 }
 
+// waitForBackgroundTasks blocks until in-flight background work (A2A tasks,
+// background shells) pushes a result onto the shared message queue or
+// quiesces, up to a2a.task.agent_mode_max_wait_seconds. Headless runs call
+// this at the completion boundary so a run never exits with orphaned
+// background tasks; chat mode never calls it (the UI ticker starts fresh
+// turns instead).
+func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
+	if s.bgRegistry == nil || s.messageQueue == nil || !s.bgRegistry.HasPending() {
+		return
+	}
+
+	maxWaitSec := 300
+	if s.config != nil && s.config.A2A.Task.AgentModeMaxWaitSeconds > 0 {
+		maxWaitSec = s.config.A2A.Task.AgentModeMaxWaitSeconds
+	}
+	deadline := time.NewTimer(time.Duration(maxWaitSec) * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	logger.Info("waiting for pending background tasks before completing",
+		"running_jobs", s.bgRegistry.CountRunning(),
+		"max_wait_seconds", maxWaitSec)
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			logger.Warn("timed out waiting for background tasks to complete",
+				"running_jobs", s.bgRegistry.CountRunning(),
+				"max_wait_seconds", maxWaitSec)
+			return
+		case <-ctx.Done():
+			return
+		}
+		if !s.messageQueue.IsEmpty() || !s.bgRegistry.HasPending() {
+			return
+		}
+	}
+}
+
 // conversationAwaitsToolResults reports whether the last message is an assistant
 // turn carrying tool_calls that have not yet been answered. Injecting a user
 // reminder in that state would orphan the tool_calls, so reminder injection is

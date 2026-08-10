@@ -124,4 +124,9 @@ type StateContext struct {
 	// DispatchHooks runs the actions attached to a hook point. State executors call it
 	// at their loop point; the streaming path calls the service directly.
 	DispatchHooks func(hook HookPoint)
+
+	// WaitForBackgroundTasks blocks until in-flight background work quiesces or
+	// posts a result to the message queue. Only non-chat runs invoke it, at the
+	// completion boundary in CheckingQueue.
+	WaitForBackgroundTasks func()
 }

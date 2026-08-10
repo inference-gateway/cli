@@ -14,7 +14,7 @@ import (
 // Internally it composes the two existing trackers and exposes their union
 // of methods plus an aggregator HasPending() that asks "is *anything*
 // happening in the background right now?". This is the single source of
-// truth that the BackgroundTasksWaiter consults between turns.
+// truth the agent engine consults at the completion boundary.
 //
 // Both embedded trackers retain their own internal mutexes; this struct
 // adds no additional locking.
@@ -71,7 +71,7 @@ func (r *backgroundTaskRegistry) ClearAllAgents() {
 }
 
 // HasPending reports whether any session-holding background job is still in
-// flight, regardless of kind - the cross-type query the BackgroundTasksWaiter
+// flight, regardless of kind - the cross-type query the agent engine
 // uses to decide whether the session is safe to close. It defers to the
 // supervisor (the single source of truth); each job opts in via
 // JobMeta.HoldsSession, so interactive subagent panes are excluded there rather

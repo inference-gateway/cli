@@ -176,6 +176,9 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		DispatchHooks: func(hook domain.HookPoint) {
 			a.service.dispatchHooks(a.agentCtx, hook)
 		},
+		WaitForBackgroundTasks: func() {
+			a.service.waitForBackgroundTasks(a.agentCtx.Ctx)
+		},
 	}
 
 	a.registerHandler(states.NewIdleState(ctx))
