@@ -63,9 +63,17 @@ func (s *CompletingState) complete() error {
 	logger.Debug("no queued messages, completing agent execution")
 
 	logger.Debug("publishing final chat completion event")
-	if s.ctx.AgentCtx.Ctx.Err() != nil {
+	switch {
+	case s.ctx.AgentCtx.Ctx.Err() != nil:
 		s.ctx.PublishChatCancelled(s.ctx.GetMetrics(s.ctx.Request.RequestID))
-	} else {
+	case s.ctx.AgentCtx.MaxTurnsExceeded:
+		s.ctx.PublishChatEvent(domain.ChatCompleteEvent{
+			RequestID:       s.ctx.Request.RequestID,
+			Timestamp:       time.Now(),
+			Metrics:         s.ctx.GetMetrics(s.ctx.Request.RequestID),
+			MaxTurnsReached: true,
+		})
+	default:
 		if s.ctx.DispatchHooks != nil {
 			s.ctx.DispatchHooks(domain.HookPostSession)
 		}

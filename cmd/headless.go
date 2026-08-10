@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -33,6 +35,20 @@ func inheritedSubagentMode() domain.AgentMode {
 	return domain.AgentModeStandard
 }
 
+// headlessOptions carries the headless command's flag values.
+type headlessOptions struct {
+	Model           string
+	Task            string
+	Files           []string
+	NoSave          bool
+	SessionID       string
+	RequireApproval bool
+	Heartbeat       bool
+	Remote          bool
+	ResultFile      string
+	Format          string
+}
+
 var headlessCmd = &cobra.Command{
 	Use:   "headless [task description]",
 	Short: "Execute a task using an autonomous agent in headless mode (non-interactive)",
@@ -51,16 +67,17 @@ Exit Codes:
   2  max turns exhausted`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		model, _ := cmd.Flags().GetString("model")
-		files, _ := cmd.Flags().GetStringSlice("files")
-		noSave, _ := cmd.Flags().GetBool("no-save")
-		sessionID, _ := cmd.Flags().GetString("session-id")
-		requireApproval, _ := cmd.Flags().GetBool("require-approval")
-		heartbeat, _ := cmd.Flags().GetBool("heartbeat")
-		remote, _ := cmd.Flags().GetBool("remote")
-		resultFile, _ := cmd.Flags().GetString("result-file")
-		format, _ := cmd.Flags().GetString("format")
-		return RunHeadlessCommand(Cfg, model, args[0], files, noSave, sessionID, requireApproval, heartbeat, remote, resultFile, format)
+		opts := headlessOptions{Task: args[0]}
+		opts.Model, _ = cmd.Flags().GetString("model")
+		opts.Files, _ = cmd.Flags().GetStringSlice("files")
+		opts.NoSave, _ = cmd.Flags().GetBool("no-save")
+		opts.SessionID, _ = cmd.Flags().GetString("session-id")
+		opts.RequireApproval, _ = cmd.Flags().GetBool("require-approval")
+		opts.Heartbeat, _ = cmd.Flags().GetBool("heartbeat")
+		opts.Remote, _ = cmd.Flags().GetBool("remote")
+		opts.ResultFile, _ = cmd.Flags().GetString("result-file")
+		opts.Format, _ = cmd.Flags().GetString("format")
+		return runHeadless(Cfg, opts)
 	},
 }
 
@@ -77,11 +94,11 @@ func init() {
 	rootCmd.AddCommand(headlessCmd)
 }
 
-func RunHeadlessCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string, requireApproval, heartbeat, remote bool, resultFile, format string) (err error) {
-	switch format {
+func runHeadless(cfg *config.Config, opts headlessOptions) (err error) {
+	switch opts.Format {
 	case "json", "ag-ui", "text":
 	default:
-		return fmt.Errorf("invalid --format %q (supported: json, ag-ui, text)", format)
+		return fmt.Errorf("invalid --format %q (supported: json, ag-ui, text)", opts.Format)
 	}
 
 	svc := container.NewServiceContainer(cfg)
@@ -106,51 +123,52 @@ func RunHeadlessCommand(cfg *config.Config, modelFlag, taskDescription string, f
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	selectedModel, err := selectModel(availModels, modelFlag, cfg.Agent.Model)
+	selectedModel, err := selectModel(availModels, opts.Model, cfg.Agent.Model)
 	if err != nil {
 		return err
 	}
 
-	if heartbeat && cfg.Prompts.Agent.SystemPromptHeartbeat != "" {
+	if opts.Heartbeat && cfg.Prompts.Agent.SystemPromptHeartbeat != "" {
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptHeartbeat
 	}
-	if remote && cfg.Prompts.Agent.SystemPromptRemote != "" {
+	if opts.Remote && cfg.Prompts.Agent.SystemPromptRemote != "" {
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptRemote
 	}
 
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
-	newSessionID := uuid.New().String()
-	if sessionID != "" {
-		newSessionID = sessionID
+	sessionID := opts.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
 	}
 
-	if !noSave {
+	if !opts.NoSave {
 		if persistentRepo, ok := conversationRepo.(*services.PersistentConversationRepository); ok {
-			persistentRepo.SetConversationID(newSessionID)
+			persistentRepo.SetConversationID(sessionID)
 		}
 	}
 
-	expanded, err := expandFileReferences(taskDescription, files, svc.GetFileService(), svc.GetImageService(), selectedModel)
+	// Expand @file references.
+	expanded, err := expandFileReferences(opts.Task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
 
 	req := &domain.AgentRequest{
-		RequestID: newSessionID,
+		RequestID: sessionID,
 		Model:     selectedModel,
 		Messages: []sdk.Message{{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(expanded),
 		}},
+		ApprovalBrokerAttached: opts.RequireApproval,
 	}
 
 	rec := svc.GetTelemetryRecorder()
-	rec.SetConversationID(newSessionID)
+	rec.SetConversationID(sessionID)
 	sessionStart := time.Now()
 	endSessionSpan := rec.StartSession("headless")
-	rec.SetConversationID(newSessionID)
 
 	events, err := agentService.RunWithStream(ctx, req)
 	if err != nil {
@@ -158,11 +176,15 @@ func RunHeadlessCommand(cfg *config.Config, modelFlag, taskDescription string, f
 		return fmt.Errorf("failed to run agent: %w", err)
 	}
 
-	switch format {
+	switch opts.Format {
 	case "json":
-		err = render.RenderJSON(events, os.Stdout, newSessionID, selectedModel, cfg, conversationRepo)
+		var stdin io.Reader
+		if opts.RequireApproval {
+			stdin = os.Stdin
+		}
+		err = render.RenderJSON(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
 	case "ag-ui":
-		err = render.RenderAGUI(events, os.Stdout, newSessionID, selectedModel)
+		err = render.RenderAGUI(events, os.Stdout, sessionID, selectedModel)
 	case "text":
 		err = render.RenderText(events, os.Stdout)
 	}
@@ -170,8 +192,8 @@ func RunHeadlessCommand(cfg *config.Config, modelFlag, taskDescription string, f
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
 
-	if resultFile != "" && err == nil {
-		writeResultFile(resultFile, conversationRepo)
+	if opts.ResultFile != "" && err == nil {
+		writeResultFile(opts.ResultFile, conversationRepo)
 	}
 	return err
 }
@@ -211,8 +233,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 		}
 
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			imageRef := domain.ImageFileRef(filename, models.SupportsVision(model))
-			expanded = regexp.MustCompile(regexp.QuoteMeta(fullMatch)).ReplaceAllString(expanded, imageRef)
+			expanded = strings.ReplaceAll(expanded, fullMatch, domain.ImageFileRef(filename, models.SupportsVision(model)))
 			continue
 		}
 
@@ -222,7 +243,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 			continue
 		}
 		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
-		expanded = regexp.MustCompile(regexp.QuoteMeta(fullMatch)).ReplaceAllString(expanded, fileBlock)
+		expanded = strings.ReplaceAll(expanded, fullMatch, fileBlock)
 	}
 
 	for _, filename := range files {

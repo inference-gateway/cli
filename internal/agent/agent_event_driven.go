@@ -146,7 +146,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 				return config.ApprovalBehaviourPrompt
 			}
 			behaviour := a.service.config.ApprovalBehaviourFor(toolCall.Function.Name)
-			return config.ResolveApprovalDelivery(behaviour, false, a.req.IsChatMode)
+			return config.ResolveApprovalDelivery(behaviour, a.req.ApprovalBrokerAttached, a.req.IsChatMode)
 		},
 		AddMessage: a.service.conversationRepo.AddMessage,
 		BatchDrainQueue: func() int {

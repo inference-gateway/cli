@@ -17,7 +17,6 @@ type aguiEncoder struct {
 	w        io.Writer
 	threadID string
 	runID    string
-	result   any
 }
 
 func (e *aguiEncoder) emit(ev aguievents.Event) {
@@ -38,11 +37,7 @@ func (e *aguiEncoder) emitRunStarted(sessionID string) {
 }
 
 func (e *aguiEncoder) emitRunFinished() {
-	opts := []aguievents.RunFinishedOption{aguievents.WithSuccessOutcome()}
-	if e.result != nil {
-		opts = append(opts, aguievents.WithResult(e.result))
-	}
-	e.emit(aguievents.NewRunFinishedEventWithOptions(e.threadID, e.runID, opts...))
+	e.emit(aguievents.NewRunFinishedEventWithOptions(e.threadID, e.runID, aguievents.WithSuccessOutcome()))
 }
 
 func (e *aguiEncoder) emitRunError(message string) {
