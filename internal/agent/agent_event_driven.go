@@ -38,6 +38,7 @@ type EventDrivenAgent struct {
 	currentMessage   sdk.Message
 	currentToolCalls []*sdk.ChatCompletionMessageToolCall
 	currentReasoning string
+	finishReason     string
 	availableTools   []sdk.ChatCompletionTool
 
 	// Tool processing state (for sequential approval and execution)

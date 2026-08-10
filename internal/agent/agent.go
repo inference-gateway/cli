@@ -43,17 +43,11 @@ type AgentServiceImpl struct {
 	hookProvider     domain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
 	recorder         *telemetry.Recorder
-
-	// Reminder cadence is session-scoped, not per-request. sessionTurns counts
-	// cumulative model turns across the whole chat session so an `interval`
-	// reminder fires on every Nth conversational turn - the per-request
-	// AgentContext.Turns resets to 1 on each user message, so keying interval
-	// off it would essentially never fire in normal chat. firedReminders backs
-	// the `once` trigger across the session. Both reset implicitly when a new
-	// chat process builds a fresh AgentServiceImpl.
-	sessionTurns   atomic.Int64
-	firedReminders map[string]bool
-	reminderMux    sync.Mutex
+	sessionTurns     atomic.Int64
+	firedReminders   map[string]bool
+	reminderMux      sync.Mutex
+	stalledStrikes   int
+	lastFinishReason string
 
 	// (name+args), reset per key on success; backs the retry-loop breaker
 	failedCalls    map[string]int

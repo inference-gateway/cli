@@ -1146,6 +1146,32 @@ func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
 	}
 }
 
+// trackStreamOutcome records the just-finished stream's finish reason and
+// updates the consecutive no-tool-call strike counter that gates the
+// post_stream continuation nudges (on_stalled_todos / on_truncation).
+func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls bool) {
+	s.reminderMux.Lock()
+	defer s.reminderMux.Unlock()
+	s.lastFinishReason = finishReason
+	if hadToolCalls {
+		s.stalledStrikes = 0
+	} else {
+		s.stalledStrikes++
+	}
+}
+
+// incompleteTodoItems filters the session todo list down to items not yet
+// completed, for the {todo_list} template of the stalled-todos nudge.
+func incompleteTodoItems(todos []domain.TodoItem) []domain.TodoItem {
+	var incomplete []domain.TodoItem
+	for _, t := range todos {
+		if t.Status != "completed" {
+			incomplete = append(incomplete, t)
+		}
+	}
+	return incomplete
+}
+
 // conversationAwaitsToolResults reports whether the last message is an assistant
 // turn carrying tool_calls that have not yet been answered. Injecting a user
 // reminder in that state would orphan the tool_calls, so reminder injection is
@@ -1199,6 +1225,13 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 	}
 	if s.stateManager != nil {
 		q.TodoCount = len(s.stateManager.GetTodos())
+	}
+	if hook == domain.HookPostStream && s.stalledStrikes > 0 {
+		q.FinishReason = s.lastFinishReason
+		q.StalledStrikes = s.stalledStrikes
+		if s.lastFinishReason != string(sdk.Length) && s.stateManager != nil {
+			q.IncompleteTodos = incompleteTodoItems(s.stateManager.GetTodos())
+		}
 	}
 	if hook == domain.HookPostTool {
 		if name, n := s.takeRepeatedFailure(); name != "" {
