@@ -22,7 +22,7 @@ func TestBuildArgs(t *testing.T) {
 
 	joined := args
 	want := []string{
-		"agent", "--session-id", "sess-1", "--remote", "--heartbeat",
+		"headless", "--session-id", "sess-1", "--remote", "--heartbeat",
 		"--require-approval", "--model", "openai/gpt-4",
 		"--files", "a.png", "--files", "b.go",
 		"--result-file", "/tmp/r.json", "do the thing",

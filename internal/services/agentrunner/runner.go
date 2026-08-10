@@ -143,7 +143,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 // buildArgs assembles the `agent` subcommand argument vector. The prompt is
 // always the final positional argument.
 func buildArgs(opts Options) []string {
-	args := []string{"agent", "--session-id", opts.SessionID}
+	args := []string{"headless", "--session-id", opts.SessionID}
 	if opts.Remote {
 		args = append(args, "--remote")
 	}

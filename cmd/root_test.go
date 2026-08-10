@@ -188,7 +188,7 @@ func TestBashAllowAppendReachesMatcher(t *testing.T) {
 
 func TestOwnsStdout(t *testing.T) {
 	assert.True(t, ownsStdout(chatCmd), "chat renders a TUI that owns stdout")
-	assert.False(t, ownsStdout(agentCmd), "headless agent may log to stdout")
+	assert.False(t, ownsStdout(headlessCmd), "headless agent may log to stdout")
 }
 
 func TestDisableStdoutLogging(t *testing.T) {
