@@ -16,6 +16,7 @@ type MemoryStorage struct {
 	conversations map[string]conversationData
 	sessionGroups map[string]SessionGroupEntry
 	scheduledJobs map[string]*domain.ScheduledJob
+	scheduledRuns map[string]*domain.RunRecord
 	plans         map[string]*PlanRecord
 	shellHistory  []string
 	mutex         sync.RWMutex
@@ -261,6 +262,54 @@ func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
 		return ErrJobNotFound
 	}
 	delete(m.scheduledJobs, id)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledRunStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SaveRun creates or updates a run record.
+func (m *MemoryStorage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.scheduledRuns == nil {
+		m.scheduledRuns = make(map[string]*domain.RunRecord)
+	}
+	cp := *run
+	m.scheduledRuns[run.SessionID] = &cp
+	return nil
+}
+
+// ListRuns returns copies of run records sorted by StartedAt descending.
+func (m *MemoryStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var runs []*domain.RunRecord
+	for _, run := range m.scheduledRuns {
+		if jobID != "" && run.JobID != jobID {
+			continue
+		}
+		cp := *run
+		runs = append(runs, &cp)
+	}
+	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (m *MemoryStorage) PruneRuns(ctx context.Context, keep int) error {
+	runs, err := m.ListRuns(ctx, "")
+	if err != nil {
+		return err
+	}
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for i := keep; i < len(runs); i++ {
+		delete(m.scheduledRuns, runs[i].SessionID)
+	}
 	return nil
 }
 

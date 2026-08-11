@@ -22,40 +22,45 @@ import (
 	cobra "github.com/spf13/cobra"
 )
 
-var channelsCmd = &cobra.Command{
-	Use:   "channels-manager",
-	Short: "Start the channel listener for remote messaging platforms",
-	Long: `Start a long-running daemon that listens for messages from external platforms
-(e.g., Telegram) and triggers the agent for each incoming message.
+var daemonCmd = &cobra.Command{
+	Use:   "daemon",
+	Short: "Start the background daemon: scheduler, channels, and heartbeat",
+	Long: `Start a long-running daemon hosting up to three subsystems, whichever are
+enabled in config:
 
-Each message spawns a new agent invocation with a deterministic session ID per sender,
-so conversations persist across messages. The agent runs autonomously, and the response
-is sent back through the originating channel.
+  - scheduler:  fires scheduled jobs (tools.schedule.enabled); each fire runs an
+    agent and records the run to storage, so job output is consumable even
+    without a delivery channel
+  - channels:   listens for messages from external platforms (e.g., Telegram)
+    and triggers the agent for each incoming message; also delivers scheduled
+    job output to the job's channel
+  - heartbeat:  periodic agent wake-ups (heartbeat.enabled)
 
-Configuration is done via .infer/channels.yaml (seeded by 'infer init') or
-INFER_CHANNELS_* environment variables. The legacy 'channels:' block in
-config.yaml is no longer read - re-run 'infer init' to migrate it.
+Each channel message spawns a new agent invocation with a deterministic session
+ID per sender, so conversations persist across messages. Channel configuration
+lives in .infer/channels.yaml (seeded by 'infer init') or INFER_CHANNELS_*
+environment variables.
 
 Examples:
-  # Start listening for Telegram messages
-  infer channels-manager
+  # Start the daemon (scheduler and/or channels, per config)
+  infer daemon
 
   # With environment variables
   INFER_CHANNELS_ENABLED=true \
   INFER_CHANNELS_TELEGRAM_ENABLED=true \
   INFER_CHANNELS_TELEGRAM_BOT_TOKEN="your-token" \
   INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789" \
-  infer channels-manager`,
+  infer daemon`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return RunChannelsCommand(Cfg)
+		return RunDaemonCommand(Cfg)
 	},
 }
 
-// RunChannelsCommand starts the channel listener daemon. The daemon
-// hosts up to three subsystems - channels, scheduler, and heartbeat -
-// and starts whichever are enabled. At least one must be enabled or
-// the daemon refuses to boot (otherwise it would just sleep forever).
-func RunChannelsCommand(cfg *config.Config) error {
+// RunDaemonCommand starts the daemon. It hosts up to three subsystems -
+// channels, scheduler, and heartbeat - and starts whichever are enabled. At
+// least one must be enabled or the daemon refuses to boot (otherwise it would
+// just sleep forever).
+func RunDaemonCommand(cfg *config.Config) error {
 	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, or heartbeat in .infer/")
 	}
@@ -86,7 +91,7 @@ func RunChannelsCommand(cfg *config.Config) error {
 		}
 	}
 
-	logger.Info("starting channels-manager", "version", version)
+	logger.Info("starting daemon", "version", version)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -170,9 +175,11 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
+	notifier := services.NewScheduleNotifier(cm.GetChannel)
 	svc, err := scheduler.NewService(scheduler.Options{
-		Store:         stores.ScheduledJobs,
-		ChannelLookup: cm.GetChannel,
+		Store:      stores.ScheduledJobs,
+		Runs:       stores.ScheduledRuns,
+		OnRunEvent: notifier.Notify,
 	})
 	if err != nil {
 		return nil, err
@@ -345,5 +352,5 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, co
 }
 
 func init() {
-	rootCmd.AddCommand(channelsCmd)
+	rootCmd.AddCommand(daemonCmd)
 }

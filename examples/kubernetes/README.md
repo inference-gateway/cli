@@ -2,7 +2,7 @@
 
 End-to-end deployment on a local [k3d](https://k3d.io/) cluster using the
 [Inference Gateway Operator](https://github.com/inference-gateway/operator):
-a Gateway, an Orchestrator (the `infer` CLI in channels-manager mode), an A2A
+a Gateway, an Orchestrator (the `infer` CLI in daemon mode), an A2A
 mock agent, and an OpenTelemetry collector - all declared as operator CRDs
 (`core.inference-gateway.com/v1alpha1`).
 
@@ -55,7 +55,7 @@ k3d cluster
 │   └── Inference Gateway Operator (reconciles the CRs below)
 └── infer namespace
     ├── Gateway "inference-gateway"      (CRD → Deployment + Service :8080)
-    ├── Orchestrator "orchestrator"      (CRD → infer CLI, channels-manager mode)
+    ├── Orchestrator "orchestrator"      (CRD → infer CLI, daemon mode)
     ├── Agent "mock-agent"               (CRD → A2A mock agent)
     ├── otel-collector                   (plain Deployment, OTLP :4317/:4318)
     ├── jaeger                           (plain Deployment, UI :16686)
@@ -150,7 +150,7 @@ task jaeger:ui   # http://localhost:16686, service "orchestrator"
 The Orchestrator runs the released `ghcr.io/inference-gateway/cli:latest`. Two
 things need a CLI new enough: the `[inference-gateway]` spans (the gateway SDK
 client must send W3C `traceparent`), and a readable TUI (the operator sets
-`INFER_LOGGING_STDOUT=true` for the channels-manager daemon, and `infer chat`
+`INFER_LOGGING_STDOUT=true` for the daemon, and `infer chat`
 must ignore it - on an older image, prefix the exec with
 `env INFER_LOGGING_STDOUT=false`). Only one process per pod can hold the
 receiver port, so an `infer headless` subprocess spawned by a channel while you
@@ -191,7 +191,7 @@ The mock gateway itself emits no spans; the last hop
 - The `infer` namespace carries the `inference-gateway.com/managed: "true"`
   label - the operator only reconciles CRs in namespaces labeled this way.
 - The `telegram-bot-credentials` Secret in `orchestrator.yaml` holds a dummy
-  token: the channels-manager needs at least one enabled channel to boot, so
+  token: the daemon with channels enabled needs at least one enabled channel to boot, so
   Telegram is enabled but its poller just logs an error and stops while the
   daemon (scheduler) keeps running. Put a real bot token in the Secret to use
   Telegram for real.

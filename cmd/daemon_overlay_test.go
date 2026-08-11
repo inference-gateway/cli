@@ -12,7 +12,7 @@ import (
 
 // TestLoadConfigFromViper_ChannelsDefaultsWhenFileAbsent confirms that
 // runtime falls back to DefaultChannelsConfig when no channels.yaml exists,
-// so a fresh checkout doesn't crash the channels-manager daemon when it
+// so a fresh checkout doesn't crash the daemon when it
 // tries to read cfg.Channels.
 func TestLoadConfigFromViper_ChannelsDefaultsWhenFileAbsent(t *testing.T) {
 	withHermeticEnv(t)

@@ -428,7 +428,7 @@ func (r *Recorder) RecordSession(mode, outcome string, dur time.Duration) {
 }
 
 // Meter returns the meter from the provider, or nil when the recorder is nil
-// or the provider is nil. Used by subsystems (e.g. channels-manager) to
+// or the provider is nil. Used by subsystems (e.g. the daemon) to
 // register their own instruments on the shared meter provider.
 func (r *Recorder) Meter() metric.Meter {
 	if r == nil || r.provider == nil {

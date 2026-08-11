@@ -32,7 +32,7 @@ type ScheduleToolResult struct {
 }
 
 // ScheduleTool lets the LLM create, inspect, and remove recurring jobs that
-// are executed by the channels-manager daemon's scheduler. Jobs are persisted
+// are executed by the daemon's scheduler. Jobs are persisted
 // through the injected storage backend; the daemon hot-reloads by polling it.
 type ScheduleTool struct {
 	config    *config.Config
@@ -261,26 +261,27 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 	if job.RunOnce {
 		mode = "one-off"
 	}
+	delivery := "output is recorded to storage (no delivery channel)"
+	if channel != "" {
+		delivery = fmt.Sprintf("output will be delivered via %s", channel)
+	}
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpCreate,
 		Job:       job,
-		Message:   fmt.Sprintf("Scheduled %s job %s created. Will fire via %s while 'infer channels-manager' is running.", mode, job.ID, channel),
+		Message:   fmt.Sprintf("Scheduled %s job %s created; %s. Fires while 'infer daemon' is running.", mode, job.ID, delivery),
 	})
 }
 
-// resolveRouting derives channel + recipient_id from the current session ID
-// (set by cmd/agent.go via domain.WithSessionID). Channel-driven sessions are
-// formatted "channel-<name>-<sender_id>" by the channels-manager. Returns an
-// error when the tool is invoked outside a channel-driven session, or when
-// the channel is not enabled in config.
+// resolveRouting derives an optional delivery target from the current session
+// ID. Channel-driven sessions ("channel-<name>-<sender_id>", set by the
+// daemon's channel manager) stamp that channel/recipient as the job's delivery
+// target; any other session creates a record-only job whose output lives in
+// storage. It only errors when the session names a channel that is not enabled
+// in config - a silent no-delivery there would hide a misconfiguration.
 func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient string, err error) {
-	sessionID := domain.GetSessionID(ctx)
-	if sessionID == "" {
-		return "", "", errors.New("schedule can only be used from a channel-driven session (no session id in context)")
-	}
-	channel, recipient, ok := domain.ParseChannelSessionID(sessionID)
+	channel, recipient, ok := domain.ParseChannelSessionID(domain.GetSessionID(ctx))
 	if !ok {
-		return "", "", fmt.Errorf("schedule can only be used from a channel-driven session; current session %q is not channel-formatted", sessionID)
+		return "", "", nil
 	}
 	if !t.channelConfigured(channel) {
 		return "", "", fmt.Errorf("channel %q is not enabled in config (enable it under channels.<name>.enabled)", channel)
@@ -484,18 +485,7 @@ func (t *ScheduleTool) formatScheduleData(data any) string {
 		fmt.Fprintf(&out, "Message: %s\n", d.Message)
 	}
 	if d.Job != nil {
-		fmt.Fprintf(&out, "Job: %s\n", d.Job.ID)
-		fmt.Fprintf(&out, "Cron: %s\n", d.Job.CronExpression)
-		fmt.Fprintf(&out, "Channel: %s -> %s\n", d.Job.Channel, d.Job.RecipientID)
-		if d.Job.Name != "" {
-			fmt.Fprintf(&out, "Name: %s\n", d.Job.Name)
-		}
-		if d.Job.LastRun != nil {
-			fmt.Fprintf(&out, "Last run: %s\n", d.Job.LastRun.Format(time.RFC3339))
-		}
-		if d.Job.LastError != "" {
-			fmt.Fprintf(&out, "Last error: %s\n", d.Job.LastError)
-		}
+		formatJobDetail(&out, d.Job)
 	}
 	if len(d.Jobs) > 0 {
 		fmt.Fprintf(&out, "Jobs (%d):\n", len(d.Jobs))
@@ -505,6 +495,24 @@ func (t *ScheduleTool) formatScheduleData(data any) string {
 		}
 	}
 	return out.String()
+}
+
+// formatJobDetail renders one job's fields, omitting empty optionals.
+func formatJobDetail(out *strings.Builder, job *domain.ScheduledJob) {
+	fmt.Fprintf(out, "Job: %s\n", job.ID)
+	fmt.Fprintf(out, "Cron: %s\n", job.CronExpression)
+	if job.Channel != "" {
+		fmt.Fprintf(out, "Channel: %s -> %s\n", job.Channel, job.RecipientID)
+	}
+	if job.Name != "" {
+		fmt.Fprintf(out, "Name: %s\n", job.Name)
+	}
+	if job.LastRun != nil {
+		fmt.Fprintf(out, "Last run: %s\n", job.LastRun.Format(time.RFC3339))
+	}
+	if job.LastError != "" {
+		fmt.Fprintf(out, "Last error: %s\n", job.LastError)
+	}
 }
 
 // ShouldCollapseArg controls per-arg collapsing in the chat UI.

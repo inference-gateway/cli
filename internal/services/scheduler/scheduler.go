@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,24 +18,24 @@ import (
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 
-// ChannelLookupFn returns the registered Channel for a name, or nil if unknown.
-type ChannelLookupFn func(name string) domain.Channel
-
-// Service runs scheduled jobs inside the channels-manager daemon. Jobs are
+// Service runs scheduled jobs inside the `infer daemon` process. Jobs are
 // loaded from the configured ScheduledJobStorage, registered with a robfig/cron
 // scheduler, and hot-reloaded by polling the storage and diffing (reconcile).
 //
 // On fire, a fresh `infer headless --session-id <uuid>` subprocess is spawned -
 // every fire gets a brand-new session, so no context carries between runs.
-// Each assistant line emitted by the agent is forwarded to the configured
-// channel/recipient via the in-process channel lookup.
+// A RunRecord is persisted per fire (keyed by that session ID, so the run's
+// conversation is discoverable from storage), and progress is emitted through
+// the optional OnRunEvent hook. The scheduler knows nothing about channels -
+// delivery is a subscriber concern (see services.ScheduleNotifier).
 type Service struct {
-	store         storage.ScheduledJobStorage
-	cron          *cron.Cron
-	parser        cron.Parser
-	channelLookup ChannelLookupFn
-	execCmd       agentrunner.ExecFunc
-	binaryPath    string
+	store      storage.ScheduledJobStorage
+	runs       storage.ScheduledRunStorage
+	onRunEvent func(domain.ScheduledJob, domain.RunEvent)
+	cron       *cron.Cron
+	parser     cron.Parser
+	execCmd    agentrunner.ExecFunc
+	binaryPath string
 
 	mu       sync.Mutex
 	entryIDs map[string]cron.EntryID
@@ -51,10 +50,18 @@ type Service struct {
 // the jobs in storage.
 const pollInterval = 2 * time.Second
 
+// maxRunRecords caps how many run records are retained across all jobs.
+// ponytail: global cap; per-job retention if one chatty job ever starves the rest.
+const maxRunRecords = 200
+
 // Options bundles dependencies and configuration for NewService.
 type Options struct {
-	Store         storage.ScheduledJobStorage
-	ChannelLookup ChannelLookupFn
+	Store storage.ScheduledJobStorage
+	Runs  storage.ScheduledRunStorage
+	// OnRunEvent, when non-nil, receives every run event: one event per raw
+	// agent stdout line (Line valid only for the duration of the call), and a
+	// terminal event with Done set (Err non-nil on failure).
+	OnRunEvent func(domain.ScheduledJob, domain.RunEvent)
 	// ExecCommand defaults to exec.CommandContext when nil.
 	ExecCommand agentrunner.ExecFunc
 	// BinaryPath defaults to os.Args[0] (current binary) when empty.
@@ -66,19 +73,20 @@ func NewService(opts Options) (*Service, error) {
 	if opts.Store == nil {
 		return nil, errors.New("scheduler: Store is required")
 	}
-	if opts.ChannelLookup == nil {
-		return nil, errors.New("scheduler: ChannelLookup is required")
+	if opts.Runs == nil {
+		return nil, errors.New("scheduler: Runs is required")
 	}
 	parser := cron.NewParser(
 		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 	)
 	return &Service{
-		store:         opts.Store,
-		parser:        parser,
-		channelLookup: opts.ChannelLookup,
-		execCmd:       opts.ExecCommand,
-		binaryPath:    opts.BinaryPath,
-		entryIDs:      make(map[string]cron.EntryID),
+		store:      opts.Store,
+		runs:       opts.Runs,
+		onRunEvent: opts.OnRunEvent,
+		parser:     parser,
+		execCmd:    opts.ExecCommand,
+		binaryPath: opts.BinaryPath,
+		entryIDs:   make(map[string]cron.EntryID),
 	}, nil
 }
 
@@ -174,7 +182,7 @@ func (s *Service) registerJob(job *domain.ScheduledJob) error {
 	}
 	s.entryIDs[id] = eid
 	s.mu.Unlock()
-	logger.Info("scheduled job registered", "id", id, "cron", job.CronExpression, "channel", job.Channel)
+	logger.Info("scheduled job registered", "id", id, "cron", job.CronExpression)
 	return nil
 }
 
@@ -189,56 +197,53 @@ func (s *Service) removeJob(id string) {
 	}
 }
 
-// fire runs a single execution of the job: spawns `infer headless`, streams
-// stdout into channel messages, and persists run metadata back to the store.
+// emit forwards a run event to the subscriber, if any.
+func (s *Service) emit(job domain.ScheduledJob, e domain.RunEvent) {
+	if s.onRunEvent != nil {
+		s.onRunEvent(job, e)
+	}
+}
+
+// fire runs a single execution of the job: persists a RunRecord, spawns
+// `infer headless`, streams stdout lines through the OnRunEvent hook, and
+// persists the run outcome plus the job's LastRun/LastError metadata.
 func (s *Service) fire(job domain.ScheduledJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	logger.Info("firing scheduled job", "id", job.ID, "channel", job.Channel)
-
 	now := time.Now().UTC()
 	job.LastRun = &now
-
-	ch := s.channelLookup(job.Channel)
-	if ch == nil {
-		job.LastError = fmt.Sprintf("channel %q is not registered", job.Channel)
-		logger.Error("scheduled job: channel not found", "id", job.ID, "channel", job.Channel)
-		s.persistRun(&job)
-		return
+	run := &domain.RunRecord{
+		SessionID: uuid.New().String(),
+		JobID:     job.ID,
+		Status:    domain.RunStatusRunning,
+		StartedAt: now,
 	}
+	logger.Info("firing scheduled job", "id", job.ID, "session_id", run.SessionID)
+	s.saveRun(run)
 
-	var firstSendErr error
-	sendFn := func(content string) {
-		if content == "" {
-			return
-		}
-		out := domain.OutboundMessage{
-			ChannelName: job.Channel,
-			RecipientID: job.RecipientID,
-			Content:     content,
-			Timestamp:   time.Now(),
-		}
-		if err := ch.Send(ctx, out); err != nil {
-			logger.Error("failed to send scheduled-job output", "id", job.ID, "channel", job.Channel, "error", err)
-			if firstSendErr == nil {
-				firstSendErr = err
-			}
-		}
-	}
-
-	switch err := s.runAgent(ctx, job, sendFn); {
-	case err != nil:
+	err := s.runAgent(ctx, job, run.SessionID)
+	finished := time.Now().UTC()
+	run.FinishedAt = &finished
+	if err != nil {
+		run.Status = domain.RunStatusFailed
+		run.Error = err.Error()
 		job.LastError = err.Error()
 		logger.Error("scheduled job execution failed", "id", job.ID, "error", err)
-		sendFn(fmt.Sprintf("⚠️ Scheduled task %q failed: %v", displayName(&job), err))
-	case firstSendErr != nil:
-		job.LastError = fmt.Sprintf("delivery to %s/%s failed: %v", job.Channel, job.RecipientID, firstSendErr)
-	default:
+	} else {
+		run.Status = domain.RunStatusCompleted
 		job.LastError = ""
 	}
+	s.saveRun(run)
+	if pruneErr := s.runs.PruneRuns(context.Background(), maxRunRecords); pruneErr != nil {
+		logger.Warn("failed to prune run records", "error", pruneErr)
+	}
+	s.emit(job, domain.RunEvent{Done: true, Err: err})
 
 	if job.RunOnce {
+		// Unregister immediately - waiting for the next poll tick would let
+		// short intervals (e.g. @every 2s) fire again before the delete lands.
+		s.removeJob(job.ID)
 		if err := s.store.DeleteJob(context.Background(), job.ID); err != nil {
 			logger.Warn("failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
 		} else {
@@ -247,6 +252,14 @@ func (s *Service) fire(job domain.ScheduledJob) {
 		return
 	}
 	s.persistRun(&job)
+}
+
+// saveRun persists a run record. Errors are only logged - a failed record
+// write must not abort the run itself.
+func (s *Service) saveRun(run *domain.RunRecord) {
+	if err := s.runs.SaveRun(context.Background(), run); err != nil {
+		logger.Warn("failed to persist run record", "job_id", run.JobID, "session_id", run.SessionID, "error", err)
+	}
 }
 
 // persistRun writes the updated LastRun/LastError back to disk. Errors are
@@ -264,19 +277,17 @@ func (s *Service) persistRun(job *domain.ScheduledJob) {
 	}
 }
 
-// runAgent spawns `infer headless --session-id <new-uuid> <prompt>` (via the shared
-// agentrunner) and forwards each formatted assistant line through sendFn.
-func (s *Service) runAgent(ctx context.Context, job domain.ScheduledJob, sendFn func(string)) error {
+// runAgent spawns `infer headless --session-id <sessionID> <prompt>` (via the
+// shared agentrunner) and forwards each stdout line through the run-event hook.
+func (s *Service) runAgent(ctx context.Context, job domain.ScheduledJob, sessionID string) error {
 	res, err := agentrunner.Run(ctx, agentrunner.Options{
 		BinaryPath: s.binaryPath,
 		Exec:       s.execCmd,
-		SessionID:  uuid.New().String(),
+		SessionID:  sessionID,
 		Prompt:     job.Prompt,
 		Model:      job.Model,
 		OnLine: func(line []byte) {
-			if msg := formatAgentLine(line); msg != "" {
-				sendFn(msg)
-			}
+			s.emit(job, domain.RunEvent{Line: line})
 		},
 	})
 	if err != nil {
@@ -286,50 +297,6 @@ func (s *Service) runAgent(ctx context.Context, job domain.ScheduledJob, sendFn 
 		return err
 	}
 	return nil
-}
-
-// formatAgentLine is a near-duplicate of services.formatAgentMessage. It's
-// kept here to avoid an import cycle (services -> services/scheduler ->
-// services). Behaviour must stay in sync with the original.
-func formatAgentLine(line []byte) string {
-	var msg map[string]any
-	if err := json.Unmarshal(line, &msg); err != nil {
-		return ""
-	}
-	if _, isStatus := msg["type"]; isStatus {
-		return ""
-	}
-	role, _ := msg["role"].(string)
-	switch role {
-	case "assistant":
-		content, _ := msg["content"].(string)
-		if tools, ok := msg["tools"].([]any); ok && len(tools) > 0 {
-			toolNames := make([]string, 0, len(tools))
-			for _, t := range tools {
-				if name, ok := t.(string); ok {
-					toolNames = append(toolNames, name)
-				}
-			}
-			toolMsg := fmt.Sprintf("🔧 Using tool: %s", strings.Join(toolNames, ", "))
-			if content != "" {
-				return content + "\n\n" + toolMsg
-			}
-			return toolMsg
-		}
-		if content != "" {
-			return content
-		}
-	case "tool":
-		return ""
-	}
-	return ""
-}
-
-func displayName(job *domain.ScheduledJob) string {
-	if job.Name != "" {
-		return job.Name
-	}
-	return job.ID
 }
 
 // startPoller reconciles cron entries against storage once synchronously (so

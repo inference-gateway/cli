@@ -297,7 +297,7 @@ type AskUserQuestionToolConfig struct {
 // When enabled, the tool lets the LLM create recurring jobs that fire on a
 // cron schedule and deliver their output through a configured channel
 // (e.g. Telegram). Jobs are persisted through the configured storage backend
-// and hot-reloaded by the channels-manager daemon.
+// and hot-reloaded by the daemon.
 type ScheduleToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`

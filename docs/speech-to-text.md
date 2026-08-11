@@ -82,7 +82,7 @@ Append `.en` (e.g. `base.en`) for English-only variants. You can also pass a ful
 
 ## Telegram voice messages
 
-When `speech_to_text.enabled` is set and you run `infer channels-manager`, voice notes sent to your
+When `speech_to_text.enabled` is set and you run `infer daemon`, voice notes sent to your
 Telegram bot are downloaded, decoded with `ffmpeg`, transcribed, and forwarded to the agent as text.
 When speech-to-text is disabled, voice messages are ignored (as before). See
 [Channels](channels.md) for channel setup.

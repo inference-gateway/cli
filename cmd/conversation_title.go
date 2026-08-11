@@ -99,7 +99,7 @@ var statusTitlesCmd = &cobra.Command{
 	},
 }
 
-var daemonCmd = &cobra.Command{
+var titleDaemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "Run conversation title generation daemon",
 	Long:  `Run the background job manager as a daemon to continuously generate titles for conversations.`,
@@ -141,6 +141,6 @@ var daemonCmd = &cobra.Command{
 func init() {
 	conversationTitleCmd.AddCommand(generateTitlesCmd)
 	conversationTitleCmd.AddCommand(statusTitlesCmd)
-	conversationTitleCmd.AddCommand(daemonCmd)
+	conversationTitleCmd.AddCommand(titleDaemonCmd)
 	rootCmd.AddCommand(conversationTitleCmd)
 }

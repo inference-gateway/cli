@@ -377,7 +377,7 @@ for SCM tickets like GitHub issues, CI/CD pipelines, and automated workflows.
 - `--no-save`: Disable saving conversation to database
 - `--require-approval`: Enable IPC-based tool approval via stdin/stdout (used by channel manager)
 - `--heartbeat`: Use heartbeat system prompt (used by the heartbeat service)
-- `--remote`: Use remote-control system prompt (used by the channels-manager daemon)
+- `--remote`: Use remote-control system prompt (used by the daemon)
 - `--result-file`: Write the final assistant message and outcome as JSON to this path on exit
 - `--format json|ag-ui|text`: Output format (default json)
 

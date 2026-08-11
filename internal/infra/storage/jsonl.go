@@ -1003,6 +1003,90 @@ func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
 }
 
 // ---------------------------------------------------------------------------
+// ScheduledRunStorage (JsonlStorage) - one YAML file per run
+// ---------------------------------------------------------------------------
+
+// runsDir returns the path to the schedule run-records directory.
+func (s *JsonlStorage) runsDir() string {
+	return filepath.Join(s.schedulesDir(), "runs")
+}
+
+// runFilePath returns the YAML path for a given run session ID.
+func (s *JsonlStorage) runFilePath(sessionID string) string {
+	return filepath.Join(s.runsDir(), sessionID+".yaml")
+}
+
+// SaveRun writes the run record to disk atomically as YAML.
+func (s *JsonlStorage) SaveRun(_ context.Context, run *domain.RunRecord) error {
+	if run == nil || run.SessionID == "" {
+		return errors.New("run session ID is required")
+	}
+	dir := s.runsDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create runs dir %s: %w", dir, err)
+	}
+	data, err := yaml.Marshal(run)
+	if err != nil {
+		return fmt.Errorf("failed to marshal run %s: %w", run.SessionID, err)
+	}
+	final := s.runFilePath(run.SessionID)
+	tmp := final + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to rename %s -> %s: %w", tmp, final, err)
+	}
+	return nil
+}
+
+// ListRuns returns run records sorted by StartedAt descending.
+func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*domain.RunRecord, error) {
+	entries, err := os.ReadDir(s.runsDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read runs dir: %w", err)
+	}
+	var runs []*domain.RunRecord
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.runsDir(), e.Name()))
+		if err != nil {
+			continue
+		}
+		run := &domain.RunRecord{}
+		if err := yaml.Unmarshal(data, run); err != nil {
+			continue
+		}
+		if jobID != "" && run.JobID != jobID {
+			continue
+		}
+		runs = append(runs, run)
+	}
+	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (s *JsonlStorage) PruneRuns(ctx context.Context, keep int) error {
+	runs, err := s.ListRuns(ctx, "")
+	if err != nil {
+		return err
+	}
+	for i := keep; i < len(runs); i++ {
+		_ = os.Remove(s.runFilePath(runs[i].SessionID))
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // PlanStorage (JsonlStorage) - file-based, keeps historical paths
 // ---------------------------------------------------------------------------
 
