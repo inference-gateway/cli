@@ -217,16 +217,13 @@ func (gm *GatewayManager) stopBinary() error {
 
 	if gm.hasLiveRegistrations() {
 		logger.Debug("other gateway users still active, deferring binary shutdown")
-		gm.isRunning = false
-		gm.binaryCmd = nil
-		return nil
+	} else {
+		gm.killGateway()
+		gm.removeGatewayPID()
+		logger.Info("gateway binary stopped")
 	}
-
-	gm.killGateway()
-	gm.removeGatewayPID()
 	gm.isRunning = false
 	gm.binaryCmd = nil
-	logger.Info("gateway binary stopped")
 	return nil
 }
 
@@ -251,22 +248,23 @@ func (gm *GatewayManager) killGateway() {
 	}
 }
 
-// pidsDir returns the consumer PID registry directory (~/.infer/gateway/pids).
-func (gm *GatewayManager) pidsDir() string {
+// inferGatewayDir returns the gateway state directory (~/.infer/gateway).
+func (gm *GatewayManager) inferGatewayDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(".infer", "gateway", "pids")
+		return filepath.Join(".infer", "gateway")
 	}
-	return filepath.Join(home, ".infer", "gateway", "pids")
+	return filepath.Join(home, ".infer", "gateway")
+}
+
+// pidsDir returns the consumer PID registry directory (~/.infer/gateway/pids).
+func (gm *GatewayManager) pidsDir() string {
+	return filepath.Join(gm.inferGatewayDir(), "pids")
 }
 
 // gatewayPIDPath returns the gateway binary PID file path (~/.infer/gateway/gateway.pid).
 func (gm *GatewayManager) gatewayPIDPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".infer", "gateway", "gateway.pid")
-	}
-	return filepath.Join(home, ".infer", "gateway", "gateway.pid")
+	return filepath.Join(gm.inferGatewayDir(), "gateway.pid")
 }
 
 // registerPID drops a PID file for this consumer process.
