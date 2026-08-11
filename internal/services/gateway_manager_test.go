@@ -43,27 +43,22 @@ func TestPIDRegistry(t *testing.T) {
 	// Register our own PID too.
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(os.Getpid())), nil, 0644)
 
-	// 3 PIDs: con1, con2, self
 	if !gm.hasLiveRegistrations() {
 		t.Fatal("expected live registrations after registering PIDs")
 	}
 
-	// Deregister our own PID — still 2 left, no kill.
 	gm.deregisterPID()
 	if !gm.hasLiveRegistrations() {
 		t.Fatal("expected live registrations after deregistering self, 2 still alive")
 	}
 
-	// Gateway should still be alive.
 	if err := syscall.Kill(gwCmd.Process.Pid, syscall.Signal(0)); err != nil {
 		t.Fatal("gateway was killed while other consumers were still registered")
 	}
 
-	// Kill consumer 1 but leave its PID file — stale entry.
 	_ = con1.Process.Kill()
-	_ = con1.Wait() // reap so signal-0 probe sees the process as gone
+	_ = con1.Wait()
 
-	// Kill consumer 2 as well.
 	_ = con2.Process.Kill()
 	_ = con2.Wait()
 
@@ -74,7 +69,6 @@ func TestPIDRegistry(t *testing.T) {
 		t.Fatal("expected no live registrations after all consumers exited")
 	}
 
-	// Stale PID file for con1 should have been removed by prune.
 	if _, err := os.Stat(filepath.Join(pidsDir, strconv.Itoa(con1.Process.Pid))); !os.IsNotExist(err) {
 		t.Error("stale PID file was not pruned")
 	}

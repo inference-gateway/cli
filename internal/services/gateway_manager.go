@@ -306,7 +306,6 @@ func (gm *GatewayManager) pruneStalePIDs() {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 			continue
 		}
-		// Signal 0 probe: no error means the process exists.
 		if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 		}
