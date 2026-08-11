@@ -220,6 +220,8 @@ func (t *ScheduleTool) channelConfigured(name string) bool {
 		return t.config.Channels.Telegram.Enabled
 	case "whatsapp":
 		return t.config.Channels.WhatsApp.Enabled
+	case "local":
+		return t.config.Channels.Local.Enabled
 	default:
 		return false
 	}

@@ -337,6 +337,12 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, co
 	// 	logger.Info("registered channel", "channel", "whatsapp")
 	// }
 
+	if cfg.Channels.Local.Enabled {
+		cm.Register(channels.NewLocalChannel(true))
+		registered++
+		logger.Info("registered channel", "channel", "local")
+	}
+
 	if registered == 0 {
 		return fmt.Errorf("no channels are enabled. Enable at least one channel in config")
 	}

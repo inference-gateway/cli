@@ -70,6 +70,18 @@ export INFER_TOOLS_SCHEDULE_ENABLED=true
 The Schedule tool refuses to create a job for a channel that isn't enabled. Set up
 Telegram (or any other supported channel) following [Channels Guide](channels.md).
 
+For local/desktop scheduling without an external messaging platform, enable the
+local channel in `.infer/channels.yaml` (or through env vars):
+
+```yaml
+local:
+      enabled: true
+```
+
+```bash
+export INFER_CHANNELS_LOCAL_ENABLED=true
+```
+
 ### 3. Run the daemon
 
 ```bash

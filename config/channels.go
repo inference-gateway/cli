@@ -22,6 +22,14 @@ type ChannelsConfig struct {
 	RequireApproval bool                  `yaml:"require_approval" mapstructure:"require_approval"`
 	Telegram        TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
 	WhatsApp        WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+	Local           LocalChannelConfig    `yaml:"local" mapstructure:"local"`
+}
+
+// LocalChannelConfig is a no-dependency channel that writes scheduled job output
+// to a local JSONL file so headless/desktop sessions can consume it without
+// Telegram or WhatsApp. No additional configuration needed beyond enabled: true.
+type LocalChannelConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // TelegramChannelConfig contains Telegram bot settings
@@ -101,6 +109,9 @@ func DefaultChannelsConfig() *ChannelsConfig {
 			VerifyToken:   "",
 			WebhookPort:   8443,
 			AllowedUsers:  []string{},
+		},
+		Local: LocalChannelConfig{
+			Enabled: false,
 		},
 	}
 }
