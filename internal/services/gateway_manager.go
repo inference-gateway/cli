@@ -13,7 +13,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -92,6 +94,8 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 		logger.Info("gateway is already running on port")
 		fmt.Println("• Gateway is already running")
 		gm.isRunning = true
+		gm.registerPID()
+		logger.Debug("registered PID on existing gateway")
 		return nil
 	}
 
@@ -120,6 +124,8 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 	}
 
 	gm.isRunning = true
+	gm.registerPID()
+	gm.writeGatewayPID()
 	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
 	logger.Info("gateway binary started successfully", "url", gm.config.Gateway.URL)
 	return nil
@@ -199,23 +205,173 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 	return stopErr
 }
 
-// stopBinary stops the binary process
+// stopBinary stops the binary process using PID-file reference counting.
+// Every process that started or attached to the shared binary registers
+// its PID in ~/.infer/gateway/pids/. On stop, it deregisters itself and
+// prunes stale entries (crashed processes). The binary is killed only
+// when the last live registration is gone - whichever process exits last
+// turns off the lights.
 func (gm *GatewayManager) stopBinary() error {
-	if gm.binaryCmd == nil || gm.binaryCmd.Process == nil {
+	gm.deregisterPID()
+	gm.pruneStalePIDs()
+
+	if gm.hasLiveRegistrations() {
+		logger.Debug("other gateway users still active, deferring binary shutdown")
+		gm.isRunning = false
+		gm.binaryCmd = nil
 		return nil
 	}
 
-	logger.Info("stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
-
-	if err := gm.binaryCmd.Process.Kill(); err != nil {
-		logger.Warn("failed to kill binary process", "error", err)
-		return err
-	}
-
+	// Last one out: kill the gateway process.
+	gm.killGateway()
+	gm.removeGatewayPID()
 	gm.isRunning = false
 	gm.binaryCmd = nil
 	logger.Info("gateway binary stopped")
 	return nil
+}
+
+// killGateway kills the shared gateway process, using the saved gateway
+// PID file or the in-process binaryCmd handle as fallback.
+func (gm *GatewayManager) killGateway() {
+	if pid := gm.readGatewayPID(); pid > 0 {
+		logger.Info("last process stopping gateway binary", "pid", pid)
+		proc, err := os.FindProcess(pid)
+		if err == nil {
+			if err := proc.Kill(); err != nil {
+				logger.Warn("failed to kill gateway binary", "pid", pid, "error", err)
+			}
+		}
+		return
+	}
+	if gm.binaryCmd != nil && gm.binaryCmd.Process != nil {
+		logger.Info("last process stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
+		if err := gm.binaryCmd.Process.Kill(); err != nil {
+			logger.Warn("failed to kill gateway binary", "error", err)
+		}
+	}
+}
+
+// pidsDir returns the consumer PID registry directory (~/.infer/gateway/pids).
+func (gm *GatewayManager) pidsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".infer", "gateway", "pids")
+	}
+	return filepath.Join(home, ".infer", "gateway", "pids")
+}
+
+// gatewayPIDPath returns the gateway binary PID file path (~/.infer/gateway/gateway.pid).
+func (gm *GatewayManager) gatewayPIDPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".infer", "gateway", "gateway.pid")
+	}
+	return filepath.Join(home, ".infer", "gateway", "gateway.pid")
+}
+
+// registerPID drops a PID file for this consumer process.
+func (gm *GatewayManager) registerPID() {
+	pidDir := gm.pidsDir()
+	if err := os.MkdirAll(pidDir, 0755); err != nil {
+		logger.Warn("failed to create PID directory", "error", err)
+		return
+	}
+	pidPath := filepath.Join(pidDir, strconv.Itoa(os.Getpid()))
+	if err := os.WriteFile(pidPath, nil, 0644); err != nil {
+		logger.Warn("failed to register PID", "error", err)
+	}
+}
+
+// deregisterPID removes this process's PID file.
+func (gm *GatewayManager) deregisterPID() {
+	pidPath := filepath.Join(gm.pidsDir(), strconv.Itoa(os.Getpid()))
+	if err := os.Remove(pidPath); err != nil && !os.IsNotExist(err) {
+		logger.Warn("failed to deregister PID", "error", err)
+	}
+}
+
+// pruneStalePIDs removes PID files for processes that are no longer alive.
+func (gm *GatewayManager) pruneStalePIDs() {
+	pidDir := gm.pidsDir()
+	entries, err := os.ReadDir(pidDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			_ = os.Remove(filepath.Join(pidDir, e.Name()))
+			continue
+		}
+		// Signal 0 probe: no error means the process exists.
+		if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
+			_ = os.Remove(filepath.Join(pidDir, e.Name()))
+		}
+	}
+}
+
+// hasLiveRegistrations reports whether any consumer PID files (excluding
+// this process) correspond to still-alive processes.
+func (gm *GatewayManager) hasLiveRegistrations() bool {
+	pidDir := gm.pidsDir()
+	entries, err := os.ReadDir(pidDir)
+	if err != nil {
+		return false
+	}
+	myPID := os.Getpid()
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || pid == myPID {
+			continue
+		}
+		if err := syscall.Kill(pid, syscall.Signal(0)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// writeGatewayPID writes the spawned gateway binary's PID to the shared file.
+func (gm *GatewayManager) writeGatewayPID() {
+	if gm.binaryCmd == nil || gm.binaryCmd.Process == nil {
+		return
+	}
+	pidDir := filepath.Dir(gm.gatewayPIDPath())
+	if err := os.MkdirAll(pidDir, 0755); err != nil {
+		logger.Warn("failed to create gateway PID directory", "error", err)
+		return
+	}
+	data := strconv.Itoa(gm.binaryCmd.Process.Pid)
+	if err := os.WriteFile(gm.gatewayPIDPath(), []byte(data), 0644); err != nil {
+		logger.Warn("failed to write gateway PID", "error", err)
+	}
+}
+
+// readGatewayPID reads the gateway binary PID from the shared file, or 0.
+func (gm *GatewayManager) readGatewayPID() int {
+	data, err := os.ReadFile(gm.gatewayPIDPath())
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return pid
+}
+
+// removeGatewayPID removes the gateway PID file.
+func (gm *GatewayManager) removeGatewayPID() {
+	if err := os.Remove(gm.gatewayPIDPath()); err != nil && !os.IsNotExist(err) {
+		logger.Warn("failed to remove gateway PID file", "error", err)
+	}
 }
 
 // stopContainer stops the container (network cleanup is handled in Stop() method)
