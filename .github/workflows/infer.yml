@@ -75,6 +75,7 @@ jobs:
       k3d: true
       plugins: |
         DietrichGebert/ponytail
+        ayghri/i-have-adhd
       browser: ${{ inputs.browser || false }}
       browser_engine: ${{ inputs.browser_engine || 'chromium' }}
       review_inline: ${{ inputs.review_inline || true }}
