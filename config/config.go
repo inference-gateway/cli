@@ -914,6 +914,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					ConfigDirName + "/",
 					".git/",
 					"*.env",
+					"auth.json",
 				},
 			},
 			Bash: BashToolConfig{
