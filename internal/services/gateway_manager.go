@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -306,7 +305,7 @@ func (gm *GatewayManager) pruneAndCheckLive() bool {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 			continue
 		}
-		if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
+		if !processAlive(pid) {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 			continue
 		}

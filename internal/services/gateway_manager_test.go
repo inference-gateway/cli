@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"testing"
 )
 
@@ -50,7 +49,7 @@ func TestPIDRegistry(t *testing.T) {
 		t.Fatal("expected live registrations after deregistering self, 2 still alive")
 	}
 
-	if err := syscall.Kill(gwCmd.Process.Pid, syscall.Signal(0)); err != nil {
+	if !processAlive(gwCmd.Process.Pid) {
 		t.Fatal("gateway was killed while other consumers were still registered")
 	}
 
