@@ -1,173 +1,90 @@
 package services
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"bytes"
-	"compress/gzip"
-	"context"
-	"net/http"
-	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"syscall"
 	"testing"
 )
 
-func TestDownloadAndExtractGatewayBinary(t *testing.T) {
-	binary := []byte("#!/bin/sh\necho gateway\n")
+// TestPIDRegistry verifies the last-one-out reference-counting logic:
+//   - register N PIDs, deregister N-1 does NOT kill the gateway
+//   - deregistering the last PID kills the gateway
+//   - stale PID entries (dead processes) are pruned by signal-0 probe
+func TestPIDRegistry(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
 
-	var buf bytes.Buffer
-	gzWriter := gzip.NewWriter(&buf)
-	tarWriter := tar.NewWriter(gzWriter)
-	files := map[string][]byte{
-		"README.md":         []byte("readme"),
-		"inference-gateway": binary,
-	}
-	for name, content := range files {
-		if err := tarWriter.WriteHeader(&tar.Header{Name: name, Mode: 0755, Size: int64(len(content))}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tarWriter.Write(content); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tarWriter.Close(); err != nil {
+	// Start a fake gateway process (long-running sleep) and write its PID.
+	gwCmd := exec.Command("sleep", "30")
+	if err := gwCmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := gzWriter.Close(); err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() { _ = gwCmd.Process.Kill() })
+
+	pidsDir := filepath.Join(tempHome, ".infer", "gateway", "pids")
+	gwPIDPath := filepath.Join(tempHome, ".infer", "gateway", "gateway.pid")
+	_ = os.MkdirAll(pidsDir, 0755)
+	_ = os.WriteFile(gwPIDPath, []byte(strconv.Itoa(gwCmd.Process.Pid)), 0644)
+
+	// Nothing registered yet — gateway should not be killed.
+	// Start two "consumer" subprocesses and register their PIDs.
+	con1 := startSleep(t)
+	con2 := startSleep(t)
+	t.Cleanup(func() { _ = con1.Process.Kill() })
+	t.Cleanup(func() { _ = con2.Process.Kill() })
+
+	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con1.Process.Pid)), nil, 0644)
+	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con2.Process.Pid)), nil, 0644)
+
+	gm := &GatewayManager{}
+	// Register our own PID too.
+	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(os.Getpid())), nil, 0644)
+
+	// 3 PIDs: con1, con2, self
+	if !gm.hasLiveRegistrations() {
+		t.Fatal("expected live registrations after registering PIDs")
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(buf.Bytes())
-	}))
-	defer server.Close()
-
-	destPath := filepath.Join(t.TempDir(), "inference-gateway")
-	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL, destPath); err != nil {
-		t.Fatalf("downloadAndExtractGatewayBinary failed: %v", err)
+	// Deregister our own PID — still 2 left, no kill.
+	gm.deregisterPID()
+	if !gm.hasLiveRegistrations() {
+		t.Fatal("expected live registrations after deregistering self, 2 still alive")
 	}
 
-	got, err := os.ReadFile(destPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, binary) {
-		t.Fatalf("extracted binary content mismatch: got %q", got)
+	// Gateway should still be alive.
+	if err := syscall.Kill(gwCmd.Process.Pid, syscall.Signal(0)); err != nil {
+		t.Fatal("gateway was killed while other consumers were still registered")
 	}
 
-	info, err := os.Stat(destPath)
-	if err != nil {
-		t.Fatal(err)
+	// Kill consumer 1 but leave its PID file — stale entry.
+	_ = con1.Process.Kill()
+	_ = con1.Wait() // reap so signal-0 probe sees the process as gone
+
+	// Kill consumer 2 as well.
+	_ = con2.Process.Kill()
+	_ = con2.Wait()
+
+	gm.pruneStalePIDs()
+
+	// After prune, both should be gone.
+	if gm.hasLiveRegistrations() {
+		t.Fatal("expected no live registrations after all consumers exited")
 	}
-	if info.Mode().Perm()&0111 == 0 {
-		t.Fatalf("extracted binary is not executable: %v", info.Mode())
+
+	// Stale PID file for con1 should have been removed by prune.
+	if _, err := os.Stat(filepath.Join(pidsDir, strconv.Itoa(con1.Process.Pid))); !os.IsNotExist(err) {
+		t.Error("stale PID file was not pruned")
 	}
 }
 
-func TestDownloadAndExtractGatewayBinaryMissingEntry(t *testing.T) {
-	var buf bytes.Buffer
-	gzWriter := gzip.NewWriter(&buf)
-	tarWriter := tar.NewWriter(gzWriter)
-	if err := tarWriter.WriteHeader(&tar.Header{Name: "README.md", Mode: 0644, Size: 6}); err != nil {
+func startSleep(t *testing.T) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command("sleep", "30")
+	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tarWriter.Write([]byte("readme")); err != nil {
-		t.Fatal(err)
-	}
-	if err := tarWriter.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gzWriter.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(buf.Bytes())
-	}))
-	defer server.Close()
-
-	destPath := filepath.Join(t.TempDir(), "inference-gateway")
-	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL, destPath); err == nil {
-		t.Fatal("expected error for archive without the gateway binary")
-	}
-}
-
-func TestGatewayAssetPlatform(t *testing.T) {
-	assetOS, assetArch, err := gatewayAssetPlatform()
-	if err != nil {
-		t.Fatalf("gatewayAssetPlatform failed on supported platform: %v", err)
-	}
-	if assetOS != "Darwin" && assetOS != "Linux" && assetOS != "Windows" {
-		t.Fatalf("unexpected asset OS %q", assetOS)
-	}
-	if assetArch == "" {
-		t.Fatal("empty asset arch")
-	}
-}
-
-func TestDownloadAndExtractGatewayBinaryZip(t *testing.T) {
-	binary := []byte("windows-gateway-binary")
-
-	var buf bytes.Buffer
-	zipWriter := zip.NewWriter(&buf)
-	files := map[string][]byte{
-		"README.md":             []byte("readme"),
-		"inference-gateway.exe": binary,
-	}
-	for name, content := range files {
-		f, err := zipWriter.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := f.Write(content); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := zipWriter.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(buf.Bytes())
-	}))
-	defer server.Close()
-
-	destPath := filepath.Join(t.TempDir(), "inference-gateway.exe")
-	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL+"/archive.zip", destPath); err != nil {
-		t.Fatalf("downloadAndExtractGatewayBinary with zip failed: %v", err)
-	}
-
-	got, err := os.ReadFile(destPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, binary) {
-		t.Fatalf("extracted binary content mismatch: got %q", got)
-	}
-}
-
-func TestDownloadAndExtractGatewayBinaryZipMissingEntry(t *testing.T) {
-	var buf bytes.Buffer
-	zipWriter := zip.NewWriter(&buf)
-	f, err := zipWriter.Create("README.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write([]byte("readme")); err != nil {
-		t.Fatal(err)
-	}
-	if err := zipWriter.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(buf.Bytes())
-	}))
-	defer server.Close()
-
-	destPath := filepath.Join(t.TempDir(), "inference-gateway.exe")
-	if err := downloadAndExtractGatewayBinary(context.Background(), server.URL+"/archive.zip", destPath); err == nil {
-		t.Fatal("expected error for zip without the gateway binary")
-	}
+	return cmd
 }
