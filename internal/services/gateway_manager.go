@@ -222,7 +222,6 @@ func (gm *GatewayManager) stopBinary() error {
 		return nil
 	}
 
-	// Last one out: kill the gateway process.
 	gm.killGateway()
 	gm.removeGatewayPID()
 	gm.isRunning = false
