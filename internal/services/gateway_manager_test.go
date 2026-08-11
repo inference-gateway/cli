@@ -41,12 +41,13 @@ func TestPIDRegistry(t *testing.T) {
 	// Register our own PID too.
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(os.Getpid())), nil, 0644)
 
-	if !gm.hasLiveRegistrations() {
+	if !gm.pruneAndCheckLive() {
 		t.Fatal("expected live registrations after registering PIDs")
 	}
 
 	gm.deregisterPID()
-	if !gm.hasLiveRegistrations() {
+
+	if !gm.pruneAndCheckLive() {
 		t.Fatal("expected live registrations after deregistering self, 2 still alive")
 	}
 
@@ -60,10 +61,8 @@ func TestPIDRegistry(t *testing.T) {
 	_ = con2.Process.Kill()
 	_ = con2.Wait()
 
-	gm.pruneStalePIDs()
-
-	// After prune, both should be gone.
-	if gm.hasLiveRegistrations() {
+	// pruneAndCheckLive prunes dead entries and reports whether any live remain.
+	if gm.pruneAndCheckLive() {
 		t.Fatal("expected no live registrations after all consumers exited")
 	}
 

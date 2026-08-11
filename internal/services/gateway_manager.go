@@ -213,9 +213,8 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 // turns off the lights.
 func (gm *GatewayManager) stopBinary() error {
 	gm.deregisterPID()
-	gm.pruneStalePIDs()
 
-	if gm.hasLiveRegistrations() {
+	if gm.pruneAndCheckLive() {
 		logger.Debug("other gateway users still active, deferring binary shutdown")
 	} else {
 		gm.killGateway()
@@ -288,13 +287,16 @@ func (gm *GatewayManager) deregisterPID() {
 	}
 }
 
-// pruneStalePIDs removes PID files for processes that are no longer alive.
-func (gm *GatewayManager) pruneStalePIDs() {
+// pruneAndCheckLive prunes stale consumer PID files (dead processes) and
+// reports whether any live registrations remain. Our own PID is already
+// deregistered before this is called.
+func (gm *GatewayManager) pruneAndCheckLive() bool {
 	pidDir := gm.pidsDir()
 	entries, err := os.ReadDir(pidDir)
 	if err != nil {
-		return
+		return false
 	}
+	anyLive := false
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -306,32 +308,11 @@ func (gm *GatewayManager) pruneStalePIDs() {
 		}
 		if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
-		}
-	}
-}
-
-// hasLiveRegistrations reports whether any consumer PID files (excluding
-// this process) correspond to still-alive processes.
-func (gm *GatewayManager) hasLiveRegistrations() bool {
-	pidDir := gm.pidsDir()
-	entries, err := os.ReadDir(pidDir)
-	if err != nil {
-		return false
-	}
-	myPID := os.Getpid()
-	for _, e := range entries {
-		if e.IsDir() {
 			continue
 		}
-		pid, err := strconv.Atoi(e.Name())
-		if err != nil || pid == myPID {
-			continue
-		}
-		if err := syscall.Kill(pid, syscall.Signal(0)); err == nil {
-			return true
-		}
+		anyLive = true
 	}
-	return false
+	return anyLive
 }
 
 // writeGatewayPID writes the spawned gateway binary's PID to the shared file.
