@@ -29,8 +29,6 @@ func TestPIDRegistry(t *testing.T) {
 	_ = os.MkdirAll(pidsDir, 0755)
 	_ = os.WriteFile(gwPIDPath, []byte(strconv.Itoa(gwCmd.Process.Pid)), 0644)
 
-	// Nothing registered yet — gateway should not be killed.
-	// Start two "consumer" subprocesses and register their PIDs.
 	con1 := startSleep(t)
 	con2 := startSleep(t)
 	t.Cleanup(func() { _ = con1.Process.Kill() })
