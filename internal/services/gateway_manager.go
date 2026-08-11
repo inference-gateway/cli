@@ -207,7 +207,7 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 
 // stopBinary stops the binary process using PID-file reference counting.
 // Every process that started or attached to the shared binary registers
-// its PID in ~/.infer/gateway/pids/. On stop, it deregisters itself and
+// its PID in ~/.infer/run/pids/. On stop, it deregisters itself and
 // prunes stale entries (crashed processes). The binary is killed only
 // when the last live registration is gone - whichever process exits last
 // turns off the lights.
@@ -248,23 +248,23 @@ func (gm *GatewayManager) killGateway() {
 	}
 }
 
-// inferGatewayDir returns the gateway state directory (~/.infer/gateway).
-func (gm *GatewayManager) inferGatewayDir() string {
+// inferRunDir returns the runtime state directory (~/.infer/run).
+func (gm *GatewayManager) inferRunDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(".infer", "gateway")
+		return filepath.Join(".infer", "run")
 	}
-	return filepath.Join(home, ".infer", "gateway")
+	return filepath.Join(home, ".infer", "run")
 }
 
-// pidsDir returns the consumer PID registry directory (~/.infer/gateway/pids).
+// pidsDir returns the consumer PID registry directory (~/.infer/run/pids).
 func (gm *GatewayManager) pidsDir() string {
-	return filepath.Join(gm.inferGatewayDir(), "pids")
+	return filepath.Join(gm.inferRunDir(), "pids")
 }
 
-// gatewayPIDPath returns the gateway binary PID file path (~/.infer/gateway/gateway.pid).
+// gatewayPIDPath returns the gateway binary PID file path (~/.infer/run/gateway.pid).
 func (gm *GatewayManager) gatewayPIDPath() string {
-	return filepath.Join(gm.inferGatewayDir(), "gateway.pid")
+	return filepath.Join(gm.inferRunDir(), "gateway.pid")
 }
 
 // registerPID drops a PID file for this consumer process.

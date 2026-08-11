@@ -24,8 +24,8 @@ func TestPIDRegistry(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = gwCmd.Process.Kill() })
 
-	pidsDir := filepath.Join(tempHome, ".infer", "gateway", "pids")
-	gwPIDPath := filepath.Join(tempHome, ".infer", "gateway", "gateway.pid")
+	pidsDir := filepath.Join(tempHome, ".infer", "run", "pids")
+	gwPIDPath := filepath.Join(tempHome, ".infer", "run", "gateway.pid")
 	_ = os.MkdirAll(pidsDir, 0755)
 	_ = os.WriteFile(gwPIDPath, []byte(strconv.Itoa(gwCmd.Process.Pid)), 0644)
 
