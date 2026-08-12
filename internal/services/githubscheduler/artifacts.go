@@ -267,6 +267,11 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 			continue
 		}
 		dest := filepath.Join(p.opts.ConversationsDir, name)
+		// Zip-slip guard: the flattened name can never escape, but keep the
+		// containment check explicit (and CodeQL-recognizable).
+		if !strings.HasPrefix(dest, filepath.Clean(p.opts.ConversationsDir)+string(os.PathSeparator)) {
+			continue
+		}
 		if _, err := os.Stat(dest); err == nil {
 			continue
 		}
