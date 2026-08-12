@@ -123,3 +123,28 @@ func TestArchiveLogFile(t *testing.T) {
 		}
 	})
 }
+
+func TestReopenFileSinkRecreatesDeletedLogFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "logs", "app.log")
+	sink := &reopenFileSink{path: path}
+	defer func() { _ = sink.Close() }()
+
+	if _, err := sink.Write([]byte("first\n")); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := sink.Write([]byte("second\n")); err != nil {
+		t.Fatalf("write after delete: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("log file not recreated: %v", err)
+	}
+	if string(data) != "second\n" {
+		t.Fatalf("expected recreated file to contain only the second line, got %q", string(data))
+	}
+}

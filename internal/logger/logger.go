@@ -4,7 +4,10 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"path/filepath"
+	"sync"
 	"time"
 
 	zap "go.uber.org/zap"
@@ -64,9 +67,19 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 		}
 	}
 
+	absLogFile, err := filepath.Abs(logFile)
+	if err != nil {
+		absLogFile = logFile
+	}
+	registerReopenSinkOnce.Do(func() {
+		_ = zap.RegisterSink("reopen", func(u *url.URL) (zap.Sink, error) {
+			return &reopenFileSink{path: u.Path}, nil
+		})
+	})
+
 	zapCfg := zap.NewProductionConfig()
-	zapCfg.OutputPaths = []string{logFile}
-	zapCfg.ErrorOutputPaths = []string{logFile}
+	zapCfg.OutputPaths = []string{"reopen://" + absLogFile}
+	zapCfg.ErrorOutputPaths = []string{"reopen://" + absLogFile}
 
 	if cfg.Stdout {
 		zapCfg.OutputPaths = append(zapCfg.OutputPaths, "stdout")
@@ -78,6 +91,68 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 	}
 
 	return zapCfg.Build(zap.AddCallerSkip(1))
+}
+
+// registerReopenSinkOnce guards zap's global sink registry: RegisterSink errors
+// on a duplicate scheme and Init runs more than once (e.g. disableStdoutLogging).
+var registerReopenSinkOnce sync.Once
+
+// reopenFileSink is a zap sink that reopens its file (recreating the parent
+// directory) whenever the path no longer exists, so deleting the logs directory
+// mid-session resumes logging instead of writing to a dead fd forever.
+// ponytail: one os.Stat per log write; buffer behind zapcore.BufferedWriteSyncer if it ever shows up in a profile.
+type reopenFileSink struct {
+	mu   sync.Mutex
+	path string
+	file *os.File
+}
+
+func (s *reopenFileSink) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.ensureOpen(); err != nil {
+		return 0, err
+	}
+	return s.file.Write(p)
+}
+
+func (s *reopenFileSink) ensureOpen() error {
+	if s.file != nil {
+		if _, err := os.Stat(s.path); err == nil {
+			return nil
+		}
+		_ = s.file.Close()
+		s.file = nil
+	}
+	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(s.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	s.file = f
+	return nil
+}
+
+func (s *reopenFileSink) Sync() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file == nil {
+		return nil
+	}
+	return s.file.Sync()
+}
+
+func (s *reopenFileSink) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file == nil {
+		return nil
+	}
+	err := s.file.Close()
+	s.file = nil
+	return err
 }
 
 // GetGlobalLogger returns the global logger instance
