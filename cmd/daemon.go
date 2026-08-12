@@ -52,6 +52,10 @@ Examples:
   INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789" \
   infer daemon`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Dedicated log file: the scheduler's headless subprocesses share this
+		// cwd and write app-<date>.log, so the daemon gets its own.
+		loggerCfg.FilePrefix = "daemon"
+		logger.Init(loggerCfg)
 		return RunDaemonCommand(Cfg)
 	},
 }

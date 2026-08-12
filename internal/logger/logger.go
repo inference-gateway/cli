@@ -26,6 +26,8 @@ type Config struct {
 	Stdout           bool
 	ArchiveEnabled   bool
 	ArchiveMaxSizeMB int
+	// FilePrefix names the log file (<prefix>-<date>.log); defaults to "app".
+	FilePrefix string
 }
 
 // Init initializes the global logger (for migration period)
@@ -50,7 +52,11 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 		return zap.NewNop(), err
 	}
 
-	logFile := fmt.Sprintf("%s/app-%s.log", logDir, time.Now().Format("2006-01-02"))
+	prefix := cfg.FilePrefix
+	if prefix == "" {
+		prefix = "app"
+	}
+	logFile := fmt.Sprintf("%s/%s-%s.log", logDir, prefix, time.Now().Format("2006-01-02"))
 
 	if cfg.ArchiveEnabled {
 		if err := archiveLogFile(logFile, cfg.ArchiveMaxSizeMB); err != nil {
