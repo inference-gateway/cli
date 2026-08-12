@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,6 +55,11 @@ Examples:
   INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789" \
   infer daemon`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if V.GetString("logging.dir") == "" {
+			if home, err := os.UserHomeDir(); err == nil {
+				loggerCfg.LogDir = filepath.Join(home, config.ConfigDirName, config.LogsDirName)
+			}
+		}
 		loggerCfg.FilePrefix = "daemon"
 		loggerCfg.Stdout = true
 		logger.Init(loggerCfg)
@@ -67,6 +75,12 @@ func RunDaemonCommand(cfg *config.Config) error {
 	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, or heartbeat in .infer/")
 	}
+
+	release, err := acquireDaemonLock()
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	telemetry.ExecutionMode = telemetry.ExecDaemon
 	sessionID := domain.GenerateSessionID()
@@ -164,6 +178,30 @@ func RunDaemonCommand(cfg *config.Config) error {
 
 // startScheduler initialises the schedule scheduler service when the schedule
 // tool is enabled. Returns nil scheduler when disabled.
+// acquireDaemonLock enforces one daemon per machine via a PID file in
+// ~/.infer/run/daemon.pid (next to gateway.pid). Stale files (dead PID) are
+// overwritten. The returned release func removes the file.
+// ponytail: check-then-write race; flock if two daemons ever start in the same instant.
+func acquireDaemonLock() (func(), error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return func() {}, nil
+	}
+	pidPath := filepath.Join(home, config.ConfigDirName, "run", "daemon.pid")
+	if data, err := os.ReadFile(pidPath); err == nil {
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid != os.Getpid() && services.ProcessAlive(pid) {
+			return nil, fmt.Errorf("daemon already running (pid %d); stop it or remove %s", pid, pidPath)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+		return nil, err
+	}
+	return func() { _ = os.Remove(pidPath) }, nil
+}
+
 func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg *config.Config) (*scheduler.Service, error) {
 	if !cfg.Tools.Schedule.Enabled {
 		return nil, nil
