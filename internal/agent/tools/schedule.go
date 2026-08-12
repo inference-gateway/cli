@@ -211,6 +211,16 @@ func optionalBool(args map[string]any, key string) bool {
 	return v
 }
 
+// prSuffix surfaces the pull-request URL when the store deployed the change
+// via a PR (github backend with pull_requests enabled). Direct-push deploys
+// and the local backend return "".
+func prSuffix(store storage.ScheduledJobStorage) string {
+	if pr, ok := store.(interface{ LastPRURL() string }); ok && pr.LastPRURL() != "" {
+		return " Review and merge the PR to deploy: " + pr.LastPRURL()
+	}
+	return ""
+}
+
 // channelConfigured reports whether the named channel is enabled in config.
 // We only check the channel's *enabled* flag - runtime registration is the
 // daemon's job.
@@ -265,10 +275,15 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 	if channel != "" {
 		delivery = fmt.Sprintf("output will be delivered via %s", channel)
 	}
+	execution := "Fires while 'infer daemon' is running."
+	if t.config.Scheduler.Backend == config.SchedulerBackendGitHub {
+		execution = "Runs on GitHub Actions (schedules fire in UTC)."
+	}
+	msg := fmt.Sprintf("Scheduled %s job %s created; %s. %s", mode, job.ID, delivery, execution)
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpCreate,
 		Job:       job,
-		Message:   fmt.Sprintf("Scheduled %s job %s created; %s. Fires while 'infer daemon' is running.", mode, job.ID, delivery),
+		Message:   msg + prSuffix(store),
 	})
 }
 
@@ -363,7 +378,7 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJo
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpUpdate,
 		Job:       job,
-		Message:   fmt.Sprintf("Updated job %s.", id),
+		Message:   fmt.Sprintf("Updated job %s.", id) + prSuffix(store),
 	})
 }
 
@@ -377,7 +392,7 @@ func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJo
 	}
 	return t.success(args, start, &ScheduleToolResult{
 		Operation: scheduleOpDelete,
-		Message:   fmt.Sprintf("Deleted job %s.", id),
+		Message:   fmt.Sprintf("Deleted job %s.", id) + prSuffix(store),
 	})
 }
 

@@ -837,6 +837,17 @@ tools:
 - `INFER_STORAGE_REDIS_PASSWORD`: Redis password
 - `INFER_STORAGE_REDIS_DB`: Redis database number (default: `0`)
 
+### Scheduler Configuration
+
+- `INFER_SCHEDULER_BACKEND`: Scheduling backend, `local` or `github` (default: `local`). See the [Scheduling Guide](scheduling.md#github-backend)
+- `INFER_SCHEDULER_GITHUB_REPOSITORY`: Repository for GitHub-backed schedules (default: `<login>/.routines`)
+- `INFER_SCHEDULER_GITHUB_PULL_REQUESTS`: Deploy schedule changes via pull request instead of pushing to the default branch (default: `false`)
+- `INFER_SCHEDULER_GITHUB_ARTIFACTS_ENABLED`: Pull conversation artifacts from GitHub-backed runs into local storage (default: `true`)
+- `INFER_SCHEDULER_GITHUB_ARTIFACTS_POLL_INTERVAL`: Artifact poll interval (default: `10m`)
+- `INFER_SCHEDULER_GITHUB_ARTIFACTS_INITIAL_DELAY`: Delay before the first poll (default: `1m`)
+- `INFER_SCHEDULER_GITHUB_ARTIFACTS_MAX_ATTEMPTS`: Download attempts per artifact before it is skipped (default: `3`)
+- `INFER_SCHEDULER_GITHUB_ARTIFACTS_RATE_LIMIT_BACKOFF`: Polling pause after a rate-limited GitHub API call (default: `1h`)
+
 ### Conversation Configuration
 
 - `INFER_CONVERSATION_TITLE_GENERATION_ENABLED`: Enable AI-powered title generation (default: `true`)

@@ -48,10 +48,10 @@ func NewService(runner CommandRunner) *Service {
 // Version pins and defaults for the generated .github/workflows/infer.yml.
 // Bumping any of these is a one-line change picked up by both templates.
 const (
-	inferActionVersion     = "v0.29.0"
-	checkoutActionVersion  = "v7.0.0"
-	appTokenActionVersion  = "v3.2.0"
-	workflowDefaultModel   = "ollama_cloud/deepseek-v4-flash"
+	InferActionVersion     = "v0.46.4"
+	CheckoutActionVersion  = "v7.0.1"
+	AppTokenActionVersion  = "v3.2.0"
+	DefaultWorkflowModel   = "ollama_cloud/deepseek-v4-flash"
 	workflowTimeoutMinutes = 15
 )
 
@@ -136,7 +136,7 @@ jobs:
 // workflowAgentInputs is the shared tail of the "Run Infer Agent" step: the
 // agent defaults and the provider API key pass-throughs.
 const workflowAgentInputs = `          trigger-phrase: '@infer'
-          model: ` + workflowDefaultModel + `
+          model: ` + DefaultWorkflowModel + `
           direct-prompt: ${{ inputs.prompt }}
           agents: ${{ inputs.browser-agent && 'browser-agent' || '' }}
           debug: ${{ inputs.debug }}
@@ -246,7 +246,7 @@ func (s *Service) GenerateStandardWorkflowContent() string {
         uses: inference-gateway/infer-action@%s
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-`, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
+`, CheckoutActionVersion, InferActionVersion) + workflowAgentInputs
 }
 
 // GenerateGithubActionWorkflowContent generates the GitHub App-based workflow
@@ -288,7 +288,7 @@ func (s *Service) GenerateGithubActionWorkflowContent() string {
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           github-app-slug: ${{ steps.app-token.outputs.app-slug }}
-`, appTokenActionVersion, checkoutActionVersion, inferActionVersion) + workflowAgentInputs
+`, AppTokenActionVersion, CheckoutActionVersion, InferActionVersion) + workflowAgentInputs
 }
 
 // PreparePRCreation creates a branch, commits the workflow file, pushes it,
