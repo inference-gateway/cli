@@ -33,6 +33,7 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
+	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
@@ -339,6 +340,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	stores, err := storage.NewStorage(storageConfig)
+	if stores != nil && c.config.Scheduler.Backend == config.SchedulerBackendGitHub {
+		stores.ScheduledJobs = githubscheduler.NewStore(stores.ScheduledJobs, &githubsetup.RealRunner{}, c.config.Scheduler.GitHub, c.config.Agent.Model)
+	}
 	c.stores = stores
 
 	c.imageAnnotator = c.createImageAnnotator()

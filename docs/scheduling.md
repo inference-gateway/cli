@@ -110,6 +110,76 @@ Standard 5-field crontab format: `minute hour day-of-month month day-of-week`.
 The full grammar (including `@every`, `@daily`, `@hourly` descriptors) is documented
 at [robfig/cron](https://pkg.go.dev/github.com/robfig/cron/v3#hdr-CRON_Expression_Format).
 
+## GitHub backend
+
+Set `scheduler.backend: github` to run schedules on GitHub Actions instead of a
+local daemon - cloud scheduling with zero user-owned infrastructure. Each job is
+materialized as one scheduled workflow (`.github/workflows/<job-id>.yml`) in a
+repository you configure; the workflow runs the job's prompt via
+[`inference-gateway/infer-action`](https://github.com/inference-gateway/infer-action)
+under your infer GitHub App's bot identity.
+
+```yaml
+# .infer/config.yaml
+scheduler:
+  backend: github
+  github:
+    repository: "" # "" => <your login>/.routines, created private on first save
+    pull_requests: false # true => deploy via PR instead of pushing to main
+    artifacts:
+      enabled: true
+      poll_interval: 10m
+      initial_delay: 1m
+      max_attempts: 3 # download attempts per artifact, then skipped
+      rate_limit_backoff: 1h # pause after a rate-limited GitHub API call
+```
+
+How it behaves:
+
+- **Save → deploy.** Creating, updating, or deleting a job clones the repo,
+  writes (or removes) that job's workflow file, and pushes the commit to the
+  default branch. With `pull_requests: true` the change lands on a branch and a
+  PR is opened instead - merging deploys, and the PR is the review step and
+  audit trail.
+- **Repo auto-creation.** If the configured repository does not exist it is
+  created private (default name `.routines` under the authenticated user). All
+  GitHub access goes through the `gh` CLI, so `gh auth login` must be done once.
+- **Cron is translated.** GitHub Actions cron is UTC-only, 5-field, minimum
+  5-minute interval. Descriptors are translated (`@daily` → `0 0 * * *`,
+  `@every 10m` → `*/10 * * * *`, ...); expressions that cannot be expressed
+  (e.g. `@every 7m`, `* * * * *`) are rejected at save time with a clear error.
+- **One-off jobs.** `run_once` jobs render a final step that disables the
+  workflow after its first fire (the file stays in the repo, disabled).
+- **Conversation pull-back.** The workflow uploads the run's conversation
+  `*.jsonl` files as an Actions artifact (`infer-conversations-<run_id>`). While
+  `infer daemon` is running, an artifact poller downloads new artifacts into
+  local conversation storage on the configured interval (jsonl storage backend
+  only). Each artifact gets up to `max_attempts` download attempts; a
+  rate-limited API call pauses polling for `rate_limit_backoff`.
+- **Local list stays authoritative for the CLI.** Jobs are still recorded
+  locally, so `list`/`get`/`update`/`delete` work as usual. A failed GitHub sync
+  aborts the save entirely - no phantom jobs.
+
+### Required repository secrets
+
+The CLI never writes secrets. Set these as Actions secrets on the routines
+repository (Settings → Secrets and variables → Actions):
+
+- `APP_CLIENT_ID` / `APP_PRIVATE_KEY` - your infer GitHub App's client ID and
+  private key; the workflow mints an installation token with
+  `actions/create-github-app-token` and runs infer-action as the App bot. For
+  `run_once` self-disabling, the App needs the **Actions (read & write)**
+  repository permission.
+- The API key secret(s) for your provider(s): `ANTHROPIC_API_KEY`,
+  `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`,
+  `MISTRAL_API_KEY`, `CLOUDFLARE_API_KEY`, `COHERE_API_KEY`,
+  `OLLAMA_CLOUD_API_KEY`, `MOONSHOT_API_KEY`, `MINIMAX_API_KEY`,
+  `NVIDIA_API_KEY`, `ZAI_API_KEY`. Only the ones for the models your jobs use
+  are needed.
+
+Out of scope for this backend (first cut): channel delivery of job output,
+syncing runs into local `RunRecord`s.
+
 ## Tool operations
 
 The `Schedule` tool is a single tool with an `operation` parameter. The LLM picks

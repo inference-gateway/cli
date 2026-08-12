@@ -231,7 +231,7 @@ func TestGenerateGithubActionWorkflowContent(t *testing.T) {
 	assertWorkflowCommon(t, content)
 
 	for _, want := range []string{
-		"actions/create-github-app-token@" + appTokenActionVersion,
+		"actions/create-github-app-token@" + AppTokenActionVersion,
 		"client-id: ${{ secrets.INFER_APP_ID }}",
 		"private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}",
 		"github-token: ${{ steps.app-token.outputs.token }}",
@@ -255,10 +255,10 @@ func assertWorkflowCommon(t *testing.T, content string) {
 	}
 
 	for _, want := range []string{
-		"inference-gateway/infer-action@" + inferActionVersion,
-		"actions/checkout@" + checkoutActionVersion,
+		"inference-gateway/infer-action@" + InferActionVersion,
+		"actions/checkout@" + CheckoutActionVersion,
 		"timeout-minutes: 15",
-		"model: " + workflowDefaultModel,
+		"model: " + DefaultWorkflowModel,
 		"workflow_dispatch:",
 		"browser-agent:",
 		"debug:",

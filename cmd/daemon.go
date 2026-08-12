@@ -17,6 +17,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
+	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
+	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -140,11 +142,26 @@ func RunDaemonCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start heartbeat: %w", err)
 	}
 
+	poller, err := startArtifactPoller(ctx, cfg)
+	if err != nil {
+		// Artifact polling is a convenience; the daemon still serves its other
+		// subsystems if it cannot start (e.g. gh not authenticated).
+		logger.Error("failed to start github artifact poller", "error", err)
+	}
+
 	logger.Info("daemon ready. Press Ctrl+C to stop.")
 
 	<-sigChan
 	logger.Info("shutting down...")
 	cancel()
+
+	if poller != nil {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := poller.Stop(stopCtx); err != nil {
+			logger.Error("failed to stop github artifact poller", "error", err)
+		}
+		stopCancel()
+	}
 
 	if hb != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -206,6 +223,10 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 	if !cfg.Tools.Schedule.Enabled {
 		return nil, nil
 	}
+	if cfg.Scheduler.Backend == config.SchedulerBackendGitHub {
+		logger.Info("scheduler backend is github; jobs run on GitHub Actions, local cron disabled")
+		return nil, nil
+	}
 
 	storageConfig := storage.NewStorageFromConfig(cfg)
 	if storageConfig.Type == config.StorageTypeMemory {
@@ -221,6 +242,73 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 		Store:      stores.ScheduledJobs,
 		Runs:       stores.ScheduledRuns,
 		OnRunEvent: notifier.Notify,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := svc.Start(ctx); err != nil {
+		return nil, err
+	}
+	return svc, nil
+}
+
+// startArtifactPoller starts the GitHub artifact poller when the github
+// scheduler backend is active with artifacts enabled. It pulls conversation
+// jsonl files uploaded by GitHub-backed job runs into local storage, so it
+// only runs on the jsonl storage backend. Returns nil when not applicable.
+func startArtifactPoller(ctx context.Context, cfg *config.Config) (*githubscheduler.ArtifactPoller, error) {
+	art := cfg.Scheduler.GitHub.Artifacts
+	if cfg.Scheduler.Backend != config.SchedulerBackendGitHub || !art.Enabled {
+		return nil, nil
+	}
+	if cfg.Storage.Type != config.StorageTypeJsonl {
+		logger.Warn("github artifact polling requires storage.type jsonl; skipping", "type", cfg.Storage.Type)
+		return nil, nil
+	}
+
+	interval, err := time.ParseDuration(art.PollInterval)
+	if err != nil {
+		return nil, fmt.Errorf("parse scheduler.github.artifacts.poll_interval %q: %w", art.PollInterval, err)
+	}
+	var initialDelay time.Duration
+	if art.InitialDelay != "" {
+		if initialDelay, err = time.ParseDuration(art.InitialDelay); err != nil {
+			return nil, fmt.Errorf("parse scheduler.github.artifacts.initial_delay %q: %w", art.InitialDelay, err)
+		}
+	}
+	backoff := time.Hour
+	if art.RateLimitBackoff != "" {
+		if backoff, err = time.ParseDuration(art.RateLimitBackoff); err != nil {
+			return nil, fmt.Errorf("parse scheduler.github.artifacts.rate_limit_backoff %q: %w", art.RateLimitBackoff, err)
+		}
+	}
+
+	runner := &githubsetup.RealRunner{}
+	repo, err := githubscheduler.ResolveRepo(ctx, runner, cfg.Scheduler.GitHub.Repository)
+	if err != nil {
+		return nil, err
+	}
+
+	conversationsDir := cfg.Storage.Jsonl.Path
+	if strings.HasPrefix(conversationsDir, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			conversationsDir = filepath.Join(home, strings.TrimPrefix(conversationsDir, "~"))
+		}
+	}
+	statePath := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		statePath = filepath.Join(home, config.ConfigDirName, "schedules", "github-artifacts-state.json")
+	}
+
+	svc, err := githubscheduler.NewArtifactPoller(githubscheduler.ArtifactPollerOptions{
+		Runner:           runner,
+		Repo:             repo,
+		ConversationsDir: conversationsDir,
+		StatePath:        statePath,
+		Interval:         interval,
+		InitialDelay:     initialDelay,
+		MaxAttempts:      art.MaxAttempts,
+		RateLimitBackoff: backoff,
 	})
 	if err != nil {
 		return nil, err

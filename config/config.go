@@ -42,6 +42,7 @@ type Config struct {
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Git              GitConfig              `yaml:"git" mapstructure:"git"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Scheduler        SchedulerConfig        `yaml:"scheduler" mapstructure:"scheduler"`
 	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
@@ -695,6 +696,42 @@ const (
 	StorageTypeD1       StorageType = "d1"
 )
 
+// SchedulerBackend selects who executes scheduled jobs.
+const (
+	SchedulerBackendLocal  = "local"  // `infer daemon` cron on this machine (default)
+	SchedulerBackendGitHub = "github" // GitHub Actions scheduled workflows in a repo
+)
+
+// SchedulerConfig selects the scheduling backend. With the default "local"
+// backend jobs fire inside `infer daemon`. With "github" every job is
+// materialized as a GitHub Actions scheduled workflow in the configured repo;
+// each save opens a PR and merging deploys the schedule.
+type SchedulerConfig struct {
+	Backend string                `yaml:"backend" mapstructure:"backend"`
+	GitHub  SchedulerGitHubConfig `yaml:"github" mapstructure:"github"`
+}
+
+// SchedulerGitHubConfig configures the github scheduling backend.
+type SchedulerGitHubConfig struct {
+	// Repository is "<owner>/<name>". Empty means "<authenticated user>/.routines".
+	Repository string `yaml:"repository" mapstructure:"repository"`
+	// PullRequests, when true, routes every save through a pull request instead
+	// of pushing workflow changes directly to the default branch.
+	PullRequests bool                     `yaml:"pull_requests" mapstructure:"pull_requests"`
+	Artifacts    SchedulerArtifactsConfig `yaml:"artifacts" mapstructure:"artifacts"`
+}
+
+// SchedulerArtifactsConfig controls the daemon-hosted poller that downloads
+// conversation artifacts uploaded by GitHub-backed job runs into local
+// conversation storage.
+type SchedulerArtifactsConfig struct {
+	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
+	PollInterval     string `yaml:"poll_interval" mapstructure:"poll_interval"`
+	InitialDelay     string `yaml:"initial_delay" mapstructure:"initial_delay"`
+	MaxAttempts      int    `yaml:"max_attempts" mapstructure:"max_attempts"`             // per artifact, then skipped permanently
+	RateLimitBackoff string `yaml:"rate_limit_backoff" mapstructure:"rate_limit_backoff"` // pause after a rate-limited API call
+}
+
 // TelemetryConfig controls the OpenTelemetry metrics the CLI records - tool
 // outcomes, token usage, sessions. The recorded data is written as OTLP/semconv
 // JSON under <config-dir>/telemetry (always, private - no prompt/response
@@ -1120,6 +1157,20 @@ func DefaultConfig() *Config { //nolint:funlen
 				DatabaseID: "",
 				APIToken:   "",
 				BaseURL:    "https://api.cloudflare.com/client/v4",
+			},
+		},
+		Scheduler: SchedulerConfig{
+			Backend: SchedulerBackendLocal,
+			GitHub: SchedulerGitHubConfig{
+				Repository:   "",
+				PullRequests: false,
+				Artifacts: SchedulerArtifactsConfig{
+					Enabled:          true,
+					PollInterval:     "10m",
+					InitialDelay:     "1m",
+					MaxAttempts:      3,
+					RateLimitBackoff: "1h",
+				},
 			},
 		},
 		Telemetry: TelemetryConfig{
