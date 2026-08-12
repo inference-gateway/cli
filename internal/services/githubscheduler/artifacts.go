@@ -23,6 +23,7 @@ type ArtifactPollerOptions struct {
 	Runner           CommandRunner
 	Repo             string // "<owner>/<name>", already resolved
 	ConversationsDir string // local dir jsonl files are extracted into
+	ArtifactsDir     string // local dir non-jsonl files (images, reports) are extracted into; empty skips them
 	StatePath        string // cursor/attempts persistence file
 	Interval         time.Duration
 	InitialDelay     time.Duration
@@ -102,6 +103,7 @@ func (p *ArtifactPoller) Start(ctx context.Context) error {
 		"repo", p.opts.Repo,
 		"interval", p.opts.Interval.String(),
 		"conversations_dir", p.opts.ConversationsDir,
+		"artifacts_dir", p.opts.ArtifactsDir,
 	)
 
 	p.wg.Add(1)
@@ -237,7 +239,7 @@ func (p *ArtifactPoller) tick(ctx context.Context) error {
 	return nil
 }
 
-// download fetches one artifact zip and extracts its jsonl files. The bool
+// download fetches one artifact zip and extracts its files. The bool
 // reports a rate-limited failure (which must not consume an attempt).
 func (p *ArtifactPoller) download(ctx context.Context, id int64) (bool, error) {
 	out, err := p.runGH(ctx, ghNetworkTimeout,
@@ -251,8 +253,9 @@ func (p *ArtifactPoller) download(ctx context.Context, id int64) (bool, error) {
 	return false, p.extract(out)
 }
 
-// extract writes every *.jsonl entry of the zip into the conversations dir,
-// skipping files that already exist so re-polls stay idempotent.
+// extract writes every *.jsonl entry of the zip into the conversations dir
+// and every non-jsonl entry into the artifacts dir (when set), skipping files
+// that already exist so re-polls stay idempotent.
 func (p *ArtifactPoller) extract(zipData []byte) error {
 	r, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
 	if err != nil {
@@ -261,24 +264,37 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 	if err := os.MkdirAll(p.opts.ConversationsDir, 0755); err != nil {
 		return err
 	}
-	for _, f := range r.File {
-		name := filepath.Base(f.Name)
-		if !strings.HasSuffix(name, ".jsonl") {
-			continue
-		}
-		dest := filepath.Join(p.opts.ConversationsDir, name)
-		if !strings.HasPrefix(dest, filepath.Clean(p.opts.ConversationsDir)+string(os.PathSeparator)) {
-			continue
-		}
-		if _, err := os.Stat(dest); err == nil {
-			continue
-		}
-		if err := extractFile(f, dest); err != nil {
+	if p.opts.ArtifactsDir != "" {
+		if err := os.MkdirAll(p.opts.ArtifactsDir, 0755); err != nil {
 			return err
 		}
-		logger.Info("pulled conversation from github artifact", "file", name)
+	}
+	for _, f := range r.File {
+		name := filepath.Base(f.Name)
+		if strings.HasSuffix(name, ".jsonl") {
+			if err := p.extractTo(f, name, p.opts.ConversationsDir); err != nil {
+				return err
+			}
+		} else if p.opts.ArtifactsDir != "" {
+			if err := p.extractTo(f, name, p.opts.ArtifactsDir); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// extractTo extracts one zip entry to destDir with zip-slip containment check
+// and idempotency (skip if dest already exists).
+func (p *ArtifactPoller) extractTo(f *zip.File, name, destDir string) error {
+	dest := filepath.Join(destDir, filepath.Base(name))
+	if !strings.HasPrefix(dest, filepath.Clean(destDir)+string(os.PathSeparator)) {
+		return nil
+	}
+	if _, err := os.Stat(dest); err == nil {
+		return nil
+	}
+	return extractFile(f, dest)
 }
 
 func extractFile(f *zip.File, dest string) error {

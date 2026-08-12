@@ -297,11 +297,16 @@ func startArtifactPoller(ctx context.Context, cfg *config.Config) (*githubschedu
 	if home, err := os.UserHomeDir(); err == nil {
 		statePath = filepath.Join(home, config.ConfigDirName, "schedules", "github-artifacts-state.json")
 	}
+	artifactsDir := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		artifactsDir = filepath.Join(home, config.ConfigDirName, "tmp", "artifacts")
+	}
 
 	svc, err := githubscheduler.NewArtifactPoller(githubscheduler.ArtifactPollerOptions{
 		Runner:           runner,
 		Repo:             repo,
 		ConversationsDir: conversationsDir,
+		ArtifactsDir:     artifactsDir,
 		StatePath:        statePath,
 		Interval:         interval,
 		InitialDelay:     initialDelay,
