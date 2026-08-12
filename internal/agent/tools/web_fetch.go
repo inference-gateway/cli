@@ -122,7 +122,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 
 	if download || isBinary {
 		filename := extractFilenameFromURL(url, fetchResult.ContentType)
-		savedPath, saveErr := t.saveToFile(fetchResult, filename)
+		savedPath, saveErr := t.saveToFile(ctx, fetchResult, filename)
 		if saveErr != nil {
 			result.Error = fmt.Sprintf("failed to save file: %v", saveErr)
 			result.Success = false
@@ -548,9 +548,10 @@ func extensionFromContentType(contentType string) string {
 	return exts[0]
 }
 
-// saveToFile saves the fetched content to disk in <configDir>/tmp directory
-func (t *WebFetchTool) saveToFile(fetchResult *domain.FetchResult, filename string) (string, error) {
-	baseDir := filepath.Join(t.config.GetConfigDir(), "tmp")
+// saveToFile saves the fetched content to disk in the session's artifacts
+// directory
+func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *domain.FetchResult, filename string) (string, error) {
+	baseDir := t.config.SessionArtifactsDir(domain.GetSessionID(ctx))
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create directory %s: %w", baseDir, err)

@@ -550,7 +550,7 @@ func TestA2ASubmitTaskTool_DownloadArtifacts(t *testing.T) {
 		},
 	}
 
-	tool.downloadArtifacts(task)
+	tool.downloadArtifacts(domain.WithSessionID(context.Background(), "sess-1"), task)
 
 	savedPath := artifactLocalPath(task.Artifacts[0])
 	require.NotEmpty(t, savedPath)
@@ -580,7 +580,7 @@ func TestA2ASubmitTaskTool_HandleTaskState_NoDownloadByDefault(t *testing.T) {
 	}
 	state := &domain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
 
-	done, result := tool.handleTaskState(server.URL, "task-1", 1, state, task, "")
+	done, result := tool.handleTaskState(context.Background(), server.URL, "task-1", 1, state, task, "")
 	require.True(t, done)
 	require.NotNil(t, result)
 

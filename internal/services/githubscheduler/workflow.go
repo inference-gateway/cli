@@ -158,7 +158,7 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 		{
 			Name: "Collect conversation and output files",
 			If:   "always()",
-			Run:  "cp -r ~/.infer/conversations \"$GITHUB_WORKSPACE/.infer-conversations\" 2>/dev/null || true\ncp -r ~/.infer/tmp \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts\" 2>/dev/null || true",
+			Run:  "cp -r ~/.infer/conversations \"$GITHUB_WORKSPACE/.infer-conversations\" 2>/dev/null || true\nmkdir -p \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts\"\ncp -rn \"$GITHUB_WORKSPACE\"/.infer/artifacts/* ~/.infer/artifacts/* \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts/\" 2>/dev/null || true",
 		},
 		{
 			Name: "Upload conversation artifact",

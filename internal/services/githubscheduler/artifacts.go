@@ -270,13 +270,18 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 		}
 	}
 	for _, f := range r.File {
-		name := filepath.Base(f.Name)
-		if strings.HasSuffix(name, ".jsonl") {
-			if err := p.extractTo(f, name, p.opts.ConversationsDir); err != nil {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if strings.HasSuffix(f.Name, ".jsonl") {
+			if err := p.extractTo(f, filepath.Base(f.Name), p.opts.ConversationsDir); err != nil {
 				return err
 			}
 		} else if p.opts.ArtifactsDir != "" {
-			if err := p.extractTo(f, name, p.opts.ArtifactsDir); err != nil {
+			// Preserve the path below the workflow's .artifacts/ staging dir
+			// so per-session grouping survives the round trip.
+			rel := strings.TrimPrefix(filepath.ToSlash(f.Name), ".artifacts/")
+			if err := p.extractTo(f, filepath.FromSlash(rel), p.opts.ArtifactsDir); err != nil {
 				return err
 			}
 		}
@@ -284,15 +289,18 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 	return nil
 }
 
-// extractTo extracts one zip entry to destDir with zip-slip containment check
-// and idempotency (skip if dest already exists).
-func (p *ArtifactPoller) extractTo(f *zip.File, name, destDir string) error {
-	dest := filepath.Join(destDir, filepath.Base(name))
+// extractTo extracts one zip entry to destDir/relPath with zip-slip
+// containment check and idempotency (skip if dest already exists).
+func (p *ArtifactPoller) extractTo(f *zip.File, relPath, destDir string) error {
+	dest := filepath.Join(destDir, relPath)
 	if !strings.HasPrefix(dest, filepath.Clean(destDir)+string(os.PathSeparator)) {
 		return nil
 	}
 	if _, err := os.Stat(dest); err == nil {
 		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
 	}
 	return extractFile(f, dest)
 }

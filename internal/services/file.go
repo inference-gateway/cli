@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // FileServiceImpl implements domain.FileService
@@ -108,8 +109,9 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 
 	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
 		inferTmp := filepath.Join(".infer", "tmp") + string(filepath.Separator)
+		inferArtifacts := filepath.Join(".infer", config.ArtifactsDirName) + string(filepath.Separator)
 		ext := strings.ToLower(filepath.Ext(relPath))
-		if !strings.HasPrefix(relPath, inferTmp) && ext != ".md" {
+		if !strings.HasPrefix(relPath, inferTmp) && !strings.HasPrefix(relPath, inferArtifacts) && ext != ".md" {
 			return false
 		}
 	} else if strings.HasPrefix(d.Name(), ".") {
