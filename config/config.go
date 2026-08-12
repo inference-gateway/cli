@@ -12,6 +12,7 @@ import (
 
 const (
 	ConfigDirName       = ".infer"
+	ArtifactsDirName    = "artifacts"
 	AgentsDirName       = ".agents"
 	ConfigFileName      = "config.yaml"
 	GitignoreFileName   = ".gitignore"
@@ -1512,6 +1513,25 @@ func (c *Config) GetConfigDir() string {
 	return c.configDir
 }
 
+// ArtifactsDir returns the directory for intended agent deliverables
+// (generated images, downloads, A2A artifacts) — separate from the tmp
+// scratch dir so artifact collection never picks up transient files.
+func (c *Config) ArtifactsDir() string {
+	return filepath.Join(c.GetConfigDir(), ArtifactsDirName)
+}
+
+// SessionArtifactsDir returns the per-session subdirectory of ArtifactsDir so
+// deliverables stay grouped by the conversation that produced them. An empty
+// session ID falls back to the base artifacts dir; separators are sanitized so
+// a session ID can never escape the artifacts root.
+func (c *Config) SessionArtifactsDir(sessionID string) string {
+	if sessionID == "" {
+		return c.ArtifactsDir()
+	}
+	safe := strings.NewReplacer("/", "-", "\\", "-", "..", "-").Replace(sessionID)
+	return filepath.Join(c.ArtifactsDir(), safe)
+}
+
 // ResolveConfigDir searches the standard project then userspace locations
 // for an existing config.yaml and returns its directory. Falls back to the
 // default project directory name when nothing is found on disk.
@@ -1554,7 +1574,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
-		c.isWithinConfigSubdir(absPath, "tmp", "plans") ||
+		c.isWithinConfigSubdir(absPath, "tmp", "plans", ArtifactsDirName) ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
 

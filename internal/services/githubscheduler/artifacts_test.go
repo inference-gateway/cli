@@ -39,6 +39,7 @@ func newTestPoller(t *testing.T, runner CommandRunner) *ArtifactPoller {
 		Runner:           runner,
 		Repo:             "me/.routines",
 		ConversationsDir: filepath.Join(dir, "conversations"),
+		ArtifactsDir:     filepath.Join(dir, "artifacts"),
 		StatePath:        filepath.Join(dir, "state.json"),
 		Interval:         time.Minute,
 		MaxAttempts:      3,
@@ -59,9 +60,10 @@ const listJSON = `{"artifacts":[
 
 func TestPollerDownloadsAndIsIdempotent(t *testing.T) {
 	zipData := makeZip(t, map[string]string{
-		"abc.jsonl":      `{"role":"user"}`,
-		"nested/x.jsonl": `{"role":"assistant"}`,
-		"notes.txt":      "ignore me",
+		"abc.jsonl":                   `{"role":"user"}`,
+		"nested/x.jsonl":              `{"role":"assistant"}`,
+		"notes.txt":                   "ignore me",
+		".artifacts/sess-1/image.png": "png-bytes",
 	})
 	downloads := 0
 	runner := &scriptRunner{respond: func(name string, args []string) ([]byte, error) {
@@ -87,8 +89,11 @@ func TestPollerDownloadsAndIsIdempotent(t *testing.T) {
 			t.Errorf("missing extracted file %s: %v", f, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(p.opts.ConversationsDir, "notes.txt")); err == nil {
-		t.Errorf("non-jsonl file must not be extracted")
+	if _, err := os.Stat(filepath.Join(p.opts.ArtifactsDir, "notes.txt")); err != nil {
+		t.Errorf("non-jsonl file must be extracted to artifacts dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p.opts.ArtifactsDir, "sess-1", "image.png")); err != nil {
+		t.Errorf("session subdir must be preserved under artifacts dir: %v", err)
 	}
 
 	if err := p.tick(context.Background()); err != nil {

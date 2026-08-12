@@ -156,9 +156,9 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 			},
 		},
 		{
-			Name: "Collect conversation output",
+			Name: "Collect conversation and output files",
 			If:   "always()",
-			Run:  `cp -r ~/.infer/conversations "$GITHUB_WORKSPACE/.infer-conversations" 2>/dev/null || true`,
+			Run:  "cp -r ~/.infer/conversations \"$GITHUB_WORKSPACE/.infer-conversations\" 2>/dev/null || true\nmkdir -p \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts\"\ncp -rn \"$GITHUB_WORKSPACE\"/.infer/artifacts/* ~/.infer/artifacts/* \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts/\" 2>/dev/null || true",
 		},
 		{
 			Name: "Upload conversation artifact",
@@ -166,7 +166,7 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 			Uses: uploadArtifactAction,
 			With: uploadArtifactInputs{
 				Name:           ArtifactNamePrefix + "${{ github.run_id }}",
-				Path:           ".infer-conversations/*.jsonl",
+				Path:           ".infer-conversations",
 				IfNoFilesFound: "ignore",
 			},
 		},

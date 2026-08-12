@@ -343,7 +343,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 
 			t.emitStatusUpdate(state, taskID, agentURL, *currentTask, emit)
 
-			shouldReturn, taskResult := t.handleTaskState(agentURL, taskID, pollAttempt, state, *currentTask, pollingDetails.String())
+			shouldReturn, taskResult := t.handleTaskState(ctx, agentURL, taskID, pollAttempt, state, *currentTask, pollingDetails.String())
 			if shouldReturn {
 				if taskResult != nil {
 					return *taskResult
@@ -433,7 +433,7 @@ func (t *A2ASubmitTaskTool) emitStatusUpdate(state *domain.TaskPollingState, tas
 	}
 }
 
-func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *domain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *domain.ToolExecutionResult) {
+func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *domain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *domain.ToolExecutionResult) {
 	normalizedState := strings.ToLower(string(currentTask.Status.State))
 
 	switch {
@@ -444,7 +444,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		}
 
 		if t.config.A2A.Task.ArtifactsAutoDownload {
-			t.downloadArtifacts(&currentTask)
+			t.downloadArtifacts(ctx, &currentTask)
 		}
 
 		result := &domain.ToolExecutionResult{
@@ -742,12 +742,12 @@ func artifactLocalPath(artifact adk.Artifact) string {
 }
 
 // downloadArtifacts fetches each artifact of a completed task from its
-// (trusted agent-host) download URL into <configDir>/tmp and records the
+// (trusted agent-host) download URL into the artifacts dir and records the
 // local path in the artifact's metadata, so the completion notification can
 // point at a file on disk instead of asking the model to WebFetch it.
 // Fail-soft: any failure just leaves that artifact with its URL line.
-func (t *A2ASubmitTaskTool) downloadArtifacts(task *adk.Task) {
-	baseDir := filepath.Join(t.config.GetConfigDir(), "tmp")
+func (t *A2ASubmitTaskTool) downloadArtifacts(ctx context.Context, task *adk.Task) {
+	baseDir := t.config.SessionArtifactsDir(domain.GetSessionID(ctx))
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
 	for i := range task.Artifacts {

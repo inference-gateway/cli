@@ -83,7 +83,7 @@ func (s *ImageService) GenerateImage(ctx context.Context, model, prompt, quality
 		return "", err
 	}
 
-	return s.saveImage(data)
+	return s.saveImage(ctx, data)
 }
 
 // EditImage edits the image at imagePath using prompt and model
@@ -150,7 +150,7 @@ func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, 
 		return "", err
 	}
 
-	return s.saveImage(data)
+	return s.saveImage(ctx, data)
 }
 
 // variationPrompt drives edits-backed image variations: OpenAI's dedicated
@@ -165,9 +165,10 @@ func (s *ImageService) CreateImageVariation(ctx context.Context, model, imagePat
 	return s.EditImage(ctx, model, variationPrompt, imagePath, "", size, "")
 }
 
-// saveImage writes image bytes to a timestamped PNG under the config tmp dir.
-func (s *ImageService) saveImage(data []byte) (string, error) {
-	dir := filepath.Join(config.ConfigDirName, "tmp")
+// saveImage writes image bytes to a timestamped PNG under the session's
+// artifacts dir.
+func (s *ImageService) saveImage(ctx context.Context, data []byte) (string, error) {
+	dir := s.config.SessionArtifactsDir(domain.GetSessionID(ctx))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create %s: %w", dir, err)
 	}
