@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -900,12 +901,19 @@ func (s *JsonlStorage) ListSessionGroups(_ context.Context) (map[string]SessionG
 }
 
 // ---------------------------------------------------------------------------
-// ScheduledJobStorage (JsonlStorage) - file-based, keeps historical paths
+// ScheduledJobStorage (JsonlStorage) - file-based, machine-global
 // ---------------------------------------------------------------------------
 
-// schedulesDir returns the path to the schedules directory.
+// schedulesDir returns the machine-global schedules directory. Jobs are
+// executed by the single per-machine daemon, so they live under the user's
+// home config dir regardless of where conversation storage points -
+// project-local storage used to orphan jobs the daemon never saw (#1053).
 func (s *JsonlStorage) schedulesDir() string {
-	return filepath.Join(filepath.Dir(s.basePath), "schedules")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(filepath.Dir(s.basePath), "schedules")
+	}
+	return filepath.Join(home, config.ConfigDirName, "schedules")
 }
 
 // jobFilePath returns the YAML path for a given job ID.

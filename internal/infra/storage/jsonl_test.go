@@ -857,12 +857,39 @@ func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
 }
 
 // newConformanceJsonlStorage returns a jsonl backend rooted in an isolated
-// temp dir (schedules/plans/history live next to the conversations dir).
+// temp dir. HOME is overridden because schedules are machine-global and
+// resolve against the user's home config dir.
 func newConformanceJsonlStorage(t *testing.T) *JsonlStorage {
 	t.Helper()
-	storage, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(t.TempDir(), "conversations")})
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	storage, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(tmp, "conversations")})
 	require.NoError(t, err)
 	return storage
+}
+
+// TestJsonlStorage_SchedulesAreMachineGlobal saves a job through a storage
+// rooted in one project and reads it back through a storage rooted in
+// another - both must resolve the same ~/.infer/schedules dir (#1053).
+func TestJsonlStorage_SchedulesAreMachineGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	a, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(t.TempDir(), ".infer", "conversations")})
+	require.NoError(t, err)
+	b, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(t.TempDir(), ".infer", "conversations")})
+	require.NoError(t, err)
+
+	job := &domain.ScheduledJob{ID: "global-job", CronExpression: "@every 1h", Prompt: "hi", CreatedAt: time.Now()}
+	require.NoError(t, a.SaveJob(context.Background(), job))
+
+	jobs, err := b.ListJobs(context.Background())
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
+	assert.Equal(t, "global-job", jobs[0].ID)
+
+	if _, err := os.Stat(filepath.Join(home, ".infer", "schedules", "global-job.yaml")); err != nil {
+		t.Fatalf("job not written under HOME: %v", err)
+	}
 }
 
 // TestJsonlStorage_Conformance runs the shared behavioural suites for the
