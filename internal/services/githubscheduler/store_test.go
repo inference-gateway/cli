@@ -185,8 +185,6 @@ func TestDeleteJobRemovesWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The workflow file does not exist in the (fake) clone, so no push happens
-	// but the local job is still deleted.
 	if err := store.DeleteJob(context.Background(), job.ID); err != nil {
 		t.Fatalf("DeleteJob: %v", err)
 	}

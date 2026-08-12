@@ -21,7 +21,7 @@ const (
 	DefaultRepoName = ".routines"
 
 	ghCommandTimeout = 30 * time.Second
-	ghNetworkTimeout = 2 * time.Minute // clone/push are network-heavy
+	ghNetworkTimeout = 2 * time.Minute
 )
 
 // Store decorates a local ScheduledJobStorage: reads delegate to the local

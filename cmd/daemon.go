@@ -144,8 +144,6 @@ func RunDaemonCommand(cfg *config.Config) error {
 
 	poller, err := startArtifactPoller(ctx, cfg)
 	if err != nil {
-		// Artifact polling is a convenience; the daemon still serves its other
-		// subsystems if it cannot start (e.g. gh not authenticated).
 		logger.Error("failed to start github artifact poller", "error", err)
 	}
 

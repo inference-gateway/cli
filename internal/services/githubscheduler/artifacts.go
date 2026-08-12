@@ -220,7 +220,7 @@ func (p *ArtifactPoller) tick(ctx context.Context) error {
 			p.pausedUntil = time.Now().Add(p.opts.RateLimitBackoff)
 			logger.Warn("github artifact download rate-limited, backing off",
 				"until", p.pausedUntil.Format(time.RFC3339))
-			break // rate-limited attempts do not count against MaxAttempts
+			break
 		}
 		changed = true
 		if err != nil {
@@ -262,13 +262,11 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 		return err
 	}
 	for _, f := range r.File {
-		name := filepath.Base(f.Name) // flatten; also blocks path traversal
+		name := filepath.Base(f.Name)
 		if !strings.HasSuffix(name, ".jsonl") {
 			continue
 		}
 		dest := filepath.Join(p.opts.ConversationsDir, name)
-		// Zip-slip guard: the flattened name can never escape, but keep the
-		// containment check explicit (and CodeQL-recognizable).
 		if !strings.HasPrefix(dest, filepath.Clean(p.opts.ConversationsDir)+string(os.PathSeparator)) {
 			continue
 		}

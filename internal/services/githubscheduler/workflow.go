@@ -156,7 +156,6 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 			},
 		},
 		{
-			// actions/upload-artifact does not expand ~, so a shell step stages the files first.
 			Name: "Collect conversation output",
 			If:   "always()",
 			Run:  `cp -r ~/.infer/conversations "$GITHUB_WORKSPACE/.infer-conversations" 2>/dev/null || true`,
@@ -173,8 +172,6 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 		},
 	}
 	if job.RunOnce {
-		// The app token carries the disable permission; the App needs the
-		// "Actions" (read & write) repository permission.
 		steps = append(steps, step{
 			Name: "Disable after first fire",
 			If:   "always()",

@@ -79,7 +79,6 @@ func TestPollerDownloadsAndIsIdempotent(t *testing.T) {
 		t.Fatalf("tick: %v", err)
 	}
 
-	// Only the non-expired infer-conversations artifact is downloaded.
 	if downloads != 1 {
 		t.Fatalf("downloads = %d, want 1", downloads)
 	}
@@ -92,7 +91,6 @@ func TestPollerDownloadsAndIsIdempotent(t *testing.T) {
 		t.Errorf("non-jsonl file must not be extracted")
 	}
 
-	// Second tick: cursor advanced, nothing re-downloaded.
 	if err := p.tick(context.Background()); err != nil {
 		t.Fatalf("second tick: %v", err)
 	}
@@ -127,7 +125,6 @@ func TestPollerRetriesThenGivesUp(t *testing.T) {
 		t.Fatalf("attempts = %d, want 3", p.state.Pending[11])
 	}
 
-	// Fourth tick gives up permanently; no further download attempts.
 	if err := p.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +157,6 @@ func TestPollerRateLimitBackoff(t *testing.T) {
 		t.Fatalf("expected ~1h pause, got %v", p.pausedUntil)
 	}
 
-	// While paused, guarded ticks are no-ops.
 	p.tickGuarded()
 	if calls != 1 {
 		t.Fatalf("paused poller must not call gh: calls = %d", calls)

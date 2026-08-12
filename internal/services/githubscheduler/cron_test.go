@@ -10,7 +10,7 @@ func TestTranslateCron(t *testing.T) {
 		name    string
 		in      string
 		want    string
-		wantErr string // substring of the expected error; empty means success
+		wantErr string
 	}{
 		{"hourly", "@hourly", "0 * * * *", ""},
 		{"daily", "@daily", "0 0 * * *", ""},

@@ -30,7 +30,6 @@ func TestRenderWorkflow(t *testing.T) {
 	}
 	content := string(out)
 
-	// Well-formed YAML round-trip (multiline prompt with a colon must survive).
 	var doc map[string]any
 	if err := yaml.Unmarshal(out, &doc); err != nil {
 		t.Fatalf("rendered workflow is not valid YAML: %v\n%s", err, content)
@@ -57,7 +56,6 @@ func TestRenderWorkflow(t *testing.T) {
 		}
 	}
 
-	// Prompt survives the YAML round-trip byte-for-byte.
 	jobs := doc["jobs"].(map[string]any)
 	steps := jobs["run"].(map[string]any)["steps"].([]any)
 	var gotPrompt string
