@@ -29,8 +29,7 @@ type Config struct {
 	Stdout           bool
 	ArchiveEnabled   bool
 	ArchiveMaxSizeMB int
-	// FilePrefix names the log file (<prefix>-<date>.log); defaults to "app".
-	FilePrefix string
+	FilePrefix       string
 }
 
 // Init initializes the global logger (for migration period)

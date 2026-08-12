@@ -56,16 +56,11 @@ const maxRunRecords = 200
 
 // Options bundles dependencies and configuration for NewService.
 type Options struct {
-	Store storage.ScheduledJobStorage
-	Runs  storage.ScheduledRunStorage
-	// OnRunEvent, when non-nil, receives every run event: one event per raw
-	// agent stdout line (Line valid only for the duration of the call), and a
-	// terminal event with Done set (Err non-nil on failure).
-	OnRunEvent func(domain.ScheduledJob, domain.RunEvent)
-	// ExecCommand defaults to exec.CommandContext when nil.
+	Store       storage.ScheduledJobStorage
+	Runs        storage.ScheduledRunStorage
+	OnRunEvent  func(domain.ScheduledJob, domain.RunEvent)
 	ExecCommand agentrunner.ExecFunc
-	// BinaryPath defaults to os.Args[0] (current binary) when empty.
-	BinaryPath string
+	BinaryPath  string
 }
 
 // NewService constructs a Service. Returns an error if required deps are missing.
