@@ -51,6 +51,7 @@ func TestRenderWorkflow(t *testing.T) {
 		ArtifactNamePrefix + "${{ github.run_id }}",
 		"workflow_dispatch",
 		"# original cron: @daily",
+		"\non:\n",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("rendered workflow missing %q\n%s", want, content)
