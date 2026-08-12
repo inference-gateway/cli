@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	yaml "gopkg.in/yaml.v3"
@@ -12,7 +13,7 @@ import (
 const (
 	// ArtifactNamePrefix is shared by the rendered upload step and the poller.
 	ArtifactNamePrefix     = "infer-conversations-"
-	uploadArtifactAction   = "actions/upload-artifact@v4"
+	uploadArtifactAction   = "actions/upload-artifact@" + githubsetup.UploadArtifactActionVersion
 	workflowTimeoutMinutes = 30
 )
 
@@ -59,26 +60,34 @@ type step struct {
 	Run  string            `yaml:"run,omitempty"`
 }
 
+// literalString marshals as a YAML literal block scalar (|) so the value sits
+// on its own lines, immune to inline quoting edge cases.
+type literalString string
+
+func (s literalString) MarshalYAML() (any, error) {
+	return &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: string(s)}, nil
+}
+
 // inferActionInputs mirrors the provider pass-through list of
 // githubsetup.workflowAgentInputs; a struct keeps the rendered key order stable.
 type inferActionInputs struct {
-	DirectPrompt      string `yaml:"direct-prompt"`
-	Model             string `yaml:"model"`
-	GithubToken       string `yaml:"github-token"`
-	GithubAppSlug     string `yaml:"github-app-slug"`
-	AnthropicAPIKey   string `yaml:"anthropic-api-key"`
-	OpenAIAPIKey      string `yaml:"openai-api-key"`
-	GoogleAPIKey      string `yaml:"google-api-key"`
-	DeepseekAPIKey    string `yaml:"deepseek-api-key"`
-	GroqAPIKey        string `yaml:"groq-api-key"`
-	MistralAPIKey     string `yaml:"mistral-api-key"`
-	CloudflareAPIKey  string `yaml:"cloudflare-api-key"`
-	CohereAPIKey      string `yaml:"cohere-api-key"`
-	OllamaCloudAPIKey string `yaml:"ollama-cloud-api-key"`
-	MoonshotAPIKey    string `yaml:"moonshot-api-key"`
-	MinimaxAPIKey     string `yaml:"minimax-api-key"`
-	NvidiaAPIKey      string `yaml:"nvidia-api-key"`
-	ZaiAPIKey         string `yaml:"zai-api-key"`
+	DirectPrompt      literalString `yaml:"direct-prompt"`
+	Model             string        `yaml:"model"`
+	GithubToken       string        `yaml:"github-token"`
+	GithubAppSlug     string        `yaml:"github-app-slug"`
+	AnthropicAPIKey   string        `yaml:"anthropic-api-key"`
+	OpenAIAPIKey      string        `yaml:"openai-api-key"`
+	GoogleAPIKey      string        `yaml:"google-api-key"`
+	DeepseekAPIKey    string        `yaml:"deepseek-api-key"`
+	GroqAPIKey        string        `yaml:"groq-api-key"`
+	MistralAPIKey     string        `yaml:"mistral-api-key"`
+	CloudflareAPIKey  string        `yaml:"cloudflare-api-key"`
+	CohereAPIKey      string        `yaml:"cohere-api-key"`
+	OllamaCloudAPIKey string        `yaml:"ollama-cloud-api-key"`
+	MoonshotAPIKey    string        `yaml:"moonshot-api-key"`
+	MinimaxAPIKey     string        `yaml:"minimax-api-key"`
+	NvidiaAPIKey      string        `yaml:"nvidia-api-key"`
+	ZaiAPIKey         string        `yaml:"zai-api-key"`
 }
 
 type uploadArtifactInputs struct {
@@ -101,9 +110,24 @@ type checkoutInputs struct {
 	Token string `yaml:"token"`
 }
 
+// appSecretNames resolves the configured Actions secret names for the GitHub
+// App credentials, falling back to the defaults when unset.
+func appSecretNames(cfg config.SchedulerGitHubConfig) (clientID, privateKey string) {
+	clientID = cfg.AppClientIDSecret
+	if clientID == "" {
+		clientID = config.DefaultAppClientIDSecret
+	}
+	privateKey = cfg.AppPrivateKeySecret
+	if privateKey == "" {
+		privateKey = config.DefaultAppPrivateKeySecret
+	}
+	return clientID, privateKey
+}
+
 // RenderWorkflow renders one job's Actions workflow. ghCron must already be
 // translated via TranslateCron; defaultModel is used when the job has none.
-func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]byte, error) {
+func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string, cfg config.SchedulerGitHubConfig) ([]byte, error) {
+	clientIDSecret, privateKeySecret := appSecretNames(cfg)
 	model := job.Model
 	if model == "" {
 		model = defaultModel
@@ -123,8 +147,8 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 			ID:   "app-token",
 			Uses: "actions/create-github-app-token@" + githubsetup.AppTokenActionVersion,
 			With: appTokenInputs{
-				ClientID:   "${{ secrets.APP_CLIENT_ID }}",
-				PrivateKey: "${{ secrets.APP_PRIVATE_KEY }}",
+				ClientID:   fmt.Sprintf("${{ secrets.%s }}", clientIDSecret),
+				PrivateKey: fmt.Sprintf("${{ secrets.%s }}", privateKeySecret),
 				Owner:      "${{ github.repository_owner }}",
 			},
 		},
@@ -136,7 +160,7 @@ func RenderWorkflow(job *domain.ScheduledJob, ghCron, defaultModel string) ([]by
 			Name: "Run Infer Agent",
 			Uses: "inference-gateway/infer-action@" + githubsetup.InferActionVersion,
 			With: inferActionInputs{
-				DirectPrompt:      job.Prompt,
+				DirectPrompt:      literalString(job.Prompt),
 				Model:             model,
 				GithubToken:       "${{ steps.app-token.outputs.token }}",
 				GithubAppSlug:     "${{ steps.app-token.outputs.app-slug }}",
@@ -212,9 +236,15 @@ func shortID(id string) string {
 	return id
 }
 
-// requiredSecrets lists the Actions secrets the rendered workflow references,
-// for the PR body. The CLI never writes secret values.
-var requiredSecrets = strings.Fields(`APP_CLIENT_ID APP_PRIVATE_KEY
-ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY DEEPSEEK_API_KEY
+// providerSecrets lists the provider API key secrets the rendered workflow
+// passes through to infer-action. The CLI never writes secret values.
+var providerSecrets = strings.Fields(`ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY DEEPSEEK_API_KEY
 GROQ_API_KEY MISTRAL_API_KEY CLOUDFLARE_API_KEY COHERE_API_KEY OLLAMA_CLOUD_API_KEY
 MOONSHOT_API_KEY MINIMAX_API_KEY NVIDIA_API_KEY ZAI_API_KEY`)
+
+// requiredSecrets lists the Actions secrets the rendered workflow references,
+// for the PR body: the configured App credential secrets plus the provider keys.
+func requiredSecrets(cfg config.SchedulerGitHubConfig) []string {
+	clientID, privateKey := appSecretNames(cfg)
+	return append([]string{clientID, privateKey}, providerSecrets...)
+}

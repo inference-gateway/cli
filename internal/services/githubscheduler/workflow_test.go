@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	yaml "gopkg.in/yaml.v3"
@@ -24,7 +25,7 @@ func testJob() *domain.ScheduledJob {
 
 func TestRenderWorkflow(t *testing.T) {
 	job := testJob()
-	out, err := RenderWorkflow(job, "0 0 * * *", "anthropic/claude")
+	out, err := RenderWorkflow(job, "0 0 * * *", "anthropic/claude", config.SchedulerGitHubConfig{})
 	if err != nil {
 		t.Fatalf("RenderWorkflow: %v", err)
 	}
@@ -70,8 +71,38 @@ func TestRenderWorkflow(t *testing.T) {
 		t.Errorf("prompt did not round-trip: got %q want %q", gotPrompt, job.Prompt)
 	}
 
+	if !strings.Contains(content, "direct-prompt: |") {
+		t.Errorf("direct-prompt is not a literal block scalar\n%s", content)
+	}
+
 	if strings.Contains(content, "Disable after first fire") {
 		t.Errorf("recurring job must not render the self-disable step")
+	}
+}
+
+func TestRenderWorkflowCustomAppSecretNames(t *testing.T) {
+	cfg := config.SchedulerGitHubConfig{
+		AppClientIDSecret:   "INFERENCE_GATEWAY_MAINTAINER_APP_CLIENT_ID",
+		AppPrivateKeySecret: "INFERENCE_GATEWAY_MAINTAINER_APP_PRIVATE_KEY",
+	}
+	out, err := RenderWorkflow(testJob(), "0 0 * * *", "", cfg)
+	if err != nil {
+		t.Fatalf("RenderWorkflow: %v", err)
+	}
+	content := string(out)
+	for _, want := range []string{
+		"${{ secrets.INFERENCE_GATEWAY_MAINTAINER_APP_CLIENT_ID }}",
+		"${{ secrets.INFERENCE_GATEWAY_MAINTAINER_APP_PRIVATE_KEY }}",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("rendered workflow missing %q\n%s", want, content)
+		}
+	}
+	if strings.Contains(content, "secrets.APP_CLIENT_ID") || strings.Contains(content, "secrets.APP_PRIVATE_KEY") {
+		t.Errorf("rendered workflow still references default app secrets\n%s", content)
+	}
+	if got := requiredSecrets(cfg)[0]; got != "INFERENCE_GATEWAY_MAINTAINER_APP_CLIENT_ID" {
+		t.Errorf("requiredSecrets not using configured name: %q", got)
 	}
 }
 
@@ -80,7 +111,7 @@ func TestRenderWorkflowRunOnceAndDefaults(t *testing.T) {
 	job.Name = ""
 	job.Model = ""
 	job.RunOnce = true
-	out, err := RenderWorkflow(job, "*/10 * * * *", "")
+	out, err := RenderWorkflow(job, "*/10 * * * *", "", config.SchedulerGitHubConfig{})
 	if err != nil {
 		t.Fatalf("RenderWorkflow: %v", err)
 	}
