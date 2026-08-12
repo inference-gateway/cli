@@ -694,11 +694,13 @@ today to call mum" - initiated from a chat with the bot.
 **How it works:**
 
 - Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
-- The `infer channels-manager` daemon hosts the scheduler and watches that directory via fsnotify, so newly created jobs fire without a restart.
-- Each fire spawns a brand-new `infer headless` session - no context carries between runs. Make prompts specific and self-contained.
+- The `infer daemon` process hosts the scheduler and polls storage every 2s, so newly created jobs fire without a restart.
+- Each fire spawns a brand-new `infer headless` session - no context carries between runs. Make prompts specific and
+  self-contained. A run record (`session_id`, `status`, `error`, timestamps) is persisted per fire, so job output is
+  readable from storage.
 - Channel + recipient are derived automatically from the current session ID -
-  the LLM never passes them. The tool can therefore only be used from a
-  channel-driven session.
+  the LLM never passes them. From a channel-driven session the job delivers its
+  output back to that channel; from any other session the job is record-only.
 - One-off jobs (`run_once: true`) are deleted automatically after their first fire.
 
 **Disabled by default.** Enable in config under `tools.schedule.enabled: true`.
@@ -765,9 +767,9 @@ tools:
 **Security:**
 
 - **Approval required by default** - the LLM cannot create/modify schedules without user confirmation.
-- **Channel must be configured** - the tool refuses to schedule for channels that aren't enabled in `channels.<name>.enabled`.
-- **Channel-session only** - the tool errors out if invoked from chat mode or any non-channel session, since it has no recipient to route to.
-- **Daemon-bound execution** - jobs only fire while `infer channels-manager` is running.
+- **Channel must be configured for delivery** - a channel-driven session that references a channel not enabled in
+  `channels.<name>.enabled` errors out instead of silently skipping delivery.
+- **Daemon-bound execution** - jobs only fire while `infer daemon` is running.
 
 ---
 

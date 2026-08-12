@@ -125,7 +125,7 @@ input field - ready to review and send. It is **disabled by default** and gated 
 `whisper-cli`/`whisper-cpp` binary to transcribe it. The GGML model (default `tiny`) is downloaded
 on first use. If a required tool is missing, `/voice` reports an actionable error with install
 hints. The same speech-to-text engine also transcribes inbound Telegram voice messages when running
-`infer channels-manager`.
+`infer daemon`.
 
 ### Image Generation
 

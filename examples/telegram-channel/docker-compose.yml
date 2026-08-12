@@ -65,7 +65,7 @@ services:
       - browser-agent
     restart: unless-stopped
 
-  infer-channels-manager:
+  infer-daemon:
     image: ghcr.io/inference-gateway/cli:latest
     pull_policy: always
     depends_on:
@@ -95,5 +95,5 @@ services:
     volumes:
       - ./tmp:/home/infer
     command:
-      - channels-manager
+      - daemon
     restart: unless-stopped

@@ -1048,7 +1048,7 @@ export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789"
 **4. Start the channel listener:**
 
 ```bash
-infer channels-manager
+infer daemon
 ```
 
 **5. Send a message** to your bot in Telegram - the agent will respond.
@@ -1094,9 +1094,10 @@ For detailed documentation including custom channel development, see [Channels D
 
 ### Scheduled Tasks
 
-When the channels-manager daemon is running, you can ask the bot to schedule
-prompts on a cron schedule. The agent's response is delivered back through
-the originating channel (e.g. the Telegram chat where you set it up).
+When the daemon is running, the agent can schedule prompts on a cron
+schedule. Every fire runs an agent and records the run to storage; jobs
+created from a channel chat (e.g. Telegram) additionally deliver the
+response back through that channel.
 
 > *"Send me an inspiring quote every day at 8 AM"* - recurring
 > *"Remind me at 6pm today to call mum"* - one-off (deletes itself after firing)
@@ -1128,7 +1129,7 @@ walkthroughs, see [Scheduling Documentation](docs/scheduling.md).
 Heartbeat wakes the agent on a fixed interval - without any user input -
 so it can check for pending todos, background tasks, or anything else
 your system prompt tells it to monitor. It runs alongside the scheduler
-inside the `infer channels-manager` daemon and is **disabled by default**.
+inside the `infer daemon` process and is **disabled by default**.
 
 Unlike the [Schedule](docs/scheduling.md) tool (which the LLM uses to
 create user-driven cron jobs that deliver to a channel), heartbeat is a
@@ -1154,7 +1155,7 @@ wake-up behaviour separately from chat-mode behaviour.
 Then start the daemon:
 
 ```bash
-infer channels-manager
+infer daemon
 ```
 
 Heartbeat alone is a valid run mode - you don't need any channel

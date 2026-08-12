@@ -101,5 +101,22 @@ func GetSQLiteMigrations() []Migration {
 				DROP TABLE IF EXISTS shell_history;
 			`,
 		},
+		{
+			Version:     "006",
+			Description: "Scheduled job run records table",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS scheduled_job_runs (
+					session_id  TEXT PRIMARY KEY,
+					job_id      TEXT NOT NULL,
+					status      TEXT NOT NULL,
+					error       TEXT NOT NULL DEFAULT '',
+					started_at  DATETIME NOT NULL,
+					finished_at DATETIME
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS scheduled_job_runs;
+			`,
+		},
 	}
 }

@@ -137,7 +137,7 @@ create them, and the seeded `.gitignore` already excludes them.
   `RequestPlanApproval` tool when the agent runs in [Plan Mode](plan-mode.md).
   Both accepted and rejected plans are kept as an audit trail.
 - **`schedules/<id>.yaml`** *(userspace)* - one YAML per scheduled job.
-  Written by the `Schedule` tool, hot-reloaded by the channels-manager
+  Written by the `Schedule` tool, hot-reloaded by the daemon
   daemon. See [Scheduling](scheduling.md).
 
 ---

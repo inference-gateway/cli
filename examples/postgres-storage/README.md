@@ -1,7 +1,7 @@
 # PostgreSQL conversation storage
 
 Persist conversations to PostgreSQL instead of the default local JSONL files.
-Useful when several `infer` processes — chat, the `channels-manager` daemon, the
+Useful when several `infer` processes — chat, the `infer daemon` process, the
 web terminal — should share one conversation store.
 
 `docker-compose.yml` runs the Inference Gateway plus a PostgreSQL container;

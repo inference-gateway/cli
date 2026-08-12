@@ -89,6 +89,20 @@ type ScheduledJobStorage interface {
 // ErrJobNotFound is returned by ScheduledJobStorage when a job ID is not found.
 var ErrJobNotFound = errors.New("scheduled job not found")
 
+// ScheduledRunStorage persists per-fire run records for scheduled jobs, keyed
+// by SessionID (which doubles as the conversation ID of the agent run).
+type ScheduledRunStorage interface {
+	// SaveRun creates or updates a run record (upsert by SessionID).
+	SaveRun(ctx context.Context, run *domain.RunRecord) error
+
+	// ListRuns returns run records sorted by StartedAt descending. An empty
+	// jobID returns runs for all jobs.
+	ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error)
+
+	// PruneRuns deletes all but the newest keep run records (across all jobs).
+	PruneRuns(ctx context.Context, keep int) error
+}
+
 // PlanRecord is a stored plan-mode plan. The ID is the filename stem
 // "<UTC stamp>-<slug>" (e.g. "2026-07-17-153000-add-auth"), identical across
 // backends, and Body is the raw plan markdown without the title H1.
@@ -128,6 +142,7 @@ type Stores struct {
 	Conversations ConversationStorage
 	SessionGroups SessionGroupStorage
 	ScheduledJobs ScheduledJobStorage
+	ScheduledRuns ScheduledRunStorage
 	Plans         PlanStorage
 	ShellHistory  ShellHistoryStorage
 }

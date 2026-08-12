@@ -19,7 +19,7 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 ## Overview
 
 Channels provide a bridge between external messaging platforms and the CLI
-agent. The `infer channels-manager` command runs as a standalone long-running daemon
+agent. The `infer daemon` command runs as a standalone long-running daemon
 that listens for messages from platforms like Telegram. When a message arrives,
 it triggers `infer headless --session-id <id>` as a subprocess. The agent
 processes the message and the response is sent back through the channel.
@@ -40,7 +40,7 @@ Key features:
 
 ```text
 ┌──────────┐       ┌────────────────────────────────────────────────────┐
-│ Telegram │◀─────▶│     infer channels-manager (long-running daemon)   │
+│ Telegram │◀─────▶│     infer daemon (long-running)   │
 │ Bot API  │       │                                                    │
 └──────────┘       │     Channel ──▶ inbox ──▶ routeInbound             │
                    │                            │                       │
@@ -125,7 +125,7 @@ export INFER_AGENT_MODEL="openai/gpt-4"
 ### 4. Start the Channel Listener
 
 ```bash
-infer channels-manager
+infer daemon
 ```
 
 This starts a long-running daemon that listens for Telegram messages. Each
@@ -348,7 +348,7 @@ conversations, which means:
 
 ## Remote-Control Prompt and System Reminders
 
-Messages routed through the channels-manager invoke `infer headless --remote`,
+Messages routed through the daemon invoke `infer headless --remote`,
 which swaps the default agent system prompt for
 `prompts.agent.system_prompt_remote`. That prompt is tuned for short,
 chat-style replies so that a casual "Hi" does not trigger a paragraph-long
@@ -497,7 +497,7 @@ case "mychannel":
 
 ### Bot not responding
 
-1. Verify the channel listener is running (`infer channels-manager`)
+1. Verify the channel listener is running (`infer daemon`)
 2. Check that `infer headless` works independently:
    `infer headless "Hello" --session-id test`
 3. Look for `[channels] agent failed` in logs

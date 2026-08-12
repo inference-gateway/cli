@@ -613,6 +613,74 @@ func (s *sqlStore) DeleteJob(ctx context.Context, id string) error {
 }
 
 // ---------------------------------------------------------------------------
+// ScheduledRunStorage (sqlStore)
+// ---------------------------------------------------------------------------
+
+// SaveRun creates or updates a run record via UPSERT.
+func (s *sqlStore) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+	_, err := s.db.ExecContext(ctx, s.rebind(`
+		INSERT INTO scheduled_job_runs(session_id, job_id, status, error, started_at, finished_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(session_id) DO UPDATE SET
+			status = excluded.status,
+			error = excluded.error,
+			finished_at = excluded.finished_at
+	`), run.SessionID, run.JobID, string(run.Status), run.Error, run.StartedAt, run.FinishedAt)
+	if err != nil {
+		return fmt.Errorf("save run %s: %w", run.SessionID, err)
+	}
+	return nil
+}
+
+// ListRuns returns run records sorted by StartedAt descending.
+func (s *sqlStore) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+	query := `
+		SELECT session_id, job_id, status, error, started_at, finished_at
+		FROM scheduled_job_runs`
+	args := []any{}
+	if jobID != "" {
+		query += " WHERE job_id = ?"
+		args = append(args, jobID)
+	}
+	query += " ORDER BY started_at DESC"
+
+	rows, err := s.db.QueryContext(ctx, s.rebind(query), args...)
+	if err != nil {
+		return nil, fmt.Errorf("list runs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var runs []*domain.RunRecord
+	for rows.Next() {
+		var run domain.RunRecord
+		var status string
+		var finished sql.NullTime
+		if err := rows.Scan(&run.SessionID, &run.JobID, &status, &run.Error, &run.StartedAt, &finished); err != nil {
+			return nil, fmt.Errorf("scan run: %w", err)
+		}
+		run.Status = domain.RunStatus(status)
+		if finished.Valid {
+			run.FinishedAt = &finished.Time
+		}
+		runs = append(runs, &run)
+	}
+	return runs, rows.Err()
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (s *sqlStore) PruneRuns(ctx context.Context, keep int) error {
+	_, err := s.db.ExecContext(ctx, s.rebind(`
+		DELETE FROM scheduled_job_runs WHERE session_id NOT IN (
+			SELECT session_id FROM scheduled_job_runs ORDER BY started_at DESC LIMIT ?
+		)
+	`), keep)
+	if err != nil {
+		return fmt.Errorf("prune runs: %w", err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // PlanStorage (sqlStore)
 // ---------------------------------------------------------------------------
 

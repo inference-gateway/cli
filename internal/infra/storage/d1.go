@@ -796,6 +796,72 @@ func (s *D1Storage) DeleteJob(ctx context.Context, id string) error {
 }
 
 // ---------------------------------------------------------------------------
+// ScheduledRunStorage (D1Storage)
+// ---------------------------------------------------------------------------
+
+// SaveRun creates or updates a run record via UPSERT.
+func (s *D1Storage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+	_, err := s.exec(ctx, `
+	INSERT INTO scheduled_job_runs(session_id, job_id, status, error, started_at, finished_at)
+	VALUES (?, ?, ?, ?, ?, ?)
+	ON CONFLICT(session_id) DO UPDATE SET
+		status = excluded.status,
+		error = excluded.error,
+		finished_at = excluded.finished_at
+`, run.SessionID, run.JobID, string(run.Status), run.Error, run.StartedAt, run.FinishedAt)
+	if err != nil {
+		return fmt.Errorf("save run %s: %w", run.SessionID, err)
+	}
+	return nil
+}
+
+// ListRuns returns run records sorted by StartedAt descending.
+func (s *D1Storage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+	query := `
+	SELECT session_id, job_id, status, error, started_at, finished_at
+	FROM scheduled_job_runs`
+	args := []any{}
+	if jobID != "" {
+		query += " WHERE job_id = ?"
+		args = append(args, jobID)
+	}
+	query += " ORDER BY started_at DESC"
+
+	rows, err := s.queryRows(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list runs: %w", err)
+	}
+	var runs []*domain.RunRecord
+	for _, r := range rows {
+		run := &domain.RunRecord{
+			SessionID: asString(r["session_id"]),
+			JobID:     asString(r["job_id"]),
+			Status:    domain.RunStatus(asString(r["status"])),
+			Error:     asString(r["error"]),
+			StartedAt: asTime(r["started_at"]),
+		}
+		if ft := asTimePtr(r["finished_at"]); ft != nil {
+			run.FinishedAt = ft
+		}
+		runs = append(runs, run)
+	}
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (s *D1Storage) PruneRuns(ctx context.Context, keep int) error {
+	_, err := s.exec(ctx, `
+	DELETE FROM scheduled_job_runs WHERE session_id NOT IN (
+		SELECT session_id FROM scheduled_job_runs ORDER BY started_at DESC LIMIT ?
+	)
+`, keep)
+	if err != nil {
+		return fmt.Errorf("prune runs: %w", err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // PlanStorage (D1Storage)
 // ---------------------------------------------------------------------------
 

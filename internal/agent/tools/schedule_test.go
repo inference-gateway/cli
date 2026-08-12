@@ -11,7 +11,7 @@ import (
 )
 
 // channelCtx returns a context tagged with a channel-formatted session ID,
-// matching the format the channels-manager uses when spawning agents.
+// matching the format the daemon's channel manager uses when spawning agents.
 func channelCtx(channel, recipient string) context.Context {
 	return domain.WithSessionID(context.Background(), "channel-"+channel+"-"+recipient)
 }
@@ -239,29 +239,24 @@ func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
 	}
 }
 
-func TestScheduleTool_Execute_RejectsNonChannelSession(t *testing.T) {
+func TestScheduleTool_Execute_NonChannelSessionCreatesRecordOnlyJob(t *testing.T) {
 	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
-	// Plain context - no session ID at all.
-	r, err := tool.Execute(context.Background(), map[string]any{
-		"operation":       "create",
-		"cron_expression": "0 8 * * *",
-		"prompt":          "x",
-	})
-	if err != nil {
-		t.Fatalf("expected nil error: %v", err)
-	}
-	if r.Success {
-		t.Fatal("expected failure when no session ID is in context")
-	}
-
-	// Non-channel session ID (e.g. chat mode generates "1234567890-abcdef").
-	r, _ = tool.Execute(domain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"), map[string]any{
-		"operation":       "create",
-		"cron_expression": "0 8 * * *",
-		"prompt":          "x",
-	})
-	if r.Success {
-		t.Fatal("expected failure when session is not channel-formatted")
+	for _, ctx := range []context.Context{
+		context.Background(),
+		domain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"),
+	} {
+		r, err := tool.Execute(ctx, map[string]any{
+			"operation":       "create",
+			"cron_expression": "0 8 * * *",
+			"prompt":          "x",
+		})
+		if err != nil || !r.Success {
+			t.Fatalf("expected record-only create to succeed: err=%v result=%+v", err, r)
+		}
+		job := r.Data.(*ScheduleToolResult).Job
+		if job.Channel != "" || job.RecipientID != "" {
+			t.Fatalf("expected no delivery target, got channel=%q recipient=%q", job.Channel, job.RecipientID)
+		}
 	}
 }
 

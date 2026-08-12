@@ -16,7 +16,7 @@ each tick using a tailored system prompt.
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
-│  infer channels-manager (long-running daemon)                 │
+│  infer daemon (long-running)                 │
 │                                                               │
 │   ├─ ChannelManagerService    (channels - optional)           │
 │   ├─ SchedulerService         (cron jobs - optional)          │
@@ -42,8 +42,7 @@ Key properties:
 - **Single global instance.** One interval, one prompt - for
   multi-job use cases use the [Schedule tool](./scheduling.md)
   instead.
-- **Daemon-bound.** Heartbeat only fires while `infer
-  channels-manager` is running. If the daemon is down, ticks are
+- **Daemon-bound.** Heartbeat only fires while `infer daemon` is running. If the daemon is down, ticks are
   skipped (no replay).
 - **Fresh session per tick.** Each tick gets a new UUID session ID;
   no context carries between fires. The agent inspects persistent
@@ -99,7 +98,7 @@ concrete step per tick, and exit. Override it to fit your workflow.
 ### 3. Run the daemon
 
 ```bash
-infer channels-manager
+infer daemon
 ```
 
 The daemon hosts up to three subsystems - channels, scheduler, and
@@ -107,7 +106,7 @@ heartbeat - and starts whichever are enabled. You can run with
 heartbeat alone (no channels, no scheduler) if that is all you need.
 
 ```text
-INFO Starting channels-manager
+INFO Starting daemon
 INFO Heartbeat service started  interval=1h0m0s  initial_delay=1m0s
 INFO Daemon ready. Press Ctrl+C to stop.
 ```
@@ -173,7 +172,7 @@ against opening issues or pushing changes automatically.
 ## Troubleshooting
 
 **Heartbeat never fires** - confirm `enabled: true` and that
-`infer channels-manager` is running. The daemon logs `Heartbeat
+`infer daemon` is running. The daemon logs `Heartbeat
 service started` on boot when it picks up the config.
 
 **Heartbeat fires too often / not enough** - check `interval`

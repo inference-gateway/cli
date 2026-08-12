@@ -579,6 +579,77 @@ func (s *RedisStorage) DeleteJob(ctx context.Context, id string) error {
 }
 
 // ---------------------------------------------------------------------------
+// ScheduledRunStorage (RedisStorage)
+// ---------------------------------------------------------------------------
+
+const redisScheduledRunsKey = "scheduled_job_runs"
+
+// scheduledRunKey returns the Redis key for a run record.
+func (s *RedisStorage) scheduledRunKey(sessionID string) string {
+	return fmt.Sprintf("%s:%s", redisScheduledRunsKey, sessionID)
+}
+
+// SaveRun creates or updates a run record. No TTL - retention is handled by
+// PruneRuns so records don't silently expire mid-run.
+func (s *RedisStorage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+	data, err := json.Marshal(run)
+	if err != nil {
+		return fmt.Errorf("marshal run %s: %w", run.SessionID, err)
+	}
+	return s.client.Set(ctx, s.scheduledRunKey(run.SessionID), data, 0).Err()
+}
+
+// ListRuns returns run records sorted by StartedAt descending.
+func (s *RedisStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+	keys, err := s.scanKeys(ctx, redisScheduledRunsKey+":*")
+	if err != nil {
+		return nil, fmt.Errorf("list run keys: %w", err)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	pipe := s.client.Pipeline()
+	var cmds []*redis.StringCmd
+	for _, k := range keys {
+		cmds = append(cmds, pipe.Get(ctx, k))
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("load runs: %w", err)
+	}
+	var runs []*domain.RunRecord
+	for _, cmd := range cmds {
+		data, err := cmd.Bytes()
+		if err != nil {
+			continue
+		}
+		var run domain.RunRecord
+		if err := json.Unmarshal(data, &run); err != nil {
+			continue
+		}
+		if jobID != "" && run.JobID != jobID {
+			continue
+		}
+		runs = append(runs, &run)
+	}
+	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (s *RedisStorage) PruneRuns(ctx context.Context, keep int) error {
+	runs, err := s.ListRuns(ctx, "")
+	if err != nil {
+		return err
+	}
+	for i := keep; i < len(runs); i++ {
+		_ = s.client.Del(ctx, s.scheduledRunKey(runs[i].SessionID)).Err()
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // PlanStorage (RedisStorage)
 // ---------------------------------------------------------------------------
 

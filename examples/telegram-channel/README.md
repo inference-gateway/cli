@@ -9,7 +9,7 @@ your phone. A VNC viewer is included so you can watch the browser navigate live.
 ## What's Included
 
 - **inference-gateway** - routes LLM requests to your configured providers
-- **infer-channels-manager** - long-polls Telegram, spawns `infer headless` per message
+- **infer-daemon** - long-polls Telegram, spawns `infer headless` per message
 - **browser-agent** - A2A service running Playwright in headed mode under Xvfb
 - **browser-vnc** *(optional, `--profile vnc`)* - `x11vnc` bridge so you can watch the browser at `vnc://localhost:5900`
 
@@ -73,7 +73,7 @@ Send any of these to your bot:
 - *"Browse to <https://news.ycombinator.com> and list the top 5 story titles."*
 - *"Find the current weather in Berlin from a public website."*
 
-The channels-manager has `INFER_A2A_ENABLED=true` and the browser agent
+The daemon has `INFER_A2A_ENABLED=true` and the browser agent
 registered, so the spawned `infer headless` process will pick `A2A_SubmitTask`
 and delegate the browsing task to the `browser-agent` container.
 
@@ -102,7 +102,7 @@ image - the bot itself works without it.
 ## How It Works
 
 ```text
-You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
+You (Telegram) --> Telegram Bot API --> infer daemon (listener)
                                             |
                                             v
                                      infer headless --session-id <id>
@@ -117,7 +117,7 @@ You (Telegram) --> Telegram Bot API --> infer channels-manager (listener)
                                      JSON stdout (parsed)
                                             |
                                             v
-                                     infer channels-manager --> Telegram Bot API --> You (Telegram)
+                                     infer daemon --> Telegram Bot API --> You (Telegram)
 ```
 
 1. You send a message in Telegram
@@ -252,7 +252,7 @@ export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="your-chat-id"
 export INFER_AGENT_MODEL="openai/gpt-4"
 
 # Start the channel listener
-infer channels-manager
+infer daemon
 ```
 
 ## Security
@@ -291,7 +291,7 @@ telegram:
 
 ```bash
 # Check channel listener logs
-docker compose logs infer-channels-manager
+docker compose logs infer-daemon
 
 # Verify bot token is valid
 curl https://api.telegram.org/bot<TOKEN>/getMe

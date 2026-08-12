@@ -96,6 +96,7 @@ type fullBackend interface {
 	ConversationStorage
 	SessionGroupStorage
 	ScheduledJobStorage
+	ScheduledRunStorage
 	PlanStorage
 	ShellHistoryStorage
 }
@@ -110,6 +111,7 @@ func NewStorage(config StorageConfig) (*Stores, error) {
 		Conversations: backend,
 		SessionGroups: backend,
 		ScheduledJobs: backend,
+		ScheduledRuns: backend,
 		Plans:         backend,
 		ShellHistory:  backend,
 	}, nil

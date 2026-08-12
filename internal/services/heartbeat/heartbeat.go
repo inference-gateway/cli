@@ -1,6 +1,6 @@
 // Package heartbeat implements a periodic "wake-up" service that
 // spawns the agent on a fixed interval to check for pending work. It
-// is hosted by the channels-manager daemon (peer to the scheduler)
+// is hosted by the daemon (peer to the scheduler)
 // and is disabled by default.
 //
 // Unlike the scheduler, heartbeat does not route output to a channel.

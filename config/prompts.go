@@ -612,7 +612,7 @@ Notes:
 			Description: `Search the web using Google or DuckDuckGo search engines`,
 		},
 		Schedule: PromptsToolDescription{
-			Description: `Schedule a task that fires on a cron schedule and delivers its output through the same messaging channel that triggered the current session (e.g. Telegram).
+			Description: `Schedule a task that fires on a cron schedule. Each fire runs an agent and records the run to storage; when the current session was triggered by a messaging channel (e.g. Telegram), the output is also delivered back through that channel.
 
 IMPORTANT - clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. "remind me at 6pm today to call mum") or **recurring** (e.g. "send me a quote every morning"). If their request is ambiguous, ASK them - do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.
 
@@ -625,7 +625,7 @@ Operations:
 - update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, run_once, name, description, model can be updated.
 - delete: Remove a job. Required: job_id.
 
-Routing (channel + recipient) is derived automatically from the current session - you never pass it. The tool can therefore only be used from a channel-driven session (e.g. when responding to a Telegram message); it will fail with a clear error if invoked from any other context.
+Delivery routing (channel + recipient) is derived automatically from the current session - you never pass it. From a channel-driven session (e.g. responding to a Telegram message) the job delivers its output back to that channel; from any other session the job is record-only and its results are read from storage.
 
 Cron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The "@every <duration>" descriptor is also supported. Examples:
 - "0 8 * * *"       - every day at 08:00 (recurring)
@@ -636,7 +636,7 @@ Cron expression format: standard 5-field crontab syntax (minute hour day-of-mont
 
 For one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.
 
-The scheduler runs inside the 'infer channels-manager' daemon. Jobs only fire while that daemon is running.`,
+The scheduler runs inside the 'infer daemon' process. Jobs only fire while that daemon is running.`,
 		},
 		Agent: PromptsToolDescription{
 			Description: `Spawn local subagents - each an autonomous "infer headless" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.

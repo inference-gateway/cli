@@ -2,25 +2,29 @@
 
 [← Back to README](../README.md)
 
-The `Schedule` tool lets the LLM create recurring tasks that run on a cron schedule
-and deliver their output back to the user through a configured messaging channel
-(e.g. Telegram). It is designed for use cases like *"every morning at 8 AM, send me
-an inspiring quote"* - initiated from a chat with the bot rather than from the CLI.
+The `Schedule` tool lets the LLM create tasks that run on a cron schedule. Every
+fire runs a real agent and records the run to storage; when the job was created
+from a messaging channel (e.g. Telegram), the output is additionally delivered
+back through that channel. Typical use cases: *"every morning at 8 AM, send me an
+inspiring quote"* from a chat with the bot, or record-only background jobs
+created from any session whose results are read from storage.
 
 ## How it works
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  infer channels-manager (long-running daemon)               │
+┌──────────────────────────────────────────────────────────────┐
+│  infer daemon (long-running)                                 │
 │                                                              │
+│   SchedulerService                                           │
+│    ├─ robfig/cron/v3 scheduler                               │
+│    ├─ 2s poll + diff against storage backend                 │
+│    └─ on fire: persist RunRecord, spawn                      │
+│       `infer headless --session-id <uuid>`,                  │
+│       emit run events ──► ScheduleNotifier                   │
+│                            └─ job has a channel? Send(...)   │
 │   ChannelManagerService                                      │
-│    ├─ inbound msgs   → spawn `infer headless`                   │
-│    └─ SchedulerService                                       │
-│         ├─ robfig/cron/v3 scheduler                          │
-│         ├─ 2s poll + diff against storage backend            │
-│         └─ on fire: spawn `infer headless --session-id <uuid>`  │
-│                     capture stdout → channel.Send(...)       │
-└─────────────────────────────────────────────────────────────┘
+│    └─ inbound msgs → spawn `infer headless`                  │
+└──────────────────────────────────────────────────────────────┘
            ▲                                       ▲
            │ writes via storage backend            │ reads via storage backend
 ┌──────────┴───────────┐                 ┌─────────┴──────────────┐
@@ -42,7 +46,15 @@ Key properties:
   since a per-process store can never be seen by the daemon.
 - **Fresh session per fire.** Each scheduled run gets a brand-new agent session ID.
   Nothing carries between fires; design prompts to be self-contained.
-- **Daemon-bound execution.** Jobs only fire while `infer channels-manager` is running.
+- **Run records.** Every fire persists a `RunRecord` (`session_id`, `job_id`,
+  `status`, `error`, timestamps) through the storage backend. The `session_id` is
+  the conversation ID of that run, so the full transcript is readable from
+  conversation storage - this is how non-channel consumers (e.g. the desktop app)
+  pick up job output. The newest 200 records are retained.
+- **Optional delivery.** `channel`/`recipient_id` on a job are a delivery target,
+  not a requirement. Jobs created from a channel session deliver their output back
+  to that channel; jobs created anywhere else are record-only.
+- **Daemon-bound execution.** Jobs only fire while `infer daemon` is running.
 
 ## Setup
 
@@ -65,15 +77,18 @@ You can also use environment variables:
 export INFER_TOOLS_SCHEDULE_ENABLED=true
 ```
 
-### 2. Configure at least one channel
+### 2. (Optional) Configure a channel
 
-The Schedule tool refuses to create a job for a channel that isn't enabled. Set up
-Telegram (or any other supported channel) following [Channels Guide](channels.md).
+Channel delivery is optional - without one, jobs are record-only. To have job
+output delivered to a messaging platform, set up Telegram (or any other supported
+channel) following [Channels Guide](channels.md) and create the job from a chat on
+that channel. The tool errors when a channel-driven session references a channel
+that isn't enabled - a misconfiguration, not a record-only job.
 
 ### 3. Run the daemon
 
 ```bash
-infer channels-manager
+infer daemon
 ```
 
 You should see a log line like `Scheduler started jobs=0`.
@@ -106,8 +121,9 @@ Required: `cron_expression`, `prompt`. Optional: `run_once`, `name`, `descriptio
 `model`.
 
 Channel and recipient are **derived automatically** from the current session
-(format: `channel-<name>-<sender_id>`). The LLM never passes them. The tool
-errors out when invoked outside a channel-driven session.
+(format: `channel-<name>-<sender_id>`). The LLM never passes them. Outside a
+channel-driven session (chat, headless, desktop) the job is created without a
+delivery target and its output is read from storage via the run records.
 
 ```json
 {
@@ -207,7 +223,7 @@ Provide `job_id` and any of: `cron_expression`, `prompt`, `run_once`, `name`,
 
 **Jobs aren't firing.**
 
-- Make sure `infer channels-manager` is running and `Scheduler started` appears
+- Make sure `infer daemon` is running and `Scheduler started` appears
   in the logs.
 - Check that the channel referenced in the job is enabled in config.
 - Inspect the job's `last_error` field after the expected fire time.
