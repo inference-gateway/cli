@@ -64,7 +64,7 @@ func TestScheduleNotifier_DeliversAssistantLines(t *testing.T) {
 func TestScheduleNotifier_RecordOnlyJobIsIgnored(t *testing.T) {
 	ch := &notifierFakeChannel{name: "telegram"}
 	n := newNotifierWithChannel(ch)
-	job := domain.ScheduledJob{ID: "j1"} // no delivery target
+	job := domain.ScheduledJob{ID: "j1"}
 
 	n.Notify(job, domain.RunEvent{Line: []byte(`{"role":"assistant","content":"hello"}`)})
 	n.Notify(job, domain.RunEvent{Done: true, Err: errors.New("boom")})
