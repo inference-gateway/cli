@@ -242,8 +242,7 @@ func TestScheduleTool_Execute_Create_RunOnce(t *testing.T) {
 func TestScheduleTool_Execute_NonChannelSessionCreatesRecordOnlyJob(t *testing.T) {
 	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	for _, ctx := range []context.Context{
-		context.Background(), // no session ID at all
-		// Non-channel session ID (e.g. chat mode generates "1234567890-abcdef").
+		context.Background(),
 		domain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"),
 	} {
 		r, err := tool.Execute(ctx, map[string]any{
