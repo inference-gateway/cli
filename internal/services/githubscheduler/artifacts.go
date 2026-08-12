@@ -278,8 +278,6 @@ func (p *ArtifactPoller) extract(zipData []byte) error {
 				return err
 			}
 		} else if p.opts.ArtifactsDir != "" {
-			// Preserve the path below the workflow's .artifacts/ staging dir
-			// so per-session grouping survives the round trip.
 			rel := strings.TrimPrefix(filepath.ToSlash(f.Name), ".artifacts/")
 			if err := p.extractTo(f, filepath.FromSlash(rel), p.opts.ArtifactsDir); err != nil {
 				return err
