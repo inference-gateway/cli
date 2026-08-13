@@ -712,10 +712,37 @@ type SchedulerConfig struct {
 	GitHub  SchedulerGitHubConfig `yaml:"github" mapstructure:"github"`
 }
 
+// Default Actions secret names the generated workflow reads the GitHub App
+// credentials from, used when scheduler.github does not override them.
+const (
+	DefaultAppClientIDSecret   = "APP_CLIENT_ID"
+	DefaultAppPrivateKeySecret = "APP_PRIVATE_KEY"
+)
+
+// Default git identity for the deploy commits the CLI pushes to the routines
+// repository, used when scheduler.github does not override it.
+const (
+	DefaultBotName  = "infer"
+	DefaultBotEmail = "infer@users.noreply.github.com"
+)
+
 // SchedulerGitHubConfig configures the github scheduling backend.
 type SchedulerGitHubConfig struct {
 	// Repository is "<owner>/<name>". Empty means "<authenticated user>/.routines".
 	Repository string `yaml:"repository" mapstructure:"repository"`
+	// AppClientIDSecret / AppPrivateKeySecret name the Actions secrets the
+	// generated workflow passes to actions/create-github-app-token. Override
+	// them to reference org-level secrets with their own naming convention.
+	// Empty means DefaultAppClientIDSecret / DefaultAppPrivateKeySecret.
+	AppClientIDSecret   string `yaml:"app_client_id_secret" mapstructure:"app_client_id_secret"`
+	AppPrivateKeySecret string `yaml:"app_private_key_secret" mapstructure:"app_private_key_secret"`
+	// BotName / BotEmail form the git author/committer identity of the deploy
+	// commits pushed to the routines repository. To attribute them to a GitHub
+	// App bot use "<app-slug>[bot]" and
+	// "<user-id>+<app-slug>[bot]@users.noreply.github.com". Empty means
+	// DefaultBotName / DefaultBotEmail.
+	BotName  string `yaml:"bot_name" mapstructure:"bot_name"`
+	BotEmail string `yaml:"bot_email" mapstructure:"bot_email"`
 	// PullRequests, when true, routes every save through a pull request instead
 	// of pushing workflow changes directly to the default branch.
 	PullRequests bool                     `yaml:"pull_requests" mapstructure:"pull_requests"`

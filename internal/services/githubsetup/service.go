@@ -48,11 +48,12 @@ func NewService(runner CommandRunner) *Service {
 // Version pins and defaults for the generated .github/workflows/infer.yml.
 // Bumping any of these is a one-line change picked up by both templates.
 const (
-	InferActionVersion     = "v0.46.4"
-	CheckoutActionVersion  = "v7.0.1"
-	AppTokenActionVersion  = "v3.2.0"
-	DefaultWorkflowModel   = "ollama_cloud/deepseek-v4-flash"
-	workflowTimeoutMinutes = 15
+	InferActionVersion          = "v0.48.0"
+	CheckoutActionVersion       = "v7.0.1"
+	AppTokenActionVersion       = "v3.2.0"
+	UploadArtifactActionVersion = "v7.0.1"
+	DefaultWorkflowModel        = "ollama_cloud/deepseek-v4-flash:preview"
+	workflowTimeoutMinutes      = 15
 )
 
 // workflowHeader is the shared prologue of the generated workflow: header

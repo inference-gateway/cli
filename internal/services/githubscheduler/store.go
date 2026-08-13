@@ -71,7 +71,7 @@ func (s *Store) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
 	if err != nil {
 		return err
 	}
-	content, err := RenderWorkflow(job, ghCron, s.defaultModel)
+	content, err := RenderWorkflow(job, ghCron, s.defaultModel, s.cfg)
 	if err != nil {
 		return err
 	}
@@ -173,8 +173,16 @@ func (s *Store) syncRepo(ctx context.Context, job *domain.ScheduledJob, mutate f
 	if err := git(ghCommandTimeout, "add", "-A"); err != nil {
 		return "", err
 	}
+	botName := s.cfg.BotName
+	if botName == "" {
+		botName = config.DefaultBotName
+	}
+	botEmail := s.cfg.BotEmail
+	if botEmail == "" {
+		botEmail = config.DefaultBotEmail
+	}
 	if err := git(ghCommandTimeout,
-		"-c", "user.name=infer", "-c", "user.email=infer@users.noreply.github.com",
+		"-c", "user.name="+botName, "-c", "user.email="+botEmail,
 		"commit", "-m", title); err != nil {
 		return "", err
 	}
@@ -193,7 +201,7 @@ func (s *Store) syncRepo(ctx context.Context, job *domain.ScheduledJob, mutate f
 		"--repo", repo,
 		"--head", branch,
 		"--title", title,
-		"--body", prBody(job, verb))
+		"--body", prBody(job, verb, s.cfg))
 	if err != nil {
 		return "", fmt.Errorf("create PR: %s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -239,7 +247,7 @@ func (s *Store) run(ctx context.Context, timeout time.Duration, name string, arg
 	return s.runner.Run(ctx, name, args...)
 }
 
-func prBody(job *domain.ScheduledJob, verb string) string {
+func prBody(job *domain.ScheduledJob, verb string, cfg config.SchedulerGitHubConfig) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## Scheduled job %s: %s\n\n", verb, job.ID)
 	if job.Name != "" {
@@ -249,7 +257,7 @@ func prBody(job *domain.ScheduledJob, verb string) string {
 	b.WriteString("Merging this PR deploys the schedule. Nothing is pushed to the default branch directly.\n\n")
 	b.WriteString("### Required repository Actions secrets\n\n")
 	b.WriteString("The workflow passes these through to infer-action; set the one(s) for your provider (Settings → Secrets and variables → Actions). The CLI never writes secrets.\n\n")
-	for _, s := range requiredSecrets {
+	for _, s := range requiredSecrets(cfg) {
 		fmt.Fprintf(&b, "- `%s`\n", s)
 	}
 	return b.String()
