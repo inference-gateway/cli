@@ -48,7 +48,7 @@ func NewService(runner CommandRunner) *Service {
 // Version pins and defaults for the generated .github/workflows/infer.yml.
 // Bumping any of these is a one-line change picked up by both templates.
 const (
-	InferActionVersion          = "v0.47.0"
+	InferActionVersion          = "v0.48.0"
 	CheckoutActionVersion       = "v7.0.1"
 	AppTokenActionVersion       = "v3.2.0"
 	UploadArtifactActionVersion = "v7.0.1"
