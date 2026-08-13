@@ -62,14 +62,12 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
 	// Project-overridable file paths - these go to ./.infer/ in --project mode
-	// or to ~/.infer/ in default (home) mode.
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
 		hooksPath, agentsPath, skillsDirPath string
 
 	// Userspace-only paths - always home. These are assigned once and used in
-	// both modes so the creation logic below is shared.
 	keybindingsPath := homeKeybindingsPath
 	remindersPath := homeremindersPath
 	channelsPath := homeChannelsPath

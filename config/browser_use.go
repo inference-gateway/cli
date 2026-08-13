@@ -14,10 +14,6 @@ const (
 // limiting, stored in its own browser_use.yaml file.
 type BrowserUseConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-	// Backend selects what executes the browser tools: "playwright" (default,
-	// launches/attaches a browser via Playwright) or "extension" (drives the
-	// user's real browser through the opentask extension bridge). Empty or
-	// unknown values mean playwright.
 	Backend   string                `yaml:"backend" mapstructure:"backend"`
 	Browser   BrowserConfig         `yaml:"browser" mapstructure:"browser"`
 	Extension ExtensionConfig       `yaml:"extension" mapstructure:"extension"`

@@ -541,7 +541,6 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.BrowserUse = *buCfg
 	applyBrowserUseEnvOverrides(cfg)
-	// Files written before the extension section existed load with Port 0.
 	cfg.BrowserUse.Extension.Port = cfg.BrowserUse.Extension.EffectivePort()
 
 	memoryPath := getEffectiveMemoryConfigPath()
