@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	playwright "github.com/mxschmitt/playwright-go"
-
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
@@ -19,12 +17,12 @@ type BrowserTypeTool struct {
 }
 
 // NewBrowserTypeTool creates a new browser type tool
-func NewBrowserTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, session *browserSession) *BrowserTypeTool {
+func NewBrowserTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserTypeTool {
 	return &BrowserTypeTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserType",
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Type.Enabled,
-			session:     session,
+			driver:      driver,
 			rateLimiter: rateLimiter,
 		},
 		config: cfg,
@@ -80,34 +78,11 @@ func (t *BrowserTypeTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 	pressEnter, _ := args["press_enter"].(bool)
 
-	page, err := t.session.Page()
+	result, err := t.driver.Type(ctx, selector, text, pressEnter)
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
-
-	locator := page.Locator(selector).First()
-	if err := locator.Fill(text, playwright.LocatorFillOptions{
-		Timeout: playwright.Float(t.session.timeoutMs()),
-	}); err != nil {
-		return t.errorResult(args, start, fmt.Sprintf("failed to type into %q: %v", selector, err)), nil
-	}
-
-	if pressEnter {
-		if err := locator.Press("Enter", playwright.LocatorPressOptions{
-			Timeout: playwright.Float(t.session.timeoutMs()),
-		}); err != nil {
-			return t.errorResult(args, start, fmt.Sprintf("failed to press Enter in %q: %v", selector, err)), nil
-		}
-	}
-
-	title, _ := page.Title()
-	return t.successResult(args, start, domain.BrowserToolResult{
-		Action:   "type",
-		Selector: selector,
-		Text:     text,
-		URL:      page.URL(),
-		Title:    title,
-	}), nil
+	return t.successResult(args, start, result), nil
 }
 
 // Validate checks if the tool arguments are valid

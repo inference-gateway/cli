@@ -2,10 +2,7 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"time"
-
-	playwright "github.com/mxschmitt/playwright-go"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -19,12 +16,12 @@ type BrowserClickTool struct {
 }
 
 // NewBrowserClickTool creates a new browser click tool
-func NewBrowserClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, session *browserSession) *BrowserClickTool {
+func NewBrowserClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserClickTool {
 	return &BrowserClickTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserClick",
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Click.Enabled,
-			session:     session,
+			driver:      driver,
 			rateLimiter: rateLimiter,
 		},
 		config: cfg,
@@ -66,24 +63,11 @@ func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	page, err := t.session.Page()
+	result, err := t.driver.Click(ctx, selector)
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
-
-	if err := page.Locator(selector).First().Click(playwright.LocatorClickOptions{
-		Timeout: playwright.Float(t.session.timeoutMs()),
-	}); err != nil {
-		return t.errorResult(args, start, fmt.Sprintf("failed to click %q: %v", selector, err)), nil
-	}
-
-	title, _ := page.Title()
-	return t.successResult(args, start, domain.BrowserToolResult{
-		Action:   "click",
-		Selector: selector,
-		URL:      page.URL(),
-		Title:    title,
-	}), nil
+	return t.successResult(args, start, result), nil
 }
 
 // Validate checks if the tool arguments are valid

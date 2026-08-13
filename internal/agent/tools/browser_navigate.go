@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	playwright "github.com/mxschmitt/playwright-go"
-
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
@@ -20,12 +18,12 @@ type BrowserNavigateTool struct {
 }
 
 // NewBrowserNavigateTool creates a new browser navigate tool
-func NewBrowserNavigateTool(cfg *config.Config, rateLimiter domain.RateLimiter, session *browserSession) *BrowserNavigateTool {
+func NewBrowserNavigateTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserNavigateTool {
 	return &BrowserNavigateTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserNavigate",
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Navigate.Enabled,
-			session:     session,
+			driver:      driver,
 			rateLimiter: rateLimiter,
 		},
 		config: cfg,
@@ -67,23 +65,11 @@ func (t *BrowserNavigateTool) Execute(ctx context.Context, args map[string]any) 
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	page, err := t.session.Page()
+	result, err := t.driver.Navigate(ctx, target)
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
-
-	if _, err := page.Goto(target, playwright.PageGotoOptions{
-		Timeout: playwright.Float(t.session.timeoutMs()),
-	}); err != nil {
-		return t.errorResult(args, start, fmt.Sprintf("failed to navigate to %s: %v", target, err)), nil
-	}
-
-	title, _ := page.Title()
-	return t.successResult(args, start, domain.BrowserToolResult{
-		Action: "navigate",
-		URL:    page.URL(),
-		Title:  title,
-	}), nil
+	return t.successResult(args, start, result), nil
 }
 
 // Validate checks if the tool arguments are valid

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -195,6 +196,89 @@ func (s *browserSession) DrainEvents() []string {
 	return events
 }
 
+// Navigate implements domain.BrowserDriver.
+func (s *browserSession) Navigate(_ context.Context, url string) (domain.BrowserToolResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserToolResult{}, err
+	}
+	if _, err := page.Goto(url, playwright.PageGotoOptions{
+		Timeout: playwright.Float(s.timeoutMs()),
+	}); err != nil {
+		return domain.BrowserToolResult{}, fmt.Errorf("failed to navigate to %s: %w", url, err)
+	}
+	title, _ := page.Title()
+	return domain.BrowserToolResult{Action: "navigate", URL: page.URL(), Title: title}, nil
+}
+
+// Click implements domain.BrowserDriver.
+func (s *browserSession) Click(_ context.Context, selector string) (domain.BrowserToolResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserToolResult{}, err
+	}
+	if err := page.Locator(selector).First().Click(playwright.LocatorClickOptions{
+		Timeout: playwright.Float(s.timeoutMs()),
+	}); err != nil {
+		return domain.BrowserToolResult{}, fmt.Errorf("failed to click %q: %w", selector, err)
+	}
+	title, _ := page.Title()
+	return domain.BrowserToolResult{Action: "click", Selector: selector, URL: page.URL(), Title: title}, nil
+}
+
+// Type implements domain.BrowserDriver.
+func (s *browserSession) Type(_ context.Context, selector, text string, pressEnter bool) (domain.BrowserToolResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserToolResult{}, err
+	}
+	locator := page.Locator(selector).First()
+	if err := locator.Fill(text, playwright.LocatorFillOptions{
+		Timeout: playwright.Float(s.timeoutMs()),
+	}); err != nil {
+		return domain.BrowserToolResult{}, fmt.Errorf("failed to type into %q: %w", selector, err)
+	}
+	if pressEnter {
+		if err := locator.Press("Enter", playwright.LocatorPressOptions{
+			Timeout: playwright.Float(s.timeoutMs()),
+		}); err != nil {
+			return domain.BrowserToolResult{}, fmt.Errorf("failed to press Enter in %q: %w", selector, err)
+		}
+	}
+	title, _ := page.Title()
+	return domain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: page.URL(), Title: title}, nil
+}
+
+// Read implements domain.BrowserDriver.
+func (s *browserSession) Read(_ context.Context, selector string) (domain.BrowserToolResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserToolResult{}, err
+	}
+	target := selector
+	if target == "" {
+		target = "body"
+	}
+	content, err := page.Locator(target).First().InnerText(playwright.LocatorInnerTextOptions{
+		Timeout: playwright.Float(s.timeoutMs()),
+	})
+	if err != nil {
+		return domain.BrowserToolResult{}, fmt.Errorf("failed to read %q: %w", target, err)
+	}
+	if len(content) > maxBrowserReadChars {
+		content = content[:maxBrowserReadChars] + "\n... (truncated)"
+	}
+	title, _ := page.Title()
+	return domain.BrowserToolResult{
+		Action:   "read",
+		Selector: selector,
+		URL:      page.URL(),
+		Title:    title,
+		Content:  content,
+		Events:   s.DrainEvents(),
+	}, nil
+}
+
 // Close shuts the browser and the Playwright driver down. Safe to call when
 // nothing was ever launched.
 func (s *browserSession) Close() {
@@ -215,12 +299,12 @@ func (s *browserSession) Close() {
 	}
 }
 
-// browserToolBase carries the pieces every browser tool shares: the session,
+// browserToolBase carries the pieces every browser tool shares: the driver,
 // rate limiting, enablement, and result formatting.
 type browserToolBase struct {
 	name        string
 	enabled     bool
-	session     *browserSession
+	driver      domain.BrowserDriver
 	rateLimiter domain.RateLimiter
 }
 

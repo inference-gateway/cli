@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	playwright "github.com/mxschmitt/playwright-go"
-
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
@@ -23,12 +21,12 @@ type BrowserReadTool struct {
 }
 
 // NewBrowserReadTool creates a new browser read tool
-func NewBrowserReadTool(cfg *config.Config, rateLimiter domain.RateLimiter, session *browserSession) *BrowserReadTool {
+func NewBrowserReadTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserReadTool {
 	return &BrowserReadTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserRead",
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Read.Enabled,
-			session:     session,
+			driver:      driver,
 			rateLimiter: rateLimiter,
 		},
 		config: cfg,
@@ -65,36 +63,13 @@ func (t *BrowserReadTool) Execute(ctx context.Context, args map[string]any) (*do
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	page, err := t.session.Page()
+	selector, _ := args["selector"].(string)
+
+	result, err := t.driver.Read(ctx, selector)
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
-
-	selector, _ := args["selector"].(string)
-	target := selector
-	if target == "" {
-		target = "body"
-	}
-
-	content, err := page.Locator(target).First().InnerText(playwright.LocatorInnerTextOptions{
-		Timeout: playwright.Float(t.session.timeoutMs()),
-	})
-	if err != nil {
-		return t.errorResult(args, start, fmt.Sprintf("failed to read %q: %v", target, err)), nil
-	}
-	if len(content) > maxBrowserReadChars {
-		content = content[:maxBrowserReadChars] + "\n... (truncated)"
-	}
-
-	title, _ := page.Title()
-	return t.successResult(args, start, domain.BrowserToolResult{
-		Action:   "read",
-		Selector: selector,
-		URL:      page.URL(),
-		Title:    title,
-		Content:  content,
-		Events:   t.session.DrainEvents(),
-	}), nil
+	return t.successResult(args, start, result), nil
 }
 
 // Validate checks if the tool arguments are valid

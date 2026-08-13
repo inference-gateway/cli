@@ -541,6 +541,8 @@ func loadConfigFromViper() (*config.Config, error) {
 	}
 	cfg.BrowserUse = *buCfg
 	applyBrowserUseEnvOverrides(cfg)
+	// Files written before the extension section existed load with Port 0.
+	cfg.BrowserUse.Extension.Port = cfg.BrowserUse.Extension.EffectivePort()
 
 	memoryPath := getEffectiveMemoryConfigPath()
 	memoryCfg, err := config.LoadMemory(memoryPath)
@@ -988,11 +990,15 @@ func applyBrowserUseEnvOverrides(cfg *config.Config) {
 	}
 
 	setBool("INFER_BROWSER_USE_ENABLED", &cfg.BrowserUse.Enabled)
+	setString("INFER_BROWSER_USE_BACKEND", &cfg.BrowserUse.Backend)
 
 	setString("INFER_BROWSER_USE_BROWSER_CHANNEL", &cfg.BrowserUse.Browser.Channel)
 	setBool("INFER_BROWSER_USE_BROWSER_HEADLESS", &cfg.BrowserUse.Browser.Headless)
 	setString("INFER_BROWSER_USE_BROWSER_CDP_ENDPOINT", &cfg.BrowserUse.Browser.CDPEndpoint)
 	setInt("INFER_BROWSER_USE_BROWSER_TIMEOUT_SECONDS", &cfg.BrowserUse.Browser.TimeoutSeconds)
+
+	setInt("INFER_BROWSER_USE_EXTENSION_PORT", &cfg.BrowserUse.Extension.Port)
+	setString("INFER_BROWSER_USE_EXTENSION_TOKEN", &cfg.BrowserUse.Extension.Token)
 
 	setBool("INFER_BROWSER_USE_RATE_LIMIT_ENABLED", &cfg.BrowserUse.RateLimit.Enabled)
 	setInt("INFER_BROWSER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.BrowserUse.RateLimit.MaxActionsPerMinute)

@@ -61,7 +61,7 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
-	browserSession  *browserSession
+	browserDriver   domain.BrowserDriver
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -271,22 +271,40 @@ func (r *Registry) registerComputerUseTools() {
 }
 
 // registerBrowserUseTools registers browser automation tools. They share one
-// lazily-launched Playwright browser session and one rate limiter.
+// driver (a lazily-launched Playwright session by default) and one rate
+// limiter.
 func (r *Registry) registerBrowserUseTools() {
 	cfg := r.config
-	r.browserSession = newBrowserSession(&cfg.BrowserUse)
+	if r.browserDriver == nil {
+		r.browserDriver = newBrowserSession(&cfg.BrowserUse)
+	}
 	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
-	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserSession)
-	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserSession)
-	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserSession)
-	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserSession)
+	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserDriver)
+}
+
+// SetBrowserDriver swaps the browser backend (e.g. the opentask extension
+// bridge) and re-registers the browser tools against it. The container calls
+// this after construction, mirroring SetMemoryBackend. The default playwright
+// session is closed if it was created.
+func (r *Registry) SetBrowserDriver(driver domain.BrowserDriver) {
+	if driver == nil || !r.config.BrowserUse.Enabled {
+		return
+	}
+	if r.browserDriver != nil {
+		r.browserDriver.Close()
+	}
+	r.browserDriver = driver
+	r.registerBrowserUseTools()
 }
 
 // Close releases resources held by tools - currently the shared browser
-// session, when browser use launched one. Safe to call multiple times.
+// driver, when browser use created one. Safe to call multiple times.
 func (r *Registry) Close() {
-	if r.browserSession != nil {
-		r.browserSession.Close()
+	if r.browserDriver != nil {
+		r.browserDriver.Close()
 	}
 }
 

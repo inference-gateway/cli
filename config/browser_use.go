@@ -13,10 +13,42 @@ const (
 // ComputerUseConfig: a global enabled flag, per-tool enable flags, and rate
 // limiting, stored in its own browser_use.yaml file.
 type BrowserUseConfig struct {
-	Enabled   bool                  `yaml:"enabled" mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	// Backend selects what executes the browser tools: "playwright" (default,
+	// launches/attaches a browser via Playwright) or "extension" (drives the
+	// user's real browser through the opentask extension bridge). Empty or
+	// unknown values mean playwright.
+	Backend   string                `yaml:"backend" mapstructure:"backend"`
 	Browser   BrowserConfig         `yaml:"browser" mapstructure:"browser"`
+	Extension ExtensionConfig       `yaml:"extension" mapstructure:"extension"`
 	RateLimit RateLimitConfig       `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Tools     BrowserUseToolsConfig `yaml:"tools" mapstructure:"tools"`
+}
+
+// BrowserBackendExtension selects the opentask extension bridge backend.
+const BrowserBackendExtension = "extension"
+
+// DefaultExtensionPort is used when extension.port is absent from
+// browser_use.yaml (LoadYAML unmarshals into a zero struct, so files written
+// before the extension section existed load with Port 0).
+const DefaultExtensionPort = 52789
+
+// EffectivePort returns the configured port, falling back to the default.
+func (e ExtensionConfig) EffectivePort() int {
+	if e.Port > 0 {
+		return e.Port
+	}
+	return DefaultExtensionPort
+}
+
+// ExtensionConfig configures the localhost WebSocket bridge the opentask
+// browser extension dials into when backend is "extension".
+type ExtensionConfig struct {
+	// Port the CLI listens on (127.0.0.1 only) for the extension connection.
+	Port int `yaml:"port" mapstructure:"port"`
+	// Token is the shared secret the extension must present in its hello
+	// message. Required when backend is "extension".
+	Token string `yaml:"token" mapstructure:"token"`
 }
 
 // BrowserConfig contains settings for launching or attaching to the browser.
@@ -52,11 +84,16 @@ type BrowserToolConfig struct {
 func DefaultBrowserUseConfig() *BrowserUseConfig {
 	return &BrowserUseConfig{
 		Enabled: false,
+		Backend: "playwright",
 		Browser: BrowserConfig{
 			Channel:        "chrome",
 			Headless:       false,
 			CDPEndpoint:    "",
 			TimeoutSeconds: 30,
+		},
+		Extension: ExtensionConfig{
+			Port:  DefaultExtensionPort,
+			Token: "",
 		},
 		RateLimit: RateLimitConfig{
 			Enabled:             true,

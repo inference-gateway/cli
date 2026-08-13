@@ -153,6 +153,18 @@ type BrowserToolResult struct {
 	Events   []string `json:"events,omitempty"`
 }
 
+// BrowserDriver executes browser-use verbs against a browser backend: a
+// Playwright-launched browser, or the user's real browser via the opentask
+// extension bridge.
+type BrowserDriver interface {
+	Navigate(ctx context.Context, url string) (BrowserToolResult, error)
+	Click(ctx context.Context, selector string) (BrowserToolResult, error)
+	Type(ctx context.Context, selector, text string, pressEnter bool) (BrowserToolResult, error)
+	// Read returns element text in Content and drained browser events in Events.
+	Read(ctx context.Context, selector string) (BrowserToolResult, error)
+	Close()
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields

@@ -27,8 +27,13 @@ func initFloatingWindow(
 	}
 
 	logger.Info("initializing floating window manager")
-	eventBridge := macos.NewEventBridge()
-	stateManager.SetEventBridge(eventBridge)
+	// Reuse an existing bridge (the extension bridge may have installed one)
+	// so we don't orphan its subscribers by replacing it.
+	eventBridge, _ := stateManager.GetEventBridge().(*macos.EventBridge)
+	if eventBridge == nil {
+		eventBridge = macos.NewEventBridge()
+		stateManager.SetEventBridge(eventBridge)
+	}
 
 	floatingWindowMgr, err := macos.NewFloatingWindowManager(config, eventBridge, agentService)
 	if err != nil {

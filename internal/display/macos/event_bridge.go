@@ -1,5 +1,6 @@
-//go:build darwin
-
+// EventBridge is pure Go and used cross-platform (floating window on darwin,
+// opentask extension bridge everywhere), so unlike the rest of this package
+// it carries no build tag.
 package macos
 
 import (

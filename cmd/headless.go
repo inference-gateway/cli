@@ -118,6 +118,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 	}()
 
 	svc := container.NewServiceContainer(cfg)
+	svc.StartExtensionBridge()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

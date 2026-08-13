@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -696,13 +698,19 @@ func createHeartbeatConfigFile(path string) error {
 }
 
 // createBrowserUseConfigFile writes a fresh browser_use.yaml from the
-// in-code defaults. Browser use is a new feature with no legacy config
-// block to migrate.
+// in-code defaults, seeding a random extension bridge token so the user only
+// has to copy it into the opentask extension options (a token generated at
+// runtime could never match the extension's).
 func createBrowserUseConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
-	return config.SaveBrowserUse(path, config.DefaultBrowserUseConfig())
+	cfg := config.DefaultBrowserUseConfig()
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err == nil {
+		cfg.Extension.Token = hex.EncodeToString(tokenBytes)
+	}
+	return config.SaveBrowserUse(path, cfg)
 }
 
 // createComputerUseConfigFile writes a fresh computer_use.yaml. Returns
