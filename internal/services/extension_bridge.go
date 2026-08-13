@@ -15,11 +15,12 @@ import (
 	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	render "github.com/inference-gateway/cli/internal/render"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // extensionProtocolVersion is the wire protocol version sent in the hello ack.
