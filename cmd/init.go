@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,33 +52,28 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	}
 	homeCfgDir := filepath.Join(homeDir, config.ConfigDirName)
 
-	// Userspace-only file paths - always seeded to ~/.infer/, regardless of scope.
 	homeKeybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
 	homeremindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	homeChannelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
 	homeHeartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
 	homeComputerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
+	homeBrowserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
-	// Project-overridable file paths - these go to ./.infer/ in --project mode
-	// or to ~/.infer/ in default (home) mode.
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
 		hooksPath, agentsPath, skillsDirPath string
 
-	// Userspace-only paths - always home. These are assigned once and used in
-	// both modes so the creation logic below is shared.
 	keybindingsPath := homeKeybindingsPath
 	remindersPath := homeremindersPath
 	channelsPath := homeChannelsPath
 	heartbeatPath := homeHeartbeatPath
 	computerUsePath := homeComputerUsePath
+	browserUsePath := homeBrowserUsePath
 	memoryConfigPath := homeMemoryConfigPath
 
 	if project {
-		// --project: seed only project-overridable files to ./.infer/ as a sparse
-		// scaffold. Userspace-only files always go to ~/.infer/ (assigned above).
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
@@ -93,7 +90,6 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		agentsPath = filepath.Join(config.ConfigDirName, config.AgentsFileName)
 		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
 	} else {
-		// Default (home): seed the full baseline to ~/.infer/.
 		configPath = filepath.Join(homeCfgDir, config.ConfigFileName)
 		gitignorePath = filepath.Join(homeCfgDir, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "scm.yaml")
@@ -111,16 +107,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		skillsDirPath = filepath.Join(homeCfgDir, "skills")
 	}
 
-	// Validate: only fail if the *freshly seeded* files already exist.
-	// In --project mode, userspace-only files may already exist in ~/.infer/
-	// from a prior home init - those are seeded only-if-absent below, so we
-	// exclude them from the existence check.
 	if !overwrite {
-		// Project-overridable files are always freshly seeded, so none of them
-		// may pre-exist. The userspace-only files (keybindings, reminders,
-		// channels, heartbeat, computer_use) are seeded only-if-absent, so they
-		// are only checked in home mode - in --project mode they may legitimately
-		// already exist from an earlier home init.
 		pathsToCheck := []string{
 			configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
 			mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
@@ -136,7 +123,6 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		}
 	}
 
-	// --- Create project-overridable files ---
 	if project {
 		if err := createSparseConfigScaffold(configPath); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
@@ -238,6 +224,13 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		return fmt.Errorf("failed to create heartbeat config file: %w", err)
 	}
 
+	_, err = createFileIfAbsent(browserUsePath, userspaceOverwrite, func(p string) error {
+		return createBrowserUseConfigFile(p)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create browser_use config file: %w", err)
+	}
+
 	cuMigrated, err := createComputerUseConfigFile(computerUsePath)
 	if err != nil {
 		return fmt.Errorf("failed to create computer_use config file: %w", err)
@@ -249,14 +242,12 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 		return fmt.Errorf("failed to create memory config file: %w", err)
 	}
 
-	// --- .env.example (project only) ---
 	envExamplePath := envExampleFileName
 	envExampleCreated := false
 	if project {
 		envExampleCreated = createProjectEnvExample()
 	}
 
-	// --- Output ---
 	scopeDesc := "userspace"
 	if project {
 		scopeDesc = "project"
@@ -684,6 +675,22 @@ func createHeartbeatConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 	return config.SaveHeartbeat(path, config.DefaultHeartbeatConfig())
+}
+
+// createBrowserUseConfigFile writes a fresh browser_use.yaml from the
+// in-code defaults, seeding a random extension bridge token so the user only
+// has to copy it into the opentask extension options (a token generated at
+// runtime could never match the extension's).
+func createBrowserUseConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	cfg := config.DefaultBrowserUseConfig()
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err == nil {
+		cfg.Extension.Token = hex.EncodeToString(tokenBytes)
+	}
+	return config.SaveBrowserUse(path, cfg)
 }
 
 // createComputerUseConfigFile writes a fresh computer_use.yaml. Returns

@@ -270,6 +270,27 @@ func getEffectiveComputerUseConfigPath() string {
 	return config.DefaultComputerUsePath
 }
 
+// getEffectiveBrowserUseConfigPath returns the path to the browser_use config file
+// Searches in this order: 1) project .infer/browser_use.yaml, 2) user home ~/.infer/browser_use.yaml
+func getEffectiveBrowserUseConfigPath() string {
+	searchPaths := []string{
+		config.DefaultBrowserUsePath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.BrowserUseFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultBrowserUsePath
+}
+
 // getEffectivePromptsConfigPath returns the path to the prompts config file
 // Searches in this order: 1) project .infer/prompts.yaml, 2) user home ~/.infer/prompts.yaml
 func getEffectivePromptsConfigPath() string {
@@ -424,6 +445,8 @@ func getKeybindingsConfigWritePath(toProject bool) (string, error) {
 // viper, then layering on the per-file YAML overlays (mcp, keybindings,
 // prompts) and finally honouring INFER_* env overrides. It runs once at
 // startup (initConfig); commands afterwards read the cached cmd.Cfg.
+//
+//nolint:funlen
 func loadConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
 	if err := V.Unmarshal(cfg); err != nil {
@@ -510,6 +533,16 @@ func loadConfigFromViper() (*config.Config, error) {
 	cfg.ComputerUse = *cuCfg
 	applyComputerUseEnvOverrides(cfg)
 
+	buPath := getEffectiveBrowserUseConfigPath()
+	buCfg, err := config.LoadBrowserUse(buPath)
+	if err != nil {
+		logger.Warn("failed to load browser_use config, using defaults", "error", err, "path", buPath)
+		buCfg = config.DefaultBrowserUseConfig()
+	}
+	cfg.BrowserUse = *buCfg
+	applyBrowserUseEnvOverrides(cfg)
+	cfg.BrowserUse.Extension.Port = cfg.BrowserUse.Extension.EffectivePort()
+
 	memoryPath := getEffectiveMemoryConfigPath()
 	memoryCfg, err := config.LoadMemory(memoryPath)
 	if err != nil {
@@ -573,6 +606,10 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION":       &cfg.Prompts.Tools.A2ASubmitTask.Description,
 		"INFER_PROMPTS_TOOLS_MOUSE_MOVE_DESCRIPTION":            &cfg.Prompts.Tools.MouseMove.Description,
 		"INFER_PROMPTS_TOOLS_MOUSE_CLICK_DESCRIPTION":           &cfg.Prompts.Tools.MouseClick.Description,
+		"INFER_PROMPTS_TOOLS_BROWSER_NAVIGATE_DESCRIPTION":      &cfg.Prompts.Tools.BrowserNavigate.Description,
+		"INFER_PROMPTS_TOOLS_BROWSER_CLICK_DESCRIPTION":         &cfg.Prompts.Tools.BrowserClick.Description,
+		"INFER_PROMPTS_TOOLS_BROWSER_TYPE_DESCRIPTION":          &cfg.Prompts.Tools.BrowserType.Description,
+		"INFER_PROMPTS_TOOLS_BROWSER_READ_DESCRIPTION":          &cfg.Prompts.Tools.BrowserRead.Description,
 		"INFER_PROMPTS_TOOLS_MOUSE_SCROLL_DESCRIPTION":          &cfg.Prompts.Tools.MouseScroll.Description,
 		"INFER_PROMPTS_TOOLS_KEYBOARD_TYPE_DESCRIPTION":         &cfg.Prompts.Tools.KeyboardType.Description,
 		"INFER_PROMPTS_TOOLS_GET_FOCUSED_APP_DESCRIPTION":       &cfg.Prompts.Tools.GetFocusedApp.Description,
@@ -921,6 +958,55 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_TYPING_DELAY_MS", &cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs)
 	setBool("INFER_COMPUTER_USE_TOOLS_GET_FOCUSED_APP_ENABLED", &cfg.ComputerUse.Tools.GetFocusedApp.Enabled)
 	setBool("INFER_COMPUTER_USE_TOOLS_ACTIVATE_APP_ENABLED", &cfg.ComputerUse.Tools.ActivateApp.Enabled)
+}
+
+// applyBrowserUseEnvOverrides applies INFER_BROWSER_USE_* env vars onto the
+// in-memory browser_use config. Run AFTER LoadBrowserUse so envs win over
+// browser_use.yaml. Mirrors applyComputerUseEnvOverrides.
+func applyBrowserUseEnvOverrides(cfg *config.Config) {
+	setBool := func(env string, target *bool) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
+			*target = b
+		}
+	}
+	setInt := func(env string, target *int) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
+			*target = n
+		}
+	}
+	setString := func(env string, target *string) {
+		if val, ok := os.LookupEnv(env); ok {
+			*target = val
+		}
+	}
+
+	setBool("INFER_BROWSER_USE_ENABLED", &cfg.BrowserUse.Enabled)
+	setString("INFER_BROWSER_USE_BACKEND", &cfg.BrowserUse.Backend)
+
+	setString("INFER_BROWSER_USE_BROWSER_CHANNEL", &cfg.BrowserUse.Browser.Channel)
+	setBool("INFER_BROWSER_USE_BROWSER_HEADLESS", &cfg.BrowserUse.Browser.Headless)
+	setString("INFER_BROWSER_USE_BROWSER_CDP_ENDPOINT", &cfg.BrowserUse.Browser.CDPEndpoint)
+	setInt("INFER_BROWSER_USE_BROWSER_TIMEOUT_SECONDS", &cfg.BrowserUse.Browser.TimeoutSeconds)
+
+	setInt("INFER_BROWSER_USE_EXTENSION_PORT", &cfg.BrowserUse.Extension.Port)
+	setString("INFER_BROWSER_USE_EXTENSION_TOKEN", &cfg.BrowserUse.Extension.Token)
+
+	setBool("INFER_BROWSER_USE_RATE_LIMIT_ENABLED", &cfg.BrowserUse.RateLimit.Enabled)
+	setInt("INFER_BROWSER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.BrowserUse.RateLimit.MaxActionsPerMinute)
+	setInt("INFER_BROWSER_USE_RATE_LIMIT_WINDOW_SECONDS", &cfg.BrowserUse.RateLimit.WindowSeconds)
+
+	setBool("INFER_BROWSER_USE_TOOLS_NAVIGATE_ENABLED", &cfg.BrowserUse.Tools.Navigate.Enabled)
+	setBool("INFER_BROWSER_USE_TOOLS_CLICK_ENABLED", &cfg.BrowserUse.Tools.Click.Enabled)
+	setBool("INFER_BROWSER_USE_TOOLS_TYPE_ENABLED", &cfg.BrowserUse.Tools.Type.Enabled)
+	setBool("INFER_BROWSER_USE_TOOLS_READ_ENABLED", &cfg.BrowserUse.Tools.Read.Enabled)
 }
 
 // GetProjectFlag checks for the --project flag on the current command or any

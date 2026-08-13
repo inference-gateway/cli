@@ -33,6 +33,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/metoro-io/mcp-golang v0.16.1
 	github.com/muesli/reflow v0.3.0
+	github.com/mxschmitt/playwright-go v0.6100.0
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
@@ -59,6 +60,12 @@ require (
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.56.0
+)
+
+require (
+	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
+	github.com/go-stack/stack v1.8.1 // indirect
 )
 
 require (

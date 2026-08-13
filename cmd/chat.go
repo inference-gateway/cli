@@ -110,6 +110,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	telemetry.ExecutionMode = telemetry.ExecInteractive
 	services := container.NewServiceContainer(cfg)
+	services.StartExtensionBridge()
 
 	telemetryRec := services.GetTelemetryRecorder()
 	sessionStart := time.Now()

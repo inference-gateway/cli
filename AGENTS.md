@@ -124,6 +124,7 @@ Config is **split across multiple YAML files** under `.infer/` (project) and `~/
 | `heartbeat.yaml` | Periodic wake-up config |
 | `mcp.yaml` | MCP server registry |
 | `computer_use.yaml` | Mouse/keyboard/screenshot settings |
+| `browser_use.yaml` | Browser automation (Playwright) settings |
 | `shortcuts/*.yaml` | Custom `/`-prefixed chat commands |
 
 Env var override format: `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).

@@ -27,8 +27,11 @@ func initFloatingWindow(
 	}
 
 	logger.Info("initializing floating window manager")
-	eventBridge := macos.NewEventBridge()
-	stateManager.SetEventBridge(eventBridge)
+	eventBridge, _ := stateManager.GetEventBridge().(*macos.EventBridge)
+	if eventBridge == nil {
+		eventBridge = macos.NewEventBridge()
+		stateManager.SetEventBridge(eventBridge)
+	}
 
 	floatingWindowMgr, err := macos.NewFloatingWindowManager(config, eventBridge, agentService)
 	if err != nil {

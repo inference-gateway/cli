@@ -56,6 +56,7 @@ type Config struct {
 	Vision           VisionConfig           `yaml:"vision" mapstructure:"vision"`
 	Provisioner      ProvisionerConfig      `yaml:"provisioner,omitempty" mapstructure:"provisioner"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
+	BrowserUse       BrowserUseConfig       `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`

@@ -21,6 +21,7 @@ is enabled in the Inference Gateway CLI.
 - [Web Tools](#web-tools)
   - [WebSearch Tool](#websearch-tool)
   - [WebFetch Tool](#webfetch-tool)
+- [Browser Tools](#browser-tools)
 - [Workflow Tools](#workflow-tools)
   - [TodoWrite Tool](#todowrite-tool)
   - [RequestPlanApproval Tool](#requestplanapproval-tool)
@@ -472,6 +473,29 @@ fetchable when A2A is enabled, regardless of `allowed_domains` - registering an 
 decision, and the A2A tools instruct the model to download artifact URLs with WebFetch.
 
 ---
+
+## Browser Tools
+
+Raw browser automation driven through Playwright (CDP under the hood). All
+four tools share one browser session that launches lazily on first use and
+persists across calls, so navigation state carries over. The session drives
+the user's installed browser (the configured `browser.channel`, default
+`chrome`), attaches to an already-running browser when `browser.cdp_endpoint`
+is set, or falls back to Playwright's bundled Chromium.
+
+Configured in `browser_use.yaml` (global `enabled` flag, per-tool enable
+flags, and shared rate limiting - same shape as `computer_use.yaml`).
+Disabled by default; enable with `INFER_BROWSER_USE_ENABLED=true` or by
+editing the file.
+
+- **BrowserNavigate** - open a URL; returns the final URL and page title.
+- **BrowserClick** - click an element by CSS or Playwright selector
+  (e.g. `text=Sign in`).
+- **BrowserType** - fill an input element; optional `press_enter` to submit.
+- **BrowserRead** - read the page (or one element's) visible text plus
+  URL/title. Also returns browser-initiated events: console messages,
+  auto-dismissed dialogs, and calls page scripts make to
+  `window.inferNotify(...)` - the browser-to-CLI channel.
 
 ## Media Tools
 

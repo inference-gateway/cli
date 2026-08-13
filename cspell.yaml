@@ -28,6 +28,7 @@ words:
   - buger
   - buildx
   - cancelreader
+  - chromium
   - Catmull
   - cellbuf
   - cespare
@@ -155,6 +156,7 @@ words:
   - mcphttp
   - mekayelanik
   - metoro
+  - msedge
   - mimeapps
   - minicpm
   - mixtral
@@ -197,6 +199,7 @@ words:
   - parenleft
   - parenright
   - pbcopy
+  - playwright
   - perfstat
   - pflag
   - pgdn

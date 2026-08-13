@@ -61,6 +61,7 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
+	browserDriver   domain.BrowserDriver
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -229,6 +230,10 @@ func (r *Registry) registerTools() {
 		r.registerComputerUseTools()
 	}
 
+	if cfg.BrowserUse.Enabled {
+		r.registerBrowserUseTools()
+	}
+
 	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
 
 	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
@@ -263,6 +268,44 @@ func (r *Registry) registerComputerUseTools() {
 	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
 	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
 	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+}
+
+// registerBrowserUseTools registers browser automation tools. They share one
+// driver (a lazily-launched Playwright session by default) and one rate
+// limiter.
+func (r *Registry) registerBrowserUseTools() {
+	cfg := r.config
+	if r.browserDriver == nil {
+		r.browserDriver = newBrowserSession(&cfg.BrowserUse)
+	}
+	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
+	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserDriver)
+}
+
+// SetBrowserDriver swaps the browser backend (e.g. the opentask extension
+// bridge) and re-registers the browser tools against it. The container calls
+// this after construction, mirroring SetMemoryBackend. The default playwright
+// session is closed if it was created.
+func (r *Registry) SetBrowserDriver(driver domain.BrowserDriver) {
+	if driver == nil || !r.config.BrowserUse.Enabled {
+		return
+	}
+	if r.browserDriver != nil {
+		r.browserDriver.Close()
+	}
+	r.browserDriver = driver
+	r.registerBrowserUseTools()
+}
+
+// Close releases resources held by tools - currently the shared browser
+// driver, when browser use created one. Safe to call multiple times.
+func (r *Registry) Close() {
+	if r.browserDriver != nil {
+		r.browserDriver.Close()
+	}
 }
 
 // SetMemoryBackend wires the memory sync backend into the Memory tool so a
