@@ -13,7 +13,7 @@ const (
 // ComputerUseConfig: a global enabled flag, per-tool enable flags, and rate
 // limiting, stored in its own browser_use.yaml file.
 type BrowserUseConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	Enabled   bool                  `yaml:"enabled" mapstructure:"enabled"`
 	Backend   string                `yaml:"backend" mapstructure:"backend"`
 	Browser   BrowserConfig         `yaml:"browser" mapstructure:"browser"`
 	Extension ExtensionConfig       `yaml:"extension" mapstructure:"extension"`
