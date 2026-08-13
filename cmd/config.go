@@ -445,6 +445,8 @@ func getKeybindingsConfigWritePath(toProject bool) (string, error) {
 // viper, then layering on the per-file YAML overlays (mcp, keybindings,
 // prompts) and finally honouring INFER_* env overrides. It runs once at
 // startup (initConfig); commands afterwards read the cached cmd.Cfg.
+//
+//nolint:funlen
 func loadConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
 	if err := V.Unmarshal(cfg); err != nil {

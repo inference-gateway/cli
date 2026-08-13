@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	playwright "github.com/playwright-community/playwright-go"
+	playwright "github.com/mxschmitt/playwright-go"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -77,6 +77,8 @@ func (s *browserSession) Page() (playwright.Page, error) {
 
 // ensureBrowser starts the Playwright driver and connects or launches the
 // browser. Callers must hold s.mu.
+//
+//nolint:nestif
 func (s *browserSession) ensureBrowser() error {
 	if s.browser != nil && s.browser.IsConnected() {
 		return nil
