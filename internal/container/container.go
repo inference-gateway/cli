@@ -939,6 +939,10 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	c.telemetryRecorder.Shutdown(ctx)
 
+	if c.toolRegistry != nil {
+		c.toolRegistry.Close()
+	}
+
 	if c.skillsService != nil {
 		if err := c.skillsService.CleanupDynamic(ctx); err != nil {
 			logger.Warn("failed to clean up dynamic skills", "error", err)

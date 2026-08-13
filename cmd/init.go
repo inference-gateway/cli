@@ -56,6 +56,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	homeChannelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
 	homeHeartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
 	homeComputerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
+	homeBrowserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
 	// Project-overridable file paths - these go to ./.infer/ in --project mode
@@ -72,6 +73,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	channelsPath := homeChannelsPath
 	heartbeatPath := homeHeartbeatPath
 	computerUsePath := homeComputerUsePath
+	browserUsePath := homeBrowserUsePath
 	memoryConfigPath := homeMemoryConfigPath
 
 	if project {
@@ -236,6 +238,13 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create heartbeat config file: %w", err)
+	}
+
+	_, err = createFileIfAbsent(browserUsePath, userspaceOverwrite, func(p string) error {
+		return createBrowserUseConfigFile(p)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create browser_use config file: %w", err)
 	}
 
 	cuMigrated, err := createComputerUseConfigFile(computerUsePath)
@@ -684,6 +693,16 @@ func createHeartbeatConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 	return config.SaveHeartbeat(path, config.DefaultHeartbeatConfig())
+}
+
+// createBrowserUseConfigFile writes a fresh browser_use.yaml from the
+// in-code defaults. Browser use is a new feature with no legacy config
+// block to migrate.
+func createBrowserUseConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	return config.SaveBrowserUse(path, config.DefaultBrowserUseConfig())
 }
 
 // createComputerUseConfigFile writes a fresh computer_use.yaml. Returns

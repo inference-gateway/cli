@@ -44,6 +44,7 @@ for the full precedence rules.
 ├── keybindings.yaml      # chat UI keyboard shortcuts
 ├── channels.yaml         # remote messaging channels (Telegram, ...)
 ├── computer_use.yaml     # computer-use / vision settings
+├── browser_use.yaml      # browser automation (Playwright) settings
 ├── agents.yaml           # A2A agent registry
 ├── mcp.yaml              # MCP server registry
 ├── shortcuts/            # /-prefixed chat shortcuts (built-in + custom)
@@ -95,6 +96,8 @@ them exist in both layers (project and userspace).
 - **`computer_use.yaml`** - computer-use / vision tool settings.
   Auto-migrated from `config.yaml` on first init if the legacy block
   exists.
+- **`browser_use.yaml`** - browser automation tool settings (Playwright
+  browser channel / CDP endpoint, per-tool enable flags, rate limiting).
 - **`agents.yaml`** - A2A agent registry (URLs, models, env vars). Manage
   via `infer agents add/remove/list` (or `--userspace`). See
   [A2A Agents](agents-configuration.md).
@@ -150,7 +153,8 @@ files. The general guidance:
 **Commit** (project-shareable configuration):
 
 - `.infer/config.yaml`, `prompts.yaml`, `keybindings.yaml`,
-  `channels.yaml`, `computer_use.yaml`, `agents.yaml`, `mcp.yaml`
+  `channels.yaml`, `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`,
+  `mcp.yaml`
 - `.infer/shortcuts/`
 - `.infer/.gitignore`
 

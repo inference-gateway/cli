@@ -61,6 +61,7 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
+	browserSession  *browserSession
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -229,6 +230,10 @@ func (r *Registry) registerTools() {
 		r.registerComputerUseTools()
 	}
 
+	if cfg.BrowserUse.Enabled {
+		r.registerBrowserUseTools()
+	}
+
 	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
 
 	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
@@ -263,6 +268,26 @@ func (r *Registry) registerComputerUseTools() {
 	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
 	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
 	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+}
+
+// registerBrowserUseTools registers browser automation tools. They share one
+// lazily-launched Playwright browser session and one rate limiter.
+func (r *Registry) registerBrowserUseTools() {
+	cfg := r.config
+	r.browserSession = newBrowserSession(&cfg.BrowserUse)
+	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
+	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserSession)
+	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserSession)
+	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserSession)
+	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserSession)
+}
+
+// Close releases resources held by tools - currently the shared browser
+// session, when browser use launched one. Safe to call multiple times.
+func (r *Registry) Close() {
+	if r.browserSession != nil {
+		r.browserSession.Close()
+	}
 }
 
 // SetMemoryBackend wires the memory sync backend into the Memory tool so a

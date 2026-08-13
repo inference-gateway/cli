@@ -97,6 +97,10 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.MouseClick, &defaults.MouseClick)
 	mergeToolDescription(&loaded.MouseScroll, &defaults.MouseScroll)
 	mergeToolDescription(&loaded.KeyboardType, &defaults.KeyboardType)
+	mergeToolDescription(&loaded.BrowserNavigate, &defaults.BrowserNavigate)
+	mergeToolDescription(&loaded.BrowserClick, &defaults.BrowserClick)
+	mergeToolDescription(&loaded.BrowserType, &defaults.BrowserType)
+	mergeToolDescription(&loaded.BrowserRead, &defaults.BrowserRead)
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
 	mergeToolDescription(&loaded.GetLatestFrame, &defaults.GetLatestFrame)
@@ -222,6 +226,10 @@ type PromptsToolsConfig struct {
 	MouseClick          PromptsToolDescription `yaml:"MouseClick" mapstructure:"MouseClick"`
 	MouseScroll         PromptsToolDescription `yaml:"MouseScroll" mapstructure:"MouseScroll"`
 	KeyboardType        PromptsToolDescription `yaml:"KeyboardType" mapstructure:"KeyboardType"`
+	BrowserNavigate     PromptsToolDescription `yaml:"BrowserNavigate" mapstructure:"BrowserNavigate"`
+	BrowserClick        PromptsToolDescription `yaml:"BrowserClick" mapstructure:"BrowserClick"`
+	BrowserType         PromptsToolDescription `yaml:"BrowserType" mapstructure:"BrowserType"`
+	BrowserRead         PromptsToolDescription `yaml:"BrowserRead" mapstructure:"BrowserRead"`
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
 	GetLatestFrame      PromptsToolDescription `yaml:"GetLatestFrame" mapstructure:"GetLatestFrame"`
@@ -691,6 +699,18 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		},
 		KeyboardType: PromptsToolDescription{
 			Description: `Types text or sends key combinations INTO GUI APPLICATIONS at the current cursor position (e.g., typing in a text editor, browser search box, or form field). DO NOT use this to run shell commands - use the Bash tool instead. To open applications on macOS, use Bash with 'open -a AppName'. Requires user approval unless in auto-accept mode. Note: Exactly one of 'text' or 'key_combo' must be provided.`,
+		},
+		BrowserNavigate: PromptsToolDescription{
+			Description: `Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.`,
+		},
+		BrowserClick: PromptsToolDescription{
+			Description: `Clicks an element in the current browser page identified by a CSS selector or text= / role-based Playwright selector. Use BrowserRead first to inspect the page and find selectors. Requires an active page (call BrowserNavigate first).`,
+		},
+		BrowserType: PromptsToolDescription{
+			Description: `Types text into an input element in the current browser page identified by a selector, replacing its existing value. Set press_enter to true to submit afterwards (e.g. search boxes, forms). Requires an active page (call BrowserNavigate first).`,
+		},
+		BrowserRead: PromptsToolDescription{
+			Description: `Reads the current browser page: URL, title, and visible text (of the whole page or of the element matched by an optional selector). Also returns recent browser-initiated events (console messages, dialogs, and window.inferNotify(...) calls from page scripts) so pages can signal back to you. Read-only.`,
 		},
 		GetFocusedApp: PromptsToolDescription{
 			Description: `Gets the currently focused (frontmost) application. Returns the application name and bundle identifier. Use this before performing computer use actions to verify the correct application is in focus.`,

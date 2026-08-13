@@ -141,6 +141,18 @@ type KeyboardTypeToolResult struct {
 	Method   string `json:"method"`
 }
 
+// BrowserToolResult represents the result of a browser use operation. One
+// shared shape for all browser tools; each tool fills the fields it produces.
+type BrowserToolResult struct {
+	Action   string   `json:"action"`
+	URL      string   `json:"url,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Selector string   `json:"selector,omitempty"`
+	Text     string   `json:"text,omitempty"`
+	Content  string   `json:"content,omitempty"`
+	Events   []string `json:"events,omitempty"`
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields
