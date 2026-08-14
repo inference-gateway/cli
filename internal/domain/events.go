@@ -263,6 +263,17 @@ type ToolApprovalRequestedEvent struct {
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// ToolApprovalResolvedEvent signals that a tool approval was answered (terminal
+// or panel), so bus subscribers like the extension bridge clear their card. It is
+// the reliable "answered" signal, replacing the racy next-event heuristic.
+type ToolApprovalResolvedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ToolApprovalResolvedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalResolvedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
 // ToolCancelledEvent is published when the conversation validator
 // synthesizes a Tool-role response for an assistant tool_call whose
 // real execution never completed (typically because the user pressed

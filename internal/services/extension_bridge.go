@@ -260,15 +260,9 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 	}
 }
 
-// chatPump mirrors chat events to the extension as AG-UI lines wrapped in
-// chat_event frames.
-//
-// ToolApprovalRequestedEvent is not rendered as a chat line; instead it is
-// forwarded as an approval_request frame so the panel can answer it (protocol
-// v2). Because the agent turn blocks on the approval's ResponseChan, no other
-// event streams until the approval is answered - so the first event that
-// arrives after a request reliably means it was resolved (here or in the
-// terminal), which is when we send approval_resolved to clear the panel card.
+// chatPump mirrors chat events to the extension as chat_event frames, and turns
+// ToolApprovalRequestedEvent / ToolApprovalResolvedEvent into approval_request /
+// approval_resolved frames so the panel can drive the approval handshake.
 func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	if b.events == nil {
 		return
@@ -291,7 +285,10 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 					b.requestApproval(conn, req)
 					continue
 				}
-				b.resolvePendingApprovals(conn)
+				if _, isResolved := ev.(domain.ToolApprovalResolvedEvent); isResolved {
+					b.resolvePendingApprovals(conn)
+					continue
+				}
 				select {
 				case filtered <- ev:
 				case <-stop:
@@ -349,9 +346,9 @@ func (b *ExtensionBridge) requestApproval(conn *websocket.Conn, req domain.ToolA
 	})
 }
 
-// resolvePendingApprovals clears any outstanding approval cards. Called when the
-// next event streams (the approval was answered here or in the terminal). A
-// duplicate approval_resolved is harmless - the panel ignores unknown ids.
+// resolvePendingApprovals clears any outstanding approval cards on a
+// ToolApprovalResolvedEvent. A duplicate approval_resolved is harmless - the
+// panel ignores unknown ids (the panel path already cleared it in answerApproval).
 func (b *ExtensionBridge) resolvePendingApprovals(conn *websocket.Conn) {
 	b.mu.Lock()
 	if len(b.pendingApprovals) == 0 {

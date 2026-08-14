@@ -169,6 +169,8 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 
 	c.updateToolApprovalStatus(msg.Action)
 
+	c.stateManager.BroadcastEvent(domain.ToolApprovalResolvedEvent{})
+
 	if msg.Action == domain.ApprovalAutoAccept {
 		return c.applyAutoAccept(msg)
 	}
