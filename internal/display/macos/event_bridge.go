@@ -67,10 +67,8 @@ func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
 	if droppable {
 		return
 	}
-	// Buffer full. We hold s.mu, so no other producer adds and the consumer only
-	// drains - freeing a slot that stays free - so this send cannot block.
 	select {
-	case <-s.ch: // discard the oldest buffered event to make room
+	case <-s.ch:
 	default:
 	}
 	s.ch <- event
