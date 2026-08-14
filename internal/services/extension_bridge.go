@@ -34,7 +34,6 @@ type extInbound struct {
 	Type             string `json:"type"`
 	Token            string `json:"token,omitempty"`
 	ExtensionVersion string `json:"extension_version,omitempty"`
-	// browser_result fields (Content doubles as the user_message text)
 	ID        string   `json:"id,omitempty"`
 	URL       string   `json:"url,omitempty"`
 	Title     string   `json:"title,omitempty"`
