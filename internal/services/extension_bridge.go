@@ -31,17 +31,17 @@ const extensionProtocolVersion = 2
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string `json:"type"`
-	Token            string `json:"token,omitempty"`
-	ExtensionVersion string `json:"extension_version,omitempty"`
-	ID        string   `json:"id,omitempty"`
-	URL       string   `json:"url,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Content   string   `json:"content,omitempty"`
-	Events    []string `json:"events,omitempty"`
-	Error     string   `json:"error,omitempty"`
-	RequestID string   `json:"request_id,omitempty"`
-	Action    string   `json:"action,omitempty"`
+	Type             string   `json:"type"`
+	Token            string   `json:"token,omitempty"`
+	ExtensionVersion string   `json:"extension_version,omitempty"`
+	ID               string   `json:"id,omitempty"`
+	URL              string   `json:"url,omitempty"`
+	Title            string   `json:"title,omitempty"`
+	Content          string   `json:"content,omitempty"`
+	Events           []string `json:"events,omitempty"`
+	Error            string   `json:"error,omitempty"`
+	RequestID        string   `json:"request_id,omitempty"`
+	Action           string   `json:"action,omitempty"`
 }
 
 type extApprovalRequest struct {
@@ -100,10 +100,10 @@ type ExtensionBridge struct {
 	addr     string
 	startErr error
 
-	mu       sync.Mutex // guards conn, connStop, pending, pendingApprovals
-	conn     *websocket.Conn
-	connStop chan struct{}
-	pending  map[string]chan extInbound
+	mu               sync.Mutex // guards conn, connStop, pending, pendingApprovals
+	conn             *websocket.Conn
+	connStop         chan struct{}
+	pending          map[string]chan extInbound
 	pendingApprovals map[string]sdk.ChatCompletionMessageToolCall
 
 	writeMu sync.Mutex // serializes writes to conn
