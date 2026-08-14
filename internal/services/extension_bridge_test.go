@@ -7,11 +7,141 @@ import (
 	"time"
 
 	websocket "github.com/gorilla/websocket"
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
+
+// readFrameOfType reads frames until one with the given type arrives, failing
+// on timeout. Returns the decoded frame.
+func readFrameOfType(t *testing.T, conn *websocket.Conn, typ string) map[string]any {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		var frame map[string]any
+		if err := conn.ReadJSON(&frame); err != nil {
+			t.Fatalf("read %q: %v", typ, err)
+		}
+		if frame["type"] == typ {
+			return frame
+		}
+	}
+}
+
+func toolApprovalEvent(id, name, args string) domain.ToolApprovalRequestedEvent {
+	return domain.ToolApprovalRequestedEvent{
+		RequestID:    id,
+		ResponseChan: make(chan domain.ApprovalAction, 1),
+		ToolCall: sdk.ChatCompletionMessageToolCall{
+			ID:       "call-" + id,
+			Function: sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
+		},
+	}
+}
+
+func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
+	notifier := &recordingNotifier{}
+	events := macos.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), notifier, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond) // let the chat pump subscribe
+	events.Publish(toolApprovalEvent("req-1", "Bash", `{"command":"ls"}`))
+
+	req := readFrameOfType(t, conn, "approval_request")
+	if req["request_id"] != "req-1" || req["tool_name"] != "Bash" || req["tool_args"] != `{"command":"ls"}` {
+		t.Fatalf("unexpected approval_request: %v", req)
+	}
+
+	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "req-1", "action": "approve"}); err != nil {
+		t.Fatalf("write response: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		found := false
+		for _, ev := range notifier.all() {
+			resp, ok := ev.(domain.ToolApprovalResponseEvent)
+			if !ok {
+				continue
+			}
+			if resp.Action != domain.ApprovalApprove {
+				t.Fatalf("expected approve, got %v", resp.Action)
+			}
+			if resp.ToolCall.Function.Name != "Bash" {
+				t.Fatalf("wrong tool call echoed back: %+v", resp.ToolCall)
+			}
+			found = true
+		}
+		if found {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("notifier never received the approval response")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if resolved := readFrameOfType(t, conn, "approval_resolved"); resolved["request_id"] != "req-1" {
+		t.Fatalf("unexpected approval_resolved: %v", resolved)
+	}
+}
+
+func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
+	notifier := &recordingNotifier{}
+	events := macos.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), notifier, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond)
+	events.Publish(toolApprovalEvent("req-2", "Bash", "{}"))
+	readFrameOfType(t, conn, "approval_request")
+
+	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "req-2", "action": "wat"}); err != nil {
+		t.Fatalf("write response: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		for _, ev := range notifier.all() {
+			if resp, ok := ev.(domain.ToolApprovalResponseEvent); ok {
+				if resp.Action != domain.ApprovalReject {
+					t.Fatalf("unknown action should reject, got %v", resp.Action)
+				}
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("notifier never received the approval response")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A stale approval_response for an already-answered id must be a no-op, not a
+// second decision.
+func TestExtensionBridgeApprovalIgnoresUnknownID(t *testing.T) {
+	notifier := &recordingNotifier{}
+	events := macos.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), notifier, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "ghost", "action": "approve"}); err != nil {
+		t.Fatalf("write response: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	for _, ev := range notifier.all() {
+		if _, ok := ev.(domain.ToolApprovalResponseEvent); ok {
+			t.Fatal("unknown request id must not produce an approval response")
+		}
+	}
+}
 
 // recordingNotifier lives in mcp_manager_test.go; all returns a snapshot of
 // its collected events.

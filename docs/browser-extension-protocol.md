@@ -43,7 +43,7 @@ Extension → CLI, first frame, within 5 seconds of connecting:
 CLI → extension on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 1}
+{"type": "browser_hello_ack", "protocol_version": 2}
 ```
 
 Immediately after the ack the CLI sends a conversation snapshot (see below).
@@ -107,8 +107,41 @@ agent is busy, exactly like typing in the TUI):
 {"type": "user_message", "content": "please also check the docs page"}
 ```
 
-Tool approval prompts are **not** mirrored in protocol v1 — approvals stay in
-the terminal. An `approval` flow is reserved for a future protocol version.
+## Tool approvals (protocol v2)
+
+When a tool call needs the user's approval, the CLI sends an approval request
+instead of mirroring it as a chat line. The extension shows Approve/Deny and
+sends the decision back. The same decision can still be made in the terminal —
+whichever answers first wins; the loser is a harmless no-op.
+
+CLI → extension, one per pending tool call:
+
+```json
+{"type": "approval_request", "request_id": "<uuid>", "tool_name": "Bash", "tool_args": "{\"command\":\"rm -rf ...\"}"}
+```
+
+- `tool_args` is the raw tool-call arguments JSON string (may be empty).
+
+Extension → CLI, the user's decision:
+
+```json
+{"type": "approval_response", "request_id": "<uuid>", "action": "approve"}
+```
+
+- `action` is `"approve"` or `"reject"`. Any other value (including unknown
+  future actions) is treated as `reject`, failing safe.
+
+CLI → extension, when the request is no longer pending (answered in the panel
+**or** in the terminal) so the extension can clear its prompt:
+
+```json
+{"type": "approval_resolved", "request_id": "<uuid>"}
+```
+
+- A `request_id` the extension does not recognize (already cleared, or never
+  seen) MUST be ignored. Duplicate `approval_resolved` for the same id is fine.
+- An `approval_response` for an unknown/already-answered `request_id` is ignored
+  by the CLI.
 
 ## Extension-side checklist
 
