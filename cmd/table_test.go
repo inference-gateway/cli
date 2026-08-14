@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // disableOutputColors must leave no ANSI escape sequences in any shared
-// command-output rendering path (tables, titles, hints, fields, trace trees).
+// command-output rendering path (tables, titles, hints, fields, trace trees)
+// or in the status icons that shortcut Output strings embed and the extension
+// bridge mirrors verbatim.
 func TestDisableOutputColorsStripsEscapes(t *testing.T) {
 	disableOutputColors()
 
@@ -19,6 +22,8 @@ func TestDisableOutputColorsStripsEscapes(t *testing.T) {
 		"field": listField("Session", "abc"),
 		"hint":  listHint("legend"),
 		"tree":  telemetry.RenderTraceTree([]*telemetry.TraceSpan{span}, traceTreeStyle),
+		"check": icons.StyledCheckMark(),
+		"cross": icons.StyledCrossMark(),
 	}
 	for name, out := range outputs {
 		if strings.Contains(out, "\x1b") {

@@ -45,6 +45,8 @@ func disableOutputColors() {
 	tableBodyCell = lipgloss.NewStyle().Padding(0, 1)
 	tableBorderInk = lipgloss.NewStyle()
 	traceTreeStyle = telemetry.TreeStyle{}
+	icons.CheckMarkStyle = lipgloss.NewStyle()
+	icons.CrossMarkStyle = lipgloss.NewStyle()
 }
 
 // newListTable returns a lipgloss table pre-styled for command-line list
