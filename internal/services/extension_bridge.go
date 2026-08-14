@@ -105,9 +105,6 @@ type ExtensionBridge struct {
 	conn     *websocket.Conn
 	connStop chan struct{}
 	pending  map[string]chan extInbound
-	// pendingApprovals maps an approval RequestID to the tool call awaiting a
-	// decision, so an approval_response frame can answer the right one. Normally
-	// holds at most one entry (the agent turn is paused while it waits).
 	pendingApprovals map[string]sdk.ChatCompletionMessageToolCall
 
 	writeMu sync.Mutex // serializes writes to conn

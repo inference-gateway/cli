@@ -48,7 +48,7 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
-	time.Sleep(50 * time.Millisecond) // let the chat pump subscribe
+	time.Sleep(50 * time.Millisecond)
 	events.Publish(toolApprovalEvent("req-1", "Bash", `{"command":"ls"}`))
 
 	req := readFrameOfType(t, conn, "approval_request")
