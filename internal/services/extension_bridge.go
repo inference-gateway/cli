@@ -24,22 +24,36 @@ import (
 )
 
 // extensionProtocolVersion is the wire protocol version sent in the hello ack.
-// Documented in docs/browser-extension-protocol.md.
-const extensionProtocolVersion = 1
+// Documented in docs/browser-extension-protocol.md. v2 adds the approval flow
+// (approval_request / approval_response / approval_resolved).
+const extensionProtocolVersion = 2
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string `json:"type"`
-	Token            string `json:"token,omitempty"`
-	ExtensionVersion string `json:"extension_version,omitempty"`
-	// browser_result fields (Content doubles as the user_message text)
-	ID      string   `json:"id,omitempty"`
-	URL     string   `json:"url,omitempty"`
-	Title   string   `json:"title,omitempty"`
-	Content string   `json:"content,omitempty"`
-	Events  []string `json:"events,omitempty"`
-	Error   string   `json:"error,omitempty"`
+	Type             string   `json:"type"`
+	Token            string   `json:"token,omitempty"`
+	ExtensionVersion string   `json:"extension_version,omitempty"`
+	ID               string   `json:"id,omitempty"`
+	URL              string   `json:"url,omitempty"`
+	Title            string   `json:"title,omitempty"`
+	Content          string   `json:"content,omitempty"`
+	Events           []string `json:"events,omitempty"`
+	Error            string   `json:"error,omitempty"`
+	RequestID        string   `json:"request_id,omitempty"`
+	Action           string   `json:"action,omitempty"`
+}
+
+type extApprovalRequest struct {
+	Type      string `json:"type"`
+	RequestID string `json:"request_id"`
+	ToolName  string `json:"tool_name"`
+	ToolArgs  string `json:"tool_args"`
+}
+
+type extApprovalResolved struct {
+	Type      string `json:"type"`
+	RequestID string `json:"request_id"`
 }
 
 type extHelloAck struct {
@@ -86,10 +100,11 @@ type ExtensionBridge struct {
 	addr     string
 	startErr error
 
-	mu       sync.Mutex // guards conn, connStop, pending
-	conn     *websocket.Conn
-	connStop chan struct{}
-	pending  map[string]chan extInbound
+	mu               sync.Mutex // guards conn, connStop, pending, pendingApprovals
+	conn             *websocket.Conn
+	connStop         chan struct{}
+	pending          map[string]chan extInbound
+	pendingApprovals map[string]sdk.ChatCompletionMessageToolCall
 
 	writeMu sync.Mutex // serializes writes to conn
 }
@@ -98,12 +113,13 @@ type ExtensionBridge struct {
 // (conversation sync is then skipped); cfg must not be nil.
 func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, sessionID string) *ExtensionBridge {
 	return &ExtensionBridge{
-		cfg:       cfg,
-		notifier:  notifier,
-		repo:      repo,
-		events:    events,
-		sessionID: sessionID,
-		pending:   make(map[string]chan extInbound),
+		cfg:              cfg,
+		notifier:         notifier,
+		repo:             repo,
+		events:           events,
+		sessionID:        sessionID,
+		pending:          make(map[string]chan extInbound),
+		pendingApprovals: make(map[string]sdk.ChatCompletionMessageToolCall),
 	}
 }
 
@@ -190,6 +206,8 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.conn = conn
 	stop := make(chan struct{})
 	b.connStop = stop
+
+	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
 	b.mu.Unlock()
 
 	b.sendSnapshot(conn)
@@ -234,6 +252,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			if b.notifier != nil && msg.Content != "" {
 				b.notifier.Notify(domain.UserInputEvent{Content: msg.Content})
 			}
+		case "approval_response":
+			b.answerApproval(conn, msg.RequestID, msg.Action)
 		default:
 			// Unknown frame types are ignored for forward compatibility.
 		}
@@ -243,9 +263,12 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 // chatPump mirrors chat events to the extension as AG-UI lines wrapped in
 // chat_event frames.
 //
-// ponytail: ToolApprovalRequestedEvent is filtered out - approvals stay in
-// the terminal. Mirroring them would double-answer the approval channel;
-// extension-side approvals come with a protocol bump.
+// ToolApprovalRequestedEvent is not rendered as a chat line; instead it is
+// forwarded as an approval_request frame so the panel can answer it (protocol
+// v2). Because the agent turn blocks on the approval's ResponseChan, no other
+// event streams until the approval is answered - so the first event that
+// arrives after a request reliably means it was resolved (here or in the
+// terminal), which is when we send approval_resolved to clear the panel card.
 func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	if b.events == nil {
 		return
@@ -264,9 +287,11 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 				if !ok {
 					return
 				}
-				if _, isApproval := ev.(domain.ToolApprovalRequestedEvent); isApproval {
+				if req, isApproval := ev.(domain.ToolApprovalRequestedEvent); isApproval {
+					b.requestApproval(conn, req)
 					continue
 				}
+				b.resolvePendingApprovals(conn)
 				select {
 				case filtered <- ev:
 				case <-stop:
@@ -309,6 +334,67 @@ func (w *chatEventWriter) Write(p []byte) (int, error) {
 			w.bridge.write(w.conn, extChatEvent{Type: "chat_event", Event: line})
 		}
 	}
+}
+
+// requestApproval stashes the pending tool call and asks the panel to decide.
+func (b *ExtensionBridge) requestApproval(conn *websocket.Conn, req domain.ToolApprovalRequestedEvent) {
+	b.mu.Lock()
+	b.pendingApprovals[req.RequestID] = req.ToolCall
+	b.mu.Unlock()
+	b.write(conn, extApprovalRequest{
+		Type:      "approval_request",
+		RequestID: req.RequestID,
+		ToolName:  req.ToolCall.Function.Name,
+		ToolArgs:  req.ToolCall.Function.Arguments,
+	})
+}
+
+// resolvePendingApprovals clears any outstanding approval cards. Called when the
+// next event streams (the approval was answered here or in the terminal). A
+// duplicate approval_resolved is harmless - the panel ignores unknown ids.
+func (b *ExtensionBridge) resolvePendingApprovals(conn *websocket.Conn) {
+	b.mu.Lock()
+	if len(b.pendingApprovals) == 0 {
+		b.mu.Unlock()
+		return
+	}
+	ids := make([]string, 0, len(b.pendingApprovals))
+	for id := range b.pendingApprovals {
+		ids = append(ids, id)
+	}
+	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
+	b.mu.Unlock()
+	for _, id := range ids {
+		b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: id})
+	}
+}
+
+// answerApproval turns a panel approval_response into the same
+// ToolApprovalResponseEvent the terminal emits, then confirms the card cleared.
+func (b *ExtensionBridge) answerApproval(conn *websocket.Conn, requestID, action string) {
+	b.mu.Lock()
+	toolCall, ok := b.pendingApprovals[requestID]
+	delete(b.pendingApprovals, requestID)
+	b.mu.Unlock()
+	if !ok {
+		return
+	}
+	if b.notifier != nil {
+		b.notifier.Notify(domain.ToolApprovalResponseEvent{
+			Action:   approvalAction(action),
+			ToolCall: toolCall,
+		})
+	}
+	b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: requestID})
+}
+
+// approvalAction maps the wire action to a decision; anything but "approve"
+// (including unknown values) is treated as a reject, failing safe.
+func approvalAction(action string) domain.ApprovalAction {
+	if action == "approve" {
+		return domain.ApprovalApprove
+	}
+	return domain.ApprovalReject
 }
 
 func (b *ExtensionBridge) pingLoop(conn *websocket.Conn, stop chan struct{}) {
