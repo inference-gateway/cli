@@ -123,6 +123,22 @@ agent is busy, exactly like typing in the TUI):
 {"type": "user_message", "content": "please also check the docs page"}
 ```
 
+## Artifacts (generated images)
+
+Chat text can reference files the agent saved under the artifacts dir
+(`~/.infer/artifacts/<...>`, e.g. `ImageGeneration` output). An MV3 extension
+cannot load a local file path in `<img>`, so alongside `/ws` the CLI serves that
+directory read-only over HTTP:
+
+```text
+GET http://127.0.0.1:<port>/artifacts/<relative-path>
+```
+
+The extension rewrites a markdown image whose URL contains `/.infer/artifacts/`
+to this route (stripping the prefix through and including `artifacts/`) and
+renders it inline. The route is loopback-only and unauthenticated (the artifacts
+are the user's own generated files); path traversal is blocked by `http.Dir`.
+
 ## Tool approvals (protocol v2)
 
 When a tool call needs the user's approval, the CLI sends an approval request

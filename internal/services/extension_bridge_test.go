@@ -2,6 +2,10 @@ package services
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -192,7 +196,7 @@ func bridgeConfig() *config.BrowserUseConfig {
 
 func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UINotifier, events domain.EventBridge) *ExtensionBridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, notifier, nil, events, "test-session")
+	bridge := NewExtensionBridge(cfg, notifier, nil, events, "test-session", "")
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -251,7 +255,7 @@ func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Token = ""
-	bridge := NewExtensionBridge(cfg, nil, nil, nil, "s")
+	bridge := NewExtensionBridge(cfg, nil, nil, nil, "s", "")
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
@@ -393,4 +397,48 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read after replacement: %v", err)
 	}
+}
+
+func TestExtensionBridgeServesArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "cat.png"), []byte("PNGDATA"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+
+	bridge := NewExtensionBridge(bridgeConfig(), nil, nil, nil, "s", dir)
+	if err := bridge.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(bridge.Close)
+
+	body, status := httpGet(t, "http://"+bridge.Addr()+"/artifacts/cat.png")
+	if status != http.StatusOK || body != "PNGDATA" {
+		t.Fatalf("serve artifact: status=%d body=%q", status, body)
+	}
+
+	_, status = httpGet(t, "http://"+bridge.Addr()+"/artifacts/../extension_bridge.go")
+	if status == http.StatusOK {
+		t.Fatalf("path traversal was not blocked (status %d)", status)
+	}
+}
+
+func TestExtensionBridgeWithoutArtifactsDirHasNoRoute(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	if _, status := httpGet(t, "http://"+bridge.Addr()+"/artifacts/cat.png"); status == http.StatusOK {
+		t.Fatalf("expected no /artifacts/ route, got status %d", status)
+	}
+}
+
+func httpGet(t *testing.T, url string) (string, int) {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body), resp.StatusCode
 }
