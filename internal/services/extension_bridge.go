@@ -25,23 +25,27 @@ import (
 
 // extensionProtocolVersion is the wire protocol version sent in the hello ack.
 // Documented in docs/browser-extension-protocol.md. v2 adds the approval flow
-// (approval_request / approval_response / approval_resolved).
-const extensionProtocolVersion = 2
+// (approval_request / approval_response / approval_resolved); v3 adds the
+// screenshot and tabs commands and requires read-redaction of secret inputs.
+const extensionProtocolVersion = 3
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string   `json:"type"`
-	Token            string   `json:"token,omitempty"`
-	ExtensionVersion string   `json:"extension_version,omitempty"`
-	ID               string   `json:"id,omitempty"`
-	URL              string   `json:"url,omitempty"`
-	Title            string   `json:"title,omitempty"`
-	Content          string   `json:"content,omitempty"`
-	Events           []string `json:"events,omitempty"`
-	Error            string   `json:"error,omitempty"`
-	RequestID        string   `json:"request_id,omitempty"`
-	Action           string   `json:"action,omitempty"`
+	Type             string              `json:"type"`
+	Token            string              `json:"token,omitempty"`
+	ExtensionVersion string              `json:"extension_version,omitempty"`
+	ID               string              `json:"id,omitempty"`
+	URL              string              `json:"url,omitempty"`
+	Title            string              `json:"title,omitempty"`
+	Content          string              `json:"content,omitempty"`
+	Events           []string            `json:"events,omitempty"`
+	Error            string              `json:"error,omitempty"`
+	RequestID        string              `json:"request_id,omitempty"`
+	Action           string              `json:"action,omitempty"`
+	Image            string              `json:"image,omitempty"` // base64 screenshot bytes
+	ImageMimeType    string              `json:"image_mime_type,omitempty"`
+	Tabs             []domain.BrowserTab `json:"tabs,omitempty"`
 }
 
 type extApprovalRequest struct {
@@ -527,6 +531,43 @@ func (b *ExtensionBridge) Read(ctx context.Context, selector string) (domain.Bro
 		Content:  result.Content,
 		Events:   result.Events,
 	}, nil
+}
+
+// ClickAt implements domain.BrowserDriver. The extension bridge drives clicks
+// through chrome.scripting (untrusted synthetic events), which have no reliable
+// viewport-coordinate form - that needs chrome.debugger/CDP. Fail clearly.
+func (b *ExtensionBridge) ClickAt(_ context.Context, _, _ float64) (domain.BrowserToolResult, error) {
+	return domain.BrowserToolResult{}, fmt.Errorf("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
+}
+
+// Screenshot implements domain.BrowserDriver via the extension's captureVisibleTab.
+func (b *ExtensionBridge) Screenshot(ctx context.Context) (domain.BrowserScreenshotResult, error) {
+	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "screenshot"})
+	if err != nil {
+		return domain.BrowserScreenshotResult{}, err
+	}
+	if result.Image == "" {
+		return domain.BrowserScreenshotResult{}, fmt.Errorf("extension returned no screenshot data")
+	}
+	mime := result.ImageMimeType
+	if mime == "" {
+		mime = "image/png"
+	}
+	return domain.BrowserScreenshotResult{
+		Data:     result.Image,
+		MimeType: mime,
+		URL:      result.URL,
+		Title:    result.Title,
+	}, nil
+}
+
+// Tabs implements domain.BrowserDriver via the extension's chrome.tabs query.
+func (b *ExtensionBridge) Tabs(ctx context.Context) ([]domain.BrowserTab, error) {
+	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "tabs"})
+	if err != nil {
+		return nil, err
+	}
+	return result.Tabs, nil
 }
 
 // Close implements domain.BrowserDriver: shuts the server and any connection.

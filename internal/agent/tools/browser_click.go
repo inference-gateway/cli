@@ -2,11 +2,13 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // BrowserClickTool clicks an element in the shared browser session
@@ -41,10 +43,18 @@ func (t *BrowserClickTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"selector": map[string]any{
 						"type":        "string",
-						"description": "CSS or Playwright selector of the element to click (e.g. 'button.submit', 'text=Sign in')",
+						"description": "CSS or Playwright selector of the element to click (e.g. 'button.submit', 'text=Sign in'). Provide this OR x/y coordinates.",
+					},
+					"x": map[string]any{
+						"type":        "number",
+						"description": "Viewport x coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with y.",
+					},
+					"y": map[string]any{
+						"type":        "number",
+						"description": "Viewport y coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with x.",
 					},
 				},
-				"required": []string{"selector"},
+				"required": []string{},
 			},
 		},
 	}
@@ -56,6 +66,14 @@ func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*d
 
 	if err := t.checkRateLimit(); err != nil {
 		return t.errorResult(args, start, err.Error()), nil
+	}
+
+	if x, y, ok := clickCoords(args); ok {
+		result, err := t.driver.ClickAt(ctx, x, y)
+		if err != nil {
+			return t.errorResult(args, start, err.Error()), nil
+		}
+		return t.successResult(args, start, result), nil
 	}
 
 	selector, err := requireString(args, "selector")
@@ -70,8 +88,40 @@ func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*d
 	return t.successResult(args, start, result), nil
 }
 
-// Validate checks if the tool arguments are valid
+// Validate checks if the tool arguments are valid: a selector, or an x/y pair.
 func (t *BrowserClickTool) Validate(args map[string]any) error {
+	_, hasX := numberArg(args, "x")
+	_, hasY := numberArg(args, "y")
+	if hasX || hasY {
+		if !hasX || !hasY {
+			return fmt.Errorf("x and y must be provided together")
+		}
+		return nil
+	}
 	_, err := requireString(args, "selector")
 	return err
+}
+
+// clickCoords returns the x/y click target when both are present.
+func clickCoords(args map[string]any) (float64, float64, bool) {
+	x, hasX := numberArg(args, "x")
+	y, hasY := numberArg(args, "y")
+	return x, y, hasX && hasY
+}
+
+// numberArg reads a numeric argument, tolerating the int/float forms JSON and
+// callers may produce.
+func numberArg(args map[string]any, key string) (float64, bool) {
+	switch v := args[key].(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	default:
+		return 0, false
+	}
 }

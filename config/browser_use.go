@@ -62,10 +62,12 @@ type BrowserConfig struct {
 
 // BrowserUseToolsConfig contains individual browser use tool settings.
 type BrowserUseToolsConfig struct {
-	Navigate BrowserToolConfig `yaml:"navigate" mapstructure:"navigate"`
-	Click    BrowserToolConfig `yaml:"click" mapstructure:"click"`
-	Type     BrowserToolConfig `yaml:"type" mapstructure:"type"`
-	Read     BrowserToolConfig `yaml:"read" mapstructure:"read"`
+	Navigate   BrowserToolConfig `yaml:"navigate" mapstructure:"navigate"`
+	Click      BrowserToolConfig `yaml:"click" mapstructure:"click"`
+	Type       BrowserToolConfig `yaml:"type" mapstructure:"type"`
+	Read       BrowserToolConfig `yaml:"read" mapstructure:"read"`
+	Screenshot BrowserToolConfig `yaml:"screenshot" mapstructure:"screenshot"`
+	Tabs       BrowserToolConfig `yaml:"tabs" mapstructure:"tabs"`
 }
 
 // BrowserToolConfig contains per-tool settings.
@@ -97,10 +99,12 @@ func DefaultBrowserUseConfig() *BrowserUseConfig {
 			WindowSeconds:       60,
 		},
 		Tools: BrowserUseToolsConfig{
-			Navigate: BrowserToolConfig{Enabled: true},
-			Click:    BrowserToolConfig{Enabled: true},
-			Type:     BrowserToolConfig{Enabled: true},
-			Read:     BrowserToolConfig{Enabled: true},
+			Navigate:   BrowserToolConfig{Enabled: true},
+			Click:      BrowserToolConfig{Enabled: true},
+			Type:       BrowserToolConfig{Enabled: true},
+			Read:       BrowserToolConfig{Enabled: true},
+			Screenshot: BrowserToolConfig{Enabled: true},
+			Tabs:       BrowserToolConfig{Enabled: true},
 		},
 	}
 }

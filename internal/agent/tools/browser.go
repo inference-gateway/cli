@@ -2,7 +2,10 @@ package tools
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -249,7 +252,68 @@ func (s *browserSession) Type(_ context.Context, selector, text string, pressEnt
 	return domain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: page.URL(), Title: title}, nil
 }
 
-// Read implements domain.BrowserDriver.
+// browserReadJS extracts text from the matched element. For form fields it
+// returns the field's metadata + value (so BrowserRead can report input
+// contents); for everything else it returns rendered innerText, which never
+// includes input values. Go decides redaction from the metadata (see
+// extractReadContent) so the security rule lives in testable Go, not JS.
+const browserReadJS = `(el) => {
+  const tag = el.tagName ? el.tagName.toLowerCase() : "";
+  if (tag === "input" || tag === "textarea" || tag === "select") {
+    return JSON.stringify({
+      field: true,
+      type: el.getAttribute("type") || "",
+      autocomplete: el.getAttribute("autocomplete") || "",
+      name: el.getAttribute("name") || "",
+      id: el.id || "",
+      aria: el.getAttribute("aria-label") || "",
+      value: el.value || ""
+    });
+  }
+  return JSON.stringify({ field: false, text: el.innerText || el.textContent || "" });
+}`
+
+// sensitiveNameRE flags inputs whose name/id/aria-label suggests a secret.
+var sensitiveNameRE = regexp.MustCompile(`(?i)pass|secret|token|otp|cvc|card`)
+
+// isSensitiveField decides whether an input's value must be withheld from the
+// LLM. Pure so it can be unit-tested without a browser.
+func isSensitiveField(fieldType, autocomplete, name, id, aria string) bool {
+	if strings.EqualFold(fieldType, "password") {
+		return true
+	}
+	switch strings.ToLower(autocomplete) {
+	case "current-password", "new-password", "one-time-code":
+		return true
+	}
+	return sensitiveNameRE.MatchString(name + " " + id + " " + aria)
+}
+
+// extractReadContent turns the browserReadJS payload into the text BrowserRead
+// returns, redacting sensitive field values to "[redacted]".
+func extractReadContent(raw any) string {
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	var r struct {
+		Field                                           bool
+		Type, Autocomplete, Name, ID, Aria, Value, Text string
+	}
+	if err := json.Unmarshal([]byte(s), &r); err != nil {
+		return ""
+	}
+	if r.Field {
+		if isSensitiveField(r.Type, r.Autocomplete, r.Name, r.ID, r.Aria) {
+			return "[redacted]"
+		}
+		return r.Value
+	}
+	return r.Text
+}
+
+// Read implements domain.BrowserDriver. It returns rendered text (never raw
+// input values), with sensitive field values redacted.
 func (s *browserSession) Read(_ context.Context, selector string) (domain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
@@ -259,12 +323,11 @@ func (s *browserSession) Read(_ context.Context, selector string) (domain.Browse
 	if target == "" {
 		target = "body"
 	}
-	content, err := page.Locator(target).First().InnerText(playwright.LocatorInnerTextOptions{
-		Timeout: playwright.Float(s.timeoutMs()),
-	})
+	raw, err := page.Locator(target).First().Evaluate(browserReadJS, nil)
 	if err != nil {
 		return domain.BrowserToolResult{}, fmt.Errorf("failed to read %q: %w", target, err)
 	}
+	content := extractReadContent(raw)
 	if len(content) > maxBrowserReadChars {
 		content = content[:maxBrowserReadChars] + "\n... (truncated)"
 	}
@@ -277,6 +340,72 @@ func (s *browserSession) Read(_ context.Context, selector string) (domain.Browse
 		Content:  content,
 		Events:   s.DrainEvents(),
 	}, nil
+}
+
+// ClickAt implements domain.BrowserDriver: clicks viewport coordinates (CSS
+// pixels), for use with a BrowserScreenshot. ponytail: coords are CSS pixels;
+// if the screenshot's devicePixelRatio != 1 the model must scale - the DPR
+// knob lives in the browser context, not here.
+func (s *browserSession) ClickAt(_ context.Context, x, y float64) (domain.BrowserToolResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserToolResult{}, err
+	}
+	if err := page.Mouse().Click(x, y); err != nil {
+		return domain.BrowserToolResult{}, fmt.Errorf("failed to click at (%.0f, %.0f): %w", x, y, err)
+	}
+	title, _ := page.Title()
+	return domain.BrowserToolResult{Action: "click", URL: page.URL(), Title: title}, nil
+}
+
+// Screenshot implements domain.BrowserDriver: captures the active page as PNG.
+func (s *browserSession) Screenshot(_ context.Context) (domain.BrowserScreenshotResult, error) {
+	page, err := s.Page()
+	if err != nil {
+		return domain.BrowserScreenshotResult{}, err
+	}
+	buf, err := page.Screenshot(playwright.PageScreenshotOptions{
+		Timeout: playwright.Float(s.timeoutMs()),
+	})
+	if err != nil {
+		return domain.BrowserScreenshotResult{}, fmt.Errorf("failed to screenshot page: %w", err)
+	}
+	title, _ := page.Title()
+	res := domain.BrowserScreenshotResult{
+		Data:     base64.StdEncoding.EncodeToString(buf),
+		MimeType: "image/png",
+		URL:      page.URL(),
+		Title:    title,
+	}
+	if vp := page.ViewportSize(); vp != nil {
+		res.Width = vp.Width
+		res.Height = vp.Height
+	}
+	return res, nil
+}
+
+// Tabs implements domain.BrowserDriver: lists open pages across all contexts,
+// marking the one the verbs currently act on.
+func (s *browserSession) Tabs(_ context.Context) ([]domain.BrowserTab, error) {
+	if _, err := s.Page(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	browser, active := s.browser, s.page
+	s.mu.Unlock()
+	if browser == nil {
+		return nil, fmt.Errorf("browser not started")
+	}
+	var tabs []domain.BrowserTab
+	idx := 0
+	for _, bctx := range browser.Contexts() {
+		for _, p := range bctx.Pages() {
+			title, _ := p.Title()
+			tabs = append(tabs, domain.BrowserTab{Index: idx, URL: p.URL(), Title: title, Active: p == active})
+			idx++
+		}
+	}
+	return tabs, nil
 }
 
 // Close shuts the browser and the Playwright driver down. Safe to call when

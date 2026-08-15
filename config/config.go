@@ -1293,7 +1293,7 @@ func DefaultConfig() *Config { //nolint:funlen
 
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
-func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop
+func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop,funlen
 	globalApproval := c.Tools.Safety.RequireApproval
 
 	switch toolName {
@@ -1392,6 +1392,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "Memory":
 		return false
 	case "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame":
+		return false
+	case "BrowserRead", "BrowserScreenshot", "BrowserTabs":
 		return false
 	}
 

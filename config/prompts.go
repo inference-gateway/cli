@@ -101,6 +101,8 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.BrowserClick, &defaults.BrowserClick)
 	mergeToolDescription(&loaded.BrowserType, &defaults.BrowserType)
 	mergeToolDescription(&loaded.BrowserRead, &defaults.BrowserRead)
+	mergeToolDescription(&loaded.BrowserScreenshot, &defaults.BrowserScreenshot)
+	mergeToolDescription(&loaded.BrowserTabs, &defaults.BrowserTabs)
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
 	mergeToolDescription(&loaded.GetLatestFrame, &defaults.GetLatestFrame)
@@ -230,6 +232,8 @@ type PromptsToolsConfig struct {
 	BrowserClick        PromptsToolDescription `yaml:"BrowserClick" mapstructure:"BrowserClick"`
 	BrowserType         PromptsToolDescription `yaml:"BrowserType" mapstructure:"BrowserType"`
 	BrowserRead         PromptsToolDescription `yaml:"BrowserRead" mapstructure:"BrowserRead"`
+	BrowserScreenshot   PromptsToolDescription `yaml:"BrowserScreenshot" mapstructure:"BrowserScreenshot"`
+	BrowserTabs         PromptsToolDescription `yaml:"BrowserTabs" mapstructure:"BrowserTabs"`
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
 	GetLatestFrame      PromptsToolDescription `yaml:"GetLatestFrame" mapstructure:"GetLatestFrame"`
@@ -704,13 +708,19 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.`,
 		},
 		BrowserClick: PromptsToolDescription{
-			Description: `Clicks an element in the current browser page identified by a CSS selector or text= / role-based Playwright selector. Use BrowserRead first to inspect the page and find selectors. Requires an active page (call BrowserNavigate first).`,
+			Description: `Clicks in the current browser page, either at an element (CSS selector or text= / role-based Playwright selector) or at viewport x/y coordinates (CSS pixels) taken from a BrowserScreenshot. Provide 'selector' OR both 'x' and 'y'. Use BrowserRead or BrowserScreenshot first to locate the target. Coordinate clicks are not available on the extension backend. Requires an active page (call BrowserNavigate first).`,
 		},
 		BrowserType: PromptsToolDescription{
 			Description: `Types text into an input element in the current browser page identified by a selector, replacing its existing value. Set press_enter to true to submit afterwards (e.g. search boxes, forms). Requires an active page (call BrowserNavigate first).`,
 		},
 		BrowserRead: PromptsToolDescription{
-			Description: `Reads the current browser page: URL, title, and visible text (of the whole page or of the element matched by an optional selector). Also returns recent browser-initiated events (console messages, dialogs, and window.inferNotify(...) calls from page scripts) so pages can signal back to you. Read-only.`,
+			Description: `Reads the current browser page: URL, title, and visible text (of the whole page or of the element matched by an optional selector). Sensitive input values (passwords, tokens, one-time codes) are redacted. Also returns recent browser-initiated events (console messages, dialogs, and window.inferNotify(...) calls from page scripts) so pages can signal back to you. Read-only.`,
+		},
+		BrowserScreenshot: PromptsToolDescription{
+			Description: `Captures a screenshot of the current browser page/active tab and attaches it as an image (models with vision see it inline). Use it to see what the user is looking at, then act with BrowserClick (by selector or x/y coordinates). Password fields render masked by the browser. Read-only.`,
+		},
+		BrowserTabs: PromptsToolDescription{
+			Description: `Lists the browser's open tabs (index, URL, title) and marks the active one, so you know which page the user is currently on. Read-only.`,
 		},
 		GetFocusedApp: PromptsToolDescription{
 			Description: `Gets the currently focused (frontmost) application. Returns the application name and bundle identifier. Use this before performing computer use actions to verify the correct application is in focus.`,
