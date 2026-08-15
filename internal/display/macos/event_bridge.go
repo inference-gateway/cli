@@ -35,8 +35,8 @@ func NewEventBridge() *EventBridge {
 	}
 }
 
-// Publish broadcasts an event to all subscribers
-// Non-blocking: if a subscriber's channel is full, the event is dropped for that subscriber
+// Publish broadcasts an event to every subscriber. Delivery is non-blocking so
+// one slow subscriber can never stall the bus for the others.
 func (eb *EventBridge) Publish(event domain.ChatEvent) {
 	eb.subMutex.Lock()
 	eb.eventBuffer.Value = event
@@ -45,16 +45,33 @@ func (eb *EventBridge) Publish(event domain.ChatEvent) {
 	copy(subscribers, eb.subscribers)
 	eb.subMutex.Unlock()
 
+	_, droppable := event.(domain.ChatChunkEvent)
 	for _, sub := range subscribers {
-		sub.mu.Lock()
-		if !sub.closed {
-			select {
-			case sub.ch <- event:
-			default:
-			}
-		}
-		sub.mu.Unlock()
+		sub.enqueue(event, droppable)
 	}
+}
+
+// enqueue delivers one event without blocking: a full buffer drops a chunk, but
+// a control event evicts the oldest buffered event to guarantee room.
+func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	select {
+	case s.ch <- event:
+		return
+	default:
+	}
+	if droppable {
+		return
+	}
+	select {
+	case <-s.ch:
+	default:
+	}
+	s.ch <- event
 }
 
 // Subscribe creates a new event channel and returns it

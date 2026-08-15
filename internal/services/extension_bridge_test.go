@@ -90,6 +90,35 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 	}
 }
 
+// A tool-call chat event streaming after the approval_request must NOT clear the
+// card - only an explicit ToolApprovalResolvedEvent does. Regression test for the
+// card vanishing before the user could answer.
+func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
+	events := macos.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond)
+	events.Publish(toolApprovalEvent("req-9", "Write", `{"file_path":"x"}`))
+	readFrameOfType(t, conn, "approval_request")
+
+	events.Publish(domain.ChatChunkEvent{Content: "streamed"})
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var frame map[string]any
+	if err := conn.ReadJSON(&frame); err != nil {
+		t.Fatalf("read after trailing chunk: %v", err)
+	}
+	if frame["type"] == "approval_resolved" {
+		t.Fatal("a trailing chat event resolved the approval before the user answered")
+	}
+
+	events.Publish(domain.ToolApprovalResolvedEvent{})
+	if resolved := readFrameOfType(t, conn, "approval_resolved"); resolved["request_id"] != "req-9" {
+		t.Fatalf("unexpected approval_resolved: %v", resolved)
+	}
+}
+
 func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 	notifier := &recordingNotifier{}
 	events := macos.NewEventBridge()
