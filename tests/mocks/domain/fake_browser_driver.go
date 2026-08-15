@@ -23,6 +23,21 @@ type FakeBrowserDriver struct {
 		result1 domain.BrowserToolResult
 		result2 error
 	}
+	ClickAtStub        func(context.Context, float64, float64) (domain.BrowserToolResult, error)
+	clickAtMutex       sync.RWMutex
+	clickAtArgsForCall []struct {
+		arg1 context.Context
+		arg2 float64
+		arg3 float64
+	}
+	clickAtReturns struct {
+		result1 domain.BrowserToolResult
+		result2 error
+	}
+	clickAtReturnsOnCall map[int]struct {
+		result1 domain.BrowserToolResult
+		result2 error
+	}
 	CloseStub        func()
 	closeMutex       sync.RWMutex
 	closeArgsForCall []struct {
@@ -53,6 +68,32 @@ type FakeBrowserDriver struct {
 	}
 	readReturnsOnCall map[int]struct {
 		result1 domain.BrowserToolResult
+		result2 error
+	}
+	ScreenshotStub        func(context.Context) (domain.BrowserScreenshotResult, error)
+	screenshotMutex       sync.RWMutex
+	screenshotArgsForCall []struct {
+		arg1 context.Context
+	}
+	screenshotReturns struct {
+		result1 domain.BrowserScreenshotResult
+		result2 error
+	}
+	screenshotReturnsOnCall map[int]struct {
+		result1 domain.BrowserScreenshotResult
+		result2 error
+	}
+	TabsStub        func(context.Context) ([]domain.BrowserTab, error)
+	tabsMutex       sync.RWMutex
+	tabsArgsForCall []struct {
+		arg1 context.Context
+	}
+	tabsReturns struct {
+		result1 []domain.BrowserTab
+		result2 error
+	}
+	tabsReturnsOnCall map[int]struct {
+		result1 []domain.BrowserTab
 		result2 error
 	}
 	TypeStub        func(context.Context, string, string, bool) (domain.BrowserToolResult, error)
@@ -135,6 +176,72 @@ func (fake *FakeBrowserDriver) ClickReturnsOnCall(i int, result1 domain.BrowserT
 		})
 	}
 	fake.clickReturnsOnCall[i] = struct {
+		result1 domain.BrowserToolResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) ClickAt(arg1 context.Context, arg2 float64, arg3 float64) (domain.BrowserToolResult, error) {
+	fake.clickAtMutex.Lock()
+	ret, specificReturn := fake.clickAtReturnsOnCall[len(fake.clickAtArgsForCall)]
+	fake.clickAtArgsForCall = append(fake.clickAtArgsForCall, struct {
+		arg1 context.Context
+		arg2 float64
+		arg3 float64
+	}{arg1, arg2, arg3})
+	stub := fake.ClickAtStub
+	fakeReturns := fake.clickAtReturns
+	fake.recordInvocation("ClickAt", []interface{}{arg1, arg2, arg3})
+	fake.clickAtMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeBrowserDriver) ClickAtCallCount() int {
+	fake.clickAtMutex.RLock()
+	defer fake.clickAtMutex.RUnlock()
+	return len(fake.clickAtArgsForCall)
+}
+
+func (fake *FakeBrowserDriver) ClickAtCalls(stub func(context.Context, float64, float64) (domain.BrowserToolResult, error)) {
+	fake.clickAtMutex.Lock()
+	defer fake.clickAtMutex.Unlock()
+	fake.ClickAtStub = stub
+}
+
+func (fake *FakeBrowserDriver) ClickAtArgsForCall(i int) (context.Context, float64, float64) {
+	fake.clickAtMutex.RLock()
+	defer fake.clickAtMutex.RUnlock()
+	argsForCall := fake.clickAtArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeBrowserDriver) ClickAtReturns(result1 domain.BrowserToolResult, result2 error) {
+	fake.clickAtMutex.Lock()
+	defer fake.clickAtMutex.Unlock()
+	fake.ClickAtStub = nil
+	fake.clickAtReturns = struct {
+		result1 domain.BrowserToolResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) ClickAtReturnsOnCall(i int, result1 domain.BrowserToolResult, result2 error) {
+	fake.clickAtMutex.Lock()
+	defer fake.clickAtMutex.Unlock()
+	fake.ClickAtStub = nil
+	if fake.clickAtReturnsOnCall == nil {
+		fake.clickAtReturnsOnCall = make(map[int]struct {
+			result1 domain.BrowserToolResult
+			result2 error
+		})
+	}
+	fake.clickAtReturnsOnCall[i] = struct {
 		result1 domain.BrowserToolResult
 		result2 error
 	}{result1, result2}
@@ -290,6 +397,134 @@ func (fake *FakeBrowserDriver) ReadReturnsOnCall(i int, result1 domain.BrowserTo
 	}
 	fake.readReturnsOnCall[i] = struct {
 		result1 domain.BrowserToolResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) Screenshot(arg1 context.Context) (domain.BrowserScreenshotResult, error) {
+	fake.screenshotMutex.Lock()
+	ret, specificReturn := fake.screenshotReturnsOnCall[len(fake.screenshotArgsForCall)]
+	fake.screenshotArgsForCall = append(fake.screenshotArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.ScreenshotStub
+	fakeReturns := fake.screenshotReturns
+	fake.recordInvocation("Screenshot", []interface{}{arg1})
+	fake.screenshotMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeBrowserDriver) ScreenshotCallCount() int {
+	fake.screenshotMutex.RLock()
+	defer fake.screenshotMutex.RUnlock()
+	return len(fake.screenshotArgsForCall)
+}
+
+func (fake *FakeBrowserDriver) ScreenshotCalls(stub func(context.Context) (domain.BrowserScreenshotResult, error)) {
+	fake.screenshotMutex.Lock()
+	defer fake.screenshotMutex.Unlock()
+	fake.ScreenshotStub = stub
+}
+
+func (fake *FakeBrowserDriver) ScreenshotArgsForCall(i int) context.Context {
+	fake.screenshotMutex.RLock()
+	defer fake.screenshotMutex.RUnlock()
+	argsForCall := fake.screenshotArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBrowserDriver) ScreenshotReturns(result1 domain.BrowserScreenshotResult, result2 error) {
+	fake.screenshotMutex.Lock()
+	defer fake.screenshotMutex.Unlock()
+	fake.ScreenshotStub = nil
+	fake.screenshotReturns = struct {
+		result1 domain.BrowserScreenshotResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) ScreenshotReturnsOnCall(i int, result1 domain.BrowserScreenshotResult, result2 error) {
+	fake.screenshotMutex.Lock()
+	defer fake.screenshotMutex.Unlock()
+	fake.ScreenshotStub = nil
+	if fake.screenshotReturnsOnCall == nil {
+		fake.screenshotReturnsOnCall = make(map[int]struct {
+			result1 domain.BrowserScreenshotResult
+			result2 error
+		})
+	}
+	fake.screenshotReturnsOnCall[i] = struct {
+		result1 domain.BrowserScreenshotResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) Tabs(arg1 context.Context) ([]domain.BrowserTab, error) {
+	fake.tabsMutex.Lock()
+	ret, specificReturn := fake.tabsReturnsOnCall[len(fake.tabsArgsForCall)]
+	fake.tabsArgsForCall = append(fake.tabsArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.TabsStub
+	fakeReturns := fake.tabsReturns
+	fake.recordInvocation("Tabs", []interface{}{arg1})
+	fake.tabsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeBrowserDriver) TabsCallCount() int {
+	fake.tabsMutex.RLock()
+	defer fake.tabsMutex.RUnlock()
+	return len(fake.tabsArgsForCall)
+}
+
+func (fake *FakeBrowserDriver) TabsCalls(stub func(context.Context) ([]domain.BrowserTab, error)) {
+	fake.tabsMutex.Lock()
+	defer fake.tabsMutex.Unlock()
+	fake.TabsStub = stub
+}
+
+func (fake *FakeBrowserDriver) TabsArgsForCall(i int) context.Context {
+	fake.tabsMutex.RLock()
+	defer fake.tabsMutex.RUnlock()
+	argsForCall := fake.tabsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeBrowserDriver) TabsReturns(result1 []domain.BrowserTab, result2 error) {
+	fake.tabsMutex.Lock()
+	defer fake.tabsMutex.Unlock()
+	fake.TabsStub = nil
+	fake.tabsReturns = struct {
+		result1 []domain.BrowserTab
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBrowserDriver) TabsReturnsOnCall(i int, result1 []domain.BrowserTab, result2 error) {
+	fake.tabsMutex.Lock()
+	defer fake.tabsMutex.Unlock()
+	fake.TabsStub = nil
+	if fake.tabsReturnsOnCall == nil {
+		fake.tabsReturnsOnCall = make(map[int]struct {
+			result1 []domain.BrowserTab
+			result2 error
+		})
+	}
+	fake.tabsReturnsOnCall[i] = struct {
+		result1 []domain.BrowserTab
 		result2 error
 	}{result1, result2}
 }

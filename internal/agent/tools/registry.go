@@ -283,6 +283,8 @@ func (r *Registry) registerBrowserUseTools() {
 	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserDriver)
 	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserDriver)
 	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserScreenshot"] = NewBrowserScreenshotTool(cfg, rateLimiter, r.browserDriver)
+	r.tools["BrowserTabs"] = NewBrowserTabsTool(cfg, rateLimiter, r.browserDriver)
 }
 
 // SetBrowserDriver swaps the browser backend (e.g. the opentask extension

@@ -43,21 +43,23 @@ Extension → CLI, first frame, within 5 seconds of connecting:
 CLI → extension on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 2}
+{"type": "browser_hello_ack", "protocol_version": 3}
 ```
 
 Immediately after the ack the CLI sends a conversation snapshot (see below).
 
 ## Browser commands (CLI → extension)
 
-One shape, four actions; only the fields relevant to the action are set.
+One shape, six actions; only the fields relevant to the action are set.
 `timeout_ms` is the per-action budget the extension must enforce.
 
 ```json
-{"type": "browser_command", "id": "<uuid>", "action": "navigate", "url": "https://example.com", "timeout_ms": 30000}
-{"type": "browser_command", "id": "<uuid>", "action": "click",    "selector": "button.submit", "timeout_ms": 30000}
-{"type": "browser_command", "id": "<uuid>", "action": "type",     "selector": "input[name=q]", "text": "hello", "press_enter": true, "timeout_ms": 30000}
-{"type": "browser_command", "id": "<uuid>", "action": "read",     "selector": "", "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "navigate",   "url": "https://example.com", "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "click",      "selector": "button.submit", "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "type",       "selector": "input[name=q]", "text": "hello", "press_enter": true, "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "read",       "selector": "", "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "screenshot", "timeout_ms": 30000}
+{"type": "browser_command", "id": "<uuid>", "action": "tabs",       "timeout_ms": 30000}
 ```
 
 - `navigate`: open the URL in the controlled tab (`chrome.tabs.update`, or
@@ -66,17 +68,31 @@ One shape, four actions; only the fields relevant to the action are set.
 - `click`: `document.querySelector(selector).click()` semantics.
 - `type`: replace the element's value with `text`, dispatch `input`/`change`,
   then a keyboard Enter when `press_enter` is true.
-- `read`: `innerText` of the selector (empty selector means `body`).
+- `read`: `innerText` of the selector (empty selector means `body`). **Must
+  redact secrets:** never return the `value` of `<input type="password">`,
+  inputs whose `autocomplete` is `current-password`/`new-password`/
+  `one-time-code`, or inputs whose name/id/aria-label matches
+  `/pass|secret|token|otp|cvc|card/i` — substitute `"[redacted]"`. `innerText`
+  already excludes input values; this rule binds any richer extraction.
+- `screenshot` (v3): capture the visible controlled tab
+  (`chrome.tabs.captureVisibleTab`) and return it as base64 in the result's
+  `image` field. Passwords render masked by the browser, so no extra redaction
+  is required.
+- `tabs` (v3): enumerate the open tabs (`chrome.tabs.query`) and return them in
+  the result's `tabs` array, flagging the controlled/active one.
 
 Extension → CLI, exactly one result per command id:
 
 ```json
 {"type": "browser_result", "id": "<uuid>", "url": "https://example.com/", "title": "Example", "content": "...", "events": [], "error": ""}
+{"type": "browser_result", "id": "<uuid>", "image": "<base64>", "image_mime_type": "image/png", "url": "...", "title": "..."}
+{"type": "browser_result", "id": "<uuid>", "tabs": [{"index": 0, "url": "...", "title": "...", "active": true}]}
 ```
 
 - `error != ""` means the command failed; other fields may be empty.
-- `content` is only meaningful for `read`. `events` carries optional
-  browser-initiated notices (console lines etc.) and may always be empty.
+- `content` is only meaningful for `read`; `image`/`image_mime_type` for
+  `screenshot`; `tabs` for `tabs`. `events` carries optional browser-initiated
+  notices (console lines etc.) and may always be empty.
 - `url`/`title` reflect the controlled tab after the action.
 
 ## Conversation sync
@@ -148,7 +164,11 @@ CLI → extension, when the request is no longer pending (answered in the panel
 - WS client in the background service worker; port + token from the options
   page storage; reconnect with backoff.
 - `tabs` + `scripting` permissions and matching host permissions for the
-  controlled tab.
+  controlled tab. `screenshot` additionally needs `activeTab`/host permission
+  for `chrome.tabs.captureVisibleTab`.
+- `read` must redact secret input values before returning (see the `read`
+  action above); `screenshot` must not click-to-reveal masked fields.
 - Known ceiling: `chrome.scripting`-synthesized clicks/keys are untrusted
-  events some sites ignore; the upgrade path is `chrome.debugger` (CDP
-  `Input.dispatch*`), which changes extension permissions, not this protocol.
+  events some sites ignore, and there is no coordinate-click action for the same
+  reason; the upgrade path is `chrome.debugger` (CDP `Input.dispatch*`), which
+  changes extension permissions, not this protocol.
