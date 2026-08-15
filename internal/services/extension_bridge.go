@@ -94,11 +94,12 @@ type extChatEvent struct {
 // ponytail: one connection, one implied tab - multi-tab / multi-CLI routing
 // when someone actually needs it.
 type ExtensionBridge struct {
-	cfg       *config.BrowserUseConfig
-	notifier  domain.UINotifier
-	repo      domain.ConversationRepository
-	events    domain.EventBridge
-	sessionID string
+	cfg          *config.BrowserUseConfig
+	notifier     domain.UINotifier
+	repo         domain.ConversationRepository
+	events       domain.EventBridge
+	sessionID    string
+	artifactsDir string
 
 	server   *http.Server
 	addr     string
@@ -114,14 +115,17 @@ type ExtensionBridge struct {
 }
 
 // NewExtensionBridge builds the bridge. notifier, repo, and events may be nil
-// (conversation sync is then skipped); cfg must not be nil.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, sessionID string) *ExtensionBridge {
+// (conversation sync is then skipped); cfg must not be nil. artifactsDir, when
+// non-empty, is served read-only at /artifacts/ so the panel can display
+// generated images the agent saved locally.
+func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, sessionID, artifactsDir string) *ExtensionBridge {
 	return &ExtensionBridge{
 		cfg:              cfg,
 		notifier:         notifier,
 		repo:             repo,
 		events:           events,
 		sessionID:        sessionID,
+		artifactsDir:     artifactsDir,
 		pending:          make(map[string]chan extInbound),
 		pendingApprovals: make(map[string]sdk.ChatCompletionMessageToolCall),
 	}
@@ -145,6 +149,9 @@ func (b *ExtensionBridge) Start() error {
 	b.addr = listener.Addr().String()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", b.handleWS)
+	if b.artifactsDir != "" {
+		mux.Handle("/artifacts/", http.StripPrefix("/artifacts/", http.FileServer(http.Dir(b.artifactsDir))))
+	}
 	b.server = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := b.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {

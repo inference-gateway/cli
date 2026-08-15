@@ -228,7 +228,7 @@ func (c *ServiceContainer) initializeExtensionBridge() {
 		c.stateManager.SetEventBridge(eventBridge)
 	}
 
-	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, string(c.sessionID))
+	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, string(c.sessionID), c.config.ArtifactsDir())
 	c.toolRegistry.SetBrowserDriver(c.extensionBridge)
 }
 
