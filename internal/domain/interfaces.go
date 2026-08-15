@@ -341,6 +341,10 @@ type EventBridge interface {
 	// Subscribe creates a new event channel and returns it
 	Subscribe() chan ChatEvent
 
+	// SubscribeFuture is Subscribe without the ring-buffer replay, for
+	// subscribers that backfill history another way.
+	SubscribeFuture() chan ChatEvent
+
 	// Unsubscribe removes a subscriber and closes its channel
 	Unsubscribe(ch chan ChatEvent)
 }

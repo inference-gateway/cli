@@ -31,6 +31,33 @@ func TestPublish_DeliversControlEventWhenBufferFull(t *testing.T) {
 	}
 }
 
+// SubscribeFuture must not replay the ring buffer: subscribers that backfill
+// history another way (the extension bridge snapshot) would otherwise
+// double-render the last turn (issue #1067). Subscribe, by contrast, replays.
+func TestSubscribeFuture_SkipsRingBuffer(t *testing.T) {
+	eb := NewEventBridge()
+
+	eb.Publish(domain.ChatChunkEvent{Content: "past-1"})
+	eb.Publish(domain.ChatChunkEvent{Content: "past-2"})
+
+	if replay := eb.Subscribe(); len(replay) != 2 {
+		t.Fatalf("Subscribe replayed %d events, want 2", len(replay))
+	}
+
+	future := eb.SubscribeFuture()
+	if len(future) != 0 {
+		t.Fatalf("SubscribeFuture replayed %d buffered events, want 0", len(future))
+	}
+
+	eb.Publish(domain.ChatChunkEvent{Content: "new"})
+	if got := len(future); got != 1 {
+		t.Fatalf("SubscribeFuture buffered %d events after one publish, want 1", got)
+	}
+	if ev := (<-future).(domain.ChatChunkEvent); ev.Content != "new" {
+		t.Fatalf("got %q, want the post-subscribe event", ev.Content)
+	}
+}
+
 // Streaming chunks stay lossy so a slow subscriber can't apply backpressure to
 // the whole bus over cosmetic deltas.
 func TestPublish_DropsChunksWhenBufferFull(t *testing.T) {

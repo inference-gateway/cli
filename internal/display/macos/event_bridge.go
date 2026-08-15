@@ -74,31 +74,34 @@ func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
 	s.ch <- event
 }
 
-// Subscribe creates a new event channel and returns it
-// The subscriber will receive all future events published to the bridge
-func (eb *EventBridge) Subscribe() chan domain.ChatEvent {
+// Subscribe registers a subscriber and replays the recent-event ring buffer so
+// backfill-less subscribers (the floating window) catch up on connect.
+func (eb *EventBridge) Subscribe() chan domain.ChatEvent { return eb.subscribe(true) }
+
+// SubscribeFuture is Subscribe without the ring-buffer replay, for subscribers
+// that backfill history another way (the extension bridge's conversation
+// snapshot) where a replay would double-render the last turn.
+func (eb *EventBridge) SubscribeFuture() chan domain.ChatEvent { return eb.subscribe(false) }
+
+func (eb *EventBridge) subscribe(replay bool) chan domain.ChatEvent {
 	ch := make(chan domain.ChatEvent, 100)
-	sub := &subscriber{
-		ch:     ch,
-		closed: false,
-	}
+	sub := &subscriber{ch: ch}
 
 	eb.subMutex.Lock()
 	defer eb.subMutex.Unlock()
 
 	eb.subscribers = append(eb.subscribers, sub)
 
-	eb.eventBuffer.Do(func(val any) {
-		if val != nil {
-			event, ok := val.(domain.ChatEvent)
-			if ok {
+	if replay {
+		eb.eventBuffer.Do(func(val any) {
+			if event, ok := val.(domain.ChatEvent); ok {
 				select {
 				case ch <- event:
 				default:
 				}
 			}
-		}
-	})
+		})
+	}
 
 	return ch
 }

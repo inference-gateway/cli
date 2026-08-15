@@ -38,7 +38,10 @@ func (r *recordingEventBridge) Tap(input <-chan domain.ChatEvent) <-chan domain.
 func (r *recordingEventBridge) Publish(event domain.ChatEvent) {
 	r.published = append(r.published, event)
 }
-func (r *recordingEventBridge) Subscribe() chan domain.ChatEvent     { return make(chan domain.ChatEvent) }
+func (r *recordingEventBridge) Subscribe() chan domain.ChatEvent { return make(chan domain.ChatEvent) }
+func (r *recordingEventBridge) SubscribeFuture() chan domain.ChatEvent {
+	return make(chan domain.ChatEvent)
+}
 func (r *recordingEventBridge) Unsubscribe(ch chan domain.ChatEvent) {}
 
 func TestCoordinator_ActiveToolCallID(t *testing.T) {

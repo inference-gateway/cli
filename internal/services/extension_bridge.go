@@ -278,7 +278,7 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	if b.events == nil {
 		return
 	}
-	sub := b.events.Subscribe()
+	sub := b.events.SubscribeFuture()
 	defer b.events.Unsubscribe(sub)
 
 	filtered := make(chan domain.ChatEvent, 100)
