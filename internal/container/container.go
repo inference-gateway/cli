@@ -228,7 +228,7 @@ func (c *ServiceContainer) initializeExtensionBridge() {
 		c.stateManager.SetEventBridge(eventBridge)
 	}
 
-	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, string(c.sessionID), c.config.ArtifactsDir())
+	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
 	c.toolRegistry.SetBrowserDriver(c.extensionBridge)
 }
 
@@ -401,6 +401,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
 	}
 
+	skillsSvc := skills.New(c.config)
+	if err := skillsSvc.Load(context.Background()); err != nil {
+		logger.Warn("failed to load skills", "error", err)
+	}
+	c.skillsService = skillsSvc
+
 	c.initializeExtensionBridge()
 
 	modelClient := c.createRawSDKClient()
@@ -459,12 +465,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
-
-	skillsSvc := skills.New(c.config)
-	if err := skillsSvc.Load(context.Background()); err != nil {
-		logger.Warn("failed to load skills", "error", err)
-	}
-	c.skillsService = skillsSvc
 
 	c.githubIssueService = githubissues.New()
 

@@ -43,7 +43,7 @@ Extension → CLI, first frame, within 5 seconds of connecting:
 CLI → extension on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 4}
+{"type": "browser_hello_ack"}
 ```
 
 ## Browser commands (CLI → extension)
@@ -72,11 +72,11 @@ One shape, six actions; only the fields relevant to the action are set.
   `one-time-code`, or inputs whose name/id/aria-label matches
   `/pass|secret|token|otp|cvc|card/i` — substitute `"[redacted]"`. `innerText`
   already excludes input values; this rule binds any richer extraction.
-- `screenshot` (v3): capture the visible controlled tab
+- `screenshot`: capture the visible controlled tab
   (`chrome.tabs.captureVisibleTab`) and return it as base64 in the result's
   `image` field. Passwords render masked by the browser, so no extra redaction
   is required.
-- `tabs` (v3): enumerate the open tabs (`chrome.tabs.query`) and return them in
+- `tabs`: enumerate the open tabs (`chrome.tabs.query`) and return them in
   the result's `tabs` array, flagging the controlled/active one.
 
 Extension → CLI, exactly one result per command id:
@@ -95,9 +95,8 @@ Extension → CLI, exactly one result per command id:
 
 ## Conversation sync
 
-The panel drives which conversation it shows (protocol v4). Before v4 the CLI
-auto-sent a snapshot of the current conversation right after the handshake;
-that implicit backfill is gone — the panel now lists and resumes explicitly.
+The panel drives which conversation it shows. The CLI does not auto-send a
+snapshot on connect — the panel lists and resumes conversations explicitly.
 
 Extension → CLI, list the user's stored conversations (the same ones `infer`
 resumes from, under `.infer/conversations`):
@@ -152,6 +151,29 @@ agent is busy, exactly like typing in the TUI):
 {"type": "user_message", "content": "please also check the docs page"}
 ```
 
+## Skills
+
+The panel offers a "/" autocomplete of the agent's skills. It asks the CLI for
+the merged, scope-tagged list the CLI already resolves (project, `.agents`,
+user, plugin, catalog), so the menu mirrors what the TUI offers.
+
+Extension → CLI, list the available skills:
+
+```json
+{"type": "list_skills"}
+```
+
+CLI → extension, the discovered skills (empty when skills are unavailable):
+
+```json
+{"type": "skills", "skills": [{"name": "tmux", "description": "...", "scope": "user"}]}
+```
+
+- `name` is the qualified skill name (`pluginName:skillName` for plugin skills).
+- `scope` is one of `project`, `agents`, `user`, `plugin`, `catalog`; name
+  conflicts are already resolved by precedence, so each name appears once.
+  Unknown scopes are ignored by the extension.
+
 ## Artifacts (generated images)
 
 Chat text can reference files the agent saved under the artifacts dir
@@ -168,7 +190,7 @@ to this route (stripping the prefix through and including `artifacts/`) and
 renders it inline. The route is loopback-only and unauthenticated (the artifacts
 are the user's own generated files); path traversal is blocked by `http.Dir`.
 
-## Tool approvals (protocol v2)
+## Tool approvals
 
 When a tool call needs the user's approval, the CLI sends an approval request
 instead of mirroring it as a chat line. The extension shows Approve/Deny and

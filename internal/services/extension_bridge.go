@@ -23,14 +23,6 @@ import (
 	render "github.com/inference-gateway/cli/internal/render"
 )
 
-// extensionProtocolVersion is the wire protocol version sent in the hello ack.
-// Documented in docs/browser-extension-protocol.md. v2 adds the approval flow
-// (approval_request / approval_response / approval_resolved); v3 adds the
-// screenshot and tabs commands and requires read-redaction of secret inputs;
-// v4 adds the list_conversations / conversations and resume_conversation frames
-// and drops the implicit conversation_snapshot on connect (the panel picks).
-const extensionProtocolVersion = 4
-
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
@@ -63,8 +55,7 @@ type extApprovalResolved struct {
 }
 
 type extHelloAck struct {
-	Type            string `json:"type"`
-	ProtocolVersion int    `json:"protocol_version"`
+	Type string `json:"type"`
 }
 
 type extBrowserCommand struct {
@@ -95,6 +86,17 @@ type extConversations struct {
 	Conversations []extConversationSummary `json:"conversations"`
 }
 
+type extSkill struct {
+	Name        string `json:"name"` // Skill.DisplayName() - "plugin:name" for plugins
+	Description string `json:"description"`
+	Scope       string `json:"scope"` // project|agents|user|plugin|catalog
+}
+
+type extSkills struct {
+	Type   string     `json:"type"`
+	Skills []extSkill `json:"skills"`
+}
+
 type extChatEvent struct {
 	Type  string          `json:"type"`
 	Event json.RawMessage `json:"event"`
@@ -112,6 +114,7 @@ type ExtensionBridge struct {
 	notifier     domain.UINotifier
 	repo         domain.ConversationRepository
 	events       domain.EventBridge
+	skills       domain.SkillsService
 	sessionID    string
 	artifactsDir string
 
@@ -128,16 +131,17 @@ type ExtensionBridge struct {
 	writeMu sync.Mutex // serializes writes to conn
 }
 
-// NewExtensionBridge builds the bridge. notifier, repo, and events may be nil
-// (conversation sync is then skipped); cfg must not be nil. artifactsDir, when
-// non-empty, is served read-only at /artifacts/ so the panel can display
-// generated images the agent saved locally.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, sessionID, artifactsDir string) *ExtensionBridge {
+// NewExtensionBridge builds the bridge. notifier, repo, events, and skills may
+// be nil (the matching feature is then skipped); cfg must not be nil.
+// artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
+// can display generated images the agent saved locally.
+func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
 	return &ExtensionBridge{
 		cfg:              cfg,
 		notifier:         notifier,
 		repo:             repo,
 		events:           events,
+		skills:           skills,
 		sessionID:        sessionID,
 		artifactsDir:     artifactsDir,
 		pending:          make(map[string]chan extInbound),
@@ -211,7 +215,7 @@ func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = conn.SetReadDeadline(time.Time{})
 
-	if err := conn.WriteJSON(extHelloAck{Type: "browser_hello_ack", ProtocolVersion: extensionProtocolVersion}); err != nil {
+	if err := conn.WriteJSON(extHelloAck{Type: "browser_hello_ack"}); err != nil {
 		_ = conn.Close()
 		return
 	}
@@ -303,6 +307,27 @@ func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
 	b.sendSnapshot(conn)
 }
 
+// sendSkillList answers list_skills with the agent's discovered skills - the
+// same set (project, .agents, user, plugin, catalog) the skills service already
+// merged with precedence, so the panel's "/" menu mirrors what the TUI offers.
+// Sends an empty list when skills are unavailable.
+func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
+	if b.skills == nil {
+		b.write(conn, extSkills{Type: "skills", Skills: []extSkill{}})
+		return
+	}
+	loaded := b.skills.List()
+	out := make([]extSkill, 0, len(loaded))
+	for _, sk := range loaded {
+		out = append(out, extSkill{
+			Name:        sk.DisplayName(),
+			Description: sk.Description,
+			Scope:       string(sk.Scope),
+		})
+	}
+	b.write(conn, extSkills{Type: "skills", Skills: out})
+}
+
 // readLoop handles frames from the extension until the connection dies or is
 // replaced.
 func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
@@ -327,6 +352,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			}
 		case "list_conversations":
 			b.sendConversationList(conn)
+		case "list_skills":
+			b.sendSkillList(conn)
 		case "resume_conversation":
 			b.resumeConversation(conn, msg.ID)
 		case "approval_response":
