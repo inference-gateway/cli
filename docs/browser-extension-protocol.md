@@ -43,10 +43,8 @@ Extension → CLI, first frame, within 5 seconds of connecting:
 CLI → extension on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 3}
+{"type": "browser_hello_ack", "protocol_version": 4}
 ```
-
-Immediately after the ack the CLI sends a conversation snapshot (see below).
 
 ## Browser commands (CLI → extension)
 
@@ -97,15 +95,46 @@ Extension → CLI, exactly one result per command id:
 
 ## Conversation sync
 
-Sent by the CLI right after the handshake:
+The panel drives which conversation it shows (protocol v4). Before v4 the CLI
+auto-sent a snapshot of the current conversation right after the handshake;
+that implicit backfill is gone — the panel now lists and resumes explicitly.
+
+Extension → CLI, list the user's stored conversations (the same ones `infer`
+resumes from, under `.infer/conversations`):
+
+```json
+{"type": "list_conversations"}
+```
+
+CLI → extension, newest-first (sorted by `updated_at` descending):
+
+```json
+{"type": "conversations", "conversations": [{"id": "<uuid>", "title": "...", "updated_at": "2026-08-16T12:00:00Z", "message_count": 12}]}
+```
+
+- `title` is the conversation's title (an auto-derived first-message preview
+  until a better one is generated); `updated_at` is RFC 3339; `message_count`
+  is the number of stored messages.
+- The array is empty when the CLI runs without conversation persistence
+  (`storage.enabled: false`).
+
+Extension → CLI, resume one — makes it the active conversation:
+
+```json
+{"type": "resume_conversation", "id": "<uuid>"}
+```
+
+CLI → extension, the resumed conversation's history:
 
 ```json
 {"type": "conversation_snapshot", "messages": [{"role": "user", "content": "..."}, ...]}
 ```
 
-`messages` are the gateway SDK message objects of the current conversation.
+- `messages` are the gateway SDK message objects of the resumed conversation.
+- An unknown or empty `id` is ignored (no snapshot is sent).
 
-Then the CLI streams live chat activity, one frame per
+After the snapshot the CLI streams live chat activity for the active
+conversation, one frame per
 [AG-UI](https://docs.ag-ui.com/) event (same encoding as
 `infer headless --output ag-ui`, see `docs/ag-ui-output.md`):
 
