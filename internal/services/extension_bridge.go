@@ -26,8 +26,10 @@ import (
 // extensionProtocolVersion is the wire protocol version sent in the hello ack.
 // Documented in docs/browser-extension-protocol.md. v2 adds the approval flow
 // (approval_request / approval_response / approval_resolved); v3 adds the
-// screenshot and tabs commands and requires read-redaction of secret inputs.
-const extensionProtocolVersion = 3
+// screenshot and tabs commands and requires read-redaction of secret inputs;
+// v4 adds the list_conversations / conversations and resume_conversation frames
+// and drops the implicit conversation_snapshot on connect (the panel picks).
+const extensionProtocolVersion = 4
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
@@ -79,6 +81,18 @@ type extBrowserCommand struct {
 type extSnapshot struct {
 	Type     string        `json:"type"`
 	Messages []sdk.Message `json:"messages"`
+}
+
+type extConversationSummary struct {
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	MessageCount int       `json:"message_count"`
+}
+
+type extConversations struct {
+	Type          string                   `json:"type"`
+	Conversations []extConversationSummary `json:"conversations"`
 }
 
 type extChatEvent struct {
@@ -221,14 +235,13 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
 	b.mu.Unlock()
 
-	b.sendSnapshot(conn)
 	go b.readLoop(conn, stop)
 	go b.chatPump(conn, stop)
 	go b.pingLoop(conn, stop)
 }
 
-// sendSnapshot backfills the conversation so a late-joining extension shows
-// history, not just events from now on.
+// sendSnapshot ships the current conversation's history so the panel shows it,
+// not just events from now on. Sent as the resume_conversation response.
 func (b *ExtensionBridge) sendSnapshot(conn *websocket.Conn) {
 	if b.repo == nil {
 		return
@@ -239,6 +252,55 @@ func (b *ExtensionBridge) sendSnapshot(conn *websocket.Conn) {
 		messages = append(messages, entry.Message)
 	}
 	b.write(conn, extSnapshot{Type: "conversation_snapshot", Messages: messages})
+}
+
+// conversationListLimit caps list_conversations, mirroring the TUI selector.
+const conversationListLimit = 50
+
+// conversationLister is the slice of the persistent repo the panel picker needs.
+// Declared here (not in domain) because the in-memory fallback repo has no
+// listing - the type assertion simply fails there and yields an empty list.
+type conversationLister interface {
+	ListSavedConversations(ctx context.Context, limit, offset int) ([]domain.ConversationSummary, error)
+}
+
+// sendConversationList answers list_conversations with the stored conversations
+// (newest-first), so the panel can offer the same picker the CLI resumes from.
+func (b *ExtensionBridge) sendConversationList(conn *websocket.Conn) {
+	lister, ok := b.repo.(conversationLister)
+	if !ok {
+		b.write(conn, extConversations{Type: "conversations"})
+		return
+	}
+	summaries, err := lister.ListSavedConversations(context.Background(), conversationListLimit, 0)
+	if err != nil {
+		logger.Debug("extension bridge failed to list conversations", "error", err)
+		b.write(conn, extConversations{Type: "conversations"})
+		return
+	}
+	out := make([]extConversationSummary, 0, len(summaries))
+	for _, s := range summaries {
+		out = append(out, extConversationSummary{
+			ID:           s.ID,
+			Title:        s.Title,
+			UpdatedAt:    s.UpdatedAt,
+			MessageCount: s.MessageCount,
+		})
+	}
+	b.write(conn, extConversations{Type: "conversations", Conversations: out})
+}
+
+// resumeConversation switches the active conversation to id and snapshots it to
+// the panel; the running chat pump then streams live events into it.
+func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
+	if b.repo == nil || id == "" {
+		return
+	}
+	if err := b.repo.LoadConversation(context.Background(), id); err != nil {
+		logger.Debug("extension bridge failed to resume conversation", "id", id, "error", err)
+		return
+	}
+	b.sendSnapshot(conn)
 }
 
 // readLoop handles frames from the extension until the connection dies or is
@@ -263,6 +325,10 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			if b.notifier != nil && msg.Content != "" {
 				b.notifier.Notify(domain.UserInputEvent{Content: msg.Content})
 			}
+		case "list_conversations":
+			b.sendConversationList(conn)
+		case "resume_conversation":
+			b.resumeConversation(conn, msg.ID)
 		case "approval_response":
 			b.answerApproval(conn, msg.RequestID, msg.Action)
 		default:

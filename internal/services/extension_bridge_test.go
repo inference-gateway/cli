@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -202,6 +203,40 @@ func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UIN
 	}
 	t.Cleanup(bridge.Close)
 	return bridge
+}
+
+func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo domain.ConversationRepository) *ExtensionBridge {
+	t.Helper()
+	bridge := NewExtensionBridge(cfg, nil, repo, nil, "test-session", "")
+	if err := bridge.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(bridge.Close)
+	return bridge
+}
+
+// newBridgeRepo builds a persistent repo backed by in-memory storage.
+func newBridgeRepo() *PersistentConversationRepository {
+	return NewPersistentConversationRepository(&ToolFormatterService{}, nil, storage.NewMemoryStorage())
+}
+
+// seedConversation starts, fills, and saves a conversation, returning its id.
+func seedConversation(t *testing.T, repo *PersistentConversationRepository, title, content string) string {
+	t.Helper()
+	if err := repo.StartNewConversation(title); err != nil {
+		t.Fatalf("StartNewConversation: %v", err)
+	}
+	entry := domain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)},
+		Time:    time.Now(),
+	}
+	if err := repo.AddMessage(entry); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	if err := repo.SaveConversation(context.Background()); err != nil {
+		t.Fatalf("SaveConversation: %v", err)
+	}
+	return repo.GetCurrentConversationID()
 }
 
 func dial(t *testing.T, bridge *ExtensionBridge) *websocket.Conn {
@@ -441,4 +476,93 @@ func httpGet(t *testing.T, url string) (string, int) {
 		t.Fatalf("read body: %v", err)
 	}
 	return string(body), resp.StatusCode
+}
+
+func TestExtensionBridgeListConversations(t *testing.T) {
+	repo := newBridgeRepo()
+	firstID := seedConversation(t, repo, "First convo", "hello one")
+	secondID := seedConversation(t, repo, "Second convo", "hello two")
+
+	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_conversations"}); err != nil {
+		t.Fatalf("write list_conversations: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "conversations")
+	raw, ok := frame["conversations"].([]any)
+	if !ok || len(raw) != 2 {
+		t.Fatalf("expected 2 conversations, got %v", frame["conversations"])
+	}
+
+	byID := map[string]map[string]any{}
+	for _, c := range raw {
+		entry := c.(map[string]any)
+		byID[entry["id"].(string)] = entry
+	}
+
+	first, ok := byID[firstID]
+	if !ok {
+		t.Fatalf("first conversation %s missing from %v", firstID, byID)
+	}
+	if first["title"] != "First convo" {
+		t.Fatalf("first title = %v, want %q", first["title"], "First convo")
+	}
+	if count, _ := first["message_count"].(float64); count != 1 {
+		t.Fatalf("first message_count = %v, want 1", first["message_count"])
+	}
+	if at, _ := first["updated_at"].(string); at == "" {
+		t.Fatalf("first updated_at missing: %v", first["updated_at"])
+	}
+
+	second, ok := byID[secondID]
+	if !ok {
+		t.Fatalf("second conversation %s missing from %v", secondID, byID)
+	}
+	if second["title"] != "Second convo" {
+		t.Fatalf("second title = %v, want %q", second["title"], "Second convo")
+	}
+}
+
+func TestExtensionBridgeResumeConversation(t *testing.T) {
+	repo := newBridgeRepo()
+	targetID := seedConversation(t, repo, "Older convo", "resume me please")
+	seedConversation(t, repo, "Current convo", "current message")
+
+	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": targetID}); err != nil {
+		t.Fatalf("write resume_conversation: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "conversation_snapshot")
+	msgs, ok := frame["messages"].([]any)
+	if !ok || len(msgs) != 1 {
+		t.Fatalf("expected 1 message in snapshot, got %v", frame["messages"])
+	}
+	if content := msgs[0].(map[string]any)["content"]; content != "resume me please" {
+		t.Fatalf("snapshot content = %v, want %q", content, "resume me please")
+	}
+	if got := repo.GetCurrentConversationID(); got != targetID {
+		t.Fatalf("active conversation = %s, want %s", got, targetID)
+	}
+}
+
+func TestExtensionBridgeNoAutoSnapshotOnConnect(t *testing.T) {
+	repo := newBridgeRepo()
+	seedConversation(t, repo, "Some convo", "hello")
+
+	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	var frame map[string]any
+	if err := conn.ReadJSON(&frame); err == nil {
+		t.Fatalf("expected no unsolicited frame after connect, got %v", frame)
+	}
 }
