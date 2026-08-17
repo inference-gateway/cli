@@ -9,6 +9,14 @@
 
 An agentic command-line assistant that writes code, understands project context, and uses tools to perform real tasks.
 
+[📖 Documentation](https://docs.inference-gateway.com/cli) · [🚀 Quick Start](#quick-start) · [🛠️ Tools Reference](docs/tools-reference.md) · [💬 Discussions](https://github.com/orgs/inference-gateway/discussions)
+
+<br/>
+
+<img src="./assets/tui-chat.png" width="760" alt="infer chat - the interactive TUI with model selection, streaming responses, and a live status bar" />
+
+*The `infer chat` TUI - [watch the animated demo](https://docs.inference-gateway.com/cli#quick-start)*
+
 </div>
 
 ## ⚠️ Warning
@@ -482,6 +490,14 @@ infer version
 When tool execution is enabled, LLMs can use various tools to interact with your system. Below is a
 summary of available tools. For detailed documentation, parameters, and examples, see
 [Tools Reference](docs/tools-reference.md).
+
+<div align="center">
+
+<img src="./assets/tui-tools.png" width="760" alt="A Grep tool call executed by the agent, with its result and the assistant's summary" />
+
+*The agent running a `Grep` tool call - results are collapsible with `ctrl+o`*
+
+</div>
 
 Tools are grouped by category below. Many are gated behind a config flag (noted per group);
 the always-available set is registered for every session. There is **no built-in GitHub tool** -
