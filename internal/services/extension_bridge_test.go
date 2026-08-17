@@ -13,11 +13,12 @@ import (
 	websocket "github.com/gorilla/websocket"
 	sdk "github.com/inference-gateway/sdk"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
