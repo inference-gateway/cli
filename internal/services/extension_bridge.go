@@ -86,15 +86,9 @@ type extConversations struct {
 	Conversations []extConversationSummary `json:"conversations"`
 }
 
-type extSkill struct {
-	Name        string `json:"name"` // Skill.DisplayName() - "plugin:name" for plugins
-	Description string `json:"description"`
-	Scope       string `json:"scope"` // project|agents|user|plugin|catalog
-}
-
 type extSkills struct {
-	Type   string     `json:"type"`
-	Skills []extSkill `json:"skills"`
+	Type   string                `json:"type"`
+	Skills []domain.SkillSummary `json:"skills"`
 }
 
 type extChatEvent struct {
@@ -313,17 +307,13 @@ func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
 // Sends an empty list when skills are unavailable.
 func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
 	if b.skills == nil {
-		b.write(conn, extSkills{Type: "skills", Skills: []extSkill{}})
+		b.write(conn, extSkills{Type: "skills", Skills: []domain.SkillSummary{}})
 		return
 	}
 	loaded := b.skills.List()
-	out := make([]extSkill, 0, len(loaded))
+	out := make([]domain.SkillSummary, 0, len(loaded))
 	for _, sk := range loaded {
-		out = append(out, extSkill{
-			Name:        sk.DisplayName(),
-			Description: sk.Description,
-			Scope:       string(sk.Scope),
-		})
+		out = append(out, sk.Summary())
 	}
 	b.write(conn, extSkills{Type: "skills", Skills: out})
 }
