@@ -37,6 +37,19 @@ func (s Skill) DisplayName() string {
 	return s.Name
 }
 
+// SkillSummary is the serializable projection of a Skill (qualified name,
+// description, scope) used wherever skills cross a wire boundary.
+type SkillSummary struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Scope       string `json:"scope"`
+}
+
+// Summary returns the wire-serializable projection of the skill.
+func (s Skill) Summary() SkillSummary {
+	return SkillSummary{Name: s.DisplayName(), Description: s.Description, Scope: string(s.Scope)}
+}
+
 // SkillLoadError records a per-skill validation failure so `infer skills
 // list` can surface why a directory was skipped without crashing startup.
 type SkillLoadError struct {

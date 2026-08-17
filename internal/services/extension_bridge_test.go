@@ -13,6 +13,8 @@ import (
 	websocket "github.com/gorilla/websocket"
 	sdk "github.com/inference-gateway/sdk"
 
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+
 	config "github.com/inference-gateway/cli/config"
 	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -197,7 +199,7 @@ func bridgeConfig() *config.BrowserUseConfig {
 
 func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UINotifier, events domain.EventBridge) *ExtensionBridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, notifier, nil, events, "test-session", "")
+	bridge := NewExtensionBridge(cfg, notifier, nil, events, nil, "test-session", "")
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -207,7 +209,17 @@ func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UIN
 
 func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo domain.ConversationRepository) *ExtensionBridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, nil, repo, nil, "test-session", "")
+	bridge := NewExtensionBridge(cfg, nil, repo, nil, nil, "test-session", "")
+	if err := bridge.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(bridge.Close)
+	return bridge
+}
+
+func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills domain.SkillsService) *ExtensionBridge {
+	t.Helper()
+	bridge := NewExtensionBridge(cfg, nil, nil, nil, skills, "test-session", "")
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -290,7 +302,7 @@ func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Token = ""
-	bridge := NewExtensionBridge(cfg, nil, nil, nil, "s", "")
+	bridge := NewExtensionBridge(cfg, nil, nil, nil, nil, "s", "")
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
@@ -440,7 +452,7 @@ func TestExtensionBridgeServesArtifacts(t *testing.T) {
 		t.Fatalf("write artifact: %v", err)
 	}
 
-	bridge := NewExtensionBridge(bridgeConfig(), nil, nil, nil, "s", dir)
+	bridge := NewExtensionBridge(bridgeConfig(), nil, nil, nil, nil, "s", dir)
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -564,5 +576,57 @@ func TestExtensionBridgeNoAutoSnapshotOnConnect(t *testing.T) {
 	var frame map[string]any
 	if err := conn.ReadJSON(&frame); err == nil {
 		t.Fatalf("expected no unsolicited frame after connect, got %v", frame)
+	}
+}
+
+func TestExtensionBridgeListSkills(t *testing.T) {
+	skills := &domainmocks.FakeSkillsService{}
+	skills.ListReturns([]domain.Skill{
+		{Name: "tmux", Description: "drive tmux", Scope: domain.SkillScopeUser},
+		{Name: "deploy", Description: "ship it", Scope: domain.SkillScopeAgents},
+		{Name: "notion", Scope: domain.SkillScopePlugin, PluginName: "notion"},
+	})
+	bridge := startBridgeWithSkills(t, bridgeConfig(), skills)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write list_skills: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "skills")
+	raw, ok := frame["skills"].([]any)
+	if !ok || len(raw) != 3 {
+		t.Fatalf("expected 3 skills, got %v", frame["skills"])
+	}
+
+	byName := map[string]map[string]any{}
+	for _, s := range raw {
+		e := s.(map[string]any)
+		byName[e["name"].(string)] = e
+	}
+	if byName["tmux"]["scope"] != "user" {
+		t.Fatalf("tmux scope = %v, want user", byName["tmux"]["scope"])
+	}
+	if byName["deploy"]["scope"] != "agents" {
+		t.Fatalf("deploy scope = %v, want agents", byName["deploy"]["scope"])
+	}
+	if _, ok := byName["notion:notion"]; !ok {
+		t.Fatalf("plugin skill missing qualified name, got keys %v", byName)
+	}
+}
+
+func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write list_skills: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "skills")
+	if raw, ok := frame["skills"].([]any); ok && len(raw) != 0 {
+		t.Fatalf("expected no skills, got %v", frame["skills"])
 	}
 }
