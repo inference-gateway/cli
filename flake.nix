@@ -43,7 +43,6 @@
                 || baseName == ".task"
                 || baseName == "node_modules"
                 || (type == "regular" && relPath == "infer")
-                || (type == "directory" && lib.hasPrefix "internal/display/macos/ComputerUse/build" relPath)
               );
           };
 
@@ -73,16 +72,12 @@
 
           nativeBuildInputs = [
             pkgs.installShellFiles
-          ]
-          ++ lib.optionals stdenv.hostPlatform.isDarwin [ pkgs.swift ];
+          ];
 
           buildInputs = lib.optionals stdenv.hostPlatform.isDarwin [ pkgs.apple-sdk ];
 
           preBuild = lib.optionalString stdenv.hostPlatform.isDarwin ''
             export SDKROOT="${pkgs.apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-            pushd internal/display/macos/ComputerUse > /dev/null
-            bash ./build.sh
-            popd > /dev/null
           '';
 
           postInstall = ''
