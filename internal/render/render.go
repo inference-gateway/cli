@@ -188,11 +188,12 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		controlMessages = make(chan domain.ComputerUseControlMessage, 4)
 	}
 
+eventLoop:
 	for {
 		select {
 		case event, ok := <-events:
 			if !ok {
-				goto done
+				break eventLoop
 			}
 			switch e := event.(type) {
 			case domain.ChatErrorEvent:
@@ -233,8 +234,6 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 			})
 		}
 	}
-done:
-
 	tokenStats := repo.GetSessionTokens()
 	if tokenStats.RequestCount <= 0 {
 		return runErr
