@@ -129,7 +129,6 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner, cont
 	for in != nil && in.Scan() {
 		var resp domain.ApprovalResponse
 		if err := json.Unmarshal(in.Bytes(), &resp); err != nil || resp.Type != "approval_response" {
-			// Check for a control message to forward
 			var ctrl domain.ComputerUseControlMessage
 			if controlMessages != nil && json.Unmarshal(in.Bytes(), &ctrl) == nil && ctrl.Type == "computer_use_control" {
 				controlMessages <- ctrl
