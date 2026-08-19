@@ -1,6 +1,8 @@
 package config
 
 import (
+	"math"
+
 	utils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -51,6 +53,23 @@ type ScreenshotToolConfig struct {
 	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
 	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
 	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
+}
+
+// FitDims returns the frame dimensions for a screen, scaling uniformly to fit
+// inside the target box. Preserving the aspect ratio keeps one scale factor
+// for both axes, so VLM coordinates map back to the screen without the
+// grounding drift that stretching to a fixed box introduces. When no target
+// is configured (or the screen already fits) the screen dimensions are
+// returned unchanged.
+func (s ScreenshotToolConfig) FitDims(screenW, screenH int) (int, int) {
+	if s.TargetWidth <= 0 || s.TargetHeight <= 0 || screenW <= 0 || screenH <= 0 {
+		return screenW, screenH
+	}
+	scale := math.Min(float64(s.TargetWidth)/float64(screenW), float64(s.TargetHeight)/float64(screenH))
+	if scale >= 1 {
+		return screenW, screenH
+	}
+	return int(math.Round(float64(screenW) * scale)), int(math.Round(float64(screenH) * scale))
 }
 
 // MouseMoveToolConfig contains mouse move-specific tool settings

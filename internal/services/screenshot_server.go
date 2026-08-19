@@ -229,19 +229,14 @@ func (s *ScreenshotServer) captureScreenshot() error {
 	originalWidth := logicalWidth
 	originalHeight := logicalHeight
 
-	targetW := s.cfg.ComputerUse.Screenshot.TargetWidth
-	targetH := s.cfg.ComputerUse.Screenshot.TargetHeight
-
-	// Resize once from the native capture; an intermediate physical->logical downsample loses Retina detail.
-	switch {
-	case targetW > 0 && targetH > 0:
-		img = resizeImage(img, targetW, targetH)
-		width = targetW
-		height = targetH
-	case width != logicalWidth || height != logicalHeight:
-		img = resizeImage(img, logicalWidth, logicalHeight)
-		width = logicalWidth
-		height = logicalHeight
+	// Resize once from the native capture, uniformly on both axes: an
+	// intermediate physical->logical downsample loses Retina detail, and
+	// stretching to a fixed box skews VLM coordinate grounding.
+	fitW, fitH := s.cfg.ComputerUse.Screenshot.FitDims(logicalWidth, logicalHeight)
+	if width != fitW || height != fitH {
+		img = resizeImage(img, fitW, fitH)
+		width = fitW
+		height = fitH
 	}
 
 	quality := s.cfg.ComputerUse.Screenshot.Quality
