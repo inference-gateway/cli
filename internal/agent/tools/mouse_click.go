@@ -80,6 +80,10 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
+	if err := acquireScreenLock(); err != nil {
+		return t.errorResult(args, start, err.Error()), nil
+	}
+
 	button := t.getButton(args)
 	clicks := t.getClicks(args)
 	finalX, finalY, shouldMove := t.getCoordinates(args)

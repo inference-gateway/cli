@@ -74,6 +74,10 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 	appID, _ := args["app_id"].(string)
 	name, _ := args["name"].(string)
 
+	if err := acquireScreenLock(); err != nil {
+		return nil, err
+	}
+
 	appProvider, err := display.DetectAppProvider()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect app provider: %w", err)

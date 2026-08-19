@@ -73,6 +73,16 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 		}, nil
 	}
 
+	if err := acquireScreenLock(); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MouseScroll",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
+	}
+
 	clicks, clicksOk := args["clicks"].(float64)
 	if !clicksOk {
 		return &domain.ToolExecutionResult{

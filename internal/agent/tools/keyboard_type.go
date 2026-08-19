@@ -71,6 +71,16 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		}, nil
 	}
 
+	if err := acquireScreenLock(); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "KeyboardType",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
+	}
+
 	text, hasText := args["text"].(string)
 	keyCombo, hasKeyCombo := args["key_combo"].(string)
 
