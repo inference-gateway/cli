@@ -184,8 +184,6 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 	var runErr error
 	var content strings.Builder
 
-	// controlMessages forwards computer_use_control lines from the approval
-	// stdin scanner to the render loop so they can be emitted as output events.
 	var controlMessages chan domain.ComputerUseControlMessage
 	if stdin != nil {
 		controlMessages = make(chan domain.ComputerUseControlMessage, 4)
