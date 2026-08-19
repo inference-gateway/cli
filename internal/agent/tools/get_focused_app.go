@@ -11,7 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// GetFocusedAppTool gets the currently focused application
+// GetFocusedAppTool gets the currently focused application.
 type GetFocusedAppTool struct {
 	config *config.Config
 }
@@ -46,46 +46,44 @@ func (t *GetFocusedAppTool) Validate(args map[string]any) error {
 
 // Execute executes the GetFocusedApp tool
 func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
-	displayProvider, err := display.DetectDisplay()
+	appProvider, err := display.DetectAppProvider()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect display: %w", err)
-	}
-
-	controller, err := displayProvider.GetController()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get display controller: %w", err)
+		return nil, fmt.Errorf("failed to detect app provider: %w", err)
 	}
 	defer func() {
-		if err := controller.Close(); err != nil {
-			logger.Debug("failed to close display controller", "error", err)
+		if cerr := appProvider.Close(); cerr != nil {
+			logger.Debug("failed to close app provider", "error", cerr)
 		}
 	}()
 
-	focusManager, ok := controller.(display.FocusManager)
-	if !ok {
-		return nil, fmt.Errorf("display controller does not support focus management")
-	}
-
-	appID, err := focusManager.GetFrontmostApp(ctx)
+	app, err := appProvider.GetFocused(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get focused app: %w", err)
 	}
 
-	if appID == "" {
-		return nil, fmt.Errorf("no application is currently focused")
+	if app == nil {
+		return &domain.ToolExecutionResult{
+			ToolName: "GetFocusedApp",
+			Success:  true,
+			Data: map[string]any{
+				"message": "No application is currently focused (headless session or no active windows).",
+			},
+		}, nil
 	}
 
-	appName := parseAppName(appID)
-
-	result := fmt.Sprintf("Currently focused application:\n- Name: %s\n- Bundle ID: %s", appName, appID)
+	msg := fmt.Sprintf("Currently focused application: %s (ID: %s)", app.Name, app.ID)
+	if app.PlatformID != "" && app.PlatformID != app.ID {
+		msg += fmt.Sprintf(", platform_id: %s", app.PlatformID)
+	}
 
 	return &domain.ToolExecutionResult{
 		ToolName: "GetFocusedApp",
 		Success:  true,
 		Data: map[string]any{
-			"app_name":  appName,
-			"bundle_id": appID,
-			"message":   result,
+			"app_id":      app.ID,
+			"app_name":    app.Name,
+			"platform_id": app.PlatformID,
+			"message":     msg,
 		},
 	}, nil
 }
@@ -104,10 +102,10 @@ func (t *GetFocusedAppTool) FormatPreview(result *domain.ToolExecutionResult) st
 	if !ok {
 		return "Got focused app"
 	}
-	if appName, ok := data["app_name"].(string); ok {
+	if appName, ok := data["app_name"].(string); ok && appName != "" {
 		return fmt.Sprintf("Focused: %s", appName)
 	}
-	return "Got focused app"
+	return "No focused app"
 }
 
 // FormatForLLM formats the result for LLM consumption
@@ -145,42 +143,4 @@ func (t *GetFocusedAppTool) FormatResult(result *domain.ToolExecutionResult, for
 	default:
 		return t.FormatForLLM(result)
 	}
-}
-
-// parseAppName extracts a human-readable app name from bundle ID
-func parseAppName(bundleID string) string {
-	appNames := map[string]string{
-		"com.apple.Terminal":        "Terminal",
-		"com.googlecode.iterm2":     "iTerm2",
-		"com.microsoft.VSCode":      "Visual Studio Code",
-		"org.mozilla.firefox":       "Firefox",
-		"com.google.Chrome":         "Google Chrome",
-		"com.apple.Safari":          "Safari",
-		"com.microsoft.edgemac":     "Microsoft Edge",
-		"com.brave.Browser":         "Brave Browser",
-		"com.sublimetext.4":         "Sublime Text",
-		"com.jetbrains.goland":      "GoLand",
-		"com.jetbrains.intellij":    "IntelliJ IDEA",
-		"org.alacritty":             "Alacritty",
-		"net.kovidgoyal.kitty":      "Kitty",
-		"com.apple.finder":          "Finder",
-		"com.apple.TextEdit":        "TextEdit",
-		"com.spotify.client":        "Spotify",
-		"com.tinyspeck.slackmacgap": "Slack",
-		"us.zoom.xos":               "Zoom",
-		"com.microsoft.teams":       "Microsoft Teams",
-		"com.docker.docker":         "Docker Desktop",
-		"com.postmanlabs.app":       "Postman",
-		"com.notion.desktop":        "Notion",
-		"com.figma.Desktop":         "Figma",
-		"com.apple.Notes":           "Notes",
-		"com.apple.mail":            "Mail",
-		"com.apple.iCal":            "Calendar",
-	}
-
-	if name, ok := appNames[bundleID]; ok {
-		return name
-	}
-
-	return bundleID
 }

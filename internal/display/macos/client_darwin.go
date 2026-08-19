@@ -7,7 +7,7 @@ package macos
 #cgo LDFLAGS: -framework AppKit
 #import <AppKit/AppKit.h>
 
-// Get the bundle identifier of the frontmost application
+// Returns the bundle identifier for the frontmost application; empty if none.
 const char* getFrontmostApp() {
     NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
     if (app == nil) {
@@ -17,7 +17,26 @@ const char* getFrontmostApp() {
     return bundleID ? bundleID : "";
 }
 
-// Activate application by bundle identifier
+// Returns the PID of the frontmost application; -1 if none.
+int getFrontmostPID() {
+    NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (app == nil) {
+        return -1;
+    }
+    return (int)[app processIdentifier];
+}
+
+// Returns the localized name of the frontmost application; "" if none.
+const char* getFrontmostName() {
+    NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (app == nil) {
+        return "";
+    }
+    const char *name = [app.localizedName UTF8String];
+    return name ? name : "";
+}
+
+// Activate application by bundle identifier; returns true on success.
 bool activateApp(const char *bundleIdentifier) {
     @autoreleasepool {
         NSString *bundleID = [NSString stringWithUTF8String:bundleIdentifier];
@@ -30,28 +49,40 @@ bool activateApp(const char *bundleIdentifier) {
     }
 }
 
-// Get the terminal app bundle ID (Terminal.app, iTerm2, VS Code, etc.)
-const char* getTerminalApp() {
+// Activate application by PID; returns true on success.
+bool activateAppByPID(int pid) {
     @autoreleasepool {
-        NSArray *terminalBundles = @[
-            @"com.apple.Terminal",           // Terminal.app
-            @"com.googlecode.iterm2",        // iTerm2
-            @"com.microsoft.VSCode",         // VS Code
-            @"com.sublimetext.4",            // Sublime Text
-            @"com.jetbrains.goland",         // GoLand
-            @"com.jetbrains.intellij",       // IntelliJ IDEA
-            @"org.alacritty",                // Alacritty
-            @"net.kovidgoyal.kitty",         // Kitty
-        ];
-
-        for (NSString *bundleID in terminalBundles) {
-            NSArray *apps = [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleID];
-            if ([apps count] > 0) {
-                return [bundleID UTF8String];
+        NSArray *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+        for (NSRunningApplication *app in apps) {
+            if ((int)[app processIdentifier] == pid) {
+                return [app activateWithOptions:NSApplicationActivateAllWindows];
             }
         }
+        return false;
+    }
+}
 
-        return "";
+// Returns running app info as pipe-delimited "id|name|pid\n" lines.
+// For unbundled apps (nil bundleIdentifier), the id field is empty.
+//" Each line is null-terminated individually; the caller reads until an empty line.
+const char* listRunningApps() {
+    @autoreleasepool {
+        NSArray *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+        NSMutableString *result = [NSMutableString string];
+        for (NSRunningApplication *app in apps) {
+            if ([app activationPolicy] == NSApplicationActivationPolicyProhibited) {
+                continue; // skip background-only processes (e.g. UI agent helpers)
+            }
+            NSString *bundleID = [app bundleIdentifier];
+            if (bundleID == nil) bundleID = @"";
+            NSString *name = [app localizedName];
+            if (name == nil) name = @"";
+            // Escape pipes and newlines from name
+            name = [name stringByReplacingOccurrencesOfString:@"|" withString:@"_"];
+            name = [name stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+            [result appendFormat:@"%@|%@|%d\n", bundleID, name, (int)[app processIdentifier]];
+        }
+        return [result UTF8String];
     }
 }
 */
@@ -62,11 +93,14 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 
 	robotgo "github.com/go-vgo/robotgo"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // MacOSClient provides macOS screen control operations using RobotGo
@@ -347,23 +381,100 @@ func (c *MacOSClient) SendKeyCombo(combo string) error {
 	return nil
 }
 
+// --- AppProvider methods ---
+
+// ListRunningApps returns all running applications visible to the windowing system.
+// For unbundled processes the ID is "pid:N" since there is no bundle identifier.
+func (c *MacOSClient) ListRunningApps() ([]domain.Application, error) {
+	cStr := C.listRunningApps()
+	defer C.free(unsafe.Pointer(cStr))
+	s := C.GoString(cStr)
+
+	var apps []domain.Application
+	for _, line := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		id := parts[0]
+		name := parts[1]
+		pidStr := parts[2]
+
+		// For unbundled processes (empty bundle ID), use "pid:N" as the stable ID
+		if id == "" {
+			id = "pid:" + pidStr
+		}
+
+		apps = append(apps, domain.Application{
+			ID:         id,
+			Name:       name,
+			PlatformID: pidStr,
+		})
+	}
+
+	return apps, nil
+}
+
+// GetFrontmostAppInfo returns the currently focused application.
+// Returns nil with no error when no app is focused (headless).
+func (c *MacOSClient) GetFrontmostAppInfo() (*domain.Application, error) {
+	cPID := C.getFrontmostPID()
+	pid := int(cPID)
+	if pid <= 0 {
+		return nil, nil
+	}
+
+	cName := C.getFrontmostName()
+	defer C.free(unsafe.Pointer(cName))
+	name := C.GoString(cName)
+
+	cBundleID := C.getFrontmostApp()
+	defer C.free(unsafe.Pointer(cBundleID))
+	bundleID := C.GoString(cBundleID)
+
+	id := bundleID
+	if id == "" {
+		id = fmt.Sprintf("pid:%d", pid)
+	}
+
+	return &domain.Application{
+		ID:         id,
+		Name:       name,
+		PlatformID: strconv.Itoa(pid),
+	}, nil
+}
+
+// ActivateApp brings an application to the foreground.
+// It accepts both bundle IDs (e.g., "com.google.Chrome") and "pid:N" formatted IDs.
+func (c *MacOSClient) ActivateApp(id string) error {
+	// Try as bundle ID first
+	cStr := C.CString(id)
+	defer C.free(unsafe.Pointer(cStr))
+
+	if C.activateApp(cStr) {
+		return nil
+	}
+
+	// Try as "pid:N" format
+	if strings.HasPrefix(id, "pid:") {
+		pidStr := strings.TrimPrefix(id, "pid:")
+		pid, err := strconv.Atoi(pidStr)
+		if err == nil && C.activateAppByPID(C.int(pid)) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("failed to activate app: %s", id)
+}
+
 // GetFrontmostApp returns the bundle identifier of the currently focused application
 func (c *MacOSClient) GetFrontmostApp() string {
 	cAppID := C.getFrontmostApp()
 	return C.GoString(cAppID)
-}
-
-// ActivateApp brings an application to the foreground by bundle identifier
-func (c *MacOSClient) ActivateApp(bundleIdentifier string) error {
-	cBundleID := C.CString(bundleIdentifier)
-	defer C.free(unsafe.Pointer(cBundleID))
-
-	success := C.activateApp(cBundleID)
-	if !success {
-		return fmt.Errorf("failed to activate app: %s", bundleIdentifier)
-	}
-
-	return nil
 }
 
 // GetTerminalApp returns the bundle identifier of the running terminal application

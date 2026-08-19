@@ -30,7 +30,7 @@ type Controller struct {
 }
 
 var _ display.DisplayController = (*Controller)(nil)
-var _ display.FocusManager = (*Controller)(nil)
+var _ display.AppProvider = (*Controller)(nil)
 
 func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Region) ([]byte, error) {
 	if region == nil {
@@ -80,30 +80,25 @@ func (c *Controller) Close() error {
 	return nil
 }
 
-// FocusManager implementation for macOS
+// AppProvider implementation for macOS
 
-func (c *Controller) GetFrontmostApp(ctx context.Context) (string, error) {
-	appID := c.client.GetFrontmostApp()
-	if appID == "" {
-		return "", fmt.Errorf("no frontmost application found")
+func (c *Controller) ListRunning(ctx context.Context) ([]domain.Application, error) {
+	return c.client.ListRunningApps()
+}
+
+func (c *Controller) Activate(ctx context.Context, id string) error {
+	return c.client.ActivateApp(id)
+}
+
+func (c *Controller) GetFocused(ctx context.Context) (*domain.Application, error) {
+	app, err := c.client.GetFrontmostAppInfo()
+	if err != nil {
+		return nil, err
 	}
-	return appID, nil
-}
-
-func (c *Controller) ActivateApp(ctx context.Context, appIdentifier string) error {
-	return c.client.ActivateApp(appIdentifier)
-}
-
-func (c *Controller) GetTerminalApp(ctx context.Context) (string, error) {
-	terminalID := c.client.GetTerminalApp()
-	if terminalID == "" {
-		return "", fmt.Errorf("no terminal application found")
+	if app == nil {
+		return nil, display.ErrAppNotFound
 	}
-	return terminalID, nil
-}
-
-func (c *Controller) SwitchToTerminal(ctx context.Context) error {
-	return c.client.SwitchToTerminal()
+	return app, nil
 }
 
 // Provider implements the display.Provider interface for macOS

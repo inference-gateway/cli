@@ -206,24 +206,29 @@ func (t *MouseClickTool) updateStateAfterClick(ctx context.Context, controller d
 		return
 	}
 
-	t.storeFocusedApp(ctx, controller)
+	t.storeFocusedApp(ctx)
 	t.stateManager.SetLastClickCoordinates(x, y)
 	t.broadcastClickEvent(x, y)
 }
 
-func (t *MouseClickTool) storeFocusedApp(ctx context.Context, controller display.DisplayController) {
-	focusManager, ok := controller.(display.FocusManager)
-	if !ok {
-		return
-	}
-
-	appID, err := focusManager.GetFrontmostApp(ctx)
+func (t *MouseClickTool) storeFocusedApp(ctx context.Context) {
+	appProvider, err := display.DetectAppProvider()
 	if err != nil {
-		logger.Warn("failed to get frontmost app after click", "error", err)
+		return
+	}
+	defer func() {
+		if cerr := appProvider.Close(); cerr != nil {
+			logger.Debug("failed to close app provider", "error", cerr)
+		}
+	}()
+
+	app, err := appProvider.GetFocused(ctx)
+	if err != nil || app == nil {
+		logger.Warn("failed to get focused app after click", "error", err)
 		return
 	}
 
-	t.stateManager.SetLastFocusedApp(appID)
+	t.stateManager.SetLastFocusedApp(app.ID)
 }
 
 func (t *MouseClickTool) broadcastClickEvent(x, y int) {
