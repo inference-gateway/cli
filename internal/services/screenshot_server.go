@@ -223,22 +223,25 @@ func (s *ScreenshotServer) captureScreenshot() error {
 	logicalWidth, logicalHeight, err := controller.GetScreenDimensions(s.captureCtx)
 	if err != nil {
 		logger.Warn("failed to get logical dimensions", "error", err)
-	} else if width != logicalWidth || height != logicalHeight {
-		img = resizeImage(img, logicalWidth, logicalHeight)
-		width = logicalWidth
-		height = logicalHeight
+		logicalWidth, logicalHeight = width, height
 	}
 
-	originalWidth := width
-	originalHeight := height
+	originalWidth := logicalWidth
+	originalHeight := logicalHeight
 
 	targetW := s.cfg.ComputerUse.Screenshot.TargetWidth
 	targetH := s.cfg.ComputerUse.Screenshot.TargetHeight
 
-	if targetW > 0 && targetH > 0 {
+	// Resize once from the native capture; an intermediate physical->logical downsample loses Retina detail.
+	switch {
+	case targetW > 0 && targetH > 0:
 		img = resizeImage(img, targetW, targetH)
 		width = targetW
 		height = targetH
+	case width != logicalWidth || height != logicalHeight:
+		img = resizeImage(img, logicalWidth, logicalHeight)
+		width = logicalWidth
+		height = logicalHeight
 	}
 
 	quality := s.cfg.ComputerUse.Screenshot.Quality

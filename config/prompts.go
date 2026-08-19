@@ -381,7 +381,7 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 		},
 		Vision: PromptsVisionConfig{
 			Annotator: PromptsVisionAnnotatorConfig{
-				ScreenSystemPrompt: `You are a UI screen annotator. Describe the screenshot for an agent that cannot see it: what application/screen is shown and which interactive elements exist (buttons, links, text fields, menus, checkboxes, tabs). Read visible text exactly. Be precise about element positions.`,
+				ScreenSystemPrompt: `You are a UI screen annotator. Describe the screenshot for an agent that cannot see it: what application/screen is shown and which interactive elements exist (buttons, links, text fields, menus, checkboxes, tabs), including OS chrome: the macOS Dock and its app icons (name each app you recognize by its icon), the menu bar, and desktop icons. Read visible text exactly. Be precise about element positions.`,
 				SceneSystemPrompt:  `You are a scene annotator. Describe the image for an agent that cannot see it: what the scene shows and the notable objects, people, and text in it. Be factual and concise.`,
 			},
 		},
