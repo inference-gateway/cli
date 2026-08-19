@@ -2,7 +2,10 @@ package display
 
 import (
 	"context"
+	"fmt"
 	"image"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // DisplayController abstracts display server-specific operations (X11, Wayland, macOS Quartz)
@@ -93,18 +96,31 @@ type DisplayInfo struct {
 	RequiresElevation bool
 }
 
-// FocusManager is an optional interface for window focus management
-// Only implemented by platforms that support it (e.g., macOS)
-type FocusManager interface {
-	// GetFrontmostApp returns the identifier of the currently focused application
-	GetFrontmostApp(ctx context.Context) (string, error)
+// AppProvider is the cross-platform application focus management interface
+// (macOS via NSWorkspace, X11 via EWMH; Wayland hides global window state
+// from clients, so no provider registers there).
+//
+// Providers registered via RegisterAppProvider are process-lifetime
+// singletons: they own their platform resources and there is no Close.
+type AppProvider interface {
+	// ListRunning returns all running applications visible to the windowing system.
+	// On macOS this includes every NSRunningApplication. On X11 this enumerates
+	// top-level windows via _NET_CLIENT_LIST and deduplicates by PID.
+	ListRunning(ctx context.Context) ([]domain.Application, error)
 
-	// ActivateApp brings an application to the foreground
-	ActivateApp(ctx context.Context, appIdentifier string) error
+	// Activate brings a running application to the foreground by its stable ID
+	// (as returned by ListRunning or GetFocused). Returns an error wrapping
+	// ErrAppNotFound when no such application is running, or a generic error
+	// when the OS refuses the activation.
+	Activate(ctx context.Context, id string) error
 
-	// GetTerminalApp returns the identifier of the terminal application
-	GetTerminalApp(ctx context.Context) (string, error)
-
-	// SwitchToTerminal switches focus to the terminal application
-	SwitchToTerminal(ctx context.Context) error
+	// GetFocused returns the currently focused (frontmost) application.
+	// Returns nil with a nil error when no application is focused (headless
+	// session with no windows).
+	GetFocused(ctx context.Context) (*domain.Application, error)
 }
+
+// ErrAppNotFound is returned by AppProvider methods when the requested
+// application is not running. Callers should use errors.Is to distinguish
+// "not found" from other errors.
+var ErrAppNotFound = fmt.Errorf("application not found")

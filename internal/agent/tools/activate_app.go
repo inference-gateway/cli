@@ -2,17 +2,25 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// ActivateAppTool switches focus to a specific application
+// ActivateAppTool brings a running application to the foreground.
+//
+// The tool takes either:
+//   - "app_id": a stable application ID returned by GetFocusedApp
+//     (e.g. "com.google.Chrome" on macOS, "pid:1234" on Linux)
+//   - "name": a human-readable name substring to match (case-insensitive, first
+//     match wins).  At least one of app_id or name is required; app_id wins if
+//     both are provided.
 type ActivateAppTool struct {
 	config *config.Config
 }
@@ -35,12 +43,16 @@ func (t *ActivateAppTool) Definition() sdk.ChatCompletionTool {
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
-					"bundle_id": map[string]any{
+					"app_id": map[string]any{
 						"type":        "string",
-						"description": "The bundle identifier of the application to activate (e.g., 'org.mozilla.firefox', 'com.google.Chrome', 'com.apple.Terminal'). Common apps: Firefox='org.mozilla.firefox', Chrome='com.google.Chrome', Safari='com.apple.Safari', Terminal='com.apple.Terminal', VSCode='com.microsoft.VSCode'",
+						"description": "The stable application identifier returned by GetFocusedApp (e.g., 'com.google.Chrome', 'pid:1234'). On macOS this is the bundle ID; on Linux it is 'pid:<PID>'. Optional if 'name' is provided.",
+					},
+					"name": map[string]any{
+						"type":        "string",
+						"description": "A human-readable application name substring to match (e.g., 'Chrome', 'Terminal', 'VS Code'). Case-insensitive, first match wins. Optional if 'app_id' is provided.",
 					},
 				},
-				"required": []string{"bundle_id"},
+				"required": []string{},
 			},
 		},
 	}
@@ -48,75 +60,85 @@ func (t *ActivateAppTool) Definition() sdk.ChatCompletionTool {
 
 // Validate validates ActivateApp arguments
 func (t *ActivateAppTool) Validate(args map[string]any) error {
-	bundleID, ok := args["bundle_id"].(string)
-	if !ok || bundleID == "" {
-		return fmt.Errorf("bundle_id is required and must be a non-empty string")
+	appID, _ := args["app_id"].(string)
+	name, _ := args["name"].(string)
+
+	if appID == "" && name == "" {
+		return fmt.Errorf("either app_id or name is required")
 	}
 	return nil
 }
 
 // Execute executes the ActivateApp tool
 func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
-	bundleID, ok := args["bundle_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("bundle_id must be a string")
+	appID, _ := args["app_id"].(string)
+	name, _ := args["name"].(string)
+
+	appProvider, err := display.DetectAppProvider()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect app provider: %w", err)
 	}
 
-	displayProvider, err := display.DetectDisplay()
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect display: %w", err)
-	}
+	var targetID string
 
-	controller, err := displayProvider.GetController()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get display controller: %w", err)
-	}
-	defer func() {
-		if err := controller.Close(); err != nil {
-			logger.Debug("failed to close display controller", "error", err)
+	// If app_id is provided, use it directly; otherwise fall back to name match
+	if appID != "" {
+		targetID = appID
+	} else {
+		targetID, err = resolveAppByName(ctx, appProvider, name)
+		if err != nil {
+			return nil, err
 		}
-	}()
-
-	focusManager, ok := controller.(display.FocusManager)
-	if !ok {
-		return nil, fmt.Errorf("display controller does not support focus management")
 	}
 
-	if err := focusManager.ActivateApp(ctx, bundleID); err != nil {
-		return nil, fmt.Errorf("failed to activate app '%s': %w (app may not be running)", bundleID, err)
+	if err := appProvider.Activate(ctx, targetID); err != nil {
+		if errors.Is(err, display.ErrAppNotFound) {
+			return nil, fmt.Errorf("application %q is not running (try activating by name instead)", targetID)
+		}
+		return nil, fmt.Errorf("failed to activate app %q: %w", targetID, err)
 	}
 
 	time.Sleep(150 * time.Millisecond)
 
-	currentApp, err := focusManager.GetFrontmostApp(ctx)
-	if err == nil && currentApp == bundleID {
-		result := fmt.Sprintf("Successfully activated %s (bundle ID: %s). The application is now in focus.", parseAppName(bundleID), bundleID)
-		return &domain.ToolExecutionResult{
-			ToolName: "ActivateApp",
-			Success:  true,
-			Data: map[string]any{
-				"bundle_id": bundleID,
-				"app_name":  parseAppName(bundleID),
-				"message":   result,
-			},
-		}, nil
+	// Verify the activation succeeded
+	focusedApp, _ := appProvider.GetFocused(ctx)
+	data := map[string]any{
+		"app_id":  targetID,
+		"message": fmt.Sprintf("Successfully activated %s", targetID),
 	}
 
-	result := fmt.Sprintf("Attempted to activate %s (bundle ID: %s)", parseAppName(bundleID), bundleID)
+	if focusedApp != nil {
+		data["app_name"] = focusedApp.Name
+	}
+
 	return &domain.ToolExecutionResult{
 		ToolName: "ActivateApp",
 		Success:  true,
-		Data: map[string]any{
-			"bundle_id": bundleID,
-			"app_name":  parseAppName(bundleID),
-			"message":   result,
-		},
+		Data:     data,
 	}, nil
 }
 
 // IsEnabled returns whether the tool is enabled
 func (t *ActivateAppTool) IsEnabled() bool {
 	return t.config.ComputerUse.Enabled
+}
+
+// resolveAppByName looks up a running application by name substring match.
+func resolveAppByName(ctx context.Context, ap display.AppProvider, name string) (string, error) {
+	apps, err := ap.ListRunning(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to list running apps: %w", err)
+	}
+
+	nameLower := strings.ToLower(name)
+	for _, app := range apps {
+		if strings.Contains(strings.ToLower(app.Name), nameLower) ||
+			strings.Contains(strings.ToLower(app.ID), nameLower) {
+			return app.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("no running application matched name %q", name)
 }
 
 // FormatPreview formats the result for display preview
@@ -130,6 +152,9 @@ func (t *ActivateAppTool) FormatPreview(result *domain.ToolExecutionResult) stri
 	}
 	if appName, ok := data["app_name"].(string); ok {
 		return fmt.Sprintf("Activated: %s", appName)
+	}
+	if appID, ok := data["app_id"].(string); ok {
+		return fmt.Sprintf("Activated: %s", appID)
 	}
 	return "Activated app"
 }

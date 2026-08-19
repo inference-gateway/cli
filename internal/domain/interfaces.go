@@ -59,6 +59,17 @@ type ImageAnnotator interface {
 	AnnotateImage(ctx context.Context, img ImageAttachment, opts AnnotateOptions) (*ImageAnnotation, error)
 }
 
+// Application represents a running application on any platform.
+// ID is a stable cross-platform identifier (bundle ID on macOS,
+// "pid:N" on Linux, or the app name for name-based lookup).
+// Name is the human-readable display name.
+// PlatformID is the OS-native identifier (PID on Linux, bundle ID on macOS, window ID on X11).
+type Application struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	PlatformID string `json:"platform_id"`
+}
+
 // Computer use result types
 
 // ScreenRegion represents a rectangular region of the screen

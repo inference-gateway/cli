@@ -723,10 +723,10 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Lists the browser's open tabs (index, URL, title) and marks the active one, so you know which page the user is currently on. Read-only.`,
 		},
 		GetFocusedApp: PromptsToolDescription{
-			Description: `Gets the currently focused (frontmost) application. Returns the application name and bundle identifier. Use this before performing computer use actions to verify the correct application is in focus.`,
+			Description: `Gets the currently focused (frontmost) application. Returns the application name, stable ID (app_id), and platform-specific identifier. Use this before performing computer use actions to verify the correct application is in focus. On headless sessions returns "no focused application".`,
 		},
 		ActivateApp: PromptsToolDescription{
-			Description: `Activates (brings to foreground/focus) a specific application by its bundle identifier. Use GetFocusedApp first to check the current state, then use this tool to switch to the target app before performing computer use actions. After activation, wait briefly before sending keyboard/mouse commands.`,
+			Description: `Brings a running application to the foreground. Provide either "app_id" (the stable identifier returned by GetFocusedApp, e.g. "com.google.Chrome" or "pid:1234") or "name" (a human-readable name substring, e.g. "Chrome" or "Terminal") to identify the target. Name matching is case-insensitive and selects the first matching running application. Use GetFocusedApp first to check current state. Works on macOS and X11; Wayland is not supported.`,
 		},
 		GetLatestFrame: PromptsToolDescription{
 			Description: `Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources (e.g. camera frames on disk). Formats: "regular" returns the raw image; "annotated" returns a text scene summary plus a numbered element list (label, text, bounding box) produced by the configured vision annotator - useful when you cannot see images yourself. When format is omitted it is chosen automatically based on your vision capability.`,

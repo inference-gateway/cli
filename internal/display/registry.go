@@ -7,13 +7,15 @@ import (
 
 // Registry manages display server providers and handles display detection
 type Registry struct {
-	providers []Provider
-	mu        sync.RWMutex
+	providers    []Provider
+	appProviders []AppProvider
+	mu           sync.RWMutex
 }
 
 var (
 	globalRegistry = &Registry{
-		providers: make([]Provider, 0),
+		providers:    make([]Provider, 0),
+		appProviders: make([]AppProvider, 0),
 	}
 )
 
@@ -39,3 +41,28 @@ func DetectDisplay() (Provider, error) {
 
 	return nil, fmt.Errorf("no compatible display server detected (tried %d providers)", len(globalRegistry.providers))
 }
+
+// RegisterAppProvider adds an AppProvider to the global registry.
+// Called from init() in platform-specific packages (macOS, X11, Wayland).
+func RegisterAppProvider(ap AppProvider) {
+	globalRegistry.mu.Lock()
+	defer globalRegistry.mu.Unlock()
+	globalRegistry.appProviders = append(globalRegistry.appProviders, ap)
+}
+
+// DetectAppProvider returns the first registered AppProvider. Platform
+// packages only register a provider when their display server is actually
+// available, so registration order is the preference order. Returns
+// ErrNoAppProvider when none is available (headless, or Wayland).
+func DetectAppProvider() (AppProvider, error) {
+	globalRegistry.mu.RLock()
+	defer globalRegistry.mu.RUnlock()
+
+	if len(globalRegistry.appProviders) == 0 {
+		return nil, ErrNoAppProvider
+	}
+	return globalRegistry.appProviders[0], nil
+}
+
+// ErrNoAppProvider is returned when no application provider is available.
+var ErrNoAppProvider = fmt.Errorf("no application provider")

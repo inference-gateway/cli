@@ -30,7 +30,6 @@ type Controller struct {
 }
 
 var _ display.DisplayController = (*Controller)(nil)
-var _ display.FocusManager = (*Controller)(nil)
 
 func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Region) ([]byte, error) {
 	if region == nil {
@@ -78,32 +77,6 @@ func (c *Controller) SendKeyCombo(ctx context.Context, combo string) error {
 func (c *Controller) Close() error {
 	c.client.Close()
 	return nil
-}
-
-// FocusManager implementation for macOS
-
-func (c *Controller) GetFrontmostApp(ctx context.Context) (string, error) {
-	appID := c.client.GetFrontmostApp()
-	if appID == "" {
-		return "", fmt.Errorf("no frontmost application found")
-	}
-	return appID, nil
-}
-
-func (c *Controller) ActivateApp(ctx context.Context, appIdentifier string) error {
-	return c.client.ActivateApp(appIdentifier)
-}
-
-func (c *Controller) GetTerminalApp(ctx context.Context) (string, error) {
-	terminalID := c.client.GetTerminalApp()
-	if terminalID == "" {
-		return "", fmt.Errorf("no terminal application found")
-	}
-	return terminalID, nil
-}
-
-func (c *Controller) SwitchToTerminal(ctx context.Context) error {
-	return c.client.SwitchToTerminal()
 }
 
 // Provider implements the display.Provider interface for macOS
