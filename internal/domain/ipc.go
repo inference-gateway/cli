@@ -16,6 +16,14 @@ type ApprovalResponse struct {
 	Approved   bool   `json:"approved"`
 }
 
+// ComputerUseControlMessage is written to the agent's stdin by a host UI to
+// pause or resume computer-use execution. Follows the same IPC pattern as
+// ApprovalResponse.
+type ComputerUseControlMessage struct {
+	Type   string `json:"type"`   // "computer_use_control"
+	Action string `json:"action"` // "pause" or "resume"
+}
+
 // AgentErrorMessage is emitted by the agent on stdout when a fatal error occurs
 // before exiting. The channel manager forwards this to the user-facing channel
 // so users aren't left waiting in silence when the agent process fails.

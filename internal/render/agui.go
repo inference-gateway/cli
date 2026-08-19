@@ -125,3 +125,13 @@ func (e *aguiEncoder) emitTodos(todos []domain.TodoItem) {
 func (e *aguiEncoder) emitApprovalRequest(req domain.ApprovalRequest) {
 	e.emit(aguievents.NewCustomEvent("approval_request", aguievents.WithValue(req)))
 }
+
+func (e *aguiEncoder) emitComputerUsePaused(reqID string) {
+	e.emit(aguievents.NewCustomEvent("computer_use_paused",
+		aguievents.WithValue(map[string]string{"request_id": reqID})))
+}
+
+func (e *aguiEncoder) emitComputerUseResumed(reqID string) {
+	e.emit(aguievents.NewCustomEvent("computer_use_resumed",
+		aguievents.WithValue(map[string]string{"request_id": reqID})))
+}

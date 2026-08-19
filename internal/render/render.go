@@ -120,13 +120,20 @@ func completionErr(e domain.ChatCompleteEvent) error {
 // the engine already timed out must not decide the next one). Any read or
 // parse failure rejects the tool so the engine never waits out its timeout
 // on a dead broker.
-func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
+// When controlMessages is non-nil, computer_use_control lines are forwarded
+// instead of being treated as invalid approval responses.
+func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner, controlMessages chan<- domain.ComputerUseControlMessage) {
 	if e.ResponseChan == nil {
 		return
 	}
 	for in != nil && in.Scan() {
 		var resp domain.ApprovalResponse
 		if err := json.Unmarshal(in.Bytes(), &resp); err != nil || resp.Type != "approval_response" {
+			// Check for a control message to forward
+			var ctrl domain.ComputerUseControlMessage
+			if controlMessages != nil && json.Unmarshal(in.Bytes(), &ctrl) == nil && ctrl.Type == "computer_use_control" {
+				controlMessages <- ctrl
+			}
 			continue
 		}
 		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
@@ -176,37 +183,65 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 
 	var runErr error
 	var content strings.Builder
-	for event := range events {
-		switch e := event.(type) {
-		case domain.ChatErrorEvent:
-			emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
-			runErr = fmt.Errorf("agent error: %w", e.Error)
-		case domain.ChatChunkEvent:
-			content.WriteString(e.Content)
-		case domain.ChatCompleteEvent:
-			if msg := assistantMessage(e, content.String()); msg != nil {
-				emit(msg)
+
+	// controlMessages forwards computer_use_control lines from the approval
+	// stdin scanner to the render loop so they can be emitted as output events.
+	var controlMessages chan domain.ComputerUseControlMessage
+	if stdin != nil {
+		controlMessages = make(chan domain.ComputerUseControlMessage, 4)
+	}
+
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				// Channel closed - exit the loop naturally
+				goto done
 			}
-			content.Reset()
-			if err := completionErr(e); err != nil {
-				runErr = err
-			}
-		case domain.ToolExecutionCompletedEvent:
-			for _, r := range e.Results {
-				if r != nil {
-					emit(toolMessage(r))
+			switch e := event.(type) {
+			case domain.ChatErrorEvent:
+				emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
+				runErr = fmt.Errorf("agent error: %w", e.Error)
+			case domain.ChatChunkEvent:
+				content.WriteString(e.Content)
+			case domain.ChatCompleteEvent:
+				if msg := assistantMessage(e, content.String()); msg != nil {
+					emit(msg)
 				}
+				content.Reset()
+				if err := completionErr(e); err != nil {
+					runErr = err
+				}
+			case domain.ToolExecutionCompletedEvent:
+				for _, r := range e.Results {
+					if r != nil {
+						emit(toolMessage(r))
+					}
+				}
+			case domain.ToolApprovalRequestedEvent:
+				emit(map[string]any{
+					"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
+					"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
+				})
+				answerApproval(e, stdin, controlMessages)
+			case domain.ComputerUsePausedEvent:
+				emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
+			case domain.ComputerUseResumedEvent:
+				emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
+			case domain.TodoUpdateChatEvent:
+				emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 			}
-		case domain.ToolApprovalRequestedEvent:
+		case ctrl := <-controlMessages:
+			// Forward control messages from the host as JSON events on stdout.
+			// The host sends pause/resume on stdin; we echo back the state so
+			// the host UI can reflect it. The actual agent-side pause requires
+			// the caller to wire a control handler (see cmd/headless.go).
 			emit(map[string]any{
-				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
-				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
+				"type": "computer_use_" + ctrl.Action, "request_id": "",
 			})
-			answerApproval(e, stdin)
-		case domain.TodoUpdateChatEvent:
-			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		}
 	}
+done:
 
 	tokenStats := repo.GetSessionTokens()
 	if tokenStats.RequestCount <= 0 {
@@ -302,7 +337,11 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
-			answerApproval(ev, stdin)
+			answerApproval(ev, stdin, nil)
+		case domain.ComputerUsePausedEvent:
+			e.emitComputerUsePaused(ev.RequestID)
+		case domain.ComputerUseResumedEvent:
+			e.emitComputerUseResumed(ev.RequestID)
 		}
 	}
 
