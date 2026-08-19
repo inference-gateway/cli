@@ -16,7 +16,7 @@ type StateManager struct {
 	mutex          sync.RWMutex
 	stallThreshold time.Duration
 
-	// Event multicast for floating window (optional)
+	// Event multicast for external event consumers (optional)
 	eventBridge domain.EventBridge
 
 	debugMode bool
@@ -177,7 +177,7 @@ func isTerminalChatStatus(s domain.ChatStatus) bool {
 	return false
 }
 
-// SetEventBridge sets the event bridge for multicasting events to floating window
+// SetEventBridge sets the event bridge for multicasting events to external consumers
 func (sm *StateManager) SetEventBridge(bridge domain.EventBridge) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
@@ -424,7 +424,7 @@ func (sm *StateManager) ClearApprovalUIState() {
 	sm.state.ClearApprovalUIState()
 }
 
-// BroadcastEvent publishes an event to the EventBridge for floating window
+// BroadcastEvent publishes an event to the EventBridge for external consumers
 func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
 	if sm.eventBridge != nil {
 		sm.eventBridge.Publish(event)

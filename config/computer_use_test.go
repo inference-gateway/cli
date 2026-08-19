@@ -8,6 +8,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
+// floating_window was removed in favor of the desktop app; it stays in the
+// fixture to prove unknown/removed keys don't break config load.
 const computerUseValidYAML = `---
 enabled: true
 floating_window:
@@ -68,12 +70,6 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.Enabled {
 		t.Error("Expected Enabled to be false by default")
 	}
-	if !cfg.FloatingWindow.Enabled {
-		t.Error("Expected FloatingWindow.Enabled to be true by default")
-	}
-	if cfg.FloatingWindow.Position != "top-right" {
-		t.Errorf("Expected FloatingWindow.Position 'top-right', got %q", cfg.FloatingWindow.Position)
-	}
 	if cfg.Screenshot.MaxWidth != 1920 {
 		t.Errorf("Expected Screenshot.MaxWidth=1920, got %d", cfg.Screenshot.MaxWidth)
 	}
@@ -133,9 +129,6 @@ func TestLoadComputerUse(t *testing.T) {
 			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
 				if !cfg.Enabled {
 					t.Error("Expected Enabled true")
-				}
-				if cfg.FloatingWindow.Position != "bottom-left" {
-					t.Errorf("Expected FloatingWindow.Position 'bottom-left', got %q", cfg.FloatingWindow.Position)
 				}
 				if cfg.Screenshot.MaxWidth != 800 {
 					t.Errorf("Expected Screenshot.MaxWidth=800, got %d", cfg.Screenshot.MaxWidth)
@@ -211,12 +204,6 @@ screenshot:
 func TestSaveComputerUse(t *testing.T) {
 	roundTrip := &config.ComputerUseConfig{
 		Enabled: true,
-		FloatingWindow: config.FloatingWindowConfig{
-			Enabled:        false,
-			RespawnOnClose: false,
-			Position:       "top-left",
-			AlwaysOnTop:    false,
-		},
 		Screenshot: config.ScreenshotToolConfig{
 			Enabled:          true,
 			MaxWidth:         1024,
@@ -267,7 +254,6 @@ func TestSaveComputerUse(t *testing.T) {
 					t.Fatalf("LoadComputerUse() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled ||
-					loaded.FloatingWindow.Position != roundTrip.FloatingWindow.Position ||
 					loaded.Screenshot.MaxWidth != roundTrip.Screenshot.MaxWidth ||
 					loaded.Screenshot.Format != roundTrip.Screenshot.Format ||
 					loaded.RateLimit.MaxActionsPerMinute != roundTrip.RateLimit.MaxActionsPerMinute {

@@ -108,6 +108,24 @@ jobs:
             -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }}" \
           -o infer .
 
+  build-macos:
+    needs:
+      - lint
+      - vet
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.1
+
+    - name: Setup Go
+      uses: actions/setup-go@v7.0.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Build project (darwin cgo)
+      run: go build -o infer .
+
   test:
     needs:
       - build

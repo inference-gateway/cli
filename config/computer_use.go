@@ -19,12 +19,11 @@ const (
 
 // ComputerUseConfig contains computer use tool settings
 type ComputerUseConfig struct {
-	Enabled        bool                   `yaml:"enabled" mapstructure:"enabled"`
-	FloatingWindow FloatingWindowConfig   `yaml:"floating_window" mapstructure:"floating_window"`
-	Screenshot     ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
-	RateLimit      RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Tools          ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
-	Approval       string                 `yaml:"approval" mapstructure:"approval"`
+	Enabled    bool                   `yaml:"enabled" mapstructure:"enabled"`
+	Screenshot ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
+	RateLimit  RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Tools      ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
+	Approval   string                 `yaml:"approval" mapstructure:"approval"`
 }
 
 // ComputerUseToolsConfig contains individual computer use tool settings
@@ -52,14 +51,6 @@ type ScreenshotToolConfig struct {
 	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
 	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
 	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
-}
-
-// FloatingWindowConfig contains floating progress window settings
-type FloatingWindowConfig struct {
-	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
-	RespawnOnClose bool   `yaml:"respawn_on_close" mapstructure:"respawn_on_close"`
-	Position       string `yaml:"position" mapstructure:"position"`
-	AlwaysOnTop    bool   `yaml:"always_on_top" mapstructure:"always_on_top"`
 }
 
 // MouseMoveToolConfig contains mouse move-specific tool settings
@@ -109,12 +100,6 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 	return &ComputerUseConfig{
 		Enabled:  false,
 		Approval: ComputerUseApprovalNever,
-		FloatingWindow: FloatingWindowConfig{
-			Enabled:        true,
-			RespawnOnClose: true,
-			Position:       "top-right",
-			AlwaysOnTop:    true,
-		},
 		Screenshot: ScreenshotToolConfig{
 			Enabled:          true,
 			MaxWidth:         1920,
