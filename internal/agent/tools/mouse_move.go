@@ -74,6 +74,16 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
+	if err := acquireScreenLock(); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MouseMove",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
+	}
+
 	x, xOk := args["x"].(float64)
 	y, yOk := args["y"].(float64)
 
