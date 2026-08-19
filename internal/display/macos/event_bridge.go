@@ -1,6 +1,6 @@
-// EventBridge is pure Go and used cross-platform (floating window on darwin,
-// opentask extension bridge everywhere), so unlike the rest of this package
-// it carries no build tag.
+// EventBridge is pure Go and used cross-platform (opentask extension bridge,
+// control event forwarding), so unlike the rest of this package it carries no
+// build tag.
 package macos
 
 import (
@@ -75,7 +75,7 @@ func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
 }
 
 // Subscribe registers a subscriber and replays the recent-event ring buffer so
-// backfill-less subscribers (the floating window) catch up on connect.
+// backfill-less subscribers catch up on connect.
 func (eb *EventBridge) Subscribe() chan domain.ChatEvent { return eb.subscribe(true) }
 
 // SubscribeFuture is Subscribe without the ring-buffer replay, for subscribers
@@ -135,7 +135,7 @@ func (eb *EventBridge) Tap(input <-chan domain.ChatEvent) <-chan domain.ChatEven
 		defer close(output)
 		for event := range input {
 			output <- event   // Forward to TUI
-			eb.Publish(event) // Multicast to subscribers (FloatingWindow)
+			eb.Publish(event) // Multicast to subscribers
 		}
 	}()
 

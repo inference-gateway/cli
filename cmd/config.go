@@ -928,11 +928,6 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setBool("INFER_COMPUTER_USE_ENABLED", &cfg.ComputerUse.Enabled)
 	setString("INFER_COMPUTER_USE_APPROVAL", &cfg.ComputerUse.Approval)
 
-	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_ENABLED", &cfg.ComputerUse.FloatingWindow.Enabled)
-	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_RESPAWN_ON_CLOSE", &cfg.ComputerUse.FloatingWindow.RespawnOnClose)
-	setString("INFER_COMPUTER_USE_FLOATING_WINDOW_POSITION", &cfg.ComputerUse.FloatingWindow.Position)
-	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_ALWAYS_ON_TOP", &cfg.ComputerUse.FloatingWindow.AlwaysOnTop)
-
 	setBool("INFER_COMPUTER_USE_SCREENSHOT_ENABLED", &cfg.ComputerUse.Screenshot.Enabled)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_WIDTH", &cfg.ComputerUse.Screenshot.MaxWidth)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_HEIGHT", &cfg.ComputerUse.Screenshot.MaxHeight)

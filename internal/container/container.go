@@ -212,7 +212,7 @@ func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
 // initializeExtensionBridge wires the opentask extension bridge as the
 // browser tools' driver when browser_use selects the extension backend, and
 // installs an event bridge on the state manager so chat events are mirrored
-// to the extension (the floating window reuses it when both are enabled).
+// to the extension.
 // The WS server is NOT started here - every command builds a container and
 // short-lived ones (status, tools, ...) must not grab the bridge port.
 // Conversation-hosting commands call StartExtensionBridge.

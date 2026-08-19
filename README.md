@@ -1233,8 +1233,9 @@ screenshot:
 
 Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`, and
 `GetLatestFrame`. They run silently in the background (bypassing the approval prompt) and are
-governed by `computer_use.enabled` plus the configured rate limits. On macOS an optional **floating
-progress window** can mirror what the agent is doing. For a sandboxed desktop to drive, see
+governed by `computer_use.enabled` plus the configured rate limits. The
+[desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
+(monitor, screen overlay, approvals). For a sandboxed desktop to drive, see
 [examples/computer-use](examples/computer-use/).
 
 > **⚠️ Windows note:** Computer use (mouse, keyboard, screenshot tools) is **not supported on Windows**.

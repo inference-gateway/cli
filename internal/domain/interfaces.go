@@ -340,7 +340,7 @@ type ChatEvent interface {
 	GetTimestamp() time.Time
 }
 
-// EventBridge multicasts chat events to multiple subscribers (e.g., terminal UI and floating window)
+// EventBridge multicasts chat events to multiple subscribers (e.g., terminal UI and the opentask extension bridge)
 type EventBridge interface {
 	// Tap intercepts an event stream and multicasts it to all subscribers
 	// Returns a new channel that mirrors the input channel
@@ -436,7 +436,7 @@ type ChatSessionManager interface {
 	TouchChatActivity()
 }
 
-// EventBridgeManager handles event multicast for floating window
+// EventBridgeManager handles event multicast for external event consumers
 type EventBridgeManager interface {
 	SetEventBridge(bridge EventBridge)
 	GetEventBridge() EventBridge

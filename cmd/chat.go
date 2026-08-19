@@ -209,18 +209,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		}
 	}
 
-	floatingWindowMgr, err := initFloatingWindow(cfg, stateManager, agentService)
-	if err != nil {
-		return fmt.Errorf("failed to initialize floating window: %w", err)
-	}
-	if floatingWindowMgr != nil {
-		defer func() {
-			if err := floatingWindowMgr.Shutdown(); err != nil {
-				logger.Error("failed to shutdown floating window", "error", err)
-			}
-		}()
-	}
-
 	application := app.NewChatApplication(
 		cfg,
 		models,
@@ -259,11 +247,8 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
 
-	if floatingWindowMgr != nil {
-		eventBridge := stateManager.GetEventBridge()
-		if eventBridge != nil {
-			go forwardControlEventsToBubbleTea(notifier, eventBridge)
-		}
+	if eventBridge := stateManager.GetEventBridge(); eventBridge != nil {
+		go forwardControlEventsToBubbleTea(notifier, eventBridge)
 	}
 
 	if _, err := program.Run(); err != nil {

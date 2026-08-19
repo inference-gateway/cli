@@ -1620,7 +1620,7 @@ func (s *AgentServiceImpl) requestToolApproval(
 	select {
 	case response := <-responseChan:
 		if response == domain.ApprovalAutoAccept {
-			logger.Info("switching to auto-accept mode from floating window")
+			logger.Info("switching to auto-accept mode from approval response")
 			s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 		}
 		approved = response == domain.ApprovalApprove || response == domain.ApprovalAutoAccept
