@@ -59,11 +59,11 @@ func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
 					},
 					"x": map[string]any{
 						"type":        "integer",
-						"description": "Optional: X coordinate to move to before clicking",
+						"description": "Optional: X coordinate to move to before clicking, in the screenshot coordinate space (same space as GetLatestFrame bounding boxes)",
 					},
 					"y": map[string]any{
 						"type":        "integer",
-						"description": "Optional: Y coordinate to move to before clicking",
+						"description": "Optional: Y coordinate to move to before clicking, in the screenshot coordinate space (same space as GetLatestFrame bounding boxes)",
 					},
 				},
 				"required": []string{},
@@ -167,7 +167,10 @@ func (t *MouseClickTool) handleMovement(ctx context.Context, controller display.
 		return cursorX, cursorY, nil
 	}
 
-	targetX, targetY := t.scaleCoordinates(ctx, controller, x, y)
+	targetX, targetY, err := t.scaleCoordinates(ctx, controller, x, y)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to move mouse: %w", err)
+	}
 
 	if err := controller.MoveMouse(ctx, targetX, targetY); err != nil {
 		return 0, 0, fmt.Errorf("failed to move mouse: %w", err)
@@ -178,27 +181,25 @@ func (t *MouseClickTool) handleMovement(ctx context.Context, controller display.
 
 // scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
 // This follows the official computer-use-demo implementation strategy.
-func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int) {
+func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int, error) {
 	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
-		return x, y
+		return x, y, nil
 	}
 
 	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
 	if err != nil {
 		logger.Warn("failed to get screen dimensions, no scaling", "error", err)
-		return x, y
+		return x, y, nil
 	}
 
 	apiWidth := t.config.ComputerUse.Screenshot.TargetWidth
 	apiHeight := t.config.ComputerUse.Screenshot.TargetHeight
 
 	if apiWidth == 0 || apiHeight == 0 {
-		return x, y
+		return x, y, nil
 	}
 
-	screenX, screenY := ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
-
-	return screenX, screenY
+	return ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
 }
 
 func (t *MouseClickTool) updateStateAfterClick(ctx context.Context, controller display.DisplayController, x, y int) {
