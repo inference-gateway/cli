@@ -28,6 +28,24 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
+// startHeadlessScreenshotServer starts the screenshot capture server and
+// registers the "screen" frame source so GetLatestFrame is available, exactly
+// as interactive chat does. It logs instead of printing: headless stdout
+// carries the ag-ui/json protocol stream. Returns nil when streaming is off or
+// the server failed to start.
+func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *services.ScreenshotServer {
+	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
+		return nil
+	}
+	screenshotServer := services.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
+	if err := screenshotServer.Start(); err != nil {
+		logger.Warn("failed to start screenshot server", "error", err)
+		return nil
+	}
+	svc.GetToolRegistry().RegisterFrameSource("screen", screenshotServer)
+	return screenshotServer
+}
+
 // inheritedSubagentMode returns the coding mode a subagent should start in,
 // read from INFER_SUBAGENT_AGENT_MODE. Returns Standard when unset or
 // unrecognized, so top-level infer headless runs are unaffected.
@@ -176,6 +194,14 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 			sessionID = resolved
 			groupKey = gk
 		}
+	}
+
+	if screenshotServer := startHeadlessScreenshotServer(cfg, svc, sessionID); screenshotServer != nil {
+		defer func() {
+			if stopErr := screenshotServer.Stop(); stopErr != nil {
+				logger.Error("failed to stop screenshot server", "error", stopErr)
+			}
+		}()
 	}
 
 	ctx := context.Background()

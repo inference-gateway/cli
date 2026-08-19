@@ -47,11 +47,11 @@ func (t *MouseMoveTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"x": map[string]any{
 						"type":        "integer",
-						"description": "X coordinate (absolute position from left edge of screen)",
+						"description": "X coordinate in the screenshot coordinate space (same space as GetLatestFrame bounding boxes), scaled to the real screen on execution",
 					},
 					"y": map[string]any{
 						"type":        "integer",
-						"description": "Y coordinate (absolute position from top edge of screen)",
+						"description": "Y coordinate in the screenshot coordinate space (same space as GetLatestFrame bounding boxes), scaled to the real screen on execution",
 					},
 				},
 				"required": []string{"x", "y"},
@@ -113,7 +113,16 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}
 	}()
 
-	targetX, targetY := t.scaleCoordinates(ctx, controller, int(x), int(y))
+	targetX, targetY, err := t.scaleCoordinates(ctx, controller, int(x), int(y))
+	if err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MouseMove",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("failed to move mouse: %v", err),
+		}, nil
+	}
 
 	fromX, fromY, _ := controller.GetCursorPosition(ctx)
 
@@ -221,27 +230,25 @@ func (t *MouseMoveTool) ShouldAlwaysExpand() bool {
 
 // scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
 // This follows the official computer-use-demo implementation strategy.
-func (t *MouseMoveTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int) {
+func (t *MouseMoveTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int, error) {
 	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
-		return x, y
+		return x, y, nil
 	}
 
 	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
 	if err != nil {
 		logger.Warn("failed to get screen dimensions", "error", err)
-		return x, y
+		return x, y, nil
 	}
 
 	apiWidth := t.config.ComputerUse.Screenshot.TargetWidth
 	apiHeight := t.config.ComputerUse.Screenshot.TargetHeight
 
 	if apiWidth == 0 || apiHeight == 0 {
-		return x, y
+		return x, y, nil
 	}
 
-	screenX, screenY := ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
-
-	return screenX, screenY
+	return ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
 }
 
 // broadcastMoveEvent broadcasts a visual move indicator event for user feedback
