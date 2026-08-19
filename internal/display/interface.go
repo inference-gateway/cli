@@ -96,14 +96,12 @@ type DisplayInfo struct {
 	RequiresElevation bool
 }
 
-// AppProvider is the cross-platform application focus management interface.
-// Every platform (macOS, X11, Wayland) implements all three methods:
-//   - ListRunning: enumerate running applications with stable IDs and names
-//   - Activate: bring a running application to the foreground by its stable ID
-//   - GetFocused: return the currently focused application
+// AppProvider is the cross-platform application focus management interface
+// (macOS via NSWorkspace, X11 via EWMH; Wayland hides global window state
+// from clients, so no provider registers there).
 //
-// Errors distinguish "application not found" from "OS refused the operation".
-// Callers should check both cases when presenting errors.
+// Providers registered via RegisterAppProvider are process-lifetime
+// singletons: they own their platform resources and there is no Close.
 type AppProvider interface {
 	// ListRunning returns all running applications visible to the windowing system.
 	// On macOS this includes every NSRunningApplication. On X11 this enumerates
@@ -118,20 +116,11 @@ type AppProvider interface {
 
 	// GetFocused returns the currently focused (frontmost) application.
 	// Returns nil with a nil error when no application is focused (headless
-	// session with no windows), or an error wrapping ErrAppNotFound.
+	// session with no windows).
 	GetFocused(ctx context.Context) (*domain.Application, error)
-
-	// Close releases any underlying platform resources.
-	Close() error
 }
 
 // ErrAppNotFound is returned by AppProvider methods when the requested
 // application is not running. Callers should use errors.Is to distinguish
 // "not found" from other errors.
 var ErrAppNotFound = fmt.Errorf("application not found")
-
-// ErrAppUnsupported is returned by AppProvider.ListRunning when the
-// platform does not support application enumeration (e.g., Wayland
-// without the foreign-toplevel protocol, or running headless without a
-// display server). DetectAppProvider skips providers that return this.
-var ErrAppUnsupported = fmt.Errorf("application provider not supported on this platform")

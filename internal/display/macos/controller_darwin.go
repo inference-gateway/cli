@@ -30,7 +30,6 @@ type Controller struct {
 }
 
 var _ display.DisplayController = (*Controller)(nil)
-var _ display.AppProvider = (*Controller)(nil)
 
 func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Region) ([]byte, error) {
 	if region == nil {
@@ -78,27 +77,6 @@ func (c *Controller) SendKeyCombo(ctx context.Context, combo string) error {
 func (c *Controller) Close() error {
 	c.client.Close()
 	return nil
-}
-
-// AppProvider implementation for macOS
-
-func (c *Controller) ListRunning(ctx context.Context) ([]domain.Application, error) {
-	return c.client.ListRunningApps()
-}
-
-func (c *Controller) Activate(ctx context.Context, id string) error {
-	return c.client.ActivateApp(id)
-}
-
-func (c *Controller) GetFocused(ctx context.Context) (*domain.Application, error) {
-	app, err := c.client.GetFrontmostAppInfo()
-	if err != nil {
-		return nil, err
-	}
-	if app == nil {
-		return nil, display.ErrAppNotFound
-	}
-	return app, nil
 }
 
 // Provider implements the display.Provider interface for macOS

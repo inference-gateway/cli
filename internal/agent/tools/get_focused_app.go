@@ -7,7 +7,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -50,11 +49,6 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect app provider: %w", err)
 	}
-	defer func() {
-		if cerr := appProvider.Close(); cerr != nil {
-			logger.Debug("failed to close app provider", "error", cerr)
-		}
-	}()
 
 	app, err := appProvider.GetFocused(ctx)
 	if err != nil {

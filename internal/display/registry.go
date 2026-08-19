@@ -1,8 +1,6 @@
 package display
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"sync"
 )
@@ -52,25 +50,18 @@ func RegisterAppProvider(ap AppProvider) {
 	globalRegistry.appProviders = append(globalRegistry.appProviders, ap)
 }
 
-// DetectAppProvider returns the first available AppProvider for the current
-// platform. Providers are probed in registration order until one succeeds
-// (does not return ErrAppUnsupported). Returns ErrNoAppProvider when no
-// platform is available.
+// DetectAppProvider returns the first registered AppProvider. Platform
+// packages only register a provider when their display server is actually
+// available, so registration order is the preference order. Returns
+// ErrNoAppProvider when none is available (headless, or Wayland).
 func DetectAppProvider() (AppProvider, error) {
 	globalRegistry.mu.RLock()
 	defer globalRegistry.mu.RUnlock()
 
-	for _, ap := range globalRegistry.appProviders {
-		// Probe by calling ListRunning; if the platform is available it
-		// succeeds (possibly with an empty list). If it returns
-		// ErrAppUnsupported we skip it.
-		_, err := ap.ListRunning(context.Background())
-		if err == nil || !errors.Is(err, ErrAppUnsupported) {
-			return ap, nil
-		}
+	if len(globalRegistry.appProviders) == 0 {
+		return nil, ErrNoAppProvider
 	}
-
-	return nil, fmt.Errorf("no application provider available on this platform (tried %d providers): %w", len(globalRegistry.appProviders), ErrNoAppProvider)
+	return globalRegistry.appProviders[0], nil
 }
 
 // ErrNoAppProvider is returned when no application provider is available.

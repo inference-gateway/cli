@@ -216,15 +216,13 @@ func (t *MouseClickTool) storeFocusedApp(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	defer func() {
-		if cerr := appProvider.Close(); cerr != nil {
-			logger.Debug("failed to close app provider", "error", cerr)
-		}
-	}()
 
 	app, err := appProvider.GetFocused(ctx)
-	if err != nil || app == nil {
+	if err != nil {
 		logger.Warn("failed to get focused app after click", "error", err)
+		return
+	}
+	if app == nil {
 		return
 	}
 

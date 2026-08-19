@@ -10,14 +10,13 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // ActivateAppTool brings a running application to the foreground.
 //
 // The tool takes either:
-//   - "app_id": a stable application ID returned by ListRunning or GetFocused
+//   - "app_id": a stable application ID returned by GetFocusedApp
 //     (e.g. "com.google.Chrome" on macOS, "pid:1234" on Linux)
 //   - "name": a human-readable name substring to match (case-insensitive, first
 //     match wins).  At least one of app_id or name is required; app_id wins if
@@ -46,7 +45,7 @@ func (t *ActivateAppTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"app_id": map[string]any{
 						"type":        "string",
-						"description": "The stable application identifier returned by ListRunning or GetFocusedApp (e.g., 'com.google.Chrome', 'pid:1234'). On macOS this is the bundle ID; on Linux it is 'pid:<PID>'. Optional if 'name' is provided.",
+						"description": "The stable application identifier returned by GetFocusedApp (e.g., 'com.google.Chrome', 'pid:1234'). On macOS this is the bundle ID; on Linux it is 'pid:<PID>'. Optional if 'name' is provided.",
 					},
 					"name": map[string]any{
 						"type":        "string",
@@ -79,11 +78,6 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect app provider: %w", err)
 	}
-	defer func() {
-		if cerr := appProvider.Close(); cerr != nil {
-			logger.Debug("failed to close app provider", "error", cerr)
-		}
-	}()
 
 	var targetID string
 
@@ -99,7 +93,7 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 
 	if err := appProvider.Activate(ctx, targetID); err != nil {
 		if errors.Is(err, display.ErrAppNotFound) {
-			return nil, fmt.Errorf("application %q is not running (use GetFocusedApp or ListRunning to find available apps)", targetID)
+			return nil, fmt.Errorf("application %q is not running (try activating by name instead)", targetID)
 		}
 		return nil, fmt.Errorf("failed to activate app %q: %w", targetID, err)
 	}
@@ -146,6 +140,8 @@ func resolveAppByName(ctx context.Context, ap display.AppProvider, name string) 
 
 	return "", fmt.Errorf("no running application matched name %q", name)
 }
+
+// FormatPreview formats the result for display preview
 func (t *ActivateAppTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to activate app"

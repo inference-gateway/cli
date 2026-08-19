@@ -5,35 +5,38 @@ package macos
 /*
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework AppKit
+#include <stdlib.h>
+#include <string.h>
 #import <AppKit/AppKit.h>
 
-// Returns the bundle identifier for the frontmost application; empty if none.
-const char* getFrontmostApp() {
-    NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    if (app == nil) {
-        return "";
+// All string-returning functions return strdup'd memory that the Go caller
+// must free; UTF8String pointers are owned by autoreleased NSStrings and do
+// not survive the autorelease pool.
+
+// Returns the bundle identifier of the frontmost application; "" if none.
+char* getFrontmostApp() {
+    @autoreleasepool {
+        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        const char *bundleID = app ? [app.bundleIdentifier UTF8String] : NULL;
+        return strdup(bundleID ? bundleID : "");
     }
-    const char *bundleID = [app.bundleIdentifier UTF8String];
-    return bundleID ? bundleID : "";
 }
 
 // Returns the PID of the frontmost application; -1 if none.
 int getFrontmostPID() {
-    NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    if (app == nil) {
-        return -1;
+    @autoreleasepool {
+        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        return app ? (int)[app processIdentifier] : -1;
     }
-    return (int)[app processIdentifier];
 }
 
 // Returns the localized name of the frontmost application; "" if none.
-const char* getFrontmostName() {
-    NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    if (app == nil) {
-        return "";
+char* getFrontmostName() {
+    @autoreleasepool {
+        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        const char *name = app ? [app.localizedName UTF8String] : NULL;
+        return strdup(name ? name : "");
     }
-    const char *name = [app.localizedName UTF8String];
-    return name ? name : "";
 }
 
 // Activate application by bundle identifier; returns true on success.
@@ -64,8 +67,7 @@ bool activateAppByPID(int pid) {
 
 // Returns running app info as pipe-delimited "id|name|pid\n" lines.
 // For unbundled apps (nil bundleIdentifier), the id field is empty.
-//" Each line is null-terminated individually; the caller reads until an empty line.
-const char* listRunningApps() {
+char* listRunningApps() {
     @autoreleasepool {
         NSArray *apps = [[NSWorkspace sharedWorkspace] runningApplications];
         NSMutableString *result = [NSMutableString string];
@@ -82,7 +84,7 @@ const char* listRunningApps() {
             name = [name stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
             [result appendFormat:@"%@|%@|%d\n", bundleID, name, (int)[app processIdentifier]];
         }
-        return [result UTF8String];
+        return strdup([result UTF8String]);
     }
 }
 */
@@ -100,6 +102,7 @@ import (
 
 	robotgo "github.com/go-vgo/robotgo"
 
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -381,30 +384,23 @@ func (c *MacOSClient) SendKeyCombo(combo string) error {
 	return nil
 }
 
-// --- AppProvider methods ---
+// --- NSWorkspace app bridge, used by macosAppProvider (app_darwin.go) ---
 
-// ListRunningApps returns all running applications visible to the windowing system.
-// For unbundled processes the ID is "pid:N" since there is no bundle identifier.
-func (c *MacOSClient) ListRunningApps() ([]domain.Application, error) {
+// listRunningApps returns all running applications visible to the windowing
+// system. For unbundled processes the ID is "pid:N" since there is no bundle
+// identifier.
+func listRunningApps() ([]domain.Application, error) {
 	cStr := C.listRunningApps()
 	defer C.free(unsafe.Pointer(cStr))
 	s := C.GoString(cStr)
 
 	var apps []domain.Application
 	for _, line := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
 		parts := strings.SplitN(line, "|", 3)
 		if len(parts) != 3 {
 			continue
 		}
-		id := parts[0]
-		name := parts[1]
-		pidStr := parts[2]
-
-		// For unbundled processes (empty bundle ID), use "pid:N" as the stable ID
+		id, name, pidStr := parts[0], parts[1], parts[2]
 		if id == "" {
 			id = "pid:" + pidStr
 		}
@@ -419,11 +415,10 @@ func (c *MacOSClient) ListRunningApps() ([]domain.Application, error) {
 	return apps, nil
 }
 
-// GetFrontmostAppInfo returns the currently focused application.
+// frontmostApp returns the currently focused application.
 // Returns nil with no error when no app is focused (headless).
-func (c *MacOSClient) GetFrontmostAppInfo() (*domain.Application, error) {
-	cPID := C.getFrontmostPID()
-	pid := int(cPID)
+func frontmostApp() (*domain.Application, error) {
+	pid := int(C.getFrontmostPID())
 	if pid <= 0 {
 		return nil, nil
 	}
@@ -448,10 +443,9 @@ func (c *MacOSClient) GetFrontmostAppInfo() (*domain.Application, error) {
 	}, nil
 }
 
-// ActivateApp brings an application to the foreground.
-// It accepts both bundle IDs (e.g., "com.google.Chrome") and "pid:N" formatted IDs.
-func (c *MacOSClient) ActivateApp(id string) error {
-	// Try as bundle ID first
+// activateApp brings an application to the foreground. It accepts both bundle
+// IDs (e.g., "com.google.Chrome") and "pid:N" formatted IDs.
+func activateApp(id string) error {
 	cStr := C.CString(id)
 	defer C.free(unsafe.Pointer(cStr))
 
@@ -459,36 +453,12 @@ func (c *MacOSClient) ActivateApp(id string) error {
 		return nil
 	}
 
-	// Try as "pid:N" format
-	if strings.HasPrefix(id, "pid:") {
-		pidStr := strings.TrimPrefix(id, "pid:")
+	if pidStr, ok := strings.CutPrefix(id, "pid:"); ok {
 		pid, err := strconv.Atoi(pidStr)
 		if err == nil && C.activateAppByPID(C.int(pid)) {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("failed to activate app: %s", id)
-}
-
-// GetFrontmostApp returns the bundle identifier of the currently focused application
-func (c *MacOSClient) GetFrontmostApp() string {
-	cAppID := C.getFrontmostApp()
-	return C.GoString(cAppID)
-}
-
-// GetTerminalApp returns the bundle identifier of the running terminal application
-func (c *MacOSClient) GetTerminalApp() string {
-	cTerminalID := C.getTerminalApp()
-	return C.GoString(cTerminalID)
-}
-
-// SwitchToTerminal switches focus to the terminal application
-func (c *MacOSClient) SwitchToTerminal() error {
-	terminalID := c.GetTerminalApp()
-	if terminalID == "" {
-		return fmt.Errorf("no terminal application found")
-	}
-
-	return c.ActivateApp(terminalID)
+	return fmt.Errorf("failed to activate app %q: %w", id, display.ErrAppNotFound)
 }
