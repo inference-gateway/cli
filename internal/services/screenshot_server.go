@@ -159,6 +159,10 @@ func (s *ScreenshotServer) startCaptureLoop() {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
+	if err := s.captureScreenshot(); err != nil {
+		logger.Warn("screenshot capture failed", "error", err)
+	}
+
 	for {
 		select {
 		case <-s.captureCtx.Done():

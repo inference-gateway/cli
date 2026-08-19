@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -101,6 +102,7 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 	if err != nil {
 		return fail(err.Error())
 	}
+	t.recordCall(sourceName)
 
 	attachment := domain.ImageAttachment{
 		Data:        frame.Data,
@@ -155,18 +157,25 @@ func (t *GetLatestFrameTool) resolveSource(args map[string]any) (string, domain.
 }
 
 // checkRateLimit enforces the per-source minimum call interval; it returns a
-// wait message when the call is too soon.
+// wait message when the call is too soon. Only successful frame fetches count
+// as calls (see recordCall), so a cold-buffer failure never throttles the retry.
 func (t *GetLatestFrameTool) checkRateLimit(source string) string {
 	t.lastCallMu.Lock()
 	defer t.lastCallMu.Unlock()
 	if last, ok := t.lastCallTimes[source]; ok {
 		if since := time.Since(last); since < t.minCallInterval {
-			wait := t.minCallInterval - since
-			return fmt.Sprintf("please wait %v before requesting another frame from %q (last called %v ago)", wait.Round(time.Second), source, since.Round(time.Second))
+			wait := time.Duration(math.Ceil((t.minCallInterval - since).Seconds())) * time.Second
+			return fmt.Sprintf("please wait %v before requesting another frame from %q (last called %v ago)", wait, source, since.Round(time.Second))
 		}
 	}
-	t.lastCallTimes[source] = time.Now()
 	return ""
+}
+
+// recordCall stamps the per-source rate limit after a successful frame fetch.
+func (t *GetLatestFrameTool) recordCall(source string) {
+	t.lastCallMu.Lock()
+	defer t.lastCallMu.Unlock()
+	t.lastCallTimes[source] = time.Now()
 }
 
 // wantAnnotated resolves the format: explicit wins; omitted defaults to
