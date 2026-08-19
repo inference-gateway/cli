@@ -232,10 +232,6 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 			}
 		case ctrl := <-controlMessages:
-			// Forward control messages from the host as JSON events on stdout.
-			// The host sends pause/resume on stdin; we echo back the state so
-			// the host UI can reflect it. The actual agent-side pause requires
-			// the caller to wire a control handler (see cmd/headless.go).
 			emit(map[string]any{
 				"type": "computer_use_" + ctrl.Action, "request_id": "",
 			})

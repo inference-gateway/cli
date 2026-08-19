@@ -68,11 +68,8 @@ func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bo
 	case config.ComputerUseApprovalAlways:
 		return true
 	case config.ComputerUseApprovalDestructive:
-		// MouseClick and ActivateApp are potentially destructive (clicking buttons,
-		// switching apps); routine pointer/keyboard actions run freely.
 		return toolName == "MouseClick" || toolName == "ActivateApp"
 	default:
-		// "never" and unrecognised values preserve the current bypass behaviour
 		return false
 	}
 }
