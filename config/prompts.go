@@ -693,10 +693,10 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 			Description: `Submit work to an A2A agent server and delegate it to run in the background. IMPORTANT: This tool returns IMMEDIATELY after submission. DO NOT poll, query, or download artifacts right after submission. The system automatically monitors the task in the background and you will be AUTOMATICALLY NOTIFIED when it completes - the result will appear in the conversation. After submission, you MUST wait for the automatic notification before taking any follow-up actions. You can tell the user the task is running and you're waiting for it to complete. Use this for ANY interaction where you need an agent to respond with answers or complete work. The A2A_QueryTask tool is ONLY for retrieving metadata/capabilities or checking status of previously submitted tasks, NOT for polling just-submitted tasks.`,
 		},
 		MouseMove: PromptsToolDescription{
-			Description: `Moves the mouse cursor to absolute screen coordinates. Requires user approval unless in auto-accept mode.`,
+			Description: `Moves the mouse cursor. Coordinates are in the screenshot coordinate space (the same space as GetLatestFrame bounding boxes), not physical screen pixels; they are scaled to the real display on execution. Requires user approval unless in auto-accept mode.`,
 		},
 		MouseClick: PromptsToolDescription{
-			Description: `Performs a mouse click. Can click at current position or move to coordinates first. Supports left, right, and middle buttons. Requires user approval unless in auto-accept mode.`,
+			Description: `Performs a mouse click. Can click at current position or move to coordinates first; coordinates are in the screenshot coordinate space (the same space as GetLatestFrame bounding boxes), not physical screen pixels. Supports left, right, and middle buttons. Requires user approval unless in auto-accept mode.`,
 		},
 		MouseScroll: PromptsToolDescription{
 			Description: `Scrolls the mouse wheel up or down. Useful for navigating web pages, documents, and long content. Positive values scroll down, negative values scroll up.`,
