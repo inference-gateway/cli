@@ -41,7 +41,6 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	toolCall *sdk.ChatCompletionMessageToolCall,
 	isChatMode bool,
 ) bool {
-	// Rule 1: Computer use tools respect the computer_use.approval policy
 	if tools.IsComputerUseTool(toolCall.Function.Name) {
 		return p.requiresComputerUseApproval(toolCall.Function.Name)
 	}
