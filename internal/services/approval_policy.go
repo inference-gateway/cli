@@ -60,16 +60,18 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	return p.config.IsApprovalRequired(toolCall.Function.Name)
 }
 
-// requiresComputerUseApproval checks whether a computer-use tool requires approval
-// based on the computer_use.approval config setting.
+// requiresComputerUseApproval checks whether a computer-use tool requires
+// approval based on the computer_use.approval config setting. Unknown values
+// fail closed: config load rejects them, but a config that bypassed
+// validation must not silently disable a safety gate.
 func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bool {
 	switch p.config.ComputerUse.Approval {
-	case config.ComputerUseApprovalAlways:
-		return true
+	case config.ComputerUseApprovalNever, "":
+		return false
 	case config.ComputerUseApprovalDestructive:
 		return toolName == "MouseClick" || toolName == "ActivateApp"
 	default:
-		return false
+		return true
 	}
 }
 

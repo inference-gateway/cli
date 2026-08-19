@@ -80,3 +80,20 @@ func TestConfigValidate_ApprovalBehaviour(t *testing.T) {
 		t.Error("Validate() with approval_behaviour \"bogus\" should return an error")
 	}
 }
+
+func TestConfigValidate_ComputerUseApproval(t *testing.T) {
+	valid := []string{"", ComputerUseApprovalNever, ComputerUseApprovalDestructive, ComputerUseApprovalAlways}
+	for _, v := range valid {
+		cfg := DefaultConfig()
+		cfg.ComputerUse.Approval = v
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() with computer_use.approval %q returned error: %v", v, err)
+		}
+	}
+
+	cfg := DefaultConfig()
+	cfg.ComputerUse.Approval = "alway"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() with computer_use.approval \"alway\" should return an error")
+	}
+}

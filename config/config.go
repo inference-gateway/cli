@@ -1430,6 +1430,16 @@ func (c *Config) Validate() error {
 		)
 	}
 
+	switch c.ComputerUse.Approval {
+	case "", ComputerUseApprovalNever, ComputerUseApprovalDestructive, ComputerUseApprovalAlways:
+	default:
+		return fmt.Errorf(
+			"invalid computer_use.approval %q: must be one of %q, %q, or %q",
+			c.ComputerUse.Approval,
+			ComputerUseApprovalNever, ComputerUseApprovalDestructive, ComputerUseApprovalAlways,
+		)
+	}
+
 	if c.Agent.ReasoningEffort != "" && !slices.Contains(ReasoningEffortLevels, c.Agent.ReasoningEffort) {
 		return fmt.Errorf(
 			"invalid agent.reasoning_effort %q: must be one of %s",
