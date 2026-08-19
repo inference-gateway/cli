@@ -110,7 +110,7 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 			Quality:          85,
 			StreamingEnabled: true,
 			CaptureInterval:  3,
-			BufferSize:       5,
+			BufferSize:       60,
 			TempDir:          "",
 			LogCaptures:      false,
 			ShowOverlay:      true,
