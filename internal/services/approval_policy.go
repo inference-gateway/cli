@@ -41,9 +41,8 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	toolCall *sdk.ChatCompletionMessageToolCall,
 	isChatMode bool,
 ) bool {
-	// Rule 1: Computer use tools always bypass approval (run silently)
 	if tools.IsComputerUseTool(toolCall.Function.Name) {
-		return false
+		return p.requiresComputerUseApproval(toolCall.Function.Name)
 	}
 
 	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
@@ -59,6 +58,21 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	}
 
 	return p.config.IsApprovalRequired(toolCall.Function.Name)
+}
+
+// requiresComputerUseApproval checks whether a computer-use tool requires
+// approval based on the computer_use.approval config setting. Unknown values
+// fail closed: config load rejects them, but a config that bypassed
+// validation must not silently disable a safety gate.
+func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bool {
+	switch p.config.ComputerUse.Approval {
+	case config.ComputerUseApprovalNever, "":
+		return false
+	case config.ComputerUseApprovalDestructive:
+		return toolName == "MouseClick" || toolName == "ActivateApp"
+	default:
+		return true
+	}
 }
 
 // isBashCommandAllowed checks whether a Bash tool call's command is auto-approved

@@ -926,6 +926,7 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	}
 
 	setBool("INFER_COMPUTER_USE_ENABLED", &cfg.ComputerUse.Enabled)
+	setString("INFER_COMPUTER_USE_APPROVAL", &cfg.ComputerUse.Approval)
 
 	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_ENABLED", &cfg.ComputerUse.FloatingWindow.Enabled)
 	setBool("INFER_COMPUTER_USE_FLOATING_WINDOW_RESPAWN_ON_CLOSE", &cfg.ComputerUse.FloatingWindow.RespawnOnClose)

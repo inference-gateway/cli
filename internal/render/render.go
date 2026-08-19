@@ -7,7 +7,6 @@
 package render
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -114,21 +113,20 @@ func completionErr(e domain.ChatCompleteEvent) error {
 	return nil
 }
 
-// answerApproval reads approval_response lines from in and answers the
-// engine's pending approval on the event's response channel. Responses
-// carrying a different tool_call_id are skipped (a late answer to a request
-// the engine already timed out must not decide the next one). Any read or
-// parse failure rejects the tool so the engine never waits out its timeout
-// on a dead broker.
-func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
+// answerApproval answers the engine's pending approval on the event's
+// response channel from the broker's approvals channel. Responses carrying a
+// different tool_call_id are skipped (a late answer to a request the engine
+// already timed out must not decide the next one). A nil or closed channel
+// rejects the tool so the engine never waits out its timeout on a dead broker.
+func answerApproval(e domain.ToolApprovalRequestedEvent, approvals <-chan domain.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
-	for in != nil && in.Scan() {
-		var resp domain.ApprovalResponse
-		if err := json.Unmarshal(in.Bytes(), &resp); err != nil || resp.Type != "approval_response" {
-			continue
-		}
+	if approvals == nil {
+		e.ResponseChan <- domain.ApprovalReject
+		return
+	}
+	for resp := range approvals {
 		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
 			continue
 		}
@@ -146,20 +144,22 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner) {
 // completes: assistant messages on ChatCompleteEvent, tool results on
 // ToolExecutionCompletedEvent, approval requests and errors in real time.
 // After the channel closes only the session stats are read from the repo.
-// When in is non-nil it acts as the IPC approval broker: each approval_request
-// line is answered by reading an approval_response line from in.
-func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
-	return renderJSON(events, w, in, sessionID, model, cfg, repo, false)
+// When approvals is non-nil it acts as the IPC approval broker: each
+// approval_request line is answered by the next matching ApprovalResponse.
+// A ComputerUseResumedEvent clears any error carried over from the paused
+// (cancelled) run, so a resumed run that completes cleanly exits zero.
+func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
-	return renderJSON(events, w, in, sessionID, model, cfg, repo, true)
+func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",
@@ -168,11 +168,6 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		"model":      model,
 		"timestamp":  time.Now(),
 	})
-
-	var stdin *bufio.Scanner
-	if in != nil {
-		stdin = bufio.NewScanner(in)
-	}
 
 	var runErr error
 	var content strings.Builder
@@ -202,7 +197,12 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
 				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
-			answerApproval(e, stdin)
+			answerApproval(e, approvals)
+		case domain.ComputerUsePausedEvent:
+			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
+		case domain.ComputerUseResumedEvent:
+			emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
+			runErr = nil
 		case domain.TodoUpdateChatEvent:
 			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		}
@@ -257,15 +257,12 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 // RenderAGUI renders events as newline-delimited AG-UI protocol events. The
 // run gets exactly one RUN_STARTED and one terminal event (RUN_FINISHED or
 // RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
-// When in is non-nil it acts as the IPC approval broker, same as RenderJSON.
-func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string) error {
+// When approvals is non-nil it acts as the IPC approval broker, same as
+// RenderJSON. A ComputerUseResumedEvent clears any error carried over from
+// the paused (cancelled) run, same as RenderJSON.
+func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
-
-	var stdin *bufio.Scanner
-	if in != nil {
-		stdin = bufio.NewScanner(in)
-	}
 
 	var runErr error
 	for event := range events {
@@ -302,7 +299,12 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
-			answerApproval(ev, stdin)
+			answerApproval(ev, approvals)
+		case domain.ComputerUsePausedEvent:
+			e.emitComputerUsePaused(ev.RequestID)
+		case domain.ComputerUseResumedEvent:
+			e.emitComputerUseResumed(ev.RequestID)
+			runErr = nil
 		}
 	}
 

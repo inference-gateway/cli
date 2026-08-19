@@ -9,6 +9,14 @@ const (
 	DefaultComputerUsePath = ConfigDirName + "/" + ComputerUseFileName
 )
 
+// Computer-use approval levels control when the host UI is prompted for
+// confirmation before executing a computer-use tool.
+const (
+	ComputerUseApprovalNever       = "never"       // all computer-use tools bypass approval (default)
+	ComputerUseApprovalDestructive = "destructive" // MouseClick and ActivateApp require approval; routine tools bypass
+	ComputerUseApprovalAlways      = "always"      // every computer-use tool requires approval
+)
+
 // ComputerUseConfig contains computer use tool settings
 type ComputerUseConfig struct {
 	Enabled        bool                   `yaml:"enabled" mapstructure:"enabled"`
@@ -16,6 +24,7 @@ type ComputerUseConfig struct {
 	Screenshot     ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
 	RateLimit      RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Tools          ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
+	Approval       string                 `yaml:"approval" mapstructure:"approval"`
 }
 
 // ComputerUseToolsConfig contains individual computer use tool settings
@@ -98,7 +107,8 @@ type RateLimitConfig struct {
 // is absent.
 func DefaultComputerUseConfig() *ComputerUseConfig {
 	return &ComputerUseConfig{
-		Enabled: false,
+		Enabled:  false,
+		Approval: ComputerUseApprovalNever,
 		FloatingWindow: FloatingWindowConfig{
 			Enabled:        true,
 			RespawnOnClose: true,

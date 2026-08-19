@@ -145,6 +145,38 @@ func TestApprovalPolicies_ShouldRequireApproval(t *testing.T) {
 	}
 }
 
+func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name     string
+		approval string
+		tool     string
+		want     bool
+	}{
+		{"never bypasses destructive tool", config.ComputerUseApprovalNever, "MouseClick", false},
+		{"empty bypasses destructive tool", "", "MouseClick", false},
+		{"destructive gates MouseClick", config.ComputerUseApprovalDestructive, "MouseClick", true},
+		{"destructive gates ActivateApp", config.ComputerUseApprovalDestructive, "ActivateApp", true},
+		{"destructive bypasses MouseMove", config.ComputerUseApprovalDestructive, "MouseMove", false},
+		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", false},
+		{"always gates MouseMove", config.ComputerUseApprovalAlways, "MouseMove", true},
+		{"always gates GetFocusedApp", config.ComputerUseApprovalAlways, "GetFocusedApp", true},
+		{"unknown value fails closed", "alway", "MouseMove", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := createTestConfig()
+			cfg.ComputerUse.Approval = tt.approval
+			stateManager := NewStateManager(false)
+			stateManager.SetAgentMode(domain.AgentModeStandard)
+			policy := NewStandardApprovalPolicy(cfg, stateManager)
+			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, "{}"), true); got != tt.want {
+				t.Errorf("ShouldRequireApproval(%s) with approval=%q = %v, want %v", tt.tool, tt.approval, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	cfg := createTestConfig()
 	stateManager := NewStateManager(false)
