@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -222,18 +221,24 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		return fmt.Errorf("failed to run agent: %w", err)
 	}
 
-	var stdin io.Reader
-	if opts.RequireApproval {
-		stdin = os.Stdin
+	renderEvents := events
+	var approvals <-chan domain.ApprovalResponse
+	if opts.Format != "text" {
+		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
+		go ctl.readLines(os.Stdin)
+		approvals = ctl.approvals
+		renderEvents = ctl.pumpEvents(events, func() (<-chan domain.ChatEvent, error) {
+			return resumeHeadlessRun(ctx, agentService, conversationRepo, req)
+		})
 	}
 	rendered = true
 	switch opts.Format {
 	case "json":
-		err = render.RenderJSON(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
+		err = render.RenderJSON(renderEvents, os.Stdout, approvals, sessionID, selectedModel, cfg, conversationRepo)
 	case "json-pretty":
-		err = render.RenderJSONPretty(events, os.Stdout, stdin, sessionID, selectedModel, cfg, conversationRepo)
+		err = render.RenderJSONPretty(renderEvents, os.Stdout, approvals, sessionID, selectedModel, cfg, conversationRepo)
 	case "ag-ui":
-		err = render.RenderAGUI(events, os.Stdout, stdin, sessionID, selectedModel)
+		err = render.RenderAGUI(renderEvents, os.Stdout, approvals, sessionID, selectedModel)
 	case "text":
 		err = render.RenderText(events, os.Stdout)
 	}

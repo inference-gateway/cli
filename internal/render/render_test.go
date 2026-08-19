@@ -96,18 +96,33 @@ func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	}
 }
 
+// approvalsChan feeds the given responses into a closed channel, mimicking
+// the headless control broker after stdin EOF.
+func approvalsChan(resps ...domain.ApprovalResponse) <-chan domain.ApprovalResponse {
+	ch := make(chan domain.ApprovalResponse, len(resps))
+	for _, r := range resps {
+		ch <- r
+	}
+	close(ch)
+	return ch
+}
+
 func TestAnswerApproval_RoundTrip(t *testing.T) {
 	tests := []struct {
-		name  string
-		stdin string
-		want  domain.ApprovalAction
+		name      string
+		approvals <-chan domain.ApprovalResponse
+		want      domain.ApprovalAction
 	}{
-		{"approved", `{"type":"approval_response","tool_call_id":"tc1","approved":true}` + "\n", domain.ApprovalApprove},
-		{"rejected", `{"type":"approval_response","tool_call_id":"tc1","approved":false}` + "\n", domain.ApprovalReject},
-		{"skips noise lines", "not json\n" + `{"type":"other"}` + "\n" + `{"type":"approval_response","approved":true}` + "\n", domain.ApprovalApprove},
-		{"skips stale tool_call_id", `{"type":"approval_response","tool_call_id":"stale","approved":true}` + "\n" + `{"type":"approval_response","tool_call_id":"tc1","approved":false}` + "\n", domain.ApprovalReject},
-		{"only stale responses reject", `{"type":"approval_response","tool_call_id":"stale","approved":true}` + "\n", domain.ApprovalReject},
-		{"closed stdin rejects", "", domain.ApprovalReject},
+		{"approved", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true}), domain.ApprovalApprove},
+		{"rejected", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: false}), domain.ApprovalReject},
+		{"empty tool_call_id matches", approvalsChan(domain.ApprovalResponse{Approved: true}), domain.ApprovalApprove},
+		{"skips stale tool_call_id", approvalsChan(
+			domain.ApprovalResponse{ToolCallID: "stale", Approved: true},
+			domain.ApprovalResponse{ToolCallID: "tc1", Approved: false},
+		), domain.ApprovalReject},
+		{"only stale responses reject", approvalsChan(domain.ApprovalResponse{ToolCallID: "stale", Approved: true}), domain.ApprovalReject},
+		{"closed broker rejects", approvalsChan(), domain.ApprovalReject},
+		{"nil broker rejects", nil, domain.ApprovalReject},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,7 +132,7 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 				ResponseChan: respChan,
 			}
 			var out strings.Builder
-			err := RenderJSON(stream(ev), &out, strings.NewReader(tt.stdin), "s1", "m", nil, &mocks.FakeConversationRepository{})
+			err := RenderJSON(stream(ev), &out, tt.approvals, "s1", "m", nil, &mocks.FakeConversationRepository{})
 			if err != nil {
 				t.Fatalf("RenderJSON() err = %v", err)
 			}
@@ -142,9 +157,9 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
 		ResponseChan: respChan,
 	}
-	stdin := strings.NewReader(`{"type":"approval_response","tool_call_id":"tc1","approved":true}` + "\n")
+	approvals := approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := RenderAGUI(stream(ev, domain.ChatCompleteEvent{}), &out, stdin, "s1", "m"); err != nil {
+	if err := RenderAGUI(stream(ev, domain.ChatCompleteEvent{}), &out, approvals, "s1", "m"); err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
 	select {
@@ -235,6 +250,48 @@ func TestEmitPreRunError_MachineFormats(t *testing.T) {
 				t.Fatalf("EmitPreRunError(%s) output = %q, want %s with the message", tt.format, out.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
+	var out strings.Builder
+	err := RenderJSON(stream(
+		domain.ComputerUsePausedEvent{RequestID: "s1"},
+		domain.ChatCompleteEvent{Cancelled: true},
+		domain.ComputerUseResumedEvent{RequestID: "s1"},
+		domain.ChatChunkEvent{Content: "back at it"},
+		domain.ChatCompleteEvent{},
+	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	if err != nil {
+		t.Fatalf("RenderJSON() err = %v, want nil after resumed run completes", err)
+	}
+	got := out.String()
+	for _, want := range []string{`"computer_use_paused"`, `"computer_use_resumed"`, `"request_id":"s1"`, `"back at it"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in output:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
+	var out strings.Builder
+	err := RenderAGUI(stream(
+		domain.ComputerUsePausedEvent{RequestID: "s1"},
+		domain.ChatCompleteEvent{Cancelled: true},
+		domain.ComputerUseResumedEvent{RequestID: "s1"},
+		domain.ChatCompleteEvent{},
+	), &out, nil, "s1", "m")
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v, want nil after resumed run completes", err)
+	}
+	got := out.String()
+	for _, want := range []string{`computer_use_paused`, `computer_use_resumed`, `"CUSTOM"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in output:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"RUN_ERROR"`) {
+		t.Errorf("resumed run must not emit RUN_ERROR\n%s", got)
 	}
 }
 

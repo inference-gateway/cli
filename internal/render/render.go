@@ -7,7 +7,6 @@
 package render
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -114,27 +113,20 @@ func completionErr(e domain.ChatCompleteEvent) error {
 	return nil
 }
 
-// answerApproval reads approval_response lines from in and answers the
-// engine's pending approval on the event's response channel. Responses
-// carrying a different tool_call_id are skipped (a late answer to a request
-// the engine already timed out must not decide the next one). Any read or
-// parse failure rejects the tool so the engine never waits out its timeout
-// on a dead broker.
-// When controlMessages is non-nil, computer_use_control lines are forwarded
-// instead of being treated as invalid approval responses.
-func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner, controlMessages chan<- domain.ComputerUseControlMessage) {
+// answerApproval answers the engine's pending approval on the event's
+// response channel from the broker's approvals channel. Responses carrying a
+// different tool_call_id are skipped (a late answer to a request the engine
+// already timed out must not decide the next one). A nil or closed channel
+// rejects the tool so the engine never waits out its timeout on a dead broker.
+func answerApproval(e domain.ToolApprovalRequestedEvent, approvals <-chan domain.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
-	for in != nil && in.Scan() {
-		var resp domain.ApprovalResponse
-		if err := json.Unmarshal(in.Bytes(), &resp); err != nil || resp.Type != "approval_response" {
-			var ctrl domain.ComputerUseControlMessage
-			if controlMessages != nil && json.Unmarshal(in.Bytes(), &ctrl) == nil && ctrl.Type == "computer_use_control" {
-				controlMessages <- ctrl
-			}
-			continue
-		}
+	if approvals == nil {
+		e.ResponseChan <- domain.ApprovalReject
+		return
+	}
+	for resp := range approvals {
 		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
 			continue
 		}
@@ -152,20 +144,22 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, in *bufio.Scanner, cont
 // completes: assistant messages on ChatCompleteEvent, tool results on
 // ToolExecutionCompletedEvent, approval requests and errors in real time.
 // After the channel closes only the session stats are read from the repo.
-// When in is non-nil it acts as the IPC approval broker: each approval_request
-// line is answered by reading an approval_response line from in.
-func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
-	return renderJSON(events, w, in, sessionID, model, cfg, repo, false)
+// When approvals is non-nil it acts as the IPC approval broker: each
+// approval_request line is answered by the next matching ApprovalResponse.
+// A ComputerUseResumedEvent clears any error carried over from the paused
+// (cancelled) run, so a resumed run that completes cleanly exits zero.
+func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
-	return renderJSON(events, w, in, sessionID, model, cfg, repo, true)
+func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",
@@ -175,65 +169,45 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		"timestamp":  time.Now(),
 	})
 
-	var stdin *bufio.Scanner
-	if in != nil {
-		stdin = bufio.NewScanner(in)
-	}
-
 	var runErr error
 	var content strings.Builder
-
-	var controlMessages chan domain.ComputerUseControlMessage
-	if stdin != nil {
-		controlMessages = make(chan domain.ComputerUseControlMessage, 4)
-	}
-
-eventLoop:
-	for {
-		select {
-		case event, ok := <-events:
-			if !ok {
-				break eventLoop
+	for event := range events {
+		switch e := event.(type) {
+		case domain.ChatErrorEvent:
+			emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
+			runErr = fmt.Errorf("agent error: %w", e.Error)
+		case domain.ChatChunkEvent:
+			content.WriteString(e.Content)
+		case domain.ChatCompleteEvent:
+			if msg := assistantMessage(e, content.String()); msg != nil {
+				emit(msg)
 			}
-			switch e := event.(type) {
-			case domain.ChatErrorEvent:
-				emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
-				runErr = fmt.Errorf("agent error: %w", e.Error)
-			case domain.ChatChunkEvent:
-				content.WriteString(e.Content)
-			case domain.ChatCompleteEvent:
-				if msg := assistantMessage(e, content.String()); msg != nil {
-					emit(msg)
-				}
-				content.Reset()
-				if err := completionErr(e); err != nil {
-					runErr = err
-				}
-			case domain.ToolExecutionCompletedEvent:
-				for _, r := range e.Results {
-					if r != nil {
-						emit(toolMessage(r))
-					}
-				}
-			case domain.ToolApprovalRequestedEvent:
-				emit(map[string]any{
-					"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
-					"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
-				})
-				answerApproval(e, stdin, controlMessages)
-			case domain.ComputerUsePausedEvent:
-				emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
-			case domain.ComputerUseResumedEvent:
-				emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
-			case domain.TodoUpdateChatEvent:
-				emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
+			content.Reset()
+			if err := completionErr(e); err != nil {
+				runErr = err
 			}
-		case ctrl := <-controlMessages:
+		case domain.ToolExecutionCompletedEvent:
+			for _, r := range e.Results {
+				if r != nil {
+					emit(toolMessage(r))
+				}
+			}
+		case domain.ToolApprovalRequestedEvent:
 			emit(map[string]any{
-				"type": "computer_use_" + ctrl.Action, "request_id": "",
+				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
+				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
+			answerApproval(e, approvals)
+		case domain.ComputerUsePausedEvent:
+			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
+		case domain.ComputerUseResumedEvent:
+			emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
+			runErr = nil
+		case domain.TodoUpdateChatEvent:
+			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		}
 	}
+
 	tokenStats := repo.GetSessionTokens()
 	if tokenStats.RequestCount <= 0 {
 		return runErr
@@ -283,15 +257,12 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 // RenderAGUI renders events as newline-delimited AG-UI protocol events. The
 // run gets exactly one RUN_STARTED and one terminal event (RUN_FINISHED or
 // RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
-// When in is non-nil it acts as the IPC approval broker, same as RenderJSON.
-func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessionID, model string) error {
+// When approvals is non-nil it acts as the IPC approval broker, same as
+// RenderJSON. A ComputerUseResumedEvent clears any error carried over from
+// the paused (cancelled) run, same as RenderJSON.
+func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
-
-	var stdin *bufio.Scanner
-	if in != nil {
-		stdin = bufio.NewScanner(in)
-	}
 
 	var runErr error
 	for event := range events {
@@ -328,11 +299,12 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
-			answerApproval(ev, stdin, nil)
+			answerApproval(ev, approvals)
 		case domain.ComputerUsePausedEvent:
 			e.emitComputerUsePaused(ev.RequestID)
 		case domain.ComputerUseResumedEvent:
 			e.emitComputerUseResumed(ev.RequestID)
+			runErr = nil
 		}
 	}
 
