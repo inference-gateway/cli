@@ -193,7 +193,6 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, in io.Reader, sessi
 		select {
 		case event, ok := <-events:
 			if !ok {
-				// Channel closed - exit the loop naturally
 				goto done
 			}
 			switch e := event.(type) {
