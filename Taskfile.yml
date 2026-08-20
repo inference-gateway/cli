@@ -3,8 +3,7 @@ version: '3'
 vars:
   BINARY_NAME: infer
   MAIN_PACKAGE: .
-  GOTAGS:
-    sh: '[ "$(go env GOOS)" = "darwin" ] && echo "mac" || echo ""'
+  GOTAGS: purego
   VERSION:
     sh: echo "${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
   COMMIT:

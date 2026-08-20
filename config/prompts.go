@@ -93,20 +93,13 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.A2AQueryAgent, &defaults.A2AQueryAgent)
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
 	mergeToolDescription(&loaded.A2ASubmitTask, &defaults.A2ASubmitTask)
-	mergeToolDescription(&loaded.MouseMove, &defaults.MouseMove)
-	mergeToolDescription(&loaded.MouseClick, &defaults.MouseClick)
-	mergeToolDescription(&loaded.MouseScroll, &defaults.MouseScroll)
-	mergeToolDescription(&loaded.KeyboardType, &defaults.KeyboardType)
+	mergeToolDescription(&loaded.Computer, &defaults.Computer)
 	mergeToolDescription(&loaded.BrowserNavigate, &defaults.BrowserNavigate)
 	mergeToolDescription(&loaded.BrowserClick, &defaults.BrowserClick)
 	mergeToolDescription(&loaded.BrowserType, &defaults.BrowserType)
 	mergeToolDescription(&loaded.BrowserRead, &defaults.BrowserRead)
 	mergeToolDescription(&loaded.BrowserScreenshot, &defaults.BrowserScreenshot)
 	mergeToolDescription(&loaded.BrowserTabs, &defaults.BrowserTabs)
-	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
-	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
-	mergeToolDescription(&loaded.GetUIElements, &defaults.GetUIElements)
-	mergeToolDescription(&loaded.PressUIElement, &defaults.PressUIElement)
 	mergeToolDescription(&loaded.GetLatestFrame, &defaults.GetLatestFrame)
 	mergeToolDescription(&loaded.ImageDecode, &defaults.ImageDecode)
 	mergeToolDescription(&loaded.Memory, &defaults.Memory)
@@ -226,20 +219,13 @@ type PromptsToolsConfig struct {
 	A2AQueryAgent       PromptsToolDescription `yaml:"A2A_QueryAgent" mapstructure:"A2A_QueryAgent"`
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
 	A2ASubmitTask       PromptsToolDescription `yaml:"A2A_SubmitTask" mapstructure:"A2A_SubmitTask"`
-	MouseMove           PromptsToolDescription `yaml:"MouseMove" mapstructure:"MouseMove"`
-	MouseClick          PromptsToolDescription `yaml:"MouseClick" mapstructure:"MouseClick"`
-	MouseScroll         PromptsToolDescription `yaml:"MouseScroll" mapstructure:"MouseScroll"`
-	KeyboardType        PromptsToolDescription `yaml:"KeyboardType" mapstructure:"KeyboardType"`
+	Computer            PromptsToolDescription `yaml:"Computer" mapstructure:"Computer"`
 	BrowserNavigate     PromptsToolDescription `yaml:"BrowserNavigate" mapstructure:"BrowserNavigate"`
 	BrowserClick        PromptsToolDescription `yaml:"BrowserClick" mapstructure:"BrowserClick"`
 	BrowserType         PromptsToolDescription `yaml:"BrowserType" mapstructure:"BrowserType"`
 	BrowserRead         PromptsToolDescription `yaml:"BrowserRead" mapstructure:"BrowserRead"`
 	BrowserScreenshot   PromptsToolDescription `yaml:"BrowserScreenshot" mapstructure:"BrowserScreenshot"`
 	BrowserTabs         PromptsToolDescription `yaml:"BrowserTabs" mapstructure:"BrowserTabs"`
-	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
-	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
-	GetUIElements       PromptsToolDescription `yaml:"GetUIElements" mapstructure:"GetUIElements"`
-	PressUIElement      PromptsToolDescription `yaml:"PressUIElement" mapstructure:"PressUIElement"`
 	GetLatestFrame      PromptsToolDescription `yaml:"GetLatestFrame" mapstructure:"GetLatestFrame"`
 	ImageDecode         PromptsToolDescription `yaml:"ImageDecode" mapstructure:"ImageDecode"`
 	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
@@ -696,17 +682,8 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		A2ASubmitTask: PromptsToolDescription{
 			Description: `Submit work to an A2A agent server and delegate it to run in the background. IMPORTANT: This tool returns IMMEDIATELY after submission. DO NOT poll, query, or download artifacts right after submission. The system automatically monitors the task in the background and you will be AUTOMATICALLY NOTIFIED when it completes - the result will appear in the conversation. After submission, you MUST wait for the automatic notification before taking any follow-up actions. You can tell the user the task is running and you're waiting for it to complete. Use this for ANY interaction where you need an agent to respond with answers or complete work. The A2A_QueryTask tool is ONLY for retrieving metadata/capabilities or checking status of previously submitted tasks, NOT for polling just-submitted tasks.`,
 		},
-		MouseMove: PromptsToolDescription{
-			Description: `Moves the mouse cursor. Coordinates are in the screenshot coordinate space (the same space as GetUIElements and GetLatestFrame bounding boxes), not physical screen pixels; they are scaled to the real display on execution. To locate a target, PREFER GetUIElements (exact element centers from the accessibility tree, no vision round-trip) over screenshot annotation; fall back to GetLatestFrame when it has no elements. Requires user approval unless in auto-accept mode.`,
-		},
-		MouseClick: PromptsToolDescription{
-			Description: `Performs a mouse click. Can click at current position or move to coordinates first; coordinates are in the screenshot coordinate space (the same space as GetUIElements and GetLatestFrame bounding boxes), not physical screen pixels. To locate a target, PREFER GetUIElements element centers (exact, from the accessibility tree) over screenshot annotation - or skip coordinates entirely with PressUIElement for titled buttons, dock items, and menus. Supports left, right, and middle buttons. Requires user approval unless in auto-accept mode.`,
-		},
-		MouseScroll: PromptsToolDescription{
-			Description: `Scrolls the mouse wheel up or down. Useful for navigating web pages, documents, and long content. Positive values scroll down, negative values scroll up.`,
-		},
-		KeyboardType: PromptsToolDescription{
-			Description: `Types text or sends key combinations INTO GUI APPLICATIONS at the current cursor position (e.g., typing in a text editor, browser search box, or form field). DO NOT use this to run shell commands - use the Bash tool instead. To open applications on macOS, use Bash with 'open -a AppName'. Requires user approval unless in auto-accept mode. Note: Exactly one of 'text' or 'key_combo' must be provided.`,
+		Computer: PromptsToolDescription{
+			Description: `Drives the computer's mouse, keyboard, and screen through one action-based interface. Actions: "screenshot" (capture the screen fresh; pass "region" to re-capture a frame-space rectangle at native resolution for small UI), "cursor" (report the cursor position), "move"/"click"/"double_click"/"triple_click" (pointer actions at x/y in the frame coordinate space - the same space screenshots use), "scroll", "type" (types text INTO GUI APPLICATIONS at the cursor - DO NOT use it to run shell commands, use Bash instead), and "key" (a combo such as "enter" or "cmd+a"). To open applications on macOS, use Bash with 'open -a AppName'. PREFER the "screenshot" action to see the screen - it captures a fresh frame directly; reach for GetLatestFrame only when you cannot see images yourself (its annotated text mode) or for non-screen frame sources.`,
 		},
 		BrowserNavigate: PromptsToolDescription{
 			Description: `Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.`,
@@ -726,20 +703,8 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		BrowserTabs: PromptsToolDescription{
 			Description: `Lists the browser's open tabs (index, URL, title) and marks the active one, so you know which page the user is currently on. Read-only.`,
 		},
-		GetFocusedApp: PromptsToolDescription{
-			Description: `Gets the currently focused (frontmost) application. Returns the application name, stable ID (app_id), and platform-specific identifier. Use this before performing computer use actions to verify the correct application is in focus. On headless sessions returns "no focused application".`,
-		},
-		ActivateApp: PromptsToolDescription{
-			Description: `Brings a running application to the foreground. Provide either "app_id" (the stable identifier returned by GetFocusedApp, e.g. "pid:1234") or "name" (a human-readable name substring, e.g. "Chrome" or "Terminal") to identify the target. Name matching is case-insensitive and selects the first matching running application. Use GetFocusedApp first to check current state. Works on macOS and X11; Wayland is not supported.`,
-		},
-		GetUIElements: PromptsToolDescription{
-			Description: `Lists the pressable UI elements of an accessibility tree: "frontmost" (default, the focused application), "dock" (macOS Dock / taskbar), or "menubar" (the frontmost app's menu bar titles). Returns a numbered element list (role, title, center, bounding box) with coordinates in the same frame space as GetLatestFrame, so a center can be passed straight to MouseClick. PREFER this over screenshot annotation when locating buttons, dock items, or menus - it is exact, instant, and needs no vision. Read-only, does not move the cursor. If it reports no elements or is unavailable, fall back to GetLatestFrame with a region zoom. Menu bar note: pressing a menu title opens the menu; call GetUIElements again with target "frontmost" to see the opened menu's items.`,
-		},
-		PressUIElement: PromptsToolDescription{
-			Description: `Presses a UI element by its title via the accessibility tree, without moving the mouse cursor - the reliable way to click dock items, buttons, and menu titles. Provide "label" exactly as shown by GetUIElements (the quoted title; first exact match wins) and the same "target" tree ("frontmost" default, "dock", "menubar"). Run GetUIElements first to see the available titles. If the element is not found or accessibility is unavailable, fall back to MouseClick at the element's center coordinates.`,
-		},
 		GetLatestFrame: PromptsToolDescription{
-			Description: `Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources (e.g. camera frames on disk). Formats: "regular" returns the raw image; "annotated" returns a text scene summary plus a numbered element list (label, text, bounding box) produced by the configured vision annotator - useful when you cannot see images yourself. When format is omitted it is chosen automatically based on your vision capability. Pass "region" to zoom: the given frame-space rectangle is re-captured at native resolution, which is the reliable way to read small UI such as macOS Dock icons, menu bar items, or dense toolbars - annotate the full frame first to locate the area, then zoom into it before clicking anything small. For locating app UI, Dock items, or menu titles, try GetUIElements FIRST - the accessibility tree gives exact titles and coordinates instantly, without any frame capture; use this tool when the tree is empty or you need to see non-UI screen content.`,
+			Description: `Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. PREFER the Computer tool's "screenshot" action for looking at the screen - it captures fresh; use this tool when you cannot see images yourself (its "annotated" format returns a text scene summary plus a numbered element list produced by the configured vision annotator) or for non-screen frame sources (e.g. camera frames on disk). Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources. When format is omitted it is chosen automatically based on your vision capability. Pass "region" to zoom: the given frame-space rectangle is re-captured at native resolution, the reliable way to read small UI - annotate the full frame first to locate the area, then zoom in.`,
 		},
 		ImageDecode: PromptsToolDescription{
 			Description: `Describes a local image file or http(s) URL as text: a scene summary plus a numbered list of detected elements (label, text, bounding box), produced by the configured vision annotator. Use it to inspect any image on disk or from a URL - e.g. outputs of ImageGeneration/ImageEdit under .infer/artifacts, @-referenced image paths, downloaded files, or remote images - especially when you cannot see images yourself. Pass an optional prompt to ask a specific question about the image; the summary then answers it. Read-only, does not require approval.`,

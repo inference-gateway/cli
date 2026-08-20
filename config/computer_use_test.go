@@ -91,18 +91,6 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.RateLimit.WindowSeconds != 60 {
 		t.Errorf("Expected RateLimit.WindowSeconds=60, got %d", cfg.RateLimit.WindowSeconds)
 	}
-	if cfg.Tools.KeyboardType.MaxTextLength != 1000 {
-		t.Errorf("Expected Tools.KeyboardType.MaxTextLength=1000, got %d", cfg.Tools.KeyboardType.MaxTextLength)
-	}
-	if cfg.Tools.KeyboardType.TypingDelayMs != 100 {
-		t.Errorf("Expected Tools.KeyboardType.TypingDelayMs=100, got %d", cfg.Tools.KeyboardType.TypingDelayMs)
-	}
-	if !cfg.Tools.MouseMove.Enabled {
-		t.Error("Expected Tools.MouseMove.Enabled true")
-	}
-	if !cfg.Tools.GetFocusedApp.Enabled {
-		t.Error("Expected Tools.GetFocusedApp.Enabled true")
-	}
 }
 
 //nolint:gocognit // table-driven with per-case check closures
@@ -142,24 +130,6 @@ func TestLoadComputerUse(t *testing.T) {
 				}
 				if cfg.RateLimit.MaxActionsPerMinute != 30 {
 					t.Errorf("Expected RateLimit.MaxActionsPerMinute=30, got %d", cfg.RateLimit.MaxActionsPerMinute)
-				}
-				if cfg.Tools.MouseMove.Enabled {
-					t.Error("Expected Tools.MouseMove.Enabled false")
-				}
-				if cfg.Tools.KeyboardType.MaxTextLength != 500 {
-					t.Errorf("Expected Tools.KeyboardType.MaxTextLength=500, got %d", cfg.Tools.KeyboardType.MaxTextLength)
-				}
-			},
-		},
-		{
-			name: "tool sections missing from an older file keep their defaults",
-			yaml: computerUseValidYAML,
-			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
-				if !cfg.Tools.GetUIElements.Enabled {
-					t.Error("Expected Tools.GetUIElements.Enabled true (default) when absent from the file")
-				}
-				if !cfg.Tools.PressUIElement.Enabled {
-					t.Error("Expected Tools.PressUIElement.Enabled true (default) when absent from the file")
 				}
 			},
 		},
@@ -261,18 +231,6 @@ func TestSaveComputerUse(t *testing.T) {
 			MaxActionsPerMinute: 90,
 			WindowSeconds:       45,
 		},
-		Tools: config.ComputerUseToolsConfig{
-			MouseMove:   config.MouseMoveToolConfig{Enabled: false},
-			MouseClick:  config.MouseClickToolConfig{Enabled: true},
-			MouseScroll: config.MouseScrollToolConfig{Enabled: false},
-			KeyboardType: config.KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 250,
-				TypingDelayMs: 75,
-			},
-			GetFocusedApp: config.GetFocusedAppToolConfig{Enabled: true},
-			ActivateApp:   config.ActivateAppToolConfig{Enabled: false},
-		},
 	}
 
 	tests := []struct {
@@ -295,10 +253,6 @@ func TestSaveComputerUse(t *testing.T) {
 					loaded.Screenshot.Format != roundTrip.Screenshot.Format ||
 					loaded.RateLimit.MaxActionsPerMinute != roundTrip.RateLimit.MaxActionsPerMinute {
 					t.Errorf("Round-trip mismatch: got %+v", loaded)
-				}
-				if loaded.Tools.KeyboardType.MaxTextLength != roundTrip.Tools.KeyboardType.MaxTextLength ||
-					loaded.Tools.KeyboardType.TypingDelayMs != roundTrip.Tools.KeyboardType.TypingDelayMs {
-					t.Errorf("Tools.KeyboardType mismatch: got %+v", loaded.Tools.KeyboardType)
 				}
 			},
 		},

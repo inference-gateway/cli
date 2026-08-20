@@ -99,8 +99,8 @@ func bashCases(prefix string, policy func(t *testing.T) agentdomain.ApprovalPoli
 func buildApprovalCases() []approvalCase {
 	standard := standardPolicy(agentdomain.AgentModeStandard)
 	var tests []approvalCase
-	tests = append(tests, approvalCases("computer use bypasses approval:", standard, "{}", true, false,
-		"MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame")...)
+	tests = append(tests, approvalCases("computer use bypasses approval:", standard, `{"action": "click", "x": 1, "y": 1}`, true, false,
+		"Computer", "GetLatestFrame")...)
 	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
 	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(agentdomain.AgentModeReadOnly),
@@ -116,14 +116,14 @@ func buildApprovalCases() []approvalCase {
 		})
 	}
 	tests = append(tests, approvalCases("permissive bypasses approval:", permissivePolicy,
-		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "MouseClick")...)
+		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "Computer")...)
 	tests = append(tests,
 		approvalCase{name: "permissive bypasses approval non-chat Bash", policy: permissivePolicy,
 			tool: "Bash", args: `{"command": "dangerous"}`, chat: false, want: false})
 	tests = append(tests, approvalCases("strict requires approval:", strictPolicy, "{}", true, true,
 		"Bash", "Read", "Write", "Edit", "Grep")...)
-	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, "{}", true, false,
-		"MouseMove", "MouseClick", "KeyboardType")...)
+	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, `{"action": "click", "x": 1, "y": 1}`, true, false,
+		"Computer", "GetLatestFrame")...)
 	tests = append(tests,
 		approvalCase{name: "strict requires approval chat Bash", policy: strictPolicy,
 			tool: "Bash", args: `{"command": "ls"}`, chat: true, want: true},
@@ -147,21 +147,24 @@ func TestApprovalPolicies_ShouldRequireApproval(t *testing.T) {
 
 func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 	ctx := context.Background()
+	click := `{"action": "click", "x": 1, "y": 1}`
+	screenshot := `{"action": "screenshot"}`
 	tests := []struct {
 		name     string
 		approval string
 		tool     string
+		args     string
 		want     bool
 	}{
-		{"never bypasses destructive tool", config.ComputerUseApprovalNever, "MouseClick", false},
-		{"empty bypasses destructive tool", "", "MouseClick", false},
-		{"destructive gates MouseClick", config.ComputerUseApprovalDestructive, "MouseClick", true},
-		{"destructive gates ActivateApp", config.ComputerUseApprovalDestructive, "ActivateApp", true},
-		{"destructive bypasses MouseMove", config.ComputerUseApprovalDestructive, "MouseMove", false},
-		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", false},
-		{"always gates MouseMove", config.ComputerUseApprovalAlways, "MouseMove", true},
-		{"always gates GetFocusedApp", config.ComputerUseApprovalAlways, "GetFocusedApp", true},
-		{"unknown value fails closed", "alway", "MouseMove", true},
+		{"never bypasses destructive action", config.ComputerUseApprovalNever, "Computer", click, false},
+		{"empty bypasses destructive action", "", "Computer", click, false},
+		{"destructive gates click", config.ComputerUseApprovalDestructive, "Computer", click, true},
+		{"destructive gates type", config.ComputerUseApprovalDestructive, "Computer", `{"action": "type", "text": "hi"}`, true},
+		{"destructive bypasses screenshot", config.ComputerUseApprovalDestructive, "Computer", screenshot, false},
+		{"destructive bypasses cursor", config.ComputerUseApprovalDestructive, "Computer", `{"action": "cursor"}`, false},
+		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", "{}", false},
+		{"always gates screenshot", config.ComputerUseApprovalAlways, "Computer", screenshot, true},
+		{"unknown value fails closed", "alway", "Computer", screenshot, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -170,8 +173,8 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 			stateManager := NewStateManager(false)
 			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 			policy := NewStandardApprovalPolicy(cfg, stateManager)
-			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, "{}"), true); got != tt.want {
-				t.Errorf("ShouldRequireApproval(%s) with approval=%q = %v, want %v", tt.tool, tt.approval, got, tt.want)
+			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, tt.args), true); got != tt.want {
+				t.Errorf("ShouldRequireApproval(%s, %s) with approval=%q = %v, want %v", tt.tool, tt.args, tt.approval, got, tt.want)
 			}
 		})
 	}
@@ -217,8 +220,8 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 		stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 		policy := NewStandardApprovalPolicy(cfg, stateManager)
 
-		mouseClick := createToolCall("MouseClick", "{}")
-		if policy.ShouldRequireApproval(ctx, mouseClick, true) {
+		computerClick := createToolCall("Computer", `{"action": "click", "x": 1, "y": 1}`)
+		if policy.ShouldRequireApproval(ctx, computerClick, true) {
 			t.Error("Computer use tool should bypass all other rules")
 		}
 

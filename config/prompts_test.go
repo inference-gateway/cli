@@ -43,12 +43,7 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"tools.A2A_QueryAgent.description":            cfg.Tools.A2AQueryAgent.Description,
 		"tools.A2A_QueryTask.description":             cfg.Tools.A2AQueryTask.Description,
 		"tools.A2A_SubmitTask.description":            cfg.Tools.A2ASubmitTask.Description,
-		"tools.MouseMove.description":                 cfg.Tools.MouseMove.Description,
-		"tools.MouseClick.description":                cfg.Tools.MouseClick.Description,
-		"tools.MouseScroll.description":               cfg.Tools.MouseScroll.Description,
-		"tools.KeyboardType.description":              cfg.Tools.KeyboardType.Description,
-		"tools.GetFocusedApp.description":             cfg.Tools.GetFocusedApp.Description,
-		"tools.ActivateApp.description":               cfg.Tools.ActivateApp.Description,
+		"tools.Computer.description":                  cfg.Tools.Computer.Description,
 		"tools.GetLatestFrame.description":            cfg.Tools.GetLatestFrame.Description,
 	}
 

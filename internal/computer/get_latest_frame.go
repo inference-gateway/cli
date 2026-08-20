@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"image/jpeg"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -333,10 +335,18 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 	}
 	t.recordCall("screen-region")
 
+	cropPath := filepath.Join(t.config.GetConfigDir(), "tmp", "screenshots", fmt.Sprintf("region-%d.jpeg", time.Now().UnixNano()))
+	if err := os.MkdirAll(filepath.Dir(cropPath), 0755); err != nil {
+		cropPath = ""
+	} else if err := os.WriteFile(cropPath, buf.Bytes(), 0644); err != nil {
+		cropPath = ""
+	}
+
 	attachment := agentdomain.ImageAttachment{
 		Data:        base64.StdEncoding.EncodeToString(buf.Bytes()),
 		MimeType:    "image/jpeg",
 		DisplayName: "frame-screen-region",
+		SourcePath:  cropPath,
 	}
 	result := agentdomain.FrameToolResult{
 		Source: "screen",

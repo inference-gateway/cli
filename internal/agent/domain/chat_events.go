@@ -45,21 +45,3 @@ type BorderOverlayEvent struct {
 	BaseChatEvent
 	BorderAction string
 }
-
-// ClickIndicatorEvent indicates a visual click indicator should be shown at coordinates
-type ClickIndicatorEvent struct {
-	BaseChatEvent
-	X              int  `json:"X"`
-	Y              int  `json:"Y"`
-	ClickIndicator bool `json:"ClickIndicator"`
-}
-
-// MoveIndicatorEvent indicates a visual move indicator should be shown at coordinates
-type MoveIndicatorEvent struct {
-	BaseChatEvent
-	FromX         int  `json:"FromX"`
-	FromY         int  `json:"FromY"`
-	ToX           int  `json:"ToX"`
-	ToY           int  `json:"ToY"`
-	MoveIndicator bool `json:"MoveIndicator"`
-}

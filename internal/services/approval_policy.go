@@ -42,7 +42,7 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	isChatMode bool,
 ) bool {
 	if tools.IsComputerUseTool(toolCall.Function.Name) {
-		return p.requiresComputerUseApproval(toolCall.Function.Name)
+		return p.requiresComputerUseApproval(toolCall)
 	}
 
 	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept {
@@ -64,12 +64,20 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 // approval based on the computer_use.approval config setting. Unknown values
 // fail closed: config load rejects them, but a config that bypassed
 // validation must not silently disable a safety gate.
-func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bool {
+func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolCall *sdk.ChatCompletionMessageToolCall) bool {
 	switch p.config.ComputerUse.Approval {
 	case config.ComputerUseApprovalNever, "":
 		return false
 	case config.ComputerUseApprovalDestructive:
-		return toolName == "MouseClick" || toolName == "ActivateApp" || toolName == "PressUIElement"
+		if toolCall.Function.Name != "Computer" {
+			return false
+		}
+		var args map[string]any
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			return true
+		}
+		action, _ := args["action"].(string)
+		return action != "screenshot" && action != "cursor"
 	default:
 		return true
 	}

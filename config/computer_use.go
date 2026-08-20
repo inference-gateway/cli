@@ -14,30 +14,17 @@ const (
 // Computer-use approval levels control when the host UI is prompted for
 // confirmation before executing a computer-use tool.
 const (
-	ComputerUseApprovalNever       = "never"       // all computer-use tools bypass approval (default)
-	ComputerUseApprovalDestructive = "destructive" // MouseClick, ActivateApp, and PressUIElement require approval; routine tools bypass
-	ComputerUseApprovalAlways      = "always"      // every computer-use tool requires approval
+	ComputerUseApprovalNever       = "never"       // computer-use actions bypass approval (default)
+	ComputerUseApprovalDestructive = "destructive" // input actions (click, type, key, move, scroll) require approval; observations bypass
+	ComputerUseApprovalAlways      = "always"      // every computer-use action requires approval
 )
 
 // ComputerUseConfig contains computer use tool settings
 type ComputerUseConfig struct {
-	Enabled    bool                   `yaml:"enabled" mapstructure:"enabled"`
-	Screenshot ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
-	RateLimit  RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Tools      ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
-	Approval   string                 `yaml:"approval" mapstructure:"approval"`
-}
-
-// ComputerUseToolsConfig contains individual computer use tool settings
-type ComputerUseToolsConfig struct {
-	MouseMove      MouseMoveToolConfig      `yaml:"mouse_move" mapstructure:"mouse_move"`
-	MouseClick     MouseClickToolConfig     `yaml:"mouse_click" mapstructure:"mouse_click"`
-	MouseScroll    MouseScrollToolConfig    `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
-	KeyboardType   KeyboardTypeToolConfig   `yaml:"keyboard_type" mapstructure:"keyboard_type"`
-	GetFocusedApp  GetFocusedAppToolConfig  `yaml:"get_focused_app" mapstructure:"get_focused_app"`
-	ActivateApp    ActivateAppToolConfig    `yaml:"activate_app" mapstructure:"activate_app"`
-	GetUIElements  GetUIElementsToolConfig  `yaml:"get_ui_elements" mapstructure:"get_ui_elements"`
-	PressUIElement PressUIElementToolConfig `yaml:"press_ui_element" mapstructure:"press_ui_element"`
+	Enabled    bool                 `yaml:"enabled" mapstructure:"enabled"`
+	Screenshot ScreenshotToolConfig `yaml:"screenshot" mapstructure:"screenshot"`
+	RateLimit  RateLimitConfig      `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Approval   string               `yaml:"approval" mapstructure:"approval"`
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings
@@ -74,48 +61,6 @@ func (s ScreenshotToolConfig) FitDims(screenW, screenH int) (int, int) {
 	return int(math.Round(float64(screenW) * scale)), int(math.Round(float64(screenH) * scale))
 }
 
-// MouseMoveToolConfig contains mouse move-specific tool settings
-type MouseMoveToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// MouseClickToolConfig contains mouse click-specific tool settings
-type MouseClickToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// MouseScrollToolConfig contains mouse scroll-specific tool settings
-type MouseScrollToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// KeyboardTypeToolConfig contains keyboard type-specific tool settings
-type KeyboardTypeToolConfig struct {
-	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxTextLength int  `yaml:"max_text_length" mapstructure:"max_text_length"`
-	TypingDelayMs int  `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
-}
-
-// GetFocusedAppToolConfig contains get focused app-specific tool settings
-type GetFocusedAppToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// ActivateAppToolConfig contains activate app-specific tool settings
-type ActivateAppToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// GetUIElementsToolConfig contains get UI elements-specific tool settings
-type GetUIElementsToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
-// PressUIElementToolConfig contains press UI element-specific tool settings
-type PressUIElementToolConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-}
-
 // RateLimitConfig contains rate limiting settings
 type RateLimitConfig struct {
 	Enabled             bool `yaml:"enabled" mapstructure:"enabled"`
@@ -150,20 +95,6 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 			Enabled:             true,
 			MaxActionsPerMinute: 60,
 			WindowSeconds:       60,
-		},
-		Tools: ComputerUseToolsConfig{
-			MouseMove:   MouseMoveToolConfig{Enabled: true},
-			MouseClick:  MouseClickToolConfig{Enabled: true},
-			MouseScroll: MouseScrollToolConfig{Enabled: true},
-			KeyboardType: KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 1000,
-				TypingDelayMs: 100,
-			},
-			GetFocusedApp:  GetFocusedAppToolConfig{Enabled: true},
-			ActivateApp:    ActivateAppToolConfig{Enabled: true},
-			GetUIElements:  GetUIElementsToolConfig{Enabled: true},
-			PressUIElement: PressUIElementToolConfig{Enabled: true},
 		},
 	}
 }

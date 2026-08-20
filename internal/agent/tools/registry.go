@@ -429,16 +429,5 @@ func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellServic
 // Computer use tools operate directly on the computer (mouse, keyboard, screenshot)
 // and bypass the standard approval flow
 func IsComputerUseTool(toolName string) bool {
-	computerUseTools := map[string]bool{
-		"MouseClick":     true,
-		"MouseMove":      true,
-		"MouseScroll":    true,
-		"KeyboardType":   true,
-		"ActivateApp":    true,
-		"GetFocusedApp":  true,
-		"GetLatestFrame": true,
-		"GetUIElements":  true,
-		"PressUIElement": true,
-	}
-	return computerUseTools[toolName]
+	return toolName == "Computer" || toolName == "GetLatestFrame"
 }

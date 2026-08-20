@@ -18,8 +18,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
-	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
