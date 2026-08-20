@@ -17,7 +17,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	project "github.com/inference-gateway/cli/internal/project"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 const (

@@ -16,10 +16,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	project "github.com/inference-gateway/cli/internal/project"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at

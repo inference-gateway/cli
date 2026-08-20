@@ -8,7 +8,7 @@ import (
 	observer "go.uber.org/zap/zaptest/observer"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // PathValidator implements filewriter.PathValidator

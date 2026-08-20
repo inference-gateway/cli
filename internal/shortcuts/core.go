@@ -13,7 +13,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // ClearShortcut clears the conversation history

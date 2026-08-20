@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // ArtifactPollerOptions bundles dependencies for NewArtifactPoller.

@@ -13,8 +13,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 type A2AQueryAgentTool struct {

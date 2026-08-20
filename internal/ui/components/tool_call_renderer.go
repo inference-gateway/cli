@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	constants "github.com/inference-gateway/cli/internal/constants"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )

@@ -2,7 +2,7 @@ package states
 
 import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // CheckingQueueState handles events in the CheckingQueue state.

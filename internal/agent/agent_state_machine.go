@@ -7,7 +7,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // AgentStateMachineImpl implements the AgentStateMachine interface.

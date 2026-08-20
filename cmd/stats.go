@@ -9,8 +9,8 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 var statsCmd = &cobra.Command{

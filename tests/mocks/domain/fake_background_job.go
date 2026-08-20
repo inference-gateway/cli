@@ -3,9 +3,9 @@ package domain
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
+	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -24,17 +24,17 @@ type FakeBackgroundJob struct {
 	metaReturnsOnCall map[int]struct {
 		result1 domain.JobMeta
 	}
-	RunStub        func(context.Context, func(domain.JobSignal)) agentdomain.ToolExecutionResult
+	RunStub        func(context.Context, func(domain.JobSignal)) domaina.ToolExecutionResult
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 context.Context
 		arg2 func(domain.JobSignal)
 	}
 	runReturns struct {
-		result1 agentdomain.ToolExecutionResult
+		result1 domaina.ToolExecutionResult
 	}
 	runReturnsOnCall map[int]struct {
-		result1 agentdomain.ToolExecutionResult
+		result1 domaina.ToolExecutionResult
 	}
 	WindStub        func(context.Context, domain.WindSignal) error
 	windMutex       sync.RWMutex
@@ -129,7 +129,7 @@ func (fake *FakeBackgroundJob) MetaReturnsOnCall(i int, result1 domain.JobMeta) 
 	}{result1}
 }
 
-func (fake *FakeBackgroundJob) Run(arg1 context.Context, arg2 func(domain.JobSignal)) agentdomain.ToolExecutionResult {
+func (fake *FakeBackgroundJob) Run(arg1 context.Context, arg2 func(domain.JobSignal)) domaina.ToolExecutionResult {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -155,7 +155,7 @@ func (fake *FakeBackgroundJob) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeBackgroundJob) RunCalls(stub func(context.Context, func(domain.JobSignal)) agentdomain.ToolExecutionResult) {
+func (fake *FakeBackgroundJob) RunCalls(stub func(context.Context, func(domain.JobSignal)) domaina.ToolExecutionResult) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
@@ -168,26 +168,26 @@ func (fake *FakeBackgroundJob) RunArgsForCall(i int) (context.Context, func(doma
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeBackgroundJob) RunReturns(result1 agentdomain.ToolExecutionResult) {
+func (fake *FakeBackgroundJob) RunReturns(result1 domaina.ToolExecutionResult) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
 	fake.runReturns = struct {
-		result1 agentdomain.ToolExecutionResult
+		result1 domaina.ToolExecutionResult
 	}{result1}
 }
 
-func (fake *FakeBackgroundJob) RunReturnsOnCall(i int, result1 agentdomain.ToolExecutionResult) {
+func (fake *FakeBackgroundJob) RunReturnsOnCall(i int, result1 domaina.ToolExecutionResult) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
 	if fake.runReturnsOnCall == nil {
 		fake.runReturnsOnCall = make(map[int]struct {
-			result1 agentdomain.ToolExecutionResult
+			result1 domaina.ToolExecutionResult
 		})
 	}
 	fake.runReturnsOnCall[i] = struct {
-		result1 agentdomain.ToolExecutionResult
+		result1 domaina.ToolExecutionResult
 	}{result1}
 }
 

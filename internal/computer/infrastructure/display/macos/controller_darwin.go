@@ -10,7 +10,7 @@ import (
 	"runtime"
 
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // Controller implements display.DisplayController for macOS using RobotGo

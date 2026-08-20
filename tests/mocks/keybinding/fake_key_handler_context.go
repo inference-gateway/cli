@@ -2,28 +2,28 @@
 package keybinding
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/agent/domain"
+	domaina "github.com/inference-gateway/cli/internal/conversation/domain"
+	domainb "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/keybinding"
 )
 
 type FakeKeyHandlerContext struct {
-	GetAgentServiceStub        func() agentdomain.AgentService
+	GetAgentServiceStub        func() domain.AgentService
 	getAgentServiceMutex       sync.RWMutex
 	getAgentServiceArgsForCall []struct {
 	}
 	getAgentServiceReturns struct {
-		result1 agentdomain.AgentService
+		result1 domain.AgentService
 	}
 	getAgentServiceReturnsOnCall map[int]struct {
-		result1 agentdomain.AgentService
+		result1 domain.AgentService
 	}
 	GetAutocompleteStub        func() ui.AutocompleteComponent
 	getAutocompleteMutex       sync.RWMutex
@@ -55,15 +55,15 @@ type FakeKeyHandlerContext struct {
 	getConfigDirReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetConversationRepositoryStub        func() convdomain.ConversationRepository
+	GetConversationRepositoryStub        func() domaina.ConversationRepository
 	getConversationRepositoryMutex       sync.RWMutex
 	getConversationRepositoryArgsForCall []struct {
 	}
 	getConversationRepositoryReturns struct {
-		result1 convdomain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}
 	getConversationRepositoryReturnsOnCall map[int]struct {
-		result1 convdomain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}
 	GetConversationViewStub        func() ui.ConversationRenderer
 	getConversationViewMutex       sync.RWMutex
@@ -75,15 +75,15 @@ type FakeKeyHandlerContext struct {
 	getConversationViewReturnsOnCall map[int]struct {
 		result1 ui.ConversationRenderer
 	}
-	GetImageServiceStub        func() domain.ImageService
+	GetImageServiceStub        func() domainb.ImageService
 	getImageServiceMutex       sync.RWMutex
 	getImageServiceArgsForCall []struct {
 	}
 	getImageServiceReturns struct {
-		result1 domain.ImageService
+		result1 domainb.ImageService
 	}
 	getImageServiceReturnsOnCall map[int]struct {
-		result1 domain.ImageService
+		result1 domainb.ImageService
 	}
 	GetInputViewStub        func() ui.InputComponent
 	getInputViewMutex       sync.RWMutex
@@ -166,7 +166,7 @@ type FakeKeyHandlerContext struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentService() agentdomain.AgentService {
+func (fake *FakeKeyHandlerContext) GetAgentService() domain.AgentService {
 	fake.getAgentServiceMutex.Lock()
 	ret, specificReturn := fake.getAgentServiceReturnsOnCall[len(fake.getAgentServiceArgsForCall)]
 	fake.getAgentServiceArgsForCall = append(fake.getAgentServiceArgsForCall, struct {
@@ -190,32 +190,32 @@ func (fake *FakeKeyHandlerContext) GetAgentServiceCallCount() int {
 	return len(fake.getAgentServiceArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceCalls(stub func() agentdomain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceCalls(stub func() domain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceReturns(result1 agentdomain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceReturns(result1 domain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = nil
 	fake.getAgentServiceReturns = struct {
-		result1 agentdomain.AgentService
+		result1 domain.AgentService
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 agentdomain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 domain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = nil
 	if fake.getAgentServiceReturnsOnCall == nil {
 		fake.getAgentServiceReturnsOnCall = make(map[int]struct {
-			result1 agentdomain.AgentService
+			result1 domain.AgentService
 		})
 	}
 	fake.getAgentServiceReturnsOnCall[i] = struct {
-		result1 agentdomain.AgentService
+		result1 domain.AgentService
 	}{result1}
 }
 
@@ -378,7 +378,7 @@ func (fake *FakeKeyHandlerContext) GetConfigDirReturnsOnCall(i int, result1 stri
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepository() convdomain.ConversationRepository {
+func (fake *FakeKeyHandlerContext) GetConversationRepository() domaina.ConversationRepository {
 	fake.getConversationRepositoryMutex.Lock()
 	ret, specificReturn := fake.getConversationRepositoryReturnsOnCall[len(fake.getConversationRepositoryArgsForCall)]
 	fake.getConversationRepositoryArgsForCall = append(fake.getConversationRepositoryArgsForCall, struct {
@@ -402,32 +402,32 @@ func (fake *FakeKeyHandlerContext) GetConversationRepositoryCallCount() int {
 	return len(fake.getConversationRepositoryArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() convdomain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 convdomain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	fake.getConversationRepositoryReturns = struct {
-		result1 convdomain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 convdomain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	if fake.getConversationRepositoryReturnsOnCall == nil {
 		fake.getConversationRepositoryReturnsOnCall = make(map[int]struct {
-			result1 convdomain.ConversationRepository
+			result1 domaina.ConversationRepository
 		})
 	}
 	fake.getConversationRepositoryReturnsOnCall[i] = struct {
-		result1 convdomain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}{result1}
 }
 
@@ -484,7 +484,7 @@ func (fake *FakeKeyHandlerContext) GetConversationViewReturnsOnCall(i int, resul
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetImageService() domain.ImageService {
+func (fake *FakeKeyHandlerContext) GetImageService() domainb.ImageService {
 	fake.getImageServiceMutex.Lock()
 	ret, specificReturn := fake.getImageServiceReturnsOnCall[len(fake.getImageServiceArgsForCall)]
 	fake.getImageServiceArgsForCall = append(fake.getImageServiceArgsForCall, struct {
@@ -508,32 +508,32 @@ func (fake *FakeKeyHandlerContext) GetImageServiceCallCount() int {
 	return len(fake.getImageServiceArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceCalls(stub func() domain.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceCalls(stub func() domainb.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceReturns(result1 domain.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceReturns(result1 domainb.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = nil
 	fake.getImageServiceReturns = struct {
-		result1 domain.ImageService
+		result1 domainb.ImageService
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 domain.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 domainb.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = nil
 	if fake.getImageServiceReturnsOnCall == nil {
 		fake.getImageServiceReturnsOnCall = make(map[int]struct {
-			result1 domain.ImageService
+			result1 domainb.ImageService
 		})
 	}
 	fake.getImageServiceReturnsOnCall[i] = struct {
-		result1 domain.ImageService
+		result1 domainb.ImageService
 	}{result1}
 }
 

@@ -11,7 +11,7 @@ import (
 	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // CircularScreenshotBuffer implements a thread-safe ring buffer for screenshots

@@ -8,7 +8,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // telemetryDir is the recorder's output directory: telemetry is userspace-global

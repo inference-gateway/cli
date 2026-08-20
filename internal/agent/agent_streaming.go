@@ -13,10 +13,10 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // errConnectStalled marks a stream request that produced no response within

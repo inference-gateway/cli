@@ -1,7 +1,7 @@
 package states
 
 import (
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // StreamingLLMState handles events in the StreamingLLM state.

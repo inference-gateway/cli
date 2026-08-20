@@ -6,7 +6,7 @@ import (
 	glamour "charm.land/glamour/v2"
 	ansi "charm.land/glamour/v2/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
 // Renderer handles markdown to styled terminal output conversion

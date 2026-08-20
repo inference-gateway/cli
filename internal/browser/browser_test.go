@@ -8,7 +8,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	infrastructure "github.com/inference-gateway/cli/internal/browser/infrastructure"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func browserTestConfig(enabled bool) *config.Config {

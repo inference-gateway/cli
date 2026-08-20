@@ -2,18 +2,18 @@
 package ui
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
 type FakeA2ATaskCoordinator struct {
-	HandleTaskCompletedStub        func(agentdomain.A2ATaskCompletedEvent) tea.Cmd
+	HandleTaskCompletedStub        func(domain.A2ATaskCompletedEvent) tea.Cmd
 	handleTaskCompletedMutex       sync.RWMutex
 	handleTaskCompletedArgsForCall []struct {
-		arg1 agentdomain.A2ATaskCompletedEvent
+		arg1 domain.A2ATaskCompletedEvent
 	}
 	handleTaskCompletedReturns struct {
 		result1 tea.Cmd
@@ -21,10 +21,10 @@ type FakeA2ATaskCoordinator struct {
 	handleTaskCompletedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleTaskFailedStub        func(agentdomain.A2ATaskFailedEvent) tea.Cmd
+	HandleTaskFailedStub        func(domain.A2ATaskFailedEvent) tea.Cmd
 	handleTaskFailedMutex       sync.RWMutex
 	handleTaskFailedArgsForCall []struct {
-		arg1 agentdomain.A2ATaskFailedEvent
+		arg1 domain.A2ATaskFailedEvent
 	}
 	handleTaskFailedReturns struct {
 		result1 tea.Cmd
@@ -32,10 +32,10 @@ type FakeA2ATaskCoordinator struct {
 	handleTaskFailedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleTaskInputRequiredStub        func(agentdomain.A2ATaskInputRequiredEvent) tea.Cmd
+	HandleTaskInputRequiredStub        func(domain.A2ATaskInputRequiredEvent) tea.Cmd
 	handleTaskInputRequiredMutex       sync.RWMutex
 	handleTaskInputRequiredArgsForCall []struct {
-		arg1 agentdomain.A2ATaskInputRequiredEvent
+		arg1 domain.A2ATaskInputRequiredEvent
 	}
 	handleTaskInputRequiredReturns struct {
 		result1 tea.Cmd
@@ -43,10 +43,10 @@ type FakeA2ATaskCoordinator struct {
 	handleTaskInputRequiredReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleTaskStatusUpdateStub        func(agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd
+	HandleTaskStatusUpdateStub        func(domain.A2ATaskStatusUpdateEvent) tea.Cmd
 	handleTaskStatusUpdateMutex       sync.RWMutex
 	handleTaskStatusUpdateArgsForCall []struct {
-		arg1 agentdomain.A2ATaskStatusUpdateEvent
+		arg1 domain.A2ATaskStatusUpdateEvent
 	}
 	handleTaskStatusUpdateReturns struct {
 		result1 tea.Cmd
@@ -54,10 +54,10 @@ type FakeA2ATaskCoordinator struct {
 	handleTaskStatusUpdateReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleTaskSubmittedStub        func(agentdomain.A2ATaskSubmittedEvent) tea.Cmd
+	HandleTaskSubmittedStub        func(domain.A2ATaskSubmittedEvent) tea.Cmd
 	handleTaskSubmittedMutex       sync.RWMutex
 	handleTaskSubmittedArgsForCall []struct {
-		arg1 agentdomain.A2ATaskSubmittedEvent
+		arg1 domain.A2ATaskSubmittedEvent
 	}
 	handleTaskSubmittedReturns struct {
 		result1 tea.Cmd
@@ -65,10 +65,10 @@ type FakeA2ATaskCoordinator struct {
 	handleTaskSubmittedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleToolCallExecutedStub        func(agentdomain.A2AToolCallExecutedEvent) tea.Cmd
+	HandleToolCallExecutedStub        func(domain.A2AToolCallExecutedEvent) tea.Cmd
 	handleToolCallExecutedMutex       sync.RWMutex
 	handleToolCallExecutedArgsForCall []struct {
-		arg1 agentdomain.A2AToolCallExecutedEvent
+		arg1 domain.A2AToolCallExecutedEvent
 	}
 	handleToolCallExecutedReturns struct {
 		result1 tea.Cmd
@@ -80,11 +80,11 @@ type FakeA2ATaskCoordinator struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskCompleted(arg1 agentdomain.A2ATaskCompletedEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleTaskCompleted(arg1 domain.A2ATaskCompletedEvent) tea.Cmd {
 	fake.handleTaskCompletedMutex.Lock()
 	ret, specificReturn := fake.handleTaskCompletedReturnsOnCall[len(fake.handleTaskCompletedArgsForCall)]
 	fake.handleTaskCompletedArgsForCall = append(fake.handleTaskCompletedArgsForCall, struct {
-		arg1 agentdomain.A2ATaskCompletedEvent
+		arg1 domain.A2ATaskCompletedEvent
 	}{arg1})
 	stub := fake.HandleTaskCompletedStub
 	fakeReturns := fake.handleTaskCompletedReturns
@@ -105,13 +105,13 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedCallCount() int {
 	return len(fake.handleTaskCompletedArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedCalls(stub func(agentdomain.A2ATaskCompletedEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedCalls(stub func(domain.A2ATaskCompletedEvent) tea.Cmd) {
 	fake.handleTaskCompletedMutex.Lock()
 	defer fake.handleTaskCompletedMutex.Unlock()
 	fake.HandleTaskCompletedStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedArgsForCall(i int) agentdomain.A2ATaskCompletedEvent {
+func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedArgsForCall(i int) domain.A2ATaskCompletedEvent {
 	fake.handleTaskCompletedMutex.RLock()
 	defer fake.handleTaskCompletedMutex.RUnlock()
 	argsForCall := fake.handleTaskCompletedArgsForCall[i]
@@ -141,11 +141,11 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskCompletedReturnsOnCall(i int, resu
 	}{result1}
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskFailed(arg1 agentdomain.A2ATaskFailedEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleTaskFailed(arg1 domain.A2ATaskFailedEvent) tea.Cmd {
 	fake.handleTaskFailedMutex.Lock()
 	ret, specificReturn := fake.handleTaskFailedReturnsOnCall[len(fake.handleTaskFailedArgsForCall)]
 	fake.handleTaskFailedArgsForCall = append(fake.handleTaskFailedArgsForCall, struct {
-		arg1 agentdomain.A2ATaskFailedEvent
+		arg1 domain.A2ATaskFailedEvent
 	}{arg1})
 	stub := fake.HandleTaskFailedStub
 	fakeReturns := fake.handleTaskFailedReturns
@@ -166,13 +166,13 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskFailedCallCount() int {
 	return len(fake.handleTaskFailedArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskFailedCalls(stub func(agentdomain.A2ATaskFailedEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleTaskFailedCalls(stub func(domain.A2ATaskFailedEvent) tea.Cmd) {
 	fake.handleTaskFailedMutex.Lock()
 	defer fake.handleTaskFailedMutex.Unlock()
 	fake.HandleTaskFailedStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskFailedArgsForCall(i int) agentdomain.A2ATaskFailedEvent {
+func (fake *FakeA2ATaskCoordinator) HandleTaskFailedArgsForCall(i int) domain.A2ATaskFailedEvent {
 	fake.handleTaskFailedMutex.RLock()
 	defer fake.handleTaskFailedMutex.RUnlock()
 	argsForCall := fake.handleTaskFailedArgsForCall[i]
@@ -202,11 +202,11 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskFailedReturnsOnCall(i int, result1
 	}{result1}
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequired(arg1 agentdomain.A2ATaskInputRequiredEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequired(arg1 domain.A2ATaskInputRequiredEvent) tea.Cmd {
 	fake.handleTaskInputRequiredMutex.Lock()
 	ret, specificReturn := fake.handleTaskInputRequiredReturnsOnCall[len(fake.handleTaskInputRequiredArgsForCall)]
 	fake.handleTaskInputRequiredArgsForCall = append(fake.handleTaskInputRequiredArgsForCall, struct {
-		arg1 agentdomain.A2ATaskInputRequiredEvent
+		arg1 domain.A2ATaskInputRequiredEvent
 	}{arg1})
 	stub := fake.HandleTaskInputRequiredStub
 	fakeReturns := fake.handleTaskInputRequiredReturns
@@ -227,13 +227,13 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredCallCount() int {
 	return len(fake.handleTaskInputRequiredArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredCalls(stub func(agentdomain.A2ATaskInputRequiredEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredCalls(stub func(domain.A2ATaskInputRequiredEvent) tea.Cmd) {
 	fake.handleTaskInputRequiredMutex.Lock()
 	defer fake.handleTaskInputRequiredMutex.Unlock()
 	fake.HandleTaskInputRequiredStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredArgsForCall(i int) agentdomain.A2ATaskInputRequiredEvent {
+func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredArgsForCall(i int) domain.A2ATaskInputRequiredEvent {
 	fake.handleTaskInputRequiredMutex.RLock()
 	defer fake.handleTaskInputRequiredMutex.RUnlock()
 	argsForCall := fake.handleTaskInputRequiredArgsForCall[i]
@@ -263,11 +263,11 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskInputRequiredReturnsOnCall(i int, 
 	}{result1}
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdate(arg1 agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdate(arg1 domain.A2ATaskStatusUpdateEvent) tea.Cmd {
 	fake.handleTaskStatusUpdateMutex.Lock()
 	ret, specificReturn := fake.handleTaskStatusUpdateReturnsOnCall[len(fake.handleTaskStatusUpdateArgsForCall)]
 	fake.handleTaskStatusUpdateArgsForCall = append(fake.handleTaskStatusUpdateArgsForCall, struct {
-		arg1 agentdomain.A2ATaskStatusUpdateEvent
+		arg1 domain.A2ATaskStatusUpdateEvent
 	}{arg1})
 	stub := fake.HandleTaskStatusUpdateStub
 	fakeReturns := fake.handleTaskStatusUpdateReturns
@@ -288,13 +288,13 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateCallCount() int {
 	return len(fake.handleTaskStatusUpdateArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateCalls(stub func(agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateCalls(stub func(domain.A2ATaskStatusUpdateEvent) tea.Cmd) {
 	fake.handleTaskStatusUpdateMutex.Lock()
 	defer fake.handleTaskStatusUpdateMutex.Unlock()
 	fake.HandleTaskStatusUpdateStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateArgsForCall(i int) agentdomain.A2ATaskStatusUpdateEvent {
+func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateArgsForCall(i int) domain.A2ATaskStatusUpdateEvent {
 	fake.handleTaskStatusUpdateMutex.RLock()
 	defer fake.handleTaskStatusUpdateMutex.RUnlock()
 	argsForCall := fake.handleTaskStatusUpdateArgsForCall[i]
@@ -324,11 +324,11 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskStatusUpdateReturnsOnCall(i int, r
 	}{result1}
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskSubmitted(arg1 agentdomain.A2ATaskSubmittedEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleTaskSubmitted(arg1 domain.A2ATaskSubmittedEvent) tea.Cmd {
 	fake.handleTaskSubmittedMutex.Lock()
 	ret, specificReturn := fake.handleTaskSubmittedReturnsOnCall[len(fake.handleTaskSubmittedArgsForCall)]
 	fake.handleTaskSubmittedArgsForCall = append(fake.handleTaskSubmittedArgsForCall, struct {
-		arg1 agentdomain.A2ATaskSubmittedEvent
+		arg1 domain.A2ATaskSubmittedEvent
 	}{arg1})
 	stub := fake.HandleTaskSubmittedStub
 	fakeReturns := fake.handleTaskSubmittedReturns
@@ -349,13 +349,13 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedCallCount() int {
 	return len(fake.handleTaskSubmittedArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedCalls(stub func(agentdomain.A2ATaskSubmittedEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedCalls(stub func(domain.A2ATaskSubmittedEvent) tea.Cmd) {
 	fake.handleTaskSubmittedMutex.Lock()
 	defer fake.handleTaskSubmittedMutex.Unlock()
 	fake.HandleTaskSubmittedStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedArgsForCall(i int) agentdomain.A2ATaskSubmittedEvent {
+func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedArgsForCall(i int) domain.A2ATaskSubmittedEvent {
 	fake.handleTaskSubmittedMutex.RLock()
 	defer fake.handleTaskSubmittedMutex.RUnlock()
 	argsForCall := fake.handleTaskSubmittedArgsForCall[i]
@@ -385,11 +385,11 @@ func (fake *FakeA2ATaskCoordinator) HandleTaskSubmittedReturnsOnCall(i int, resu
 	}{result1}
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleToolCallExecuted(arg1 agentdomain.A2AToolCallExecutedEvent) tea.Cmd {
+func (fake *FakeA2ATaskCoordinator) HandleToolCallExecuted(arg1 domain.A2AToolCallExecutedEvent) tea.Cmd {
 	fake.handleToolCallExecutedMutex.Lock()
 	ret, specificReturn := fake.handleToolCallExecutedReturnsOnCall[len(fake.handleToolCallExecutedArgsForCall)]
 	fake.handleToolCallExecutedArgsForCall = append(fake.handleToolCallExecutedArgsForCall, struct {
-		arg1 agentdomain.A2AToolCallExecutedEvent
+		arg1 domain.A2AToolCallExecutedEvent
 	}{arg1})
 	stub := fake.HandleToolCallExecutedStub
 	fakeReturns := fake.handleToolCallExecutedReturns
@@ -410,13 +410,13 @@ func (fake *FakeA2ATaskCoordinator) HandleToolCallExecutedCallCount() int {
 	return len(fake.handleToolCallExecutedArgsForCall)
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleToolCallExecutedCalls(stub func(agentdomain.A2AToolCallExecutedEvent) tea.Cmd) {
+func (fake *FakeA2ATaskCoordinator) HandleToolCallExecutedCalls(stub func(domain.A2AToolCallExecutedEvent) tea.Cmd) {
 	fake.handleToolCallExecutedMutex.Lock()
 	defer fake.handleToolCallExecutedMutex.Unlock()
 	fake.HandleToolCallExecutedStub = stub
 }
 
-func (fake *FakeA2ATaskCoordinator) HandleToolCallExecutedArgsForCall(i int) agentdomain.A2AToolCallExecutedEvent {
+func (fake *FakeA2ATaskCoordinator) HandleToolCallExecutedArgsForCall(i int) domain.A2AToolCallExecutedEvent {
 	fake.handleToolCallExecutedMutex.RLock()
 	defer fake.handleToolCallExecutedMutex.RUnlock()
 	argsForCall := fake.handleToolCallExecutedArgsForCall[i]

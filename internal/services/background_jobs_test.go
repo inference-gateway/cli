@@ -6,7 +6,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	constants "github.com/inference-gateway/cli/internal/constants"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	services "github.com/inference-gateway/cli/internal/services"
 	servicesmocks "github.com/inference-gateway/cli/tests/mocks/services"
 	assert "github.com/stretchr/testify/assert"

@@ -12,7 +12,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage

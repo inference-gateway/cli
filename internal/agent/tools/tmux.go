@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // NewPaneInspector returns a pane inspector (a func yielding a

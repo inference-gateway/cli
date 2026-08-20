@@ -21,8 +21,8 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	render "github.com/inference-gateway/cli/internal/render"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 )
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;

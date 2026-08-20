@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // TitleGenerator interface for conversation title generation

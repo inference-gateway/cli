@@ -20,8 +20,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	project "github.com/inference-gateway/cli/internal/project"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 

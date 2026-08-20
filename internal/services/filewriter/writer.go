@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // SafeFileWriter implements filewriter.FileWriter with atomic operations

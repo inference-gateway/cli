@@ -12,8 +12,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	services "github.com/inference-gateway/cli/internal/services"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 

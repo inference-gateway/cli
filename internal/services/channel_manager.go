@@ -17,14 +17,14 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // ChannelManagerService manages pluggable messaging channels and triggers

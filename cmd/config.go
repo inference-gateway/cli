@@ -12,7 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 var configCmd = &cobra.Command{

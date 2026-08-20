@@ -13,7 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 

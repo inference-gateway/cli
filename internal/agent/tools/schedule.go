@@ -15,7 +15,7 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 )
 

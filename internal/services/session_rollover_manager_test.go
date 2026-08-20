@@ -12,8 +12,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // seedContextWindow registers a gateway-reported context window for the test's

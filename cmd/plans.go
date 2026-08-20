@@ -8,7 +8,7 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 var plansCmd = &cobra.Command{

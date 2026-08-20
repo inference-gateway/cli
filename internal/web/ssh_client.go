@@ -12,7 +12,7 @@ import (
 	knownhosts "golang.org/x/crypto/ssh/knownhosts"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // SSHClient manages SSH connections to remote servers

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 

@@ -13,8 +13,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 

@@ -3,17 +3,17 @@ package domain
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
+	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
 type FakeImageService struct {
-	CreateDataURLStub        func(*agentdomain.ImageAttachment) string
+	CreateDataURLStub        func(*domaina.ImageAttachment) string
 	createDataURLMutex       sync.RWMutex
 	createDataURLArgsForCall []struct {
-		arg1 *agentdomain.ImageAttachment
+		arg1 *domaina.ImageAttachment
 	}
 	createDataURLReturns struct {
 		result1 string
@@ -106,55 +106,55 @@ type FakeImageService struct {
 	isImageURLReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	ReadImageFromBinaryStub        func([]byte, string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromBinaryStub        func([]byte, string) (*domaina.ImageAttachment, error)
 	readImageFromBinaryMutex       sync.RWMutex
 	readImageFromBinaryArgsForCall []struct {
 		arg1 []byte
 		arg2 string
 	}
 	readImageFromBinaryReturns struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
 	readImageFromBinaryReturnsOnCall map[int]struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
-	ReadImageFromFileStub        func(string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromFileStub        func(string) (*domaina.ImageAttachment, error)
 	readImageFromFileMutex       sync.RWMutex
 	readImageFromFileArgsForCall []struct {
 		arg1 string
 	}
 	readImageFromFileReturns struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
 	readImageFromFileReturnsOnCall map[int]struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
-	ReadImageFromURLStub        func(string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromURLStub        func(string) (*domaina.ImageAttachment, error)
 	readImageFromURLMutex       sync.RWMutex
 	readImageFromURLArgsForCall []struct {
 		arg1 string
 	}
 	readImageFromURLReturns struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
 	readImageFromURLReturnsOnCall map[int]struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeImageService) CreateDataURL(arg1 *agentdomain.ImageAttachment) string {
+func (fake *FakeImageService) CreateDataURL(arg1 *domaina.ImageAttachment) string {
 	fake.createDataURLMutex.Lock()
 	ret, specificReturn := fake.createDataURLReturnsOnCall[len(fake.createDataURLArgsForCall)]
 	fake.createDataURLArgsForCall = append(fake.createDataURLArgsForCall, struct {
-		arg1 *agentdomain.ImageAttachment
+		arg1 *domaina.ImageAttachment
 	}{arg1})
 	stub := fake.CreateDataURLStub
 	fakeReturns := fake.createDataURLReturns
@@ -175,13 +175,13 @@ func (fake *FakeImageService) CreateDataURLCallCount() int {
 	return len(fake.createDataURLArgsForCall)
 }
 
-func (fake *FakeImageService) CreateDataURLCalls(stub func(*agentdomain.ImageAttachment) string) {
+func (fake *FakeImageService) CreateDataURLCalls(stub func(*domaina.ImageAttachment) string) {
 	fake.createDataURLMutex.Lock()
 	defer fake.createDataURLMutex.Unlock()
 	fake.CreateDataURLStub = stub
 }
 
-func (fake *FakeImageService) CreateDataURLArgsForCall(i int) *agentdomain.ImageAttachment {
+func (fake *FakeImageService) CreateDataURLArgsForCall(i int) *domaina.ImageAttachment {
 	fake.createDataURLMutex.RLock()
 	defer fake.createDataURLMutex.RUnlock()
 	argsForCall := fake.createDataURLArgsForCall[i]
@@ -599,7 +599,7 @@ func (fake *FakeImageService) IsImageURLReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
-func (fake *FakeImageService) ReadImageFromBinary(arg1 []byte, arg2 string) (*agentdomain.ImageAttachment, error) {
+func (fake *FakeImageService) ReadImageFromBinary(arg1 []byte, arg2 string) (*domaina.ImageAttachment, error) {
 	var arg1Copy []byte
 	if arg1 != nil {
 		arg1Copy = make([]byte, len(arg1))
@@ -630,7 +630,7 @@ func (fake *FakeImageService) ReadImageFromBinaryCallCount() int {
 	return len(fake.readImageFromBinaryArgsForCall)
 }
 
-func (fake *FakeImageService) ReadImageFromBinaryCalls(stub func([]byte, string) (*agentdomain.ImageAttachment, error)) {
+func (fake *FakeImageService) ReadImageFromBinaryCalls(stub func([]byte, string) (*domaina.ImageAttachment, error)) {
 	fake.readImageFromBinaryMutex.Lock()
 	defer fake.readImageFromBinaryMutex.Unlock()
 	fake.ReadImageFromBinaryStub = stub
@@ -643,33 +643,33 @@ func (fake *FakeImageService) ReadImageFromBinaryArgsForCall(i int) ([]byte, str
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeImageService) ReadImageFromBinaryReturns(result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromBinaryReturns(result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromBinaryMutex.Lock()
 	defer fake.readImageFromBinaryMutex.Unlock()
 	fake.ReadImageFromBinaryStub = nil
 	fake.readImageFromBinaryReturns = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromBinaryReturnsOnCall(i int, result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromBinaryReturnsOnCall(i int, result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromBinaryMutex.Lock()
 	defer fake.readImageFromBinaryMutex.Unlock()
 	fake.ReadImageFromBinaryStub = nil
 	if fake.readImageFromBinaryReturnsOnCall == nil {
 		fake.readImageFromBinaryReturnsOnCall = make(map[int]struct {
-			result1 *agentdomain.ImageAttachment
+			result1 *domaina.ImageAttachment
 			result2 error
 		})
 	}
 	fake.readImageFromBinaryReturnsOnCall[i] = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromFile(arg1 string) (*agentdomain.ImageAttachment, error) {
+func (fake *FakeImageService) ReadImageFromFile(arg1 string) (*domaina.ImageAttachment, error) {
 	fake.readImageFromFileMutex.Lock()
 	ret, specificReturn := fake.readImageFromFileReturnsOnCall[len(fake.readImageFromFileArgsForCall)]
 	fake.readImageFromFileArgsForCall = append(fake.readImageFromFileArgsForCall, struct {
@@ -694,7 +694,7 @@ func (fake *FakeImageService) ReadImageFromFileCallCount() int {
 	return len(fake.readImageFromFileArgsForCall)
 }
 
-func (fake *FakeImageService) ReadImageFromFileCalls(stub func(string) (*agentdomain.ImageAttachment, error)) {
+func (fake *FakeImageService) ReadImageFromFileCalls(stub func(string) (*domaina.ImageAttachment, error)) {
 	fake.readImageFromFileMutex.Lock()
 	defer fake.readImageFromFileMutex.Unlock()
 	fake.ReadImageFromFileStub = stub
@@ -707,33 +707,33 @@ func (fake *FakeImageService) ReadImageFromFileArgsForCall(i int) string {
 	return argsForCall.arg1
 }
 
-func (fake *FakeImageService) ReadImageFromFileReturns(result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromFileReturns(result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromFileMutex.Lock()
 	defer fake.readImageFromFileMutex.Unlock()
 	fake.ReadImageFromFileStub = nil
 	fake.readImageFromFileReturns = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromFileReturnsOnCall(i int, result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromFileReturnsOnCall(i int, result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromFileMutex.Lock()
 	defer fake.readImageFromFileMutex.Unlock()
 	fake.ReadImageFromFileStub = nil
 	if fake.readImageFromFileReturnsOnCall == nil {
 		fake.readImageFromFileReturnsOnCall = make(map[int]struct {
-			result1 *agentdomain.ImageAttachment
+			result1 *domaina.ImageAttachment
 			result2 error
 		})
 	}
 	fake.readImageFromFileReturnsOnCall[i] = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromURL(arg1 string) (*agentdomain.ImageAttachment, error) {
+func (fake *FakeImageService) ReadImageFromURL(arg1 string) (*domaina.ImageAttachment, error) {
 	fake.readImageFromURLMutex.Lock()
 	ret, specificReturn := fake.readImageFromURLReturnsOnCall[len(fake.readImageFromURLArgsForCall)]
 	fake.readImageFromURLArgsForCall = append(fake.readImageFromURLArgsForCall, struct {
@@ -758,7 +758,7 @@ func (fake *FakeImageService) ReadImageFromURLCallCount() int {
 	return len(fake.readImageFromURLArgsForCall)
 }
 
-func (fake *FakeImageService) ReadImageFromURLCalls(stub func(string) (*agentdomain.ImageAttachment, error)) {
+func (fake *FakeImageService) ReadImageFromURLCalls(stub func(string) (*domaina.ImageAttachment, error)) {
 	fake.readImageFromURLMutex.Lock()
 	defer fake.readImageFromURLMutex.Unlock()
 	fake.ReadImageFromURLStub = stub
@@ -771,28 +771,28 @@ func (fake *FakeImageService) ReadImageFromURLArgsForCall(i int) string {
 	return argsForCall.arg1
 }
 
-func (fake *FakeImageService) ReadImageFromURLReturns(result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromURLReturns(result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromURLMutex.Lock()
 	defer fake.readImageFromURLMutex.Unlock()
 	fake.ReadImageFromURLStub = nil
 	fake.readImageFromURLReturns = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromURLReturnsOnCall(i int, result1 *agentdomain.ImageAttachment, result2 error) {
+func (fake *FakeImageService) ReadImageFromURLReturnsOnCall(i int, result1 *domaina.ImageAttachment, result2 error) {
 	fake.readImageFromURLMutex.Lock()
 	defer fake.readImageFromURLMutex.Unlock()
 	fake.ReadImageFromURLStub = nil
 	if fake.readImageFromURLReturnsOnCall == nil {
 		fake.readImageFromURLReturnsOnCall = make(map[int]struct {
-			result1 *agentdomain.ImageAttachment
+			result1 *domaina.ImageAttachment
 			result2 error
 		})
 	}
 	fake.readImageFromURLReturnsOnCall[i] = struct {
-		result1 *agentdomain.ImageAttachment
+		result1 *domaina.ImageAttachment
 		result2 error
 	}{result1, result2}
 }

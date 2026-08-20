@@ -2,18 +2,18 @@
 package ui
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
 type FakeInputComponent struct {
-	AddImageAttachmentStub        func(agentdomain.ImageAttachment)
+	AddImageAttachmentStub        func(domain.ImageAttachment)
 	addImageAttachmentMutex       sync.RWMutex
 	addImageAttachmentArgsForCall []struct {
-		arg1 agentdomain.ImageAttachment
+		arg1 domain.ImageAttachment
 	}
 	AddToHistoryStub        func(string) error
 	addToHistoryMutex       sync.RWMutex
@@ -55,15 +55,15 @@ type FakeInputComponent struct {
 	getCursorReturnsOnCall map[int]struct {
 		result1 int
 	}
-	GetImageAttachmentsStub        func() []agentdomain.ImageAttachment
+	GetImageAttachmentsStub        func() []domain.ImageAttachment
 	getImageAttachmentsMutex       sync.RWMutex
 	getImageAttachmentsArgsForCall []struct {
 	}
 	getImageAttachmentsReturns struct {
-		result1 []agentdomain.ImageAttachment
+		result1 []domain.ImageAttachment
 	}
 	getImageAttachmentsReturnsOnCall map[int]struct {
-		result1 []agentdomain.ImageAttachment
+		result1 []domain.ImageAttachment
 	}
 	GetInputStub        func() string
 	getInputMutex       sync.RWMutex
@@ -170,10 +170,10 @@ type FakeInputComponent struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeInputComponent) AddImageAttachment(arg1 agentdomain.ImageAttachment) {
+func (fake *FakeInputComponent) AddImageAttachment(arg1 domain.ImageAttachment) {
 	fake.addImageAttachmentMutex.Lock()
 	fake.addImageAttachmentArgsForCall = append(fake.addImageAttachmentArgsForCall, struct {
-		arg1 agentdomain.ImageAttachment
+		arg1 domain.ImageAttachment
 	}{arg1})
 	stub := fake.AddImageAttachmentStub
 	fake.recordInvocation("AddImageAttachment", []interface{}{arg1})
@@ -189,13 +189,13 @@ func (fake *FakeInputComponent) AddImageAttachmentCallCount() int {
 	return len(fake.addImageAttachmentArgsForCall)
 }
 
-func (fake *FakeInputComponent) AddImageAttachmentCalls(stub func(agentdomain.ImageAttachment)) {
+func (fake *FakeInputComponent) AddImageAttachmentCalls(stub func(domain.ImageAttachment)) {
 	fake.addImageAttachmentMutex.Lock()
 	defer fake.addImageAttachmentMutex.Unlock()
 	fake.AddImageAttachmentStub = stub
 }
 
-func (fake *FakeInputComponent) AddImageAttachmentArgsForCall(i int) agentdomain.ImageAttachment {
+func (fake *FakeInputComponent) AddImageAttachmentArgsForCall(i int) domain.ImageAttachment {
 	fake.addImageAttachmentMutex.RLock()
 	defer fake.addImageAttachmentMutex.RUnlock()
 	argsForCall := fake.addImageAttachmentArgsForCall[i]
@@ -425,7 +425,7 @@ func (fake *FakeInputComponent) GetCursorReturnsOnCall(i int, result1 int) {
 	}{result1}
 }
 
-func (fake *FakeInputComponent) GetImageAttachments() []agentdomain.ImageAttachment {
+func (fake *FakeInputComponent) GetImageAttachments() []domain.ImageAttachment {
 	fake.getImageAttachmentsMutex.Lock()
 	ret, specificReturn := fake.getImageAttachmentsReturnsOnCall[len(fake.getImageAttachmentsArgsForCall)]
 	fake.getImageAttachmentsArgsForCall = append(fake.getImageAttachmentsArgsForCall, struct {
@@ -449,32 +449,32 @@ func (fake *FakeInputComponent) GetImageAttachmentsCallCount() int {
 	return len(fake.getImageAttachmentsArgsForCall)
 }
 
-func (fake *FakeInputComponent) GetImageAttachmentsCalls(stub func() []agentdomain.ImageAttachment) {
+func (fake *FakeInputComponent) GetImageAttachmentsCalls(stub func() []domain.ImageAttachment) {
 	fake.getImageAttachmentsMutex.Lock()
 	defer fake.getImageAttachmentsMutex.Unlock()
 	fake.GetImageAttachmentsStub = stub
 }
 
-func (fake *FakeInputComponent) GetImageAttachmentsReturns(result1 []agentdomain.ImageAttachment) {
+func (fake *FakeInputComponent) GetImageAttachmentsReturns(result1 []domain.ImageAttachment) {
 	fake.getImageAttachmentsMutex.Lock()
 	defer fake.getImageAttachmentsMutex.Unlock()
 	fake.GetImageAttachmentsStub = nil
 	fake.getImageAttachmentsReturns = struct {
-		result1 []agentdomain.ImageAttachment
+		result1 []domain.ImageAttachment
 	}{result1}
 }
 
-func (fake *FakeInputComponent) GetImageAttachmentsReturnsOnCall(i int, result1 []agentdomain.ImageAttachment) {
+func (fake *FakeInputComponent) GetImageAttachmentsReturnsOnCall(i int, result1 []domain.ImageAttachment) {
 	fake.getImageAttachmentsMutex.Lock()
 	defer fake.getImageAttachmentsMutex.Unlock()
 	fake.GetImageAttachmentsStub = nil
 	if fake.getImageAttachmentsReturnsOnCall == nil {
 		fake.getImageAttachmentsReturnsOnCall = make(map[int]struct {
-			result1 []agentdomain.ImageAttachment
+			result1 []domain.ImageAttachment
 		})
 	}
 	fake.getImageAttachmentsReturnsOnCall[i] = struct {
-		result1 []agentdomain.ImageAttachment
+		result1 []domain.ImageAttachment
 	}{result1}
 }
 

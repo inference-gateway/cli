@@ -15,7 +15,7 @@ import (
 	trace "go.opentelemetry.io/otel/trace"
 	noop "go.opentelemetry.io/otel/trace/noop"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // newTracerProvider creates a TracerProvider sharing the resource and OTLP

@@ -14,8 +14,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 var configGetCmd = &cobra.Command{

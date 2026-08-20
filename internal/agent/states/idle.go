@@ -1,7 +1,7 @@
 package states
 
 import (
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // IdleState handles events in the Idle state.

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // ShellHistoryProvider interface defines methods for shell history operations

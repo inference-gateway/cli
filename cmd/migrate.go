@@ -6,8 +6,8 @@ import (
 	"os"
 
 	container "github.com/inference-gateway/cli/internal/container"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
 )

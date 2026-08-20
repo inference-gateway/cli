@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // scriptRunner records every command and answers via respond; nil respond

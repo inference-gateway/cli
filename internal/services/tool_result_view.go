@@ -7,8 +7,8 @@ import (
 	"unicode/utf8"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // previewLineCount is how many output lines the collapsed tool result shows on success.

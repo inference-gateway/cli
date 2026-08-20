@@ -12,7 +12,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 )
 

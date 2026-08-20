@@ -10,10 +10,10 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	models "github.com/inference-gateway/cli/internal/models"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency

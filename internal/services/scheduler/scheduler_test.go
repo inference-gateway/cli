@@ -10,7 +10,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // eventSink records run events emitted by the scheduler.

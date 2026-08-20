@@ -12,9 +12,9 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	models "github.com/inference-gateway/cli/internal/models"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // SessionRolloverManager decides when to roll over a long-running conversation

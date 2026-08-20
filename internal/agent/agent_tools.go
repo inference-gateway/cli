@@ -4,7 +4,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // executeTools executes all tools in parallel (runs in background goroutine)

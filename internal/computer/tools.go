@@ -13,8 +13,8 @@ import (
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // FocusManager handles macOS computer-use focus tracking.

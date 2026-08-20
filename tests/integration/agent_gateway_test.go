@@ -24,9 +24,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	services "github.com/inference-gateway/cli/internal/services"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
 const runTimeout = 30 * time.Second

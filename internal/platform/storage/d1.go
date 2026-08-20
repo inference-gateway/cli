@@ -12,7 +12,7 @@ import (
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 )
 
 // D1Storage implements ConversationStorage and SessionGroupStorage on top of

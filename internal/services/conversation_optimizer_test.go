@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	sdk "github.com/inference-gateway/sdk"

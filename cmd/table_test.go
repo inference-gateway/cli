@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 

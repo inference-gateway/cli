@@ -32,7 +32,7 @@ import (
 
 	zapcore "go.uber.org/zap/zapcore"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 var (

@@ -18,7 +18,7 @@ import (
 	keybind "github.com/BurntSushi/xgbutil/keybind"
 	xgraphics "github.com/BurntSushi/xgbutil/xgraphics"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // X11Client wraps X11 connection and provides screen control operations

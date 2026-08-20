@@ -19,16 +19,16 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	project "github.com/inference-gateway/cli/internal/project"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap

@@ -2,17 +2,17 @@
 package domain
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
+	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
 type FakeJobNotifier struct {
-	NotificationStub        func(agentdomain.ToolExecutionResult) string
+	NotificationStub        func(domaina.ToolExecutionResult) string
 	notificationMutex       sync.RWMutex
 	notificationArgsForCall []struct {
-		arg1 agentdomain.ToolExecutionResult
+		arg1 domaina.ToolExecutionResult
 	}
 	notificationReturns struct {
 		result1 string
@@ -24,11 +24,11 @@ type FakeJobNotifier struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeJobNotifier) Notification(arg1 agentdomain.ToolExecutionResult) string {
+func (fake *FakeJobNotifier) Notification(arg1 domaina.ToolExecutionResult) string {
 	fake.notificationMutex.Lock()
 	ret, specificReturn := fake.notificationReturnsOnCall[len(fake.notificationArgsForCall)]
 	fake.notificationArgsForCall = append(fake.notificationArgsForCall, struct {
-		arg1 agentdomain.ToolExecutionResult
+		arg1 domaina.ToolExecutionResult
 	}{arg1})
 	stub := fake.NotificationStub
 	fakeReturns := fake.notificationReturns
@@ -49,13 +49,13 @@ func (fake *FakeJobNotifier) NotificationCallCount() int {
 	return len(fake.notificationArgsForCall)
 }
 
-func (fake *FakeJobNotifier) NotificationCalls(stub func(agentdomain.ToolExecutionResult) string) {
+func (fake *FakeJobNotifier) NotificationCalls(stub func(domaina.ToolExecutionResult) string) {
 	fake.notificationMutex.Lock()
 	defer fake.notificationMutex.Unlock()
 	fake.NotificationStub = stub
 }
 
-func (fake *FakeJobNotifier) NotificationArgsForCall(i int) agentdomain.ToolExecutionResult {
+func (fake *FakeJobNotifier) NotificationArgsForCall(i int) domaina.ToolExecutionResult {
 	fake.notificationMutex.RLock()
 	defer fake.notificationMutex.RUnlock()
 	argsForCall := fake.notificationArgsForCall[i]

@@ -40,7 +40,7 @@ import (
 	trace "go.opentelemetry.io/otel/trace"
 	noop "go.opentelemetry.io/otel/trace/noop"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // receiverGracePeriod is how long the OTLP receiver stays alive after the

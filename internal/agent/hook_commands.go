@@ -10,8 +10,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
 // hookCommandOutputLimit caps the command output carried in a hook_command

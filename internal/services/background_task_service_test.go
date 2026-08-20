@@ -10,8 +10,8 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
-	utils "github.com/inference-gateway/cli/internal/utils"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 )
 

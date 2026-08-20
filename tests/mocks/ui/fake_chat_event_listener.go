@@ -2,18 +2,18 @@
 package ui
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
 type FakeChatEventListener struct {
-	ListenForChatEventsStub        func(<-chan agentdomain.ChatEvent) tea.Cmd
+	ListenForChatEventsStub        func(<-chan domain.ChatEvent) tea.Cmd
 	listenForChatEventsMutex       sync.RWMutex
 	listenForChatEventsArgsForCall []struct {
-		arg1 <-chan agentdomain.ChatEvent
+		arg1 <-chan domain.ChatEvent
 	}
 	listenForChatEventsReturns struct {
 		result1 tea.Cmd
@@ -36,11 +36,11 @@ type FakeChatEventListener struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeChatEventListener) ListenForChatEvents(arg1 <-chan agentdomain.ChatEvent) tea.Cmd {
+func (fake *FakeChatEventListener) ListenForChatEvents(arg1 <-chan domain.ChatEvent) tea.Cmd {
 	fake.listenForChatEventsMutex.Lock()
 	ret, specificReturn := fake.listenForChatEventsReturnsOnCall[len(fake.listenForChatEventsArgsForCall)]
 	fake.listenForChatEventsArgsForCall = append(fake.listenForChatEventsArgsForCall, struct {
-		arg1 <-chan agentdomain.ChatEvent
+		arg1 <-chan domain.ChatEvent
 	}{arg1})
 	stub := fake.ListenForChatEventsStub
 	fakeReturns := fake.listenForChatEventsReturns
@@ -61,13 +61,13 @@ func (fake *FakeChatEventListener) ListenForChatEventsCallCount() int {
 	return len(fake.listenForChatEventsArgsForCall)
 }
 
-func (fake *FakeChatEventListener) ListenForChatEventsCalls(stub func(<-chan agentdomain.ChatEvent) tea.Cmd) {
+func (fake *FakeChatEventListener) ListenForChatEventsCalls(stub func(<-chan domain.ChatEvent) tea.Cmd) {
 	fake.listenForChatEventsMutex.Lock()
 	defer fake.listenForChatEventsMutex.Unlock()
 	fake.ListenForChatEventsStub = stub
 }
 
-func (fake *FakeChatEventListener) ListenForChatEventsArgsForCall(i int) <-chan agentdomain.ChatEvent {
+func (fake *FakeChatEventListener) ListenForChatEventsArgsForCall(i int) <-chan domain.ChatEvent {
 	fake.listenForChatEventsMutex.RLock()
 	defer fake.listenForChatEventsMutex.RUnlock()
 	argsForCall := fake.listenForChatEventsArgsForCall[i]

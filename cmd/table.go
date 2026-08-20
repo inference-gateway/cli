@@ -6,10 +6,10 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	table "charm.land/lipgloss/v2/table"
 
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // Shared styling for non-TUI `infer ... list` command output. These draw from

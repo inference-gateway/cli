@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // recordingFilePrefix and mediaFilePrefix tag retained files so pruning only

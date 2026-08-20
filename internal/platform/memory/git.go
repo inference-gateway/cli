@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // GitBackend syncs the memory directory with a git remote. It shells out to the

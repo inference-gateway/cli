@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 
 	_ "github.com/lib/pq"
 )

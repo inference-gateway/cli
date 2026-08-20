@@ -12,8 +12,8 @@ import (
 
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 var conversationsCmd = &cobra.Command{

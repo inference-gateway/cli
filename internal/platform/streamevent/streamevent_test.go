@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 )

@@ -2,8 +2,8 @@ package services
 
 import (
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // backgroundTaskRegistry is the single registry that owns all in-flight

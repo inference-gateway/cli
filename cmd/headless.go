@@ -22,12 +22,12 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	models "github.com/inference-gateway/cli/internal/models"
-	render "github.com/inference-gateway/cli/internal/render"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	render "github.com/inference-gateway/cli/internal/platform/render"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	services "github.com/inference-gateway/cli/internal/services"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // startHeadlessScreenshotServer starts the screenshot capture server and

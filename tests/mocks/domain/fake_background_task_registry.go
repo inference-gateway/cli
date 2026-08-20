@@ -2,9 +2,9 @@
 package domain
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
+	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -135,16 +135,16 @@ type FakeBackgroundTaskRegistry struct {
 	getLatestTaskForContextReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetPollingStateStub        func(string) *agentdomain.TaskPollingState
+	GetPollingStateStub        func(string) *domaina.TaskPollingState
 	getPollingStateMutex       sync.RWMutex
 	getPollingStateArgsForCall []struct {
 		arg1 string
 	}
 	getPollingStateReturns struct {
-		result1 *agentdomain.TaskPollingState
+		result1 *domaina.TaskPollingState
 	}
 	getPollingStateReturnsOnCall map[int]struct {
-		result1 *agentdomain.TaskPollingState
+		result1 *domaina.TaskPollingState
 	}
 	GetSubagentStub        func(string) *domain.SubagentState
 	getSubagentMutex       sync.RWMutex
@@ -244,11 +244,11 @@ type FakeBackgroundTaskRegistry struct {
 	snapshotReturnsOnCall map[int]struct {
 		result1 []domain.TrackedJob
 	}
-	StartPollingStub        func(string, *agentdomain.TaskPollingState)
+	StartPollingStub        func(string, *domaina.TaskPollingState)
 	startPollingMutex       sync.RWMutex
 	startPollingArgsForCall []struct {
 		arg1 string
-		arg2 *agentdomain.TaskPollingState
+		arg2 *domaina.TaskPollingState
 	}
 	StopPollingStub        func(string)
 	stopPollingMutex       sync.RWMutex
@@ -964,7 +964,7 @@ func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextReturnsOnCall(i i
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) GetPollingState(arg1 string) *agentdomain.TaskPollingState {
+func (fake *FakeBackgroundTaskRegistry) GetPollingState(arg1 string) *domaina.TaskPollingState {
 	fake.getPollingStateMutex.Lock()
 	ret, specificReturn := fake.getPollingStateReturnsOnCall[len(fake.getPollingStateArgsForCall)]
 	fake.getPollingStateArgsForCall = append(fake.getPollingStateArgsForCall, struct {
@@ -989,7 +989,7 @@ func (fake *FakeBackgroundTaskRegistry) GetPollingStateCallCount() int {
 	return len(fake.getPollingStateArgsForCall)
 }
 
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateCalls(stub func(string) *agentdomain.TaskPollingState) {
+func (fake *FakeBackgroundTaskRegistry) GetPollingStateCalls(stub func(string) *domaina.TaskPollingState) {
 	fake.getPollingStateMutex.Lock()
 	defer fake.getPollingStateMutex.Unlock()
 	fake.GetPollingStateStub = stub
@@ -1002,26 +1002,26 @@ func (fake *FakeBackgroundTaskRegistry) GetPollingStateArgsForCall(i int) string
 	return argsForCall.arg1
 }
 
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturns(result1 *agentdomain.TaskPollingState) {
+func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturns(result1 *domaina.TaskPollingState) {
 	fake.getPollingStateMutex.Lock()
 	defer fake.getPollingStateMutex.Unlock()
 	fake.GetPollingStateStub = nil
 	fake.getPollingStateReturns = struct {
-		result1 *agentdomain.TaskPollingState
+		result1 *domaina.TaskPollingState
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturnsOnCall(i int, result1 *agentdomain.TaskPollingState) {
+func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturnsOnCall(i int, result1 *domaina.TaskPollingState) {
 	fake.getPollingStateMutex.Lock()
 	defer fake.getPollingStateMutex.Unlock()
 	fake.GetPollingStateStub = nil
 	if fake.getPollingStateReturnsOnCall == nil {
 		fake.getPollingStateReturnsOnCall = make(map[int]struct {
-			result1 *agentdomain.TaskPollingState
+			result1 *domaina.TaskPollingState
 		})
 	}
 	fake.getPollingStateReturnsOnCall[i] = struct {
-		result1 *agentdomain.TaskPollingState
+		result1 *domaina.TaskPollingState
 	}{result1}
 }
 
@@ -1563,11 +1563,11 @@ func (fake *FakeBackgroundTaskRegistry) SnapshotReturnsOnCall(i int, result1 []d
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) StartPolling(arg1 string, arg2 *agentdomain.TaskPollingState) {
+func (fake *FakeBackgroundTaskRegistry) StartPolling(arg1 string, arg2 *domaina.TaskPollingState) {
 	fake.startPollingMutex.Lock()
 	fake.startPollingArgsForCall = append(fake.startPollingArgsForCall, struct {
 		arg1 string
-		arg2 *agentdomain.TaskPollingState
+		arg2 *domaina.TaskPollingState
 	}{arg1, arg2})
 	stub := fake.StartPollingStub
 	fake.recordInvocation("StartPolling", []interface{}{arg1, arg2})
@@ -1583,13 +1583,13 @@ func (fake *FakeBackgroundTaskRegistry) StartPollingCallCount() int {
 	return len(fake.startPollingArgsForCall)
 }
 
-func (fake *FakeBackgroundTaskRegistry) StartPollingCalls(stub func(string, *agentdomain.TaskPollingState)) {
+func (fake *FakeBackgroundTaskRegistry) StartPollingCalls(stub func(string, *domaina.TaskPollingState)) {
 	fake.startPollingMutex.Lock()
 	defer fake.startPollingMutex.Unlock()
 	fake.StartPollingStub = stub
 }
 
-func (fake *FakeBackgroundTaskRegistry) StartPollingArgsForCall(i int) (string, *agentdomain.TaskPollingState) {
+func (fake *FakeBackgroundTaskRegistry) StartPollingArgsForCall(i int) (string, *domaina.TaskPollingState) {
 	fake.startPollingMutex.RLock()
 	defer fake.startPollingMutex.RUnlock()
 	argsForCall := fake.startPollingArgsForCall[i]

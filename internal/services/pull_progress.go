@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // dockerLayerRe matches docker's non-TTY per-layer output: "<layer-id>: <status>".

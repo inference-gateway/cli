@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 )

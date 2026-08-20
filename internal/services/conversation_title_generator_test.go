@@ -11,7 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )

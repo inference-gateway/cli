@@ -13,7 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	project "github.com/inference-gateway/cli/internal/project"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 

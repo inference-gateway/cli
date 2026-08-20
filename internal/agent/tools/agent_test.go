@@ -9,8 +9,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 func newTestAgentTool(t *testing.T) *AgentTool {

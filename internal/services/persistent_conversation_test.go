@@ -10,9 +10,9 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	constants "github.com/inference-gateway/cli/internal/constants"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 

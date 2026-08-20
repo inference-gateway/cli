@@ -8,7 +8,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // addressPoolExhaustedMsg is the daemon error emitted when Docker/Podman runs

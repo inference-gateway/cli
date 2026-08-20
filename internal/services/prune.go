@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // PruneClipboardImages removes stale clipboard-image files from dir, keeping

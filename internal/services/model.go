@@ -9,7 +9,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // HTTPModelService implements ModelService using SDK client

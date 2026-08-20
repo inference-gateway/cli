@@ -16,15 +16,15 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	models "github.com/inference-gateway/cli/internal/models"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -962,7 +962,7 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *agentdomain.ChatMetrics
 // cacheCreationTokenSource is implemented by clients that report Anthropic
 // cache-creation (cache-write) tokens out of band, since the OpenAI-shaped
 // usage struct has no field for them. The /v1/messages adapter
-// (internal/infra/adapters.AnthropicMessages) is the one implementation;
+// (internal/platform/adapters.AnthropicMessages) is the one implementation;
 // the interface lives here because this package is its consumer.
 type cacheCreationTokenSource interface {
 	TakeCacheCreationTokens() int
