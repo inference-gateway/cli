@@ -196,13 +196,7 @@ func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller displa
 		return x, y, nil
 	}
 
-	apiWidth := t.config.ComputerUse.Screenshot.TargetWidth
-	apiHeight := t.config.ComputerUse.Screenshot.TargetHeight
-
-	if apiWidth == 0 || apiHeight == 0 {
-		return x, y, nil
-	}
-
+	apiWidth, apiHeight := t.config.ComputerUse.Screenshot.FitDims(screenWidth, screenHeight)
 	return ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
 }
 

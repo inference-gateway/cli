@@ -62,7 +62,7 @@ func (a *GatewayAnnotator) AnnotateImage(ctx context.Context, img domain.ImageAt
 
 	maxTokens := a.cfg.Vision.Annotator.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = 1024
+		maxTokens = 4096
 	}
 
 	messages := []sdk.Message{

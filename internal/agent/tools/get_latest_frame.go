@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"image/jpeg"
 	"math"
 	"strings"
 	"sync"
@@ -11,7 +14,15 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
+)
+
+// Vision image limits of the annotator model class (long edge px, total px);
+// region crops above them are downscaled uniformly to fit.
+const (
+	annotatorMaxLongEdge = 1568.0
+	annotatorMaxPixels   = 1_100_000.0
 )
 
 // frameSourceLookup is the narrow slice of the Registry the tool needs.
@@ -70,6 +81,17 @@ func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
 						"enum":        []string{"regular", "annotated"},
 						"description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.",
 					},
+					"region": map[string]any{
+						"type":        "object",
+						"description": "Zoom into a sub-region of the screen (screen source only): the region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes readable. Coordinates are in the same frame space as MouseClick and previous annotations; returned element coordinates are translated back into that space.",
+						"properties": map[string]any{
+							"x":      map[string]any{"type": "integer"},
+							"y":      map[string]any{"type": "integer"},
+							"width":  map[string]any{"type": "integer"},
+							"height": map[string]any{"type": "integer"},
+						},
+						"required": []string{"x", "y", "width", "height"},
+					},
 				},
 			},
 		},
@@ -92,6 +114,16 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 	sourceName, src, errMsg := t.resolveSource(args)
 	if errMsg != "" {
 		return fail(errMsg)
+	}
+
+	if region, ok := parseRegion(args); ok {
+		if sourceName != "screen" {
+			return fail(fmt.Sprintf("region zoom is only supported for the \"screen\" source, not %q", sourceName))
+		}
+		if waitMsg := t.checkRateLimit("screen-region"); waitMsg != "" {
+			return fail(waitMsg)
+		}
+		return t.regionResult(ctx, args, region, start, fail)
 	}
 
 	if waitMsg := t.checkRateLimit(sourceName); waitMsg != "" {
@@ -231,6 +263,126 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 	}, nil
 }
 
+// parseRegion extracts the optional region argument (frame coordinate space).
+func parseRegion(args map[string]any) (domain.ScreenRegion, bool) {
+	raw, ok := args["region"].(map[string]any)
+	if !ok {
+		return domain.ScreenRegion{}, false
+	}
+	num := func(key string) int {
+		f, _ := raw[key].(float64)
+		return int(f)
+	}
+	return domain.ScreenRegion{X: num("x"), Y: num("y"), Width: num("width"), Height: num("height")}, true
+}
+
+// regionResult re-captures a sub-region of the screen at native resolution.
+// Small UI (Dock icons, dense toolbars) is unreadable in the downscaled full
+// frame, so the annotator gets the crop at full detail; element coordinates
+// are translated back into the standard frame space before returning.
+func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]any, region domain.ScreenRegion, start time.Time, fail func(string) (*domain.ToolExecutionResult, error)) (*domain.ToolExecutionResult, error) {
+	displayProvider, err := display.DetectDisplay()
+	if err != nil {
+		return fail(fmt.Sprintf("no compatible display platform detected: %v", err))
+	}
+	controller, err := displayProvider.GetController()
+	if err != nil {
+		return fail(fmt.Sprintf("failed to get platform controller: %v", err))
+	}
+	defer func() { _ = controller.Close() }()
+
+	screenW, screenH, err := controller.GetScreenDimensions(ctx)
+	if err != nil {
+		return fail(err.Error())
+	}
+	frameW, frameH := t.config.ComputerUse.Screenshot.FitDims(screenW, screenH)
+	if region.Width <= 0 || region.Height <= 0 || region.X < 0 || region.Y < 0 ||
+		region.X+region.Width > frameW || region.Y+region.Height > frameH {
+		return fail(fmt.Sprintf("region [x=%d y=%d w=%d h=%d] is outside the %dx%d frame coordinate space", region.X, region.Y, region.Width, region.Height, frameW, frameH))
+	}
+
+	scale := float64(screenW) / float64(frameW)
+	crop := display.Region{
+		X:      int(float64(region.X) * scale),
+		Y:      int(float64(region.Y) * scale),
+		Width:  int(math.Ceil(float64(region.Width) * scale)),
+		Height: int(math.Ceil(float64(region.Height) * scale)),
+	}
+	crop.Width = min(crop.Width, screenW-crop.X)
+	crop.Height = min(crop.Height, screenH-crop.Y)
+
+	img, err := controller.CaptureScreen(ctx, &crop)
+	if err != nil {
+		return fail(fmt.Sprintf("failed to capture region: %v", err))
+	}
+
+	cropW, cropH := img.Bounds().Dx(), img.Bounds().Dy()
+	if s := math.Min(annotatorMaxLongEdge/float64(max(cropW, cropH)), math.Sqrt(annotatorMaxPixels/float64(cropW*cropH))); s < 1 {
+		cropW, cropH = int(float64(cropW)*s), int(float64(cropH)*s)
+		img = display.ResizeImage(img, cropW, cropH)
+	}
+
+	quality := t.config.ComputerUse.Screenshot.Quality
+	if quality <= 0 || quality > 100 {
+		quality = 85
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return fail(fmt.Sprintf("failed to encode region: %v", err))
+	}
+	t.recordCall("screen-region")
+
+	attachment := domain.ImageAttachment{
+		Data:        base64.StdEncoding.EncodeToString(buf.Bytes()),
+		MimeType:    "image/jpeg",
+		DisplayName: "frame-screen-region",
+	}
+	result := domain.FrameToolResult{
+		Source: "screen",
+		Width:  frameW,
+		Height: frameH,
+		Format: "jpeg",
+		Method: "region",
+		Region: &region,
+	}
+	success := func() (*domain.ToolExecutionResult, error) {
+		return &domain.ToolExecutionResult{
+			ToolName:  "GetLatestFrame",
+			Arguments: args,
+			Success:   true,
+			Duration:  time.Since(start),
+			Data:      result,
+			Images:    []domain.ImageAttachment{attachment},
+		}, nil
+	}
+
+	if !t.wantAnnotated(args) || t.annotator == nil {
+		result.Note = fmt.Sprintf("attached crop is %dx%d px covering frame region [x=%d y=%d w=%d h=%d]; to click something seen in the crop: frame_x = %d + crop_x*%d/%d, frame_y = %d + crop_y*%d/%d", cropW, cropH, region.X, region.Y, region.Width, region.Height, region.X, region.Width, cropW, region.Y, region.Height, cropH)
+		return success()
+	}
+
+	annotation, err := t.annotator.AnnotateImage(ctx, attachment, domain.AnnotateOptions{
+		Prompt: t.annotationPrompt("screen"),
+		Width:  cropW,
+		Height: cropH,
+	})
+	if err != nil {
+		result.Note = fmt.Sprintf("annotation failed: %v; returned the regular region crop", err)
+		return success()
+	}
+
+	for i := range annotation.Elements {
+		b := &annotation.Elements[i].BBox
+		b[0] = region.X + b[0]*region.Width/cropW
+		b[2] = region.X + b[2]*region.Width/cropW
+		b[1] = region.Y + b[1]*region.Height/cropH
+		b[3] = region.Y + b[3]*region.Height/cropH
+	}
+	result.Annotated = true
+	result.Annotation = annotation
+	return success()
+}
+
 // annotationPrompt resolves the task prompt for a source: per-source override,
 // the screen prompt for the screen source, the scene prompt otherwise.
 func (t *GetLatestFrameTool) annotationPrompt(source string) string {
@@ -247,6 +399,17 @@ func (t *GetLatestFrameTool) annotationPrompt(source string) string {
 func (t *GetLatestFrameTool) Validate(args map[string]any) error {
 	if format, ok := args["format"].(string); ok && format != "" && format != "regular" && format != "annotated" {
 		return fmt.Errorf("invalid format %q: must be \"regular\" or \"annotated\"", format)
+	}
+	if raw, ok := args["region"]; ok {
+		obj, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("region must be an object with x, y, width, height")
+		}
+		for _, key := range []string{"x", "y", "width", "height"} {
+			if _, ok := obj[key].(float64); !ok {
+				return fmt.Errorf("region.%s must be an integer", key)
+			}
+		}
 	}
 	return nil
 }

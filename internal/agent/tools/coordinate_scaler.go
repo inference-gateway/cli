@@ -5,17 +5,15 @@ import (
 	"math"
 )
 
-// ScaleAPIToScreen converts coordinates from API space (Claude's screenshot)
-// to screen space (actual display) using Anthropic's proportional scaling approach.
-//
-// This implementation follows the official Anthropic computer-use-demo strategy:
-// - Simple proportional scaling with separate X/Y factors
-// - No letterboxing - screenshots are force-resized to exact dimensions
-// - Handles aspect ratio mismatches automatically through independent scaling
+// ScaleAPIToScreen converts coordinates from API space (the model's screenshot)
+// to screen space (actual display) with proportional scaling. Frames are
+// resized uniformly (ScreenshotToolConfig.FitDims), so the X and Y factors
+// are equal in practice; independent factors are kept for identity mapping
+// when no resize happened.
 //
 // Parameters:
-//   - apiX, apiY: Coordinates from Claude's response (in screenshot space)
-//   - apiWidth, apiHeight: Target screenshot dimensions (e.g., 1024x768)
+//   - apiX, apiY: Coordinates from the model's response (in screenshot space)
+//   - apiWidth, apiHeight: Screenshot dimensions from FitDims
 //   - screenWidth, screenHeight: Actual logical screen dimensions
 //
 // Returns:

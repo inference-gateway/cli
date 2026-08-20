@@ -945,7 +945,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Annotator: VisionAnnotatorConfig{
 				Enabled:   false,
 				Model:     "anthropic/claude-haiku-4-5-20251001",
-				MaxTokens: 1024,
+				MaxTokens: 4096,
 				Timeout:   120,
 			},
 			Sources: map[string]VisionSourceConfig{},

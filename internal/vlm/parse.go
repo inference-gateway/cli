@@ -6,6 +6,7 @@ package vlm
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -34,5 +35,33 @@ func parseAnnotation(raw string) *domain.ImageAnnotation {
 	if err := json.Unmarshal([]byte(candidate), &annotation); err == nil && annotation.Summary != "" {
 		return &annotation
 	}
+	if salvaged := salvageAnnotation(candidate); salvaged != nil {
+		return salvaged
+	}
 	return &domain.ImageAnnotation{Summary: text}
+}
+
+var (
+	summaryRe = regexp.MustCompile(`"summary"\s*:\s*("(?:[^"\\]|\\.)*")`)
+	elementRe = regexp.MustCompile(`\{[^{}]*"bbox"\s*:\s*\[[^\]]*\][^{}]*\}`)
+)
+
+// salvageAnnotation recovers what it can from a malformed reply (LLM JSON
+// glitches, truncation): the summary string plus every element object that
+// unmarshals on its own. Returns nil when nothing usable is found.
+func salvageAnnotation(candidate string) *domain.ImageAnnotation {
+	annotation := domain.ImageAnnotation{}
+	if m := summaryRe.FindStringSubmatch(candidate); m != nil {
+		_ = json.Unmarshal([]byte(m[1]), &annotation.Summary)
+	}
+	for _, raw := range elementRe.FindAllString(candidate, -1) {
+		var el domain.AnnotatedElement
+		if err := json.Unmarshal([]byte(raw), &el); err == nil {
+			annotation.Elements = append(annotation.Elements, el)
+		}
+	}
+	if annotation.Summary == "" && len(annotation.Elements) == 0 {
+		return nil
+	}
+	return &annotation
 }

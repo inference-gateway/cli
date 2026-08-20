@@ -201,6 +201,30 @@ screenshot:
 	}
 }
 
+func TestFitDims(t *testing.T) {
+	tests := []struct {
+		name             string
+		targetW, targetH int
+		screenW, screenH int
+		wantW, wantH     int
+	}{
+		{"16:10 retina is width-limited", 1024, 768, 1512, 982, 1024, 665},
+		{"4:3 screen fills the box", 1024, 768, 2048, 1536, 1024, 768},
+		{"tall screen is height-limited", 1024, 768, 900, 1600, 432, 768},
+		{"small screen is untouched", 1024, 768, 800, 600, 800, 600},
+		{"no target returns screen dims", 0, 0, 1512, 982, 1512, 982},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.ScreenshotToolConfig{TargetWidth: tt.targetW, TargetHeight: tt.targetH}
+			w, h := cfg.FitDims(tt.screenW, tt.screenH)
+			if w != tt.wantW || h != tt.wantH {
+				t.Errorf("FitDims(%d,%d) = (%d,%d), want (%d,%d)", tt.screenW, tt.screenH, w, h, tt.wantW, tt.wantH)
+			}
+		})
+	}
+}
+
 func TestSaveComputerUse(t *testing.T) {
 	roundTrip := &config.ComputerUseConfig{
 		Enabled: true,
