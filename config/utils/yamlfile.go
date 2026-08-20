@@ -40,6 +40,30 @@ func LoadYAML[T any](path, label string, defaults func() *T) (*T, error) {
 	return cfg, nil
 }
 
+// LoadYAMLMerged is LoadYAML except the file is decoded OVER the defaults,
+// so keys absent from an existing file keep their default value instead of
+// the zero value. Use it for configs where new fields must not silently load
+// as false/0 for users whose file was seeded before the field existed (e.g.
+// a computer-use tool added after their computer_use.yaml was written).
+func LoadYAMLMerged[T any](path, label string, defaults func() *T) (*T, error) {
+	cfg := defaults()
+
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return cfg, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s config: %w", label, err)
+	}
+
+	expanded := os.ExpandEnv(string(data))
+	if err := yaml.Unmarshal([]byte(expanded), cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s config: %w", label, err)
+	}
+
+	return cfg, nil
+}
+
 // SaveYAML writes cfg to path, creating any missing parent directories.
 // It always emits the YAML document marker `---\n` and uses 2-space indent.
 func SaveYAML[T any](path, label string, cfg *T) error {
