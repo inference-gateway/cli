@@ -6,9 +6,14 @@ import (
 	"slices"
 	"strings"
 
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	tree "github.com/inference-gateway/cli/internal/ui/styles/tree"
+	tree "charm.land/lipgloss/v2/tree"
+)
+
+// Status glyphs shared by the formatters. Plain runes, no styling: color is
+// applied by the UI layer (services.ToolFormatterService), never here.
+const (
+	checkMark = "✓"
+	crossMark = "✗"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed
@@ -61,20 +66,12 @@ func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string
 	return fmt.Sprintf("%s(%s)", f.toolName, f.joinArgs(argPairs))
 }
 
-// FormatStatus returns a formatted status with icon
-func (f BaseFormatter) FormatStatus(success bool) string {
-	if success {
-		return colors.CreateColoredTextSimple(icons.CheckMark+" Success", colors.Green)
-	}
-	return colors.CreateColoredTextSimple(icons.CrossMark+" Failed", colors.Red)
-}
-
 // FormatStatusIcon returns just the status icon
 func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	if success {
-		return icons.CheckMark
+		return checkMark
 	}
-	return icons.CrossMark
+	return crossMark
 }
 
 // FormatDuration formats a duration for display in a human-friendly way
@@ -189,13 +186,11 @@ func (f CustomFormatter) argValue(key string, value any) string {
 // source of the ├──/╰── connectors, replacing the per-method hand drawing.
 func renderExpandedTree(toolCall string, result *ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
 	base := BaseFormatter{}
-	t := tree.Root(toolCall).Rounded()
+	t := tree.Root(toolCall).Enumerator(tree.RoundedEnumerator)
 
-	// Plain status (glyph only, no ANSI): this tree feeds the LLM/headless path
-	// as-is, and the UI re-themes it via services.themeTreeLines.
-	status := icons.CheckMark + " Success"
+	status := checkMark + " Success"
 	if !result.Success {
-		status = icons.CrossMark + " Failed"
+		status = crossMark + " Failed"
 	}
 	t.Child("Duration: " + base.FormatDuration(result))
 	t.Child("Status: " + status)
