@@ -9,7 +9,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -644,13 +643,13 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	case result.Success && result.Arguments != nil && result.Data != nil:
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
+		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
 		diffInfo := t.getActualDiffInfo(result)
 		dataContent = diffRenderer.RenderDiff(*diffInfo)
 	case !result.Success && result.Arguments != nil:
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
+		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Simulated diff preview →"
 		dataContent = diffRenderer.RenderDiff(*diffInfo)
@@ -716,12 +715,12 @@ func (t *MultiEditTool) ShouldAlwaysExpand() bool {
 }
 
 // getActualDiffInfo creates a clean summary view for successful executions
-func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *components.DiffInfo {
+func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *styles.DiffInfo {
 	filePath, _ := result.Arguments["file_path"].(string)
 
 	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
 	if !ok {
-		return &components.DiffInfo{
+		return &styles.DiffInfo{
 			FilePath:   filePath,
 			OldContent: "",
 			NewContent: "Multi-edit completed successfully",
@@ -740,7 +739,7 @@ func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *c
 		}
 	}
 
-	return &components.DiffInfo{
+	return &styles.DiffInfo{
 		FilePath:   filePath,
 		OldContent: "",
 		NewContent: strings.TrimSpace(summary.String()),
@@ -749,13 +748,13 @@ func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *c
 }
 
 // GetDiffInfo implements the DiffFormatter interface
-func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
+func (t *MultiEditTool) GetDiffInfo(args map[string]any) *styles.DiffInfo {
 	filePath, _ := args["file_path"].(string)
 	editsInterface := args["edits"]
 
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
-		return &components.DiffInfo{
+		return &styles.DiffInfo{
 			FilePath:   filePath,
 			OldContent: "",
 			NewContent: "Invalid edits format",
@@ -784,7 +783,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 
 		if !strings.Contains(currentContent, oldString) {
-			return &components.DiffInfo{
+			return &styles.DiffInfo{
 				FilePath:   filePath,
 				OldContent: originalContent,
 				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
@@ -797,7 +796,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		} else {
 			count := strings.Count(currentContent, oldString)
 			if count > 1 {
-				return &components.DiffInfo{
+				return &styles.DiffInfo{
 					FilePath:   filePath,
 					OldContent: originalContent,
 					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
@@ -808,7 +807,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 	}
 
-	return &components.DiffInfo{
+	return &styles.DiffInfo{
 		FilePath:   filePath,
 		OldContent: originalContent,
 		NewContent: currentContent,

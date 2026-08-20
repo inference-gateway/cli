@@ -1,11 +1,10 @@
-package components
+package styles
 
 import (
 	"strings"
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // stripANSI removes ANSI escape sequences so tests can assert against the
@@ -27,7 +26,7 @@ func stripANSI(s string) string {
 
 func TestDiffRenderer_RenderDiff(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("New file creation", func(t *testing.T) {
@@ -100,7 +99,7 @@ func TestDiffRenderer_RenderDiff(t *testing.T) {
 // as both add+delete.
 func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	before := "alpha\nbeta\ngamma\ndelta\nepsilon\n"
@@ -125,7 +124,7 @@ func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
 // SetContextLines(2) trims to the 2 nearest unchanged lines on each side.
 func TestDiffRenderer_SetContextLines(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 
 	before := "alpha\nbravo\ncharlie\ndelta\necho_OLD\nfoxtrot\ngolf\nhotel\nindia\n"
 	after := "alpha\nbravo\ncharlie\ndelta\necho_NEW\nfoxtrot\ngolf\nhotel\nindia\n"
@@ -157,7 +156,7 @@ func TestDiffRenderer_SetContextLines(t *testing.T) {
 
 func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("Multiple edits", func(t *testing.T) {
@@ -218,7 +217,7 @@ func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 // the default caps at 50 with a "more lines" footer, a trailing newline does not
 // produce a phantom extra line, and SetMaxLines(-1) renders every line uncapped.
 func TestDiffRenderer_WriteNewFilePreviewCap(t *testing.T) {
-	styleProvider := styles.NewProvider(domain.NewThemeProvider())
+	styleProvider := NewProvider(domain.NewThemeProvider())
 
 	var b strings.Builder
 	for i := 1; i <= 50; i++ {
@@ -255,7 +254,7 @@ func TestDiffRenderer_WriteNewFilePreviewCap(t *testing.T) {
 
 func TestDiffRenderer_Construction(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 
 	if NewDiffRenderer(styleProvider) == nil {
 		t.Fatal("NewDiffRenderer returned nil")
@@ -279,7 +278,7 @@ func TestDiffRenderer_Construction(t *testing.T) {
 // highlighting on a .go diff preserves the Go source content (no data loss).
 func TestDiffRenderer_SyntaxHighlight_KnownLanguage(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	content := "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"
@@ -301,7 +300,7 @@ func TestDiffRenderer_SyntaxHighlight_KnownLanguage(t *testing.T) {
 // with an unknown file extension render without error (plain fallback).
 func TestDiffRenderer_SyntaxHighlight_UnknownExtension(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	content := "some content\n"
@@ -321,7 +320,7 @@ func TestDiffRenderer_SyntaxHighlight_UnknownExtension(t *testing.T) {
 // skips highlighting cleanly.
 func TestDiffRenderer_SyntaxHighlight_NilStyle(t *testing.T) {
 	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
+	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
 	args := map[string]any{

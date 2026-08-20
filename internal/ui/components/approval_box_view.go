@@ -286,7 +286,7 @@ func (av *ApprovalBoxView) highlightSummary(summary string) string {
 }
 
 // renderDiffPreview renders the file diff for the mutating tools using the shared,
-// theme-aware DiffRenderer (same package). The second return is false for any other
+// theme-aware styles.DiffRenderer. The second return is false for any other
 // tool so the caller falls back to the one-liner summary. The diff is sized to the
 // box width and capped to a bounded number of lines (see capLines).
 //
@@ -294,12 +294,12 @@ func (av *ApprovalBoxView) highlightSummary(summary string) string {
 // this package for the diff renderer, so importing it back for its name constants
 // would create an import cycle.
 func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
-	renderer := NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
+	renderer := styles.NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
 
 	var rendered string
 	switch toolName {
 	case "Edit":
-		rendered = renderer.SetContextLines(InlineDiffContextLines).RenderEditToolArguments(args)
+		rendered = renderer.SetContextLines(styles.InlineDiffContextLines).RenderEditToolArguments(args)
 	case "MultiEdit":
 		rendered = renderer.RenderMultiEditToolArguments(args)
 	case "Write":

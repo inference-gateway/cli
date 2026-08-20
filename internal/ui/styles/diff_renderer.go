@@ -1,4 +1,4 @@
-package components
+package styles
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // InlineDiffContextLines is the unchanged-context line count shown above/below
@@ -25,7 +24,7 @@ const InlineDiffContextLines = 2
 // to the diffview package. The internal renderer there uses go-udiff for a
 // correct LCS-based diff algorithm and optional chroma syntax highlighting.
 type DiffRenderer struct {
-	styleProvider *styles.Provider
+	styleProvider *Provider
 	width         int
 	contextLines  int
 	maxLines      int
@@ -46,12 +45,12 @@ type DiffInfo struct {
 }
 
 // NewDiffRenderer creates a new diff renderer with colored output.
-func NewDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
+func NewDiffRenderer(styleProvider *Provider) *DiffRenderer {
 	return &DiffRenderer{styleProvider: styleProvider}
 }
 
 // NewToolDiffRenderer creates a tool diff renderer (alias for NewDiffRenderer).
-func NewToolDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
+func NewToolDiffRenderer(styleProvider *Provider) *DiffRenderer {
 	return NewDiffRenderer(styleProvider)
 }
 
@@ -159,7 +158,7 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 	var out strings.Builder
 	out.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
 	out.WriteString("\n\n")
-	out.WriteString(d.styleProvider.RenderStyledText(" NEW FILE ", styles.StyleOptions{
+	out.WriteString(d.styleProvider.RenderStyledText(" NEW FILE ", StyleOptions{
 		Background: d.styleProvider.GetThemeColor("success"),
 		Foreground: "#000000",
 		Bold:       true,
@@ -177,7 +176,7 @@ func (d *DiffRenderer) RenderDiff(info DiffInfo) string {
 	var out strings.Builder
 
 	if info.Title != "" {
-		out.WriteString(d.styleProvider.RenderStyledText(info.Title, styles.StyleOptions{
+		out.WriteString(d.styleProvider.RenderStyledText(info.Title, StyleOptions{
 			Foreground: d.styleProvider.GetThemeColor("accent"),
 			Bold:       true,
 		}))
@@ -246,7 +245,7 @@ func editFileContents(filePath, oldString, newString string, replaceAll bool) (b
 	return before, after, true
 }
 
-func snippetStartLine(filePath, oldString string) int {
+func SnippetStartLine(filePath, oldString string) int {
 	if oldString == "" {
 		return 0
 	}
@@ -305,7 +304,7 @@ func (d *DiffRenderer) diffStyle() diffview.Style {
 		Remove: theme.GetDiffRemoveColor(),
 		Accent: theme.GetAccentColor(),
 		Dim:    theme.GetDimColor(),
-		Dark:   !isLightTheme(theme),
+		Dark:   !IsLightTheme(theme),
 	})
 }
 
@@ -316,7 +315,7 @@ func (d *DiffRenderer) chromaStyle() *chroma.Style {
 	if theme == nil {
 		return nil
 	}
-	if isLightTheme(theme) {
+	if IsLightTheme(theme) {
 		return chromastyles.Get("github")
 	}
 	return chromastyles.Get("github-dark")
@@ -332,15 +331,15 @@ func (d *DiffRenderer) themeOrNil() domain.Theme {
 // isLightTheme classifies the theme by the luminance of its assistant
 // (primary text) color. Dark themes have light text (high luminance); light
 // themes have dark text (low luminance).
-func isLightTheme(theme domain.Theme) bool {
+func IsLightTheme(theme domain.Theme) bool {
 	return hexLuminance(theme.GetAssistantColor()) < 0.5
 }
 
 // themeIsDark reports whether the active theme is dark, defaulting to dark when no
 // theme is set. Used to pick the embedded editor's background.
-func themeIsDark(sp *styles.Provider) bool {
+func ThemeIsDark(sp *Provider) bool {
 	theme := sp.GetCurrentTheme()
-	return theme == nil || !isLightTheme(theme)
+	return theme == nil || !IsLightTheme(theme)
 }
 
 // hexLuminance returns the relative luminance of a "#RRGGBB" string in [0,1].
@@ -378,7 +377,7 @@ func (d *DiffRenderer) renderContentPreview(filePath, content string) string {
 			remaining := len(lines) - i
 			out.WriteString(d.styleProvider.RenderStyledText(
 				fmt.Sprintf("\n... %d more lines ...", remaining),
-				styles.StyleOptions{Foreground: d.styleProvider.GetThemeColor("dim"), Italic: true},
+				StyleOptions{Foreground: d.styleProvider.GetThemeColor("dim"), Italic: true},
 			))
 			break
 		}

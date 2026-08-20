@@ -140,7 +140,7 @@ type DiffViewerImpl struct {
 	source        gitdiff.Source
 	styleProvider *styles.Provider
 	themeService  domain.ThemeService
-	diffRenderer  *DiffRenderer
+	diffRenderer  *styles.DiffRenderer
 	keymap        diffKeymap
 
 	width        int
@@ -202,7 +202,7 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 		source:         source,
 		styleProvider:  styleProvider,
 		themeService:   themeService,
-		diffRenderer:   NewDiffRenderer(styleProvider),
+		diffRenderer:   styles.NewDiffRenderer(styleProvider),
 		keymap:         newDiffKeymap(kb, config.NamespaceDiffViewer),
 		collapsed:      make(map[string]bool),
 		viewport:       vp,
@@ -704,7 +704,7 @@ func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
 	}
 	workdir := t.readSource().Workdir()
 	abs := filepath.Join(workdir, fc.Path)
-	editor, readCmd, err := startPTYEditor(abs, workdir, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
+	editor, readCmd, err := startPTYEditor(abs, workdir, t.paneWidth, max(t.height-1, 1), styles.ThemeIsDark(t.styleProvider))
 	if err != nil {
 		t.patchMsg = "Failed to open editor: " + err.Error()
 		return nil
@@ -1534,7 +1534,7 @@ func (t *DiffViewerImpl) computeDiff(fc gitdiff.FileChange, width int) string {
 		return t.styleProvider.RenderDimText("⊘ Binary or large file - not shown")
 	}
 
-	info := DiffInfo{FilePath: fc.Path, OldContent: oldContent, NewContent: newContent}
+	info := styles.DiffInfo{FilePath: fc.Path, OldContent: oldContent, NewContent: newContent}
 	if fc.OrigPath != "" {
 		info.Title = fc.OrigPath + " → " + fc.Path
 	}

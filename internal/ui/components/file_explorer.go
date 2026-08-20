@@ -441,7 +441,7 @@ func (t *FileExplorerImpl) enterEditCmd() tea.Cmd {
 		return nil
 	}
 	abs := filepath.Join(t.root, rel)
-	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
+	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1), styles.ThemeIsDark(t.styleProvider))
 	if err != nil {
 		t.loadErr = fmt.Errorf("failed to open editor: %w", err)
 		return nil
@@ -957,7 +957,7 @@ func (t *FileExplorerImpl) selectedFilePath() string {
 
 // chromaStyle picks a chroma highlighting style by the active theme's brightness.
 func (t *FileExplorerImpl) chromaStyle() *chroma.Style {
-	if theme := t.styleProvider.GetCurrentTheme(); theme != nil && isLightTheme(theme) {
+	if theme := t.styleProvider.GetCurrentTheme(); theme != nil && styles.IsLightTheme(theme) {
 		return chromastyles.Get("github")
 	}
 	return chromastyles.Get("github-dark")

@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	components "github.com/inference-gateway/cli/internal/ui/components"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -467,8 +466,8 @@ func generateDiff(oldContent, newContent string) string {
 		return ""
 	}
 
-	contextBefore := components.InlineDiffContextLines
-	contextAfter := components.InlineDiffContextLines
+	contextBefore := styles.InlineDiffContextLines
+	contextAfter := styles.InlineDiffContextLines
 	startLine := firstChanged - contextBefore
 	if startLine < 0 {
 		startLine = 0
@@ -614,7 +613,7 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if showGitDiff {
 		themeService := domain.NewThemeProvider()
 		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
+		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
 		if editResult, ok := result.Data.(*domain.EditToolResult); ok {
 			diffRenderer.SetStartLine(editResult.StartLine)
 		}
@@ -665,12 +664,12 @@ func (t *EditTool) formatEditData(data any) string {
 }
 
 // GetDiffInfo implements the DiffFormatter interface
-func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
+func (t *EditTool) GetDiffInfo(args map[string]any) *styles.DiffInfo {
 	oldString, _ := args["old_string"].(string)
 	newString, _ := args["new_string"].(string)
 	filePath, _ := args["file_path"].(string)
 
-	return &components.DiffInfo{
+	return &styles.DiffInfo{
 		FilePath:   filePath,
 		OldContent: oldString,
 		NewContent: newString,
