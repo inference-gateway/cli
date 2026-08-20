@@ -3,8 +3,6 @@ package styles
 import (
 	"strings"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // stripANSI removes ANSI escape sequences so tests can assert against the
@@ -25,7 +23,7 @@ func stripANSI(s string) string {
 }
 
 func TestDiffRenderer_RenderDiff(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
@@ -98,7 +96,7 @@ func TestDiffRenderer_RenderDiff(t *testing.T) {
 // algorithm bug: the old renderer marked every line after a mid-file insert
 // as both add+delete.
 func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
@@ -123,7 +121,7 @@ func TestDiffRenderer_MidFileInsertRegression(t *testing.T) {
 // the default keeps diffview's 3 lines of context around a change, while
 // SetContextLines(2) trims to the 2 nearest unchanged lines on each side.
 func TestDiffRenderer_SetContextLines(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 
 	before := "alpha\nbravo\ncharlie\ndelta\necho_OLD\nfoxtrot\ngolf\nhotel\nindia\n"
@@ -155,7 +153,7 @@ func TestDiffRenderer_SetContextLines(t *testing.T) {
 }
 
 func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
@@ -217,7 +215,7 @@ func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 // the default caps at 50 with a "more lines" footer, a trailing newline does not
 // produce a phantom extra line, and SetMaxLines(-1) renders every line uncapped.
 func TestDiffRenderer_WriteNewFilePreviewCap(t *testing.T) {
-	styleProvider := NewProvider(domain.NewThemeProvider())
+	styleProvider := NewProvider(NewThemeProvider())
 
 	var b strings.Builder
 	for i := 1; i <= 50; i++ {
@@ -253,7 +251,7 @@ func TestDiffRenderer_WriteNewFilePreviewCap(t *testing.T) {
 }
 
 func TestDiffRenderer_Construction(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 
 	if NewDiffRenderer(styleProvider) == nil {
@@ -277,7 +275,7 @@ func TestDiffRenderer_Construction(t *testing.T) {
 // TestDiffRenderer_SyntaxHighlight_KnownLanguage verifies that syntax
 // highlighting on a .go diff preserves the Go source content (no data loss).
 func TestDiffRenderer_SyntaxHighlight_KnownLanguage(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
@@ -299,7 +297,7 @@ func TestDiffRenderer_SyntaxHighlight_KnownLanguage(t *testing.T) {
 // TestDiffRenderer_SyntaxHighlight_UnknownExtension verifies that diffs
 // with an unknown file extension render without error (plain fallback).
 func TestDiffRenderer_SyntaxHighlight_UnknownExtension(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 
@@ -319,7 +317,7 @@ func TestDiffRenderer_SyntaxHighlight_UnknownExtension(t *testing.T) {
 // crashing — the chroma guard in buildDiffView and renderContentPreview
 // skips highlighting cleanly.
 func TestDiffRenderer_SyntaxHighlight_NilStyle(t *testing.T) {
-	themeService := domain.NewThemeProvider()
+	themeService := NewThemeProvider()
 	styleProvider := NewProvider(themeService)
 	renderer := NewDiffRenderer(styleProvider)
 

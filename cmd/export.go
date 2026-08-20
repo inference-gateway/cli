@@ -45,7 +45,7 @@ func runExport(sessionID string) error {
 	}
 
 	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
-	themeService := domain.NewThemeProvider()
+	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 	pricingService := services.NewPricingService(&cfg.Pricing)

@@ -623,7 +623,7 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	themeProvider := domain.NewThemeProvider()
+	themeProvider := styles.NewThemeProvider()
 
 	if configuredTheme := c.config.GetTheme(); configuredTheme != "" {
 		if err := themeProvider.SetTheme(configuredTheme); err != nil {

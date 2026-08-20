@@ -81,7 +81,7 @@ func (f *fakeDiffSource) Discard(fc gitdiff.FileChange) error {
 }
 
 func newTestDiffViewer(src *fakeDiffSource) *DiffViewerImpl {
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	v := NewDiffViewer(src, styles.NewProvider(ts), ts, config.KeybindingsConfig{})
 	v.SetWidth(120)
 	v.SetHeight(40)
@@ -502,7 +502,7 @@ func TestDiffViewer_ConfigurableKeybinding(t *testing.T) {
 		unstaged: []gitdiff.FileChange{{Path: "a.go", Status: gitdiff.StatusModified}},
 		diffs:    map[string][2]string{},
 	}
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	kb := config.KeybindingsConfig{Bindings: map[string]config.KeyBindingEntry{
 		config.ActionID(config.NamespaceDiffViewer, "stage"): {Keys: []string{"g"}},
 	}}

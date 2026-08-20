@@ -36,7 +36,7 @@ func TestQuestionFormReproChain(t *testing.T) {
 		t.Fatalf("coordinator did not set the shared user question state: %+v", st)
 	}
 
-	fv := components.NewQuestionFormView(styles.NewProvider(domain.NewThemeProvider()), sm)
+	fv := components.NewQuestionFormView(styles.NewProvider(styles.NewThemeProvider()), sm)
 	fv.SetWidth(80)
 	_ = fv.Begin()
 	if out := fv.Render(); !strings.Contains(out, "Backend") || !strings.Contains(out, "sqlite") {

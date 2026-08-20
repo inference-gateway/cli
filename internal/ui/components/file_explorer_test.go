@@ -12,13 +12,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 func newTestExplorer(t *testing.T, root string) *FileExplorerImpl {
 	t.Helper()
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	e := NewFileExplorer(root, styles.NewProvider(ts), ts, config.KeybindingsConfig{})
 	e.SetWidth(120)
 	e.SetHeight(40)

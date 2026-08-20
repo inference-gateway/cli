@@ -5,15 +5,13 @@ import (
 	"testing"
 
 	lipgloss "charm.land/lipgloss/v2"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestRenderTitledCard checks the card frames content with a rounded border, splices
 // the title into the top border, keeps every line the same width, and renders the
 // requested content inside.
 func TestRenderTitledCard(t *testing.T) {
-	p := NewProvider(domain.NewThemeProvider())
+	p := NewProvider(NewThemeProvider())
 
 	out := p.RenderTitledCard("hello\nworld", "Bash", p.GetThemeColor("border"), p.GetThemeColor("accent"), 40)
 	plain := stripSGR(out)
@@ -62,7 +60,7 @@ func stripSGR(s string) string {
 // must be stable while the theme is unchanged and pick up a SetTheme switch
 // on the next call without any explicit invalidation.
 func TestProviderStyleCache(t *testing.T) {
-	ts := domain.NewThemeProvider()
+	ts := NewThemeProvider()
 	p := NewProvider(ts)
 
 	first := p.RenderErrorText("boom")
