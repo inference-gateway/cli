@@ -16,6 +16,17 @@ import (
 )
 
 // InputStatusBar displays input status information like model, theme, agents
+// AgentReadinessManager handles A2A agent readiness tracking
+type AgentReadinessManager interface {
+	InitializeAgentReadiness(totalAgents int)
+	UpdateAgentStatus(name string, state domain.AgentState, message string, url string, image string)
+	SetAgentError(name string, err error)
+	GetAgentReadiness() *domain.AgentReadinessState
+	AreAllAgentsReady() bool
+	ClearAgentReadiness()
+	RemoveAgent(name string)
+}
+
 type InputStatusBar struct {
 	width                  int
 	modelService           domain.ModelService
@@ -80,7 +91,7 @@ func (isb *InputStatusBar) SetThemeService(themeService domain.ThemeService) {
 // statusBarState is the narrow slice of StateManager the input status bar reads.
 type statusBarState interface {
 	domain.AgentModeManager
-	domain.AgentReadinessManager
+	AgentReadinessManager
 }
 
 // SetStateManager sets the state manager

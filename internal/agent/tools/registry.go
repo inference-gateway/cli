@@ -40,6 +40,16 @@ import (
 // every configured MCP server - see issue #523.
 
 // Registry manages all available tools
+// FocusManager handles macOS computer-use focus tracking
+type FocusManager interface {
+	SetLastFocusedApp(appID string)
+	GetLastFocusedApp() string
+	ClearLastFocusedApp()
+	SetLastClickCoordinates(x, y int)
+	GetLastClickCoordinates() (x, y int)
+	ClearLastClickCoordinates()
+}
+
 type Registry struct {
 	config          *config.Config
 	toolsMu         sync.RWMutex
@@ -70,7 +80,7 @@ type Registry struct {
 // those tools.
 type computerUseState interface {
 	domain.EventBridgeManager
-	domain.FocusManager
+	FocusManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.

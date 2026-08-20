@@ -46,6 +46,25 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/vlm"
 )
 
+// GatewayManager manages the lifecycle of the gateway (container or binary)
+type GatewayManager interface {
+	// Start starts the gateway container or binary if configured to run locally
+	Start(ctx context.Context) error
+
+	// Stop stops the gateway container or binary
+	Stop(ctx context.Context) error
+
+	// IsRunning returns whether the gateway is running
+	IsRunning() bool
+
+	// GetGatewayURL returns the actual gateway URL with the assigned port
+	GetGatewayURL() string
+
+	// EnsureStarted starts the gateway if configured and not already running
+	// This is a convenience method that checks config and running state before starting
+	EnsureStarted() error
+}
+
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Session
@@ -84,7 +103,7 @@ type ServiceContainer struct {
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
-	gatewayManager         domain.GatewayManager
+	gatewayManager         GatewayManager
 	mockGateway            *http.Server
 	agentManager           domain.AgentManager
 
@@ -939,7 +958,7 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 }
 
 // GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() domain.GatewayManager {
+func (c *ServiceContainer) GetGatewayManager() GatewayManager {
 	return c.gatewayManager
 }
 

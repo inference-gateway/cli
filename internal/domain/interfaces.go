@@ -449,27 +449,6 @@ type TodoManager interface {
 	GetTodos() []TodoItem
 }
 
-// AgentReadinessManager handles A2A agent readiness tracking
-type AgentReadinessManager interface {
-	InitializeAgentReadiness(totalAgents int)
-	UpdateAgentStatus(name string, state AgentState, message string, url string, image string)
-	SetAgentError(name string, err error)
-	GetAgentReadiness() *AgentReadinessState
-	AreAllAgentsReady() bool
-	ClearAgentReadiness()
-	RemoveAgent(name string)
-}
-
-// FocusManager handles macOS computer-use focus tracking
-type FocusManager interface {
-	SetLastFocusedApp(appID string)
-	GetLastFocusedApp() string
-	ClearLastFocusedApp()
-	SetLastClickCoordinates(x, y int)
-	GetLastClickCoordinates() (x, y int)
-	ClearLastClickCoordinates()
-}
-
 // ComputerUsePauseManager handles computer use pause state
 type ComputerUsePauseManager interface {
 	SetComputerUsePaused(paused bool, requestID string)
@@ -811,25 +790,6 @@ type GitHubSetupService interface {
 	WriteWorkflowFile(path, content string) error
 	GenerateStandardWorkflowContent() string
 	GenerateGithubActionWorkflowContent() string
-}
-
-// GatewayManager manages the lifecycle of the gateway (container or binary)
-type GatewayManager interface {
-	// Start starts the gateway container or binary if configured to run locally
-	Start(ctx context.Context) error
-
-	// Stop stops the gateway container or binary
-	Stop(ctx context.Context) error
-
-	// IsRunning returns whether the gateway is running
-	IsRunning() bool
-
-	// GetGatewayURL returns the actual gateway URL with the assigned port
-	GetGatewayURL() string
-
-	// EnsureStarted starts the gateway if configured and not already running
-	// This is a convenience method that checks config and running state before starting
-	EnsureStarted() error
 }
 
 // BashDetachChannelHolder manages the bash detach channel for background shell operations

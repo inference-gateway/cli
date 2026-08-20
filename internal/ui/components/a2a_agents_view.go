@@ -81,13 +81,13 @@ type A2AAgentsViewImpl struct {
 	width         int
 	height        int
 	cancelled     bool
-	stateManager  domain.AgentReadinessManager
+	stateManager  AgentReadinessManager
 	styleProvider *styles.Provider
 }
 
 // NewA2AAgentsView creates the A2A agents list view. Items are populated by
 // Reset on every entry because agent readiness changes as agents start up.
-func NewA2AAgentsView(stateManager domain.AgentReadinessManager, styleProvider *styles.Provider) *A2AAgentsViewImpl {
+func NewA2AAgentsView(stateManager AgentReadinessManager, styleProvider *styles.Provider) *A2AAgentsViewImpl {
 	l := list.New(
 		nil,
 		a2aAgentDelegate{styleProvider: styleProvider},
