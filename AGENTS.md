@@ -31,18 +31,23 @@ task mod:tidy                 # go mod tidy
 
 The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`). States flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue … → Completing → Idle`. Each state's executor lives in `internal/agent/states/<state>.go`.
 
-**Domain/Infra split:**
-- `internal/domain/` — pure interfaces and value types, split into topical files (`conversation_contracts.go`, `tool_contracts.go`, `services_contracts.go`, ...); touching them triggers mock regeneration in the pre-commit hook. Bubbletea-facing chat contracts live in `internal/ui/chat_contracts.go`.
-- `internal/infra/` — adapters (SDK clients, storage backends), storage migrations.
-- `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
-- `internal/agent/tools/` — core tool implementations. `registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
-- `internal/browser/`, `internal/computer/` — capability packages plugged into the agent through the `domain.Tool` contract. Playwright lives only in `browser/`; robotgo and the display backends only under `computer/`.
+**Bounded contexts (DDD — contexts first, layers second).** There is no central domain package; each context owns its contracts in a pure, stdlib-plus-sdk-only `domain/` subpackage, and touching any `*/domain` package triggers mock regeneration in the pre-commit hook:
+- `internal/agent/` — the core domain. `agent/domain/` is the shared kernel (Tool contract, tool-call value types, chat events, hooks, frames/annotations, service ports like `FileService`/`MCPManager`/`SkillsService`); `agent/states/` holds the state-machine contracts and per-state executors; `agent/application/` holds adk-coupled A2A contracts and `agentrunner`; `agent/infrastructure/` holds the lipgloss tool formatter. `agent/tools/registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
+- `internal/conversation/` — conversation context: `domain/` (ConversationEntry, repository/optimizer/model/pricing/queue contracts, sessions) + application services (persistent/in-memory repos, tokenizer, rollover, title generation, event bridge).
+- `internal/scheduler/` — background-work context: `domain/` (scheduled jobs, background jobs, shell/subagent tracking, task retention) + cron scheduler, job supervisor (`jobs/`), `githubscheduler/`, `heartbeat/`.
+- `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools`, `services`, or `ui`.
+- `internal/audio/` — capability: recording, conversion, and whisper.cpp speech-to-text.
+- `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `container` (docker/podman runtime contract).
+- `internal/services/` — remaining application services (channels, MCP manager, filewriter, skills) pending the presentation regroup (issue #1087 phases 6–7).
+- `internal/ui/` — Bubble Tea presentation: `ApplicationState`, view/manager contracts, UI events, theming. Only presentation packages may import it.
+
+Import direction: `*/domain` packages import nothing internal (agent/domain is the bottom); other domains may import `agent/domain`; capabilities import domains + platform only; `services` sits above domains and `ui`; `container` and `cmd` compose everything.
 
 ## Testing
 
 - Use Go's standard `testing` package. Colocate `_test.go` files with the package under test.
 - **Mocks** use [counterfeiter](https://github.com/maxbrunsfeld/counterfeiter) and live in `tests/mocks/` — they are **committed** to the repo.
-- If you add a new interface in `internal/domain`, add a `counterfeiter` line to `Taskfile.yml` under `mocks:generate` and run `task mocks:generate`.
+- If you add a new interface in a context's `domain/` package, add a `counterfeiter` line to `Taskfile.yml` under `mocks:generate` and run `task mocks:generate`.
 - Prefer table-driven tests where inputs and expected results vary.
 - SA5011 false positives in tests are suppressed in `.golangci.yml` — `t.Fatal` is recognised as no-return.
 
