@@ -264,8 +264,9 @@ type SessionTokenStats struct {
 	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
-// MessageRepository handles CRUD operations for conversation messages
-type MessageRepository interface {
+// ConversationRepository is the composed interface for all conversation storage
+// and retrieval operations. New code should depend on the narrower sub-interfaces above.
+type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error
 	GetMessages() []ConversationEntry
 	Clear() error
@@ -274,50 +275,24 @@ type MessageRepository interface {
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
 	DeleteMessagesAfterIndex(index int) error
-}
 
-// TokenUsageRepository handles token usage tracking
-type TokenUsageRepository interface {
 	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens, cacheWriteTokens int) error
 	AddCachedTokens(tokens int)
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats
-}
 
-// ToolResultFormatter handles formatting tool execution results
-type ToolResultFormatter interface {
 	FormatToolResultForLLM(result *ToolExecutionResult) string
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
-}
 
-// PendingToolCallManager handles pending tool call tracking
-type PendingToolCallManager interface {
 	RemovePendingToolCallByID(toolCallID string)
-}
 
-// ConversationLifecycleManager handles conversation lifecycle operations
-type ConversationLifecycleManager interface {
 	StartNewConversation(title string) error
 	LoadConversation(ctx context.Context, conversationID string) error
 	GetCurrentConversationTitle() string
 	GetCurrentConversationID() string
-}
 
-// ConversationExporter handles conversation export
-type ConversationExporter interface {
 	Export(format ExportFormat) ([]byte, error)
-}
-
-// ConversationRepository is the composed interface for all conversation storage
-// and retrieval operations. New code should depend on the narrower sub-interfaces above.
-type ConversationRepository interface {
-	MessageRepository
-	TokenUsageRepository
-	ToolResultFormatter
-	PendingToolCallManager
-	ConversationLifecycleManager
-	ConversationExporter
 }
 
 // ConversationOptimizer optimizes conversation history to reduce token usage
@@ -1276,16 +1251,6 @@ type ApprovalCoordinator interface {
 	HandleComputerUseResumed(msg ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
 }
 
-// ActiveToolTracker tracks which tool call (if any) is currently shown in the
-// UI's progress indicator. Lives behind an interface because both the
-// (current) ChatHandler and the (extracted) ChatCompletionRunner need to
-// touch it, and a future ToolExecutionCoordinator will own the
-// implementation outright.
-type ActiveToolTracker interface {
-	GetActiveToolCallID() string
-	SetActiveToolCallID(id string)
-}
-
 // ChatCompletionRunner owns the LLM streaming lifecycle - initiating
 // streaming, translating chat-start / chat-chunk / chat-complete / chat-error
 // events into UI state transitions, and handling the model-restoration side
@@ -1311,7 +1276,8 @@ type ChatCompletionRunner interface {
 // events while the tool runs. Also owns the active-tool-call indicator the
 // UI uses to render the in-flight tool name.
 type ToolExecutionCoordinator interface {
-	ActiveToolTracker
+	GetActiveToolCallID() string
+	SetActiveToolCallID(id string)
 
 	HandleToolCallUpdate(msg ToolCallUpdateEvent) tea.Cmd
 	HandleToolCallReady(msg ToolCallReadyEvent) tea.Cmd
