@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 	"time"
 
+	cobra "github.com/spf13/cobra"
+
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	cobra "github.com/spf13/cobra"
 )
 
 var exportCmd = &cobra.Command{
@@ -60,7 +61,7 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("no conversation to export - conversation history is empty")
 	}
 
-	data, err := persistentRepo.Export(domain.ExportMarkdown)
+	data, err := persistentRepo.Export(convdomain.ExportMarkdown)
 	if err != nil {
 		return fmt.Errorf("failed to export conversation: %w", err)
 	}

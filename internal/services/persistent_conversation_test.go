@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
@@ -74,7 +75,7 @@ func TestGenerateTitleFromMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := domain.CreateTitleFromMessage(tc.input)
+			result := convdomain.CreateTitleFromMessage(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -102,7 +103,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 	t.Run("Add Messages and Auto Save", func(t *testing.T) {
 		repo.SetAutoSave(false)
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Hello, test!"),
@@ -120,7 +121,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 	t.Run("Save and Load Conversation", func(t *testing.T) {
 		conversationID := repo.GetCurrentConversationID()
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: sdk.NewMessageContent("Hello! How can I help you?"),
@@ -161,7 +162,7 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 	t.Run("Auto-save with user message creates title from content", func(t *testing.T) {
 		repo.SetAutoSave(true)
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent("How do I implement a binary search tree in Go?"),
@@ -186,7 +187,7 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 	repo.SetAutoSave(true)
 	repo.SetConversationID("channel-session-1")
 
-	err := repo.AddMessage(domain.ConversationEntry{
+	err := repo.AddMessage(convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent("Hi can you read a file?"),
@@ -326,7 +327,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 
 		conversationID := repo.GetCurrentConversationID()
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Auto save message"),
@@ -360,7 +361,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 
 		assert.Empty(t, newRepo.GetCurrentConversationID())
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent("First message that should auto-start conversation"),

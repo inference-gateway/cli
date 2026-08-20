@@ -1,12 +1,13 @@
 package config
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func modeChangeQuery(changed bool, prev, cur agentdomain.AgentMode) agentdomain.ReminderQuery {

@@ -1,20 +1,20 @@
 package keybinding
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
-
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // flashTestCtx is a minimal KeyHandlerContext for exercising the clipboard
@@ -230,7 +230,7 @@ func (c *textareaEditTestCtx) GetStateManager() *services.StateManager   { retur
 func (c *textareaEditTestCtx) GetInputView() ui.InputComponent           { return c.input }
 func (c *textareaEditTestCtx) GetAutocomplete() ui.AutocompleteComponent { return c.autocomplete }
 func (c *textareaEditTestCtx) GetConfig() *config.Config                 { return nil }
-func (c *textareaEditTestCtx) GetConversationRepository() domain.ConversationRepository {
+func (c *textareaEditTestCtx) GetConversationRepository() convdomain.ConversationRepository {
 	return nil
 }
 func (c *textareaEditTestCtx) GetAgentService() agentdomain.AgentService { return nil }
@@ -244,7 +244,7 @@ func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.Inp
 		t.Fatalf("transitioning test state to chat: %v", err)
 	}
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	input := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
 	if _, cmd := input.Update(tea.FocusMsg{}); cmd != nil {
 		_ = cmd()

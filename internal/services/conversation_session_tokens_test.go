@@ -3,8 +3,8 @@ package services
 import (
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestSessionTokenTracking(t *testing.T) {
@@ -21,7 +21,7 @@ func TestSessionTokenTracking(t *testing.T) {
 	}
 
 	stats = repo.GetSessionTokens()
-	expected := domain.SessionTokenStats{
+	expected := convdomain.SessionTokenStats{
 		TotalInputTokens:  100,
 		TotalOutputTokens: 50,
 		TotalTokens:       150,
@@ -38,7 +38,7 @@ func TestSessionTokenTracking(t *testing.T) {
 	}
 
 	stats = repo.GetSessionTokens()
-	expected = domain.SessionTokenStats{
+	expected = convdomain.SessionTokenStats{
 		TotalInputTokens:  300,
 		TotalOutputTokens: 125,
 		TotalTokens:       425,
@@ -55,7 +55,7 @@ func TestSessionTokenTracking(t *testing.T) {
 	}
 
 	stats = repo.GetSessionTokens()
-	expected = domain.SessionTokenStats{
+	expected = convdomain.SessionTokenStats{
 		TotalInputTokens:  0,
 		TotalOutputTokens: 0,
 		TotalTokens:       0,
@@ -83,7 +83,7 @@ func TestAddCachedTokens(t *testing.T) {
 		t.Errorf("After clear, expected 0 cached tokens, got %d", got)
 	}
 
-	repo.SetSessionStats(domain.SessionTokenStats{TotalCachedTokens: 42}, domain.SessionCostStats{})
+	repo.SetSessionStats(convdomain.SessionTokenStats{TotalCachedTokens: 42}, convdomain.SessionCostStats{})
 	if got := repo.GetSessionTokens().TotalCachedTokens; got != 42 {
 		t.Errorf("SetSessionStats must restore cached tokens, got %d", got)
 	}
@@ -94,7 +94,7 @@ func TestAddCachedTokens(t *testing.T) {
 // stream line and the /cost shortcut) discounts cache hits - it used to pass a
 // hardcoded 0, inflating cost for cache-heavy runs.
 func TestAddTokenUsageForwardsCachedTokensToPricing(t *testing.T) {
-	pricing := &domainmocks.FakePricingService{}
+	pricing := &convmocks.FakePricingService{}
 	repo := NewInMemoryConversationRepository(nil, pricing)
 
 	if err := repo.AddTokenUsage("test-model", 3000, 100, 3100, 2400, 0); err != nil {
@@ -119,7 +119,7 @@ func TestSessionTokensWithZeroValues(t *testing.T) {
 	}
 
 	stats := repo.GetSessionTokens()
-	expected := domain.SessionTokenStats{
+	expected := convdomain.SessionTokenStats{
 		TotalInputTokens:  0,
 		TotalOutputTokens: 0,
 		TotalTokens:       0,

@@ -3,8 +3,6 @@ package container
 import (
 	"context"
 	"fmt"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net"
 	"net/http"
 	"os"
@@ -12,14 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	zap "go.uber.org/zap"
-
 	sdk "github.com/inference-gateway/sdk"
-
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
+	zap "go.uber.org/zap"
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
@@ -28,6 +26,7 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
@@ -79,7 +78,7 @@ var RetryNotifier func(message string)
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Session
-	sessionID domain.SessionID
+	sessionID convdomain.SessionID
 
 	// Container runtime
 	containerRuntime domain.ContainerRuntime
@@ -91,22 +90,22 @@ type ServiceContainer struct {
 	config *config.Config
 
 	// Domain services
-	conversationRepo       domain.ConversationRepository
-	conversationOptimizer  domain.ConversationOptimizer
+	conversationRepo       convdomain.ConversationRepository
+	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
-	modelService           domain.ModelService
+	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	imageAnnotator         agentdomain.ImageAnnotator
-	pricingService         domain.PricingService
+	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
 	a2aAgentService        agentapp.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
 	gitHubSetupService     domain.GitHubSetupService
-	messageQueue           domain.MessageQueue
+	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
 	// and domain.ShellTracker views are accessed via the same instance.
@@ -190,7 +189,7 @@ func (h *uiNotifierHolder) set(n domain.UINotifier) {
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config) *ServiceContainer {
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 
 	log := logger.GetGlobalLogger()
 
@@ -731,11 +730,11 @@ func (c *ServiceContainer) Logger() *zap.Logger {
 	return c.log
 }
 
-func (c *ServiceContainer) GetConversationRepository() domain.ConversationRepository {
+func (c *ServiceContainer) GetConversationRepository() convdomain.ConversationRepository {
 	return c.conversationRepo
 }
 
-func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizer {
+func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOptimizer {
 	return c.conversationOptimizer
 }
 
@@ -743,7 +742,7 @@ func (c *ServiceContainer) GetSessionRolloverManager() *services.SessionRollover
 	return c.sessionRolloverManager
 }
 
-func (c *ServiceContainer) GetModelService() domain.ModelService {
+func (c *ServiceContainer) GetModelService() convdomain.ModelService {
 	return c.modelService
 }
 
@@ -806,11 +805,11 @@ func (c *ServiceContainer) GetGitHubSetupService() domain.GitHubSetupService {
 	return c.gitHubSetupService
 }
 
-func (c *ServiceContainer) GetPricingService() domain.PricingService {
+func (c *ServiceContainer) GetPricingService() convdomain.PricingService {
 	return c.PricingService()
 }
 
-func (c *ServiceContainer) PricingService() domain.PricingService {
+func (c *ServiceContainer) PricingService() convdomain.PricingService {
 	if c.pricingService == nil {
 		c.pricingService = services.NewPricingService(&c.config.Pricing)
 	}
@@ -837,7 +836,7 @@ func (c *ServiceContainer) GetAgentService() agentdomain.AgentService {
 	return c.agent
 }
 
-func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
+func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 	return c.messageQueue
 }
 

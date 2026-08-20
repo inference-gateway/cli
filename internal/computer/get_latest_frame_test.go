@@ -3,14 +3,14 @@ package computer
 import (
 	"context"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 // fakeSourceLookup is a hand-rolled frameSourceLookup over a plain map.

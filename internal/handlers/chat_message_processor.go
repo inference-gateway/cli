@@ -3,16 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
@@ -494,7 +494,7 @@ func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images [
 // completion. Called directly when no rollover is due, and via
 // HandleRolloverCompletedEvent after an async rollover finishes.
 func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),
 		Images:  images,

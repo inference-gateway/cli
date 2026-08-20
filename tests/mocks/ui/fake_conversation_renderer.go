@@ -2,9 +2,9 @@
 package ui
 
 import (
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -85,10 +85,10 @@ type FakeConversationRenderer struct {
 	resetUserScrollMutex       sync.RWMutex
 	resetUserScrollArgsForCall []struct {
 	}
-	SetConversationStub        func([]domain.ConversationEntry)
+	SetConversationStub        func([]convdomain.ConversationEntry)
 	setConversationMutex       sync.RWMutex
 	setConversationArgsForCall []struct {
-		arg1 []domain.ConversationEntry
+		arg1 []convdomain.ConversationEntry
 	}
 	SetHeightStub        func(int)
 	setHeightMutex       sync.RWMutex
@@ -532,15 +532,15 @@ func (fake *FakeConversationRenderer) ResetUserScrollCalls(stub func()) {
 	fake.ResetUserScrollStub = stub
 }
 
-func (fake *FakeConversationRenderer) SetConversation(arg1 []domain.ConversationEntry) {
-	var arg1Copy []domain.ConversationEntry
+func (fake *FakeConversationRenderer) SetConversation(arg1 []convdomain.ConversationEntry) {
+	var arg1Copy []convdomain.ConversationEntry
 	if arg1 != nil {
-		arg1Copy = make([]domain.ConversationEntry, len(arg1))
+		arg1Copy = make([]convdomain.ConversationEntry, len(arg1))
 		copy(arg1Copy, arg1)
 	}
 	fake.setConversationMutex.Lock()
 	fake.setConversationArgsForCall = append(fake.setConversationArgsForCall, struct {
-		arg1 []domain.ConversationEntry
+		arg1 []convdomain.ConversationEntry
 	}{arg1Copy})
 	stub := fake.SetConversationStub
 	fake.recordInvocation("SetConversation", []interface{}{arg1Copy})
@@ -556,13 +556,13 @@ func (fake *FakeConversationRenderer) SetConversationCallCount() int {
 	return len(fake.setConversationArgsForCall)
 }
 
-func (fake *FakeConversationRenderer) SetConversationCalls(stub func([]domain.ConversationEntry)) {
+func (fake *FakeConversationRenderer) SetConversationCalls(stub func([]convdomain.ConversationEntry)) {
 	fake.setConversationMutex.Lock()
 	defer fake.setConversationMutex.Unlock()
 	fake.SetConversationStub = stub
 }
 
-func (fake *FakeConversationRenderer) SetConversationArgsForCall(i int) []domain.ConversationEntry {
+func (fake *FakeConversationRenderer) SetConversationArgsForCall(i int) []convdomain.ConversationEntry {
 	fake.setConversationMutex.RLock()
 	defer fake.setConversationMutex.RUnlock()
 	argsForCall := fake.setConversationArgsForCall[i]

@@ -3,12 +3,11 @@ package components
 import (
 	"testing"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {
@@ -97,7 +96,7 @@ func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 	selector.done = true
 	selector.cancelled = false
 	selector.loading = false
-	selector.filteredConversations = []domain.ConversationSummary{
+	selector.filteredConversations = []convdomain.ConversationSummary{
 		{ID: "test", Title: "Test"},
 	}
 

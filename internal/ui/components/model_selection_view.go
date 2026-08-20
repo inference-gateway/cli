@@ -10,6 +10,7 @@ import (
 	huh "charm.land/huh/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -41,8 +42,8 @@ type ModelSelectorImpl struct {
 	styleProvider  *styles.Provider
 	done           bool
 	cancelled      bool
-	modelService   domain.ModelService
-	pricingService domain.PricingService
+	modelService   convdomain.ModelService
+	pricingService convdomain.PricingService
 	config         *config.Config
 	currentView    ModelViewMode
 
@@ -54,7 +55,7 @@ type ModelSelectorImpl struct {
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, pricingService domain.PricingService, cfg *config.Config, styleProvider *styles.Provider) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService convdomain.ModelService, pricingService convdomain.PricingService, cfg *config.Config, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		width:          80,
@@ -286,7 +287,7 @@ func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
 		parts = append(parts, "?")
 	}
 
-	if label := domain.FormatModelPricingLabel(m.pricingService, model); label != "" {
+	if label := convdomain.FormatModelPricingLabel(m.pricingService, model); label != "" {
 		parts = append(parts, label)
 	}
 

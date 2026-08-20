@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestInMemoryConversationRepository_DeleteMessagesAfterIndex(t *testing.T) {
@@ -65,7 +66,7 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex(t *testing.T) {
 			repo := NewInMemoryConversationRepository(nil, nil)
 
 			for i := 0; i < tt.initialCount; i++ {
-				msg := domain.ConversationEntry{
+				msg := convdomain.ConversationEntry{
 					Time: time.Now(),
 					Message: sdk.Message{
 						Role: sdk.User,
@@ -129,7 +130,7 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_PreservesMetada
 	}
 
 	for _, msg := range messages {
-		if err := repo.AddMessage(domain.ConversationEntry{
+		if err := repo.AddMessage(convdomain.ConversationEntry{
 			Time: time.Now(),
 			Message: sdk.Message{
 				Role:    msg.role,
@@ -176,7 +177,7 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_ThreadSafety(t 
 	repo := NewInMemoryConversationRepository(nil, nil)
 
 	for i := 0; i < 100; i++ {
-		if err := repo.AddMessage(domain.ConversationEntry{
+		if err := repo.AddMessage(convdomain.ConversationEntry{
 			Time: time.Now(),
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -220,7 +221,7 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_ThreadSafety(t 
 func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_BoundaryConditions(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil, nil)
 
-	if err := repo.AddMessage(domain.ConversationEntry{
+	if err := repo.AddMessage(convdomain.ConversationEntry{
 		Time: time.Now(),
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -229,7 +230,7 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_BoundaryConditi
 	}); err != nil {
 		t.Fatalf("Failed to add first message: %v", err)
 	}
-	if err := repo.AddMessage(domain.ConversationEntry{
+	if err := repo.AddMessage(convdomain.ConversationEntry{
 		Time: time.Now(),
 		Message: sdk.Message{
 			Role:    sdk.Assistant,

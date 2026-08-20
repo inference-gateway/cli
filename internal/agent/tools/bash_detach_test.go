@@ -2,14 +2,13 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // TestBashTool_DetachOnSignal is the regression guard for "ctrl+b didn't move the

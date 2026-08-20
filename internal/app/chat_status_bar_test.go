@@ -4,11 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
-
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -16,6 +12,9 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the
@@ -25,7 +24,7 @@ import (
 func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *services.StateManager) {
 	t.Helper()
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	statusBar := components.NewInputStatusBar(nil)
@@ -156,7 +155,7 @@ func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
 	}
 }
 
-// toolStatsEstimator is a minimal domain.TokenEstimator so the tools
+// toolStatsEstimator is a minimal convdomain.TokenEstimator so the tools
 // indicator renders in tests.
 type toolStatsEstimator struct{}
 

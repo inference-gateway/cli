@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"

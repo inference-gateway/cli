@@ -2,16 +2,17 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"sync"
 	"testing"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func createTestRegistry() *Registry {

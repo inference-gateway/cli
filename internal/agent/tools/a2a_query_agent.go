@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"strings"
 	"time"
 
@@ -13,6 +11,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )

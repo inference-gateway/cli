@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net"
 	"net/http"
 	"strings"
@@ -15,11 +14,12 @@ import (
 
 	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	render "github.com/inference-gateway/cli/internal/render"
@@ -108,7 +108,7 @@ type extChatEvent struct {
 type ExtensionBridge struct {
 	cfg          *config.BrowserUseConfig
 	notifier     domain.UINotifier
-	repo         domain.ConversationRepository
+	repo         convdomain.ConversationRepository
 	events       agentdomain.EventBridge
 	skills       domain.SkillsService
 	sessionID    string
@@ -131,7 +131,7 @@ type ExtensionBridge struct {
 // be nil (the matching feature is then skipped); cfg must not be nil.
 // artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
 // can display generated images the agent saved locally.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events agentdomain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
+func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo convdomain.ConversationRepository, events agentdomain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
 	return &ExtensionBridge{
 		cfg:              cfg,
 		notifier:         notifier,
@@ -261,7 +261,7 @@ const conversationListLimit = 50
 // Declared here (not in domain) because the in-memory fallback repo has no
 // listing - the type assertion simply fails there and yields an empty list.
 type conversationLister interface {
-	ListSavedConversations(ctx context.Context, limit, offset int) ([]domain.ConversationSummary, error)
+	ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
 }
 
 // sendConversationList answers list_conversations with the stored conversations

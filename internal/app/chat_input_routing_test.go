@@ -5,14 +5,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 type teaConversationRenderer struct {
@@ -90,10 +90,10 @@ func newInputRoutingTestApp(t *testing.T, view domain.ViewState, draft string) (
 		}
 	}
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	inputView := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
 	inputView.SetText(draft)
-	messageQueue := &domainmocks.FakeMessageQueue{}
+	messageQueue := &convmocks.FakeMessageQueue{}
 	messageQueue.IsEmptyReturns(true)
 
 	return &ChatApplication{
@@ -114,7 +114,7 @@ func printableKey(text string) tea.KeyPressMsg {
 func TestModelSelectionSearchDoesNotLeakIntoInput(t *testing.T) {
 	app, inputView := newInputRoutingTestApp(t, domain.ViewStateModelSelection, "draft prompt")
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	app.modelSelector = components.NewModelSelector(
 		[]string{"openai/gpt-4o", "deepseek/deepseek-chat"},
 		modelService,
@@ -152,8 +152,8 @@ func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 	selector := components.NewConversationSelector(repo, nil)
 	model, _ := selector.Update(domain.ConversationsLoadedEvent{
 		Conversations: []any{
-			domain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
-			domain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
+			convdomain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
+			convdomain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
 		},
 	})
 	app.conversationSelector = model.(*components.ConversationSelectorImpl)

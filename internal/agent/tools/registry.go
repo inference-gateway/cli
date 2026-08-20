@@ -3,7 +3,6 @@ package tools
 import (
 	"cmp"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"

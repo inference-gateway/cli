@@ -1,12 +1,13 @@
 package services
 
 import (
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	"path/filepath"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 )
 
 func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {

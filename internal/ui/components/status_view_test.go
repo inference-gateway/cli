@@ -4,12 +4,11 @@ import (
 	"strings"
 	"testing"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // statusViewStateStub wraps the real ApplicationState to satisfy the status

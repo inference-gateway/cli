@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

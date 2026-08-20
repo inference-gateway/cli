@@ -3,18 +3,20 @@ package handlers
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatShortcutHandler handles shortcut execution and side effects
@@ -150,7 +152,7 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 		}
 
 		if result.Output != "" {
-			assistantEntry := domain.ConversationEntry{
+			assistantEntry := convdomain.ConversationEntry{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent(result.Output),
@@ -696,7 +698,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		}
 	}
 
-	imageEntry := domain.ConversationEntry{
+	imageEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(contentParts),
@@ -760,7 +762,7 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 		}
 	}
 
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(switchData.Prompt),

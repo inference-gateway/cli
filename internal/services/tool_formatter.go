@@ -2,14 +2,14 @@ package services
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"

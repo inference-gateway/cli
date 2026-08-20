@@ -2,6 +2,7 @@ package factory
 
 import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -18,19 +19,19 @@ func CreateConversationView(themeService domain.ThemeService) ui.ConversationRen
 }
 
 // CreateInputView creates a new input view component
-func CreateInputView(modelService domain.ModelService) ui.InputComponent {
+func CreateInputView(modelService convdomain.ModelService) ui.InputComponent {
 	return components.NewInputView(modelService)
 }
 
 // CreateInputViewWithName creates a new input view component with config directory and name.
 // When store is non-nil and name is empty (the main agent), input history goes through the
 // storage backend. Named subagent histories are file-based at <configDir>/history/history-<name>.
-func CreateInputViewWithName(modelService domain.ModelService, configDir, name string, store storage.ShellHistoryStorage) ui.InputComponent {
+func CreateInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) ui.InputComponent {
 	return components.NewInputViewWithName(modelService, configDir, name, store)
 }
 
 // CreateAutocomplete creates a new autocomplete component
-func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService agentdomain.ToolService, modelService domain.ModelService, pricingService domain.PricingService, skillsService domain.SkillsService, githubIssueService domain.GitHubIssueService) ui.AutocompleteComponent {
+func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService agentdomain.ToolService, modelService convdomain.ModelService, pricingService convdomain.PricingService, skillsService domain.SkillsService, githubIssueService domain.GitHubIssueService) ui.AutocompleteComponent {
 	if shortcutRegistry == nil {
 		return nil
 	}

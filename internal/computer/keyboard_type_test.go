@@ -1,11 +1,11 @@
 package computer
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )

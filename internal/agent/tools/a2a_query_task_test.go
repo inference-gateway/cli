@@ -2,13 +2,14 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 

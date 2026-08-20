@@ -2,12 +2,12 @@ package plugins
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

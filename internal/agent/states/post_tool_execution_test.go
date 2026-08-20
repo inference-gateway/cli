@@ -1,10 +1,11 @@
 package states
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestPostToolExecutionState_Handle covers the routing after a completed tool

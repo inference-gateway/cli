@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 )

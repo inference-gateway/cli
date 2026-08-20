@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"

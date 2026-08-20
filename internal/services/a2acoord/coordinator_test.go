@@ -1,23 +1,24 @@
 package a2acoord
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	adk "github.com/inference-gateway/adk/types"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newCoordinator wires a Service with fake dependencies.
-func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
-	repo := &mocksdomain.FakeConversationRepository{}
+func newCoordinator() (*Service, *convmocks.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
+	repo := &convmocks.FakeConversationRepository{}
 	state := services.NewStateManager(false)
 	retention := &mocksdomain.FakeTaskRetentionService{}
 	listener := &uimocks.FakeChatEventListener{}
@@ -290,7 +291,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 }
 
 func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
-	repo := &mocksdomain.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	state := services.NewStateManager(false)
 	listener := &uimocks.FakeChatEventListener{}
 	repo.GetMessagesReturns(nil)

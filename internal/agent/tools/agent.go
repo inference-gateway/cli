@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,12 +14,15 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // subagentDepthEnv guards against subagent fork-bombs: each spawned subagent

@@ -11,8 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
 	audio "github.com/inference-gateway/cli/internal/audio"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -24,7 +27,6 @@ import (
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
-	cobra "github.com/spf13/cobra"
 )
 
 var daemonCmd = &cobra.Command{
@@ -85,7 +87,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 	defer release()
 
 	telemetry.ExecutionMode = telemetry.ExecDaemon
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	tel := telemetry.New(telemetry.Options{
 		Enabled:           cfg.Telemetry.Enabled,
 		Dir:               config.TelemetryDir(),

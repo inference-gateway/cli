@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,7 +16,9 @@ import (
 	metric "go.opentelemetry.io/otel/metric"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -246,7 +247,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 	mu.Lock()
 	defer mu.Unlock()
 
-	sessionID := domain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
+	sessionID := convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
 
 	logger.Info("processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
 

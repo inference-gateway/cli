@@ -1,7 +1,6 @@
 package tools
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"testing"
 	"time"
@@ -9,10 +8,11 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestA2AJob_PollsRemoteTaskToCompletion drives the migrated A2A path end-to-end:
@@ -29,8 +29,8 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	}
 
 	tracker := utils.NewA2ATaskTracker()
-	queue := &mocks.FakeMessageQueue{}
-	sup := jobs.NewSupervisor(queue, &mocks.FakeConversationRepository{}, nil)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := jobs.NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	completed := adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}

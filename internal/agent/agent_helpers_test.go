@@ -1,16 +1,16 @@
 package agent
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestAccumulateToolCalls tests tool call accumulation
@@ -118,20 +118,20 @@ func TestCheckToolResultsStatus(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		toolResults       []domain.ConversationEntry
+		toolResults       []convdomain.ConversationEntry
 		expectedRejection bool
 		expectedPlan      string
 		expectedID        string
 	}{
 		{
 			name:              "no_results",
-			toolResults:       []domain.ConversationEntry{},
+			toolResults:       []convdomain.ConversationEntry{},
 			expectedRejection: false,
 			expectedPlan:      "",
 		},
 		{
 			name: "with_rejection",
-			toolResults: []domain.ConversationEntry{
+			toolResults: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
 					ToolExecution: &agentdomain.ToolExecutionResult{
@@ -146,7 +146,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 		},
 		{
 			name: "without_rejection",
-			toolResults: []domain.ConversationEntry{
+			toolResults: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result")},
 					ToolExecution: &agentdomain.ToolExecutionResult{
@@ -161,7 +161,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 		},
 		{
 			name: "multiple_results_with_rejection",
-			toolResults: []domain.ConversationEntry{
+			toolResults: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result1")},
 					ToolExecution: &agentdomain.ToolExecutionResult{
@@ -184,7 +184,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 		},
 		{
 			name: "with_plan_approval",
-			toolResults: []domain.ConversationEntry{
+			toolResults: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("plan")},
 					ToolExecution: &agentdomain.ToolExecutionResult{
@@ -254,7 +254,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 	call1 := "call-1"
 	call2 := "call-2"
 
-	toolResults := []domain.ConversationEntry{
+	toolResults := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
@@ -298,18 +298,18 @@ func TestAddToolResultsToConversation(t *testing.T) {
 func TestBatchDrainQueue(t *testing.T) {
 	tests := []struct {
 		name               string
-		setupQueue         func(*domainmocks.FakeMessageQueue)
+		setupQueue         func(*convmocks.FakeMessageQueue)
 		expectedBatched    int
-		verifyRepo         func(*testing.T, *domainmocks.FakeConversationRepository)
+		verifyRepo         func(*testing.T, *convmocks.FakeConversationRepository)
 		verifyConversation func(*testing.T, *[]sdk.Message)
 	}{
 		{
 			name: "empty_queue_returns_zero",
-			setupQueue: func(q *domainmocks.FakeMessageQueue) {
+			setupQueue: func(q *convmocks.FakeMessageQueue) {
 				q.IsEmptyReturns(true)
 			},
 			expectedBatched: 0,
-			verifyRepo: func(t *testing.T, repo *domainmocks.FakeConversationRepository) {
+			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
 				assert.Equal(t, 0, repo.AddMessageCallCount())
 			},
 			verifyConversation: func(t *testing.T, conv *[]sdk.Message) {
@@ -318,19 +318,19 @@ func TestBatchDrainQueue(t *testing.T) {
 		},
 		{
 			name: "queue_with_one_message",
-			setupQueue: func(q *domainmocks.FakeMessageQueue) {
+			setupQueue: func(q *convmocks.FakeMessageQueue) {
 				callCount := 0
 				q.IsEmptyCalls(func() bool {
 					callCount++
 					return callCount > 1
 				})
-				q.DequeueReturns(&domain.QueuedMessage{
+				q.DequeueReturns(&convdomain.QueuedMessage{
 					Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("queued message")},
 					RequestID: "req-1",
 				})
 			},
 			expectedBatched: 1,
-			verifyRepo: func(t *testing.T, repo *domainmocks.FakeConversationRepository) {
+			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
 				assert.Equal(t, 1, repo.AddMessageCallCount())
 			},
 			verifyConversation: func(t *testing.T, conv *[]sdk.Message) {
@@ -341,7 +341,7 @@ func TestBatchDrainQueue(t *testing.T) {
 		},
 		{
 			name: "queue_with_multiple_messages",
-			setupQueue: func(q *domainmocks.FakeMessageQueue) {
+			setupQueue: func(q *convmocks.FakeMessageQueue) {
 				callCount := 0
 				q.IsEmptyCalls(func() bool {
 					callCount++
@@ -349,19 +349,19 @@ func TestBatchDrainQueue(t *testing.T) {
 				})
 
 				dequeueCount := 0
-				q.DequeueCalls(func() *domain.QueuedMessage {
+				q.DequeueCalls(func() *convdomain.QueuedMessage {
 					dequeueCount++
 					if dequeueCount > 3 {
 						return nil
 					}
-					return &domain.QueuedMessage{
+					return &convdomain.QueuedMessage{
 						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("message " + string(rune('0'+dequeueCount)))},
 						RequestID: "req-" + string(rune('0'+dequeueCount)),
 					}
 				})
 			},
 			expectedBatched: 3,
-			verifyRepo: func(t *testing.T, repo *domainmocks.FakeConversationRepository) {
+			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
 				assert.Equal(t, 3, repo.AddMessageCallCount())
 			},
 			verifyConversation: func(t *testing.T, conv *[]sdk.Message) {
@@ -370,7 +370,7 @@ func TestBatchDrainQueue(t *testing.T) {
 		},
 		{
 			name: "queue_preserves_message_order",
-			setupQueue: func(q *domainmocks.FakeMessageQueue) {
+			setupQueue: func(q *convmocks.FakeMessageQueue) {
 				callCount := 0
 				q.IsEmptyCalls(func() bool {
 					callCount++
@@ -378,16 +378,16 @@ func TestBatchDrainQueue(t *testing.T) {
 				})
 
 				dequeueCount := 0
-				q.DequeueCalls(func() *domain.QueuedMessage {
+				q.DequeueCalls(func() *convdomain.QueuedMessage {
 					dequeueCount++
 					switch dequeueCount {
 					case 1:
-						return &domain.QueuedMessage{
+						return &convdomain.QueuedMessage{
 							Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("first")},
 							RequestID: "req-1",
 						}
 					case 2:
-						return &domain.QueuedMessage{
+						return &convdomain.QueuedMessage{
 							Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("second")},
 							RequestID: "req-2",
 						}
@@ -397,7 +397,7 @@ func TestBatchDrainQueue(t *testing.T) {
 				})
 			},
 			expectedBatched: 2,
-			verifyRepo: func(t *testing.T, repo *domainmocks.FakeConversationRepository) {
+			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
 				assert.Equal(t, 2, repo.AddMessageCallCount())
 			},
 			verifyConversation: func(t *testing.T, conv *[]sdk.Message) {
@@ -412,8 +412,8 @@ func TestBatchDrainQueue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeQueue := &domainmocks.FakeMessageQueue{}
-			fakeRepo := &domainmocks.FakeConversationRepository{}
+			fakeQueue := &convmocks.FakeMessageQueue{}
+			fakeRepo := &convmocks.FakeConversationRepository{}
 
 			if tt.setupQueue != nil {
 				tt.setupQueue(fakeQueue)

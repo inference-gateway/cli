@@ -3,6 +3,7 @@ package factory
 import (
 	"testing"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
@@ -21,7 +22,7 @@ func TestCreateConversationView(t *testing.T) {
 }
 
 func TestCreateInputView(t *testing.T) {
-	mockModelService := &domainmocks.FakeModelService{}
+	mockModelService := &convmocks.FakeModelService{}
 	mockModelService.ListModelsReturns([]string{"test-model"}, nil)
 	mockModelService.GetCurrentModelReturns("test-model")
 	mockModelService.IsModelAvailableReturns(true)

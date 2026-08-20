@@ -3,13 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestReadTool_Definition(t *testing.T) {

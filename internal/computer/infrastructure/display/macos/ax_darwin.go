@@ -14,13 +14,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )

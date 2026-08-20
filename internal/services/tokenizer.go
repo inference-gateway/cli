@@ -2,11 +2,12 @@ package services
 
 import (
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"unicode/utf8"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TokenizerService provides token counting functionality for LLM messages.

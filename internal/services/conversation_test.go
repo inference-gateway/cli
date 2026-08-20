@@ -1,11 +1,12 @@
 package services
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) {

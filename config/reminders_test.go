@@ -2,12 +2,12 @@ package config_test
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestSaveLoadReminders_RoundTrip(t *testing.T) {

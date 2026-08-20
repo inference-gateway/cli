@@ -10,6 +10,7 @@ import (
 
 	redis "github.com/go-redis/redis/v8"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -94,7 +95,7 @@ func (s *RedisStorage) conversationIndexKey() string {
 }
 
 // SaveConversation saves a conversation with its entries
-func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	pipe := s.client.Pipeline()
 
 	metadataJSON, err := json.Marshal(metadata)
@@ -137,9 +138,9 @@ func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID stri
 }
 
 // LoadConversation loads a conversation by its ID
-func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	var metadata ConversationMetadata
-	var entries []domain.ConversationEntry
+	var entries []convdomain.ConversationEntry
 
 	pipe := s.client.Pipeline()
 	metadataCmd := pipe.Get(ctx, s.conversationKey(conversationID))

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -84,7 +84,7 @@ func TestJsonlStorage_SaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "test-conversation-1"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
 			Model:   "deepseek/deepseek-v4-pro",
@@ -105,7 +105,7 @@ func TestJsonlStorage_SaveAndLoad(t *testing.T) {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		MessageCount: 2,
-		TokenStats: domain.SessionTokenStats{
+		TokenStats: convdomain.SessionTokenStats{
 			TotalInputTokens:  10,
 			TotalOutputTokens: 20,
 			TotalTokens:       30,
@@ -151,7 +151,7 @@ func TestJsonlStorage_List(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		conversationID := fmt.Sprintf("conversation-%d", i)
-		entries := []domain.ConversationEntry{}
+		entries := []convdomain.ConversationEntry{}
 		metadata := ConversationMetadata{
 			ID:           conversationID,
 			Title:        fmt.Sprintf("Conversation %d", i),
@@ -228,7 +228,7 @@ func TestJsonlStorage_ListConversationsNeedingTitles(t *testing.T) {
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
 		}
-		err := storage.SaveConversation(ctx, tc.id, []domain.ConversationEntry{}, metadata)
+		err := storage.SaveConversation(ctx, tc.id, []convdomain.ConversationEntry{}, metadata)
 		require.NoError(t, err)
 	}
 
@@ -273,7 +273,7 @@ func TestJsonlStorage_ListConversationsNeedingTitles_Limit(t *testing.T) {
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
 		}
-		err := storage.SaveConversation(ctx, metadata.ID, []domain.ConversationEntry{}, metadata)
+		err := storage.SaveConversation(ctx, metadata.ID, []convdomain.ConversationEntry{}, metadata)
 		require.NoError(t, err)
 	}
 
@@ -289,7 +289,7 @@ func TestJsonlStorage_Delete(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "test-delete"
 
-	err := storage.SaveConversation(ctx, conversationID, []domain.ConversationEntry{}, ConversationMetadata{
+	err := storage.SaveConversation(ctx, conversationID, []convdomain.ConversationEntry{}, ConversationMetadata{
 		ID:        conversationID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -325,7 +325,7 @@ func TestJsonlStorage_UpdateMetadata(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "test-update-metadata"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
 			Model:   "deepseek/deepseek-v4-pro",
@@ -424,7 +424,7 @@ func TestJsonlStorage_ConcurrentAccess(t *testing.T) {
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
-				err := storage.SaveConversation(ctx, conversationID, []domain.ConversationEntry{}, metadata)
+				err := storage.SaveConversation(ctx, conversationID, []convdomain.ConversationEntry{}, metadata)
 				assert.NoError(t, err)
 				done <- true
 			}(i)
@@ -447,9 +447,9 @@ func TestJsonlStorage_LargeConversation(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "large-conversation"
 
-	entries := make([]domain.ConversationEntry, 1000)
+	entries := make([]convdomain.ConversationEntry, 1000)
 	for i := 0; i < 1000; i++ {
-		entries[i] = domain.ConversationEntry{
+		entries[i] = convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
 				Content: sdk.NewMessageContent(fmt.Sprintf("Message %d with some content to make it realistic", i)),
@@ -484,7 +484,7 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "append-test"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First message")},
 			Model:   "deepseek/deepseek-v4-pro",
@@ -507,7 +507,7 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 	err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 	require.NoError(t, err)
 
-	entries = append(entries, domain.ConversationEntry{
+	entries = append(entries, convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Second message")},
 		Model:   "deepseek/deepseek-v4-pro",
 		Time:    time.Now(),
@@ -550,7 +550,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "meta-only-update"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")},
 			Model:   "deepseek/deepseek-v4-flash",
@@ -569,7 +569,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 		MessageCount: 2,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
-		TokenStats: domain.SessionTokenStats{
+		TokenStats: convdomain.SessionTokenStats{
 			TotalInputTokens: 0,
 			RequestCount:     0,
 			LastInputTokens:  0,
@@ -580,7 +580,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 
 	freshMetadata := staleMetadata
 	freshMetadata.UpdatedAt = time.Now()
-	freshMetadata.TokenStats = domain.SessionTokenStats{
+	freshMetadata.TokenStats = convdomain.SessionTokenStats{
 		TotalInputTokens:  6510,
 		TotalOutputTokens: 125,
 		TotalTokens:       6635,
@@ -613,7 +613,7 @@ func TestJsonlStorage_V1FormatMigration(t *testing.T) {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-	v1Entries := []domain.ConversationEntry{
+	v1Entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("V1 message")},
 			Model:   "deepseek/deepseek-v4-pro",
@@ -638,7 +638,7 @@ func TestJsonlStorage_V1FormatMigration(t *testing.T) {
 	assert.Equal(t, 2, len(loadedEntries))
 	assert.Equal(t, "V1 Conversation", loadedMetadata.Title)
 
-	loadedEntries = append(loadedEntries, domain.ConversationEntry{
+	loadedEntries = append(loadedEntries, convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("New message after migration")},
 		Model:   "deepseek/deepseek-v4-pro",
 		Time:    time.Now(),
@@ -665,9 +665,9 @@ func TestJsonlStorage_EntryDeletionTriggersRewrite(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "deletion-test"
 
-	entries := make([]domain.ConversationEntry, 5)
+	entries := make([]convdomain.ConversationEntry, 5)
 	for i := 0; i < 5; i++ {
-		entries[i] = domain.ConversationEntry{
+		entries[i] = convdomain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Message %d", i))},
 			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
@@ -703,7 +703,7 @@ func TestJsonlStorage_EmptyConversation(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "empty-test"
 
-	entries := []domain.ConversationEntry{}
+	entries := []convdomain.ConversationEntry{}
 	metadata := ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Empty Conversation",
@@ -728,7 +728,7 @@ func TestJsonlStorage_MultipleAppends(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "multi-append-test"
 
-	entries := []domain.ConversationEntry{}
+	entries := []convdomain.ConversationEntry{}
 	metadata := ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Multi-Append Test",
@@ -738,7 +738,7 @@ func TestJsonlStorage_MultipleAppends(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		entries = append(entries, domain.ConversationEntry{
+		entries = append(entries, convdomain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Message %d", i))},
 			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),
@@ -770,7 +770,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		conversationID := fmt.Sprintf("v2-list-%d", i)
-		entries := []domain.ConversationEntry{
+		entries := []convdomain.ConversationEntry{
 			{
 				Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Initial")},
 				Model:   "deepseek/deepseek-v4-pro",
@@ -788,7 +788,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 		err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 		require.NoError(t, err)
 
-		entries = append(entries, domain.ConversationEntry{
+		entries = append(entries, convdomain.ConversationEntry{
 			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Response")},
 			Model:   "deepseek/deepseek-v4-pro",
 			Time:    time.Now(),

@@ -5,10 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
-
-	sdk "github.com/inference-gateway/sdk"
 )
 
 func requireAllApproval(*sdk.ChatCompletionMessageToolCall, bool) bool { return true }

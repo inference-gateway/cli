@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -13,9 +12,11 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageDecodeTool describes a local image file as text (scene summary +

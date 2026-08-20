@@ -8,7 +8,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // gatewayPrice is a per-model price from /v1/models?include=pricing,
@@ -84,7 +84,7 @@ type PricingServiceImpl struct {
 }
 
 // NewPricingService creates a new pricing service instance.
-func NewPricingService(cfg *config.PricingConfig) domain.PricingService {
+func NewPricingService(cfg *config.PricingConfig) convdomain.PricingService {
 	return &PricingServiceImpl{
 		config: cfg,
 	}

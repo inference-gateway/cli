@@ -1,10 +1,12 @@
 package domain
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // UI Events for application state management
@@ -15,7 +17,7 @@ import (
 
 // UpdateHistoryEvent updates the conversation history display
 type UpdateHistoryEvent struct {
-	History []ConversationEntry
+	History []convdomain.ConversationEntry
 }
 
 // StreamingContentEvent delivers live streaming content for immediate UI display
@@ -222,7 +224,7 @@ type GitPRResolvedEvent struct {
 
 // BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
 type BashCommandCompletedEvent struct {
-	History       []ConversationEntry
+	History       []convdomain.ConversationEntry
 	Failed        bool
 	UserInitiated bool
 	ErrorMessage  string

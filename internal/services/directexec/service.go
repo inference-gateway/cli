@@ -7,11 +7,12 @@
 package directexec
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
@@ -27,7 +28,7 @@ type stateManager interface {
 
 // Service is the concrete DirectExecutionService.
 type Service struct {
-	conversationRepo       domain.ConversationRepository
+	conversationRepo       convdomain.ConversationRepository
 	toolService            agentdomain.ToolService
 	stateManager           stateManager
 	backgroundShellService domain.BackgroundShellService
@@ -43,7 +44,7 @@ type Service struct {
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
-	ConversationRepo       domain.ConversationRepository
+	ConversationRepo       convdomain.ConversationRepository
 	ToolService            agentdomain.ToolService
 	StateManager           stateManager
 	BackgroundShellService domain.BackgroundShellService

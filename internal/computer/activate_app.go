@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 // ActivateAppTool brings a running application to the foreground.

@@ -3,18 +3,17 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // modeChangeSvc builds an agent service backed by the real default reminders
@@ -190,7 +189,7 @@ func TestModeChangeReminder_PersistsHiddenViaRepo(t *testing.T) {
 	svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 	svc.modeInitialized = true
 	svc.lastStreamedMode = agentdomain.AgentModeStandard
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.AddMessageReturns(nil)
 	svc.conversationRepo = repo
 	withDebugStreamWriter(t)

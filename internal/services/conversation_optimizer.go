@@ -9,7 +9,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
@@ -25,10 +25,10 @@ type ConversationOptimizer struct {
 	client            sdk.Client
 	config            *config.Config
 	tokenizer         *TokenizerService
-	repo              domain.ConversationRepository
+	repo              convdomain.ConversationRepository
 }
 
-var _ domain.ConversationOptimizer = (*ConversationOptimizer)(nil)
+var _ convdomain.ConversationOptimizer = (*ConversationOptimizer)(nil)
 
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
@@ -44,11 +44,11 @@ type OptimizerConfig struct {
 	// trigger value (the gateway-reported count includes system prompt and
 	// tool definitions, matching what `/context` displays). When nil, the
 	// gate falls back to the entries-only estimate.
-	Repo domain.ConversationRepository
+	Repo convdomain.ConversationRepository
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
-func NewConversationOptimizer(config OptimizerConfig) domain.ConversationOptimizer {
+func NewConversationOptimizer(config OptimizerConfig) convdomain.ConversationOptimizer {
 	if config.AutoAt < 1 || config.AutoAt > 80 {
 		logger.Warn("compact.auto_at must be between 1 and 80, defaulting to 80", "provided", config.AutoAt)
 		config.AutoAt = 80

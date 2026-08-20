@@ -5,8 +5,9 @@
 package domain
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // ViewManager handles view state transitions

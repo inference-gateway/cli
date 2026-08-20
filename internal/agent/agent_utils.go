@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,8 +16,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -1322,7 +1323,7 @@ func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *states.AgentCon
 	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
 
 	if s.conversationRepo != nil {
-		entry := domain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
+		entry := convdomain.ConversationEntry{Message: msg, Time: time.Now(), Hidden: true}
 		if err := s.conversationRepo.AddMessage(entry); err != nil {
 			logger.Error("failed to store system reminder message", "error", err)
 		}

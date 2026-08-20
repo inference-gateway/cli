@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestAnyToolFailed(t *testing.T) {
@@ -13,13 +13,13 @@ func TestAnyToolFailed(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		results []domain.ConversationEntry
+		results []convdomain.ConversationEntry
 		want    bool
 	}{
 		{"empty", nil, false},
-		{"all success", []domain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: ok}}, false},
-		{"one failure", []domain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: bad}}, true},
-		{"nil execution ignored", []domain.ConversationEntry{{ToolExecution: nil}}, false},
+		{"all success", []convdomain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: ok}}, false},
+		{"one failure", []convdomain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: bad}}, true},
+		{"nil execution ignored", []convdomain.ConversationEntry{{ToolExecution: nil}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,13 +37,13 @@ func TestAnyToolRejected(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		results []domain.ConversationEntry
+		results []convdomain.ConversationEntry
 		want    bool
 	}{
 		{"empty", nil, false},
-		{"no rejection", []domain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: failed}}, false},
-		{"one rejection", []domain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: rejected}}, true},
-		{"nil execution ignored", []domain.ConversationEntry{{ToolExecution: nil}}, false},
+		{"no rejection", []convdomain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: failed}}, false},
+		{"one rejection", []convdomain.ConversationEntry{{ToolExecution: ok}, {ToolExecution: rejected}}, true},
+		{"nil execution ignored", []convdomain.ConversationEntry{{ToolExecution: nil}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

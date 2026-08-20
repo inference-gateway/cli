@@ -1,21 +1,19 @@
 package components
 
 import (
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
-
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // The default delegate renders items through the DefaultItem interface.

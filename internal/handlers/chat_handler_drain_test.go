@@ -1,15 +1,15 @@
 package handlers
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -48,7 +48,7 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
 			}
 
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
 			runner := &uimocks.FakeChatCompletionRunner{}
@@ -109,7 +109,7 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
 			}
 
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
 			runner := &uimocks.FakeChatCompletionRunner{}
@@ -159,7 +159,7 @@ func TestShouldDrainAfterComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 			h := &ChatHandler{messageQueue: queue}
 

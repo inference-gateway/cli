@@ -2,10 +2,10 @@ package tools
 
 import (
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 

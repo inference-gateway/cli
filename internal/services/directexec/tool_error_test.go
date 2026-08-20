@@ -2,17 +2,17 @@ package directexec_test
 
 import (
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -35,7 +35,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 	svc := directexec.NewService(directexec.Options{
 		ToolService:      toolSvc,
 		StateManager:     sm,
-		ConversationRepo: &domainmocks.FakeConversationRepository{},
+		ConversationRepo: &convmocks.FakeConversationRepository{},
 		Listener:         &uimocks.FakeChatEventListener{},
 	})
 

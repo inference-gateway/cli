@@ -9,15 +9,15 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // AgentContext represents the execution context for the agent state machine
 type AgentContext struct {
 	RequestID        string
 	Conversation     *[]sdk.Message
-	MessageQueue     domain.MessageQueue
-	ConversationRepo domain.ConversationRepository
+	MessageQueue     convdomain.MessageQueue
+	ConversationRepo convdomain.ConversationRepository
 	ToolCalls        []*sdk.ChatCompletionMessageToolCall
 	Turns            int
 	MaxTurns         int
@@ -35,7 +35,7 @@ type AgentContext struct {
 // (executed with a non-success result). It backs the post_tool `on_failure`
 // reminder trigger; callers set AgentContext.LastToolFailed from it when a batch
 // completes.
-func AnyToolFailed(results []domain.ConversationEntry) bool {
+func AnyToolFailed(results []convdomain.ConversationEntry) bool {
 	for _, entry := range results {
 		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
 			return true
@@ -47,7 +47,7 @@ func AnyToolFailed(results []domain.ConversationEntry) bool {
 // AnyToolRejected reports whether any entry in a completed tool batch was
 // rejected by the user. A rejection ends the agent turn instead of feeding the
 // results back for another LLM response.
-func AnyToolRejected(results []domain.ConversationEntry) bool {
+func AnyToolRejected(results []convdomain.ConversationEntry) bool {
 	for _, entry := range results {
 		if entry.ToolExecution != nil && entry.ToolExecution.Rejected {
 			return true

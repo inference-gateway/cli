@@ -1,16 +1,16 @@
 package services
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"slices"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	models "github.com/inference-gateway/cli/internal/models"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 

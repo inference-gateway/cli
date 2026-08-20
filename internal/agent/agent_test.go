@@ -3,22 +3,21 @@ package agent
 import (
 	"context"
 	"errors"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"sync"
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestAgentServiceImpl_GetMetrics(t *testing.T) {
@@ -244,7 +243,7 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 
 func TestNewAgentService(t *testing.T) {
 	fakeToolService := &agentdomainmocks.FakeToolService{}
-	fakeConversationRepo := &domainmocks.FakeConversationRepository{}
+	fakeConversationRepo := &convmocks.FakeConversationRepository{}
 	fakeStateManager := services.NewStateManager(false)
 
 	cfg := &config.Config{
@@ -764,7 +763,7 @@ func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeRepo := &domainmocks.FakeConversationRepository{}
+			fakeRepo := &convmocks.FakeConversationRepository{}
 
 			agentService := &AgentServiceImpl{
 				conversationRepo: fakeRepo,
@@ -998,7 +997,7 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 				Success:  tt.success,
 			}, nil)
 
-			fakeRepo := &domainmocks.FakeConversationRepository{}
+			fakeRepo := &convmocks.FakeConversationRepository{}
 			fakeRepo.FormatToolResultForLLMReturns("formatted result")
 
 			s := &AgentServiceImpl{
@@ -1499,7 +1498,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	queue := services.NewMessageQueueService()
 	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, "req-1")
 
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 
 	svc := &AgentServiceImpl{
 		messageQueue:     queue,
@@ -1571,7 +1570,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	queue := services.NewMessageQueueService()
 	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, "req-x")
 
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	svc := &AgentServiceImpl{
 		messageQueue:     queue,
 		conversationRepo: repo,

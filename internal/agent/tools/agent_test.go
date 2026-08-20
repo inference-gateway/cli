@@ -2,12 +2,12 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"sync"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 	utils "github.com/inference-gateway/cli/internal/utils"

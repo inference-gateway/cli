@@ -2,15 +2,15 @@ package telemetry
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	attribute "go.opentelemetry.io/otel/attribute"
 	codes "go.opentelemetry.io/otel/codes"
 	trace "go.opentelemetry.io/otel/trace"
 	noop "go.opentelemetry.io/otel/trace/noop"
 
-	sdk "github.com/inference-gateway/sdk"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // toolService decorates a agentdomain.ToolService, recording one metric and one

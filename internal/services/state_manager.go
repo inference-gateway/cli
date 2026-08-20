@@ -2,13 +2,15 @@ package services
 
 import (
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // StateManager provides centralized state management with proper synchronization
@@ -517,7 +519,7 @@ func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) 
 }
 
 // PopQueuedMessage removes and returns the first message from the queue (FIFO order)
-func (sm *StateManager) PopQueuedMessage() *domain.QueuedMessage {
+func (sm *StateManager) PopQueuedMessage() *convdomain.QueuedMessage {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -534,7 +536,7 @@ func (sm *StateManager) ClearQueuedMessages() {
 }
 
 // GetQueuedMessages returns the current queued messages
-func (sm *StateManager) GetQueuedMessages() []domain.QueuedMessage {
+func (sm *StateManager) GetQueuedMessages() []convdomain.QueuedMessage {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetQueuedMessages()

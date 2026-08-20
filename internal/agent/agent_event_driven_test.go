@@ -2,27 +2,27 @@ package agent
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/agent/states"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 )
 
 // testMocks holds all the mocks needed for testing
 type testMocks struct {
 	stateMachine *statesmocks.FakeAgentStateMachine
-	queue        *mockdomain.FakeMessageQueue
-	repo         *mockdomain.FakeConversationRepository
+	queue        *convmocks.FakeMessageQueue
+	repo         *convmocks.FakeConversationRepository
 	stateManager *services.StateManager
 	approval     *agentdomainmocks.FakeApprovalPolicy
 }
@@ -31,8 +31,8 @@ type testMocks struct {
 func setupTestMocks() *testMocks {
 	return &testMocks{
 		stateMachine: &statesmocks.FakeAgentStateMachine{},
-		queue:        &mockdomain.FakeMessageQueue{},
-		repo:         &mockdomain.FakeConversationRepository{},
+		queue:        &convmocks.FakeMessageQueue{},
+		repo:         &convmocks.FakeConversationRepository{},
 		stateManager: services.NewStateManager(false),
 		approval:     &agentdomainmocks.FakeApprovalPolicy{},
 	}
@@ -450,7 +450,7 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		agent := createTestAgent(mocks, ctx)
 
 		event := states.ToolsCompletedEvent{
-			Results: []domain.ConversationEntry{
+			Results: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{
 						Role:    sdk.Tool,
@@ -481,7 +481,7 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		agent := createTestAgent(mocks, ctx)
 
 		event := states.ToolsCompletedEvent{
-			Results: []domain.ConversationEntry{},
+			Results: []convdomain.ConversationEntry{},
 			Stop:    true,
 		}
 

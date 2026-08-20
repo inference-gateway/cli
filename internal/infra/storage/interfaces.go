@@ -6,6 +6,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -38,10 +39,10 @@ type SessionGroupStorage interface {
 // ConversationStorage defines the interface for persistent conversation storage
 type ConversationStorage interface {
 	// SaveConversation saves a conversation with a unique ID
-	SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error
+	SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error
 
 	// LoadConversation loads a conversation by its ID
-	LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error)
+	LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error)
 
 	// ListConversations returns a list of conversation summaries
 	ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
@@ -63,10 +64,10 @@ type ConversationStorage interface {
 }
 
 // ConversationMetadata contains metadata about a conversation
-type ConversationMetadata = domain.ConversationMetadata
+type ConversationMetadata = convdomain.ConversationMetadata
 
 // ConversationSummary contains summary information about a conversation
-type ConversationSummary = domain.ConversationSummary
+type ConversationSummary = convdomain.ConversationSummary
 
 // ScheduledJobStorage defines the interface for persisting scheduled jobs.
 // Implementations must be safe for concurrent access. Change notification is

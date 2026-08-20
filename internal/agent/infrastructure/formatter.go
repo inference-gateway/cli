@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tree "charm.land/lipgloss/v2/tree"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 

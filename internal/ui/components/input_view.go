@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
@@ -35,7 +36,7 @@ type InputView struct {
 	placeholder          string
 	width                int
 	height               int
-	modelService         domain.ModelService
+	modelService         convdomain.ModelService
 	imageService         domain.ImageService
 	stateManager         inputViewState
 	skillsService        domain.SkillsService
@@ -44,7 +45,7 @@ type InputView struct {
 	githubIssueService   domain.GitHubIssueService
 	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
-	conversationRepo     domain.ConversationRepository
+	conversationRepo     convdomain.ConversationRepository
 	historyManager       *history.HistoryManager
 	disabled             bool
 	savedText            string
@@ -52,7 +53,7 @@ type InputView struct {
 	themeService         domain.ThemeService
 	styleProvider        *styles.Provider
 	imageAttachments     []agentdomain.ImageAttachment
-	messageQueue         domain.MessageQueue
+	messageQueue         convdomain.MessageQueue
 	historySuggestion    string
 	historySuggestions   []string
 	historySelectedIndex int
@@ -84,7 +85,7 @@ func gitCurrentBranch() (string, error) {
 // manager keeps in memory for up-arrow recall.
 const maxInMemoryHistory = 5
 
-func NewInputView(modelService domain.ModelService) *InputView {
+func NewInputView(modelService convdomain.ModelService) *InputView {
 	return NewInputViewWithName(modelService, "", "", nil)
 }
 
@@ -92,7 +93,7 @@ func NewInputView(modelService domain.ModelService) *InputView {
 // (name == "") goes through the storage backend when a store is provided;
 // named subagent histories and the no-store fallback stay file-based under
 // <configDir>/history/.
-func NewInputViewWithName(modelService domain.ModelService, configDir, name string, store storage.ShellHistoryStorage) *InputView {
+func NewInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) *InputView {
 	if configDir == "" {
 		configDir = ".infer"
 	}
@@ -223,7 +224,7 @@ func (iv *InputView) SetImageService(imageService domain.ImageService) {
 }
 
 // SetConversationRepo sets the conversation repository for context usage display
-func (iv *InputView) SetConversationRepo(repo domain.ConversationRepository) {
+func (iv *InputView) SetConversationRepo(repo convdomain.ConversationRepository) {
 	iv.conversationRepo = repo
 }
 
@@ -247,7 +248,7 @@ func (iv *InputView) SetFileService(fileService domain.FileService) {
 
 // SetMessageQueue sets the message queue so arrow-up can restore queued
 // message content into the input field instead of navigating history.
-func (iv *InputView) SetMessageQueue(mq domain.MessageQueue) {
+func (iv *InputView) SetMessageQueue(mq convdomain.MessageQueue) {
 	iv.messageQueue = mq
 }
 

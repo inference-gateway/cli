@@ -1,13 +1,14 @@
 package services
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Test helper to create a state manager

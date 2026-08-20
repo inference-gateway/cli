@@ -3,16 +3,16 @@ package jobs
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"testing"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // fakeJob is a controllable BackgroundJob: Run blocks until finish is closed (or
@@ -108,8 +108,8 @@ func TestSupervisor_FinishEnqueue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queue := &domainmocks.FakeMessageQueue{}
-			sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
+			queue := &convmocks.FakeMessageQueue{}
+			sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 
 			job := newFakeJob(tt.id, tt.kind)
 			job.meta.Silent = tt.silent
@@ -136,8 +136,8 @@ func TestSupervisor_FinishEnqueue(t *testing.T) {
 // ever produce queue messages, so a late completion can never send on a closed
 // channel.
 func TestSupervisor_ConcurrentFinishEnqueuesEachOnce(t *testing.T) {
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 
 	const n = 16
 	js := make([]*fakeJob, n)
@@ -161,7 +161,7 @@ func TestSupervisor_ConcurrentFinishEnqueuesEachOnce(t *testing.T) {
 }
 
 func TestSupervisor_WindStopCancelsRun(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	job := newFakeJob("j", domain.JobKindSubagent)
 	sup.Submit(job)
 	<-job.started
@@ -182,14 +182,14 @@ func TestSupervisor_WindStopCancelsRun(t *testing.T) {
 }
 
 func TestSupervisor_WindUnknownJob(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	if err := sup.Wind("missing", domain.WindWrapUp); err == nil {
 		t.Fatalf("expected error winding unknown job")
 	}
 }
 
 func TestSupervisor_CleanupReapsFinishedAndTearsDown(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	job := newFakeJob("j", domain.JobKindSubagent)
 	sup.Submit(job)
 	<-job.started
@@ -211,7 +211,7 @@ func TestSupervisor_CleanupReapsFinishedAndTearsDown(t *testing.T) {
 }
 
 func TestSupervisor_CountRunning(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	sub := newFakeJob("subagent", domain.JobKindSubagent)
 	sup.Submit(sub)
@@ -232,7 +232,7 @@ func TestSupervisor_CountRunning(t *testing.T) {
 }
 
 func TestSupervisor_IsRunning(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	job := newFakeJob("j1", domain.JobKindA2A)
 	sup.Submit(job)
@@ -257,7 +257,7 @@ func TestSupervisor_IsRunning(t *testing.T) {
 // pending - a running non-session-holding job (an interactive pane) and
 // finished jobs do not.
 func TestSupervisor_HasPending(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	pane := newFakeJob("pane", domain.JobKindSubagent)
 	sup.Submit(pane)
@@ -287,9 +287,9 @@ func TestSupervisor_HasPending(t *testing.T) {
 // jobs - dropped from the snapshot immediately, hard-stopped, no queue note, no
 // retention entry - while other kinds keep running untouched.
 func TestSupervisor_DiscardKind(t *testing.T) {
-	queue := &domainmocks.FakeMessageQueue{}
+	queue := &convmocks.FakeMessageQueue{}
 	retention := &domainmocks.FakeTaskRetentionService{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	sup.SetTaskRetention(retention)
 
 	a2a := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: domain.TaskInfo{}, ok: true}
@@ -334,7 +334,7 @@ func TestSupervisor_DiscardKind(t *testing.T) {
 // TestSupervisor_DiscardKind_ReapsTerminal: an already-finished (unreaped) job
 // of the kind is dropped and torn down by the discard sweep.
 func TestSupervisor_DiscardKind_ReapsTerminal(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	job := newFakeJob("t1", domain.JobKindA2A)
 	sup.Submit(job)
 	<-job.started
@@ -354,7 +354,7 @@ func TestSupervisor_DiscardKind_ReapsTerminal(t *testing.T) {
 }
 
 func TestSupervisor_SubmitAfterStopIgnored(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	sup.Stop()
 	sup.Submit(newFakeJob("late", domain.JobKindShell))
 	if len(sup.Snapshot()) != 0 {
@@ -363,7 +363,7 @@ func TestSupervisor_SubmitAfterStopIgnored(t *testing.T) {
 }
 
 func TestSupervisor_DuplicateSubmitIgnored(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	job := newFakeJob("dup", domain.JobKindShell)
 	sup.Submit(job)
 	<-job.started
@@ -415,7 +415,7 @@ func waitFor(t *testing.T, cond func() bool) {
 // terminal job of its kind and tears it down (Close) exactly once. Jobs finish
 // sequentially with a gap so completedAt ordering is deterministic.
 func TestSupervisor_RetentionCountEvictsOldestOnFinish(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	sup.SetRetentionCount(domain.JobKindShell, 2)
 
 	js := make([]*fakeJob, 3)
@@ -455,7 +455,7 @@ func TestSupervisor_RetentionCountEvictsOldestOnFinish(t *testing.T) {
 // TestSupervisor_RetentionCountPerKindIndependent: caps are tracked per kind, so
 // finished shells never evict subagents and vice versa.
 func TestSupervisor_RetentionCountPerKindIndependent(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	sup.SetRetentionCount(domain.JobKindShell, 1)
 	sup.SetRetentionCount(domain.JobKindSubagent, 1)
 
@@ -501,7 +501,7 @@ func TestSupervisor_RetentionCountPerKindIndependent(t *testing.T) {
 // TestSupervisor_RetentionCountUnsetIsUnbounded: with no cap set, every terminal
 // job is retained (current behavior) and none is torn down by retention.
 func TestSupervisor_RetentionCountUnsetIsUnbounded(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	js := make([]*fakeJob, 4)
 	for i := range js {
@@ -526,7 +526,7 @@ func TestSupervisor_RetentionCountUnsetIsUnbounded(t *testing.T) {
 // retention victim, so a burst of finished headless subagents cannot reap a live
 // interactive subagent pane.
 func TestSupervisor_RunningJobNeverEvicted(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	sup.SetRetentionCount(domain.JobKindSubagent, 1)
 
 	live := newFakeJob("interactive", domain.JobKindSubagent)
@@ -603,7 +603,7 @@ func TestSupervisor_FinishRetention(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			retention := &domainmocks.FakeTaskRetentionService{}
-			sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+			sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 			sup.SetTaskRetention(retention)
 
 			job, inner := tt.job()
@@ -627,7 +627,7 @@ func TestSupervisor_FinishRetention(t *testing.T) {
 // TestSupervisor_FinishWithoutRetentionService: a retainer job finishing with no
 // retention service wired must not panic, and the job still completes normally.
 func TestSupervisor_FinishWithoutRetentionService(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	job := &fakeRetainerJob{fakeJob: newFakeJob("t1", domain.JobKindA2A), info: domain.TaskInfo{AgentURL: "http://agent"}, ok: true}
 	sup.Submit(job)
@@ -679,7 +679,7 @@ func TestSupervisor_SnapshotOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+			sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 			job, inner := tt.job()
 			sup.Submit(job)
@@ -701,7 +701,7 @@ func TestSupervisor_SnapshotOutput(t *testing.T) {
 // TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap: output survives in the
 // snapshot until the job is reaped by cleanup, not cleared on finish.
 func TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	job := &fakeOutputJob{
 		fakeJob: newFakeJob("output-reap", domain.JobKindShell),
@@ -736,7 +736,7 @@ func (f *fakeA2AJob) A2APollingState() agentdomain.TaskPollingState { return f.s
 // active A2A rows: only running A2A jobs are returned, with their polling detail
 // intact, and a finished task drops out.
 func TestSupervisor_A2APollingStates(t *testing.T) {
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	a2a := &fakeA2AJob{

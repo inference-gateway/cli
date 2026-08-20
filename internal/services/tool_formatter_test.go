@@ -2,20 +2,19 @@ package services
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	lipgloss "charm.land/lipgloss/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")

@@ -4,46 +4,47 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {
 	tests := []struct {
 		name     string
-		entries  []domain.ConversationEntry
+		entries  []convdomain.ConversationEntry
 		expected string
 	}{
 		{
 			name: "first user message under 10 words",
-			entries: []domain.ConversationEntry{
+			entries: []convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Help me with Docker")}, Time: time.Now()},
 			},
 			expected: "Help me with Docker",
 		},
 		{
 			name: "first user message over 10 words",
-			entries: []domain.ConversationEntry{
+			entries: []convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Please help me understand how to properly configure and deploy a complex React application using Docker containers")}, Time: time.Now()},
 			},
 			expected: "Please help me understand how to properly",
 		},
 		{
 			name: "long title truncated at 50 chars",
-			entries: []domain.ConversationEntry{
+			entries: []convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("This is a very long message that should be truncated when used as a fallback title because it exceeds the fifty character limit")}, Time: time.Now()},
 			},
 			expected: "This is a very long message that should be",
 		},
 		{
 			name:     "empty entries",
-			entries:  []domain.ConversationEntry{},
+			entries:  []convdomain.ConversationEntry{},
 			expected: "Conversation",
 		},
 		{
 			name: "system reminder ignored",
-			entries: []domain.ConversationEntry{
+			entries: []convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.System, Content: sdk.NewMessageContent("System reminder")}, Hidden: true, Time: time.Now()},
 				{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Real user message")}, Time: time.Now()},
 			},
@@ -61,7 +62,7 @@ func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {
 }
 
 func TestConversationTitleGeneratorSimple_formatConversationForTitleGeneration(t *testing.T) {
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.System, Content: sdk.NewMessageContent("System message")}, Hidden: true, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("How do I deploy a React app?")}, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("I'll help you deploy your React application. There are several approaches...")}, Time: time.Now()},

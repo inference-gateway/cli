@@ -4,17 +4,18 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	config "github.com/inference-gateway/cli/config"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/ledongthuc/pdf"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // Error constants for consistent error handling

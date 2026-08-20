@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	"image/jpeg"
 	_ "image/png"
@@ -17,12 +16,12 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // ScreenshotServer provides an HTTP API for screenshot streaming

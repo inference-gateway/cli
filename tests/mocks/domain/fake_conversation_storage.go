@@ -3,9 +3,9 @@ package domain
 
 import (
 	"context"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/infra/storage"
 )
 
@@ -72,28 +72,28 @@ type FakeConversationStorage struct {
 		result1 []storage.ConversationSummary
 		result2 error
 	}
-	LoadConversationStub        func(context.Context, string) ([]domain.ConversationEntry, storage.ConversationMetadata, error)
+	LoadConversationStub        func(context.Context, string) ([]convdomain.ConversationEntry, storage.ConversationMetadata, error)
 	loadConversationMutex       sync.RWMutex
 	loadConversationArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
 	}
 	loadConversationReturns struct {
-		result1 []domain.ConversationEntry
+		result1 []convdomain.ConversationEntry
 		result2 storage.ConversationMetadata
 		result3 error
 	}
 	loadConversationReturnsOnCall map[int]struct {
-		result1 []domain.ConversationEntry
+		result1 []convdomain.ConversationEntry
 		result2 storage.ConversationMetadata
 		result3 error
 	}
-	SaveConversationStub        func(context.Context, string, []domain.ConversationEntry, storage.ConversationMetadata) error
+	SaveConversationStub        func(context.Context, string, []convdomain.ConversationEntry, storage.ConversationMetadata) error
 	saveConversationMutex       sync.RWMutex
 	saveConversationArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
-		arg3 []domain.ConversationEntry
+		arg3 []convdomain.ConversationEntry
 		arg4 storage.ConversationMetadata
 	}
 	saveConversationReturns struct {
@@ -426,7 +426,7 @@ func (fake *FakeConversationStorage) ListConversationsNeedingTitlesReturnsOnCall
 	}{result1, result2}
 }
 
-func (fake *FakeConversationStorage) LoadConversation(arg1 context.Context, arg2 string) ([]domain.ConversationEntry, storage.ConversationMetadata, error) {
+func (fake *FakeConversationStorage) LoadConversation(arg1 context.Context, arg2 string) ([]convdomain.ConversationEntry, storage.ConversationMetadata, error) {
 	fake.loadConversationMutex.Lock()
 	ret, specificReturn := fake.loadConversationReturnsOnCall[len(fake.loadConversationArgsForCall)]
 	fake.loadConversationArgsForCall = append(fake.loadConversationArgsForCall, struct {
@@ -452,7 +452,7 @@ func (fake *FakeConversationStorage) LoadConversationCallCount() int {
 	return len(fake.loadConversationArgsForCall)
 }
 
-func (fake *FakeConversationStorage) LoadConversationCalls(stub func(context.Context, string) ([]domain.ConversationEntry, storage.ConversationMetadata, error)) {
+func (fake *FakeConversationStorage) LoadConversationCalls(stub func(context.Context, string) ([]convdomain.ConversationEntry, storage.ConversationMetadata, error)) {
 	fake.loadConversationMutex.Lock()
 	defer fake.loadConversationMutex.Unlock()
 	fake.LoadConversationStub = stub
@@ -465,39 +465,39 @@ func (fake *FakeConversationStorage) LoadConversationArgsForCall(i int) (context
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeConversationStorage) LoadConversationReturns(result1 []domain.ConversationEntry, result2 storage.ConversationMetadata, result3 error) {
+func (fake *FakeConversationStorage) LoadConversationReturns(result1 []convdomain.ConversationEntry, result2 storage.ConversationMetadata, result3 error) {
 	fake.loadConversationMutex.Lock()
 	defer fake.loadConversationMutex.Unlock()
 	fake.LoadConversationStub = nil
 	fake.loadConversationReturns = struct {
-		result1 []domain.ConversationEntry
+		result1 []convdomain.ConversationEntry
 		result2 storage.ConversationMetadata
 		result3 error
 	}{result1, result2, result3}
 }
 
-func (fake *FakeConversationStorage) LoadConversationReturnsOnCall(i int, result1 []domain.ConversationEntry, result2 storage.ConversationMetadata, result3 error) {
+func (fake *FakeConversationStorage) LoadConversationReturnsOnCall(i int, result1 []convdomain.ConversationEntry, result2 storage.ConversationMetadata, result3 error) {
 	fake.loadConversationMutex.Lock()
 	defer fake.loadConversationMutex.Unlock()
 	fake.LoadConversationStub = nil
 	if fake.loadConversationReturnsOnCall == nil {
 		fake.loadConversationReturnsOnCall = make(map[int]struct {
-			result1 []domain.ConversationEntry
+			result1 []convdomain.ConversationEntry
 			result2 storage.ConversationMetadata
 			result3 error
 		})
 	}
 	fake.loadConversationReturnsOnCall[i] = struct {
-		result1 []domain.ConversationEntry
+		result1 []convdomain.ConversationEntry
 		result2 storage.ConversationMetadata
 		result3 error
 	}{result1, result2, result3}
 }
 
-func (fake *FakeConversationStorage) SaveConversation(arg1 context.Context, arg2 string, arg3 []domain.ConversationEntry, arg4 storage.ConversationMetadata) error {
-	var arg3Copy []domain.ConversationEntry
+func (fake *FakeConversationStorage) SaveConversation(arg1 context.Context, arg2 string, arg3 []convdomain.ConversationEntry, arg4 storage.ConversationMetadata) error {
+	var arg3Copy []convdomain.ConversationEntry
 	if arg3 != nil {
-		arg3Copy = make([]domain.ConversationEntry, len(arg3))
+		arg3Copy = make([]convdomain.ConversationEntry, len(arg3))
 		copy(arg3Copy, arg3)
 	}
 	fake.saveConversationMutex.Lock()
@@ -505,7 +505,7 @@ func (fake *FakeConversationStorage) SaveConversation(arg1 context.Context, arg2
 	fake.saveConversationArgsForCall = append(fake.saveConversationArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-		arg3 []domain.ConversationEntry
+		arg3 []convdomain.ConversationEntry
 		arg4 storage.ConversationMetadata
 	}{arg1, arg2, arg3Copy, arg4})
 	stub := fake.SaveConversationStub
@@ -527,13 +527,13 @@ func (fake *FakeConversationStorage) SaveConversationCallCount() int {
 	return len(fake.saveConversationArgsForCall)
 }
 
-func (fake *FakeConversationStorage) SaveConversationCalls(stub func(context.Context, string, []domain.ConversationEntry, storage.ConversationMetadata) error) {
+func (fake *FakeConversationStorage) SaveConversationCalls(stub func(context.Context, string, []convdomain.ConversationEntry, storage.ConversationMetadata) error) {
 	fake.saveConversationMutex.Lock()
 	defer fake.saveConversationMutex.Unlock()
 	fake.SaveConversationStub = stub
 }
 
-func (fake *FakeConversationStorage) SaveConversationArgsForCall(i int) (context.Context, string, []domain.ConversationEntry, storage.ConversationMetadata) {
+func (fake *FakeConversationStorage) SaveConversationArgsForCall(i int) (context.Context, string, []convdomain.ConversationEntry, storage.ConversationMetadata) {
 	fake.saveConversationMutex.RLock()
 	defer fake.saveConversationMutex.RUnlock()
 	argsForCall := fake.saveConversationArgsForCall[i]

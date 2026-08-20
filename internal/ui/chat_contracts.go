@@ -2,8 +2,8 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 

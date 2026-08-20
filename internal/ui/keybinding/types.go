@@ -3,8 +3,10 @@ package keybinding
 import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -17,7 +19,7 @@ type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 type KeyHandlerContext interface {
 	// State management
 	GetStateManager() *services.StateManager
-	GetConversationRepository() domain.ConversationRepository
+	GetConversationRepository() convdomain.ConversationRepository
 	GetConfig() *config.Config
 	GetConfigDir() string
 

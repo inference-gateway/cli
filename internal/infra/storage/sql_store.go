@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -56,7 +57,7 @@ func (s *sqlStore) DB() *sql.DB {
 
 // SaveConversation saves a conversation with its entries using the single-table
 // schema (messages are stored as an embedded JSON blob).
-func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	modelsUsed := make(map[string]bool)
 	for _, entry := range entries {
 		if entry.Model != "" {
@@ -119,13 +120,13 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 }
 
 // LoadConversation loads a conversation by its ID.
-func (s *sqlStore) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *sqlStore) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	metadata, messagesJSON, err := s.loadConversationMetadata(ctx, conversationID)
 	if err != nil {
 		return nil, metadata, err
 	}
 
-	var entries []domain.ConversationEntry
+	var entries []convdomain.ConversationEntry
 	if err := json.Unmarshal([]byte(messagesJSON), &entries); err != nil {
 		return nil, metadata, fmt.Errorf("failed to unmarshal messages: %w", err)
 	}
@@ -159,7 +160,7 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 		return metadata, "", fmt.Errorf("failed to load conversation: %w", err)
 	}
 
-	metadata.TokenStats = domain.SessionTokenStats{
+	metadata.TokenStats = convdomain.SessionTokenStats{
 		TotalInputTokens:  totalInputTokens,
 		TotalOutputTokens: totalOutputTokens,
 		TotalTokens:       totalInputTokens + totalOutputTokens,
@@ -168,7 +169,7 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 
 	if costStatsJSON != "" && costStatsJSON != "{}" {
 		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
-			metadata.CostStats = domain.SessionCostStats{}
+			metadata.CostStats = convdomain.SessionCostStats{}
 		}
 	}
 
@@ -217,7 +218,7 @@ func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
-		summary.TokenStats = domain.SessionTokenStats{
+		summary.TokenStats = convdomain.SessionTokenStats{
 			TotalInputTokens:  totalInputTokens,
 			TotalOutputTokens: totalOutputTokens,
 			TotalTokens:       totalInputTokens + totalOutputTokens,
@@ -226,7 +227,7 @@ func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]
 
 		if costStatsJSON != "" && costStatsJSON != "{}" {
 			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
-				summary.CostStats = domain.SessionCostStats{}
+				summary.CostStats = convdomain.SessionCostStats{}
 			}
 		}
 
@@ -269,7 +270,7 @@ func (s *sqlStore) ListConversationsNeedingTitles(ctx context.Context, limit int
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
-		summary.TokenStats = domain.SessionTokenStats{
+		summary.TokenStats = convdomain.SessionTokenStats{
 			TotalInputTokens:  totalInputTokens,
 			TotalOutputTokens: totalOutputTokens,
 			TotalTokens:       totalInputTokens + totalOutputTokens,

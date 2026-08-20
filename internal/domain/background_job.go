@@ -2,8 +2,9 @@ package domain
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // JobKind identifies which background-work subsystem produced a job so one

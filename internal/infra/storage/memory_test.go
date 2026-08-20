@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
@@ -14,7 +15,7 @@ func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
 	ctx := context.Background()
 
 	conversationID := "test-conv-1"
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -37,7 +38,7 @@ func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		MessageCount: len(entries),
-		TokenStats: domain.SessionTokenStats{
+		TokenStats: convdomain.SessionTokenStats{
 			TotalInputTokens:  10,
 			TotalOutputTokens: 15,
 			TotalTokens:       25,
@@ -75,7 +76,7 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 	conversations := []string{"conv-1", "conv-2", "conv-3"}
 
 	for i, convID := range conversations {
-		entries := []domain.ConversationEntry{
+		entries := []convdomain.ConversationEntry{
 			{
 				Message: sdk.Message{
 					Role:    sdk.User,
@@ -122,7 +123,7 @@ func TestMemoryStorage_DeleteConversation(t *testing.T) {
 	ctx := context.Background()
 
 	conversationID := "test-conv-delete"
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -160,7 +161,7 @@ func TestMemoryStorage_UpdateMetadata(t *testing.T) {
 	ctx := context.Background()
 
 	conversationID := "test-conv-update"
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -219,7 +220,7 @@ func TestMemoryStorage_Close(t *testing.T) {
 	storage := NewMemoryStorage()
 
 	conversationID := "test-conv-close"
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,

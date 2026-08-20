@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -17,10 +16,11 @@ import (
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
@@ -87,7 +87,7 @@ type subagentRemovalTickMsg struct {
 // the Bubble Tea event loop: all state is read and written from Update/View
 // only, so it holds no locks. Off-loop producers must go through Program.Send.
 type ConversationView struct {
-	conversation           []domain.ConversationEntry
+	conversation           []convdomain.ConversationEntry
 	Viewport               viewport.Model
 	width                  int
 	height                 int
@@ -160,7 +160,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	bgSpin := newModernSpinner()
 
 	return &ConversationView{
-		conversation:           []domain.ConversationEntry{},
+		conversation:           []convdomain.ConversationEntry{},
 		Viewport:               vp,
 		width:                  80,
 		height:                 20,
@@ -225,7 +225,7 @@ func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) stri
 	cv.agentModelResolver = resolver
 }
 
-func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
+func (cv *ConversationView) SetConversation(conversation []convdomain.ConversationEntry) {
 	wasAtBottom := cv.Viewport.AtBottom()
 	if len(conversation) < len(cv.conversation) {
 		cv.renderCache = make(map[int]renderCacheEntry)
@@ -677,8 +677,8 @@ type renderCacheEntry struct {
 // renderEntryCached returns the memoized rendering for the entry at index,
 // re-rendering only when the fingerprint changes. Entries whose rendering
 // reads live external state (pending plan approval buttons) bypass the cache.
-func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, index int) string {
-	if entry.IsPlan && entry.PlanApprovalStatus == domain.PlanApprovalPending {
+func (cv *ConversationView) renderEntryCached(entry convdomain.ConversationEntry, index int) string {
+	if entry.IsPlan && entry.PlanApprovalStatus == convdomain.PlanApprovalPending {
 		return cv.renderEntryWithIndex(entry, index)
 	}
 
@@ -697,7 +697,7 @@ func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, in
 // entries are append-only, so post-creation changes only touch the mutable
 // fields mixed in below (tool execution, approval statuses, expansion, width,
 // raw mode).
-func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, index int) uint64 {
+func (cv *ConversationView) entryFingerprint(entry convdomain.ConversationEntry, index int) uint64 {
 	h := fnv.New64a()
 	var buf [8]byte
 
@@ -747,7 +747,7 @@ func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, ind
 	return h.Sum64()
 }
 
-func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderEntryWithIndex(entry convdomain.ConversationEntry, index int) string {
 	if handled, result := cv.tryRenderSpecialEntry(entry, index); handled {
 		return result
 	}
@@ -762,7 +762,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 }
 
 // tryRenderSpecialEntry attempts to render special entry types (user commands, plans, tools)
-func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry, index int) (bool, string) {
+func (cv *ConversationView) tryRenderSpecialEntry(entry convdomain.ConversationEntry, index int) (bool, string) {
 	switch string(entry.Message.Role) {
 	case "user":
 		if result := cv.tryRenderUserCommand(entry); result != "" {
@@ -786,7 +786,7 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry
 }
 
 // tryRenderUserCommand checks if user entry is a command and renders it
-func (cv *ConversationView) tryRenderUserCommand(entry domain.ConversationEntry) string {
+func (cv *ConversationView) tryRenderUserCommand(entry convdomain.ConversationEntry) string {
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		return ""
@@ -805,7 +805,7 @@ func (cv *ConversationView) tryRenderUserCommand(entry domain.ConversationEntry)
 }
 
 // getRoleAndColor returns the role label and color for a given entry
-func (cv *ConversationView) getRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	switch string(entry.Message.Role) {
 	case "user":
 		return cv.getUserColor(), "> You"
@@ -821,7 +821,7 @@ func (cv *ConversationView) getRoleAndColor(entry domain.ConversationEntry) (str
 }
 
 // getAssistantRoleAndColor returns role and color for assistant entries
-func (cv *ConversationView) getAssistantRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getAssistantRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	if entry.Rejected {
 		return cv.styleProvider.GetThemeColor("dim"), "⊘ Rejected Plan"
 	}
@@ -829,7 +829,7 @@ func (cv *ConversationView) getAssistantRoleAndColor(entry domain.ConversationEn
 }
 
 // getToolRoleAndColor returns role and color for tool entries
-func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getToolRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	role := "🔧 Tool"
 	if entry.ToolExecution != nil && !entry.ToolExecution.Success {
 		return cv.styleProvider.GetThemeColor("error"), role
@@ -841,7 +841,7 @@ func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) 
 }
 
 // renderStandardEntry renders a standard message entry
-func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderStandardEntry(entry convdomain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
 	if entry.Message.Role == sdk.Assistant && entry.ReasoningContent != "" {
@@ -900,7 +900,7 @@ func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleSt
 }
 
 // renderInlineContent renders content inline with the role
-func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry domain.ConversationEntry, contentStr string, wrapWidth int) {
+func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry convdomain.ConversationEntry, contentStr string, wrapWidth int) {
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
 		body := cv.applyMarkdownIfEnabled(contentStr, max(cv.width-2, 40))
 		cv.writeRoleAndBody(result, roleStyled, body)
@@ -940,7 +940,7 @@ func (cv *ConversationView) applyMarkdownIfEnabled(contentStr string, wrapWidth 
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderAssistantWithToolCalls(entry convdomain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
 	if entry.ReasoningContent != "" {
@@ -1005,7 +1005,7 @@ func (cv *ConversationView) formatAssistantContent(contentStr, role string, mode
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderToolEntry(entry convdomain.ConversationEntry, index int) string {
 	var isExpanded bool
 	if index >= 0 {
 		isExpanded = cv.IsToolResultExpanded(index)
@@ -1022,14 +1022,14 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	return content + "\n"
 }
 
-func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, isExpanded bool) string {
+func (cv *ConversationView) formatEntryContent(entry convdomain.ConversationEntry, isExpanded bool) string {
 	if isExpanded {
 		return cv.formatExpandedContent(entry)
 	}
 	return cv.formatCompactContent(entry)
 }
 
-func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
+func (cv *ConversationView) formatExpandedContent(entry convdomain.ConversationEntry) string {
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 	}
@@ -1042,7 +1042,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 	return wrappedContent + "\n\n• " + hint
 }
 
-func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
+func (cv *ConversationView) formatCompactContent(entry convdomain.ConversationEntry) string {
 	// Tool results own their themed status line, preview and expand hint.
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
@@ -2209,7 +2209,7 @@ func (cv *ConversationView) getHeaderColor() string {
 }
 
 // renderShellCommandEntry renders a shell command entry with highlighted prefix and proper spacing
-func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+func (cv *ConversationView) renderShellCommandEntry(_ convdomain.ConversationEntry, color, role, contentStr string) string {
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
 	command := strings.TrimPrefix(contentStr, "!")
@@ -2225,7 +2225,7 @@ func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, 
 }
 
 // renderToolCommandEntry renders a tool command entry (!! prefix) with highlighted prefix
-func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+func (cv *ConversationView) renderToolCommandEntry(_ convdomain.ConversationEntry, color, role, contentStr string) string {
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
 	command := strings.TrimPrefix(contentStr, "!!")
@@ -2243,7 +2243,7 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 // renderPlanEntry renders the plan body as a regular markdown-rendered
 // assistant message under a status-aware header, followed by inline
 // approval buttons while approval is pending.
-func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderPlanEntry(entry convdomain.ConversationEntry, index int) string {
 	var result strings.Builder
 
 	color, role := cv.planRoleAndColor(entry)
@@ -2258,7 +2258,7 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 
 	var formattedContent string
 	switch entry.PlanApprovalStatus {
-	case domain.PlanApprovalRejected:
+	case convdomain.PlanApprovalRejected:
 		plain := formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 		formattedContent = cv.styleProvider.RenderWithColor(plain, color)
 	default:
@@ -2277,7 +2277,7 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 		result.WriteString("\n")
 	}
 
-	if entry.PlanApprovalStatus == domain.PlanApprovalPending {
+	if entry.PlanApprovalStatus == convdomain.PlanApprovalPending {
 		result.WriteString("\n")
 		result.WriteString(cv.renderInlineApprovalButtons(index))
 		result.WriteString("\n")
@@ -2288,13 +2288,13 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 
 // planRoleAndColor returns the role label + theme color for a plan entry
 // based on its approval status.
-func (cv *ConversationView) planRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) planRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	switch entry.PlanApprovalStatus {
-	case domain.PlanApprovalPending:
+	case convdomain.PlanApprovalPending:
 		return cv.styleProvider.GetThemeColor("accent"), "Plan (Pending Approval)"
-	case domain.PlanApprovalAccepted:
+	case convdomain.PlanApprovalAccepted:
 		return cv.styleProvider.GetThemeColor("success"), "Plan (Accepted)"
-	case domain.PlanApprovalRejected:
+	case convdomain.PlanApprovalRejected:
 		return cv.styleProvider.GetThemeColor("dim"), "Plan (Rejected)"
 	default:
 		return cv.getAssistantColor(), "Plan"
@@ -2430,8 +2430,8 @@ func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, c
 	}
 }
 
-func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry) string {
-	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
+func (cv *ConversationView) renderPendingToolEntry(entry convdomain.ConversationEntry) string {
+	if entry.ToolApprovalStatus == convdomain.ToolApprovalPending {
 		return ""
 	}
 
@@ -2458,11 +2458,11 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 
 // renderApprovalHeader renders a themed one-line header for an approved/rejected tool
 // call, mirroring the completed result status line: "<icon> Name(args) · <status>".
-func (cv *ConversationView) renderApprovalHeader(toolName string, args map[string]any, status domain.ToolApprovalStatus) string {
+func (cv *ConversationView) renderApprovalHeader(toolName string, args map[string]any, status convdomain.ToolApprovalStatus) string {
 	icon := icons.CheckMark
 	colorName := "success"
 	label := "Approved"
-	if status == domain.ToolApprovalRejected {
+	if status == convdomain.ToolApprovalRejected {
 		icon = icons.CrossMark
 		colorName = "error"
 		label = "Rejected"
@@ -2528,7 +2528,7 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 }
 
 // getHintForEntry returns the appropriate hint based on entry state
-func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
+func (cv *ConversationView) getHintForEntry(_ convdomain.ConversationEntry) string {
 	return cv.getToggleToolHint("expand all tool calls")
 }
 

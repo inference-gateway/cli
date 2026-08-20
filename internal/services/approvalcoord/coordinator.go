@@ -2,12 +2,13 @@ package approvalcoord
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -35,14 +36,14 @@ type stateManager interface {
 // decision" events.
 type Service struct {
 	agentService     agentdomain.AgentService
-	conversationRepo domain.ConversationRepository
+	conversationRepo convdomain.ConversationRepository
 	stateManager     stateManager
 }
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	AgentService     agentdomain.AgentService
-	ConversationRepo domain.ConversationRepository
+	ConversationRepo convdomain.ConversationRepository
 	StateManager     stateManager
 }
 
@@ -231,7 +232,7 @@ func (s *Service) addHiddenContinueMessage() {
 
 // addHiddenContinue appends a hidden user message to the conversation repo.
 func (s *Service) addHiddenContinue(content string) error {
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(content),

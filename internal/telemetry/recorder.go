@@ -80,7 +80,7 @@ const (
 )
 
 // CostFunc returns the input, output, and total cost for a model's token counts
-// (wraps domain.PricingService.CalculateCost). cached and cacheWrite are the
+// (wraps convdomain.PricingService.CalculateCost). cached and cacheWrite are the
 // cache-read and cache-creation subsets of prompt tokens. Pass nil to skip cost.
 type CostFunc func(model string, prompt, completion, cached, cacheWrite int) (input, output, total float64)
 

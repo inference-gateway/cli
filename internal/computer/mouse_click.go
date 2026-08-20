@@ -3,15 +3,16 @@ package computer
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // MouseClickTool performs mouse clicks

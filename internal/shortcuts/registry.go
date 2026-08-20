@@ -4,13 +4,15 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 	"sync"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Registry manages all available shortcuts
@@ -27,7 +29,7 @@ func NewRegistry() *Registry {
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
-func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) error {
+func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

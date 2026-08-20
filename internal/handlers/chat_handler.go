@@ -1,13 +1,14 @@
 package handlers
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -27,16 +28,16 @@ type stateManager interface {
 
 type ChatHandler struct {
 	agentService           agentdomain.AgentService
-	conversationRepo       domain.ConversationRepository
-	conversationOptimizer  domain.ConversationOptimizer
+	conversationRepo       convdomain.ConversationRepository
+	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
-	modelService           domain.ModelService
+	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	shortcutRegistry       *shortcuts.Registry
 	stateManager           stateManager
-	messageQueue           domain.MessageQueue
+	messageQueue           convdomain.MessageQueue
 	taskRetentionService   domain.TaskRetentionService
 	backgroundTaskService  domain.BackgroundTaskService
 	backgroundShellService domain.BackgroundShellService
@@ -56,10 +57,10 @@ type ChatHandler struct {
 
 func NewChatHandler(
 	agentService agentdomain.AgentService,
-	conversationRepo domain.ConversationRepository,
-	conversationOptimizer domain.ConversationOptimizer,
+	conversationRepo convdomain.ConversationRepository,
+	conversationOptimizer convdomain.ConversationOptimizer,
 	sessionRolloverManager *services.SessionRolloverManager,
-	modelService domain.ModelService,
+	modelService convdomain.ModelService,
 	toolService agentdomain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
@@ -67,7 +68,7 @@ func NewChatHandler(
 	githubIssueService domain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager stateManager,
-	messageQueue domain.MessageQueue,
+	messageQueue convdomain.MessageQueue,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 	backgroundShellService domain.BackgroundShellService,

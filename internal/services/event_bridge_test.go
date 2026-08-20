@@ -1,9 +1,10 @@
 package services
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // A control event (e.g. a tool approval) must reach the subscriber even when the

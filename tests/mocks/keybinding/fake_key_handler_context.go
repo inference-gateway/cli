@@ -3,6 +3,7 @@ package keybinding
 
 import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -54,15 +55,15 @@ type FakeKeyHandlerContext struct {
 	getConfigDirReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetConversationRepositoryStub        func() domain.ConversationRepository
+	GetConversationRepositoryStub        func() convdomain.ConversationRepository
 	getConversationRepositoryMutex       sync.RWMutex
 	getConversationRepositoryArgsForCall []struct {
 	}
 	getConversationRepositoryReturns struct {
-		result1 domain.ConversationRepository
+		result1 convdomain.ConversationRepository
 	}
 	getConversationRepositoryReturnsOnCall map[int]struct {
-		result1 domain.ConversationRepository
+		result1 convdomain.ConversationRepository
 	}
 	GetConversationViewStub        func() ui.ConversationRenderer
 	getConversationViewMutex       sync.RWMutex
@@ -377,7 +378,7 @@ func (fake *FakeKeyHandlerContext) GetConfigDirReturnsOnCall(i int, result1 stri
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepository() domain.ConversationRepository {
+func (fake *FakeKeyHandlerContext) GetConversationRepository() convdomain.ConversationRepository {
 	fake.getConversationRepositoryMutex.Lock()
 	ret, specificReturn := fake.getConversationRepositoryReturnsOnCall[len(fake.getConversationRepositoryArgsForCall)]
 	fake.getConversationRepositoryArgsForCall = append(fake.getConversationRepositoryArgsForCall, struct {
@@ -401,32 +402,32 @@ func (fake *FakeKeyHandlerContext) GetConversationRepositoryCallCount() int {
 	return len(fake.getConversationRepositoryArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() convdomain.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 convdomain.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	fake.getConversationRepositoryReturns = struct {
-		result1 domain.ConversationRepository
+		result1 convdomain.ConversationRepository
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 convdomain.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	if fake.getConversationRepositoryReturnsOnCall == nil {
 		fake.getConversationRepositoryReturnsOnCall = make(map[int]struct {
-			result1 domain.ConversationRepository
+			result1 convdomain.ConversationRepository
 		})
 	}
 	fake.getConversationRepositoryReturnsOnCall[i] = struct {
-		result1 domain.ConversationRepository
+		result1 convdomain.ConversationRepository
 	}{result1}
 }
 

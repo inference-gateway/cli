@@ -3,8 +3,6 @@ package browser
 import (
 	"context"
 	"encoding/base64"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,6 +10,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
 // BrowserScreenshotTool captures the current browser page as an image and

@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"net/http"
 	"os"
@@ -15,13 +14,14 @@ import (
 	websocket "github.com/gorilla/websocket"
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -222,7 +222,7 @@ func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UIN
 	return bridge
 }
 
-func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo domain.ConversationRepository) *ExtensionBridge {
+func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *ExtensionBridge {
 	t.Helper()
 	bridge := NewExtensionBridge(cfg, nil, repo, nil, nil, "test-session", "")
 	if err := bridge.Start(); err != nil {
@@ -253,7 +253,7 @@ func seedConversation(t *testing.T, repo *services.PersistentConversationReposit
 	if err := repo.StartNewConversation(title); err != nil {
 		t.Fatalf("StartNewConversation: %v", err)
 	}
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)},
 		Time:    time.Now(),
 	}

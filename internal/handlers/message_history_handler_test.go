@@ -1,20 +1,22 @@
 package handlers
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
-	messages := []domain.ConversationEntry{
+	messages := []convdomain.ConversationEntry{
 		{
 			Time:    time.Now(),
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First user message")},
@@ -68,7 +70,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
-	messages := []domain.ConversationEntry{
+	messages := []convdomain.ConversationEntry{
 		{
 			Time:    time.Now(),
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First")},

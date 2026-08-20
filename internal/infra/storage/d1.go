@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
 )
@@ -278,7 +279,7 @@ func asTimePtr(v any) *time.Time {
 }
 
 // SaveConversation saves a conversation with its entries using the simplified schema.
-func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	modelsUsed := make(map[string]bool)
 
 	for _, entry := range entries {
@@ -341,13 +342,13 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 }
 
 // LoadConversation loads a conversation by its ID using the simplified schema.
-func (s *D1Storage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *D1Storage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	metadata, messagesJSON, err := s.loadConversationMetadata(ctx, conversationID)
 	if err != nil {
 		return nil, metadata, err
 	}
 
-	var entries []domain.ConversationEntry
+	var entries []convdomain.ConversationEntry
 	if err := json.Unmarshal([]byte(messagesJSON), &entries); err != nil {
 		return nil, metadata, fmt.Errorf("failed to unmarshal messages: %w", err)
 	}
@@ -384,7 +385,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 
 	totalInputTokens := asInt(r["total_input_tokens"])
 	totalOutputTokens := asInt(r["total_output_tokens"])
-	metadata.TokenStats = domain.SessionTokenStats{
+	metadata.TokenStats = convdomain.SessionTokenStats{
 		TotalInputTokens:  totalInputTokens,
 		TotalOutputTokens: totalOutputTokens,
 		TotalTokens:       totalInputTokens + totalOutputTokens,
@@ -394,7 +395,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	costStatsJSON := asString(r["cost_stats"])
 	if costStatsJSON != "" && costStatsJSON != "{}" {
 		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
-			metadata.CostStats = domain.SessionCostStats{}
+			metadata.CostStats = convdomain.SessionCostStats{}
 		}
 	}
 
@@ -437,7 +438,7 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 
 		totalInputTokens := asInt(r["total_input_tokens"])
 		totalOutputTokens := asInt(r["total_output_tokens"])
-		summary.TokenStats = domain.SessionTokenStats{
+		summary.TokenStats = convdomain.SessionTokenStats{
 			TotalInputTokens:  totalInputTokens,
 			TotalOutputTokens: totalOutputTokens,
 			TotalTokens:       totalInputTokens + totalOutputTokens,
@@ -447,7 +448,7 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 		costStatsJSON := asString(r["cost_stats"])
 		if costStatsJSON != "" && costStatsJSON != "{}" {
 			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
-				summary.CostStats = domain.SessionCostStats{}
+				summary.CostStats = convdomain.SessionCostStats{}
 			}
 		}
 
@@ -498,7 +499,7 @@ func mapTitleSummaryRow(r map[string]any) ConversationSummary {
 
 	totalInputTokens := asInt(r["total_input_tokens"])
 	totalOutputTokens := asInt(r["total_output_tokens"])
-	summary.TokenStats = domain.SessionTokenStats{
+	summary.TokenStats = convdomain.SessionTokenStats{
 		TotalInputTokens:  totalInputTokens,
 		TotalOutputTokens: totalOutputTokens,
 		TotalTokens:       totalInputTokens + totalOutputTokens,

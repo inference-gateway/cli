@@ -10,12 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -149,18 +150,18 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan d
 // approval_request line is answered by the next matching ApprovalResponse.
 // A ComputerUseResumedEvent clears any error carried over from the paused
 // (cancelled) run, so a resumed run that completes cleanly exits zero.
-func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",

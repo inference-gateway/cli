@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -18,13 +17,12 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
-	mockgateway "github.com/inference-gateway/tokenless/gateway"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"

@@ -4,10 +4,9 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
-
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // TestStreamingLLMState_StartStreamingSpawnsGoroutine verifies that a

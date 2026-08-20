@@ -6,24 +6,24 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	require "github.com/stretchr/testify/require"
 
-	tea "charm.land/bubbletea/v2"
-
 	config "github.com/inference-gateway/cli/config"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // createMockModelService creates a fake model service with default test values
-func createMockModelService() *domainmocks.FakeModelService {
-	fake := &domainmocks.FakeModelService{}
+func createMockModelService() *convmocks.FakeModelService {
+	fake := &convmocks.FakeModelService{}
 	fake.ListModelsReturns([]string{"test-model"}, nil)
 	fake.GetCurrentModelReturns("test-model")
 	fake.IsModelAvailableReturns(true)
@@ -32,7 +32,7 @@ func createMockModelService() *domainmocks.FakeModelService {
 }
 
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
-func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 	ta := newInputTextarea("Type your message...")
 
 	iv := &InputView{

@@ -3,28 +3,27 @@ package handlers
 import (
 	"context"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	tea "charm.land/bubbletea/v2"
-
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	models "github.com/inference-gateway/cli/internal/models"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {
@@ -97,7 +96,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockFile := &mocks.FakeFileService{}
 			mockAgent := &agentdomainmocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
+			mockModel := &convmocks.FakeModelService{}
 			mockTool := &agentdomainmocks.FakeToolService{}
 
 			if tt.setupMocks != nil {
@@ -441,7 +440,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 
 			for i := 0; i < tt.existingMessages; i++ {
-				entry := domain.ConversationEntry{
+				entry := convdomain.ConversationEntry{
 					Message: sdk.Message{
 						Role:    sdk.User,
 						Content: sdk.NewMessageContent("test message"),
@@ -451,7 +450,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 			}
 
 			mockAgent := &agentdomainmocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
+			mockModel := &convmocks.FakeModelService{}
 			stateManager := services.NewStateManager(false)
 
 			handler := &ChatHandler{
@@ -483,14 +482,14 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 	defer cleanup()
 
 	require.NoError(t, repo.StartNewConversation("Initial"))
-	require.NoError(t, repo.AddMessage(domain.ConversationEntry{
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 		Time:    time.Now(),
 	}))
 
 	require.NoError(t, repo.AddTokenUsage("moonshot/moonshot-v1-8k", 25000, 100, 25100, 0, 0))
 
-	mockModel := &mocks.FakeModelService{}
+	mockModel := &convmocks.FakeModelService{}
 	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")
 	stateManager := services.NewStateManager(false)
 	fakeRunner := &uimocks.FakeChatCompletionRunner{}
@@ -547,7 +546,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 	handler := &ChatHandler{
 		conversationRepo:       conversationRepo,
 		sessionRolloverManager: nil,
-		modelService:           &mocks.FakeModelService{},
+		modelService:           &convmocks.FakeModelService{},
 		stateManager:           stateManager,
 		messageQueue:           services.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
@@ -586,7 +585,7 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 
 	handler := &ChatHandler{
 		conversationRepo: conversationRepo,
-		modelService:     &mocks.FakeModelService{},
+		modelService:     &convmocks.FakeModelService{},
 		stateManager:     stateManager,
 		messageQueue:     services.NewMessageQueueService(),
 		completionRunner: fakeRunner,

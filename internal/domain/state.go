@@ -2,10 +2,12 @@ package domain
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // ApplicationState represents the overall application state with proper typing
@@ -24,7 +26,7 @@ type ApplicationState struct {
 	toolExecution *ToolExecutionSession
 
 	// Message Queue
-	queuedMessages []QueuedMessage
+	queuedMessages []convdomain.QueuedMessage
 
 	// UI Dimensions
 	width  int
@@ -112,13 +114,6 @@ func (v ViewState) String() string {
 	}
 }
 
-// QueuedMessage represents a message in the input queue
-type QueuedMessage struct {
-	Message   sdk.Message
-	QueuedAt  time.Time
-	RequestID string
-}
-
 // ChatSession represents an active chat session state
 type ChatSession struct {
 	RequestID    string
@@ -197,7 +192,7 @@ func NewApplicationState() *ApplicationState {
 		agentMode:          agentdomain.AgentModeStandard,
 		chatSession:        nil,
 		toolExecution:      nil,
-		queuedMessages:     make([]QueuedMessage, 0),
+		queuedMessages:     make([]convdomain.QueuedMessage, 0),
 		fileSelectionState: nil,
 		debugMode:          false,
 	}
@@ -335,7 +330,7 @@ func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <
 
 // AddQueuedMessage adds a message to the input queue
 func (s *ApplicationState) AddQueuedMessage(message sdk.Message, requestID string) {
-	queuedMsg := QueuedMessage{
+	queuedMsg := convdomain.QueuedMessage{
 		Message:   message,
 		QueuedAt:  time.Now(),
 		RequestID: requestID,
@@ -344,7 +339,7 @@ func (s *ApplicationState) AddQueuedMessage(message sdk.Message, requestID strin
 }
 
 // PopQueuedMessage removes and returns the first message from the queue (FIFO)
-func (s *ApplicationState) PopQueuedMessage() *QueuedMessage {
+func (s *ApplicationState) PopQueuedMessage() *convdomain.QueuedMessage {
 	if len(s.queuedMessages) == 0 {
 		return nil
 	}
@@ -355,11 +350,11 @@ func (s *ApplicationState) PopQueuedMessage() *QueuedMessage {
 
 // ClearQueuedMessages clears all queued messages
 func (s *ApplicationState) ClearQueuedMessages() {
-	s.queuedMessages = make([]QueuedMessage, 0)
+	s.queuedMessages = make([]convdomain.QueuedMessage, 0)
 }
 
 // GetQueuedMessages returns the current queued messages
-func (s *ApplicationState) GetQueuedMessages() []QueuedMessage {
+func (s *ApplicationState) GetQueuedMessages() []convdomain.QueuedMessage {
 	return s.queuedMessages
 }
 

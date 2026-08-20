@@ -6,19 +6,20 @@ import (
 	"os/exec"
 	"strings"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // PodmanRuntime implements ContainerRuntime interface for Podman
 type PodmanRuntime struct {
-	sessionID      domain.SessionID
+	sessionID      convdomain.SessionID
 	networkName    string
 	networkCreated bool
 }
 
 // NewPodmanRuntime creates a new Podman runtime manager
-func NewPodmanRuntime(sessionID domain.SessionID) domain.ContainerRuntime {
+func NewPodmanRuntime(sessionID convdomain.SessionID) domain.ContainerRuntime {
 	return &PodmanRuntime{
 		sessionID:   sessionID,
 		networkName: InferNetworkPrefix,

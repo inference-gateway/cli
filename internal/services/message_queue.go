@@ -3,20 +3,21 @@ package services
 import (
 	"sync"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // MessageQueueService manages a centralized queue for messages waiting to be processed
 type MessageQueueService struct {
 	mu       sync.RWMutex
-	messages []domain.QueuedMessage
+	messages []convdomain.QueuedMessage
 }
 
 // NewMessageQueueService creates a new message queue service
 func NewMessageQueueService() *MessageQueueService {
 	return &MessageQueueService{
-		messages: make([]domain.QueuedMessage, 0),
+		messages: make([]convdomain.QueuedMessage, 0),
 	}
 }
 
@@ -25,7 +26,7 @@ func (mq *MessageQueueService) Enqueue(message sdk.Message, requestID string) {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
-	mq.messages = append(mq.messages, domain.QueuedMessage{
+	mq.messages = append(mq.messages, convdomain.QueuedMessage{
 		Message:   message,
 		RequestID: requestID,
 	})
@@ -33,7 +34,7 @@ func (mq *MessageQueueService) Enqueue(message sdk.Message, requestID string) {
 
 // Dequeue removes and returns the next message from the queue
 // Returns nil if the queue is empty
-func (mq *MessageQueueService) Dequeue() *domain.QueuedMessage {
+func (mq *MessageQueueService) Dequeue() *convdomain.QueuedMessage {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
@@ -48,7 +49,7 @@ func (mq *MessageQueueService) Dequeue() *domain.QueuedMessage {
 
 // Peek returns the next message without removing it
 // Returns nil if the queue is empty
-func (mq *MessageQueueService) Peek() *domain.QueuedMessage {
+func (mq *MessageQueueService) Peek() *convdomain.QueuedMessage {
 	mq.mu.RLock()
 	defer mq.mu.RUnlock()
 
@@ -80,16 +81,16 @@ func (mq *MessageQueueService) Clear() {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
-	mq.messages = make([]domain.QueuedMessage, 0)
+	mq.messages = make([]convdomain.QueuedMessage, 0)
 }
 
 // GetAll returns all messages in the queue without removing them
-func (mq *MessageQueueService) GetAll() []domain.QueuedMessage {
+func (mq *MessageQueueService) GetAll() []convdomain.QueuedMessage {
 	mq.mu.RLock()
 	defer mq.mu.RUnlock()
 
 	// Return a copy to prevent external modification
-	result := make([]domain.QueuedMessage, len(mq.messages))
+	result := make([]convdomain.QueuedMessage, len(mq.messages))
 	copy(result, mq.messages)
 	return result
 }

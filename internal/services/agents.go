@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )

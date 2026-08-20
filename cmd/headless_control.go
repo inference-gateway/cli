@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
@@ -185,8 +186,8 @@ func (c *headlessControl) startResume(merged chan<- agentdomain.ChatEvent, resum
 
 // resumeHeadlessRun appends the hidden continue message the chat coordinator
 // uses on resume and starts a new agent run over the full conversation.
-func resumeHeadlessRun(ctx context.Context, agentService agentdomain.AgentService, repo domain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
-	entry := domain.ConversationEntry{
+func resumeHeadlessRun(ctx context.Context, agentService agentdomain.AgentService, repo convdomain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(resumeContinuePrompt),

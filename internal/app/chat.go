@@ -10,13 +10,13 @@ import (
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
@@ -42,17 +42,17 @@ type ChatApplication struct {
 	// Dependencies
 	config                 *config.Config
 	agentService           agentdomain.AgentService
-	conversationRepo       domain.ConversationRepository
-	conversationOptimizer  domain.ConversationOptimizer
+	conversationRepo       convdomain.ConversationRepository
+	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
-	modelService           domain.ModelService
+	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
 	githubSetupService     domain.GitHubSetupService
-	pricingService         domain.PricingService
+	pricingService         convdomain.PricingService
 	shortcutRegistry       *shortcuts.Registry
 	themeService           domain.ThemeService
 	toolRegistry           *tools.Registry
@@ -70,7 +70,7 @@ type ChatApplication struct {
 
 	// State management
 	stateManager *services.StateManager
-	messageQueue domain.MessageQueue
+	messageQueue convdomain.MessageQueue
 	mouseEnabled bool
 
 	// UI components
@@ -148,17 +148,17 @@ func NewChatApplication(
 	agentService agentdomain.AgentService,
 	backgroundTaskService domain.BackgroundTaskService,
 	backgroundTaskRegistry domain.BackgroundTaskRegistry,
-	conversationOptimizer domain.ConversationOptimizer,
-	conversationRepo domain.ConversationRepository,
+	conversationOptimizer convdomain.ConversationOptimizer,
+	conversationRepo convdomain.ConversationRepository,
 	fileService domain.FileService,
 	imageService domain.ImageService,
 	skillsService domain.SkillsService,
 	githubIssueService domain.GitHubIssueService,
 	githubSetupService domain.GitHubSetupService,
 	mcpManager domain.MCPManager,
-	messageQueue domain.MessageQueue,
-	modelService domain.ModelService,
-	pricingService domain.PricingService,
+	messageQueue convdomain.MessageQueue,
+	modelService convdomain.ModelService,
+	pricingService convdomain.PricingService,
 	sessionRolloverManager *services.SessionRolloverManager,
 	stateManager *services.StateManager,
 	taskRetentionService domain.TaskRetentionService,
@@ -1386,7 +1386,7 @@ func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string)
 		"1. Install the GitHub App on your repository:\n   %s\n\n"+
 		"2. Create your pull request here:\n   %s", successMsg, installURL, prURL)
 	message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),
 	}
@@ -2428,7 +2428,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 }
 
 // GetServices returns the service container
-func (app *ChatApplication) GetConversationRepository() domain.ConversationRepository {
+func (app *ChatApplication) GetConversationRepository() convdomain.ConversationRepository {
 	return app.conversationRepo
 }
 
@@ -2699,7 +2699,7 @@ func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReady
 
 // adjustRestoreIndexForEdit adjusts the restore index based on message role and tool calls
 // This is similar to the logic in message_history_handler.go but adapted for the app layer
-func (app *ChatApplication) adjustRestoreIndexForEdit(entries []domain.ConversationEntry, restoreIndex int) int {
+func (app *ChatApplication) adjustRestoreIndexForEdit(entries []convdomain.ConversationEntry, restoreIndex int) int {
 	if restoreIndex >= len(entries) {
 		return restoreIndex
 	}

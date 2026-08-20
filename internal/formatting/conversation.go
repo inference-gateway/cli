@@ -2,10 +2,10 @@ package formatting
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // ConversationLineFormatter converts conversation entries to text lines
@@ -28,7 +28,7 @@ func (f *ConversationLineFormatter) SetWidth(width int) {
 }
 
 // FormatConversationToLines converts conversation entries to plain text lines
-func (f *ConversationLineFormatter) FormatConversationToLines(conversation []domain.ConversationEntry) []string {
+func (f *ConversationLineFormatter) FormatConversationToLines(conversation []convdomain.ConversationEntry) []string {
 	var lines []string
 
 	for _, entry := range conversation {

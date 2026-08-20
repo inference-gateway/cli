@@ -3,13 +3,14 @@ package tools
 import (
 	"context"
 	"errors"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	adk "github.com/inference-gateway/adk/types"
+	assert "github.com/stretchr/testify/assert"
+
 	config "github.com/inference-gateway/cli/config"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
-	assert "github.com/stretchr/testify/assert"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {

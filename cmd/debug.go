@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"unicode/utf8"
 
@@ -11,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	services "github.com/inference-gateway/cli/internal/services"
 )

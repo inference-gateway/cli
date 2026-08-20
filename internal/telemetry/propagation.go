@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"os"
 	"sort"
@@ -11,6 +10,8 @@ import (
 	baggage "go.opentelemetry.io/otel/baggage"
 	propagation "go.opentelemetry.io/otel/propagation"
 	trace "go.opentelemetry.io/otel/trace"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 var propagator = propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})

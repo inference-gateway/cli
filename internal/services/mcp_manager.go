@@ -13,6 +13,7 @@ import (
 	mcp "github.com/metoro-io/mcp-golang"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -238,7 +239,7 @@ func (c *mcpClient) Close() error {
 
 // MCPManager manages multiple MCP server connections and their container lifecycle
 type MCPManager struct {
-	sessionID        domain.SessionID
+	sessionID        convdomain.SessionID
 	config           *config.MCPConfig
 	containerRuntime domain.ContainerRuntime
 	notifier         domain.UINotifier
@@ -255,7 +256,7 @@ type MCPManager struct {
 // NewMCPManager creates a new MCP manager. notifier is the single UI ingress the
 // liveness probes push MCPServerStatusUpdateEvent through; a nil notifier
 // degrades to no UI pushes.
-func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime, notifier domain.UINotifier) *MCPManager {
+func NewMCPManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime, notifier domain.UINotifier) *MCPManager {
 	if notifier == nil {
 		notifier = domain.NoopUINotifier{}
 	}

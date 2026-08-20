@@ -3,26 +3,27 @@ package chatcompletion
 import (
 	"encoding/json"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
-func assistantEntries(answer string) []domain.ConversationEntry {
-	return []domain.ConversationEntry{
+func assistantEntries(answer string) []convdomain.ConversationEntry {
+	return []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("do the task")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(answer)}},
 	}
 }
 
-func runnerWithMessages(entries []domain.ConversationEntry) *Runner {
-	repo := &domainmocks.FakeConversationRepository{}
+func runnerWithMessages(entries []convdomain.ConversationEntry) *Runner {
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessagesReturns(entries)
 	return &Runner{conversationRepo: repo}
 }

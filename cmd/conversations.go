@@ -11,7 +11,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
@@ -263,11 +263,11 @@ func resolveConversationSessionID(services *container.ServiceContainer, rawID st
 }
 
 // filterConversationEntries drops entries marked Hidden unless includeHidden is set.
-func filterConversationEntries(entries []domain.ConversationEntry, includeHidden bool) []domain.ConversationEntry {
+func filterConversationEntries(entries []convdomain.ConversationEntry, includeHidden bool) []convdomain.ConversationEntry {
 	if includeHidden {
 		return entries
 	}
-	filtered := make([]domain.ConversationEntry, 0, len(entries))
+	filtered := make([]convdomain.ConversationEntry, 0, len(entries))
 	for _, e := range entries {
 		if e.Hidden {
 			continue
@@ -279,7 +279,7 @@ func filterConversationEntries(entries []domain.ConversationEntry, includeHidden
 
 // buildConversationShowText renders entries as a human-friendly plain-text block.
 // It is a pure function: it returns the rendered string and prints nothing.
-func buildConversationShowText(entries []domain.ConversationEntry, sessionID string) string {
+func buildConversationShowText(entries []convdomain.ConversationEntry, sessionID string) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "Conversation: %s\n", sessionID)
@@ -300,7 +300,7 @@ func buildConversationShowText(entries []domain.ConversationEntry, sessionID str
 
 // buildConversationEntryHeader builds the single header line for one entry, e.g.
 // "#1 [user] 2026-05-29T10:00:00Z [hidden] [tool_call_id=call_x] [model=gpt-4o]".
-func buildConversationEntryHeader(index int, e domain.ConversationEntry) string {
+func buildConversationEntryHeader(index int, e convdomain.ConversationEntry) string {
 	var h strings.Builder
 	fmt.Fprintf(&h, "#%d [%s] %s", index+1, string(e.Message.Role), e.Time.Format(time.RFC3339))
 	if e.Hidden {
@@ -327,7 +327,7 @@ type conversationShowEntry struct {
 	Model      string `json:"model,omitempty"`
 }
 
-func toConversationShowEntry(e domain.ConversationEntry) conversationShowEntry {
+func toConversationShowEntry(e convdomain.ConversationEntry) conversationShowEntry {
 	out := conversationShowEntry{
 		Role:    string(e.Message.Role),
 		Time:    e.Time.Format(time.RFC3339),
@@ -343,7 +343,7 @@ func toConversationShowEntry(e domain.ConversationEntry) conversationShowEntry {
 
 // buildConversationShowJSON returns newline-joined compact JSON, one object per
 // entry (NDJSON), matching the 'infer headless' stdout shape. Pure function.
-func buildConversationShowJSON(entries []domain.ConversationEntry) (string, error) {
+func buildConversationShowJSON(entries []convdomain.ConversationEntry) (string, error) {
 	var b strings.Builder
 	for _, e := range entries {
 		line, err := json.Marshal(toConversationShowEntry(e))
@@ -356,12 +356,12 @@ func buildConversationShowJSON(entries []domain.ConversationEntry) (string, erro
 	return b.String(), nil
 }
 
-func printConversationShowText(entries []domain.ConversationEntry, sessionID string) error {
+func printConversationShowText(entries []convdomain.ConversationEntry, sessionID string) error {
 	fmt.Print(buildConversationShowText(entries, sessionID))
 	return nil
 }
 
-func printConversationShowJSON(entries []domain.ConversationEntry) error {
+func printConversationShowJSON(entries []convdomain.ConversationEntry) error {
 	out, err := buildConversationShowJSON(entries)
 	if err != nil {
 		return err

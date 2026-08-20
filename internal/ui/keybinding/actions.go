@@ -2,15 +2,17 @@ package keybinding
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -210,7 +212,7 @@ func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
-				History: []domain.ConversationEntry{},
+				History: []convdomain.ConversationEntry{},
 			}
 		},
 		func() tea.Msg {

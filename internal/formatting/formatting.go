@@ -2,13 +2,14 @@ package formatting
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 	sdk "github.com/inference-gateway/sdk"
 	wordwrap "github.com/muesli/reflow/wordwrap"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // ============================================================================

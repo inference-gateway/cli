@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -30,14 +30,14 @@ type AgentReadinessManager interface {
 
 type InputStatusBar struct {
 	width                  int
-	modelService           domain.ModelService
+	modelService           convdomain.ModelService
 	effortSource           effortSource
 	themeService           domain.ThemeService
 	stateManager           statusBarState
 	config                 *config.Config
-	conversationRepo       domain.ConversationRepository
+	conversationRepo       convdomain.ConversationRepository
 	toolService            agentdomain.ToolService
-	tokenEstimator         domain.TokenEstimator
+	tokenEstimator         convdomain.TokenEstimator
 	backgroundShellService domain.BackgroundShellService
 	backgroundTaskService  domain.BackgroundTaskService
 	backgroundTaskRegistry domain.BackgroundTaskRegistry
@@ -69,7 +69,7 @@ func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 }
 
 // SetModelService sets the model service
-func (isb *InputStatusBar) SetModelService(modelService domain.ModelService) {
+func (isb *InputStatusBar) SetModelService(modelService convdomain.ModelService) {
 	isb.modelService = modelService
 }
 
@@ -106,7 +106,7 @@ func (isb *InputStatusBar) SetConfig(cfg *config.Config) {
 }
 
 // SetConversationRepo sets the conversation repository
-func (isb *InputStatusBar) SetConversationRepo(repo domain.ConversationRepository) {
+func (isb *InputStatusBar) SetConversationRepo(repo convdomain.ConversationRepository) {
 	isb.conversationRepo = repo
 }
 
@@ -116,7 +116,7 @@ func (isb *InputStatusBar) SetToolService(toolService agentdomain.ToolService) {
 }
 
 // SetTokenEstimator sets the token estimator
-func (isb *InputStatusBar) SetTokenEstimator(estimator domain.TokenEstimator) {
+func (isb *InputStatusBar) SetTokenEstimator(estimator convdomain.TokenEstimator) {
 	isb.tokenEstimator = estimator
 }
 

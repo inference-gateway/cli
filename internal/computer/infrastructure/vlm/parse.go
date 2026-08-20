@@ -6,9 +6,10 @@ package vlm
 
 import (
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"regexp"
 	"strings"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // jsonContract is the strict-JSON response instruction appended to every

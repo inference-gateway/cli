@@ -4,34 +4,35 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"sync"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 )
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
 type InMemoryConversationRepository struct {
-	messages         []domain.ConversationEntry
+	messages         []convdomain.ConversationEntry
 	mutex            sync.RWMutex
-	sessionStats     domain.SessionTokenStats
-	costStats        domain.SessionCostStats
+	sessionStats     convdomain.SessionTokenStats
+	costStats        convdomain.SessionCostStats
 	formatterService *ToolFormatterService
-	pricingService   domain.PricingService
+	pricingService   convdomain.PricingService
 }
 
 // NewInMemoryConversationRepository creates a new in-memory conversation repository
-func NewInMemoryConversationRepository(formatterService *ToolFormatterService, pricingService domain.PricingService) *InMemoryConversationRepository {
+func NewInMemoryConversationRepository(formatterService *ToolFormatterService, pricingService convdomain.PricingService) *InMemoryConversationRepository {
 	return &InMemoryConversationRepository{
-		messages:         make([]domain.ConversationEntry, 0),
+		messages:         make([]convdomain.ConversationEntry, 0),
 		formatterService: formatterService,
 		pricingService:   pricingService,
-		costStats: domain.SessionCostStats{
-			PerModelStats: make(map[string]*domain.ModelCostStats),
+		costStats: convdomain.SessionCostStats{
+			PerModelStats: make(map[string]*convdomain.ModelCostStats),
 			Currency:      "USD",
 		},
 	}
@@ -51,7 +52,7 @@ func (r *InMemoryConversationRepository) formatToolCall(toolCall sdk.ChatComplet
 	return formatting.FormatToolCall(toolCall.Function.Name, args)
 }
 
-func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry) error {
+func (r *InMemoryConversationRepository) AddMessage(msg convdomain.ConversationEntry) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -72,7 +73,7 @@ func (r *InMemoryConversationRepository) MarkLastMessageAsPlan() {
 	for i := len(r.messages) - 1; i >= 0; i-- {
 		if r.messages[i].Message.Role == sdk.Assistant {
 			r.messages[i].IsPlan = true
-			r.messages[i].PlanApprovalStatus = domain.PlanApprovalPending
+			r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalPending
 			break
 		}
 	}
@@ -85,7 +86,7 @@ func (r *InMemoryConversationRepository) MarkMessageAsPlanByIndex(index int) {
 
 	if index >= 0 && index < len(r.messages) {
 		r.messages[index].IsPlan = true
-		r.messages[index].PlanApprovalStatus = domain.PlanApprovalPending
+		r.messages[index].PlanApprovalStatus = convdomain.PlanApprovalPending
 	}
 }
 
@@ -95,14 +96,14 @@ func (r *InMemoryConversationRepository) UpdatePlanStatus(action agentdomain.Pla
 	defer r.mutex.Unlock()
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
-		if r.messages[i].IsPlan && r.messages[i].PlanApprovalStatus == domain.PlanApprovalPending {
+		if r.messages[i].IsPlan && r.messages[i].PlanApprovalStatus == convdomain.PlanApprovalPending {
 			switch action {
 			case agentdomain.PlanApprovalAccept:
-				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalAccepted
 			case agentdomain.PlanApprovalReject:
-				r.messages[i].PlanApprovalStatus = domain.PlanApprovalRejected
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalRejected
 			case agentdomain.PlanApprovalAcceptStandard:
-				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalAccepted
 			}
 			break
 		}
@@ -114,14 +115,14 @@ func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCom
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
 			Content: sdk.NewMessageContent(""),
 		},
 		Time:               time.Now(),
 		PendingToolCall:    &toolCall,
-		ToolApprovalStatus: domain.ToolApprovalPending,
+		ToolApprovalStatus: convdomain.ToolApprovalPending,
 	}
 
 	r.messages = append(r.messages, entry)
@@ -134,12 +135,12 @@ func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action agentdo
 	defer r.mutex.Unlock()
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
-		if r.messages[i].PendingToolCall != nil && r.messages[i].ToolApprovalStatus == domain.ToolApprovalPending {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].ToolApprovalStatus == convdomain.ToolApprovalPending {
 			switch action {
 			case agentdomain.ApprovalApprove, agentdomain.ApprovalAutoAccept:
-				r.messages[i].ToolApprovalStatus = domain.ToolApprovalApproved
+				r.messages[i].ToolApprovalStatus = convdomain.ToolApprovalApproved
 			case agentdomain.ApprovalReject:
-				r.messages[i].ToolApprovalStatus = domain.ToolApprovalRejected
+				r.messages[i].ToolApprovalStatus = convdomain.ToolApprovalRejected
 			}
 			break
 		}
@@ -159,11 +160,11 @@ func (r *InMemoryConversationRepository) RemovePendingToolCallByID(toolCallID st
 	}
 }
 
-func (r *InMemoryConversationRepository) GetMessages() []domain.ConversationEntry {
+func (r *InMemoryConversationRepository) GetMessages() []convdomain.ConversationEntry {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	result := make([]domain.ConversationEntry, len(r.messages))
+	result := make([]convdomain.ConversationEntry, len(r.messages))
 	copy(result, r.messages)
 	return result
 }
@@ -173,9 +174,9 @@ func (r *InMemoryConversationRepository) Clear() error {
 	defer r.mutex.Unlock()
 
 	r.messages = r.messages[:0]
-	r.sessionStats = domain.SessionTokenStats{}
-	r.costStats = domain.SessionCostStats{
-		PerModelStats: make(map[string]*domain.ModelCostStats),
+	r.sessionStats = convdomain.SessionTokenStats{}
+	r.costStats = convdomain.SessionCostStats{
+		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
 	return nil
@@ -196,7 +197,7 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	var firstUserMessage *domain.ConversationEntry
+	var firstUserMessage *convdomain.ConversationEntry
 	for i := range r.messages {
 		if r.messages[i].Message.Role == sdk.User {
 			firstUserMessage = &r.messages[i]
@@ -206,14 +207,14 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 
 	if firstUserMessage == nil {
 		r.messages = r.messages[:0]
-		r.sessionStats = domain.SessionTokenStats{}
+		r.sessionStats = convdomain.SessionTokenStats{}
 		return nil
 	}
 
-	r.messages = []domain.ConversationEntry{*firstUserMessage}
-	r.sessionStats = domain.SessionTokenStats{}
-	r.costStats = domain.SessionCostStats{
-		PerModelStats: make(map[string]*domain.ModelCostStats),
+	r.messages = []convdomain.ConversationEntry{*firstUserMessage}
+	r.sessionStats = convdomain.SessionTokenStats{}
+	r.costStats = convdomain.SessionCostStats{
+		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
 	return nil
@@ -233,19 +234,19 @@ func (r *InMemoryConversationRepository) DeleteMessagesAfterIndex(index int) err
 	return nil
 }
 
-func (r *InMemoryConversationRepository) Export(format domain.ExportFormat) ([]byte, error) {
+func (r *InMemoryConversationRepository) Export(format convdomain.ExportFormat) ([]byte, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	switch format {
-	case domain.ExportJSON:
+	case convdomain.ExportJSON:
 		filteredMessages := r.filterHiddenMessages()
 		return json.MarshalIndent(filteredMessages, "", "  ")
 
-	case domain.ExportMarkdown:
+	case convdomain.ExportMarkdown:
 		return r.exportMarkdown(), nil
 
-	case domain.ExportText:
+	case convdomain.ExportText:
 		return r.exportText(), nil
 
 	default:
@@ -400,8 +401,8 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 }
 
 // filterHiddenMessages returns a copy of messages with hidden messages filtered out
-func (r *InMemoryConversationRepository) filterHiddenMessages() []domain.ConversationEntry {
-	filtered := make([]domain.ConversationEntry, 0, len(r.messages))
+func (r *InMemoryConversationRepository) filterHiddenMessages() []convdomain.ConversationEntry {
+	filtered := make([]convdomain.ConversationEntry, 0, len(r.messages))
 	for _, entry := range r.messages {
 		if !entry.Hidden {
 			filtered = append(filtered, entry)
@@ -430,11 +431,11 @@ func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens
 	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, cachedTokens, cacheWriteTokens)
 
 	if r.costStats.PerModelStats == nil {
-		r.costStats.PerModelStats = make(map[string]*domain.ModelCostStats)
+		r.costStats.PerModelStats = make(map[string]*convdomain.ModelCostStats)
 	}
 
 	if _, exists := r.costStats.PerModelStats[model]; !exists {
-		r.costStats.PerModelStats[model] = &domain.ModelCostStats{
+		r.costStats.PerModelStats[model] = &convdomain.ModelCostStats{
 			Model: model,
 		}
 	}
@@ -464,7 +465,7 @@ func (r *InMemoryConversationRepository) AddCachedTokens(tokens int) {
 }
 
 // GetSessionTokens returns the accumulated token statistics for the session
-func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenStats {
+func (r *InMemoryConversationRepository) GetSessionTokens() convdomain.SessionTokenStats {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -472,12 +473,12 @@ func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenS
 }
 
 // GetSessionCostStats returns the accumulated cost statistics for the session
-func (r *InMemoryConversationRepository) GetSessionCostStats() domain.SessionCostStats {
+func (r *InMemoryConversationRepository) GetSessionCostStats() convdomain.SessionCostStats {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	stats := r.costStats
-	stats.PerModelStats = make(map[string]*domain.ModelCostStats)
+	stats.PerModelStats = make(map[string]*convdomain.ModelCostStats)
 	for k, v := range r.costStats.PerModelStats {
 		statsCopy := *v
 		stats.PerModelStats[k] = &statsCopy
@@ -487,7 +488,7 @@ func (r *InMemoryConversationRepository) GetSessionCostStats() domain.SessionCos
 }
 
 // SetSessionStats sets the session token and cost statistics (used when loading conversations)
-func (r *InMemoryConversationRepository) SetSessionStats(tokenStats domain.SessionTokenStats, costStats domain.SessionCostStats) {
+func (r *InMemoryConversationRepository) SetSessionStats(tokenStats convdomain.SessionTokenStats, costStats convdomain.SessionCostStats) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

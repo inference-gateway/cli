@@ -2,10 +2,10 @@ package computer
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	displayMocks "github.com/inference-gateway/cli/tests/mocks/display"
 )

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -16,7 +14,10 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -31,14 +32,14 @@ type AgentServiceImpl struct {
 	client           sdk.Client
 	toolService      agentdomain.ToolService
 	config           *config.Config
-	conversationRepo domain.ConversationRepository
+	conversationRepo convdomain.ConversationRepository
 	a2aAgentService  agentapp.A2AAgentService
 	skillsService    domain.SkillsService
-	messageQueue     domain.MessageQueue
+	messageQueue     convdomain.MessageQueue
 	stateManager     stateManager
 	timeoutSeconds   int
 	maxTokens        int
-	optimizer        domain.ConversationOptimizer
+	optimizer        convdomain.ConversationOptimizer
 	tokenizer        *services.TokenizerService
 	approvalPolicy   agentdomain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
@@ -312,7 +313,7 @@ func (p *eventPublisher) publishPlanApprovalRequest(planContent, planID string) 
 }
 
 // publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
-func (p *eventPublisher) publishToolExecutionCompleted(results []domain.ConversationEntry) {
+func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.ConversationEntry) {
 	successCount := 0
 	failureCount := 0
 	toolResults := make([]*agentdomain.ToolExecutionResult, 0, len(results))
@@ -364,13 +365,13 @@ func NewAgent(
 	client sdk.Client,
 	toolService agentdomain.ToolService,
 	cfg *config.Config,
-	conversationRepo domain.ConversationRepository,
+	conversationRepo convdomain.ConversationRepository,
 	a2aAgentService agentapp.A2AAgentService,
 	skillsService domain.SkillsService,
-	messageQueue domain.MessageQueue,
+	messageQueue convdomain.MessageQueue,
 	stateManager stateManager,
 	timeoutSeconds int,
-	optimizer domain.ConversationOptimizer,
+	optimizer convdomain.ConversationOptimizer,
 	bgRegistry domain.BackgroundTaskRegistry,
 	rolloverManager *services.SessionRolloverManager,
 ) *AgentServiceImpl {
@@ -759,7 +760,7 @@ func (s *AgentServiceImpl) ensureConversationIntegrity(
 	}
 
 	for _, syn := range synthetics {
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: syn.Message,
 			Time:    time.Now(),
 		}
@@ -791,7 +792,7 @@ func (s *AgentServiceImpl) batchDrainQueue(
 		return 0
 	}
 
-	messages := []domain.QueuedMessage{}
+	messages := []convdomain.QueuedMessage{}
 
 	for !s.messageQueue.IsEmpty() {
 		msg := s.messageQueue.Dequeue()
@@ -814,7 +815,7 @@ func (s *AgentServiceImpl) batchDrainQueue(
 	for _, queuedMsg := range messages {
 		*conversation = append(*conversation, queuedMsg.Message)
 
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: queuedMsg.Message,
 			Time:    time.Now(),
 		}
@@ -1060,7 +1061,7 @@ func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *agentdom
 
 type IndexedToolResult struct {
 	Index  int
-	Result domain.ConversationEntry
+	Result convdomain.ConversationEntry
 }
 
 func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
@@ -1068,10 +1069,10 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 	isChatMode bool,
-) []domain.ConversationEntry {
+) []convdomain.ConversationEntry {
 
 	if len(toolCalls) == 0 {
-		return []domain.ConversationEntry{}
+		return []convdomain.ConversationEntry{}
 	}
 
 	eventPublisher.publishToolsQueued(func() []sdk.ChatCompletionMessageToolCall {
@@ -1084,7 +1085,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
-	results := make([]domain.ConversationEntry, len(toolCalls))
+	results := make([]convdomain.ConversationEntry, len(toolCalls))
 
 	var approvalTools []struct {
 		index int
@@ -1194,7 +1195,7 @@ func (s *AgentServiceImpl) executeTool(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 	isChatMode bool,
-) domain.ConversationEntry {
+) convdomain.ConversationEntry {
 	startTime := time.Now()
 
 	requiresApproval := s.approvalPolicy.ShouldRequireApproval(ctx, &tc, isChatMode)
@@ -1228,7 +1229,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 	eventPublisher *eventPublisher,
 	wasApproved bool,
 	startTime time.Time,
-) (finalEntry domain.ConversationEntry) {
+) (finalEntry convdomain.ConversationEntry) {
 	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
 
 	defer func() {
@@ -1384,7 +1385,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(formattedContent),
@@ -1403,7 +1404,7 @@ func (s *AgentServiceImpl) executeToolInternal(
 
 // handleToolResults processes tool execution results and returns true if agent should stop
 func (s *AgentServiceImpl) handleToolResults(
-	toolResults []domain.ConversationEntry,
+	toolResults []convdomain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	req *agentdomain.AgentRequest,
@@ -1427,7 +1428,7 @@ func (s *AgentServiceImpl) handleToolResults(
 }
 
 // checkToolResultsStatus checks for rejections and plan approval in tool results
-func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.ConversationEntry) (hasRejection bool, planContent, planID string) {
+func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []convdomain.ConversationEntry) (hasRejection bool, planContent, planID string) {
 	for _, entry := range toolResults {
 		if entry.ToolExecution != nil {
 			if entry.ToolExecution.Rejected {
@@ -1444,7 +1445,7 @@ func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.Conversat
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
-func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
+func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1471,11 +1472,11 @@ func (s *AgentServiceImpl) createPlanMessage(
 	}
 	*conversation = append(*conversation, planMessage)
 
-	planEntry := domain.ConversationEntry{
+	planEntry := convdomain.ConversationEntry{
 		Message:            planMessage,
 		Time:               time.Now(),
 		IsPlan:             true,
-		PlanApprovalStatus: domain.PlanApprovalPending,
+		PlanApprovalStatus: convdomain.PlanApprovalPending,
 	}
 	if err := s.conversationRepo.AddMessage(planEntry); err != nil {
 		logger.Error("failed to store plan message", "error", err)
@@ -1530,7 +1531,7 @@ func extractPlanID(result *agentdomain.ToolExecutionResult) string {
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message
 // This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
-func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.ConversationEntry, conversation *[]sdk.Message, model string) {
+func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
 	imageMessage := s.createImageMessageFromToolResults(toolResults, model)
 	if imageMessage == nil {
 		return
@@ -1538,7 +1539,7 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.C
 
 	*conversation = append(*conversation, *imageMessage)
 
-	imageEntry := domain.ConversationEntry{
+	imageEntry := convdomain.ConversationEntry{
 		Message: *imageMessage,
 		Time:    time.Now(),
 		Hidden:  true,
@@ -1551,7 +1552,7 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.C
 // createImageMessageFromToolResults creates a hidden user message containing images from tool results.
 // Non-vision models get text path notes (pointing at ImageDecode) instead of raw
 // image parts, which they reject. Returns nil if no images are present.
-func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry, model string) *sdk.Message {
+func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, model string) *sdk.Message {
 	var allImages []agentdomain.ImageAttachment
 
 	for _, result := range toolResults {
@@ -1643,7 +1644,7 @@ func (s *AgentServiceImpl) requestToolApproval(
 // arguments) and, from the third failure on, stores the key so
 // injectDueReminders can deliver the on_repeated_failure reminder via the
 // reminders pipeline. A success with the same arguments resets the counter.
-func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry domain.ConversationEntry) {
+func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry convdomain.ConversationEntry) {
 	key := tc.Function.Name + "\x00" + tc.Function.Arguments
 	s.failedCallsMux.Lock()
 	defer s.failedCallsMux.Unlock()
@@ -1687,8 +1688,8 @@ func (s *AgentServiceImpl) takeRepeatedFailure() (string, int) {
 	return key, n
 }
 
-func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
-	return domain.ConversationEntry{
+func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error())),
@@ -1705,7 +1706,7 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 	}
 }
 
-func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time) domain.ConversationEntry {
+func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time) convdomain.ConversationEntry {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		args = make(map[string]any)
@@ -1716,7 +1717,7 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 		tc.Function.Name,
 	)
 
-	return domain.ConversationEntry{
+	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(rejectionMessage),
@@ -1734,7 +1735,7 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 	}
 }
 
-func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEntry) error {
+func (s *AgentServiceImpl) batchSaveToolResults(entries []convdomain.ConversationEntry) error {
 	savedCount := 0
 	for _, entry := range entries {
 		if err := s.conversationRepo.AddMessage(entry); err != nil {

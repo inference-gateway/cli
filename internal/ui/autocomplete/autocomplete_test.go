@@ -1,24 +1,22 @@
 package autocomplete_test
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	tea "charm.land/bubbletea/v2"
-
-	sdk "github.com/inference-gateway/sdk"
-
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestAutocomplete_CommandMode(t *testing.T) {
@@ -310,7 +308,7 @@ func TestAutocomplete_ModelsMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockModelService := &domainmocks.FakeModelService{}
+	mockModelService := &convmocks.FakeModelService{}
 	mockModelService.ListModelsReturns([]string{
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",

@@ -1,9 +1,10 @@
 package computer
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestPressUIElementValidate(t *testing.T) {

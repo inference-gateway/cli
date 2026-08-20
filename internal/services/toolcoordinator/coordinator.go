@@ -6,12 +6,13 @@ package toolcoordinator
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -39,7 +40,7 @@ type stateManager interface {
 
 // Coordinator handles the tool round-trip UI flow.
 type Coordinator struct {
-	conversationRepo domain.ConversationRepository
+	conversationRepo convdomain.ConversationRepository
 	stateManager     stateManager
 	directExec       ui.DirectExecutionService
 	listener         ui.ChatEventListener
@@ -50,7 +51,7 @@ type Coordinator struct {
 
 // Options bundles the dependencies needed to construct a Coordinator.
 type Options struct {
-	ConversationRepo domain.ConversationRepository
+	ConversationRepo convdomain.ConversationRepository
 	StateManager     stateManager
 	DirectExec       ui.DirectExecutionService
 	Listener         ui.ChatEventListener

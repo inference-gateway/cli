@@ -3,16 +3,16 @@ package autocomplete
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 	"time"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -64,8 +64,8 @@ type AutocompleteImpl struct {
 	stateManager         domain.AgentModeManager
 	lastAgentMode        agentdomain.AgentMode
 	toolService          agentdomain.ToolService
-	modelService         domain.ModelService
-	pricingService       domain.PricingService
+	modelService         convdomain.ModelService
+	pricingService       convdomain.PricingService
 	githubIssueService   domain.GitHubIssueService
 	completionMode       string
 	usageHint            string
@@ -107,12 +107,12 @@ func (a *AutocompleteImpl) SetStateManager(stateManager domain.AgentModeManager)
 }
 
 // SetModelService sets the model service for model autocomplete
-func (a *AutocompleteImpl) SetModelService(modelService domain.ModelService) {
+func (a *AutocompleteImpl) SetModelService(modelService convdomain.ModelService) {
 	a.modelService = modelService
 }
 
 // SetPricingService sets the pricing service for model pricing display
-func (a *AutocompleteImpl) SetPricingService(pricingService domain.PricingService) {
+func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingService) {
 	a.pricingService = pricingService
 }
 
@@ -163,7 +163,7 @@ func (a *AutocompleteImpl) loadModels() {
 	for _, model := range models {
 		description := ""
 		if a.pricingService != nil {
-			description = domain.FormatModelPricingLabel(a.pricingService, model)
+			description = convdomain.FormatModelPricingLabel(a.pricingService, model)
 		}
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    model,

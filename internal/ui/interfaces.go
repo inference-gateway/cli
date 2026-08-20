@@ -3,8 +3,9 @@ package ui
 import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
@@ -57,7 +58,7 @@ type Theme interface {
 
 // ConversationRenderer interface for conversation display
 type ConversationRenderer interface {
-	SetConversation([]domain.ConversationEntry)
+	SetConversation([]convdomain.ConversationEntry)
 	GetScrollOffset() int
 	CanScrollUp() bool
 	CanScrollDown() bool

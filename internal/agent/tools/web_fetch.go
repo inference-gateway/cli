@@ -19,6 +19,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -135,7 +136,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 
 	if isBinary {
 		ct := cmp.Or(fetchResult.ContentType, "unknown type")
-		_, _, inChannel := domain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
+		_, _, inChannel := convdomain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
 		if inChannel && fetchResult.SavedPath != "" && strings.HasPrefix(strings.ToLower(ct), "image/") {
 			fetchResult.Content = fmt.Sprintf(
 				"[image (%s, %s) saved to %s — the raw bytes are NOT shown to you. "+

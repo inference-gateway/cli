@@ -2,6 +2,7 @@ package eventlistener
 
 import (
 	tea "charm.land/bubbletea/v2"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 

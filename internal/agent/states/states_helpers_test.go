@@ -3,17 +3,16 @@ package states
 import (
 	"context"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 var errBoom = errors.New("boom")
@@ -32,20 +31,20 @@ type completeCall struct {
 type stateFixture struct {
 	ctx    *StateContext
 	sm     *FakeAgentStateMachine
-	queue  *domainmocks.FakeMessageQueue
+	queue  *convmocks.FakeMessageQueue
 	events chan AgentEvent
 
 	drainReturns  int
 	drainCalls    int
 	completeCalls []completeCall
 	cancelCalls   int
-	added         []domain.ConversationEntry
+	added         []convdomain.ConversationEntry
 }
 
 func newStateFixture() *stateFixture {
 	f := &stateFixture{
 		sm:     &FakeAgentStateMachine{},
-		queue:  &domainmocks.FakeMessageQueue{},
+		queue:  &convmocks.FakeMessageQueue{},
 		events: make(chan AgentEvent, 16),
 	}
 	f.queue.IsEmptyReturns(true)
@@ -55,7 +54,7 @@ func newStateFixture() *stateFixture {
 	toolCalls := []*sdk.ChatCompletionMessageToolCall{}
 	reasoning := ""
 	idx := 0
-	results := []domain.ConversationEntry{}
+	results := []convdomain.ConversationEntry{}
 
 	f.ctx = &StateContext{
 		StateMachine: f.sm,
@@ -75,7 +74,7 @@ func newStateFixture() *stateFixture {
 		Request:               &agentdomain.AgentRequest{RequestID: "req-1"},
 		GetMetrics:            func(string) *agentdomain.ChatMetrics { return nil },
 		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return false },
-		AddMessage: func(e domain.ConversationEntry) error {
+		AddMessage: func(e convdomain.ConversationEntry) error {
 			f.added = append(f.added, e)
 			return nil
 		},
@@ -83,7 +82,7 @@ func newStateFixture() *stateFixture {
 			f.drainCalls++
 			return f.drainReturns
 		},
-		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 			return toolEntry(tc)
 		},
 		PublishChatEvent: func(agentdomain.ChatEvent) {},

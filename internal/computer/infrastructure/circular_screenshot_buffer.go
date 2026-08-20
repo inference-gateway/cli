@@ -3,13 +3,14 @@ package infrastructure
 import (
 	"encoding/base64"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

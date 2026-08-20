@@ -3,11 +3,12 @@ package shortcuts
 import (
 	"context"
 	"errors"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 func TestEffortShortcut_ShowCurrent(t *testing.T) {

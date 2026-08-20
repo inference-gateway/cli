@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -27,7 +28,7 @@ type ChatInterfaceData struct {
 	Height         int
 	ToolExecution  *domain.ToolExecutionSession
 	CurrentView    domain.ViewState
-	QueuedMessages []domain.QueuedMessage
+	QueuedMessages []convdomain.QueuedMessage
 }
 
 // RenderChatInterface renders the main chat interface

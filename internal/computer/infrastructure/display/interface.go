@@ -3,9 +3,9 @@ package display
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 )
 

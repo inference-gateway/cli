@@ -3,13 +3,13 @@ package states
 import (
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -21,11 +21,11 @@ import (
 // contiguous prefix completes, so the UI surfaces each tool result as the user
 // approves the next one (the conversation validator requires tool-call order).
 type toolRound struct {
-	results []domain.ConversationEntry // indexed by tool position
-	ready   []bool                     // ready[i] set once results[i] is filled
-	flushed int                        // next slot index to flush, in order
-	wg      sync.WaitGroup             // tracks spawned executions
-	sem     chan struct{}              // bounds concurrent executions
+	results []convdomain.ConversationEntry // indexed by tool position
+	ready   []bool                         // ready[i] set once results[i] is filled
+	flushed int                            // next slot index to flush, in order
+	wg      sync.WaitGroup                 // tracks spawned executions
+	sem     chan struct{}                  // bounds concurrent executions
 }
 
 // ApprovingToolsState handles events in the ApprovingTools state.
@@ -59,10 +59,10 @@ func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 			*s.ctx.ToolsNeedingApproval = append(*s.ctx.ToolsNeedingApproval, *tc)
 		}
 		*s.ctx.CurrentToolIndex = 0
-		*s.ctx.ToolResults = []domain.ConversationEntry{}
+		*s.ctx.ToolResults = []convdomain.ConversationEntry{}
 
 		round := &toolRound{
-			results: make([]domain.ConversationEntry, len(*s.ctx.ToolsNeedingApproval)),
+			results: make([]convdomain.ConversationEntry, len(*s.ctx.ToolsNeedingApproval)),
 			ready:   make([]bool, len(*s.ctx.ToolsNeedingApproval)),
 			sem:     make(chan struct{}, s.maxConcurrent()),
 		}
@@ -203,7 +203,7 @@ func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sd
 // results complete - rather than batching at the end - lets the UI surface each
 // tool result as the user approves the next one, while still preserving
 // tool-call order for the conversation.
-func (s *ApprovingToolsState) completeSlot(round *toolRound, idx int, entry domain.ConversationEntry) {
+func (s *ApprovingToolsState) completeSlot(round *toolRound, idx int, entry convdomain.ConversationEntry) {
 	s.ctx.Mutex.Lock()
 	defer s.ctx.Mutex.Unlock()
 
@@ -263,7 +263,7 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 // buildRejectionEntry constructs the Tool-role result for a user-rejected tool
 // and publishes the rejection event. The entry is appended to the conversation
 // in order by the flush.
-func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
 	s.ctx.PublishChatEvent(agentdomain.ToolExecutionProgressEvent{
@@ -288,7 +288,7 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 		args = make(map[string]any)
 	}
 
-	return domain.ConversationEntry{
+	return convdomain.ConversationEntry{
 		Message: rejectionMessage,
 		Time:    time.Now(),
 		ToolExecution: &agentdomain.ToolExecutionResult{

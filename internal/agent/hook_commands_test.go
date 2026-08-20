@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"os"
 	"strings"
 	"testing"
@@ -15,7 +13,9 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 // allowCfg builds a config whose every-mode bash allow-list is exactly cmds, so

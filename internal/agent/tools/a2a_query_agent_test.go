@@ -2,14 +2,15 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
-	config "github.com/inference-gateway/cli/config"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestA2AQueryAgentTool_Definition(t *testing.T) {

@@ -2,20 +2,19 @@ package components
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	lipgloss "charm.land/lipgloss/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // stubToolFormatter is a minimal ToolFormatter for tests that need the
@@ -83,7 +82,7 @@ func TestNewConversationView(t *testing.T) {
 func TestConversationView_SetConversation(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -145,7 +144,7 @@ func TestConversationView_CanScrollDown(t *testing.T) {
 func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -172,7 +171,7 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.Tool,
@@ -234,7 +233,7 @@ func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
 			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"},
@@ -270,7 +269,7 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
 			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "MultiEdit"},
@@ -299,7 +298,7 @@ func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
 			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
@@ -367,7 +366,7 @@ func TestConversationView_Render(t *testing.T) {
 		t.Error("Expected non-empty render output")
 	}
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -861,7 +860,7 @@ func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
 		State:     "working",
 	}
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Tool,
 			Content: sdk.NewMessageContent("Task delegated"),
@@ -877,7 +876,7 @@ func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
 			},
 		},
 	}
-	cv.SetConversation([]domain.ConversationEntry{entry})
+	cv.SetConversation([]convdomain.ConversationEntry{entry})
 
 	if strings.Contains(cv.renderedContent, "Agent(weather-agent=working") {
 		t.Errorf("did not expect background-task line inside the scrollable viewport, got:\n%s", cv.renderedContent)
@@ -1262,8 +1261,8 @@ func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 	}
 }
 
-func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
-	return domain.ConversationEntry{
+func approvalEntry(status convdomain.ToolApprovalStatus) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			Function: sdk.ChatCompletionMessageToolCallFunction{
 				Name:      "Bash",
@@ -1277,25 +1276,25 @@ func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
 func TestRenderPendingToolEntry(t *testing.T) {
 	cases := []struct {
 		name         string
-		status       domain.ToolApprovalStatus
+		status       convdomain.ToolApprovalStatus
 		wantContains []string
 		wantAbsent   []string
 		wantEmpty    bool
 	}{
 		{
 			name:         "approved themed header",
-			status:       domain.ToolApprovalApproved,
+			status:       convdomain.ToolApprovalApproved,
 			wantContains: []string{"Approved", "Bash"},
 			wantAbsent:   []string{"Tool:", "Arguments:"},
 		},
 		{
 			name:         "rejected themed header",
-			status:       domain.ToolApprovalRejected,
+			status:       convdomain.ToolApprovalRejected,
 			wantContains: []string{"Rejected"},
 		},
 		{
 			name:      "pending renders nothing",
-			status:    domain.ToolApprovalPending,
+			status:    convdomain.ToolApprovalPending,
 			wantEmpty: true,
 		},
 	}
@@ -1325,8 +1324,8 @@ func TestRenderPendingToolEntry(t *testing.T) {
 	}
 }
 
-func renderCacheConversation() []domain.ConversationEntry {
-	return []domain.ConversationEntry{
+func renderCacheConversation() []convdomain.ConversationEntry {
+	return []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello **world**")},
 			Time:    time.Unix(1, 0),
@@ -1414,7 +1413,7 @@ func TestConversationView_RenderCache(t *testing.T) {
 		cv := NewConversationView(createMockStyleProvider())
 		conv := renderCacheConversation()
 		conv[1].IsPlan = true
-		conv[1].PlanApprovalStatus = domain.PlanApprovalPending
+		conv[1].PlanApprovalStatus = convdomain.PlanApprovalPending
 		cv.SetConversation(conv)
 
 		if _, ok := cv.renderCache[1]; ok {
@@ -1446,9 +1445,9 @@ func scrollTestView(t *testing.T) *ConversationView {
 	cv.SetToolFormatter(heightFormatter{collapsed: 2, expanded: 6})
 	cv.SetWidth(80)
 	cv.SetHeight(8)
-	conv := make([]domain.ConversationEntry, 0, 6)
+	conv := make([]convdomain.ConversationEntry, 0, 6)
 	for i := 0; i < 6; i++ {
-		conv = append(conv, domain.ConversationEntry{
+		conv = append(conv, convdomain.ConversationEntry{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
 			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
 			Time:          time.Now(),

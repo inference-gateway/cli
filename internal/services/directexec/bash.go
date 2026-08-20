@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"strings"
 	"sync"
@@ -13,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -138,7 +139,7 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 	toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
 
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(commandText),
@@ -267,7 +268,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 				Function: toolCallFunc,
 			},
 		}
-		assistantEntry := domain.ConversationEntry{
+		assistantEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:      sdk.Assistant,
 				Content:   sdk.NewMessageContent(""),
@@ -283,7 +284,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		} else {
 			formattedContent = "Tool execution failed: no result returned"
 		}
-		toolEntry := domain.ConversationEntry{
+		toolEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent(formattedContent),
@@ -311,7 +312,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 // background-shell service and returns a status update describing the shell
 // id.
 func (s *Service) executeBashCommandInBackground(commandText, command string) tea.Cmd {
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(commandText),
@@ -388,7 +389,7 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 
 		<-done
 
-		assistantEntry := domain.ConversationEntry{
+		assistantEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: sdk.NewMessageContent(fmt.Sprintf("Command sent to the background with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),

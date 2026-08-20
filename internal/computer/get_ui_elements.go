@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"math"
 
-	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 // axTargets is the set of accessibility-tree roots the AX tools accept.

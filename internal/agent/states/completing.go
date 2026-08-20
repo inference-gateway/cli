@@ -1,11 +1,11 @@
 package states
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

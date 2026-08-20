@@ -6,19 +6,20 @@ import (
 	"os/exec"
 	"strings"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // DockerRuntime implements ContainerRuntime interface for Docker
 type DockerRuntime struct {
-	sessionID      domain.SessionID
+	sessionID      convdomain.SessionID
 	networkName    string
 	networkCreated bool
 }
 
 // NewDockerRuntime creates a new Docker runtime manager
-func NewDockerRuntime(sessionID domain.SessionID) domain.ContainerRuntime {
+func NewDockerRuntime(sessionID convdomain.SessionID) domain.ContainerRuntime {
 	return &DockerRuntime{
 		sessionID:   sessionID,
 		networkName: InferNetworkPrefix,

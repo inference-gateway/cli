@@ -12,22 +12,23 @@ package jobs
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // Supervisor owns and monitors all background jobs for a session.
 type Supervisor struct {
-	messageQueue     domain.MessageQueue
-	conversationRepo domain.ConversationRepository
+	messageQueue     convdomain.MessageQueue
+	conversationRepo convdomain.ConversationRepository
 	notifier         domain.UINotifier
 	taskRetention    domain.TaskRetentionService
 
@@ -60,7 +61,7 @@ type supervised struct {
 // notifier is the single UI ingress used to push DrainQueueEvent (so landed work
 // drains promptly) and BackgroundTasksChangedEvent (so the task view refreshes);
 // a nil notifier degrades to no UI pushes.
-func NewSupervisor(messageQueue domain.MessageQueue, conversationRepo domain.ConversationRepository, notifier domain.UINotifier) *Supervisor {
+func NewSupervisor(messageQueue convdomain.MessageQueue, conversationRepo convdomain.ConversationRepository, notifier domain.UINotifier) *Supervisor {
 	if notifier == nil {
 		notifier = domain.NoopUINotifier{}
 	}
@@ -83,7 +84,7 @@ func (s *Supervisor) notify(event any) {
 // SetConversationRepo wires the conversation repository used to format finished
 // jobs' results. It is set after construction because the repo is built later in
 // the container than the supervisor.
-func (s *Supervisor) SetConversationRepo(repo domain.ConversationRepository) {
+func (s *Supervisor) SetConversationRepo(repo convdomain.ConversationRepository) {
 	s.mu.Lock()
 	s.conversationRepo = repo
 	s.mu.Unlock()

@@ -3,12 +3,13 @@ package telemetry
 import (
 	"context"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestLoadTraceTree_EndToEnd records a real session -> LLM turn -> failing

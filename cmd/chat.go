@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"os"
 	"os/signal"
@@ -15,16 +14,17 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	render "github.com/inference-gateway/cli/internal/render"
@@ -279,7 +279,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo domain.ConversationRepository, rolloverManager *services.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *services.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -308,7 +308,7 @@ func StartWebChatSession(cfg *config.Config) error {
 	return server.Start()
 }
 
-func validateAndSetDefaultModel(modelService domain.ModelService, models []string, defaultModel string) string {
+func validateAndSetDefaultModel(modelService convdomain.ModelService, models []string, defaultModel string) string {
 	modelFound := false
 	for _, model := range models {
 		if model == defaultModel {

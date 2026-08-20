@@ -3,8 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,11 +12,13 @@ import (
 	"sync"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
 	gotenv "github.com/subosito/gotenv"
 
-	client "github.com/inference-gateway/adk/client"
-
 	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
@@ -32,7 +32,7 @@ const (
 
 // AgentManager manages the lifecycle of A2A agent containers (local and external)
 type AgentManager struct {
-	sessionID            domain.SessionID
+	sessionID            convdomain.SessionID
 	config               *config.Config
 	agentsConfig         *config.AgentsConfig
 	containerRuntime     domain.ContainerRuntime
@@ -52,7 +52,7 @@ type AgentManager struct {
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime, a2aService agentapp.A2AAgentService) *AgentManager {
+func NewAgentManager(sessionID convdomain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime, a2aService agentapp.A2AAgentService) *AgentManager {
 	return &AgentManager{
 		sessionID:        sessionID,
 		config:           cfg,

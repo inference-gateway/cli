@@ -2,11 +2,12 @@ package telemetry
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func envMap(env []string) map[string]string {

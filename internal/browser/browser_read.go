@@ -3,12 +3,13 @@ package browser
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
 // BrowserReadTool reads page content from the shared browser session

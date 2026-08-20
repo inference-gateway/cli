@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -16,9 +14,12 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
 	sdk "github.com/inference-gateway/sdk"
 	ignore "github.com/sabhiram/go-gitignore"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // GrepTool handles search operations with ripgrep fallback to Go implementation

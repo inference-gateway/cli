@@ -3,9 +3,9 @@ package shortcuts
 
 import (
 	"context"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/shortcuts"
 )
 
@@ -32,17 +32,17 @@ type FakePersistentConversationRepository struct {
 	getCurrentConversationIDReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetCurrentConversationMetadataStub        func() domain.ConversationMetadata
+	GetCurrentConversationMetadataStub        func() convdomain.ConversationMetadata
 	getCurrentConversationMetadataMutex       sync.RWMutex
 	getCurrentConversationMetadataArgsForCall []struct {
 	}
 	getCurrentConversationMetadataReturns struct {
-		result1 domain.ConversationMetadata
+		result1 convdomain.ConversationMetadata
 	}
 	getCurrentConversationMetadataReturnsOnCall map[int]struct {
-		result1 domain.ConversationMetadata
+		result1 convdomain.ConversationMetadata
 	}
-	ListSavedConversationsStub        func(context.Context, int, int) ([]domain.ConversationSummary, error)
+	ListSavedConversationsStub        func(context.Context, int, int) ([]convdomain.ConversationSummary, error)
 	listSavedConversationsMutex       sync.RWMutex
 	listSavedConversationsArgsForCall []struct {
 		arg1 context.Context
@@ -50,11 +50,11 @@ type FakePersistentConversationRepository struct {
 		arg3 int
 	}
 	listSavedConversationsReturns struct {
-		result1 []domain.ConversationSummary
+		result1 []convdomain.ConversationSummary
 		result2 error
 	}
 	listSavedConversationsReturnsOnCall map[int]struct {
-		result1 []domain.ConversationSummary
+		result1 []convdomain.ConversationSummary
 		result2 error
 	}
 	LoadConversationStub        func(context.Context, string) error
@@ -215,7 +215,7 @@ func (fake *FakePersistentConversationRepository) GetCurrentConversationIDReturn
 	}{result1}
 }
 
-func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadata() domain.ConversationMetadata {
+func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadata() convdomain.ConversationMetadata {
 	fake.getCurrentConversationMetadataMutex.Lock()
 	ret, specificReturn := fake.getCurrentConversationMetadataReturnsOnCall[len(fake.getCurrentConversationMetadataArgsForCall)]
 	fake.getCurrentConversationMetadataArgsForCall = append(fake.getCurrentConversationMetadataArgsForCall, struct {
@@ -239,36 +239,36 @@ func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadata
 	return len(fake.getCurrentConversationMetadataArgsForCall)
 }
 
-func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataCalls(stub func() domain.ConversationMetadata) {
+func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataCalls(stub func() convdomain.ConversationMetadata) {
 	fake.getCurrentConversationMetadataMutex.Lock()
 	defer fake.getCurrentConversationMetadataMutex.Unlock()
 	fake.GetCurrentConversationMetadataStub = stub
 }
 
-func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataReturns(result1 domain.ConversationMetadata) {
+func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataReturns(result1 convdomain.ConversationMetadata) {
 	fake.getCurrentConversationMetadataMutex.Lock()
 	defer fake.getCurrentConversationMetadataMutex.Unlock()
 	fake.GetCurrentConversationMetadataStub = nil
 	fake.getCurrentConversationMetadataReturns = struct {
-		result1 domain.ConversationMetadata
+		result1 convdomain.ConversationMetadata
 	}{result1}
 }
 
-func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataReturnsOnCall(i int, result1 domain.ConversationMetadata) {
+func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadataReturnsOnCall(i int, result1 convdomain.ConversationMetadata) {
 	fake.getCurrentConversationMetadataMutex.Lock()
 	defer fake.getCurrentConversationMetadataMutex.Unlock()
 	fake.GetCurrentConversationMetadataStub = nil
 	if fake.getCurrentConversationMetadataReturnsOnCall == nil {
 		fake.getCurrentConversationMetadataReturnsOnCall = make(map[int]struct {
-			result1 domain.ConversationMetadata
+			result1 convdomain.ConversationMetadata
 		})
 	}
 	fake.getCurrentConversationMetadataReturnsOnCall[i] = struct {
-		result1 domain.ConversationMetadata
+		result1 convdomain.ConversationMetadata
 	}{result1}
 }
 
-func (fake *FakePersistentConversationRepository) ListSavedConversations(arg1 context.Context, arg2 int, arg3 int) ([]domain.ConversationSummary, error) {
+func (fake *FakePersistentConversationRepository) ListSavedConversations(arg1 context.Context, arg2 int, arg3 int) ([]convdomain.ConversationSummary, error) {
 	fake.listSavedConversationsMutex.Lock()
 	ret, specificReturn := fake.listSavedConversationsReturnsOnCall[len(fake.listSavedConversationsArgsForCall)]
 	fake.listSavedConversationsArgsForCall = append(fake.listSavedConversationsArgsForCall, struct {
@@ -295,7 +295,7 @@ func (fake *FakePersistentConversationRepository) ListSavedConversationsCallCoun
 	return len(fake.listSavedConversationsArgsForCall)
 }
 
-func (fake *FakePersistentConversationRepository) ListSavedConversationsCalls(stub func(context.Context, int, int) ([]domain.ConversationSummary, error)) {
+func (fake *FakePersistentConversationRepository) ListSavedConversationsCalls(stub func(context.Context, int, int) ([]convdomain.ConversationSummary, error)) {
 	fake.listSavedConversationsMutex.Lock()
 	defer fake.listSavedConversationsMutex.Unlock()
 	fake.ListSavedConversationsStub = stub
@@ -308,28 +308,28 @@ func (fake *FakePersistentConversationRepository) ListSavedConversationsArgsForC
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakePersistentConversationRepository) ListSavedConversationsReturns(result1 []domain.ConversationSummary, result2 error) {
+func (fake *FakePersistentConversationRepository) ListSavedConversationsReturns(result1 []convdomain.ConversationSummary, result2 error) {
 	fake.listSavedConversationsMutex.Lock()
 	defer fake.listSavedConversationsMutex.Unlock()
 	fake.ListSavedConversationsStub = nil
 	fake.listSavedConversationsReturns = struct {
-		result1 []domain.ConversationSummary
+		result1 []convdomain.ConversationSummary
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakePersistentConversationRepository) ListSavedConversationsReturnsOnCall(i int, result1 []domain.ConversationSummary, result2 error) {
+func (fake *FakePersistentConversationRepository) ListSavedConversationsReturnsOnCall(i int, result1 []convdomain.ConversationSummary, result2 error) {
 	fake.listSavedConversationsMutex.Lock()
 	defer fake.listSavedConversationsMutex.Unlock()
 	fake.ListSavedConversationsStub = nil
 	if fake.listSavedConversationsReturnsOnCall == nil {
 		fake.listSavedConversationsReturnsOnCall = make(map[int]struct {
-			result1 []domain.ConversationSummary
+			result1 []convdomain.ConversationSummary
 			result2 error
 		})
 	}
 	fake.listSavedConversationsReturnsOnCall[i] = struct {
-		result1 []domain.ConversationSummary
+		result1 []convdomain.ConversationSummary
 		result2 error
 	}{result1, result2}
 }

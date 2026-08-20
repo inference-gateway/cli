@@ -2,12 +2,13 @@ package agent
 
 import (
 	"context"
-	states "github.com/inference-gateway/cli/internal/agent/states"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
-	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestStateMachineInitialization tests that the state machine initializes to Idle state
@@ -24,8 +25,8 @@ func createTestAgentContext() *states.AgentContext {
 	return &states.AgentContext{
 		RequestID:        "test-request-id",
 		Conversation:     &[]sdk.Message{},
-		MessageQueue:     &mockdomain.FakeMessageQueue{},
-		ConversationRepo: &mockdomain.FakeConversationRepository{},
+		MessageQueue:     &convmocks.FakeMessageQueue{},
+		ConversationRepo: &convmocks.FakeConversationRepository{},
 		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
@@ -70,8 +71,8 @@ func TestInvalidTransitions(t *testing.T) {
 
 	ctx := &states.AgentContext{
 		Conversation:     &[]sdk.Message{},
-		MessageQueue:     &mockdomain.FakeMessageQueue{},
-		ConversationRepo: &mockdomain.FakeConversationRepository{},
+		MessageQueue:     &convmocks.FakeMessageQueue{},
+		ConversationRepo: &convmocks.FakeConversationRepository{},
 		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
@@ -105,7 +106,7 @@ func TestInvalidTransitions(t *testing.T) {
 
 			testCtx := &states.AgentContext{
 				Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-				MessageQueue: &mockdomain.FakeMessageQueue{},
+				MessageQueue: &convmocks.FakeMessageQueue{},
 				Turns:        0,
 				MaxTurns:     10,
 				Ctx:          context.Background(),
@@ -137,13 +138,13 @@ func TestGuardConditions(t *testing.T) {
 
 		ctx := &states.AgentContext{
 			Conversation:   &[]sdk.Message{},
-			MessageQueue:   &mockdomain.FakeMessageQueue{},
+			MessageQueue:   &convmocks.FakeMessageQueue{},
 			Turns:          0,
 			HasToolResults: false,
 			Ctx:            context.Background(),
 			IsChatMode:     true,
 		}
-		fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+		fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 		fakeQueue.IsEmptyReturns(true)
 
 		_ = sm.Transition(ctx, states.StateCheckingQueue)
@@ -165,7 +166,7 @@ func TestGuardConditions(t *testing.T) {
 
 		ctx := &states.AgentContext{
 			Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-			MessageQueue:   &mockdomain.FakeMessageQueue{},
+			MessageQueue:   &convmocks.FakeMessageQueue{},
 			ToolCalls:      nil,
 			Turns:          10,
 			MaxTurns:       10,
@@ -173,7 +174,7 @@ func TestGuardConditions(t *testing.T) {
 			Ctx:            context.Background(),
 			IsChatMode:     true,
 		}
-		fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+		fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 		fakeQueue.IsEmptyReturns(true)
 
 		_ = sm.Transition(ctx, states.StateCheckingQueue)
@@ -205,7 +206,7 @@ func TestStateReset(t *testing.T) {
 
 	ctx := &states.AgentContext{
 		Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-		MessageQueue: &mockdomain.FakeMessageQueue{},
+		MessageQueue: &convmocks.FakeMessageQueue{},
 		Ctx:          context.Background(),
 	}
 
@@ -225,14 +226,14 @@ func TestGetValidTransitions(t *testing.T) {
 
 	ctx := &states.AgentContext{
 		Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-		MessageQueue:   &mockdomain.FakeMessageQueue{},
+		MessageQueue:   &convmocks.FakeMessageQueue{},
 		Turns:          0,
 		MaxTurns:       10,
 		HasToolResults: false,
 		Ctx:            context.Background(),
 	}
 
-	fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+	fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 	fakeQueue.IsEmptyReturns(true)
 
 	validStates := sm.GetValidTransitions(ctx)
@@ -262,7 +263,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 0
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -275,7 +276,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = true
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -288,7 +289,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(false)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -301,7 +302,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.User, Content: sdk.NewMessageContent("test")},
@@ -314,7 +315,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")},
@@ -327,7 +328,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{}
 			},
@@ -342,7 +343,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 
 			ctx := &states.AgentContext{
 				Conversation:   &[]sdk.Message{},
-				MessageQueue:   &mockdomain.FakeMessageQueue{},
+				MessageQueue:   &convmocks.FakeMessageQueue{},
 				Turns:          0,
 				HasToolResults: false,
 				Ctx:            context.Background(),
@@ -557,12 +558,12 @@ func TestMaxTurnsExceededFlag(t *testing.T) {
 			sm := NewAgentStateMachine()
 			ctx := &states.AgentContext{
 				Conversation: &[]sdk.Message{{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")}},
-				MessageQueue: &mockdomain.FakeMessageQueue{},
+				MessageQueue: &convmocks.FakeMessageQueue{},
 				Turns:        10,
 				MaxTurns:     10,
 				Ctx:          context.Background(),
 			}
-			ctx.MessageQueue.(*mockdomain.FakeMessageQueue).IsEmptyReturns(true)
+			ctx.MessageQueue.(*convmocks.FakeMessageQueue).IsEmptyReturns(true)
 
 			_ = sm.Transition(ctx, states.StateCheckingQueue)
 			_ = sm.Transition(ctx, states.StateStreamingLLM)

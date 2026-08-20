@@ -1,9 +1,9 @@
 package agent
 
 import (
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	sdk "github.com/inference-gateway/sdk"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

@@ -10,10 +10,9 @@ import (
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // recNotifier is a thread-safe domain.UINotifier that records pushed events by
@@ -44,8 +43,8 @@ func (r *recNotifier) counts() map[string]int {
 // DrainQueueEvent when the completion note lands on the queue.
 func TestSupervisor_PushesNotifierEvents(t *testing.T) {
 	rec := &recNotifier{}
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, rec)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, rec)
 
 	job := newFakeJob("job-1", domain.JobKindShell)
 	sup.Submit(job)
@@ -67,8 +66,8 @@ func TestSupervisor_PushesNotifierEvents(t *testing.T) {
 // the signal-driven push.
 func TestSupervisor_SignalEnqueuePushesDrain(t *testing.T) {
 	rec := &recNotifier{}
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, rec)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, rec)
 
 	job := newFakeJob("job-sig", domain.JobKindSubagent)
 	job.meta.Silent = true
@@ -91,7 +90,7 @@ func TestSupervisor_CleanupWarnsLongRunningJobOnce(t *testing.T) {
 	logger.SetGlobalLogger(zap.New(core))
 	defer logger.SetGlobalLogger(prev)
 
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	job := newFakeJob("slow", domain.JobKindShell)
 	job.meta.StartedAt = time.Now().Add(-10 * time.Minute) // exceeds the 5m threshold

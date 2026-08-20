@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"strings"
 	"sync"
@@ -13,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -35,8 +36,8 @@ type stateManager interface {
 
 type Runner struct {
 	agentService     agentdomain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
+	conversationRepo convdomain.ConversationRepository
+	modelService     convdomain.ModelService
 	stateManager     stateManager
 	listener         ui.ChatEventListener
 
@@ -47,8 +48,8 @@ type Runner struct {
 // Options bundles the dependencies needed to construct a Runner.
 type Options struct {
 	AgentService     agentdomain.AgentService
-	ConversationRepo domain.ConversationRepository
-	ModelService     domain.ModelService
+	ConversationRepo convdomain.ConversationRepository
+	ModelService     convdomain.ModelService
 	StateManager     stateManager
 	Listener         ui.ChatEventListener
 }
@@ -299,7 +300,7 @@ func (r *Runner) writeSubagentResultFileAtomic(path string, rf domain.SubagentRe
 // lastAssistantText returns the content of the last non-empty assistant message
 // in entries (backward scan), or "" if none. The interactive analogue of the
 // headless lastAssistantBefore (cmd/agent.go).
-func lastAssistantText(entries []domain.ConversationEntry) string {
+func lastAssistantText(entries []convdomain.ConversationEntry) string {
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		if e.Message.Role != sdk.Assistant {
@@ -479,7 +480,7 @@ func (r *Runner) restorePendingModel() {
 }
 
 func (r *Runner) addModelRestorationWarning(originalModel string) {
-	warningEntry := domain.ConversationEntry{
+	warningEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
 			Content: sdk.NewMessageContent(fmt.Sprintf("[Warning: Failed to restore model to %s]", originalModel)),
@@ -515,7 +516,7 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 // produces an assistant turn lacking `reasoning_content`, which is rejected
 // with HTTP 400 ("The reasoning_content in the thinking mode must be passed
 // back to the API.").
-func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
+func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsPlan {
@@ -541,7 +542,7 @@ func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Mes
 // isUserInitiatedBashEntry reports whether the entry was synthesized for a
 // user-typed `!command` shortcut. Tool-call IDs created by that path are
 // prefixed with `user-bash-` (see DirectExecutionService).
-func isUserInitiatedBashEntry(entry domain.ConversationEntry) bool {
+func isUserInitiatedBashEntry(entry convdomain.ConversationEntry) bool {
 	const userBashPrefix = "user-bash-"
 
 	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {

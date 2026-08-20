@@ -1,12 +1,14 @@
 package states
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // AgentEvent represents an event in the event-driven agent system
@@ -37,7 +39,7 @@ func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
 // successful RequestPlanApproval); the ExecutingTools state then routes to the
 // Stopped terminal instead of continuing to PostToolExecution.
 type ToolsCompletedEvent struct {
-	Results []domain.ConversationEntry
+	Results []convdomain.ConversationEntry
 	Stop    bool
 }
 
@@ -94,7 +96,7 @@ type StateContext struct {
 	// Tool processing state
 	ToolsNeedingApproval *[]sdk.ChatCompletionMessageToolCall
 	CurrentToolIndex     *int
-	ToolResults          *[]domain.ConversationEntry
+	ToolResults          *[]convdomain.ConversationEntry
 
 	// Request context
 	Request                *agentdomain.AgentRequest
@@ -114,15 +116,15 @@ type StateContext struct {
 	GetMetrics            func(requestID string) *agentdomain.ChatMetrics
 	ShouldRequireApproval func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool
 	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
-	AddMessage            func(entry domain.ConversationEntry) error
+	AddMessage            func(entry convdomain.ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error)
-	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) domain.ConversationEntry
+	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry
 	GetAgentMode          func() agentdomain.AgentMode
 	PublishChatEvent      func(event agentdomain.ChatEvent)
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics)
 	PublishChatCancelled  func(metrics *agentdomain.ChatMetrics)
-	PublishToolResults    func(results []domain.ConversationEntry)
+	PublishToolResults    func(results []convdomain.ConversationEntry)
 
 	// DispatchHooks runs the actions attached to a hook point. State executors call it
 	// at their loop point; the streaming path calls the service directly.

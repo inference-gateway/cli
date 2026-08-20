@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
@@ -21,12 +21,12 @@ func TestRenderConversationsJSON(t *testing.T) {
 			CreatedAt:    time.Now().Add(-2 * time.Hour),
 			UpdatedAt:    time.Now().Add(-1 * time.Hour),
 			MessageCount: 5,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  1000,
 				TotalOutputTokens: 2000,
 				RequestCount:      3,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.142,
 			},
 		},
@@ -36,12 +36,12 @@ func TestRenderConversationsJSON(t *testing.T) {
 			CreatedAt:    time.Now().Add(-24 * time.Hour),
 			UpdatedAt:    time.Now().Add(-12 * time.Hour),
 			MessageCount: 10,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  5000,
 				TotalOutputTokens: 8000,
 				RequestCount:      7,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.387,
 			},
 		},
@@ -59,12 +59,12 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 			ID:           "test-id-1",
 			Title:        "Test 1",
 			MessageCount: 5,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  100,
 				TotalOutputTokens: 200,
 				RequestCount:      2,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.05,
 			},
 		},
@@ -110,12 +110,12 @@ func TestRenderConversationsTable_WithData(t *testing.T) {
 			ID:           "12345678-1234-1234-1234-123456789abc",
 			Title:        "Test Conversation",
 			MessageCount: 10,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  1500,
 				TotalOutputTokens: 2500,
 				RequestCount:      5,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.234,
 			},
 		},
@@ -134,12 +134,12 @@ func TestRenderConversationsTable_Pagination(t *testing.T) {
 			ID:           "test-id",
 			Title:        "Test",
 			MessageCount: i + 1,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  100,
 				TotalOutputTokens: 200,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.01,
 			},
 		}
@@ -162,12 +162,12 @@ func TestRenderConversationsTable_LongTitle(t *testing.T) {
 			ID:           "test-id",
 			Title:        "This is a very long conversation title that should be truncated to 25 characters",
 			MessageCount: 5,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  100,
 				TotalOutputTokens: 200,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.05,
 			},
 		},
@@ -185,12 +185,12 @@ func TestRenderConversationsTable_ZeroCost(t *testing.T) {
 			ID:           "test-id",
 			Title:        "Zero Cost Test",
 			MessageCount: 3,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  50,
 				TotalOutputTokens: 100,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.0,
 			},
 		},
@@ -208,12 +208,12 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 			ID:           "test-id-1",
 			Title:        "Very small cost",
 			MessageCount: 1,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  10,
 				TotalOutputTokens: 20,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.0023,
 			},
 		},
@@ -221,12 +221,12 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 			ID:           "test-id-2",
 			Title:        "Medium cost",
 			MessageCount: 1,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  100,
 				TotalOutputTokens: 200,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 0.142,
 			},
 		},
@@ -234,12 +234,12 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 			ID:           "test-id-3",
 			Title:        "Large cost",
 			MessageCount: 1,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  1000,
 				TotalOutputTokens: 2000,
 				RequestCount:      1,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 5.47,
 			},
 		},
@@ -257,12 +257,12 @@ func TestRenderConversationsTable_LargeNumbers(t *testing.T) {
 			ID:           "test-id",
 			Title:        "Large token counts",
 			MessageCount: 100,
-			TokenStats: domain.SessionTokenStats{
+			TokenStats: convdomain.SessionTokenStats{
 				TotalInputTokens:  1234567,
 				TotalOutputTokens: 9876543,
 				RequestCount:      500,
 			},
-			CostStats: domain.SessionCostStats{
+			CostStats: convdomain.SessionCostStats{
 				TotalCost: 123.45,
 			},
 		},
@@ -306,10 +306,10 @@ func TestRenderMarkdown_Table(t *testing.T) {
 
 // makeShowEntries returns a fixture with a mix of user/assistant/tool/hidden
 // entries used to exercise the `conversations show` helpers.
-func makeShowEntries() []domain.ConversationEntry {
+func makeShowEntries() []convdomain.ConversationEntry {
 	t0 := time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC)
 	toolID := "call_x"
-	return []domain.ConversationEntry{
+	return []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hello world")},
 			Time:    t0,
@@ -429,11 +429,11 @@ func TestBuildConversationShowJSON_OneObjectPerLine(t *testing.T) {
 }
 
 func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hey")},
 		Time:    time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
 	}
-	out, err := buildConversationShowJSON([]domain.ConversationEntry{entry})
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry})
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -456,7 +456,7 @@ func TestBuildConversationShowJSON_Empty(t *testing.T) {
 }
 
 func TestToConversationShowEntry_Multimodal(t *testing.T) {
-	got := toConversationShowEntry(domain.ConversationEntry{
+	got := toConversationShowEntry(convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User},
 		Images: []agentdomain.ImageAttachment{
 			{MimeType: "image/png", DisplayName: "screenshot.png"},

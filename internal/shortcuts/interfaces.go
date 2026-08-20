@@ -3,7 +3,7 @@ package shortcuts
 import (
 	"context"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // Shortcut interface represents a chat shortcut that can be executed
@@ -52,9 +52,9 @@ const (
 
 // PersistentConversationRepository interface for conversation persistence
 type PersistentConversationRepository interface {
-	ListSavedConversations(ctx context.Context, limit, offset int) ([]domain.ConversationSummary, error)
+	ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
 	LoadConversation(ctx context.Context, conversationID string) error
-	GetCurrentConversationMetadata() domain.ConversationMetadata
+	GetCurrentConversationMetadata() convdomain.ConversationMetadata
 	SaveConversation(ctx context.Context) error
 	StartNewConversation(title string) error
 	GetCurrentConversationID() string

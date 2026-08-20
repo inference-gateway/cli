@@ -3,7 +3,6 @@ package plugins
 import (
 	"context"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func validSkillBody(name, description string) string {

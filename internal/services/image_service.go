@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -22,6 +21,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 )
 

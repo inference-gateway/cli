@@ -2,15 +2,14 @@ package agent
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
-	sdk "github.com/inference-gateway/sdk"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestBuildAssistantMessage(t *testing.T) {
@@ -102,7 +101,7 @@ func TestBuildAssistantMessage(t *testing.T) {
 // repo when the user cancels mid-generation - so a partially-written poem
 // isn't lost the moment Esc is pressed.
 func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.AddMessageReturns(nil)
 
 	conversation := []sdk.Message{
@@ -132,7 +131,7 @@ func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
 // TestPersistPartialAssistantMessage_SkipsEmpty verifies that a cancel before
 // the model emits anything does NOT add an empty assistant message to history.
 func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	conversation := []sdk.Message{}
 
 	agent := &EventDrivenAgent{

@@ -1,8 +1,9 @@
 package utils
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 var _ agentdomain.A2ATaskTracker = (*A2ATaskTrackerImpl)(nil)

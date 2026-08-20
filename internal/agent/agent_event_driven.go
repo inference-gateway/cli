@@ -2,15 +2,16 @@ package agent
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	constants "github.com/inference-gateway/cli/internal/constants"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -45,7 +46,7 @@ type EventDrivenAgent struct {
 	// Tool processing state (for sequential approval and execution)
 	toolsNeedingApproval []sdk.ChatCompletionMessageToolCall
 	currentToolIndex     int
-	toolResults          []domain.ConversationEntry
+	toolResults          []convdomain.ConversationEntry
 
 	// Synchronization
 	mu sync.Mutex
@@ -157,7 +158,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)
 		},
-		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry domain.ConversationEntry) {
+		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry convdomain.ConversationEntry) {
 			defer a.recoverPanic()
 			return a.service.executeToolInternal(a.agentCtx.Ctx, toolCall, a.eventPublisher, isApproved, time.Now())
 		},
@@ -176,7 +177,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		PublishChatCancelled: func(metrics *agentdomain.ChatMetrics) {
 			a.eventPublisher.publishChatCancelled(metrics)
 		},
-		PublishToolResults: func(results []domain.ConversationEntry) {
+		PublishToolResults: func(results []convdomain.ConversationEntry) {
 			a.eventPublisher.publishToolExecutionCompleted(results)
 		},
 		DispatchHooks: func(hook agentdomain.HookPoint) {

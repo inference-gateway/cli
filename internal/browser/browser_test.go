@@ -1,12 +1,12 @@
 package browser
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	infrastructure "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )

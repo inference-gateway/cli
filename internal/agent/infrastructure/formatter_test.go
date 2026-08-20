@@ -1,10 +1,11 @@
 package infrastructure
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestFormatExpandedNativeTree verifies the expanded result renders as a native

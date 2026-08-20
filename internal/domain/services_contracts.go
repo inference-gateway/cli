@@ -4,10 +4,11 @@ package domain
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // FileService handles file operations

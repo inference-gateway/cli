@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	utils "github.com/inference-gateway/cli/internal/utils"

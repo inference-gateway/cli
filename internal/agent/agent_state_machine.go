@@ -2,11 +2,12 @@ package agent
 
 import (
 	"fmt"
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"sync"
 
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // AgentStateMachineImpl implements the AgentStateMachine interface.

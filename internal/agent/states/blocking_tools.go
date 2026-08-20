@@ -3,12 +3,12 @@ package states
 import (
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -46,7 +46,7 @@ func (s *BlockingToolsState) Handle(event AgentEvent) error {
 			"tool_count", len(*s.ctx.CurrentToolCalls))
 
 		*s.ctx.CurrentToolIndex = 0
-		*s.ctx.ToolResults = []domain.ConversationEntry{}
+		*s.ctx.ToolResults = []convdomain.ConversationEntry{}
 
 		s.ctx.WaitGroup.Add(1)
 		go s.processBlockedTools()
@@ -99,7 +99,7 @@ func (s *BlockingToolsState) processBlockedTools() {
 
 // resolveEntry executes a non-gated tool or builds a blocked result for a gated
 // one.
-func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	if !s.ctx.ShouldRequireApproval(tc, s.ctx.Request.IsChatMode) {
 		logger.Debug("blocking state: running non-gated tool", "tool", tc.Function.Name)
 		return s.ctx.ExecuteToolInternal(*tc, false)
@@ -111,7 +111,7 @@ func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall)
 // approval no approver can deliver. It also publishes a terminal tool-execution
 // progress event so the live streaming overlay (which left the call at "ready" ->
 // rendered as "queued") is cleared instead of lingering forever.
-func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	reason := fmt.Sprintf(
 		"Blocked: %s requires approval, but approvals are not available in this session (tools.safety.approval_behaviour). "+
 			"The action was NOT executed. Do not retry the same call - tell the user what you need and why, "+
@@ -138,7 +138,7 @@ func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolC
 		args = make(map[string]any)
 	}
 
-	return domain.ConversationEntry{
+	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(content),

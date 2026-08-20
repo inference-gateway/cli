@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // cleanerChannel combines the generated Channel and HistoryCleaner fakes so the
@@ -84,7 +85,7 @@ func TestHandleCommand_New(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	oldID := uuid.NewString()
 	if err := store.SaveConversation(ctx, oldID, nil, storage.ConversationMetadata{}); err != nil {
 		t.Fatal(err)
@@ -128,7 +129,7 @@ func TestHandleCommand_Stats(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: "conv-42"}); err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +189,7 @@ func TestHandleCommand_ConversationsList(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	currentID, oldID := uuid.NewString(), uuid.NewString()
 	if err := store.SaveConversation(ctx, currentID, nil, storage.ConversationMetadata{Title: "Weather talk", MessageCount: 4}); err != nil {
 		t.Fatal(err)
@@ -224,9 +225,9 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	currentID, oldID := uuid.NewString(), uuid.NewString()
-	tripEntries := []domain.ConversationEntry{
+	tripEntries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Plan me a trip to Rome")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Day 1: Colosseum and Forum.")}},
 	}

@@ -1,13 +1,13 @@
 package config_test
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestSaveLoadHooks_RoundTrip(t *testing.T) {

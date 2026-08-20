@@ -3,7 +3,6 @@ package config
 import (
 	"cmp"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"maps"
 	"os"
 	"slices"
@@ -12,6 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	utils "github.com/inference-gateway/cli/config/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 const (

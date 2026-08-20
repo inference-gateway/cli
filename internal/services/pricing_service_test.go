@@ -3,12 +3,11 @@ package services
 import (
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestPricingService_FormatModelPricing(t *testing.T) {
@@ -315,7 +314,7 @@ func TestFormatModelPricingLabel(t *testing.T) {
 			}
 
 			service := NewPricingService(cfg)
-			result := domain.FormatModelPricingLabel(service, tt.model)
+			result := convdomain.FormatModelPricingLabel(service, tt.model)
 
 			assert.Equal(t, tt.expected, result)
 		})

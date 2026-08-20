@@ -264,12 +264,12 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubSetupService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SkillsService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain AgentService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ModelService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ModelService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ThemeService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain PricingService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ConversationRepository
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PricingService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MessageQueue
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain A2ATaskTracker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskRegistry
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SubagentTracker
@@ -304,7 +304,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter FileWriter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
-      - mkdir -p tests/mocks/display tests/mocks/agentdomain tests/mocks/states tests/mocks/agentapp tests/mocks/browser
+      - mkdir -p tests/mocks/display tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states tests/mocks/agentapp tests/mocks/browser
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display DisplayController
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display Provider
       - mkdir -p tests/mocks/services

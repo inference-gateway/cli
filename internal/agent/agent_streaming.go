@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"runtime/debug"
 	"slices"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
@@ -338,7 +338,7 @@ func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 	assistantMessage := buildAssistantMessage(sdk.NewMessageContent(content), reasoning, nil)
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message:          assistantMessage,
 		ReasoningContent: reasoning,
 		Model:            a.req.Model,
@@ -531,7 +531,7 @@ func (a *EventDrivenAgent) finalizeStream(
 	inputMessages := a.outboundConversation()
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 
-	assistantEntry := domain.ConversationEntry{
+	assistantEntry := convdomain.ConversationEntry{
 		Message:          assistantMessage,
 		ReasoningContent: reasoning,
 		Model:            a.req.Model,

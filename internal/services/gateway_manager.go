@@ -18,6 +18,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
@@ -29,7 +30,7 @@ const (
 
 // GatewayManager manages the lifecycle of the gateway container or binary
 type GatewayManager struct {
-	sessionID        domain.SessionID
+	sessionID        convdomain.SessionID
 	config           *config.Config
 	containerRuntime domain.ContainerRuntime
 	containerID      string
@@ -39,7 +40,7 @@ type GatewayManager struct {
 }
 
 // NewGatewayManager creates a new gateway manager
-func NewGatewayManager(sessionID domain.SessionID, cfg *config.Config, runtime domain.ContainerRuntime) *GatewayManager {
+func NewGatewayManager(sessionID convdomain.SessionID, cfg *config.Config, runtime domain.ContainerRuntime) *GatewayManager {
 	return &GatewayManager{
 		sessionID:        sessionID,
 		config:           cfg,

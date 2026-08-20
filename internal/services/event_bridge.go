@@ -2,8 +2,9 @@ package services
 
 import (
 	"container/ring"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // EventBridge multicasts chat events to multiple subscribers

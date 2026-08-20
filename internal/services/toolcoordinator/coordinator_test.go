@@ -1,15 +1,14 @@
 package toolcoordinator
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
-
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *services.StateManager, *uimocks.FakeDirectExecutionService) {

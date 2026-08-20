@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // exportedSpan is a minimal decode of one stdouttrace span stub.

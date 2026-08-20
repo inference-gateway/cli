@@ -7,7 +7,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func startShell(t *testing.T, id, name string, args ...string) *domain.BackgroundShell {
@@ -62,7 +62,7 @@ func isTerminal(sup *Supervisor, id string) bool {
 // truncates trailing output.
 func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	// `true` exits immediately; the job must still park on ReadersDone.
@@ -92,7 +92,7 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 // wedging Run - which would also hang Supervisor.Stop().
 func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-stuck", "sleep", "60")
@@ -112,8 +112,8 @@ func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 
 func TestShellJob_CompletesAndNotifies(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	queue := &domainmocks.FakeMessageQueue{}
-	sup := NewSupervisor(queue, &domainmocks.FakeConversationRepository{}, nil)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-ok", "true")
@@ -133,7 +133,7 @@ func TestShellJob_CompletesAndNotifies(t *testing.T) {
 
 func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-fail", "false")
@@ -150,7 +150,7 @@ func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 
 func TestShellJob_WindStopCancels(t *testing.T) {
 	tracker := utils.NewShellTracker(10)
-	sup := NewSupervisor(&domainmocks.FakeMessageQueue{}, &domainmocks.FakeConversationRepository{}, nil)
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	shell := startShell(t, "s-sleep", "sleep", "60")

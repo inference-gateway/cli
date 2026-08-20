@@ -2,14 +2,15 @@ package tools
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	mcp "github.com/metoro-io/mcp-golang"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestNewMCPTool(t *testing.T) {

@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -125,7 +126,7 @@ func (s *Service) isToolAvailableInMode(toolName string) bool {
 func (s *Service) executeToolCommand(commandText, toolName, argsJSON string) tea.Cmd {
 	toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
 
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(commandText),
@@ -222,7 +223,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 				Function: toolCallFunc,
 			},
 		}
-		assistantEntry := domain.ConversationEntry{
+		assistantEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:      sdk.Assistant,
 				Content:   sdk.NewMessageContent(""),
@@ -232,7 +233,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 		}
 		_ = s.conversationRepo.AddMessage(assistantEntry)
 
-		toolEntry := domain.ConversationEntry{
+		toolEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent(""),

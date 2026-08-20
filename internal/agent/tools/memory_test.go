@@ -3,19 +3,18 @@ package tools
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	project "github.com/inference-gateway/cli/internal/project"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // testProjectIdentity is the zero identity (global scope): the pre-existing

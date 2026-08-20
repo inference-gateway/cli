@@ -2,11 +2,11 @@ package services
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )

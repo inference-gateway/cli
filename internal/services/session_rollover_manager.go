@@ -11,7 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
@@ -26,7 +26,7 @@ import (
 // about which physical session it points at right now.
 type SessionRolloverManager struct {
 	cfg        *config.Config
-	optimizer  domain.ConversationOptimizer
+	optimizer  convdomain.ConversationOptimizer
 	repo       *PersistentConversationRepository
 	tokenizer  *TokenizerService
 	groupStore storage.SessionGroupStorage
@@ -41,7 +41,7 @@ type SessionRolloverManager struct {
 // back to passing the raw id through.
 func NewSessionRolloverManager(
 	cfg *config.Config,
-	optimizer domain.ConversationOptimizer,
+	optimizer convdomain.ConversationOptimizer,
 	repo *PersistentConversationRepository,
 	tokenizer *TokenizerService,
 	groupStore storage.SessionGroupStorage,
@@ -162,7 +162,7 @@ func (m *SessionRolloverManager) ShouldRollover(model string) bool {
 
 // idleTriggerFires reports whether the most recent message is older than the
 // configured rollover_on_idle_minutes. A value of 0 disables the check.
-func (m *SessionRolloverManager) idleTriggerFires(entries []domain.ConversationEntry) bool {
+func (m *SessionRolloverManager) idleTriggerFires(entries []convdomain.ConversationEntry) bool {
 	mins := m.cfg.Compact.RolloverOnIdleMinutes
 	if mins <= 0 {
 		return false
@@ -191,7 +191,7 @@ func (m *SessionRolloverManager) idleTriggerFires(entries []domain.ConversationE
 // count of what was actually sent, including system prompt and tool
 // definitions, also what `/context` displays) and a fresh entries estimate, so
 // a single-turn tool-output spike triggers rollover before the oversized send.
-func (m *SessionRolloverManager) tokenTriggerFires(entries []domain.ConversationEntry, model string) bool {
+func (m *SessionRolloverManager) tokenTriggerFires(entries []convdomain.ConversationEntry, model string) bool {
 	autoAt := m.cfg.Compact.AutoAt
 	if autoAt < 1 || autoAt > 80 {
 		autoAt = 80
@@ -270,7 +270,7 @@ func (m *SessionRolloverManager) PerformRollover(ctx context.Context, model, gro
 	newID := m.repo.GetCurrentConversationID()
 
 	for _, msg := range optimized {
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: msg,
 			Model:   model,
 			Time:    time.Now(),

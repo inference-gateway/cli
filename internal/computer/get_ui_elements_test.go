@@ -1,11 +1,11 @@
 package computer
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func axTestConfig(t *testing.T) *config.Config {

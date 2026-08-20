@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	"github.com/inference-gateway/cli/internal/infra/storage"
 	"github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ConversationTitleGenerator generates titles for conversations using AI
@@ -126,7 +127,7 @@ func (g *ConversationTitleGenerator) InvalidateTitle(ctx context.Context, conver
 }
 
 // generateTitle uses AI to generate a conversation title
-func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries []domain.ConversationEntry) (string, error) {
+func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries []convdomain.ConversationEntry) (string, error) {
 	if g.client == nil {
 		return "", fmt.Errorf("AI client not available")
 	}
@@ -194,7 +195,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 }
 
 // formatConversationForTitleGeneration formats conversation entries for AI processing
-func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entries []domain.ConversationEntry) string {
+func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entries []convdomain.ConversationEntry) string {
 	var content strings.Builder
 	maxLength := 2000
 
@@ -234,7 +235,7 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 }
 
 // fallbackTitle creates a fallback title from the first 10 words of the conversation
-func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.ConversationEntry) string {
+func (g *ConversationTitleGenerator) fallbackTitle(entries []convdomain.ConversationEntry) string {
 	for _, entry := range entries {
 		if entry.Hidden {
 			continue

@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
@@ -297,7 +298,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 // storage. It only errors when the session names a channel that is not enabled
 // in config - a silent no-delivery there would hide a misconfiguration.
 func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient string, err error) {
-	channel, recipient, ok := domain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
+	channel, recipient, ok := convdomain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
 	if !ok {
 		return "", "", nil
 	}

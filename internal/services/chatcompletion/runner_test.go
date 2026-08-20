@@ -1,27 +1,28 @@
 package chatcompletion
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *mocksdomain.FakeModelService) {
+func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
 	agent := &agentdomainmocks.FakeAgentService{}
-	model := &mocksdomain.FakeModelService{}
+	model := &convmocks.FakeModelService{}
 	listener := &uimocks.FakeChatEventListener{}
 
 	runner := NewRunner(Options{
@@ -44,7 +45,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 	reasoning := "thought process"
 	planTitle := "Add Feature X"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -83,7 +84,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 				Content: sdk.NewMessageContent(planContent),
 			},
 			IsPlan:             true,
-			PlanApprovalStatus: domain.PlanApprovalAccepted,
+			PlanApprovalStatus: convdomain.PlanApprovalAccepted,
 		},
 		{
 			Message: sdk.Message{
@@ -122,7 +123,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 // (empty assistant entry) left behind by a rejected tool must not be
 // serialized between the assistant tool_calls message and its tool response.
 func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.T) {
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("edit the file")}},
 		{
 			Message: sdk.Message{
@@ -146,7 +147,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 				Content: sdk.NewMessageContent(""),
 			},
 			PendingToolCall:    &sdk.ChatCompletionMessageToolCall{ID: "call_1"},
-			ToolApprovalStatus: domain.ToolApprovalRejected,
+			ToolApprovalStatus: convdomain.ToolApprovalRejected,
 		},
 		{
 			Message: sdk.Message{
@@ -171,7 +172,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 }
 
 func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")}},
 	}
@@ -190,7 +191,7 @@ func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
 	reasoning := "I should retry with a different path."
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
@@ -222,7 +223,7 @@ func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T)
 func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 	userBashID := "user-bash-1234567890"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("!task lint")}},
 		{
 			Message: sdk.Message{
@@ -273,7 +274,7 @@ func TestBuildAgentMessagesFromEntries_DoesNotOverwriteExistingReasoning(t *test
 	existing := "from message"
 	other := "from entry"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:             sdk.Assistant,

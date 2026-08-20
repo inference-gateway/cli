@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -14,13 +13,14 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	container "github.com/inference-gateway/cli/internal/container"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
@@ -226,7 +226,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(expanded),
 	}
-	if err := conversationRepo.AddMessage(domain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
+	if err := conversationRepo.AddMessage(convdomain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
 		logger.Warn("failed to persist user task message", "error", err)
 	}
 
@@ -348,7 +348,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 // prepareConversation points the persistent repository at the session,
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
-func prepareConversation(ctx context.Context, repo domain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
+func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
 	persistentRepo, ok := repo.(*services.PersistentConversationRepository)
 	if !ok {
 		return nil
@@ -383,7 +383,7 @@ func sessionOutcome(err error) string {
 // writeResultFile atomically writes the run's outcome and final assistant
 // message to path, for a parent Agent tool to harvest - on failure too, so
 // the parent gets the partial answer and error detail instead of silence.
-func writeResultFile(path string, repo domain.ConversationRepository, sessionID string, runErr error) {
+func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
 	entries := repo.GetMessages()
 	content := ""
 	for i := len(entries) - 1; i >= 0; i-- {

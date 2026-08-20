@@ -11,7 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	models "github.com/inference-gateway/cli/internal/models"
 )
@@ -82,7 +82,7 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 
 func addUserMessage(t *testing.T, repo *PersistentConversationRepository, content string, when time.Time) {
 	t.Helper()
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(content),
@@ -484,7 +484,7 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	}
 	originalID := repo.GetCurrentConversationID()
 
-	hidden := domain.ConversationEntry{
+	hidden := convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden")},
 		Time:    time.Now(),
 		Hidden:  true,

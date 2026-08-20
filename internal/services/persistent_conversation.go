@@ -8,10 +8,12 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
@@ -29,7 +31,7 @@ type PersistentConversationRepository struct {
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
-func NewPersistentConversationRepository(formatterService *ToolFormatterService, pricingService domain.PricingService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
+func NewPersistentConversationRepository(formatterService *ToolFormatterService, pricingService convdomain.PricingService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
 	inMemory := NewInMemoryConversationRepository(formatterService, pricingService)
 
 	return &PersistentConversationRepository{
@@ -42,7 +44,7 @@ func NewPersistentConversationRepository(formatterService *ToolFormatterService,
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
 			MessageCount:     0,
-			TokenStats:       domain.SessionTokenStats{},
+			TokenStats:       convdomain.SessionTokenStats{},
 			Tags:             []string{},
 			TitleGenerated:   false,
 			TitleInvalidated: false,
@@ -89,7 +91,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		CreatedAt:        now,
 		UpdatedAt:        now,
 		MessageCount:     0,
-		TokenStats:       domain.SessionTokenStats{},
+		TokenStats:       convdomain.SessionTokenStats{},
 		Tags:             []string{},
 		TitleGenerated:   false,
 		TitleInvalidated: false,
@@ -148,7 +150,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	tokenStats := r.GetSessionTokens()
 	costStats := r.GetSessionCostStats()
 
-	entries := make([]domain.ConversationEntry, 0, len(allEntries))
+	entries := make([]convdomain.ConversationEntry, 0, len(allEntries))
 	for _, entry := range allEntries {
 		if entry.PendingToolCall == nil {
 			entries = append(entries, entry)
@@ -234,7 +236,7 @@ func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
 }
 
 // Override AddMessage to trigger auto-save
-func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
+func (r *PersistentConversationRepository) AddMessage(msg convdomain.ConversationEntry) error {
 	r.metadataMutex.RLock()
 	wasExistingConversation := r.conversationID != ""
 	needsInit := r.autoSave && r.conversationID == ""
@@ -247,7 +249,7 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 		title := "New Conversation"
 		if msg.Message.Role == sdk.User {
 			contentStr, _ := msg.Message.Content.AsMessageContent0()
-			title = domain.CreateTitleFromMessage(contentStr)
+			title = convdomain.CreateTitleFromMessage(contentStr)
 		}
 
 		r.metadataMutex.Lock()
@@ -258,9 +260,9 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			MessageCount: 0,
-			TokenStats:   domain.SessionTokenStats{},
-			CostStats: domain.SessionCostStats{
-				PerModelStats: make(map[string]*domain.ModelCostStats),
+			TokenStats:   convdomain.SessionTokenStats{},
+			CostStats: convdomain.SessionCostStats{
+				PerModelStats: make(map[string]*convdomain.ModelCostStats),
 				Currency:      "USD",
 			},
 			Tags:             []string{},
@@ -274,7 +276,7 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 		if contentStr, _ := msg.Message.Content.AsMessageContent0(); strings.TrimSpace(contentStr) != "" {
 			r.metadataMutex.Lock()
 			if !r.metadata.TitleGenerated && (r.metadata.Title == "" || r.metadata.Title == "New Conversation") {
-				r.metadata.Title = domain.CreateTitleFromMessage(contentStr)
+				r.metadata.Title = convdomain.CreateTitleFromMessage(contentStr)
 			}
 			r.metadataMutex.Unlock()
 		}
@@ -335,7 +337,7 @@ func (r *PersistentConversationRepository) Clear() error {
 		CreatedAt:        now,
 		UpdatedAt:        now,
 		MessageCount:     0,
-		TokenStats:       domain.SessionTokenStats{},
+		TokenStats:       convdomain.SessionTokenStats{},
 		Tags:             []string{},
 		TitleGenerated:   false,
 		TitleInvalidated: false,
@@ -386,7 +388,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 		for _, entry := range messages {
 			if entry.Message.Role == sdk.User {
 				contentStr, _ := entry.Message.Content.AsMessageContent0()
-				title = domain.CreateTitleFromMessage(contentStr)
+				title = convdomain.CreateTitleFromMessage(contentStr)
 				break
 			}
 		}
@@ -399,9 +401,9 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			MessageCount: 0,
-			TokenStats:   domain.SessionTokenStats{},
-			CostStats: domain.SessionCostStats{
-				PerModelStats: make(map[string]*domain.ModelCostStats),
+			TokenStats:   convdomain.SessionTokenStats{},
+			CostStats: convdomain.SessionCostStats{
+				PerModelStats: make(map[string]*convdomain.ModelCostStats),
 				Currency:      "USD",
 			},
 			Tags:             []string{},

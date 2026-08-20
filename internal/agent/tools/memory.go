@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +14,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	project "github.com/inference-gateway/cli/internal/project"
 )

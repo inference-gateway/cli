@@ -2,22 +2,23 @@ package components
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"regexp"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 type stubTokenEstimator struct {
@@ -74,7 +75,7 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modelService := &domainmocks.FakeModelService{}
+			modelService := &convmocks.FakeModelService{}
 			modelService.GetCurrentModelReturns("test-model")
 
 			themeService := &domainmocks.FakeThemeService{}
@@ -252,7 +253,7 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	agent.GetReasoningEffortReturns("xhigh")
-	anthropicModels := &domainmocks.FakeModelService{}
+	anthropicModels := &convmocks.FakeModelService{}
 	anthropicModels.GetCurrentModelReturns("anthropic/claude-opus-4-8")
 
 	statusBar := &InputStatusBar{effortSource: agent, modelService: anthropicModels}
@@ -260,7 +261,7 @@ func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
 		t.Errorf("Expected 'Effort: xhigh' but got '%s'", got)
 	}
 
-	openaiModels := &domainmocks.FakeModelService{}
+	openaiModels := &convmocks.FakeModelService{}
 	openaiModels.GetCurrentModelReturns("openai/gpt-5")
 	statusBar.modelService = openaiModels
 	if got := statusBar.buildEffortIndicator(); got != "" {
@@ -441,14 +442,14 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		expectedText string
 		expectEmpty  bool
 		nilRepo      bool
 	}{
 		{
 			name: "renders cumulative total input tokens when present",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalInputTokens:  20_000,
 				TotalOutputTokens: 314,
 				TotalTokens:       20_314,
@@ -461,7 +462,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 		},
 		{
 			name: "returns empty when total input tokens is zero",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalTokens: 800,
 			},
 			expectedText: "",
@@ -478,9 +479,9 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -504,18 +505,18 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		expectedText string
 		nilRepo      bool
 	}{
 		{
 			name:         "renders cumulative cached tokens when present",
-			stats:        domain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
+			stats:        convdomain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
 			expectedText: "C.17500",
 		},
 		{
 			name:  "hidden while zero",
-			stats: domain.SessionTokenStats{TotalInputTokens: 20_000},
+			stats: convdomain.SessionTokenStats{TotalInputTokens: 20_000},
 		},
 		{
 			name:    "hidden when repo is nil",
@@ -525,9 +526,9 @@ func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -549,7 +550,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		model        string
 		expectedText string
 		expectEmpty  bool
@@ -557,7 +558,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 	}{
 		{
 			name: "renders percentage at low usage from LastInputTokens",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 20_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -566,7 +567,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "renders HIGH label between 75 and 90 percent",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 800_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -575,7 +576,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "renders FULL label at or above 90 percent",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 950_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -584,7 +585,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "uses last request size, ignores cumulative total",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalInputTokens: 3_163_117,
 				LastInputTokens:  50_000,
 			},
@@ -594,7 +595,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "returns empty when no usage and no estimator",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 0,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -612,9 +613,9 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -658,9 +659,9 @@ func TestInputStatusBar_FallsBackToEstimator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &domainmocks.FakeConversationRepository{}
-			mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
-			mockRepo.GetMessagesReturns([]domain.ConversationEntry{
+			mockRepo := &convmocks.FakeConversationRepository{}
+			mockRepo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 0})
+			mockRepo.GetMessagesReturns([]convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User}},
 			})
 
@@ -794,8 +795,8 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 				cfg.Agent.MaxTokens = 8000
 				cfg.Chat.StatusBar.Indicators.SessionTokens = true
 
-				mockRepo := &domainmocks.FakeConversationRepository{}
-				mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
+				mockRepo := &convmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(convdomain.SessionTokenStats{
 					TotalInputTokens: 1234,
 				})
 
@@ -831,7 +832,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 }
 
 func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	statusBar := &InputStatusBar{
@@ -852,7 +853,7 @@ func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
 // indicators and, optionally, a background-jobs indicator (two running jobs
 // per kind).
 func newSelectableStatusBar(withJobs bool) *InputStatusBar {
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	themeService := &domainmocks.FakeThemeService{}

@@ -4,18 +4,17 @@
 package computer
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"runtime"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	utils "github.com/inference-gateway/cli/internal/utils"
-
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/macos"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // FocusManager handles macOS computer-use focus tracking.

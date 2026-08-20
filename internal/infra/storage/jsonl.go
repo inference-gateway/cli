@@ -13,9 +13,11 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // JsonlStorage implements ConversationStorage using JSONL files
@@ -51,9 +53,9 @@ type MetadataLine struct {
 
 // EntryLine represents an entry line in v2 format
 type EntryLine struct {
-	Type  string                   `json:"type"`
-	Index int                      `json:"index"`
-	Entry domain.ConversationEntry `json:"entry"`
+	Type  string                       `json:"type"`
+	Index int                          `json:"index"`
+	Entry convdomain.ConversationEntry `json:"entry"`
 }
 
 // NewJsonlStorage creates a new JSONL storage instance
@@ -100,7 +102,7 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 // metadata line in the file, so each save publishes the latest token/cost
 // stats - even when no new entries were added (e.g. AddTokenUsage updated
 // stats after the assistant message was already persisted).
-func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	filePath := s.conversationFilePath(conversationID)
 
 	state := s.detectFileState(filePath)
@@ -137,7 +139,7 @@ func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationI
 }
 
 // SaveConversation saves a conversation to a JSONL file
-func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -147,7 +149,7 @@ func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID stri
 // LoadConversation loads a conversation from a JSONL file
 // Supports both v1 format (2-line: metadata + entries array) and
 // v2 format (entry lines + trailing metadata, append-only)
-func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -204,7 +206,7 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 		return nil, ConversationMetadata{}, fmt.Errorf("failed to read entries line: missing entries")
 	}
 	var entriesWrapper struct {
-		Entries []domain.ConversationEntry `json:"entries"`
+		Entries []convdomain.ConversationEntry `json:"entries"`
 	}
 	if err := json.Unmarshal(scanner.Bytes(), &entriesWrapper); err != nil {
 		return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal entries: %w", err)
@@ -500,10 +502,10 @@ func (s *JsonlStorage) countV2Entries(firstLine []byte, scanner *bufio.Scanner) 
 
 // V2EntryLine represents an entry line in v2 format (first entry has version)
 type V2EntryLine struct {
-	Version int                      `json:"v,omitempty"`
-	Type    string                   `json:"type"`
-	Index   int                      `json:"index"`
-	Entry   domain.ConversationEntry `json:"entry"`
+	Version int                          `json:"v,omitempty"`
+	Type    string                       `json:"type"`
+	Index   int                          `json:"index"`
+	Entry   convdomain.ConversationEntry `json:"entry"`
 }
 
 // TrailingMetaLine represents a metadata line without version (used after entries)
@@ -515,7 +517,7 @@ type TrailingMetaLine struct {
 // writeFullFileV2 writes a complete conversation file in v2 format
 // Uses atomic write via temp file + rename
 // Format: entry lines first (first entry has v:2), then trailing metadata
-func (s *JsonlStorage) writeFullFileV2(filePath string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) writeFullFileV2(filePath string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	tempPath := filePath + ".tmp"
 
 	file, err := os.Create(tempPath)
@@ -558,7 +560,7 @@ func (s *JsonlStorage) writeFullFileV2(filePath string, entries []domain.Convers
 }
 
 // writeV2Entries writes entry lines to the writer
-func (s *JsonlStorage) writeV2Entries(writer *bufio.Writer, entries []domain.ConversationEntry) error {
+func (s *JsonlStorage) writeV2Entries(writer *bufio.Writer, entries []convdomain.ConversationEntry) error {
 	for i, entry := range entries {
 		var entryJSON []byte
 		var err error
@@ -623,7 +625,7 @@ func (s *JsonlStorage) writeV2Metadata(writer *bufio.Writer, metadata Conversati
 }
 
 // appendEntries appends new entries and updated metadata to an existing v2 format file
-func (s *JsonlStorage) appendEntries(filePath string, entries []domain.ConversationEntry, startIndex int, metadata ConversationMetadata) error {
+func (s *JsonlStorage) appendEntries(filePath string, entries []convdomain.ConversationEntry, startIndex int, metadata ConversationMetadata) error {
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open file for append: %w", err)
@@ -714,7 +716,7 @@ func isV2FormatLine(firstLine []byte) bool {
 
 // loadEntriesFromFile loads entries from a file, handling both v1 and v2 formats
 // The caller is responsible for closing the file after this function returns
-func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, scanner *bufio.Scanner, file *os.File) ([]domain.ConversationEntry, error) {
+func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, scanner *bufio.Scanner, file *os.File) ([]convdomain.ConversationEntry, error) {
 	if isV2FormatLine(firstLine) {
 		_ = file.Close()
 		reopenedFile, err := os.Open(filePath)
@@ -736,7 +738,7 @@ func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, sc
 	copy(entriesLine, scanner.Bytes())
 
 	var entriesWrapper struct {
-		Entries []domain.ConversationEntry `json:"entries"`
+		Entries []convdomain.ConversationEntry `json:"entries"`
 	}
 	if err := json.Unmarshal(entriesLine, &entriesWrapper); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal entries: %w", err)
@@ -747,12 +749,12 @@ func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, sc
 // loadV2Format loads a conversation in the v2 format
 // Format: entry lines (first has v:2) followed by trailing metadata lines
 // The last metadata line is used (supports append-only updates)
-func (s *JsonlStorage) loadV2Format(file *os.File) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 10*1024*1024)
 
-	var entries []domain.ConversationEntry
+	var entries []convdomain.ConversationEntry
 	var metadata ConversationMetadata
 	hasMetadata := false
 
@@ -769,7 +771,7 @@ func (s *JsonlStorage) loadV2Format(file *os.File) ([]domain.ConversationEntry, 
 		switch typeCheck.Type {
 		case "entry":
 			var entryLine struct {
-				Entry domain.ConversationEntry `json:"entry"`
+				Entry convdomain.ConversationEntry `json:"entry"`
 			}
 			if err := json.Unmarshal(lineBytes, &entryLine); err != nil {
 				return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal entry: %w", err)

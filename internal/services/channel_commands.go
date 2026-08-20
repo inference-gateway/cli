@@ -8,12 +8,13 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChannelBuiltinCommands are the shortcuts the daemon implements natively for
@@ -86,7 +87,7 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 	reply := func(content string) { replyWith(content, nil) }
 
 	logger.Info("handling channel command", "command", name, "channel", msg.ChannelName, "sender_id", msg.SenderID)
-	groupKey := domain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
+	groupKey := convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
 
 	switch name {
 	case "new":
@@ -111,7 +112,7 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 			reply("Usage: /conversations — or tap a conversation in the list.")
 		}
 	case "stats":
-		groupKey := domain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
+		groupKey := convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
 		entry, _, gErr := cm.groupStore.GetSessionGroup(ctx, groupKey)
 		if gErr != nil || entry.CurrentSessionID == "" {
 			reply("No usage recorded for this conversation yet.")
@@ -298,7 +299,7 @@ const recapSnippetLen = 200
 
 // lastExchangeRecap renders the tail of a conversation (last user message and
 // the assistant reply after it) so a switched chat shows its context.
-func lastExchangeRecap(entries []domain.ConversationEntry) string {
+func lastExchangeRecap(entries []convdomain.ConversationEntry) string {
 	var user, assistant string
 	for _, e := range entries {
 		if e.Hidden || e.ToolExecution != nil {

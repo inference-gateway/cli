@@ -2,25 +2,27 @@ package handlers
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // MessageHistoryHandler handles message history navigation and restoration
 type MessageHistoryHandler struct {
-	conversationRepo domain.ConversationRepository
+	conversationRepo convdomain.ConversationRepository
 }
 
 // NewMessageHistoryHandler creates a new message history handler
 func NewMessageHistoryHandler(
-	conversationRepo domain.ConversationRepository,
+	conversationRepo convdomain.ConversationRepository,
 ) *MessageHistoryHandler {
 	return &MessageHistoryHandler{
 		conversationRepo: conversationRepo,
@@ -107,7 +109,7 @@ func (h *MessageHistoryHandler) HandleEditSubmit(event agentdomain.MessageEditSu
 }
 
 // adjustRestoreIndex adjusts the restore index based on message role and tool calls
-func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.ConversationEntry, restoreIndex int) int {
+func (h *MessageHistoryHandler) adjustRestoreIndex(entries []convdomain.ConversationEntry, restoreIndex int) int {
 	if restoreIndex >= len(entries) {
 		return restoreIndex
 	}
@@ -138,7 +140,7 @@ func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.Conversation
 
 // extractMessages filters conversation entries to user and assistant messages
 // and creates snapshots with truncated content for display
-func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEntry) []domain.MessageSnapshot {
+func (h *MessageHistoryHandler) extractMessages(entries []convdomain.ConversationEntry) []domain.MessageSnapshot {
 	messages := make([]domain.MessageSnapshot, 0)
 
 	for i, entry := range entries {

@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // runConversationStorageConformance runs the same behavioural suite against any
@@ -84,7 +86,7 @@ func conformanceBasicOperations(t *testing.T, storage ConversationStorage) {
 
 		require.NoError(t, storage.SaveConversation(ctx, conversationID, entries, metadata))
 
-		newEntry := domain.ConversationEntry{
+		newEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: sdk.NewMessageContent("Updated response"),
@@ -266,9 +268,9 @@ func conformanceSessionGroups(t *testing.T, s SessionGroupStorage) {
 	assert.True(t, all["second"].LastRollover.IsZero())
 }
 
-func createTestEntries() []domain.ConversationEntry {
+func createTestEntries() []convdomain.ConversationEntry {
 	now := time.Now()
-	return []domain.ConversationEntry{
+	return []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -311,7 +313,7 @@ func createTestMetadata(id string) ConversationMetadata {
 		Title:     "Test Conversation",
 		CreatedAt: now,
 		UpdatedAt: now,
-		TokenStats: domain.SessionTokenStats{
+		TokenStats: convdomain.SessionTokenStats{
 			TotalInputTokens:  100,
 			TotalOutputTokens: 150,
 			TotalTokens:       250,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -27,7 +28,7 @@ func TestNewMCPManager(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	if manager == nil {
@@ -50,7 +51,7 @@ func TestMCPManager_Close(t *testing.T) {
 		Servers: []config.MCPServerEntry{},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	err := manager.Close()
@@ -65,7 +66,7 @@ func TestMCPManager_GetClients_NoServers(t *testing.T) {
 		Servers: []config.MCPServerEntry{},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -94,7 +95,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -135,7 +136,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -210,7 +211,7 @@ func connectAll(m *MCPManager) {
 // probe path funnels through.
 func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 
 	manager.sendStatusUpdateWithTools("test-server", true, nil)
 
@@ -231,7 +232,7 @@ func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 // so the count stays at one connected client rather than doubling.
 func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -254,7 +255,7 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 // once through the notifier and starts no probe goroutines.
 func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

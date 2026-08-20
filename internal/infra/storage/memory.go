@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -23,7 +24,7 @@ type MemoryStorage struct {
 }
 
 type conversationData struct {
-	entries  []domain.ConversationEntry
+	entries  []convdomain.ConversationEntry
 	metadata ConversationMetadata
 }
 
@@ -43,14 +44,14 @@ func NewMemorySessionGroupStorage() SessionGroupStorage {
 }
 
 // SaveConversation saves a conversation with a unique ID
-func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
+func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	metadata.UpdatedAt = time.Now()
 	metadata.MessageCount = len(entries)
 
-	entriesCopy := make([]domain.ConversationEntry, len(entries))
+	entriesCopy := make([]convdomain.ConversationEntry, len(entries))
 	copy(entriesCopy, entries)
 
 	m.conversations[conversationID] = conversationData{
@@ -62,7 +63,7 @@ func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID str
 }
 
 // LoadConversation loads a conversation by its ID
-func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -71,7 +72,7 @@ func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID str
 		return nil, ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
 	}
 
-	entriesCopy := make([]domain.ConversationEntry, len(data.entries))
+	entriesCopy := make([]convdomain.ConversationEntry, len(data.entries))
 	copy(entriesCopy, data.entries)
 
 	return entriesCopy, data.metadata, nil

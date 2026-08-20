@@ -2,14 +2,14 @@ package render
 
 import (
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // stream feeds the given events into a closed channel, mimicking the engine
@@ -133,7 +133,7 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 				ResponseChan: respChan,
 			}
 			var out strings.Builder
-			err := RenderJSON(stream(ev), &out, tt.approvals, "s1", "m", nil, &mocks.FakeConversationRepository{})
+			err := RenderJSON(stream(ev), &out, tt.approvals, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 			if err != nil {
 				t.Fatalf("RenderJSON() err = %v", err)
 			}
@@ -186,7 +186,7 @@ func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 		domain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
 		agentdomain.ChatChunkEvent{Content: "all done"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v", err)
 	}
@@ -206,7 +206,7 @@ func TestRenderJSONPretty_Multiline(t *testing.T) {
 	err := RenderJSONPretty(stream(
 		agentdomain.ChatChunkEvent{Content: "hello"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSONPretty() err = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestRenderJSONPretty_Multiline(t *testing.T) {
 
 func TestRenderJSON_MaxTurns(t *testing.T) {
 	var out strings.Builder
-	err := RenderJSON(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	err := RenderJSON(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if !errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 		t.Fatalf("RenderJSON() err = %v, want ErrMaxTurnsReached", err)
 	}
@@ -262,7 +262,7 @@ func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
 		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
 		agentdomain.ChatChunkEvent{Content: "back at it"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v, want nil after resumed run completes", err)
 	}

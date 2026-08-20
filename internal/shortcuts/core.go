@@ -4,23 +4,25 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
-	repo        domain.ConversationRepository
+	repo        convdomain.ConversationRepository
 	taskTracker domain.A2AClearer
 }
 
-func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.A2AClearer) *ClearShortcut {
+func NewClearShortcut(repo convdomain.ConversationRepository, taskTracker domain.A2AClearer) *ClearShortcut {
 	return &ClearShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,
@@ -52,10 +54,10 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 
 // CompactShortcut runs conversation optimization to reduce token usage
 type CompactShortcut struct {
-	repo domain.ConversationRepository
+	repo convdomain.ConversationRepository
 }
 
-func NewCompactShortcut(repo domain.ConversationRepository) *CompactShortcut {
+func NewCompactShortcut(repo convdomain.ConversationRepository) *CompactShortcut {
 	return &CompactShortcut{
 		repo: repo,
 	}
@@ -86,12 +88,12 @@ func (c *CompactShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 
 // ContextShortcut shows context window usage information
 type ContextShortcut struct {
-	repo         domain.ConversationRepository
-	modelService domain.ModelService
-	tokenizer    domain.TokenEstimator
+	repo         convdomain.ConversationRepository
+	modelService convdomain.ModelService
+	tokenizer    convdomain.TokenEstimator
 }
 
-func NewContextShortcut(repo domain.ConversationRepository, modelService domain.ModelService, tokenizer domain.TokenEstimator) *ContextShortcut {
+func NewContextShortcut(repo convdomain.ConversationRepository, modelService convdomain.ModelService, tokenizer convdomain.TokenEstimator) *ContextShortcut {
 	return &ContextShortcut{
 		repo:         repo,
 		modelService: modelService,
@@ -203,10 +205,10 @@ func (c *ContextShortcut) formatContextUsage(contextTokens, contextWindowSize in
 
 // CostShortcut displays cost information for the current session
 type CostShortcut struct {
-	repo domain.ConversationRepository
+	repo convdomain.ConversationRepository
 }
 
-func NewCostShortcut(repo domain.ConversationRepository) *CostShortcut {
+func NewCostShortcut(repo convdomain.ConversationRepository) *CostShortcut {
 	return &CostShortcut{repo: repo}
 }
 
@@ -398,10 +400,10 @@ type ModelSwitchData struct {
 
 // SwitchShortcut switches the active model
 type SwitchShortcut struct {
-	modelService domain.ModelService
+	modelService convdomain.ModelService
 }
 
-func NewSwitchShortcut(modelService domain.ModelService) *SwitchShortcut {
+func NewSwitchShortcut(modelService convdomain.ModelService) *SwitchShortcut {
 	return &SwitchShortcut{modelService: modelService}
 }
 
@@ -556,10 +558,10 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 // remains the startup seed.
 type EffortShortcut struct {
 	agent  agentdomain.AgentService
-	models domain.ModelService
+	models convdomain.ModelService
 }
 
-func NewEffortShortcut(agent agentdomain.AgentService, models domain.ModelService) *EffortShortcut {
+func NewEffortShortcut(agent agentdomain.AgentService, models convdomain.ModelService) *EffortShortcut {
 	return &EffortShortcut{agent: agent, models: models}
 }
 
